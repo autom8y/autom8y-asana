@@ -32,6 +32,13 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+def _default_warm_priority() -> list[str]:
+    """Derive default warm priority from cascade dependency graph."""
+    from autom8_asana.dataframes.cascade_utils import cascade_warm_order
+
+    return cascade_warm_order()
+
+
 class WarmResult(Enum):
     """Result of a warm operation.
 
@@ -129,16 +136,7 @@ class CacheWarmer:
     """
 
     cache: DataFrameCache
-    priority: list[str] = field(
-        default_factory=lambda: [
-            "offer",
-            "unit",
-            "business",
-            "contact",
-            "asset_edit",
-            "asset_edit_holder",
-        ]
-    )
+    priority: list[str] = field(default_factory=_default_warm_priority)
     strict: bool = True
 
     # Statistics

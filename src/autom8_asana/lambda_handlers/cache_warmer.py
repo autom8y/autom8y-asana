@@ -573,16 +573,12 @@ async def _warm_cache_async(
             invocation_id=invocation_id,
         )
 
-    # Determine entity types to warm - note: per TDD priority order is unit first
-    default_priority = [
-        "unit",
-        "business",
-        "offer",
-        "contact",
-        "asset_edit",
-        "asset_edit_holder",
-        "unit_holder",
-    ]
+    # Determine entity types to warm.
+    # Order derived from cascade dependency graph: providers (business, unit)
+    # must warm before consumers (offer, contact, asset_edit, etc.).
+    from autom8_asana.dataframes.cascade_utils import cascade_warm_order
+
+    default_priority = cascade_warm_order()
     if entity_types:
         # Validate entity types
         valid_types = set(default_priority)

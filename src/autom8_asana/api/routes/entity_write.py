@@ -17,7 +17,7 @@ from typing import Annotated, Any, Literal, Never, cast
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
     AuthContextDep,
@@ -71,6 +71,8 @@ class EntityWriteRequest(BaseModel):
             "replace" (default): Replace entire field value.
             "append": Append to existing values (multi_enum, text lists).
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     fields: dict[str, Any]
     list_mode: Literal["replace", "append"] = "replace"

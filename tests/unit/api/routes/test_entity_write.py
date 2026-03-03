@@ -481,3 +481,22 @@ class TestEntityWriteRoute:
         custom_fields = call_kwargs.get("custom_fields", {})
         # The value should be "asset-100,asset-200" (appended to existing)
         assert custom_fields.get("cf_333") == "asset-100,asset-200"
+
+    def test_unknown_fields_422(self, client: TestClient) -> None:
+        """Unknown top-level fields (e.g. list_remove) -> 422."""
+        patches = _patches()
+        _apply_patches(*patches)
+
+        try:
+            resp = client.patch(
+                "/api/v1/entity/offer/9999999999",
+                json={
+                    "fields": {"name": "Test"},
+                    "list_remove": ["Q2"],
+                },
+                headers=AUTH_HEADER,
+            )
+        finally:
+            _stop_patches(*patches)
+
+        assert resp.status_code == 422

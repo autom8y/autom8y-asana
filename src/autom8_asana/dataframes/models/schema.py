@@ -146,6 +146,19 @@ class DataFrameSchema:
             for col in self.columns
         )
 
+    def get_cascade_columns(self) -> list[tuple[str, str]]:
+        """Extract cascade column pairs from schema.
+
+        Returns:
+            List of (column_name, cascade_field_name) tuples.
+            E.g., ``[("office_phone", "Office Phone"), ("vertical", "Vertical")]``
+        """
+        return [
+            (col.name, col.source[len("cascade:") :].strip())
+            for col in self.columns
+            if col.source and col.source.lower().startswith("cascade:")
+        ]
+
     def to_dict(self) -> dict[str, Any]:
         """Export schema as JSON-serializable dict (FR-MODEL-006).
 

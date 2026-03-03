@@ -127,7 +127,7 @@ class TestCacheWarmer:
         )
 
     def test_default_priority(self, mock_cache: MagicMock) -> None:
-        """Default priority includes core entity types in expected order."""
+        """Default priority derived from cascade dependency graph."""
         warmer = CacheWarmer(cache=mock_cache)
 
         # Core entity types must be present (don't hardcode full list)
@@ -136,8 +136,11 @@ class TestCacheWarmer:
         assert "business" in warmer.priority
         assert "contact" in warmer.priority
 
-        # Offer should be first (highest priority)
-        assert warmer.priority[0] == "offer"
+        # Business should be first (cascade provider, warm_priority=1)
+        assert warmer.priority[0] == "business"
+
+        # Business must come before unit (cascade dependency)
+        assert warmer.priority.index("business") < warmer.priority.index("unit")
 
         # Priority list should not be empty
         assert len(warmer.priority) >= 4
