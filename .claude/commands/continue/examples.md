@@ -26,8 +26,8 @@ Session Details:
 - Last agent: architect
 
 Artifacts produced:
-✓ PRD: /docs/requirements/PRD-dark-mode.md
-✓ TDD: /docs/design/TDD-dark-mode.md
+✓ PRD: .ledge/specs/PRD-dark-mode.md
+✓ TDD: .ledge/specs/TDD-dark-mode.md
 
 ✓ No blockers
 ✓ Git status: Clean
@@ -108,8 +108,8 @@ Session Details:
 - Last agent: architect
 
 Artifacts produced:
-✓ PRD: /docs/requirements/PRD-api-retry.md
-✓ TDD: /docs/design/TDD-api-retry.md
+✓ PRD: .ledge/specs/PRD-api-retry.md
+✓ TDD: .ledge/specs/TDD-api-retry.md
 ✓ ADR-0043: Exponential backoff strategy
 
 ✓ No blockers

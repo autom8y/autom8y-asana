@@ -1,8 +1,9 @@
 {
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "go-semantic",
-    "mermaid-mcp",
-    "typescript-semantic"
+    "typescript-semantic",
+    "mermaid-mcp"
   ],
   "hooks": {
     "PostToolUse": [
@@ -53,6 +54,16 @@
         "hooks": [
           {
             "command": "ari hook validate --output json",
+            "timeout": 5,
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "ari hook git-conventions --output json",
             "timeout": 5,
             "type": "command"
           }
@@ -112,6 +123,28 @@
             "async": true,
             "command": "ari hook subagent-stop --output json",
             "timeout": 5,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "command": "ari hook worktree-seed --output json",
+            "timeout": 30,
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "command": "ari hook worktree-remove --output json",
+            "timeout": 10,
             "type": "command"
           }
         ]

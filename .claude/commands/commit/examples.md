@@ -430,10 +430,10 @@ git init
 **Diagnosis**:
 ```bash
 # Check if session is active
-ls .claude/sessions/
+ls .sos/sessions/
 
 # Check if session-utils.sh can find session
-cat .claude/sessions/.tty-map/$(tty | md5)
+cat .sos/sessions/.tty-map/$(tty | md5)
 ```
 
 **Output**:

@@ -15,10 +15,10 @@ Provides canonical schemas and templates for core development artifacts. Each sc
 
 | Schema | Pattern | Purpose | Author |
 |--------|---------|---------|--------|
-| [prd-schema.md](schemas/prd-schema.md) | `docs/requirements/PRD-*.md` | Product requirements | requirements-analyst |
-| [tdd-schema.md](schemas/tdd-schema.md) | `docs/design/TDD-*.md` | Technical design | architect |
-| [adr-schema.md](schemas/adr-schema.md) | `docs/design/ADR-*.md` | Architecture decisions | architect |
-| [test-plan-schema.md](schemas/test-plan-schema.md) | `docs/testing/TEST-*.md` | Test plans | qa-adversary |
+| [prd-schema.md](schemas/prd-schema.md) | `.ledge/specs/PRD-*.md` | Product requirements | requirements-analyst |
+| [tdd-schema.md](schemas/tdd-schema.md) | `.ledge/specs/TDD-*.md` | Technical design | architect |
+| [adr-schema.md](schemas/adr-schema.md) | `.ledge/decisions/ADR-*.md` | Architecture decisions | architect |
+| [test-plan-schema.md](schemas/test-plan-schema.md) | `.ledge/specs/TEST-*.md` | Test plans | qa-adversary |
 
 ## When to Use
 

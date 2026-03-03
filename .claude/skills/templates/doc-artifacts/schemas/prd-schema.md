@@ -1,13 +1,13 @@
 ---
 schema_name: prd
 schema_version: "1.0"
-file_pattern: "docs/requirements/PRD-*.md"
+file_pattern: ".ledge/specs/PRD-*.md"
 artifact_type: prd
 ---
 
 # PRD Schema
 
-> Canonical schema for Product Requirements Documents at `docs/requirements/PRD-{slug}.md`
+> Canonical schema for Product Requirements Documents at `.ledge/specs/PRD-{slug}.md`
 
 ## YAML Frontmatter
 

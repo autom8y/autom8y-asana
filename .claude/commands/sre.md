@@ -39,4 +39,4 @@ Switch to the SRE rite and display the pantheon. $ARGUMENTS
 
 ## Reference
 
-Full documentation: `rites/sre/mena/sre-ref/INDEX.lego.md`
+Full documentation: `.claude/skills/sre-ref/INDEX.md`

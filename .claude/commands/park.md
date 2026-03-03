@@ -69,3 +69,16 @@ Reason: Waiting for stakeholder feedback on PRD
 Resume with: /continue
 ```
 
+## Sigil
+
+### On Success
+
+End your response with:
+
+⏸️ parked · next: /continue (when ready)
+
+### On Failure
+
+❌ park failed: {brief reason} · fix: {recovery}
+
+Infer recovery: no active session → `/start`; session already parked → `/continue`; uncertain → `/consult`.

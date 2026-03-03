@@ -20,7 +20,7 @@ Rite? [current: 10x-dev]: <Enter>
 
 ✓ Session started
 ✓ Requirements Analyst creating PRD...
-✓ PRD saved: /docs/requirements/PRD-api-retry.md
+✓ PRD saved: .ledge/specs/PRD-api-retry.md
 
 Review PRD and use /handoff engineer when ready to implement.
 ```
@@ -40,10 +40,10 @@ Switching to rite: 10x-dev (5 agents loaded)
 ✓ Session started: Multi-tenant authentication
 ✓ Complexity: MODULE
 ✓ Requirements Analyst creating PRD...
-✓ PRD approved: /docs/requirements/PRD-multi-tenant-auth.md
+✓ PRD approved: .ledge/specs/PRD-multi-tenant-auth.md
 ✓ Architect creating TDD...
-✓ TDD draft: /docs/design/TDD-multi-tenant-auth.md
-✓ ADR created: /docs/decisions/ADR-0042-jwt-token-strategy.md
+✓ TDD draft: .ledge/specs/TDD-multi-tenant-auth.md
+✓ ADR created: .ledge/decisions/ADR-0042-jwt-token-strategy.md
 
 Next: Review design documents and approve before implementation.
 ```
@@ -62,9 +62,9 @@ Output:
 
 ✓ Session started: Migrate to microservices architecture
 ✓ Requirements Analyst scoping initiative...
-✓ PRD saved: /docs/requirements/PRD-microservices-migration.md
+✓ PRD saved: .ledge/specs/PRD-microservices-migration.md
 ✓ Architect creating TDD and ADRs...
-✓ TDD saved: /docs/design/TDD-microservices-migration.md
+✓ TDD saved: .ledge/specs/TDD-microservices-migration.md
 ✓ ADRs created:
   - ADR-0043-service-decomposition-strategy.md
   - ADR-0044-api-gateway-selection.md

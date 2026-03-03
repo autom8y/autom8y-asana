@@ -66,3 +66,18 @@ Hand off work to a different agent with full context transfer. $ARGUMENTS
 /handoff principal-engineer
 ```
 
+## Sigil
+
+### On Success
+
+End your response with:
+
+🤝 handed off · next: /go
+
+The handoff itself IS the phase transition — the target agent is now active. Suggest `/go` so the user can see the updated status.
+
+### On Failure
+
+❌ handoff failed: {brief reason} · fix: {recovery}
+
+Infer recovery: agent not found → check name against `ls .claude/agents/`; no active session → `/start`; state conflict → `/go` to check status; uncertain → `/consult`.

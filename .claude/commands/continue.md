@@ -65,3 +65,23 @@ If no Session Context table is present (no hook output), fall back to scan:
 /continue
 ```
 
+## Sigil
+
+### On Success
+
+End your response with:
+
+▶️ resumed · next: {hint}
+
+Resolve the hint dynamically:
+1. Read `current_phase` from Session Context (injected above).
+2. In `.claude/ACTIVE_WORKFLOW.yaml`, find the phase matching `current_phase` and check its `next` field.
+3. The hint should reference the agent for the *current* phase (you're resuming where you left off): `next: /handoff {current_phase_agent}` or `next: /go` if unsure.
+4. If `next: null` (terminal) → `next: /wrap`.
+5. No active session → output `▶️ resumed` without hint.
+
+### On Failure
+
+❌ resume failed: {brief reason} · fix: {recovery}
+
+Infer recovery: no parked session → `/start`; session not found → `/start`; invalid transition → check session status with `/go`; uncertain → `/consult`.

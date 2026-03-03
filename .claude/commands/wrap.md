@@ -64,12 +64,12 @@ Read Has Session, Session State from the context table — do not call `ari sess
    Duration: {total time}
 
    Artifacts:
-   - PRD: /docs/requirements/PRD-{slug}.md
-   - TDD: /docs/design/TDD-{slug}.md
+   - PRD: .ledge/specs/PRD-{slug}.md
+   - TDD: .ledge/specs/TDD-{slug}.md
    - Code: /src/...
 
    Quality: All gates passed
-   Archived to: .claude/.archive/sessions/{session-id}/
+   Archived to: .sos/archive/{session-id}/
 
    Next session: Use /start for new work
    ```
@@ -81,7 +81,7 @@ Read Has Session, Session State from the context table — do not call `ari sess
    GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
    if [[ -f "$GIT_DIR" ]] && grep -q "^gitdir:" "$GIT_DIR" 2>/dev/null; then
      IS_WORKTREE=true
-     WT_META=".claude/.worktree-meta.json"
+     WT_META=".knossos/.worktree-meta.json"
      WT_ID=$(jq -r '.worktree_id' "$WT_META" 2>/dev/null)
    fi
    ```
@@ -108,3 +108,16 @@ Read Has Session, Session State from the context table — do not call `ari sess
 | Code | Implementation files exist |
 | Tests | Test files exist and pass |
 
+## Sigil
+
+### On Success
+
+End your response with:
+
+🎁 wrapped · next: /start (for new work)
+
+### On Failure
+
+❌ wrap failed: {brief reason} · fix: {recovery}
+
+Infer recovery: quality gates failed → `/qa`; no active session → `/start`; uncommitted changes → `/commit`; uncertain → `/consult`.

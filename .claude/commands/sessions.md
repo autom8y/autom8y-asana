@@ -19,10 +19,10 @@ List and manage work sessions. $ARGUMENTS
 
 ### --list (default)
 
-Show all sessions in current directory `.claude/sessions/`:
+Show all sessions in current directory `.sos/sessions/`:
 
 ```bash
-for dir in .claude/sessions/session-*; do
+for dir in .sos/sessions/session-*; do
   [ -d "$dir" ] || continue
   SESSION_ID=$(basename "$dir")
 
@@ -63,7 +63,7 @@ Show sessions across all worktrees (main + worktrees/):
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 
 echo "=== Main Project ==="
-for dir in "$PROJECT_ROOT/.claude/sessions/session-*"; do
+for dir in "$PROJECT_ROOT/.sos/sessions/session-*"; do
   [ -d "$dir" ] || continue
   # ... same as --list
 done
@@ -73,12 +73,12 @@ echo "=== Worktrees ==="
 for wt in "$PROJECT_ROOT/worktrees"/wt-*; do
   [ -d "$wt" ] || continue
   WT_ID=$(basename "$wt")
-  WT_NAME=$(jq -r '.name // "unnamed"' "$wt/.claude/.worktree-meta.json" 2>/dev/null)
-  WT_RITE=$(jq -r '.rite // "none"' "$wt/.claude/.worktree-meta.json" 2>/dev/null)
+  WT_NAME=$(jq -r '.name // "unnamed"' "$wt/.knossos/.worktree-meta.json" 2>/dev/null)
+  WT_RITE=$(jq -r '.rite // "none"' "$wt/.knossos/.worktree-meta.json" 2>/dev/null)
 
   echo ""
   echo "[$WT_ID] $WT_NAME (rite: $WT_RITE)"
-  for dir in "$wt/.claude/sessions/session-*"; do
+  for dir in "$wt/.sos/sessions/session-*"; do
     [ -d "$dir" ] || continue
     SESSION_ID=$(basename "$dir")
     INITIATIVE=$(grep -m1 "^initiative:" "$dir/SESSION_CONTEXT.md" 2>/dev/null | cut -d: -f2- | tr -d ' "')
@@ -107,13 +107,13 @@ Remove sessions older than 7 days that are parked:
 
 ```bash
 CUTOFF=$(date -v-7d +%Y%m%d 2>/dev/null || date -d "7 days ago" +%Y%m%d)
-for dir in .claude/sessions/session-*; do
+for dir in .sos/sessions/session-*; do
   # Extract date from session ID (session-YYYYMMDD-HHMMSS-xxxx)
   SESSION_DATE=$(basename "$dir" | cut -d- -f2)
   if [ "$SESSION_DATE" -lt "$CUTOFF" ]; then
     # Only cleanup parked sessions
     if grep -q "^parked_at:" "$dir/SESSION_CONTEXT.md" 2>/dev/null; then
-      mv "$dir" ".claude/.archive/sessions/"
+      mv "$dir" ".sos/archive/"
       echo "Archived: $(basename $dir)"
     fi
   fi

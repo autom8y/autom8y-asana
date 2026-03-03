@@ -11,7 +11,7 @@ created_at: "2026-01-02T10:30:00Z"
 status: rejected
 rejection_reason: "Missing data flow diagram and trust boundary identification"
 source_artifacts:
-  - docs/requirements/PRD-payment-processing.md
+  - .ledge/specs/PRD-payment-processing.md
 items:
   - id: SEC-001
     summary: "Threat model for new payment token flow"
@@ -66,8 +66,8 @@ This created an impossible task for the security rite - without architectural co
 The resubmitted HANDOFF should include:
 
 **Updated source_artifacts**:
-- docs/requirements/PRD-payment-processing.md (existing)
-- docs/design/TDD-payment-processing.md (NEW - must include section 4.2 with data flow)
+- .ledge/specs/PRD-payment-processing.md (existing)
+- .ledge/specs/TDD-payment-processing.md (NEW - must include section 4.2 with data flow)
 
 **Updated items**:
 ```yaml

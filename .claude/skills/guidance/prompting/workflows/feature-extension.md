@@ -14,7 +14,7 @@ Adding password reset to existing auth system.
 ```
 Act as the Requirements Analyst.
 
-Check /docs/INDEX.md for existing artifacts.
+Check .ledge/ for existing artifacts.
 We have existing auth (PRD-0001, TDD-0001).
 
 I need to add password reset:
@@ -40,7 +40,7 @@ Help me decide, then create the appropriate document.
 ```
 Act as the Architect.
 
-PRD-0002 approved: /docs/requirements/PRD-0002-password-reset.md
+PRD-0002 approved: .ledge/specs/PRD-0002-password-reset.md
 
 This extends existing auth (TDD-0001).
 
@@ -61,4 +61,3 @@ Create TDD-0002 that:
 | New user-facing capability | New document |
 | Significant scope increase | New document |
 | Changes existing acceptance criteria | New document + deprecate old |
-

@@ -23,12 +23,12 @@ user-invocable: false
 Initiative: {initiative}
 
 Artifacts delivered:
-- ✓ PRD: /docs/requirements/PRD-{slug}.md
-- ✓ TDD: /docs/design/TDD-{slug}.md
+- ✓ PRD: .ledge/specs/PRD-{slug}.md
+- ✓ TDD: .ledge/specs/TDD-{slug}.md
 - ✓ ADRs: {count} architecture decisions
 - ✓ Implementation: {count} files, {LOC} lines
 - ✓ Tests: {count} tests, {coverage}% coverage
-- ✓ Test Plan: /docs/testing/TP-{slug}.md
+- ✓ Test Plan: .ledge/specs/TP-{slug}.md
 
 ## Key Decisions
 
@@ -103,7 +103,7 @@ Potential follow-up initiatives:
 | artifacts | SESSION_CONTEXT.artifacts array |
 | handoff_count | SESSION_CONTEXT.handoff_count |
 | resume_count | SESSION_CONTEXT.resume_count |
-| ADRs | Scan /docs/decisions/ |
+| ADRs | Scan .ledge/decisions/ |
 | Test results | Run test suite |
 
 ---

@@ -10,8 +10,8 @@
 Act as the QA/Adversary.
 
 Create a Test Plan for:
-- PRD: /docs/requirements/PRD-{NNNN}-{slug}.md
-- TDD: /docs/design/TDD-{NNNN}-{slug}.md
+- PRD: .ledge/specs/PRD-{NNNN}-{slug}.md
+- TDD: .ledge/specs/TDD-{NNNN}-{slug}.md
 
 (The `documentation` skill provides the Test Plan template.)
 
@@ -26,8 +26,8 @@ Act as the QA/Adversary.
 
 Validate this implementation:
 - Code: /src/{path}
-- PRD: /docs/requirements/PRD-{NNNN}-{slug}.md
-- TDD: /docs/design/TDD-{NNNN}-{slug}.md
+- PRD: .ledge/specs/PRD-{NNNN}-{slug}.md
+- TDD: .ledge/specs/TDD-{NNNN}-{slug}.md
 
 Check:
 1. Does it satisfy every acceptance criterion in the PRD?
@@ -63,8 +63,8 @@ Think like a confused user:
 Act as the QA/Adversary.
 
 Final review before shipping:
-- PRD: /docs/requirements/PRD-{NNNN}-{slug}.md
-- TDD: /docs/design/TDD-{NNNN}-{slug}.md
+- PRD: .ledge/specs/PRD-{NNNN}-{slug}.md
+- TDD: .ledge/specs/TDD-{NNNN}-{slug}.md
 - Code: /src/{path}
 - Tests: /tests/{path}
 

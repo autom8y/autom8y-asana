@@ -7,13 +7,11 @@
 ```
 /
 ├── .claude/                    # Claude Code configuration
-│   ├── CLAUDE.md              # Main entry point (this references other docs)
-│   └── /docs                  # Documentation root
-│       ├── INDEX.md           # Document registry
-│       ├── /requirements      # PRDs
-│       ├── /design            # TDDs
-│       ├── /decisions         # ADRs
-│       └── /testing           # Test Plans
+│   └── CLAUDE.md              # Main entry point (this references other docs)
+│
+├── .ledge/                    # Documentation root
+│   ├── specs/                 # PRDs, TDDs, and Test Plans
+│   └── decisions/             # ADRs
 │
 ├── /src                       # Application source code
 │   ├── /api                   # HTTP layer
@@ -135,10 +133,9 @@
 
 ## Documentation Locations
 
-| Document Type | Location              | Naming                 |
-| ------------- | --------------------- | ---------------------- |
-| PRD           | `/docs/requirements/` | `PRD-{NNNN}-{slug}.md` |
-| TDD           | `/docs/design/`       | `TDD-{NNNN}-{slug}.md` |
-| ADR           | `/docs/decisions/`    | `ADR-{NNNN}-{slug}.md` |
-| Test Plan     | `/docs/testing/`      | `TP-{NNNN}-{slug}.md`  |
-| Index         | `/docs/INDEX.md`      | -                      |
+| Document Type | Location          | Naming                 |
+| ------------- | ----------------- | ---------------------- |
+| PRD           | `.ledge/specs/`   | `PRD-{NNNN}-{slug}.md` |
+| TDD           | `.ledge/specs/`   | `TDD-{NNNN}-{slug}.md` |
+| ADR           | `.ledge/decisions/` | `ADR-{NNNN}-{slug}.md` |
+| Test Plan     | `.ledge/specs/`   | `TP-{NNNN}-{slug}.md`  |

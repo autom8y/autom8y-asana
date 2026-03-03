@@ -44,7 +44,7 @@ For hotfixes, **PRD is skipped** because:
 **If TDD created**:
 - Lightweight, 1-page max
 - Focus on: root cause, fix approach, rollback plan
-- Save to: `/docs/design/HOTFIX-{slug}.md`
+- Save to: `.ledge/specs/HOTFIX-{slug}.md`
 
 ### 4. Diagnose → Fix Workflow
 
@@ -194,7 +194,7 @@ graph LR
 |-----------|----------|-----------|
 | Fix code | Project-specific | Always |
 | Tests | Project-specific | Always (minimal) |
-| Hotfix TDD | `/docs/design/HOTFIX-{slug}.md` | Only if CRITICAL |
+| Hotfix TDD | `.ledge/specs/HOTFIX-{slug}.md` | Only if CRITICAL |
 | Migration | Project-specific | If DB changes |
 | Rollback script | Inline or separate file | Always documented |
 

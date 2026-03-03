@@ -1,13 +1,13 @@
 ---
 schema_name: test-plan
 schema_version: "1.0"
-file_pattern: "docs/testing/TEST-*.md"
+file_pattern: ".ledge/specs/TEST-*.md"
 artifact_type: test-plan
 ---
 
 # Test Plan Schema
 
-> Canonical schema for Test Plans at `docs/testing/TEST-{slug}.md`
+> Canonical schema for Test Plans at `.ledge/specs/TEST-{slug}.md`
 
 ## YAML Frontmatter
 

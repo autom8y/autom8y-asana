@@ -265,4 +265,4 @@ Task(risk-assessor, "Create sprint packages from DEBT_LEDGER.yaml")
 - [smell-report.md](smell-report.md) - Smell report format and field requirements
 - [../severity/classification.md](../severity/classification.md) - Severity calculation algorithm
 - [../taxonomy/](../taxonomy/) - Smell type definitions
-- `/docs/testing/e2e-debt-remediation.md` - End-to-end workflow validation
+- `.ledge/specs/e2e-debt-remediation.md` - End-to-end workflow validation

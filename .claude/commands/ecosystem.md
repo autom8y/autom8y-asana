@@ -58,4 +58,4 @@ Switch to the ecosystem infrastructure rite and display the pantheon. $ARGUMENTS
 
 ## Reference
 
-Full documentation: `.claude/skills/ecosystem-ref/INDEX.md`
+Full documentation: `Skill("ecosystem-ref")`

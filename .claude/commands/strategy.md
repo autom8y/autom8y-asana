@@ -44,4 +44,4 @@ market-research -> competitive-analysis -> business-modeling -> strategic-planni
 
 ## Reference
 
-Full documentation: `rites/strategy/mena/strategy-ref/INDEX.lego.md`
+Full documentation: `.claude/skills/strategy-ref/INDEX.md`

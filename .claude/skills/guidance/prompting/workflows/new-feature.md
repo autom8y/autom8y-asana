@@ -34,9 +34,9 @@ Create PRD-0001 for this feature.
 ```
 Act as the Architect.
 
-PRD-0001 is approved: /docs/requirements/PRD-0001-user-auth.md
+PRD-0001 is approved: .ledge/specs/PRD-0001-user-auth.md
 
-Check /docs/decisions/ for existing ADRs (this is a new project, so none).
+Check .ledge/decisions/ for existing ADRs (this is a new project, so none).
 
 Create TDD-0001 with:
 - Component design
@@ -63,7 +63,7 @@ Create ADRs for:
 Act as the Principal Engineer.
 
 Implement the design:
-- TDD: /docs/design/TDD-0001-user-auth.md
+- TDD: .ledge/specs/TDD-0001-user-auth.md
 - ADRs: ADR-0001 (JWT), ADR-0002 (bcrypt)
 
 (The `standards` skill provides code conventions and repository structure.)
@@ -80,12 +80,11 @@ Act as the QA/Adversary.
 
 Implementation is complete:
 - Code: /src/domain/services/auth_service.py, /src/api/routes/auth_router.py
-- PRD: /docs/requirements/PRD-0001-user-auth.md
-- TDD: /docs/design/TDD-0001-user-auth.md
+- PRD: .ledge/specs/PRD-0001-user-auth.md
+- TDD: .ledge/specs/TDD-0001-user-auth.md
 
 Create TP-0001 and validate:
 1. All acceptance criteria from PRD
 2. Security: password not logged, tokens properly validated, timing attacks mitigated
 3. Edge cases: duplicate email, invalid password format, expired token
 ```
-

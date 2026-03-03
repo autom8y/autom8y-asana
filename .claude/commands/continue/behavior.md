@@ -58,7 +58,7 @@ Task(moirai, "update_field last_agent='{selected_agent}'
 
 Session Context:
 - Session ID: {session_id}
-- Session Path: .claude/sessions/{session_id}/SESSION_CONTEXT.md")
+- Session Path: .sos/sessions/{session_id}/SESSION_CONTEXT.md")
 ```
 
 ### 7. Invoke Selected Agent

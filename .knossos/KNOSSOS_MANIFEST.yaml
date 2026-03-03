@@ -1,0 +1,43 @@
+schema_version: "1.0"
+inscription_version: "5"
+last_sync: 2026-03-03T17:22:01.946015Z
+active_rite: releaser
+template_path: knossos/templates/CLAUDE.md.tpl
+regions:
+    agent-configurations:
+        owner: regenerate
+        source: agents/*.md
+        hash: sha256:d069d61170d2627ea14c6786fef79cec380a48d7128870dff39853e1500da868
+    agent-routing:
+        owner: knossos
+        hash: sha256:996019558baa21447eeffca540e4bffa134fe2a7390d13e917ae13b71ccdadd9
+    commands:
+        owner: knossos
+        hash: sha256:0be05996b9be8baf3f4027289b1cf4471d3ab7067f8e1572b0c85cd49b3069e5
+    execution-mode:
+        owner: knossos
+        hash: sha256:02d505214651211c19fb1a5f53e84d807ba2d959d946e9c69b56175cf986d826
+    know:
+        owner: knossos
+        hash: sha256:d197a616a0e64f04e7c0b39d19c86bb20bce12696db47ada556814a2aa4c4c42
+    model-override:
+        owner: knossos
+    platform-infrastructure:
+        owner: knossos
+        hash: sha256:d6f0fc5e6345276c5e75af2662677f7eed9e4304a1f4c74b90b6d5b3166bf6b3
+    quick-start:
+        owner: regenerate
+        source: ACTIVE_RITE+agents
+        hash: sha256:58de45e32daacead8daa4c86d1995f232bff50a59c6a1774176d9cb9ee7cb82d
+    user-content:
+        owner: satellite
+section_order:
+    - execution-mode
+    - model-override
+    - quick-start
+    - agent-routing
+    - commands
+    - agent-configurations
+    - platform-infrastructure
+    - know
+    - user-content

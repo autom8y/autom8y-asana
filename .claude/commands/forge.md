@@ -29,16 +29,18 @@ THE FORGE - Agent Factory Rite
 
 The rite that builds rites. Global singleton (always available).
 
-AGENTS (6):
-  Agent Designer    - Role specs and contracts
-  Prompt Architect  - System prompts (11 sections)
-  Workflow Engineer - Orchestration and commands
-  Platform Engineer - Knossos infrastructure
-  Eval Specialist   - Testing and validation
-  Agent Curator     - Versioning and integration
+AGENTS (7):
+  Agent Designer     - Role specs and contracts
+  Domain Forensics   - Codebase archaeology and domain extraction
+  Prompt Architect   - System prompts (11 sections)
+  Workflow Engineer  - Orchestration and commands
+  Platform Engineer  - Knossos infrastructure
+  Eval Specialist    - Testing and validation
+  Agent Curator      - Versioning and integration
 
 COMMANDS:
-  /new-rite <name>      - Full rite creation workflow
+  /new-rite <name>      - Direct rite creation (no archaeology)
+  /forge-rite <name>    - Archaeology-first rite creation
   /validate-rite <name> - Run validation suite on rite
   /eval-agent <name>    - Test single agent in isolation
 
@@ -62,4 +64,4 @@ Full docs: rites/forge/mena/forge-ref/INDEX.lego.md
 
 ## Reference
 
-Full documentation: `rites/forge/mena/forge-ref/INDEX.lego.md`
+Full documentation: `.claude/skills/forge-ref/INDEX.md`

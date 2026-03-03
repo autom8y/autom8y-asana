@@ -10,7 +10,7 @@ context: fork
 
 ## Context
 
-Git worktrees provide true filesystem isolation for parallel Claude sessions. Each worktree has its own `.claude/` directory with independent agents, sessions, sprints, and rite configuration.
+Git worktrees provide true filesystem isolation for parallel Claude sessions. Each worktree has its own `.claude/` directory (CC primitives), `.knossos/` (framework state), and `.sos/` (session state).
 
 ## Pre-flight
 
@@ -124,3 +124,23 @@ ari worktree cleanup --older-than=7d
 ## Reference
 
 Full documentation: `.claude/commands/navigation/worktree/INDEX.md`
+
+## Sigil
+
+### On Success
+
+End your response with:
+
+🌿 branched · next: {hint}
+
+**Fork-context note**: This command may run without conversation history. To resolve the hint, read session state from disk if needed.
+
+Resolve hint based on subcommand:
+- `create` → `next: cd {worktree_path} && claude`
+- `list`, `status`, `remove`, `cleanup` → output `🌿 branched` without hint (informational subcommands).
+
+### On Failure
+
+❌ worktree failed: {brief reason} · fix: {recovery}
+
+Infer recovery: not in git repo → `git init`; git version too old → upgrade git; worktree already exists → use a different name; uncertain → `/consult`.

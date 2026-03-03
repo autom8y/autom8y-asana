@@ -1,8 +1,11 @@
 ---
+name: spike
 description: Time-boxed research and exploration (no production code)
 argument-hint: "<question> [--timebox=DURATION]"
 allowed-tools: Bash, Read, Write, Task, Glob, Grep, WebFetch, WebSearch
 model: opus
+disable-model-invocation: true
+context: fork
 ---
 
 ## Context
@@ -46,7 +49,7 @@ Conduct time-boxed research to answer a technical question. $ARGUMENTS
 
 ## Output
 
-Spike report at `/docs/spikes/SPIKE-{slug}.md`:
+Spike report at `.sos/wip/SPIKE-{slug}.md`:
 - Question and context
 - Approach taken
 - Findings
@@ -63,3 +66,23 @@ Spike report at `/docs/spikes/SPIKE-{slug}.md`:
 ## Reference
 
 Full documentation: `.claude/commands/operations/spike/INDEX.md`
+
+## Sigil
+
+### On Success
+
+End your response with:
+
+🔭 explored · next: {hint}
+
+**Fork-context note**: This command may run without conversation history. To resolve the hint, read session state from disk:
+- Find active session: look for `status: "ACTIVE"` in `.sos/sessions/*/SESSION_CONTEXT.md`
+- No active session found → output `🔭 explored` without hint.
+
+Natural follow-on: `next: /consult` (to plan next steps based on findings) or `next: /start` (if the spike informed a new initiative).
+
+### On Failure
+
+❌ spike failed: {brief reason} · fix: {recovery}
+
+Infer recovery: no topic provided → provide a topic string; uncertain → `/consult`.

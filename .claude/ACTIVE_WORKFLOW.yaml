@@ -1,197 +1,89 @@
-name: 10x-dev
+name: releaser
 workflow_type: sequential
-description: Full development lifecycle (PRD → TDD → Code → QA)
+description: Multi-repo release orchestration lifecycle (Reconnaissance -> Dependencies -> Planning -> Execution -> Verification)
 
 entry_point:
-  agent: requirements-analyst
-  # Default entry point - can be overridden based on work type
-
-  # Dynamic entry selection based on work type
-  # Use --entry flag or specify work_type in session init
-  by_work_type:
-    new_feature: requirements-analyst
-    enhancement: requirements-analyst
-    technical_refactoring: architect
-    performance_optimization: architect
-    bug_fix: principal-engineer
-    security_fix: principal-engineer
-    hotfix: principal-engineer
-
-  # Entry point artifacts by agent
-  artifact_templates:
-    requirements-analyst:
-      type: prd
-      path_template: docs/requirements/PRD-{slug}.md
-    architect:
-      type: tdd
-      path_template: docs/design/TDD-{slug}.md
-    principal-engineer:
-      type: code
-      path_template: null  # Implementation path determined by scope
+  agent: pythia  # Orchestrator entry; pythia routes to cartographer for reconnaissance
+  first_phase: reconnaissance
+  first_phase_agent: cartographer
 
 phases:
-  - name: requirements
-    agent: requirements-analyst
-    produces: prd
-    next: design
+  - name: reconnaissance
+    agent: cartographer
+    produces: platform-state-map
+    next: dependency-analysis
 
-  - name: design
-    agent: architect
-    produces: tdd
-    next: implementation
-    condition: "complexity >= MODULE"
+  - name: dependency-analysis
+    agent: dependency-resolver
+    produces: dependency-graph
+    next: release-planning
+    condition: "complexity >= RELEASE"
 
-  - name: implementation
-    agent: principal-engineer
-    produces: code
-    next: validation
+  - name: release-planning
+    agent: release-planner
+    produces: release-plan
+    next: execution
+    condition: "complexity >= RELEASE"
 
-  - name: validation
-    agent: qa-adversary
-    produces: test-plan
+  - name: execution
+    agent: release-executor
+    produces: execution-ledger
+    next: verification
+
+  - name: verification
+    agent: pipeline-monitor
+    produces: verification-report
     next: null
 
 complexity_levels:
-  - name: SCRIPT
-    scope: "Single file, <200 LOC"
-    phases: [requirements, implementation, validation]
-    # High-impact SCRIPT work routes to Architect despite low complexity
-    conditional_phases:
-      - phase: design
-        condition: "impact == 'high'"
-        insert_after: requirements
-  - name: MODULE
-    scope: "Multiple files, <2000 LOC"
-    phases: [requirements, design, implementation, validation]
-  - name: SERVICE
-    scope: "APIs, persistence"
-    phases: [requirements, design, implementation, validation]
+  - name: PATCH
+    scope: "Single repo push + CI watch. Auto-escalates to RELEASE if downstream dependents detected."
+    phases: [reconnaissance, execution, verification]
+
+  - name: RELEASE
+    scope: "SDK publish + consumer version bumps across dependency graph"
+    phases: [reconnaissance, dependency-analysis, release-planning, execution, verification]
+
   - name: PLATFORM
-    scope: "Multi-service"
-    phases: [requirements, design, implementation, validation]
-
-# Security consultation routing
-# Proactive gates for security-sensitive work
-security_consultation:
-  # Triggers that indicate security consultation is recommended
-  triggers:
-    - pattern: "auth|authentication|authorization"
-      domain: authentication
-      severity: high
-    - pattern: "oauth|saml|sso|openid"
-      domain: authentication
-      severity: high
-    - pattern: "crypto|encryption|hashing|bcrypt|argon"
-      domain: cryptography
-      severity: critical
-    - pattern: "key management|secrets|certificates"
-      domain: cryptography
-      severity: critical
-    - pattern: "pii|personal data|user data|gdpr|ccpa|hipaa"
-      domain: data_privacy
-      severity: high
-    - pattern: "external integration|third-party api|webhook"
-      domain: integration
-      severity: medium
-    - pattern: "payment|billing|financial|transaction|credit card|pci"
-      domain: financial
-      severity: critical
-    - pattern: "session management|token|jwt|refresh token"
-      domain: session
-      severity: high
-
-  # Consultation target
-  target:
-    rite: security
-    agent: threat-modeler
-    phase: pre-implementation
-
-  # When consultation is required vs recommended
-  policy:
-    required:
-      - complexity: SYSTEM
-        domains: [authentication, cryptography, data_privacy, financial]
-      - complexity: SERVICE
-        domains: [cryptography, financial]
-    recommended:
-      - complexity: SYSTEM
-        domains: [integration, session]
-      - complexity: MODULE
-        domains: [authentication, data_privacy]
-
-  # Invocation pattern for architect
-  invocation: |
-    Task(threat-modeler, "Review design for {feature}
-    Security domains: {matched_domains}
-    Complexity: {complexity}
-    TDD draft: {tdd_path}")
-
-# Impact-based routing rules
-impact_routing:
-  # High-impact work requires architectural review regardless of complexity
-  high_impact:
-    requires_phases: [design]
-    rationale: "Architecturally significant changes need design review"
-  # Low-impact work follows standard complexity-based routing
-  low_impact:
-    requires_phases: []
-    rationale: "Standard complexity routing applies"
+    scope: "Full platform release — all repos, full DAG, extended CI monitoring"
+    phases: [reconnaissance, dependency-analysis, release-planning, execution, verification]
 
 # Agent roles for command mapping:
-# /architect  → architect
-# /build      → principal-engineer
-# /qa         → qa-adversary
-# /hotfix     → principal-engineer (fast path)
-# /code-review → qa-adversary (review mode)
+# /releaser          -> pythia (orchestrated, determines PATCH vs RELEASE vs PLATFORM)
+# Direct Task        -> cartographer (recon-only, no orchestration)
+
+# Auto-escalation protocol:
+# At PATCH complexity, after reconnaissance completes, Pythia reads the
+# platform-state-map.yaml and checks the has_dependents flag on the target repo.
+# If has_dependents: true, Pythia auto-escalates to RELEASE complexity and
+# continues from the dependency-analysis phase. This is Pythia's responsibility
+# — the workflow engine treats it as a complexity upgrade mid-flight.
+
+# Artifact chain:
+# .sos/wip/release/
+#   platform-state-map.yaml   (cartographer -> dependency-resolver, release-planner, release-executor)
+#   platform-state-map.md     (cartographer -> user)
+#   dependency-graph.yaml     (dependency-resolver -> release-planner)
+#   dependency-graph.md       (dependency-resolver -> user)
+#   release-plan.yaml         (release-planner -> release-executor)
+#   release-plan.md           (release-planner -> user)
+#   execution-ledger.yaml     (release-executor -> pipeline-monitor)
+#   execution-ledger.md       (release-executor -> user)
+#   verification-report.yaml  (pipeline-monitor -> pythia)
+#   verification-report.md    (pipeline-monitor -> user)
 
 back_routes:
-  - source_phase: validation
-    trigger: "fail(acceptance_criteria)"
-    target_phase: requirements
-    target_agent: requirements-analyst
+  - source_phase: verification
+    trigger: "partial_failure"
+    target_phase: execution
+    target_agent: release-executor
     requires_user_confirmation: true
-    condition: "Failure is requirement gap, not implementation bug"
+    condition: "CI failures on specific repos suggest retry of failed branches only"
 
-  - source_phase: validation
-    trigger: "fail(implementation)"
-    target_phase: implementation
-    target_agent: principal-engineer
-    requires_user_confirmation: false
-    condition: "Failure is implementation bug"
-
-  - source_phase: implementation
-    trigger: "design_conflict"
-    target_phase: design
-    target_agent: architect
-    requires_user_confirmation: false
-    condition: "Implementation reveals design flaw"
-
-# Entry Point Override Documentation
-#
-# The default workflow starts with requirements-analyst, but entry can be
-# overridden for work types that don't need full PRD cycle.
-#
-# Usage Patterns:
-#
-# 1. Via work_type in /task or /start:
-#    /task --work-type=bug_fix "Fix login timeout issue"
-#    /start --work-type=technical_refactoring "Migrate to new auth library"
-#
-# 2. Via explicit --entry flag:
-#    /task --entry=architect "Redesign caching layer"
-#    /task --entry=principal-engineer "Fix null pointer in user service"
-#
-# 3. Via Pythia consultation:
-#    Pythia's Entry Point Selection guidance (see pythia.md)
-#    determines entry based on work type analysis during session init.
-#
-# Entry Point Implications:
-# - requirements-analyst: Full PRD -> TDD -> Code -> QA
-# - architect: TDD -> Code -> QA (skip PRD)
-# - principal-engineer: Code -> QA (skip PRD and TDD)
-#
-# When to override default:
-# - Bug fixes: Known issue, enter at principal-engineer
-# - Refactoring: No new features, enter at architect
-# - Hotfixes: Time-critical, enter at principal-engineer
-# - Security fixes: Immediate remediation, enter at principal-engineer
+  - source_phase: execution
+    trigger: "plan_conflict"
+    target_phase: release-planning
+    target_agent: release-planner
+    requires_user_confirmation: true
+    condition: "Execution discovers publish commands are incorrect or versions have drifted since planning"
+    complexity: ">= RELEASE"

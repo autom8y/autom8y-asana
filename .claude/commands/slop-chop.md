@@ -39,4 +39,4 @@ Switch to the slop-chop rite and display the pantheon. $ARGUMENTS
 
 ## Reference
 
-Full documentation: `rites/slop-chop/mena/slop-chop-ref/slop-chop-ref.lego.md`
+Full documentation: `.claude/skills/slop-chop-ref/slop-chop-ref.md`

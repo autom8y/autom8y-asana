@@ -132,9 +132,9 @@ Analyze all commits and changes to create comprehensive description:
 ## Related
 
 [Links to related items]
-- PRD: [PRD-{slug}](../docs/requirements/PRD-{slug}.md)
-- TDD: [TDD-{slug}](../docs/design/TDD-{slug}.md)
-- ADRs: [ADR-{N}](../docs/decisions/ADR-{N}-{slug}.md)
+- PRD: [PRD-{slug}](.ledge/specs/PRD-{slug}.md)
+- TDD: [TDD-{slug}](.ledge/specs/TDD-{slug}.md)
+- ADRs: [ADR-{N}](.ledge/decisions/ADR-{N}-{slug}.md)
 - Issues: Fixes #{issue-number}
 
 ---

@@ -13,13 +13,13 @@
 ```
 Act as the Architect.
 
-The PRD is approved: /docs/requirements/PRD-{NNNN}-{slug}.md
+The PRD is approved: .ledge/specs/PRD-{NNNN}-{slug}.md
 
 (The `documentation` skill provides the TDD template.)
 
 First:
-1. Check /docs/decisions/ for existing ADRs that apply
-2. Check /docs/design/ for related TDDs to reference
+1. Check .ledge/decisions/ for existing ADRs that apply
+2. Check .ledge/specs/ for related TDDs to reference
 
 Then design the simplest architecture that satisfies the requirements.
 Create ADRs for any new significant decisions.
@@ -63,7 +63,7 @@ Analyze trade-offs honestly—what do we give up with each choice?
 ```
 Act as the Principal Engineer.
 
-Review this TDD before I implement: /docs/design/TDD-{NNNN}-{slug}.md
+Review this TDD before I implement: .ledge/specs/TDD-{NNNN}-{slug}.md
 
 Check:
 - [ ] Is the design implementable as specified?
@@ -83,8 +83,8 @@ Check:
 Act as the Principal Engineer.
 
 Implement this design:
-- TDD: /docs/design/TDD-{NNNN}-{slug}.md
-- PRD: /docs/requirements/PRD-{NNNN}-{slug}.md (for acceptance criteria)
+- TDD: .ledge/specs/TDD-{NNNN}-{slug}.md
+- PRD: .ledge/specs/PRD-{NNNN}-{slug}.md (for acceptance criteria)
 - Related ADRs: {list}
 
 (The `standards` skill provides code conventions and repository structure.)
@@ -164,4 +164,3 @@ Approach:
 
 - **Requirements/Discovery**: [discovery.md](discovery.md) - Session init, PRD creation
 - **Validation/Maintenance**: [validation.md](validation.md) - Testing, pre-ship, maintenance
-

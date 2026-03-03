@@ -17,7 +17,7 @@ Output:
 Handoff: architect → principal-engineer
 
 Generating handoff note...
-✓ TDD reviewed: /docs/design/TDD-dark-mode.md
+✓ TDD reviewed: .ledge/specs/TDD-dark-mode.md
 ✓ ADRs captured: 2 architecture decisions
 ✓ Design approved by user
 
@@ -88,7 +88,7 @@ Handoff: qa-adversary → principal-engineer
 Custom handoff note: 3 defects found in edge case testing
 
 Generating handoff context...
-✓ Test Plan created: /docs/testing/TP-dark-mode.md
+✓ Test Plan created: .ledge/specs/TP-dark-mode.md
 ⚠ Defects found: 3 issues logged
   - Issue 1: Theme not persisted on logout
   - Issue 2: Flash of wrong theme on page load

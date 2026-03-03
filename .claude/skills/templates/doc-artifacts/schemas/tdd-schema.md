@@ -1,13 +1,13 @@
 ---
 schema_name: tdd
 schema_version: "1.0"
-file_pattern: "docs/design/TDD-*.md"
+file_pattern: ".ledge/specs/TDD-*.md"
 artifact_type: tdd
 ---
 
 # TDD Schema
 
-> Canonical schema for Technical Design Documents at `docs/design/TDD-{slug}.md`
+> Canonical schema for Technical Design Documents at `.ledge/specs/TDD-{slug}.md`
 
 ## YAML Frontmatter
 

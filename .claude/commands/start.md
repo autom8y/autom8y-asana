@@ -62,7 +62,7 @@ Task(moirai, "create_session initiative='<initiative>' complexity=<COMPLEXITY> r
 
 Moirai will:
 - Generate session ID with timestamp
-- Create `.claude/sessions/{session_id}/SESSION_CONTEXT.md` with proper schema
+- Create `.sos/sessions/{session_id}/SESSION_CONTEXT.md` with proper schema
 - Set initial phase to "requirements"
 - Return confirmation with session_id
 
@@ -114,3 +114,24 @@ Output to user:
 /start "New billing service" --complexity=SYSTEM --rite=10x-dev
 ```
 
+## Sigil
+
+### On Success
+
+End your response with:
+
+🚀 started · next: {hint}
+
+Resolve the hint dynamically:
+1. Read `current_phase` from Session Context (injected above).
+2. In `.claude/ACTIVE_WORKFLOW.yaml`, find the phase matching `current_phase` and check its `next` field.
+3. If `next` names a phase → `next: /handoff {that_phase_agent}`.
+   If `next: null` (terminal) → `next: /wrap` (or `/commit && /pr` if uncommitted changes).
+4. If the entry agent was already invoked within this `/start` execution, hint the *next* phase agent instead.
+5. No active session → output `🚀 started` without hint.
+
+### On Failure
+
+❌ start failed: {brief reason} · fix: {recovery}
+
+Infer recovery: session already exists → `/continue` or `/park` + `/start`; missing rite → `/consult --rite`; uncertain → `/consult`.

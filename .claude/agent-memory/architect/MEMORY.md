@@ -53,3 +53,16 @@
 - Timeline service: `src/autom8_asana/services/section_timeline_service.py`
 - Query engine: `src/autom8_asana/query/engine.py`
 - Derived cache: `src/autom8_asana/cache/integration/derived.py`
+
+## N8N-CASCADE-INTEGRITY Initiative (2026-03-03)
+
+### Key Architectural Finding: Cache Population Lacks Cascade Invariant
+
+- 6 paths populate DataFrame cache; only 1 (progressive builder) runs cascade validation
+- Fast-path (S3 parquet load), legacy preload, SWR refresh, admin rebuild, and @dataframe_cache decorator all bypass cascade
+- Lambda cache_warmer processes "unit" BEFORE "business" -- opposite of cascade dependency ordering
+- SWR and admin rebuild create per-client UnifiedTaskStore that lacks cross-project Business data
+- CascadeViewPlugin._detect_entity_type_from_dict uses weak 2-heuristic (parent=None -> Business, else UNKNOWN); proper 4-tier detection at facade.py -- weak heuristic is LOW risk, only affects runtime, not preload
+- Pydantic extra="ignore" audit: EntityWriteRequest, WorkflowInvokeRequest, CacheRefreshRequest all missing extra="forbid"
+- Frame: `.claude/wip/frames/principled-comprehensive-bottom-up-bugfix.md` (includes first-principles reframe)
+- 8 workstreams total (5 original + 3 new: Lambda ordering, parquet provenance, SWR/admin cross-entity cascade)

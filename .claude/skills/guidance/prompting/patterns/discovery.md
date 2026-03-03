@@ -9,7 +9,7 @@
 ### Start of Session
 
 ```
-Check /docs/INDEX.md for existing artifacts.
+Check .ledge/ for existing artifacts.
 
 You have access to these skills for on-demand context:
 - `orchestration` — workflow coordination
@@ -26,8 +26,8 @@ Confirm when ready.
 
 ```
 Review existing artifacts:
-- PRD: /docs/requirements/PRD-{NNNN}-{slug}.md
-- TDD: /docs/design/TDD-{NNNN}-{slug}.md (if exists)
+- PRD: .ledge/specs/PRD-{NNNN}-{slug}.md
+- TDD: .ledge/specs/TDD-{NNNN}-{slug}.md (if exists)
 
 We were working on {feature}. Last session we completed {what}.
 Let's continue with {next step}.
@@ -49,7 +49,7 @@ Act as the Requirements Analyst.
 Create a PRD for: {feature description}
 
 (The `documentation` skill provides the PRD template.)
-Check /docs/INDEX.md first—reference existing PRDs if this
+Check .ledge/ first—reference existing PRDs if this
 relates to prior work.
 
 Key questions to address:
@@ -94,7 +94,7 @@ Create a PRD that:
 ```
 Act as the Architect.
 
-Review this PRD: /docs/requirements/PRD-{NNNN}-{slug}.md
+Review this PRD: .ledge/specs/PRD-{NNNN}-{slug}.md
 
 Before I can design a solution, verify:
 - [ ] Problem statement is clear?
@@ -123,4 +123,3 @@ Before I can design a solution, verify:
 
 - **Design/Implementation**: [implementation.md](implementation.md) - TDD creation, architecture, coding
 - **Validation/Maintenance**: [validation.md](validation.md) - Testing, pre-ship, maintenance
-

@@ -83,3 +83,23 @@ VALIDATION_AGENT=$(grep -B1 "next: null" .claude/ACTIVE_WORKFLOW.yaml | grep "ag
 ## Reference
 
 Full documentation: `.claude/commands/operations/qa/INDEX.md`
+
+## Sigil
+
+### On Success
+
+End your response with:
+
+✅ validated · next: {hint}
+
+Resolve the hint based on your validation outcome:
+- APPROVED → `next: /commit && /pr` (or `/wrap` if already committed).
+- REJECTED → `next: fix issues, then /qa`.
+- CONDITIONAL → `next: /commit && /pr` (document caveats in PR).
+No active session → output `✅ validated` without hint.
+
+### On Failure
+
+❌ validation failed: {brief reason} · fix: {recovery}
+
+Infer recovery: no implementation found → implement first; missing requirements → create PRD; uncertain → `/consult`.

@@ -80,3 +80,16 @@ IMPL_AGENT=$(grep -B1 "produces: code\|produces: commits\|produces: documentatio
 /hotfix "Broken link in documentation"
 ```
 
+## Sigil
+
+### On Success
+
+End your response with:
+
+🩹 patched · next: /commit && /pr
+
+### On Failure
+
+❌ hotfix failed: {brief reason} · fix: {recovery}
+
+Infer recovery: no workflow active → `/rite` to select a rite; diagnosis inconclusive → try reproducing with more context; uncertain → `/consult`.
