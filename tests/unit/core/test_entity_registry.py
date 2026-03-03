@@ -1219,12 +1219,12 @@ class TestImportResolutionCoverage:
 # this test will fail, signaling that the change is intentional (update the
 # count) or accidental (investigate).
 EXPECTED_SCHEMA_COLUMN_COUNTS: list[tuple[str, int]] = [
-    ("business", 17),
-    ("unit", 23),
-    ("contact", 25),
-    ("offer", 23),
-    ("asset_edit", 33),
-    ("asset_edit_holder", 13),
+    ("business", 18),  # 13 base + 5 business-specific
+    ("unit", 24),  # 13 base + 11 unit-specific
+    ("contact", 26),  # 13 base + 13 contact-specific
+    ("offer", 24),  # 13 base + 11 offer-specific
+    ("asset_edit", 34),  # 13 base + 21 asset_edit-specific
+    ("asset_edit_holder", 14),  # 13 base + 1 asset_edit_holder-specific
 ]
 
 

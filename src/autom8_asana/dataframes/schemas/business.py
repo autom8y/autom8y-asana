@@ -62,5 +62,5 @@ BUSINESS_SCHEMA = DataFrameSchema(
             if c.name not in {col.name for col in BASE_COLUMNS}
         ],
     ],
-    version="1.1.0",  # Bump to invalidate stale caches missing warm_hierarchy fix
+    version="1.2.0",  # parent_gid column added for hierarchy reconstruction on resume
 )

@@ -463,6 +463,25 @@ class ProgressiveProjectBuilder:
         total_rows = len(merged_df)
         watermark = datetime.now(UTC)
 
+        # Step 5.25: Reconstruct hierarchy from resumed sections
+        # Per TDD-CASCADE-RESUME-FIX: Resumed sections loaded from parquet
+        # don't register in HierarchyIndex. Reconstruct from parent_gid column
+        # so Step 5.5 cascade validation can resolve parent chains.
+        if total_rows > 0 and self._store is not None:
+            reconstructed = self._reconstruct_hierarchy_from_dataframe(merged_df)
+            if reconstructed > 0:
+                # Step 5.3: Warm hierarchy gaps (e.g. unit_holder → business links)
+                warmed = await self._warm_hierarchy_gaps_async(merged_df)
+                logger.info(
+                    "hierarchy_gaps_warmed",
+                    extra={
+                        "project_gid": self._project_gid,
+                        "entity_type": self._entity_type,
+                        "reconstructed": reconstructed,
+                        "gaps_warmed": warmed,
+                    },
+                )
+
         # Step 5.5: Post-build cascade validation pass
         # Per TDD-CASCADE-FAILURE-FIXES-001 Fix 3: Detect and correct stale
         # cascade fields after section merge, before final artifact write.
@@ -1160,6 +1179,109 @@ class ProgressiveProjectBuilder:
             project_gid=self._project_gid,
         )
         return rows
+
+    def _reconstruct_hierarchy_from_dataframe(self, df: pl.DataFrame) -> int:
+        """Reconstruct HierarchyIndex from resumed parquet parent_gid column.
+
+        Per TDD-CASCADE-RESUME-FIX: When sections are loaded from S3,
+        tasks are not registered in the UnifiedStore's HierarchyIndex.
+        This method iterates the merged DataFrame and registers each
+        (gid, parent_gid) pair so cascade validation (Step 5.5) can
+        resolve parent chains for resumed sections.
+
+        Args:
+            df: Merged DataFrame with 'gid' and 'parent_gid' columns.
+
+        Returns:
+            Count of hierarchy entries registered.
+        """
+        if self._store is None:
+            return 0
+
+        if "gid" not in df.columns or "parent_gid" not in df.columns:
+            return 0
+
+        hierarchy = self._store.get_hierarchy_index()
+        registered = 0
+
+        gids = df["gid"].to_list()
+        parent_gids = df["parent_gid"].to_list()
+
+        for gid, parent_gid in zip(gids, parent_gids):
+            if gid is None:
+                continue
+
+            # Skip if already registered (from freshly-fetched sections)
+            if hierarchy.contains(str(gid)):
+                continue
+
+            # Build minimal task dict for hierarchy registration
+            task_dict: dict[str, Any] = {"gid": str(gid)}
+            if parent_gid is not None:
+                task_dict["parent"] = {"gid": str(parent_gid)}
+
+            hierarchy.register(task_dict)
+            registered += 1
+
+        if registered > 0:
+            logger.info(
+                "hierarchy_reconstructed_from_parquet",
+                extra={
+                    "project_gid": self._project_gid,
+                    "entity_type": self._entity_type,
+                    "entries_registered": registered,
+                    "total_rows": len(df),
+                },
+            )
+
+        return registered
+
+    async def _warm_hierarchy_gaps_async(self, df: pl.DataFrame) -> int:
+        """Warm hierarchy gaps after reconstruction from parquet.
+
+        Per TDD-CASCADE-RESUME-FIX: After reconstructing unit → unit_holder
+        links from parquet parent_gid, the unit_holder → business links are
+        still missing. This method passes parent GIDs to the hierarchy warmer
+        which fetches missing ancestors from cache/API and completes the chain.
+
+        Args:
+            df: Merged DataFrame with 'parent_gid' column.
+
+        Returns:
+            Count of ancestor tasks warmed.
+        """
+        if self._store is None or "parent_gid" not in df.columns:
+            return 0
+
+        parent_gids = [str(g) for g in df["parent_gid"].drop_nulls().unique().to_list()]
+        if not parent_gids:
+            return 0
+
+        from autom8_asana.cache.integration.hierarchy_warmer import (
+            warm_ancestors_async,
+        )
+
+        try:
+            return await warm_ancestors_async(
+                gids=parent_gids,
+                hierarchy_index=self._store.get_hierarchy_index(),
+                tasks_client=self._client.tasks,
+                max_depth=3,
+                unified_store=self._store,
+                global_semaphore=self._store._hierarchy_semaphore,
+            )
+        except Exception as e:  # BROAD-CATCH: enrichment
+            logger.warning(
+                "hierarchy_gap_warming_failed",
+                extra={
+                    "project_gid": self._project_gid,
+                    "entity_type": self._entity_type,
+                    "parent_gids_count": len(parent_gids),
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+            return 0
 
     async def _populate_store_with_tasks(self, tasks: list[Task]) -> None:
         """Populate UnifiedStore with fetched tasks for cascade resolution.

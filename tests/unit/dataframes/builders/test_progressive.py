@@ -405,3 +405,157 @@ class TestPopulateStoreDoesNotUseCheckpointState:
         mock_store.put_batch_async.assert_called_once()
         task_dicts = mock_store.put_batch_async.call_args[0][0]
         assert len(task_dicts) == 5
+
+
+# =============================================================================
+# Hierarchy reconstruction tests (TDD-CASCADE-RESUME-FIX)
+# =============================================================================
+
+
+class TestReconstructHierarchyFromDataframe:
+    """Verify _reconstruct_hierarchy_from_dataframe populates HierarchyIndex."""
+
+    def test_registers_gid_parent_pairs(self) -> None:
+        """Hierarchy populated from DataFrame gid/parent_gid columns."""
+        builder = _make_builder()
+
+        mock_hierarchy = MagicMock()
+        mock_hierarchy.contains.return_value = False
+
+        mock_store = MagicMock()
+        mock_store.get_hierarchy_index.return_value = mock_hierarchy
+        builder._store = mock_store
+
+        df = pl.DataFrame(
+            {
+                "gid": ["unit_1", "unit_2", "unit_3"],
+                "parent_gid": ["holder_a", "holder_b", None],
+                "name": ["U1", "U2", "U3"],
+            }
+        )
+
+        registered = builder._reconstruct_hierarchy_from_dataframe(df)
+
+        assert registered == 3
+        assert mock_hierarchy.register.call_count == 3
+
+        # First call: unit_1 → holder_a
+        call_args = mock_hierarchy.register.call_args_list[0][0][0]
+        assert call_args["gid"] == "unit_1"
+        assert call_args["parent"]["gid"] == "holder_a"
+
+        # Third call: unit_3 has no parent
+        call_args = mock_hierarchy.register.call_args_list[2][0][0]
+        assert call_args["gid"] == "unit_3"
+        assert "parent" not in call_args
+
+    def test_skips_already_registered(self) -> None:
+        """Tasks already in hierarchy are not re-registered."""
+        builder = _make_builder()
+
+        mock_hierarchy = MagicMock()
+        mock_hierarchy.contains.side_effect = lambda gid: gid == "unit_1"
+
+        mock_store = MagicMock()
+        mock_store.get_hierarchy_index.return_value = mock_hierarchy
+        builder._store = mock_store
+
+        df = pl.DataFrame(
+            {
+                "gid": ["unit_1", "unit_2"],
+                "parent_gid": ["holder_a", "holder_b"],
+            }
+        )
+
+        registered = builder._reconstruct_hierarchy_from_dataframe(df)
+
+        assert registered == 1  # Only unit_2 registered
+        assert mock_hierarchy.register.call_count == 1
+        assert mock_hierarchy.register.call_args[0][0]["gid"] == "unit_2"
+
+    def test_no_store_returns_zero(self) -> None:
+        """Returns 0 when store is None."""
+        builder = _make_builder()
+        builder._store = None
+
+        df = pl.DataFrame({"gid": ["1"], "parent_gid": ["2"]})
+        assert builder._reconstruct_hierarchy_from_dataframe(df) == 0
+
+    def test_missing_columns_returns_zero(self) -> None:
+        """Returns 0 when DataFrame lacks gid or parent_gid columns."""
+        builder = _make_builder()
+        builder._store = MagicMock()
+
+        df_no_parent = pl.DataFrame({"gid": ["1"], "name": ["Test"]})
+        assert builder._reconstruct_hierarchy_from_dataframe(df_no_parent) == 0
+
+        df_no_gid = pl.DataFrame({"parent_gid": ["2"], "name": ["Test"]})
+        assert builder._reconstruct_hierarchy_from_dataframe(df_no_gid) == 0
+
+
+class TestWarmHierarchyGapsAsync:
+    """Verify _warm_hierarchy_gaps_async warms missing ancestor links."""
+
+    async def test_calls_warm_ancestors_with_unique_parent_gids(self) -> None:
+        """Passes deduplicated parent_gids to hierarchy warmer."""
+        builder = _make_builder()
+
+        mock_hierarchy = MagicMock()
+        mock_semaphore = MagicMock()
+        mock_store = MagicMock()
+        mock_store.get_hierarchy_index.return_value = mock_hierarchy
+        mock_store._hierarchy_semaphore = mock_semaphore
+        builder._store = mock_store
+
+        mock_tasks_client = MagicMock()
+        builder._client = MagicMock()
+        builder._client.tasks = mock_tasks_client
+
+        df = pl.DataFrame(
+            {
+                "gid": ["u1", "u2", "u3"],
+                "parent_gid": ["h1", "h1", "h2"],  # h1 appears twice
+            }
+        )
+
+        with patch(
+            "autom8_asana.cache.integration.hierarchy_warmer.warm_ancestors_async",
+            new_callable=AsyncMock,
+            return_value=2,
+        ) as mock_warm:
+            result = await builder._warm_hierarchy_gaps_async(df)
+
+        assert result == 2
+        mock_warm.assert_called_once()
+        call_kwargs = mock_warm.call_args[1]
+        assert set(call_kwargs["gids"]) == {"h1", "h2"}
+        assert call_kwargs["max_depth"] == 3
+
+    async def test_no_store_returns_zero(self) -> None:
+        """Returns 0 when store is None."""
+        builder = _make_builder()
+        builder._store = None
+
+        df = pl.DataFrame({"gid": ["1"], "parent_gid": ["2"]})
+        assert await builder._warm_hierarchy_gaps_async(df) == 0
+
+    async def test_no_parent_gid_column_returns_zero(self) -> None:
+        """Returns 0 when parent_gid column missing."""
+        builder = _make_builder()
+        builder._store = MagicMock()
+
+        df = pl.DataFrame({"gid": ["1"], "name": ["Test"]})
+        assert await builder._warm_hierarchy_gaps_async(df) == 0
+
+    async def test_all_null_parent_gids_returns_zero(self) -> None:
+        """Returns 0 when all parent_gids are null."""
+        builder = _make_builder()
+        builder._store = MagicMock()
+
+        df = pl.DataFrame(
+            {
+                "gid": ["1", "2"],
+                "parent_gid": [None, None],
+            }
+        )
+        assert await builder._warm_hierarchy_gaps_async(df) == 0

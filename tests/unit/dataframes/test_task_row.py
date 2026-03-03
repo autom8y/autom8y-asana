@@ -114,10 +114,10 @@ class TestTaskRowCreation:
         assert row.tags == []
 
     def test_field_count(self) -> None:
-        """Verify TaskRow has exactly 12 base fields."""
+        """Verify TaskRow has exactly 13 base fields."""
         # Get fields from model_fields (Pydantic v2)
         fields = TaskRow.model_fields
-        assert len(fields) == 12
+        assert len(fields) == 13
 
 
 class TestTaskRowImmutability:
@@ -257,9 +257,9 @@ class TestUnitRowCreation:
         assert row.office is None
 
     def test_field_count(self) -> None:
-        """Verify UnitRow has 23 fields (12 base + 11 Unit)."""
+        """Verify UnitRow has 24 fields (13 base + 11 Unit)."""
         fields = UnitRow.model_fields
-        assert len(fields) == 23
+        assert len(fields) == 24
 
     def test_inherits_from_task_row(self) -> None:
         """Test that UnitRow inherits from TaskRow."""
@@ -352,9 +352,9 @@ class TestContactRowCreation:
         assert row.position is None
 
     def test_field_count(self) -> None:
-        """Verify ContactRow has 25 fields (12 base + 13 Contact)."""
+        """Verify ContactRow has 26 fields (13 base + 13 Contact)."""
         fields = ContactRow.model_fields
-        assert len(fields) == 25
+        assert len(fields) == 26
 
     def test_inherits_from_task_row(self) -> None:
         """Test that ContactRow inherits from TaskRow."""

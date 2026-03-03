@@ -539,6 +539,22 @@ class BaseExtractor(ABC):
             return []
         return [tag.name for tag in task.tags if tag.name]
 
+    def _extract_parent_gid(self, task: Task) -> str | None:
+        """Extract parent task GID for hierarchy reconstruction on resume.
+
+        Per TDD-CASCADE-RESUME-FIX: Persists parent_gid in parquet so
+        hierarchy can be reconstructed on S3 resume without API calls.
+
+        Args:
+            task: Task to extract from
+
+        Returns:
+            Parent GID string or None if task has no parent
+        """
+        if task.parent and task.parent.gid:
+            return task.parent.gid
+        return None
+
     def _extract_date(self, task: Task) -> dt.date | None:
         """Extract primary date field (FR-MODEL-021).
 

@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 
 def make_mock_task() -> MagicMock:
-    """Create a minimal mock task that satisfies BaseExtractor's base 12 fields."""
+    """Create a minimal mock task that satisfies BaseExtractor's base 13 fields."""
     task = MagicMock()
     task.gid = "1234567890"
     task.name = "Test Task"
@@ -31,6 +31,7 @@ def make_mock_task() -> MagicMock:
     task.tags = []
     task.memberships = []
     task.custom_fields = []
+    task.parent = None
     return task
 
 

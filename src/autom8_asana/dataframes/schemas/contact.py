@@ -112,5 +112,5 @@ CONTACT_SCHEMA = DataFrameSchema(
             if c.name not in {col.name for col in BASE_COLUMNS}
         ],
     ],
-    version="1.3.0",  # Bump to force rebuild with generalized cascade resolution fix
+    version="1.4.0",  # parent_gid column added for hierarchy reconstruction on resume
 )

@@ -562,9 +562,10 @@ class TestPacingErrorResilience:
             "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
             await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=client)
-            assert mock_sleep.call_count == 2  # 120 > 100, 2 pauses
+            # At least 2 batch-pacing sleeps, plus retry backoff sleeps
+            assert mock_sleep.call_count >= 2
 
-        # Phase 1 attempts all 120, Phase 2 re-attempts uncached ones
+        # Phase 1 attempts all 120 (with retries for failures), Phase 2 re-attempts uncached
         assert client.get_async.call_count >= n
 
     @pytest.mark.asyncio
@@ -580,7 +581,8 @@ class TestPacingErrorResilience:
         ):
             await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=client)
 
-        assert client.get_async.call_count >= 110
+        # With retry (max 3 attempts per parent), 110 parents * 3 = 330 calls
+        assert client.get_async.call_count >= 110 * 3
 
     @pytest.mark.asyncio
     async def test_failure_in_last_batch_handled_gracefully(
@@ -606,6 +608,7 @@ class TestPacingErrorResilience:
         ):
             await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=client)
 
+        # With retry, last batch failures get retried → more than 110 calls
         assert client.get_async.call_count >= 110
 
 
@@ -678,3 +681,87 @@ class TestPacingConfigConstants:
             f"BATCH_SIZE ({HIERARCHY_BATCH_SIZE}) >= THRESHOLD ({HIERARCHY_PACING_THRESHOLD}) "
             "makes pacing pointless"
         )
+
+
+# =============================================================================
+# Retry resilience tests (TDD-CASCADE-RESUME-FIX)
+# =============================================================================
+
+
+class TestFetchImmediateParentRetry:
+    """Verify retry with exponential backoff in _fetch_immediate_parent."""
+
+    @pytest.fixture
+    def store(self) -> UnifiedTaskStore:
+        """Create a store with mocked cache and hierarchy."""
+        mock_cache = MagicMock()
+        mock_cache.get_versioned.return_value = None  # Parent not cached
+        mock_cache.set_batch.return_value = None
+
+        store = UnifiedTaskStore.__new__(UnifiedTaskStore)
+        store.cache = mock_cache
+        store._hierarchy = MagicMock()
+        store._hierarchy_semaphore = asyncio.Semaphore(10)
+        store._stats = {"parent_chain_lookups": 0}
+        store._tasks_client = None
+        store._freshness_intent = FreshnessIntent.IMMEDIATE
+        return store
+
+    @pytest.mark.asyncio
+    async def test_retry_succeeds_on_second_attempt(
+        self, store: UnifiedTaskStore
+    ) -> None:
+        """First attempt fails with transient error, second succeeds."""
+        mock_client = MagicMock()
+        parent_resp = _make_parent_response("p1")
+
+        # First call raises, second succeeds
+        mock_client.get_async = AsyncMock(
+            side_effect=[ConnectionError("rate limited"), parent_resp]
+        )
+        store.put_async = AsyncMock()
+
+        tasks = [_make_task("c1", parent_gid="p1")]
+
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            result = await store._fetch_immediate_parents(tasks, mock_client)
+
+        assert result == 1
+        assert mock_client.get_async.call_count == 2
+        store._hierarchy.register.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_all_retries_exhausted(self, store: UnifiedTaskStore) -> None:
+        """All 3 attempts fail — returns 0, does not crash."""
+        mock_client = MagicMock()
+        mock_client.get_async = AsyncMock(
+            side_effect=ConnectionError("persistent failure")
+        )
+
+        tasks = [_make_task("c1", parent_gid="p1")]
+
+        with patch("asyncio.sleep", new_callable=AsyncMock):
+            result = await store._fetch_immediate_parents(tasks, mock_client)
+
+        assert result == 0
+        assert mock_client.get_async.call_count == 3
+        store._hierarchy.register.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_success_on_first_attempt_no_retry(
+        self, store: UnifiedTaskStore
+    ) -> None:
+        """Successful first attempt does not trigger any retries."""
+        mock_client = MagicMock()
+        parent_resp = _make_parent_response("p1")
+        mock_client.get_async = AsyncMock(return_value=parent_resp)
+        store.put_async = AsyncMock()
+
+        tasks = [_make_task("c1", parent_gid="p1")]
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+            result = await store._fetch_immediate_parents(tasks, mock_client)
+
+        assert result == 1
+        assert mock_client.get_async.call_count == 1
+        mock_sleep.assert_not_called()

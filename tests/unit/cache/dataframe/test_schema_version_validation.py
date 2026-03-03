@@ -102,8 +102,8 @@ class TestSchemaVersionLookup:
         # "Unknown" will title() to "Unknown", which falls back to "*" (base)
         version = _get_schema_version_for_entity("unknown")
 
-        # Base schema is at 1.0.0
-        assert version == "1.0.0"
+        # Base schema is at 1.1.0 (parent_gid column added for hierarchy reconstruction)
+        assert version == "1.1.0"
 
     def test_lookup_handles_registry_failure_gracefully(self) -> None:
         """Registry failure returns None instead of raising."""

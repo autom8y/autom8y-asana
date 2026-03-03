@@ -93,5 +93,5 @@ UNIT_SCHEMA = DataFrameSchema(
         *BASE_COLUMNS,
         *[c for c in UNIT_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
-    version="1.4.0",  # Per TDD-WS3: office source changed to cascade:Business Name
+    version="1.5.0",  # parent_gid column added for hierarchy reconstruction on resume
 )
