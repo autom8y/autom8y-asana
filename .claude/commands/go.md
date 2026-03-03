@@ -1,7 +1,7 @@
 ---
 name: go
 description: "Session status dashboard — shows where you are and suggests next action"
-argument-hint: "[task description]"
+argument-hint: "[task description] [--full]"
 allowed-tools: Bash, Read
 model: opus
 ---
@@ -33,16 +33,82 @@ ari session list --output json 2>/dev/null
 cat .claude/ACTIVE_RITE 2>/dev/null || echo "none"
 
 # 4. WIP artifacts
-ls .wip/ 2>/dev/null
+ls .sos/wip/ 2>/dev/null
 ```
 
 Also read the session context table injected by the SessionStart hook (already in your context above).
 
 ## Phase 2: Classify and Present
 
-Evaluate the collected state and present the appropriate dashboard:
+Evaluate the collected state and classify into one of four states: ALREADY_ACTIVE, RESUME_PARKED, NEW_WORK, or ORIENTATION.
 
-### ALREADY_ACTIVE (session with status=ACTIVE)
+### Mode Selection
+
+If `$ARGUMENTS` contains `--full`:
+- Strip `--full` from arguments (it is a flag, not a task description)
+- Use **Full Mode** below
+
+Otherwise: use **Brief Mode** (default).
+
+---
+
+### Brief Mode (default)
+
+For each classified state, output a compact card. No preamble, no extra commentary.
+
+**ALREADY_ACTIVE** (session with status=ACTIVE):
+```
+Rite:    {active_rite}
+Phase:   {current_phase}
+Session: {session_id}
+
+next: {hint}
+```
+
+Resolve the `next:` hint: read `.claude/ACTIVE_WORKFLOW.yaml`, find the phase matching `current_phase`, check its `next` field. If `next` names a phase → `/handoff {that_phase_agent}`. If `next: null` (terminal) → `/wrap` or `/commit && /pr`. If the user provided `$ARGUMENTS`, use their intent as the hint instead.
+
+**RESUME_PARKED** (single parked session):
+```
+Parked:  {session_id} ({relative_time} ago)
+Rite:    {active_rite}
+
+next: /continue
+```
+
+**RESUME_PARKED** (multiple parked sessions):
+```
+Parked sessions:
+1. {id_1} — {initiative_1} ({time})
+2. {id_2} — {initiative_2} ({time})
+
+next: /continue
+```
+
+**NEW_WORK** ($ARGUMENTS provided, no active/parked sessions):
+```
+No active session.
+Intent: {$ARGUMENTS}
+
+next: /consult "{$ARGUMENTS}"
+```
+
+**ORIENTATION** (nothing active, no arguments):
+```
+Rite:    {active_rite or "none"}
+Sessions: {active_count} active, {parked_count} parked
+
+next: /consult
+```
+
+If `.sos/wip/` artifacts exist without a session, append: `Note: {n} artifacts in .wip/ with no active session.`
+
+---
+
+### Full Mode (`--full`)
+
+Display expanded dashboard with sprint progress and multiple options.
+
+**ALREADY_ACTIVE** (session with status=ACTIVE):
 
 Display a compact status block. No preamble.
 
@@ -63,9 +129,9 @@ Read the session's `SESSION_CONTEXT.md` and any `SPRINT_CONTEXT.md` to populate 
 
 If the user provided `$ARGUMENTS`, acknowledge the active session AND relay their intent as the suggested next action.
 
-### RESUME_PARKED (one or more sessions with status=PARKED, none ACTIVE)
+**RESUME_PARKED** (one or more sessions with status=PARKED, none ACTIVE):
 
-**Single parked session**:
+*Single parked session*:
 ```
 Parked session found: {session_id}
 Initiative: {initiative} (parked {relative_time})
@@ -73,7 +139,7 @@ Initiative: {initiative} (parked {relative_time})
 Resume with: /continue
 ```
 
-**Multiple parked sessions**:
+*Multiple parked sessions*:
 ```
 Found {n} parked sessions:
 
@@ -84,7 +150,7 @@ Resume one with: /continue
 Start fresh with: /start "<initiative>"
 ```
 
-### NEW_WORK ($ARGUMENTS provided, no active/parked sessions)
+**NEW_WORK** ($ARGUMENTS provided, no active/parked sessions):
 
 ```
 No active sessions.
@@ -96,7 +162,7 @@ Get started:
   /start "{$ARGUMENTS}"    — Start directly with current rite ({active_rite})
 ```
 
-### ORIENTATION (nothing active, no arguments)
+**ORIENTATION** (nothing active, no arguments):
 
 ```
 Rite: {active_rite or "none"}
@@ -110,11 +176,11 @@ Options:
   /rite --list   — See available rites
 ```
 
-If `.wip/` artifacts exist without a session, mention them:
+If `.sos/wip/` artifacts exist without a session, mention them:
 
 ```
 Note: Found {n} artifacts in .wip/ with no active session.
-Review with: ls .wip/
+Review with: ls .sos/wip/
 ```
 
 ## Behavioral Rules
@@ -134,15 +200,15 @@ Review with: ls .wip/
 ## Examples
 
 ```bash
-# Active session exists — shows status immediately
+# Brief status card (default)
 /go
 
-# Parked session — shows resume suggestion
-/go
+# Full dashboard
+/go --full
 
-# New work with intent — shows start options
+# Brief with intent
 /go "add user authentication to the API"
 
-# Nothing happening — shows dashboard
-/go
+# Full with intent
+/go --full "add user authentication to the API"
 ```

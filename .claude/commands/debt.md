@@ -38,4 +38,4 @@ Switch to the technical debt triage rite and display the pantheon. $ARGUMENTS
 
 ## Reference
 
-Full documentation: `rites/debt-triage/mena/debt-ref/INDEX.lego.md`
+Full documentation: `.claude/skills/debt-ref/INDEX.md`

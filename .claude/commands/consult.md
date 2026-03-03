@@ -52,7 +52,7 @@ Provide ecosystem guidance and recommendations. $ARGUMENTS
 7. Offer alternatives if multiple valid approaches exist
 
 ### `--playbook=NAME` flag
-1. Load playbook from `~/.claude/knowledge/consultant/playbooks/curated/{NAME}.md`
+1. Search for playbook by name in rite mena directories and shared skills
 2. Present complete workflow with current context
 3. If not found, list available playbooks
 
@@ -69,6 +69,8 @@ Display all rites dynamically (use `rite-discovery` skill):
 | forge        | /forge        | Rite creation and validation       |
 | hygiene      | /hygiene      | Code quality, refactoring          |
 | intelligence | /intelligence | Analytics, A/B testing, research   |
+| releaser     | /releaser     | Multi-repo release orchestration, publish packages, bump consumers, CI monitoring |
+| review       | /review       | Language-agnostic codebase health assessment |
 | rnd          | /rnd          | Exploration, prototyping           |
 | security     | /security     | Security assessment, compliance    |
 | sre          | /sre          | Operations, reliability            |
@@ -80,7 +82,7 @@ Display all rites dynamically (use `rite-discovery` skill):
 Display all commands by category:
 ```
 Session (5): /start, /park, /continue, /handoff, /wrap
-Rite (11): /rite, /10x, /arch, /docs, /hygiene, /debt, /sre, /security, /intelligence, /rnd, /strategy
+Rite (14): /rite, /10x, /arch, /docs, /hygiene, /debt, /releaser, /review, /sre, /security, /intelligence, /rnd, /strategy, /slop-chop
 Workflow (4): /task, /sprint, /hotfix, /spike
 Operations (5): /architect, /build, /qa, /pr, /code-review
 ```
@@ -151,4 +153,20 @@ When recommending rites, retrieve current rite inventory from:
 
 ## Reference
 
-Full documentation: `.claude/commands/navigation/consult/INDEX.md`
+Full documentation: `mena/navigation/consult/reference.md`
+
+## Sigil
+
+### On Success
+
+End your response with:
+
+🧭 guided · next: {primary recommended command from your consultation}
+
+The hint should be the primary command you recommended (e.g., `next: /start "the initiative"` or `next: /rite 10x-dev`). If you recommended multiple options, use the first/primary one.
+
+### On Failure
+
+❌ consult failed: {brief reason} · fix: {recovery}
+
+Infer recovery: knowledge base not found → check knossos installation; no rites available → `ari init`; uncertain → try `/go` for orientation.

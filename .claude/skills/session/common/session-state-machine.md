@@ -46,7 +46,7 @@ Sessions move through a simple state machine with three primary states: **Active
 **Indicators**:
 - `parked_at` field NOT set
 - `completed_at` field NOT set
-- SESSION_CONTEXT file exists in `.claude/sessions/{session_id}/`
+- SESSION_CONTEXT file exists in `.sos/sessions/{session_id}/`
 
 **Valid Commands**:
 - /park - Pause work
@@ -67,7 +67,7 @@ Sessions move through a simple state machine with three primary states: **Active
 - `parked_at` field SET
 - `parked_reason` field SET
 - `completed_at` field NOT set
-- SESSION_CONTEXT file exists in `.claude/sessions/{session_id}/`
+- SESSION_CONTEXT file exists in `.sos/sessions/{session_id}/`
 
 **Valid Commands**:
 - /resume - Continue work
@@ -175,7 +175,7 @@ Sessions move through a simple state machine with three primary states: **Active
 **Post-conditions**:
 - State → ARCHIVED
 - `completed_at` timestamp set
-- SESSION_CONTEXT moved from `.claude/sessions/` to archive
+- SESSION_CONTEXT moved from `.sos/sessions/` to archive
 - Session summary created
 
 **Rollback**: If moirai or archival fails, state remains ACTIVE

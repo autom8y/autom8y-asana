@@ -123,7 +123,7 @@
 
 **Critical**: Pythia does NOT implement. It coordinates.
 
-**Also Critical**: Pythia cannot invoke specialists. It provides DIRECTIVES that the main thread executes via Task tool. See `~/.claude/skills/orchestration/main-thread-guide.md`.
+**Also Critical**: Pythia cannot invoke specialists. It provides DIRECTIVES that the main thread executes via Task tool.
 
 ### Requirements Analyst (Specialist)
 

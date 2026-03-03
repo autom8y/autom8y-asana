@@ -104,7 +104,7 @@ When invoked without arguments, `/consult` provides ecosystem overview:
 
 1. **Summarize Current State**
    - Active rite (from `.claude/ACTIVE_RITE`)
-   - Active session (from `.claude/sessions/`)
+   - Active session (from `.sos/sessions/`)
    - Current complexity level (if in session)
 
 2. **Display Rite Catalog**
@@ -143,6 +143,7 @@ Session: ACTIVE - "Add authentication" (MODULE complexity)
   intelligence  /intelligence Analytics & research
   rnd           /rnd          Exploration & prototyping
   strategy      /strategy     Business analysis
+  review        /review       Language-agnostic health assessment
   slop-chop     /slop-chop    AI code quality gate
 
 === Common Starting Points ===
@@ -168,7 +169,7 @@ When given a natural language query, `/consult` acts as intelligent router:
    - Recognize domain keywords (auth, performance, tests, docs)
 
 2. **Match to Rite + Workflow**
-   - Consult `~/.claude/knowledge/consultant/routing/intent-patterns.md`
+   - Match intent keywords to rite profiles in rite mena directories
    - Determine appropriate rite
    - Select workflow type (task, sprint, hotfix, spike)
    - Estimate complexity level
@@ -273,7 +274,7 @@ Next step: Run `/10x` to switch rites
 Curated playbooks provide pre-built workflows for common scenarios:
 
 1. **Check Playbook Exists**
-   - Look in `~/.claude/knowledge/consultant/playbooks/curated/{NAME}.md`
+   - Search for playbook by name in rite mena directories and shared skills
    - If not found, list available playbooks
 
 2. **Load and Present Playbook**
@@ -360,6 +361,7 @@ Display complete rite reference table:
 |-------------------|---------------|--------|------------------------------------|
 | 10x-dev      | /10x          | 5      | Full feature development lifecycle |
 | arch         | /arch         | 4      | Multi-repo architecture analysis   |
+| clinic       | /clinic       | 5      | Production debugging, root cause analysis |
 | docs     | /docs         | 4      | Documentation, technical writing   |
 | hygiene      | /hygiene      | 4      | Code quality, refactoring          |
 | debt-triage  | /debt         | 3      | Technical debt prioritization      |
@@ -368,9 +370,10 @@ Display complete rite reference table:
 | intelligence | /intelligence | 4      | Analytics, A/B testing, research   |
 | rnd          | /rnd          | 4      | Exploration, prototyping           |
 | strategy     | /strategy     | 4      | Market research, business analysis |
+| review       | /review       | 4      | Language-agnostic codebase health assessment  |
 | slop-chop    | /slop-chop    | 6      | AI code quality gate, hallucination detection |
 
-Total: 51 agents across all rites
+Total: 60 agents across all rites
 
 Use /rite <name> or quick-switch commands (e.g., /10x) to activate.
 ```
@@ -382,7 +385,7 @@ Use /rite <name> or quick-switch commands (e.g., /10x) to activate.
 Display all commands categorized by domain:
 
 ```
-=== Command Registry (32 Total) ===
+=== Command Registry (33 Total) ===
 
 --- Session Lifecycle (6) ---
 /start              Initialize new work session
@@ -392,10 +395,11 @@ Display all commands categorized by domain:
 /wrap               Finalize session, run quality gates
 /worktree           Manage isolated worktrees
 
---- Rite Management (12) ---
+--- Rite Management (14) ---
 /rite               Switch rite or list available
 /10x                Quick switch to 10x-dev
 /arch               Quick switch to arch
+/clinic             Quick switch to clinic
 /docs               Quick switch to docs
 /hygiene            Quick switch to hygiene
 /debt               Quick switch to debt-triage
@@ -405,6 +409,7 @@ Display all commands categorized by domain:
 /rnd                Quick switch to rnd
 /strategy           Quick switch to strategy
 /slop-chop          Quick switch to slop-chop
+/review             Quick switch to review
 
 --- Development Workflows (4) ---
 /task               Single task through full lifecycle
@@ -445,7 +450,7 @@ The Consultant draws from structured knowledge base:
 | `rite-profiles/*.md` | Deep knowledge of each rite's strengths |
 | `playbooks/curated/*.md` | Pre-built workflows for common scenarios |
 
-These sources are maintained in `~/.claude/knowledge/consultant/` and kept in sync with the ecosystem.
+These sources are maintained in the rite mena directories and shared skills, materialized via `ari sync`.
 
 ---
 
@@ -532,6 +537,7 @@ When recommending rites, `/consult` retrieves current rite inventory from:
 |------|---------|-------------------|----------|
 | **10x-dev** | `/10x` | SCRIPT, MODULE, SERVICE, PLATFORM | Building features, fixing complex bugs |
 | **arch** | `/arch` | SURVEY, ANALYSIS, DEEP-DIVE | Multi-repo architecture analysis, dependency mapping |
+| **clinic** | `/clinic` | INVESTIGATION | Production errors, intermittent failures, SRE escalations, root cause analysis |
 | **docs** | `/docs` | PAGE, SECTION, SITE | Writing or updating documentation |
 | **hygiene** | `/hygiene` | SPOT, MODULE, CODEBASE | Refactoring, code quality improvements |
 | **debt-triage** | `/debt` | QUICK, AUDIT | Assessing and prioritizing technical debt |
@@ -540,6 +546,7 @@ When recommending rites, `/consult` retrieves current rite inventory from:
 | **intelligence** | `/intelligence` | METRIC, FEATURE, INITIATIVE | Analytics, A/B tests, data research |
 | **rnd** | `/rnd` | SPIKE, EVALUATION, MOONSHOT | Exploration, prototyping, research |
 | **strategy** | `/strategy` | TACTICAL, STRATEGIC, TRANSFORMATION | Business planning, market research |
+| **review** | `/review` | QUICK, FULL | Language-agnostic codebase health assessment, intake triage before specialist rites |
 | **slop-chop** | `/slop-chop` | DIFF, MODULE, CODEBASE | AI code review, hallucination detection, temporal debt |
 
 ---
@@ -609,10 +616,10 @@ When recommending rites, `/consult` retrieves current rite inventory from:
 ```
 
 **Response:**
-- Assessment: Urgent production issue, security/availability concern
-- Recommendation: /hotfix for immediate fix, then /sre for root cause
-- Command-Flow: `/hotfix` → diagnose → fix → deploy → `/sre` for postmortem
-- Alternatives: If security breach suspected, involve `/security` rite
+- Assessment: Urgent production issue, requires structured root cause analysis
+- Recommendation: `/clinic` for investigation lifecycle (intake → examination → diagnosis → treatment)
+- Command-Flow: `/clinic` → triage-nurse scopes → pathologist collects evidence → diagnostician diagnoses → attending produces fix spec + handoff artifacts
+- Alternatives: If the cause is already known and the fix is urgent, use `/hotfix`. If security breach suspected, involve `/security` rite after clinic diagnosis
 
 ---
 
@@ -653,7 +660,7 @@ A good `/consult` response:
 
 ### Consultant Agent
 
-The `/consult` command is powered by the **Consultant** agent, a global singleton at `~/.claude/agents/consultant.md`. This agent:
+The `/consult` command is powered by the **Consultant** agent. This agent:
 - Persists across rite swaps
 - Has deep knowledge of all rites and workflows
 - Uses Claude Opus 4.5 for complex reasoning
@@ -699,5 +706,5 @@ This skill is kept in sync with:
 
 When ecosystem changes, update:
 1. This skill reference (INDEX.lego.md)
-2. Consultant knowledge base (`~/.claude/knowledge/consultant/`)
-3. Consultant agent prompt (`~/.claude/agents/consultant.md`)
+2. Rite mena directories and shared skills (source of truth)
+3. Consultant agent prompt (in agents directory)

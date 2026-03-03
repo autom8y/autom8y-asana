@@ -41,18 +41,21 @@ Given a user query, compare against rite routing conditions:
 |------|---------|--------|----------|--------|
 | 10x-dev | /10x | Software development | requirements → design → implementation → validation | 4 |
 | arch | /arch | Architecture analysis | discovery → synthesis → evaluation → remediation | 4 |
+| clinic | /clinic | Production debugging and investigation | intake → examination → diagnosis → treatment | 5 |
 | debt-triage | /debt | Technical debt management | collection → assessment → planning | 3 |
 | docs | /docs | Documentation lifecycle | audit → architecture → writing → review | 4 |
 | ecosystem | /ecosystem | Ecosystem infrastructure | analysis → design → implementation → documentation → validation | 5 |
 | forge | /forge | Agent rite creation | discovery → architecture → implementation → validation → publishing → catalog | 6 |
 | hygiene | /hygiene | Code quality | assessment → planning → execution → audit | 4 |
 | intelligence | /intelligence | Product analytics | discovery → analysis → experimentation → measurement | 4 |
+| releaser | /releaser | Release engineering | reconnaissance → dependency-analysis → release-planning → execution → verification | 6 |
+| review | /review | Code review | scan → assess → report | 4 |
 | rnd | /rnd | Technology exploration | question → exploration → synthesis → recommendation | 4 |
 | security | /security | Security assessment | discovery → analysis → hardening → verification | 4 |
 | sre | /sre | Site reliability | discovery → analysis → implementation → verification | 4 |
 | strategy | /strategy | Business strategy | market-research → competitive-analysis → business-modeling → strategic-planning | 4 |
 
-**Total**: 12 rites, 50 agents
+**Total**: 15 rites, 65 agents
 
 Note: `shared` is a dependency bundle, not a user-facing rite.
 To refresh this table, run `ari sync` which reads from `rites/*/orchestrator.yaml`.

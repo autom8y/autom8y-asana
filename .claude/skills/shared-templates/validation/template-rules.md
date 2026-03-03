@@ -395,4 +395,4 @@ When MAJOR version increases (1.x → 2.0):
 - [Debt Ledger Schema](../schemas/debt-ledger-schema.md)
 - [Risk Matrix Schema](../schemas/risk-matrix-schema.md)
 - [Sprint Debt Package Schema](../schemas/sprint-debt-package-schema.md)
-- [TDD: Shared Templates](docs/design/TDD-shared-templates.md)
+- [TDD: Shared Templates](.ledge/specs/TDD-shared-templates.md)

@@ -17,7 +17,7 @@ Output:
 Running quality gates...
 
 ✓ PRD Quality Gate: Passed
-  - PRD complete: /docs/requirements/PRD-api-retry.md
+  - PRD complete: .ledge/specs/PRD-api-retry.md
   - Acceptance criteria testable: 3/3
   - No blocking questions
 
@@ -153,7 +153,7 @@ Invoking QA Adversary for production readiness review...
   - No critical defects
   - Production ready ✓
 
-Test Plan created: /docs/testing/TP-dark-mode.md
+Test Plan created: .ledge/specs/TP-dark-mode.md
 
 Session wrapped: Add dark mode toggle
 

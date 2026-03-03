@@ -44,4 +44,4 @@ scouting -> integration-analysis -> prototyping -> future-architecture
 
 ## Reference
 
-Full documentation: `rites/rnd/mena/rnd-ref/INDEX.lego.md`
+Full documentation: `.claude/skills/rnd-ref/INDEX.md`

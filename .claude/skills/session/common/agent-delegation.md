@@ -62,13 +62,13 @@ Create PRD following template at `.claude/skills/documentation/templates/prd.md`
 
 Clarify ambiguities with user before drafting.
 
-Save to: /docs/requirements/PRD-{slug}.md
+Save to: .ledge/specs/PRD-{slug}.md
 
 Update SESSION_CONTEXT artifacts array when complete.")
 ```
 
 **Expected Artifacts**:
-- PRD at `/docs/requirements/PRD-{slug}.md`
+- PRD at `.ledge/specs/PRD-{slug}.md`
 
 **Duration**: 10-30 minutes
 
@@ -86,22 +86,22 @@ Session Context:
 - Session ID: {session_id}
 - Initiative: {initiative}
 - Complexity: {complexity}
-- PRD: /docs/requirements/PRD-{slug}.md
+- PRD: .ledge/specs/PRD-{slug}.md
 
 Create TDD following template at `.claude/skills/documentation/templates/tdd.md` -- template paths are illustrative; actual templates vary by rite.
 
 Identify architecture decisions and create ADRs using template at `.claude/skills/documentation/templates/adr.md` -- template paths are illustrative; actual templates vary by rite.
 
 Save artifacts:
-- TDD: /docs/design/TDD-{slug}.md
-- ADRs: /docs/decisions/ADR-{NNNN}-{decision-slug}.md
+- TDD: .ledge/specs/TDD-{slug}.md
+- ADRs: .ledge/decisions/ADR-{NNNN}-{decision-slug}.md
 
 Update SESSION_CONTEXT artifacts array when complete.")
 ```
 
 **Expected Artifacts**:
-- TDD at `/docs/design/TDD-{slug}.md`
-- ADRs at `/docs/decisions/ADR-{NNNN}-*.md`
+- TDD at `.ledge/specs/TDD-{slug}.md`
+- ADRs at `.ledge/decisions/ADR-{NNNN}-*.md`
 
 **Duration**: 30-90 minutes
 
@@ -120,8 +120,8 @@ Session Context:
 - Initiative: {initiative}
 - Complexity: {complexity}
 - Current Phase: implementation
-- PRD: /docs/requirements/PRD-{slug}.md
-- TDD: /docs/design/TDD-{slug}.md (if MODULE+)
+- PRD: .ledge/specs/PRD-{slug}.md
+- TDD: .ledge/specs/TDD-{slug}.md (if MODULE+)
 - Artifacts: {artifact_list}
 
 Follow TDD specifications, create tests, ensure type safety.
@@ -153,8 +153,8 @@ Session Context:
 - Initiative: {initiative}
 - Complexity: {complexity}
 - Current Phase: validation
-- PRD: /docs/requirements/PRD-{slug}.md
-- TDD: /docs/design/TDD-{slug}.md (if exists)
+- PRD: .ledge/specs/PRD-{slug}.md
+- TDD: .ledge/specs/TDD-{slug}.md (if exists)
 - Implementation: {code_paths}
 - Artifacts: {artifact_list}
 
@@ -162,13 +162,13 @@ Validate all PRD acceptance criteria.
 Test edge cases and error conditions.
 Create Test Plan documenting validation.
 
-Save Test Plan to: /docs/testing/TP-{slug}.md
+Save Test Plan to: .ledge/specs/TP-{slug}.md
 
 Report defects in SESSION_CONTEXT blockers array if found.")
 ```
 
 **Expected Artifacts**:
-- Test Plan at `/docs/testing/TP-{slug}.md`
+- Test Plan at `.ledge/specs/TP-{slug}.md`
 - Defect list (if issues found)
 
 **Duration**: 30-90 minutes
@@ -185,7 +185,7 @@ Task(moirai, "{operation}
 
 Session Context:
 - Session ID: {session_id}
-- Session Path: .claude/sessions/{session_id}/SESSION_CONTEXT.md")
+- Session Path: .sos/sessions/{session_id}/SESSION_CONTEXT.md")
 ```
 
 **Operations**:

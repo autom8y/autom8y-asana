@@ -6,7 +6,7 @@
 
 Smell reports are produced by **code-smeller** (hygiene) and document code quality issues discovered through systematic smell detection. This document specifies required fields, format, and validation rules.
 
-**Template Location**: `.claude/skills/doc-ecosystem/templates/smell-report.md`
+**Template Location**: Use `Skill("doc-ecosystem")` to access smell report templates
 
 ## Required Fields
 
@@ -220,4 +220,4 @@ Before finalizing a smell report, validate:
 - [../taxonomy/](../taxonomy/) - Smell type definitions
 - [../severity/classification.md](../severity/classification.md) - Severity calculation
 - [debt-ledger.md](debt-ledger.md) - Integration with debt tracking
-- `/.claude/skills/doc-ecosystem/templates/smell-report.md` - Template
+- `Skill("doc-ecosystem")` for template access

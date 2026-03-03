@@ -1,13 +1,13 @@
 ---
 schema_name: adr
 schema_version: "1.0"
-file_pattern: "docs/design/ADR-*.md"
+file_pattern: ".ledge/decisions/ADR-*.md"
 artifact_type: adr
 ---
 
 # ADR Schema
 
-> Canonical schema for Architecture Decision Records at `docs/design/ADR-{number}.md`
+> Canonical schema for Architecture Decision Records at `.ledge/decisions/ADR-{number}.md`
 
 ## YAML Frontmatter
 

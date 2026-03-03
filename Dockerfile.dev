@@ -28,11 +28,14 @@ RUN uv export --frozen --format requirements-txt --no-hashes \
 COPY src ./src
 RUN UV_NO_CONFIG=1 uv pip install --system --no-deps .
 
+# Copy entrypoint (overridden by volume mount when run via monorepo compose)
+# See TDD-DEV-STACK-ENTRYPOINT-STANDARDIZATION.md, ADR-DSR-008.
+COPY docker/dev/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # SDK source will be volume-mounted at /app/sdks/
 ENV PYTHONPATH="/app/sdks:/app/src:${PYTHONPATH:-}"
 
 EXPOSE 8000
 
-CMD ["uvicorn", "autom8_asana.api.main:create_app", "--factory", \
-     "--host", "0.0.0.0", "--port", "8000", \
-     "--reload", "--reload-dir", "/app/src", "--reload-dir", "/app/sdks"]
+ENTRYPOINT ["/app/entrypoint.sh"]

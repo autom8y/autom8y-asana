@@ -1,0 +1,81 @@
+---
+type: audit
+---
+generated_at: "2026-03-03T18:43:00Z"
+started_at: "2026-03-03T18:42:53Z"
+completed_at: "2026-03-03T18:43:00Z"
+status: completed
+total_actions: 1
+succeeded: 1
+failed: 0
+pending: 0
+
+phases:
+  - phase: 1
+    status: completed
+    actions:
+      - repo: autom8y-asana
+        action: push_only
+        command: "git -C /Users/tomtenuta/Code/autom8y-asana push origin main"
+        status: success
+        started_at: "2026-03-03T18:42:53Z"
+        completed_at: "2026-03-03T18:43:00Z"
+        output_summary: "a24311a..394d61c main -> main (1 commit pushed). Remote reported 1 pre-existing Dependabot high vulnerability on default branch — informational only, not a push failure."
+        error: null
+        pr_url: null
+        published_version: null
+        commit_sha: "394d61c4e468471e954a7dfb284924ceec0e8383"
+
+halted_branches: []
+
+pipeline_expectations:
+  - repo: autom8y-asana
+    chains:
+      - chain_id: "autom8y-asana:test.yml"
+        chain_type: trigger_chain
+        depth: 3
+        stages:
+          - stage: 1
+            repo: "autom8y/autom8y-asana"
+            workflow: "test.yml"
+            trigger: "push"
+            classification: ci
+          - stage: 2
+            repo: "autom8y/autom8y-asana"
+            workflow: "satellite-dispatch.yml"
+            trigger: "workflow_run"
+            classification: dispatch
+          - stage: 3
+            repo: "autom8y/autom8y"
+            workflow: "satellite-receiver.yml"
+            trigger: "repository_dispatch"
+            classification: deploy
+        terminal_stage:
+          repo: "autom8y/autom8y"
+          workflow: "satellite-receiver.yml"
+          has_health_check: true
+        cross_repo: true
+        target_repos:
+          - "autom8y/autom8y"
+
+retries:
+  - action: rerun
+    repo: autom8y/autom8y
+    original_run_id: 22637949056
+    original_run_url: "https://github.com/autom8y/autom8y/actions/runs/22637949056"
+    workflow: "satellite-receiver.yml"
+    triggered_at: "2026-03-03T18:52:45Z"
+    command: "gh run rerun 22637949056 -R autom8y/autom8y --failed"
+    status: triggered
+    reason: "Transient Sigstore attestation API 401 on post-push SBOM attestation step. Docker image was built and pushed to ECR successfully. Infrastructure flakiness — not a code issue. First attempt (full rerun) returned HTTP 500 from GitHub Actions API; second attempt with --failed succeeded."
+    note: "First attempt (gh run rerun ... no flags) returned HTTP 500 from GitHub API — transient. Second attempt with --failed flag accepted by GitHub (exit 0)."
+
+summary:
+  published: []
+  bumped: []
+  pushed:
+    - repo: autom8y-asana
+      branch: main
+      sha: "394d61c4e468471e954a7dfb284924ceec0e8383"
+  prs_created: []
+  failed: []

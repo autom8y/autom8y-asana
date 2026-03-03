@@ -14,9 +14,9 @@ description: "Process audit patterns for workflow compliance, retrospectives, an
 ```
 Review my recent work for workflow compliance:
 
-- /docs/requirements/PRD-{NNNN}.md
-- /docs/design/TDD-{NNNN}.md
-- /docs/decisions/ADR-{NNNN}.md
+- .ledge/specs/PRD-{NNNN}.md
+- .ledge/specs/TDD-{NNNN}.md
+- .ledge/decisions/ADR-{NNNN}.md
 - /src/{path}
 
 Check:
@@ -24,7 +24,7 @@ Check:
 - Does TDD trace to PRD?
 - Are ADRs complete for significant decisions?
 - Does code follow conventions? (see `standards` skill)
-- Is /docs/INDEX.md updated?
+- Is .ledge/ updated?
 ```
 
 ## Suggest Next Steps

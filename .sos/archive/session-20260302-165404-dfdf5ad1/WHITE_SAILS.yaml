@@ -1,0 +1,34 @@
+schema_version: "1.0"
+session_id: session-20260302-165404-dfdf5ad1
+generated_at: "2026-03-02T16:34:25Z"
+color: GRAY
+computed_base: GRAY
+proofs:
+    adversarial:
+        status: UNKNOWN
+        summary: log file not found
+        exit_code: 0
+        timestamp: "2026-03-02T16:34:25Z"
+    build:
+        status: UNKNOWN
+        summary: log file not found
+        exit_code: 0
+        timestamp: "2026-03-02T16:34:25Z"
+    integration:
+        status: UNKNOWN
+        summary: log file not found
+        exit_code: 0
+        timestamp: "2026-03-02T16:34:25Z"
+    lint:
+        status: UNKNOWN
+        summary: log file not found
+        exit_code: 0
+        timestamp: "2026-03-02T16:34:25Z"
+    tests:
+        status: UNKNOWN
+        summary: log file not found
+        exit_code: 0
+        timestamp: "2026-03-02T16:34:25Z"
+open_questions: []
+complexity: PATCH
+type: standard

@@ -34,5 +34,5 @@ The orchestrator is a stateless advisor. It receives structured context and retu
 
 ## Related Skills
 
-- [10x-workflow](~/.claude/commands/guidance/10x-workflow/INDEX.md) - Agent coordination patterns
-- [prompting](~/.claude/commands/guidance/prompting/INDEX.md) - Agent invocation guidance
+- `10x-workflow` skill — Agent coordination patterns
+- `prompting` skill — Agent invocation guidance

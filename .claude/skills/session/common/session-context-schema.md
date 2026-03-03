@@ -1,6 +1,6 @@
 # SESSION_CONTEXT Schema
 
-> Field definitions for `.claude/sessions/{session_id}/SESSION_CONTEXT.md`
+> Field definitions for `.sos/sessions/{session_id}/SESSION_CONTEXT.md`
 
 ## Overview
 
@@ -74,7 +74,7 @@ Each entry in `artifacts` array:
 
 ```yaml
 - type: "PRD" | "TDD" | "ADR" | "Test-Plan" | "Code"
-  path: "/docs/requirements/PRD-{slug}.md"
+  path: ".ledge/specs/PRD-{slug}.md"
   status: "draft" | "approved" | "implemented" | "validated"
   created_at: "ISO 8601 timestamp"
 ```
@@ -142,7 +142,7 @@ current_phase: "requirements"
 last_agent: "requirements-analyst"
 artifacts:
   - type: "PRD"
-    path: "/docs/requirements/PRD-dark-mode.md"
+    path: ".ledge/specs/PRD-dark-mode.md"
     status: "approved"
     created_at: "2026-01-01T14:35:12Z"
 blockers: []
@@ -155,7 +155,7 @@ context_version: "1.0"
 # Session: Add dark mode toggle
 
 ## Artifacts
-- PRD: /docs/requirements/PRD-dark-mode.md (approved)
+- PRD: .ledge/specs/PRD-dark-mode.md (approved)
 
 ## Blockers
 None yet.
@@ -178,11 +178,11 @@ current_phase: "implementation"
 last_agent: "principal-engineer"
 artifacts:
   - type: "PRD"
-    path: "/docs/requirements/PRD-dark-mode.md"
+    path: ".ledge/specs/PRD-dark-mode.md"
     status: "approved"
     created_at: "2026-01-01T14:35:12Z"
   - type: "TDD"
-    path: "/docs/design/TDD-dark-mode.md"
+    path: ".ledge/specs/TDD-dark-mode.md"
     status: "approved"
     created_at: "2026-01-01T15:22:45Z"
 blockers:
@@ -202,8 +202,8 @@ context_version: "1.0"
 # Session: Add dark mode toggle
 
 ## Artifacts
-- PRD: /docs/requirements/PRD-dark-mode.md (approved)
-- TDD: /docs/design/TDD-dark-mode.md (approved)
+- PRD: .ledge/specs/PRD-dark-mode.md (approved)
+- TDD: .ledge/specs/TDD-dark-mode.md (approved)
 
 ## Blockers
 - **[External]** Waiting for design system color tokens (created 2026-01-01T16:10:33Z)

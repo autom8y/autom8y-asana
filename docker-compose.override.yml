@@ -19,7 +19,7 @@ services:
     ports:
       - "5300:8000"
     env_file:
-      - path: ${AUTOM8Y_ASANA_DIR:-.}/.env/local
+      - path: ${AUTOM8Y_MONOREPO_ROOT:-.}/docker/dev/env/dev-defaults.env
         required: false
     environment:
       AUTOM8Y_ENV: local
@@ -37,6 +37,8 @@ services:
       AUTH_JWKS_URL: http://auth:8000/.well-known/jwks.json
       AUTH_ISSUER: auth.api.autom8y.io
       AUTH_DEV_MODE: "true"
+      ASANA_PAT: ${ASANA_PAT:-}
+      ASANA_WORKSPACE_GID: ${ASANA_WORKSPACE_GID:-}
       API_HOST: 0.0.0.0
       API_PORT: "8000"
       ENVIRONMENT: development
@@ -46,16 +48,19 @@ services:
       AWS_DEFAULT_REGION: us-east-1
       AWS_ENDPOINT_URL: http://localstack:4566
     volumes:
+      # Entrypoint + shared library (ADR-DSR-008)
+      - ${AUTOM8Y_MONOREPO_ROOT:-.}/docker/dev/entrypoint-lib.sh:/app/entrypoint-lib.sh:ro
+      - ${AUTOM8Y_ASANA_DIR:-.}/docker/dev/entrypoint.sh:/app/entrypoint.sh:ro
       # Paths use ${AUTOM8Y_ASANA_DIR} because Docker Compose resolves relative
       # paths from the project directory (monorepo root), not this file's dir.
       - ${AUTOM8Y_ASANA_DIR:-.}/src:/app/src
-      - ../autom8y/sdks/python/autom8y-config/src/autom8y_config:/app/sdks/autom8y_config
-      - ../autom8y/sdks/python/autom8y-log/src/autom8y_log:/app/sdks/autom8y_log
-      - ../autom8y/sdks/python/autom8y-core/src/autom8y_core:/app/sdks/autom8y_core
-      - ../autom8y/sdks/python/autom8y-http/src/autom8y_http:/app/sdks/autom8y_http
-      - ../autom8y/sdks/python/autom8y-auth/src/autom8y_auth:/app/sdks/autom8y_auth
-      - ../autom8y/sdks/python/autom8y-cache/src/autom8y_cache:/app/sdks/autom8y_cache
-      - ../autom8y/sdks/python/autom8y-telemetry/src/autom8y_telemetry:/app/sdks/autom8y_telemetry
+      - ${AUTOM8Y_MONOREPO_ROOT:-.}/sdks/python/autom8y-config/src/autom8y_config:/app/sdks/autom8y_config
+      - ${AUTOM8Y_MONOREPO_ROOT:-.}/sdks/python/autom8y-log/src/autom8y_log:/app/sdks/autom8y_log
+      - ${AUTOM8Y_MONOREPO_ROOT:-.}/sdks/python/autom8y-core/src/autom8y_core:/app/sdks/autom8y_core
+      - ${AUTOM8Y_MONOREPO_ROOT:-.}/sdks/python/autom8y-http/src/autom8y_http:/app/sdks/autom8y_http
+      - ${AUTOM8Y_MONOREPO_ROOT:-.}/sdks/python/autom8y-auth/src/autom8y_auth:/app/sdks/autom8y_auth
+      - ${AUTOM8Y_MONOREPO_ROOT:-.}/sdks/python/autom8y-cache/src/autom8y_cache:/app/sdks/autom8y_cache
+      - ${AUTOM8Y_MONOREPO_ROOT:-.}/sdks/python/autom8y-telemetry/src/autom8y_telemetry:/app/sdks/autom8y_telemetry
     depends_on:
       redis:
         condition: service_healthy

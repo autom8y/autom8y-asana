@@ -43,10 +43,10 @@ Check that implementation and requirements exist:
 
 ```bash
 # Look for PRD (requirements)
-find /docs/requirements -name "PRD-{feature-slug}.md"
+find /.ledge/specs -name "PRD-{feature-slug}.md"
 
 # Look for TDD (design)
-find /docs/design -name "TDD-{feature-slug}.md"
+find /.ledge/specs -name "TDD-{feature-slug}.md"
 
 # Look for implementation (code files)
 # Check project structure for relevant source files
@@ -66,8 +66,8 @@ Once prerequisites confirmed, delegate to QA:
 Act as **QA/Adversary**.
 
 Feature: {feature-description}
-PRD: /docs/requirements/PRD-{feature-slug}.md
-TDD: /docs/design/TDD-{feature-slug}.md (if exists)
+PRD: /.ledge/specs/PRD-{feature-slug}.md
+TDD: /.ledge/specs/TDD-{feature-slug}.md (if exists)
 Implementation: {code-locations}
 
 Validate the implementation through adversarial testing:
@@ -82,7 +82,7 @@ Validate the implementation through adversarial testing:
    - Performance (meets NFRs, degrades gracefully)
    - Integration (with other components)
 
-4. Create Test Plan at: /docs/testing/TEST-{feature-slug}.md
+4. Create Test Plan at: /.ledge/specs/TEST-{feature-slug}.md
    - Test scenarios
    - Expected results
    - Actual results
@@ -120,15 +120,15 @@ Validation Complete: {feature-description}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Requirements (Validated Against):
-✓ PRD: /docs/requirements/PRD-{slug}.md
-✓ TDD: /docs/design/TDD-{slug}.md (if exists)
+✓ PRD: /.ledge/specs/PRD-{slug}.md
+✓ TDD: /.ledge/specs/TDD-{slug}.md (if exists)
 
 Implementation (Tested):
 ✓ Code: {list-of-files}
 ✓ Tests: {test-coverage}%
 
 Test Artifacts:
-✓ Test Plan: /docs/testing/TEST-{slug}.md
+✓ Test Plan: /.ledge/specs/TEST-{slug}.md
 ✓ Test Scenarios: {count} scenarios
 ✓ Test Results: {passed} passed, {failed} failed
 
@@ -180,7 +180,7 @@ graph LR
 
 ## Deliverables
 
-1. **Test Plan**: Comprehensive test documentation at `/docs/testing/TEST-{slug}.md`
+1. **Test Plan**: Comprehensive test documentation at `/.ledge/specs/TEST-{slug}.md`
 2. **Test Results**: Pass/fail for all scenarios
 3. **Defect Report**: Issues found with severity classification
 4. **Production Readiness Decision**: Ship or No-Ship with justification
@@ -202,14 +202,14 @@ Output:
 Feature: user authentication API service
 
 [Prerequisites Check]
-✓ PRD found: /docs/requirements/PRD-user-auth-api.md
-✓ TDD found: /docs/design/TDD-user-auth-api.md
+✓ PRD found: /.ledge/specs/PRD-user-auth-api.md
+✓ TDD found: /.ledge/specs/TDD-user-auth-api.md
 ✓ Implementation found: /src/auth/
 
 [Validation]
 ✓ QA Adversary testing...
 
-✓ Test Plan created: /docs/testing/TEST-user-auth-api.md
+✓ Test Plan created: /.ledge/specs/TEST-user-auth-api.md
 
 Test Scenarios (24 total):
 ✓ Functional: 8/8 passed
@@ -258,14 +258,14 @@ Output:
 Feature: payment processor
 
 [Prerequisites Check]
-✓ PRD found: /docs/requirements/PRD-payment-processor.md
-✓ TDD found: /docs/design/TDD-payment-processor.md
+✓ PRD found: /.ledge/specs/PRD-payment-processor.md
+✓ TDD found: /.ledge/specs/TDD-payment-processor.md
 ✓ Implementation found: /src/payments/
 
 [Validation]
 ✓ QA Adversary testing...
 
-✓ Test Plan created: /docs/testing/TEST-payment-processor.md
+✓ Test Plan created: /.ledge/specs/TEST-payment-processor.md
 
 Test Scenarios (18 total):
 ✓ Functional: 6/6 passed
@@ -323,7 +323,7 @@ Error: Cannot validate without requirements
 Feature: new feature
 
 [Prerequisites Check]
-✗ PRD not found: /docs/requirements/PRD-new-feature.md
+✗ PRD not found: /.ledge/specs/PRD-new-feature.md
 ✗ Cannot validate without acceptance criteria
 
 Suggestions:
@@ -332,9 +332,9 @@ Suggestions:
 3. Verify feature name matches existing PRD file name
 
 Current PRD files:
-- /docs/requirements/PRD-user-auth-api.md
-- /docs/requirements/PRD-payment-processor.md
-- /docs/requirements/PRD-cache-invalidation.md
+- /.ledge/specs/PRD-user-auth-api.md
+- /.ledge/specs/PRD-payment-processor.md
+- /.ledge/specs/PRD-cache-invalidation.md
 ```
 
 ### Example 4: Iterative Testing
@@ -414,7 +414,7 @@ Use `/qa` for production-critical features requiring audit trail.
 
 ## Prerequisites
 
-- **PRD must exist** at `/docs/requirements/PRD-{feature-slug}.md`
+- **PRD must exist** at `/.ledge/specs/PRD-{feature-slug}.md`
 - Implementation complete (code files exist)
 - TDD optional but helpful
 - 10x-dev or rite with QA Adversary
@@ -438,7 +438,7 @@ Use `/qa` for production-critical features requiring audit trail.
 
 | File Type | Location | Always? |
 |-----------|----------|---------|
-| Test Plan | `/docs/testing/TEST-{slug}.md` | Yes |
+| Test Plan | `/.ledge/specs/TEST-{slug}.md` | Yes |
 | Defect Reports | Embedded in test plan | If defects found |
 
 ### No Code Changes

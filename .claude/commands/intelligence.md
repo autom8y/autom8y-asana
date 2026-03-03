@@ -44,4 +44,4 @@ instrumentation -> research -> experimentation -> synthesis
 
 ## Reference
 
-Full documentation: `rites/intelligence/mena/intelligence-ref/INDEX.lego.md`
+Full documentation: `.claude/skills/intelligence-ref/INDEX.md`

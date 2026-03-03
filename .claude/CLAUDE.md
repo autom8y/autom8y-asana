@@ -1,66 +1,81 @@
 <!-- KNOSSOS:START execution-mode -->
 ## Execution Mode
 
-Three operating modes:
-
-| Mode | Session | Rite | Main Agent Behavior |
-|------|---------|------|---------------------|
-| **Native** | No | - | Direct execution, no tracking |
-| **Cross-Cutting** | Yes | No | Direct execution + session tracking |
-| **Orchestrated** | Yes | Yes (ACTIVE) | Pythia coordinates; delegate via Task tool |
-
-Use `/go` to start any session. Use `/consult` for mode selection.
+Use the available agents and slash commands. Delegate complex work to specialists via Task tool.
 <!-- KNOSSOS:END execution-mode -->
 
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-This project uses a 5-agent workflow (10x-dev):
+6-agent workflow (releaser):
 
 | Agent | Role |
 | ----- | ---- |
-| **pythia** | Coordinates development lifecycle phases and routes work to specialists |
-| **requirements-analyst** | Gathers requirements and produces PRD artifacts |
-| **architect** | Creates technical design documents and architecture decisions |
-| **principal-engineer** | Implements code according to design specifications |
-| **qa-adversary** | Validates implementation through adversarial testing |
+| **pythia** | Coordinates release phases, gates complexity, manages DAG-branch failure halting |
+| **cartographer** | Discovers repos, maps git state, identifies package ecosystems and available commands |
+| **dependency-resolver** | Builds cross-repo dependency DAG, detects version mismatches, calculates blast radius |
+| **release-planner** | Creates phased execution plan with parallel groups, rollback boundaries, and CI time estimates |
+| **release-executor** | Executes the release plan — publishes packages, bumps versions, pushes code, creates PRs |
+| **pipeline-monitor** | Monitors CI pipelines via gh CLI, reports green/red matrix, diagnoses failures |
 
-Entry point: `/go`. Agent invocation patterns: `prompting` skill. Routing guidance: `/consult`.
+Delegate to specialists via Task tool.
 <!-- KNOSSOS:END quick-start -->
 
 <!-- KNOSSOS:START agent-routing -->
 ## Agent Routing
 
-**Pythia** coordinates each rite's workflow — routing tasks to specialists, verifying phase gates, and managing handoffs. In orchestrated sessions, the main thread delegates to specialists via Task tool.
+Delegate to specialists via Task tool.
+Agents cannot spawn agents — only the main thread has Task tool access.<!-- KNOSSOS:END agent-routing -->
 
-Every agent defines its authority via **Exousia** (jurisdiction contract):
-- **You Decide**: Actions within the agent's autonomous authority
-- **You Escalate**: Situations requiring Pythia or user input
-- **You Do NOT Decide**: Boundaries the agent must never cross
+<!-- KNOSSOS:START commands -->
+## CC Primitives
 
-Without a session, execute directly or use `/task`. Routing guidance: `/consult`.
-
-### Throughline Resume Protocol
-
-The main thread MAY track subagent IDs for throughline agents (Pythia, Moirai) and pass `resume: {agentId}` on subsequent Task calls. This gives the agent full history of its prior consultations within the workflow.
-
-- Agent IDs are valid only within the current CC session
-- Clear stored IDs on rite switch or session wrap
-- If resume fails (invalid ID, session changed), fall back to fresh invocation
-- Resume is opportunistic -- orchestrated workflows function correctly without it
-<!-- KNOSSOS:END agent-routing -->
+| CC Primitive | Invocation | Source |
+|---|---|---|
+| Slash command | User types `/name` | `.claude/commands/` |
+| Skill tool | Model calls `Skill("name")` | `.claude/skills/` |
+| Task tool | Model calls `Task(subagent_type)` | `.claude/agents/` |
+| Hook | Auto-fires on lifecycle events | `.claude/settings.json` |
+Agents cannot spawn other agents — only the main thread has Task tool access.
+<!-- KNOSSOS:END commands -->
 
 <!-- KNOSSOS:START agent-configurations regenerate=true source=agents/*.md -->
 ## Agents
 
 Prompts in `.claude/agents/`:
 
-- `pythia.md` - Coordinates development lifecycle phases and routes work to specialists
-- `requirements-analyst.md` - Gathers requirements and produces PRD artifacts
-- `architect.md` - Creates technical design documents and architecture decisions
-- `principal-engineer.md` - Implements code according to design specifications
-- `qa-adversary.md` - Validates implementation through adversarial testing
+- `pythia.md` - Coordinates release phases, gates complexity, manages DAG-branch failure halting
+- `cartographer.md` - Discovers repos, maps git state, identifies package ecosystems and available commands
+- `dependency-resolver.md` - Builds cross-repo dependency DAG, detects version mismatches, calculates blast radius
+- `release-planner.md` - Creates phased execution plan with parallel groups, rollback boundaries, and CI time estimates
+- `release-executor.md` - Executes the release plan — publishes packages, bumps versions, pushes code, creates PRs
+- `pipeline-monitor.md` - Monitors CI pipelines via gh CLI, reports green/red matrix, diagnoses failures
 <!-- KNOSSOS:END agent-configurations -->
+
+<!-- KNOSSOS:START platform-infrastructure -->
+## Platform
+
+CLI reference: `ari --help`.
+<!-- KNOSSOS:END platform-infrastructure -->
+
+<!-- KNOSSOS:START know -->
+## Codebase Knowledge
+
+Persistent knowledge in `.know/`. Generate with `/know --all` if not present.
+
+- `Read(".know/architecture.md")` — package structure, layers, data flow (read before code changes)
+- `Read(".know/scar-tissue.md")` — past bugs, defensive patterns
+- `Read(".know/design-constraints.md")` — frozen areas, structural tensions
+- `Read(".know/conventions.md")` — error handling, file organization, domain idioms
+- `Read(".know/test-coverage.md")` — test gaps, coverage patterns
+- `Read(".know/feat/INDEX.md")` — feature catalog and taxonomy (generate with `/know --scope=feature`)
+Work product artifacts in `.ledge/`:
+
+- `.ledge/decisions/` — ADRs and design decisions
+- `.ledge/specs/` — PRDs and technical specs
+- `.ledge/reviews/` — audit reports and code reviews
+- `.ledge/spikes/` — exploration and research artifacts
+<!-- KNOSSOS:END know -->
 
 <!-- KNOSSOS:START user-content -->
 ## Project-Specific Instructions

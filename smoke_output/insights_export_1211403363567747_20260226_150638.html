@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Insights Export: Harcourt Brain Center</title>
+<style>
+/* ===== CSS Custom Properties (Theme) ===== */
+:root {
+  --bg: #fafafa;
+  --surface: #ffffff;
+  --border: #e0e0e0;
+  --border-light: #f0f0f0;
+  --text: #1a1a1a;
+  --text-muted: #888;
+  --text-dim: #bbb;
+  --accent: #4a7bb5;
+  --accent-hover: #3568a0;
+  --header-bg: #f4f4f4;
+  --zebra: #f9f9f9;
+  --green: #1e7a44;
+  --green-bg: #e6f4ed;
+  --yellow: #7a5c00;
+  --yellow-bg: #fff8e0;
+  --red: #9a1f1f;
+  --red-bg: #fdeaea;
+  --nav-bg: #ffffff;
+  --nav-border: #e8e8e8;
+  --shadow: 0 1px 2px rgba(0,0,0,0.08);
+  --kpi-border: #e0e0e0;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'SF Mono', 'Consolas', 'Menlo', monospace;
+}
+[data-theme="dark"] {
+  --bg: #1a1a1a;
+  --surface: #242424;
+  --border: #383838;
+  --border-light: #2e2e2e;
+  --text: #e8e8e8;
+  --text-muted: #888;
+  --text-dim: #555;
+  --accent: #6fa0d4;
+  --accent-hover: #85b3e0;
+  --header-bg: #2a2a2a;
+  --zebra: #212121;
+  --green: #4ade80;
+  --green-bg: #0f2e1a;
+  --yellow: #fbbf24;
+  --yellow-bg: #2a2000;
+  --red: #f87171;
+  --red-bg: #2e0f0f;
+  --nav-bg: #1e1e1e;
+  --nav-border: #333;
+  --shadow: 0 1px 3px rgba(0,0,0,0.4);
+  --kpi-border: #383838;
+}
+
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 13px; scroll-behavior: smooth; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); line-height: 1.4; }
+
+/* ===== Layout ===== */
+.layout { display: flex; min-height: 100vh; }
+.sidebar { width: 200px; min-width: 200px; background: var(--nav-bg); border-right: 1px solid var(--nav-border); position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 12px 0; flex-shrink: 0; }
+.main-content { flex: 1; min-width: 0; padding: 16px 20px; max-width: 100%; }
+@media (max-width: 768px) {
+  .layout { flex-direction: column; }
+  .sidebar { width: 100%; height: auto; position: static; overflow-x: auto; display: flex; flex-wrap: wrap; padding: 8px; border-right: none; border-bottom: 1px solid var(--nav-border); }
+  .sidebar .nav-section-label { display: none; }
+  .nav-link { white-space: nowrap; }
+}
+
+/* ===== Sidebar Navigation ===== */
+.nav-section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); padding: 6px 14px 4px; margin-top: 4px; }
+.nav-link { display: flex; justify-content: space-between; align-items: center; padding: 5px 14px; color: var(--text); text-decoration: none; font-size: 12px; border-left: 3px solid transparent; transition: background 0.1s, border-color 0.1s; }
+.nav-link:hover { background: var(--border-light); border-left-color: var(--accent); color: var(--accent); }
+.nav-link.active { border-left-color: var(--accent); color: var(--accent); background: var(--border-light); }
+.badge { font-size: 10px; background: var(--border); color: var(--text-muted); border-radius: 3px; padding: 1px 5px; font-weight: 500; flex-shrink: 0; }
+
+/* ===== Header ===== */
+.report-header { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.report-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+.report-meta { font-size: 11px; color: var(--text-muted); }
+.report-meta a { color: var(--accent); text-decoration: none; }
+.report-meta a:hover { text-decoration: underline; }
+.header-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+.btn { padding: 5px 12px; font-size: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; border-radius: 3px; font-family: var(--font); transition: background 0.1s; }
+.btn:hover { background: var(--header-bg); border-color: var(--accent); color: var(--accent); }
+.search-wrap { flex: 1; max-width: 300px; position: relative; }
+.search-wrap input { width: 100%; padding: 5px 10px; font-size: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text); border-radius: 3px; font-family: var(--font); outline: none; }
+.search-wrap input:focus { border-color: var(--accent); }
+.search-clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); cursor: pointer; color: var(--text-muted); font-size: 14px; line-height: 1; display: none; }
+.search-count { font-size: 11px; color: var(--text-muted); margin-left: 8px; white-space: nowrap; }
+
+/* ===== KPI Cards ===== */
+.kpi-grid { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+.kpi-card { flex: 1; min-width: 140px; max-width: 240px; border: 1px solid var(--kpi-border); background: var(--surface); border-radius: 4px; padding: 10px 14px; box-shadow: var(--shadow); }
+.kpi-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px; }
+.kpi-value { font-size: 20px; font-weight: 700; color: var(--text); line-height: 1.2; }
+.kpi-sub { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+.kpi-sparkline { margin-top: 6px; }
+.trend-up { color: var(--green); }
+.trend-down { color: var(--red); }
+
+/* ===== Table Sections ===== */
+.table-section { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; margin-bottom: 12px; box-shadow: var(--shadow); overflow: hidden; }
+.section-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 14px; background: var(--header-bg); border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
+.section-header h2 { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.section-header h2 .badge { font-size: 10px; }
+.section-controls { display: flex; gap: 6px; align-items: center; }
+.toggle-icon { font-size: 10px; color: var(--text-muted); transition: transform 0.15s; }
+.toggle-icon.collapsed { transform: rotate(-90deg); }
+.section-body { overflow: hidden; }
+.section-body.collapsed { display: none; }
+.section-subtitle { padding: 6px 14px 0; font-size: 11px; color: var(--text-muted); font-style: italic; }
+
+/* ===== Data Table ===== */
+.table-scroll { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 11.5px; white-space: nowrap; }
+.data-table thead th { background: var(--header-bg); border-bottom: 1px solid var(--border); padding: 5px 10px; text-align: left; font-weight: 600; font-size: 11px; color: var(--text); cursor: pointer; position: sticky; top: 0; user-select: none; }
+.data-table thead th:hover { color: var(--accent); }
+.sort-icon::after { content: ''; margin-left: 4px; }
+th.sort-asc .sort-icon::after { content: 'B2'; }
+th.sort-desc .sort-icon::after { content: 'BC'; }
+.data-table tbody tr { border-bottom: 1px solid var(--border-light); }
+.data-table tbody tr:nth-child(even) { background: var(--zebra); }
+.data-table tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.data-table td { padding: 3px 10px; vertical-align: middle; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+
+/* Conditional formatting */
+.br-green { background: var(--green-bg) !important; color: var(--green); font-weight: 600; }
+.br-yellow { background: var(--yellow-bg) !important; color: var(--yellow); font-weight: 600; }
+.br-red { background: var(--red-bg) !important; color: var(--red); font-weight: 600; }
+.muted { color: var(--text-dim); }
+.dash { color: var(--text-dim); }
+.num { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 11px; }
+.date-cell { text-align: center; font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+
+/* Search highlight */
+mark.search-hl { background: #ffe066; color: #1a1a1a; border-radius: 2px; padding: 0 1px; }
+[data-theme="dark"] mark.search-hl { background: #7a6000; color: #ffe066; }
+tr.search-hidden { display: none; }
+
+/* Copy button */
+.copy-btn { font-size: 10px; padding: 3px 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; border-radius: 3px; font-family: var(--font); transition: background 0.1s; }
+.copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+.copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+/* Toast */
+.toast { position: fixed; bottom: 20px; right: 20px; background: #333; color: #fff; padding: 8px 16px; border-radius: 4px; font-size: 12px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 1000; }
+.toast.show { opacity: 1; }
+
+/* Empty state */
+.empty { padding: 20px; color: var(--text-muted); font-size: 12px; text-align: center; }
+
+/* Truncation note */
+.truncation-note { padding: 6px 14px; font-size: 11px; color: var(--text-muted); font-style: italic; border-top: 1px solid var(--border-light); }
+
+/* Error box */
+.error-box { padding: 12px 14px; margin: 8px 14px; background: var(--red-bg); border: 1px solid var(--red); border-radius: 4px; color: var(--red); font-size: 12px; }
+
+/* Footer */
+.report-footer { margin-top: 20px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 16px; font-size: 11px; color: var(--text-muted); }
+.footer-item strong { color: var(--text); }
+
+/* ===== Print Styles ===== */
+@media print {
+  .sidebar, .header-actions, .section-controls, .copy-btn { display: none !important; }
+  .layout { display: block; }
+  .main-content { padding: 0; }
+  .section-body.collapsed { display: block !important; }
+  .table-section { box-shadow: none; border: 1px solid #ccc; page-break-inside: avoid; margin-bottom: 20px; }
+  .data-table { font-size: 9px; }
+  .kpi-sparkline { display: none; }
+  body { color: #000; background: #fff; }
+  .data-table tbody tr:nth-child(even) { background: #f5f5f5; }
+}
+</style>
+<script>
+// ===== Sort =====
+var sortState = {};
+
+function sortTable(sid, colIdx) {
+  var tbl = document.getElementById('tbl-' + sid);
+  if (!tbl) return;
+  var th = tbl.querySelectorAll('thead th');
+  var key = sid + '-' + colIdx;
+  var asc = sortState[key] !== 'asc';
+  sortState[key] = asc ? 'asc' : 'desc';
+  th.forEach(function(h, i) {
+    h.classList.remove('sort-asc', 'sort-desc');
+    if (i === colIdx) h.classList.add(asc ? 'sort-asc' : 'sort-desc');
+  });
+  var tbody = tbl.querySelector('tbody');
+  var rows = Array.from(tbody.querySelectorAll('tr'));
+  rows.sort(function(a, b) {
+    var aCell = (a.cells[colIdx] && a.cells[colIdx].textContent || '').trim();
+    var bCell = (b.cells[colIdx] && b.cells[colIdx].textContent || '').trim();
+    var aNum = parseFloat(aCell.replace(/[^0-9.\-]/g, ''));
+    var bNum = parseFloat(bCell.replace(/[^0-9.\-]/g, ''));
+    var cmp = 0;
+    if (!isNaN(aNum) && !isNaN(bNum)) { cmp = aNum - bNum; }
+    else { cmp = aCell.localeCompare(bCell, undefined, {numeric: true}); }
+    return asc ? cmp : -cmp;
+  });
+  rows.forEach(function(r) { tbody.appendChild(r); });
+}
+
+// ===== Search =====
+var searchTimeout = null;
+
+function onSearch(val) {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(function() { doSearch(val); }, 80);
+  var clear = document.getElementById('search-clear');
+  if (clear) clear.style.display = val ? 'block' : 'none';
+}
+
+function clearSearch() {
+  var inp = document.getElementById('global-search');
+  if (inp) { inp.value = ''; doSearch(''); }
+  var clear = document.getElementById('search-clear');
+  if (clear) clear.style.display = 'none';
+}
+
+function doSearch(query) {
+  var q = query.trim().toLowerCase();
+  var countEl = document.getElementById('search-count');
+  if (!q) {
+    document.querySelectorAll('mark.search-hl').forEach(function(m) { m.outerHTML = m.innerHTML; });
+    document.querySelectorAll('tr.search-hidden').forEach(function(r) { r.classList.remove('search-hidden'); });
+    if (countEl) countEl.textContent = '';
+    return;
+  }
+  var totalMatch = 0;
+  document.querySelectorAll('.data-table tbody tr').forEach(function(row) {
+    var text = row.textContent.toLowerCase();
+    if (text.includes(q)) { row.classList.remove('search-hidden'); totalMatch++; }
+    else { row.classList.add('search-hidden'); }
+  });
+  document.querySelectorAll('mark.search-hl').forEach(function(m) { m.outerHTML = m.innerHTML; });
+  var re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+  document.querySelectorAll('.data-table tbody tr:not(.search-hidden) td').forEach(function(td) {
+    if (td.querySelector('span[title]')) return;
+    td.innerHTML = td.innerHTML.replace(re, '<mark class="search-hl">$1</mark>');
+  });
+  if (countEl) countEl.textContent = totalMatch + ' row' + (totalMatch !== 1 ? 's' : '') + ' matched';
+}
+
+// ===== Collapse/Expand =====
+function toggleSection(sid) {
+  var body = document.getElementById('body-' + sid);
+  var icon = document.getElementById('toggle-' + sid);
+  if (!body) return;
+  var collapsed = body.classList.toggle('collapsed');
+  if (icon) icon.classList.toggle('collapsed', collapsed);
+}
+
+function expandAll() {
+  document.querySelectorAll('.section-body').forEach(function(b) { b.classList.remove('collapsed'); });
+  document.querySelectorAll('.toggle-icon').forEach(function(i) { i.classList.remove('collapsed'); });
+}
+
+function collapseAll() {
+  document.querySelectorAll('.section-body').forEach(function(b) { b.classList.add('collapsed'); });
+  document.querySelectorAll('.toggle-icon').forEach(function(i) { i.classList.add('collapsed'); });
+}
+
+// ===== Copy TSV =====
+function copyTable(sid) {
+  var dataEl = document.getElementById('data-' + sid);
+  if (!dataEl) return;
+  try {
+    var rows = JSON.parse(dataEl.textContent);
+    if (!rows.length) return;
+    var headers = Object.keys(rows[0]);
+    var tsv = [headers.join('\t')]
+      .concat(rows.map(function(r) { return headers.map(function(h) { return String(r[h] != null ? r[h] : ''); }).join('\t'); }))
+      .join('\n');
+    navigator.clipboard.writeText(tsv).then(function() {
+      showToast('Table copied as TSV (' + rows.length + ' rows, ' + headers.length + ' columns)');
+      var btn = document.querySelector('[onclick="copyTable(\'' + sid + '\')"');
+      if (btn) { btn.textContent = 'Copied!'; btn.classList.add('copied'); setTimeout(function() { btn.textContent = 'Copy TSV'; btn.classList.remove('copied'); }, 1500); }
+    }).catch(function() { showToast('Copy failed'); });
+  } catch(e) { showToast('Copy failed'); }
+}
+
+function showToast(msg) {
+  var t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 2000);
+}
+
+// ===== Theme Toggle =====
+function toggleTheme() {
+  var html = document.documentElement;
+  var current = html.getAttribute('data-theme');
+  var next = current === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  var btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = next === 'dark' ? 'Light Mode' : 'Dark Mode';
+  try { localStorage.setItem('theme', next); } catch(e) {}
+}
+
+// ===== Active Nav (Scroll Spy) =====
+function updateActiveNav() {
+  var sections = document.querySelectorAll('.table-section');
+  var navLinks = document.querySelectorAll('.nav-link');
+  var current = '';
+  sections.forEach(function(sec) {
+    var top = sec.getBoundingClientRect().top;
+    if (top < 200) current = sec.id;
+  });
+  navLinks.forEach(function(link) {
+    link.classList.toggle('active', link.getAttribute('href') === '#' + current);
+  });
+}
+
+// ===== Init =====
+(function() {
+  var saved = typeof localStorage !== 'undefined' ? localStorage.getItem('theme') : null;
+  if (saved) {
+    document.documentElement.setAttribute('data-theme', saved);
+  } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  }
+  var btn = document.getElementById('theme-btn');
+  var theme = document.documentElement.getAttribute('data-theme');
+  if (btn) btn.textContent = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
+  window.addEventListener('scroll', updateActiveNav, {passive: true});
+  updateActiveNav();
+})();
+</script>
+</head>
+<body>
+<div class="toast" id="toast">Copied</div>
+<div class="layout">
+<nav class="sidebar">
+<div class="nav-section-label">Sections</div>
+<a href="#summary" class="nav-link">SUMMARY<span class="badge">1</span></a>
+<a href="#appointments" class="nav-link">APPOINTMENTS<span class="badge">100</span></a>
+<a href="#leads" class="nav-link">LEADS<span class="badge">0</span></a>
+<a href="#lifetime-reconciliations" class="nav-link">LIFETIME RECONCILIATIONS<span class="badge">2</span></a>
+<a href="#t14-reconciliations" class="nav-link">T14 RECONCILIATIONS<span class="badge">0</span></a>
+<a href="#by-quarter" class="nav-link">BY QUARTER<span class="badge">0</span></a>
+<a href="#by-month" class="nav-link">BY MONTH<span class="badge">0</span></a>
+<a href="#by-week" class="nav-link">BY WEEK<span class="badge">0</span></a>
+<a href="#ad-questions" class="nav-link">AD QUESTIONS<span class="badge">0</span></a>
+<a href="#asset-table" class="nav-link">ASSET TABLE<span class="badge">6</span></a>
+<a href="#offer-table" class="nav-link">OFFER TABLE<span class="badge">0</span></a>
+<a href="#unused-assets" class="nav-link">UNUSED ASSETS<span class="badge">0</span></a>
+</nav>
+<main class="main-content">
+<header class="report-header">
+<h1 class="report-title">Harcourt Brain Center</h1>
+<div class="report-meta"><strong>Phone:</strong> +1717***8734 &nbsp;&bull;&nbsp; <strong>Vertical:</strong> chiropractic &nbsp;&bull;&nbsp; <strong>Generated:</strong> 2026-02-26T15:06:38.110356+00:00 &nbsp;&bull;&nbsp; <strong>Period:</strong> Daily insights report &nbsp;&bull;&nbsp; <strong>Offer:</strong> <a href="https://app.asana.com/0/0/1211403363567747">View in Asana</a></div>
+<div class="header-actions">
+<div class="search-wrap">
+<input type="text" id="global-search" placeholder="Search rows..." oninput="onSearch(this.value)">
+<span class="search-clear" id="search-clear" onclick="clearSearch()">&times;</span>
+</div>
+<span class="search-count" id="search-count"></span>
+<button class="btn" onclick="window.print()">Print</button>
+<button class="btn" id="theme-btn" onclick="toggleTheme()">Dark Mode</button>
+<button class="btn" onclick="expandAll()">Expand All</button>
+<button class="btn" onclick="collapseAll()">Collapse All</button>
+</div>
+</header>
+<div class="kpi-grid">
+<div class="kpi-card">
+<div class="kpi-label">CPL</div>
+<div class="kpi-value">$47.40</div>
+<div class="kpi-sub">Cost per lead</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-label">Booking Rate</div>
+<div class="kpi-value">14.47%</div>
+<div class="kpi-sub">Leads &rarr; scheduled</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-label">CPS</div>
+<div class="kpi-value">$327.59</div>
+<div class="kpi-sub">Cost per show</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-label">ROAS</div>
+<div class="kpi-value">0.48x</div>
+<div class="kpi-sub">Return on ad spend</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-label">Best Week</div>
+<div class="kpi-value">n/a</div>
+<div class="kpi-sub">Awaiting data</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-label">Spend Trend</div>
+<div class="kpi-value">n/a</div>
+<div class="kpi-sub">Awaiting data</div>
+</div>
+</div>
+<section id="summary" class="table-section">
+<div class="section-header" onclick="toggleSection('summary')">
+<h2>SUMMARY <span class="badge">1</span></h2>
+<div class="section-controls">
+<button class="copy-btn" onclick="event.stopPropagation();copyTable('summary')">Copy TSV</button>
+<span class="toggle-icon" id="toggle-summary">▼</span>
+</div>
+</div>
+<div class="section-body" id="body-summary">
+<div class="section-subtitle">Lifetime performance metrics across all campaigns for this business.</div>
+<div class="table-scroll">
+<table class="data-table" id="tbl-summary">
+<thead><tr><th onclick="sortTable('summary',0)" class="">Office Phone<span class="sort-icon"></span></th><th onclick="sortTable('summary',1)" class="">Vertical<span class="sort-icon"></span></th><th onclick="sortTable('summary',2)" class="">Office<span class="sort-icon"></span></th><th onclick="sortTable('summary',3)" class="num">Spend<span class="sort-icon"></span></th><th onclick="sortTable('summary',4)" class="num">Impressions<span class="sort-icon"></span></th><th onclick="sortTable('summary',5)" class="num">Lclicks<span class="sort-icon"></span></th><th onclick="sortTable('summary',6)" class="num">Leads<span class="sort-icon"></span></th><th onclick="sortTable('summary',7)" class="num">Contacts<span class="sort-icon"></span></th><th onclick="sortTable('summary',8)" class="num">Scheds<span class="sort-icon"></span></th><th onclick="sortTable('summary',9)" class="num">Convs<span class="sort-icon"></span></th><th onclick="sortTable('summary',10)" title="Lifetime Value: Estimated revenue per customer" class="num">LTV<span class="sort-icon"></span></th><th onclick="sortTable('summary',11)" class="num">Fut<span class="sort-icon"></span></th><th onclick="sortTable('summary',12)" class="num">Pen<span class="sort-icon"></span></th><th onclick="sortTable('summary',13)" class="num">Ns<span class="sort-icon"></span></th><th onclick="sortTable('summary',14)" class="num">Nc<span class="sort-icon"></span></th><th onclick="sortTable('summary',15)" class="num">Fut Pen<span class="sort-icon"></span></th><th onclick="sortTable('summary',16)" class="num">Ns Nc<span class="sort-icon"></span></th><th onclick="sortTable('summary',17)" title="Cost Per Show: Total spend ÷ scheduled appointments" class="num">CPS<span class="sort-icon"></span></th><th onclick="sortTable('summary',18)" class="num">Expected CPS<span class="sort-icon"></span></th><th onclick="sortTable('summary',19)" title="Cost Per Lead: Total spend ÷ total leads" class="num">CPL<span class="sort-icon"></span></th><th onclick="sortTable('summary',20)" class="num">Lead CTR<span class="sort-icon"></span></th><th onclick="sortTable('summary',21)" title="Booking Rate: Scheduled appointments ÷ total leads" class="num">Booking Rate<span class="sort-icon"></span></th><th onclick="sortTable('summary',22)" title="No-Show Rate: No-shows ÷ scheduled appointments" class="num">No-Show Rate<span class="sort-icon"></span></th><th onclick="sortTable('summary',23)" title="No-Close Rate: No-closes ÷ shown appointments" class="num">No-Close Rate<span class="sort-icon"></span></th><th onclick="sortTable('summary',24)" title="Conversion Rate: Conversions ÷ total leads" class="num">Conv. Rate<span class="sort-icon"></span></th><th onclick="sortTable('summary',25)" class="num">NSR/NCR<span class="sort-icon"></span></th><th onclick="sortTable('summary',26)" title="Return on Ad Spend: Revenue ÷ ad spend" class="num">ROAS<span class="sort-icon"></span></th><th onclick="sortTable('summary',27)" class="num">Avg Conv<span class="sort-icon"></span></th><th onclick="sortTable('summary',28)" class="num">Leads/20K<span class="sort-icon"></span></th><th onclick="sortTable('summary',29)" class="num">Shows/20K<span class="sort-icon"></span></th><th onclick="sortTable('summary',30)" class="num">Exp. Shows/20K<span class="sort-icon"></span></th><th onclick="sortTable('summary',31)" class="num">LTV/20K<span class="sort-icon"></span></th></tr></thead>
+<tbody>
+<tr><td class="">+1717***8734</td><td class="">chiropractic</td><td class="">Harcourt Brain Center</td><td class="num">$11,138.19</td><td class="num">511,193</td><td class="num">2,933</td><td class="num">235</td><td class="num">34</td><td class="num">34</td><td class="num">7</td><td class="num">$5,395.00</td><td class="num">0</td><td class="num">1</td><td class="num">13</td><td class="num">4</td><td class="num">1</td><td class="num">17</td><td class="num">$327.59</td><td class="num">$1,392.27</td><td class="num">$47.40</td><td class="num">0.57%</td><td class="num br-red">14.47%</td><td class="num">39.22%</td><td class="num">12.07%</td><td class="num br-yellow">21.12%</td><td class="num">51.28%</td><td class="num">0.48x</td><td class="num">$770.71</td><td class="num">9.19</td><td class="num">1.33</td><td class="num">0.31</td><td class="num">211.07</td></tr>
+</tbody>
+</table>
+</div>
+<script type="application/json" id="data-summary">[{"office_phone": "+1717***8734", "vertical": "chiropractic", "office": "Harcourt Brain Center", "spend": 11138.19, "imp": 511193, "lclicks": 2933, "leads": 235, "contacts": 34, "scheds": 34, "convs": 7, "ltv": 5395.0, "fut": 0, "pen": 1, "ns": 13, "nc": 4, "fut_pen": 1, "ns_nc": 17, "cps": 327.59, "ecps": 1392.27, "cpl": 47.4, "lctr": 0.57, "booking_rate": 0.1447, "ns_rate": 39.22, "nc_rate": 12.07, "conv_rate": 21.12, "nsr_ncr": 51.28, "roas": 0.4844, "avg_conv": 770.71, "lp20m": 9.19, "sp20m": 1.33, "esp20m": 0.31, "ltv20m": 211.07}]</script>
+</div>
+</section>
+<section id="appointments" class="table-section">
+<div class="section-header" onclick="toggleSection('appointments')">
+<h2>APPOINTMENTS <span class="badge">100</span></h2>
+<div class="section-controls">
+<button class="copy-btn" onclick="event.stopPropagation();copyTable('appointments')">Copy TSV</button>
+<span class="toggle-icon collapsed" id="toggle-appointments">▼</span>
+</div>
+</div>
+<div class="section-body collapsed" id="body-appointments">
+<div class="section-subtitle">Scheduled appointments from the last 90 days.</div>
+<div class="table-scroll">
+<table class="data-table" id="tbl-appointments">
+<thead><tr><th onclick="sortTable('appointments',0)" class="num">Appointment Id<span class="sort-icon"></span></th><th onclick="sortTable('appointments',1)" class="">Guid<span class="sort-icon"></span></th><th onclick="sortTable('appointments',2)" class="">Chiropractor Guid<span class="sort-icon"></span></th><th onclick="sortTable('appointments',3)" class="">Office Phone<span class="sort-icon"></span></th><th onclick="sortTable('appointments',4)" class="">Phone<span class="sort-icon"></span></th><th onclick="sortTable('appointments',5)" class="">Start Datetime<span class="sort-icon"></span></th><th onclick="sortTable('appointments',6)" class="">End Datetime<span class="sort-icon"></span></th><th onclick="sortTable('appointments',7)" class="">Status<span class="sort-icon"></span></th><th onclick="sortTable('appointments',8)" class="">Appt Type<span class="sort-icon"></span></th><th onclick="sortTable('appointments',9)" class="">Created<span class="sort-icon"></span></th></tr></thead>
+<tbody>
+<tr><td class="num">17,855,574</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***2990</td><td class="">2026-04-04T21:45:00Z</td><td class="">2026-04-04T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-26T14:59:01</td></tr>
+<tr><td class="num">17,855,573</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***2990</td><td class="">2026-04-04T21:45:00Z</td><td class="">2026-04-04T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-26T14:59:01</td></tr>
+<tr><td class="num">17,855,572</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***2990</td><td class="">2026-04-04T21:45:00Z</td><td class="">2026-04-04T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-26T14:59:01</td></tr>
+<tr><td class="num">17,855,571</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***2990</td><td class="">2026-03-03T17:00:00Z</td><td class="">2026-03-03T17:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-26T14:59:01</td></tr>
+<tr><td class="num">17,855,570</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***2990</td><td class="">2026-03-03T17:00:00Z</td><td class="">2026-03-03T17:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-26T14:59:01</td></tr>
+<tr><td class="num">17,855,569</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***2990</td><td class="">2026-03-03T17:00:00Z</td><td class="">2026-03-03T17:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-26T14:59:01</td></tr>
+<tr><td class="num">17,855,568</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***2990</td><td class="">2026-02-28T23:00:00Z</td><td class="">2026-02-28T23:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-26T14:59:01</td></tr>
+<tr><td class="num">17,855,567</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***2990</td><td class="">2026-02-28T23:00:00Z</td><td class="">2026-02-28T23:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-26T14:59:01</td></tr>
+<tr><td class="num">17,855,566</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***2990</td><td class="">2026-02-28T23:00:00Z</td><td class="">2026-02-28T23:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-26T14:59:01</td></tr>
+<tr><td class="num">17,855,565</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***2990</td><td class="">2026-02-27T20:30:00Z</td><td class="">2026-02-27T20:30:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-26T14:59:01</td></tr>
+<tr><td class="num">17,855,564</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***2990</td><td class="">2026-02-27T20:30:00Z</td><td class="">2026-02-27T20:30:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-26T14:59:01</td></tr>
+<tr><td class="num">17,855,563</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***2990</td><td class="">2026-02-27T20:30:00Z</td><td class="">2026-02-27T20:30:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-26T14:59:01</td></tr>
+<tr><td class="num">17,853,209</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1240***6373</td><td class="">2026-04-02T21:45:00Z</td><td class="">2026-04-02T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-25T04:12:26</td></tr>
+<tr><td class="num">17,853,208</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1240***6373</td><td class="">2026-04-02T21:45:00Z</td><td class="">2026-04-02T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-25T04:12:26</td></tr>
+<tr><td class="num">17,853,207</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1240***6373</td><td class="">2026-04-02T21:45:00Z</td><td class="">2026-04-02T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-25T04:12:26</td></tr>
+<tr><td class="num">17,853,206</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1240***6373</td><td class="">2026-03-01T17:00:00Z</td><td class="">2026-03-01T17:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-25T04:12:26</td></tr>
+<tr><td class="num">17,853,205</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1240***6373</td><td class="">2026-03-01T17:00:00Z</td><td class="">2026-03-01T17:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-25T04:12:26</td></tr>
+<tr><td class="num">17,853,204</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1240***6373</td><td class="">2026-03-01T17:00:00Z</td><td class="">2026-03-01T17:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-25T04:12:26</td></tr>
+<tr><td class="num">17,853,203</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1240***6373</td><td class="">2026-02-26T23:00:00Z</td><td class="">2026-02-26T23:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-25T04:12:26</td></tr>
+<tr><td class="num">17,853,202</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1240***6373</td><td class="">2026-02-26T23:00:00Z</td><td class="">2026-02-26T23:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-25T04:12:26</td></tr>
+<tr><td class="num">17,853,201</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1240***6373</td><td class="">2026-02-26T23:00:00Z</td><td class="">2026-02-26T23:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-25T04:12:26</td></tr>
+<tr><td class="num">17,853,181</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1570***2981</td><td class="">2026-04-02T21:45:00Z</td><td class="">2026-04-02T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-25T04:02:05</td></tr>
+<tr><td class="num">17,853,180</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1570***2981</td><td class="">2026-04-02T21:45:00Z</td><td class="">2026-04-02T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-25T04:02:05</td></tr>
+<tr><td class="num">17,853,179</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1570***2981</td><td class="">2026-04-02T21:45:00Z</td><td class="">2026-04-02T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-25T04:02:05</td></tr>
+<tr><td class="num">17,853,178</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1570***2981</td><td class="">2026-03-01T17:00:00Z</td><td class="">2026-03-01T17:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-25T04:02:05</td></tr>
+<tr><td class="num">17,853,177</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1570***2981</td><td class="">2026-03-01T17:00:00Z</td><td class="">2026-03-01T17:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-25T04:02:05</td></tr>
+<tr><td class="num">17,853,176</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1570***2981</td><td class="">2026-03-01T17:00:00Z</td><td class="">2026-03-01T17:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-25T04:02:05</td></tr>
+<tr><td class="num">17,853,175</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1570***2981</td><td class="">2026-02-26T23:00:00Z</td><td class="">2026-02-26T23:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-25T04:02:05</td></tr>
+<tr><td class="num">17,853,174</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1570***2981</td><td class="">2026-02-26T23:00:00Z</td><td class="">2026-02-26T23:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-25T04:02:05</td></tr>
+<tr><td class="num">17,853,173</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1570***2981</td><td class="">2026-02-26T23:00:00Z</td><td class="">2026-02-26T23:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-25T04:02:05</td></tr>
+<tr><td class="num">17,851,619</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1513***1975</td><td class="">2026-04-02T21:45:00Z</td><td class="">2026-04-02T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-24T05:02:21</td></tr>
+<tr><td class="num">17,851,618</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1513***1975</td><td class="">2026-04-02T21:45:00Z</td><td class="">2026-04-02T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-24T05:02:21</td></tr>
+<tr><td class="num">17,851,617</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1513***1975</td><td class="">2026-04-02T21:45:00Z</td><td class="">2026-04-02T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-24T05:02:21</td></tr>
+<tr><td class="num">17,851,616</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1513***1975</td><td class="">2026-03-01T17:00:00Z</td><td class="">2026-03-01T17:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-24T05:02:21</td></tr>
+<tr><td class="num">17,851,615</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1513***1975</td><td class="">2026-03-01T17:00:00Z</td><td class="">2026-03-01T17:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-24T05:02:21</td></tr>
+<tr><td class="num">17,851,614</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1513***1975</td><td class="">2026-03-01T17:00:00Z</td><td class="">2026-03-01T17:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-24T05:02:21</td></tr>
+<tr><td class="num">17,851,613</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1513***1975</td><td class="">2026-02-26T23:00:00Z</td><td class="">2026-02-26T23:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-24T05:02:21</td></tr>
+<tr><td class="num">17,851,612</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1513***1975</td><td class="">2026-02-26T23:00:00Z</td><td class="">2026-02-26T23:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-24T05:02:21</td></tr>
+<tr><td class="num">17,851,611</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1513***1975</td><td class="">2026-02-26T23:00:00Z</td><td class="">2026-02-26T23:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-24T05:02:21</td></tr>
+<tr><td class="num">17,851,379</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***3373</td><td class="">2026-04-01T21:45:00Z</td><td class="">2026-04-01T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-24T02:44:01</td></tr>
+<tr><td class="num">17,851,378</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***3373</td><td class="">2026-04-01T21:45:00Z</td><td class="">2026-04-01T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-24T02:44:01</td></tr>
+<tr><td class="num">17,851,377</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***3373</td><td class="">2026-04-01T21:45:00Z</td><td class="">2026-04-01T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-24T02:44:01</td></tr>
+<tr><td class="num">17,851,376</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***3373</td><td class="">2026-02-28T17:00:00Z</td><td class="">2026-02-28T17:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-24T02:44:01</td></tr>
+<tr><td class="num">17,851,375</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***3373</td><td class="">2026-02-28T17:00:00Z</td><td class="">2026-02-28T17:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-24T02:44:01</td></tr>
+<tr><td class="num">17,851,374</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***3373</td><td class="">2026-02-28T17:00:00Z</td><td class="">2026-02-28T17:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-24T02:44:01</td></tr>
+<tr><td class="num">17,850,326</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9990</td><td class="">2026-04-01T21:45:00Z</td><td class="">2026-04-01T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-23T08:49:03</td></tr>
+<tr><td class="num">17,850,325</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9990</td><td class="">2026-04-01T21:45:00Z</td><td class="">2026-04-01T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-23T08:49:03</td></tr>
+<tr><td class="num">17,850,324</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9990</td><td class="">2026-04-01T21:45:00Z</td><td class="">2026-04-01T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-23T08:49:03</td></tr>
+<tr><td class="num">17,850,323</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9990</td><td class="">2026-02-28T17:00:00Z</td><td class="">2026-02-28T17:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-23T08:49:03</td></tr>
+<tr><td class="num">17,850,322</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9990</td><td class="">2026-02-28T17:00:00Z</td><td class="">2026-02-28T17:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-23T08:49:03</td></tr>
+<tr><td class="num">17,850,321</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9990</td><td class="">2026-02-28T17:00:00Z</td><td class="">2026-02-28T17:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-23T08:49:03</td></tr>
+<tr><td class="num">17,849,977</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9292</td><td class="">2026-02-27T17:00:00Z</td><td class="">2026-02-27T17:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-23T03:39:53</td></tr>
+<tr><td class="num">17,849,978</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9292</td><td class="">2026-02-27T17:00:00Z</td><td class="">2026-02-27T17:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-23T03:39:53</td></tr>
+<tr><td class="num">17,849,979</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9292</td><td class="">2026-02-27T17:00:00Z</td><td class="">2026-02-27T17:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-23T03:39:53</td></tr>
+<tr><td class="num">17,849,981</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9292</td><td class="">2026-03-31T21:45:00Z</td><td class="">2026-03-31T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-23T03:39:53</td></tr>
+<tr><td class="num">17,849,982</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9292</td><td class="">2026-03-31T21:45:00Z</td><td class="">2026-03-31T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-23T03:39:53</td></tr>
+<tr><td class="num">17,849,980</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9292</td><td class="">2026-03-31T21:45:00Z</td><td class="">2026-03-31T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-23T03:39:53</td></tr>
+<tr><td class="num">17,849,939</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6446</td><td class="">2026-03-31T21:45:00Z</td><td class="">2026-03-31T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-23T03:28:57</td></tr>
+<tr><td class="num">17,849,938</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6446</td><td class="">2026-03-31T21:45:00Z</td><td class="">2026-03-31T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-23T03:28:57</td></tr>
+<tr><td class="num">17,849,937</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6446</td><td class="">2026-03-31T21:45:00Z</td><td class="">2026-03-31T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-23T03:28:57</td></tr>
+<tr><td class="num">17,849,936</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6446</td><td class="">2026-02-27T17:00:00Z</td><td class="">2026-02-27T17:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-23T03:28:57</td></tr>
+<tr><td class="num">17,849,935</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6446</td><td class="">2026-02-27T17:00:00Z</td><td class="">2026-02-27T17:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-23T03:28:57</td></tr>
+<tr><td class="num">17,849,934</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6446</td><td class="">2026-02-27T17:00:00Z</td><td class="">2026-02-27T17:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-23T03:28:57</td></tr>
+<tr><td class="num">17,848,329</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1215***7657</td><td class="">2026-03-30T21:45:00Z</td><td class="">2026-03-30T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-22T02:32:29</td></tr>
+<tr><td class="num">17,848,328</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1215***7657</td><td class="">2026-03-30T21:45:00Z</td><td class="">2026-03-30T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-22T02:32:29</td></tr>
+<tr><td class="num">17,848,327</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1215***7657</td><td class="">2026-03-30T21:45:00Z</td><td class="">2026-03-30T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-22T02:32:29</td></tr>
+<tr><td class="num">17,848,326</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1215***7657</td><td class="">2026-02-26T17:00:00Z</td><td class="">2026-02-26T17:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-22T02:32:29</td></tr>
+<tr><td class="num">17,848,325</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1215***7657</td><td class="">2026-02-26T17:00:00Z</td><td class="">2026-02-26T17:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-22T02:32:29</td></tr>
+<tr><td class="num">17,848,324</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1215***7657</td><td class="">2026-02-26T17:00:00Z</td><td class="">2026-02-26T17:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-22T02:32:29</td></tr>
+<tr><td class="num">17,846,969</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6230</td><td class="">2026-03-30T21:45:00Z</td><td class="">2026-03-30T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-21T05:16:15</td></tr>
+<tr><td class="num">17,846,968</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6230</td><td class="">2026-03-30T21:45:00Z</td><td class="">2026-03-30T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-21T05:16:15</td></tr>
+<tr><td class="num">17,846,967</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6230</td><td class="">2026-03-30T21:45:00Z</td><td class="">2026-03-30T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-21T05:16:15</td></tr>
+<tr><td class="num">17,846,966</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6230</td><td class="">2026-02-26T17:00:00Z</td><td class="">2026-02-26T17:00:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-21T05:16:15</td></tr>
+<tr><td class="num">17,846,965</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6230</td><td class="">2026-02-26T17:00:00Z</td><td class="">2026-02-26T17:00:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-21T05:16:15</td></tr>
+<tr><td class="num">17,846,964</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6230</td><td class="">2026-02-26T17:00:00Z</td><td class="">2026-02-26T17:00:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-21T05:16:15</td></tr>
+<tr><td class="num">17,845,301</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6226</td><td class="">2026-03-28T21:45:00Z</td><td class="">2026-03-28T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-20T04:04:34</td></tr>
+<tr><td class="num">17,845,300</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6226</td><td class="">2026-03-28T21:45:00Z</td><td class="">2026-03-28T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-20T04:04:34</td></tr>
+<tr><td class="num">17,845,299</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6226</td><td class="">2026-03-28T21:45:00Z</td><td class="">2026-03-28T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-20T04:04:34</td></tr>
+<tr><td class="num">17,844,545</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***0909</td><td class="">2026-03-28T21:45:00Z</td><td class="">2026-03-28T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-19T13:45:53</td></tr>
+<tr><td class="num">17,844,544</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***0909</td><td class="">2026-03-28T21:45:00Z</td><td class="">2026-03-28T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-19T13:45:53</td></tr>
+<tr><td class="num">17,844,543</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***0909</td><td class="">2026-03-28T21:45:00Z</td><td class="">2026-03-28T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-19T13:45:53</td></tr>
+<tr><td class="num">17,843,697</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6549</td><td class="">2026-03-27T21:45:00Z</td><td class="">2026-03-27T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-19T00:30:26</td></tr>
+<tr><td class="num">17,843,698</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6549</td><td class="">2026-03-27T21:45:00Z</td><td class="">2026-03-27T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-19T00:30:26</td></tr>
+<tr><td class="num">17,843,699</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***6549</td><td class="">2026-03-27T21:45:00Z</td><td class="">2026-03-27T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-19T00:30:26</td></tr>
+<tr><td class="num">17,843,657</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***0583</td><td class="">2026-03-27T21:45:00Z</td><td class="">2026-03-27T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-18T23:50:10</td></tr>
+<tr><td class="num">17,843,656</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***0583</td><td class="">2026-03-27T21:45:00Z</td><td class="">2026-03-27T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-18T23:50:10</td></tr>
+<tr><td class="num">17,843,655</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***0583</td><td class="">2026-03-27T21:45:00Z</td><td class="">2026-03-27T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-18T23:50:10</td></tr>
+<tr><td class="num">17,841,094</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***4046</td><td class="">2026-03-25T21:45:00Z</td><td class="">2026-03-25T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-17T00:39:02</td></tr>
+<tr><td class="num">17,841,093</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***4046</td><td class="">2026-03-25T21:45:00Z</td><td class="">2026-03-25T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-17T00:39:02</td></tr>
+<tr><td class="num">17,841,092</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***4046</td><td class="">2026-03-25T21:45:00Z</td><td class="">2026-03-25T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-17T00:39:02</td></tr>
+<tr><td class="num">17,839,462</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1223***6645</td><td class="">2026-03-24T21:45:00Z</td><td class="">2026-03-24T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-15T21:10:58</td></tr>
+<tr><td class="num">17,839,461</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1223***6645</td><td class="">2026-03-24T21:45:00Z</td><td class="">2026-03-24T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-15T21:10:58</td></tr>
+<tr><td class="num">17,839,460</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1223***6645</td><td class="">2026-03-24T21:45:00Z</td><td class="">2026-03-24T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-15T21:10:58</td></tr>
+<tr><td class="num">17,839,028</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1787***6325</td><td class="">2026-03-24T21:45:00Z</td><td class="">2026-03-24T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-15T12:45:49</td></tr>
+<tr><td class="num">17,839,027</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1787***6325</td><td class="">2026-03-24T21:45:00Z</td><td class="">2026-03-24T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-15T12:45:49</td></tr>
+<tr><td class="num">17,839,026</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1787***6325</td><td class="">2026-03-24T21:45:00Z</td><td class="">2026-03-24T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-15T12:45:49</td></tr>
+<tr><td class="num">17,838,271</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***4834</td><td class="">2026-03-23T21:45:00Z</td><td class="">2026-03-23T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-14T20:23:38</td></tr>
+<tr><td class="num">17,838,270</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***4834</td><td class="">2026-03-23T21:45:00Z</td><td class="">2026-03-23T21:45:00Z</td><td class="">none</td><td class="">message</td><td class="">2026-02-14T20:23:38</td></tr>
+<tr><td class="num">17,838,272</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***4834</td><td class="">2026-03-23T21:45:00Z</td><td class="">2026-03-23T21:45:00Z</td><td class="">contacted</td><td class="">message</td><td class="">2026-02-14T20:23:38</td></tr>
+<tr><td class="num">17,838,181</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="">+1717***8734</td><td class="">+1717***9092</td><td class="">2026-03-23T21:45:00Z</td><td class="">2026-03-23T21:45:00Z</td><td class="">called</td><td class="">message</td><td class="">2026-02-14T17:35:31</td></tr>
+</tbody>
+</table>
+</div>
+<script type="application/json" id="data-appointments">[{"appointment_id": 17855574, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***2990", "start_datetime": "2026-04-04T21:45:00Z", "end_datetime": "2026-04-04T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-26T14:59:01"}, {"appointment_id": 17855573, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***2990", "start_datetime": "2026-04-04T21:45:00Z", "end_datetime": "2026-04-04T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-26T14:59:01"}, {"appointment_id": 17855572, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***2990", "start_datetime": "2026-04-04T21:45:00Z", "end_datetime": "2026-04-04T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-26T14:59:01"}, {"appointment_id": 17855571, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***2990", "start_datetime": "2026-03-03T17:00:00Z", "end_datetime": "2026-03-03T17:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-26T14:59:01"}, {"appointment_id": 17855570, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***2990", "start_datetime": "2026-03-03T17:00:00Z", "end_datetime": "2026-03-03T17:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-26T14:59:01"}, {"appointment_id": 17855569, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***2990", "start_datetime": "2026-03-03T17:00:00Z", "end_datetime": "2026-03-03T17:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-26T14:59:01"}, {"appointment_id": 17855568, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***2990", "start_datetime": "2026-02-28T23:00:00Z", "end_datetime": "2026-02-28T23:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-26T14:59:01"}, {"appointment_id": 17855567, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***2990", "start_datetime": "2026-02-28T23:00:00Z", "end_datetime": "2026-02-28T23:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-26T14:59:01"}, {"appointment_id": 17855566, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***2990", "start_datetime": "2026-02-28T23:00:00Z", "end_datetime": "2026-02-28T23:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-26T14:59:01"}, {"appointment_id": 17855565, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***2990", "start_datetime": "2026-02-27T20:30:00Z", "end_datetime": "2026-02-27T20:30:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-26T14:59:01"}, {"appointment_id": 17855564, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***2990", "start_datetime": "2026-02-27T20:30:00Z", "end_datetime": "2026-02-27T20:30:00Z", "status": "called", "appt_type": "message", "created": "2026-02-26T14:59:01"}, {"appointment_id": 17855563, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***2990", "start_datetime": "2026-02-27T20:30:00Z", "end_datetime": "2026-02-27T20:30:00Z", "status": "none", "appt_type": "message", "created": "2026-02-26T14:59:01"}, {"appointment_id": 17853209, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1240***6373", "start_datetime": "2026-04-02T21:45:00Z", "end_datetime": "2026-04-02T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-25T04:12:26"}, {"appointment_id": 17853208, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1240***6373", "start_datetime": "2026-04-02T21:45:00Z", "end_datetime": "2026-04-02T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-25T04:12:26"}, {"appointment_id": 17853207, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1240***6373", "start_datetime": "2026-04-02T21:45:00Z", "end_datetime": "2026-04-02T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-25T04:12:26"}, {"appointment_id": 17853206, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1240***6373", "start_datetime": "2026-03-01T17:00:00Z", "end_datetime": "2026-03-01T17:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-25T04:12:26"}, {"appointment_id": 17853205, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1240***6373", "start_datetime": "2026-03-01T17:00:00Z", "end_datetime": "2026-03-01T17:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-25T04:12:26"}, {"appointment_id": 17853204, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1240***6373", "start_datetime": "2026-03-01T17:00:00Z", "end_datetime": "2026-03-01T17:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-25T04:12:26"}, {"appointment_id": 17853203, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1240***6373", "start_datetime": "2026-02-26T23:00:00Z", "end_datetime": "2026-02-26T23:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-25T04:12:26"}, {"appointment_id": 17853202, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1240***6373", "start_datetime": "2026-02-26T23:00:00Z", "end_datetime": "2026-02-26T23:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-25T04:12:26"}, {"appointment_id": 17853201, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1240***6373", "start_datetime": "2026-02-26T23:00:00Z", "end_datetime": "2026-02-26T23:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-25T04:12:26"}, {"appointment_id": 17853181, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1570***2981", "start_datetime": "2026-04-02T21:45:00Z", "end_datetime": "2026-04-02T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-25T04:02:05"}, {"appointment_id": 17853180, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1570***2981", "start_datetime": "2026-04-02T21:45:00Z", "end_datetime": "2026-04-02T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-25T04:02:05"}, {"appointment_id": 17853179, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1570***2981", "start_datetime": "2026-04-02T21:45:00Z", "end_datetime": "2026-04-02T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-25T04:02:05"}, {"appointment_id": 17853178, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1570***2981", "start_datetime": "2026-03-01T17:00:00Z", "end_datetime": "2026-03-01T17:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-25T04:02:05"}, {"appointment_id": 17853177, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1570***2981", "start_datetime": "2026-03-01T17:00:00Z", "end_datetime": "2026-03-01T17:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-25T04:02:05"}, {"appointment_id": 17853176, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1570***2981", "start_datetime": "2026-03-01T17:00:00Z", "end_datetime": "2026-03-01T17:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-25T04:02:05"}, {"appointment_id": 17853175, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1570***2981", "start_datetime": "2026-02-26T23:00:00Z", "end_datetime": "2026-02-26T23:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-25T04:02:05"}, {"appointment_id": 17853174, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1570***2981", "start_datetime": "2026-02-26T23:00:00Z", "end_datetime": "2026-02-26T23:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-25T04:02:05"}, {"appointment_id": 17853173, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1570***2981", "start_datetime": "2026-02-26T23:00:00Z", "end_datetime": "2026-02-26T23:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-25T04:02:05"}, {"appointment_id": 17851619, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1513***1975", "start_datetime": "2026-04-02T21:45:00Z", "end_datetime": "2026-04-02T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-24T05:02:21"}, {"appointment_id": 17851618, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1513***1975", "start_datetime": "2026-04-02T21:45:00Z", "end_datetime": "2026-04-02T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-24T05:02:21"}, {"appointment_id": 17851617, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1513***1975", "start_datetime": "2026-04-02T21:45:00Z", "end_datetime": "2026-04-02T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-24T05:02:21"}, {"appointment_id": 17851616, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1513***1975", "start_datetime": "2026-03-01T17:00:00Z", "end_datetime": "2026-03-01T17:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-24T05:02:21"}, {"appointment_id": 17851615, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1513***1975", "start_datetime": "2026-03-01T17:00:00Z", "end_datetime": "2026-03-01T17:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-24T05:02:21"}, {"appointment_id": 17851614, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1513***1975", "start_datetime": "2026-03-01T17:00:00Z", "end_datetime": "2026-03-01T17:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-24T05:02:21"}, {"appointment_id": 17851613, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1513***1975", "start_datetime": "2026-02-26T23:00:00Z", "end_datetime": "2026-02-26T23:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-24T05:02:21"}, {"appointment_id": 17851612, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1513***1975", "start_datetime": "2026-02-26T23:00:00Z", "end_datetime": "2026-02-26T23:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-24T05:02:21"}, {"appointment_id": 17851611, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1513***1975", "start_datetime": "2026-02-26T23:00:00Z", "end_datetime": "2026-02-26T23:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-24T05:02:21"}, {"appointment_id": 17851379, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***3373", "start_datetime": "2026-04-01T21:45:00Z", "end_datetime": "2026-04-01T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-24T02:44:01"}, {"appointment_id": 17851378, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***3373", "start_datetime": "2026-04-01T21:45:00Z", "end_datetime": "2026-04-01T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-24T02:44:01"}, {"appointment_id": 17851377, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***3373", "start_datetime": "2026-04-01T21:45:00Z", "end_datetime": "2026-04-01T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-24T02:44:01"}, {"appointment_id": 17851376, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***3373", "start_datetime": "2026-02-28T17:00:00Z", "end_datetime": "2026-02-28T17:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-24T02:44:01"}, {"appointment_id": 17851375, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***3373", "start_datetime": "2026-02-28T17:00:00Z", "end_datetime": "2026-02-28T17:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-24T02:44:01"}, {"appointment_id": 17851374, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***3373", "start_datetime": "2026-02-28T17:00:00Z", "end_datetime": "2026-02-28T17:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-24T02:44:01"}, {"appointment_id": 17850326, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9990", "start_datetime": "2026-04-01T21:45:00Z", "end_datetime": "2026-04-01T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-23T08:49:03"}, {"appointment_id": 17850325, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9990", "start_datetime": "2026-04-01T21:45:00Z", "end_datetime": "2026-04-01T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-23T08:49:03"}, {"appointment_id": 17850324, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9990", "start_datetime": "2026-04-01T21:45:00Z", "end_datetime": "2026-04-01T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-23T08:49:03"}, {"appointment_id": 17850323, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9990", "start_datetime": "2026-02-28T17:00:00Z", "end_datetime": "2026-02-28T17:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-23T08:49:03"}, {"appointment_id": 17850322, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9990", "start_datetime": "2026-02-28T17:00:00Z", "end_datetime": "2026-02-28T17:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-23T08:49:03"}, {"appointment_id": 17850321, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9990", "start_datetime": "2026-02-28T17:00:00Z", "end_datetime": "2026-02-28T17:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-23T08:49:03"}, {"appointment_id": 17849977, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9292", "start_datetime": "2026-02-27T17:00:00Z", "end_datetime": "2026-02-27T17:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-23T03:39:53"}, {"appointment_id": 17849978, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9292", "start_datetime": "2026-02-27T17:00:00Z", "end_datetime": "2026-02-27T17:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-23T03:39:53"}, {"appointment_id": 17849979, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9292", "start_datetime": "2026-02-27T17:00:00Z", "end_datetime": "2026-02-27T17:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-23T03:39:53"}, {"appointment_id": 17849981, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9292", "start_datetime": "2026-03-31T21:45:00Z", "end_datetime": "2026-03-31T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-23T03:39:53"}, {"appointment_id": 17849982, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9292", "start_datetime": "2026-03-31T21:45:00Z", "end_datetime": "2026-03-31T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-23T03:39:53"}, {"appointment_id": 17849980, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9292", "start_datetime": "2026-03-31T21:45:00Z", "end_datetime": "2026-03-31T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-23T03:39:53"}, {"appointment_id": 17849939, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6446", "start_datetime": "2026-03-31T21:45:00Z", "end_datetime": "2026-03-31T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-23T03:28:57"}, {"appointment_id": 17849938, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6446", "start_datetime": "2026-03-31T21:45:00Z", "end_datetime": "2026-03-31T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-23T03:28:57"}, {"appointment_id": 17849937, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6446", "start_datetime": "2026-03-31T21:45:00Z", "end_datetime": "2026-03-31T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-23T03:28:57"}, {"appointment_id": 17849936, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6446", "start_datetime": "2026-02-27T17:00:00Z", "end_datetime": "2026-02-27T17:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-23T03:28:57"}, {"appointment_id": 17849935, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6446", "start_datetime": "2026-02-27T17:00:00Z", "end_datetime": "2026-02-27T17:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-23T03:28:57"}, {"appointment_id": 17849934, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6446", "start_datetime": "2026-02-27T17:00:00Z", "end_datetime": "2026-02-27T17:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-23T03:28:57"}, {"appointment_id": 17848329, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1215***7657", "start_datetime": "2026-03-30T21:45:00Z", "end_datetime": "2026-03-30T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-22T02:32:29"}, {"appointment_id": 17848328, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1215***7657", "start_datetime": "2026-03-30T21:45:00Z", "end_datetime": "2026-03-30T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-22T02:32:29"}, {"appointment_id": 17848327, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1215***7657", "start_datetime": "2026-03-30T21:45:00Z", "end_datetime": "2026-03-30T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-22T02:32:29"}, {"appointment_id": 17848326, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1215***7657", "start_datetime": "2026-02-26T17:00:00Z", "end_datetime": "2026-02-26T17:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-22T02:32:29"}, {"appointment_id": 17848325, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1215***7657", "start_datetime": "2026-02-26T17:00:00Z", "end_datetime": "2026-02-26T17:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-22T02:32:29"}, {"appointment_id": 17848324, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1215***7657", "start_datetime": "2026-02-26T17:00:00Z", "end_datetime": "2026-02-26T17:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-22T02:32:29"}, {"appointment_id": 17846969, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6230", "start_datetime": "2026-03-30T21:45:00Z", "end_datetime": "2026-03-30T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-21T05:16:15"}, {"appointment_id": 17846968, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6230", "start_datetime": "2026-03-30T21:45:00Z", "end_datetime": "2026-03-30T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-21T05:16:15"}, {"appointment_id": 17846967, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6230", "start_datetime": "2026-03-30T21:45:00Z", "end_datetime": "2026-03-30T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-21T05:16:15"}, {"appointment_id": 17846966, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6230", "start_datetime": "2026-02-26T17:00:00Z", "end_datetime": "2026-02-26T17:00:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-21T05:16:15"}, {"appointment_id": 17846965, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6230", "start_datetime": "2026-02-26T17:00:00Z", "end_datetime": "2026-02-26T17:00:00Z", "status": "called", "appt_type": "message", "created": "2026-02-21T05:16:15"}, {"appointment_id": 17846964, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6230", "start_datetime": "2026-02-26T17:00:00Z", "end_datetime": "2026-02-26T17:00:00Z", "status": "none", "appt_type": "message", "created": "2026-02-21T05:16:15"}, {"appointment_id": 17845301, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6226", "start_datetime": "2026-03-28T21:45:00Z", "end_datetime": "2026-03-28T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-20T04:04:34"}, {"appointment_id": 17845300, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6226", "start_datetime": "2026-03-28T21:45:00Z", "end_datetime": "2026-03-28T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-20T04:04:34"}, {"appointment_id": 17845299, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6226", "start_datetime": "2026-03-28T21:45:00Z", "end_datetime": "2026-03-28T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-20T04:04:34"}, {"appointment_id": 17844545, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***0909", "start_datetime": "2026-03-28T21:45:00Z", "end_datetime": "2026-03-28T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-19T13:45:53"}, {"appointment_id": 17844544, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***0909", "start_datetime": "2026-03-28T21:45:00Z", "end_datetime": "2026-03-28T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-19T13:45:53"}, {"appointment_id": 17844543, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***0909", "start_datetime": "2026-03-28T21:45:00Z", "end_datetime": "2026-03-28T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-19T13:45:53"}, {"appointment_id": 17843697, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6549", "start_datetime": "2026-03-27T21:45:00Z", "end_datetime": "2026-03-27T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-19T00:30:26"}, {"appointment_id": 17843698, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6549", "start_datetime": "2026-03-27T21:45:00Z", "end_datetime": "2026-03-27T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-19T00:30:26"}, {"appointment_id": 17843699, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***6549", "start_datetime": "2026-03-27T21:45:00Z", "end_datetime": "2026-03-27T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-19T00:30:26"}, {"appointment_id": 17843657, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***0583", "start_datetime": "2026-03-27T21:45:00Z", "end_datetime": "2026-03-27T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-18T23:50:10"}, {"appointment_id": 17843656, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***0583", "start_datetime": "2026-03-27T21:45:00Z", "end_datetime": "2026-03-27T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-18T23:50:10"}, {"appointment_id": 17843655, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***0583", "start_datetime": "2026-03-27T21:45:00Z", "end_datetime": "2026-03-27T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-18T23:50:10"}, {"appointment_id": 17841094, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***4046", "start_datetime": "2026-03-25T21:45:00Z", "end_datetime": "2026-03-25T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-17T00:39:02"}, {"appointment_id": 17841093, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***4046", "start_datetime": "2026-03-25T21:45:00Z", "end_datetime": "2026-03-25T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-17T00:39:02"}, {"appointment_id": 17841092, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***4046", "start_datetime": "2026-03-25T21:45:00Z", "end_datetime": "2026-03-25T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-17T00:39:02"}, {"appointment_id": 17839462, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1223***6645", "start_datetime": "2026-03-24T21:45:00Z", "end_datetime": "2026-03-24T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-15T21:10:58"}, {"appointment_id": 17839461, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1223***6645", "start_datetime": "2026-03-24T21:45:00Z", "end_datetime": "2026-03-24T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-15T21:10:58"}, {"appointment_id": 17839460, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1223***6645", "start_datetime": "2026-03-24T21:45:00Z", "end_datetime": "2026-03-24T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-15T21:10:58"}, {"appointment_id": 17839028, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1787***6325", "start_datetime": "2026-03-24T21:45:00Z", "end_datetime": "2026-03-24T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-15T12:45:49"}, {"appointment_id": 17839027, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1787***6325", "start_datetime": "2026-03-24T21:45:00Z", "end_datetime": "2026-03-24T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-15T12:45:49"}, {"appointment_id": 17839026, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1787***6325", "start_datetime": "2026-03-24T21:45:00Z", "end_datetime": "2026-03-24T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-15T12:45:49"}, {"appointment_id": 17838271, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***4834", "start_datetime": "2026-03-23T21:45:00Z", "end_datetime": "2026-03-23T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-14T20:23:38"}, {"appointment_id": 17838270, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***4834", "start_datetime": "2026-03-23T21:45:00Z", "end_datetime": "2026-03-23T21:45:00Z", "status": "none", "appt_type": "message", "created": "2026-02-14T20:23:38"}, {"appointment_id": 17838272, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***4834", "start_datetime": "2026-03-23T21:45:00Z", "end_datetime": "2026-03-23T21:45:00Z", "status": "contacted", "appt_type": "message", "created": "2026-02-14T20:23:38"}, {"appointment_id": 17838181, "guid": null, "chiropractor_guid": null, "office_phone": "+1717***8734", "phone": "+1717***9092", "start_datetime": "2026-03-23T21:45:00Z", "end_datetime": "2026-03-23T21:45:00Z", "status": "called", "appt_type": "message", "created": "2026-02-14T17:35:31"}]</script>
+</div>
+</section>
+<section id="leads" class="table-section">
+<div class="section-header" onclick="toggleSection('leads')">
+<h2>LEADS</h2>
+<div class="section-controls"><span class="toggle-icon collapsed" id="toggle-leads">▼</span></div>
+</div>
+<div class="section-body collapsed" id="body-leads">
+<div class="section-subtitle">Incoming leads from the last 30 days, excluding those with appointments.</div>
+<div class="error-box">[ERROR] InsightsServiceError: Leads request timed out</div>
+</div>
+</section>
+<section id="lifetime-reconciliations" class="table-section">
+<div class="section-header" onclick="toggleSection('lifetime-reconciliations')">
+<h2>LIFETIME RECONCILIATIONS <span class="badge">2</span></h2>
+<div class="section-controls">
+<button class="copy-btn" onclick="event.stopPropagation();copyTable('lifetime-reconciliations')">Copy TSV</button>
+<span class="toggle-icon collapsed" id="toggle-lifetime-reconciliations">▼</span>
+</div>
+</div>
+<div class="section-body collapsed" id="body-lifetime-reconciliations">
+<div class="section-subtitle">Financial reconciliation across all time periods.</div>
+<div class="table-scroll">
+<table class="data-table" id="tbl-lifetime-reconciliations">
+<thead><tr><th onclick="sortTable('lifetime-reconciliations',0)" class="">Office Phone<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',1)" class="">Vertical<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',2)" class="num">Num Invoices<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',3)" class="num">Collected<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',4)" class="num">Spend<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',5)" class="num">Variance<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',6)" title="Variance %: (Collected - Spend) ÷ Spend × 100" class="num">Variance %<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',7)" class="">Office<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',8)" class="">Weekly Budget<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',9)" class="">Budget Source<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',10)" class="">Customer Id<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',11)" class="">Hosted Invoice Url<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',12)" class="">Invoice Number<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',13)" class="">First Payment<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',14)" class="">Latest Payment<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',15)" class="num">Days With Activity<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',16)" class="num">Expected Collection<span class="sort-icon"></span></th><th onclick="sortTable('lifetime-reconciliations',17)" class="num">Expected Variance<span class="sort-icon"></span></th></tr></thead>
+<tbody>
+<tr><td class="">+1717***8734</td><td class="">chiropractic</td><td class="num">13.00</td><td class="num">$7,025.00</td><td class="num">$0.00</td><td class="num">$7,025.00</td><td class="num">100.00%</td><td class="">Harcourt Brain Center</td><td class="">1675.0</td><td class="">business_offers_budget</td><td class="">cus_SweUmpCEQuVAXQ</td><td class="">https://invoice.stripe.com/i/acct_1CZJp3FiKm9rtP2x/live_YWNjdF8xQ1pKcDNGaUttOXJ0UDJ4LF9UbEdxRGo0N3g2d0ZIVlltVklvRTRCS0dCTmF3all0LDE2MDU4MTA2Nw0200M3XL595u?s=ap</td><td class="">in_1SnkJDFiKm9rtP2xC</td><td class="">2025-11-28T18:21:39</td><td class="">2026-02-20T18:21:14</td><td class="num">0.00</td><td class="num">$0.00</td><td class="num">$7,025.00</td></tr>
+<tr><td class="">+1717***8734</td><td class="">chiropractic</td><td class="num">0.00</td><td class="num">$0.00</td><td class="num">$5,769,309.72</td><td class="num">$-5,769,309.72</td><td class="num"><span class="dash">—</span></td><td class="">Harcourt Brain Center</td><td class="">1675.0</td><td class="">business_offers_budget</td><td class="">cus_SweUmpCEQuVAXQ</td><td class="">unattributed</td><td class="">in_1T2yKEFiKm9rtP2xY</td><td class=""><span class="dash">—</span></td><td class=""><span class="dash">—</span></td><td class="num">90.00</td><td class="num">$21,535.71</td><td class="num">$-21,535.71</td></tr>
+</tbody>
+</table>
+</div>
+<script type="application/json" id="data-lifetime-reconciliations">[{"office_phone": "+1717***8734", "vertical": "chiropractic", "office": "Harcourt Brain Center", "weekly_budget": "1675.0", "budget_source": "business_offers_budget", "customer_id": "cus_SweUmpCEQuVAXQ", "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1CZJp3FiKm9rtP2x/live_YWNjdF8xQ1pKcDNGaUttOXJ0UDJ4LF9UbEdxRGo0N3g2d0ZIVlltVklvRTRCS0dCTmF3all0LDE2MDU4MTA2Nw0200M3XL595u?s=ap", "invoice_number": "in_1SnkJDFiKm9rtP2xC", "num_invoices": 13.0, "collected": 7025.0, "spend": 0.0, "variance": 7025.0, "variance_pct": 100.0, "first_payment": "2025-11-28T18:21:39", "latest_payment": "2026-02-20T18:21:14", "days_with_activity": 0.0, "expected_collection": 0.0, "expected_variance": 7025.0}, {"office_phone": "+1717***8734", "vertical": "chiropractic", "office": "Harcourt Brain Center", "weekly_budget": "1675.0", "budget_source": "business_offers_budget", "customer_id": "cus_SweUmpCEQuVAXQ", "hosted_invoice_url": "unattributed", "invoice_number": "in_1T2yKEFiKm9rtP2xY", "num_invoices": 0.0, "collected": 0.0, "spend": 5769309.72, "variance": -5769309.72, "variance_pct": null, "first_payment": null, "latest_payment": null, "days_with_activity": 90.0, "expected_collection": 21535.714285714286, "expected_variance": -21535.714285714286}]</script>
+</div>
+</section>
+<section id="t14-reconciliations" class="table-section">
+<div class="section-header" onclick="toggleSection('t14-reconciliations')">
+<h2>T14 RECONCILIATIONS</h2>
+<div class="section-controls"><span class="toggle-icon collapsed" id="toggle-t14-reconciliations">▼</span></div>
+</div>
+<div class="section-body collapsed" id="body-t14-reconciliations">
+<div class="section-subtitle">Rolling 14-day financial reconciliation windows.</div>
+<div class="error-box">[ERROR] InsightsServiceError: {&#x27;code&#x27;: &#x27;INTERNAL_ERROR&#x27;, &#x27;message&#x27;: &#x27;An unexpected error occurred&#x27;, &#x27;field&#x27;: None, &#x27;suggestions&#x27;: None}</div>
+</div>
+</section>
+<section id="by-quarter" class="table-section">
+<div class="section-header" onclick="toggleSection('by-quarter')">
+<h2>BY QUARTER</h2>
+<div class="section-controls"><span class="toggle-icon collapsed" id="toggle-by-quarter">▼</span></div>
+</div>
+<div class="section-body collapsed" id="body-by-quarter">
+<div class="section-subtitle">Quarterly performance trends with key efficiency metrics.</div>
+<div class="error-box">[ERROR] InsightsServiceError: Request to autom8_data timed out</div>
+</div>
+</section>
+<section id="by-month" class="table-section">
+<div class="section-header" onclick="toggleSection('by-month')">
+<h2>BY MONTH</h2>
+<div class="section-controls"><span class="toggle-icon collapsed" id="toggle-by-month">▼</span></div>
+</div>
+<div class="section-body collapsed" id="body-by-month">
+<div class="section-subtitle">Monthly performance trends with key efficiency metrics.</div>
+<div class="error-box">[ERROR] InsightsServiceError: Request to autom8_data timed out</div>
+</div>
+</section>
+<section id="by-week" class="table-section">
+<div class="section-header" onclick="toggleSection('by-week')">
+<h2>BY WEEK</h2>
+<div class="section-controls"><span class="toggle-icon" id="toggle-by-week">▼</span></div>
+</div>
+<div class="section-body" id="body-by-week">
+<div class="section-subtitle">Weekly performance trends with key efficiency metrics.</div>
+<div class="error-box">[ERROR] InsightsServiceError: Request to autom8_data timed out</div>
+</div>
+</section>
+<section id="ad-questions" class="table-section">
+<div class="section-header" onclick="toggleSection('ad-questions')">
+<h2>AD QUESTIONS</h2>
+<div class="section-controls"><span class="toggle-icon collapsed" id="toggle-ad-questions">▼</span></div>
+</div>
+<div class="section-body collapsed" id="body-ad-questions">
+<div class="section-subtitle">Lead-qualifying questions and their conversion impact.</div>
+<div class="error-box">[ERROR] InsightsServiceError: Request to autom8_data timed out</div>
+</div>
+</section>
+<section id="asset-table" class="table-section">
+<div class="section-header" onclick="toggleSection('asset-table')">
+<h2>ASSET TABLE <span class="badge">6</span></h2>
+<div class="section-controls">
+<button class="copy-btn" onclick="event.stopPropagation();copyTable('asset-table')">Copy TSV</button>
+<span class="toggle-icon collapsed" id="toggle-asset-table">▼</span>
+</div>
+</div>
+<div class="section-body collapsed" id="body-asset-table">
+<div class="section-subtitle">Creative performance by individual ad asset over the last 30 days.</div>
+<div class="table-scroll">
+<table class="data-table" id="tbl-asset-table">
+<thead><tr><th onclick="sortTable('asset-table',0)" class="">Office<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',1)" class="num">Spend<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',2)" class="num">Impressions<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',3)" class="num">Lclicks<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',4)" class="num">Leads<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',5)" title="Lifetime Value: Estimated revenue per customer" class="num">LTV<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',6)" title="Cost Per Lead: Total spend ÷ total leads" class="num">CPL<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',7)" class="num">Lead CTR<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',8)" title="Return on Ad Spend: Revenue ÷ ad spend" class="num">ROAS<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',9)" class="num">Leads/20K<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',10)" class="num">LTV/20K<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',11)" class="">First Ran<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',12)" class="">Last Ran<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',13)" class="">Start<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',14)" class="">End<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',15)" class="num">Asset Id<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',16)" class="">Asset Type<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',17)" class="">Asset Link<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',18)" class="num">Offer Cost<span class="sort-icon"></span></th><th onclick="sortTable('asset-table',19)" class="num">Budget<span class="sort-icon"></span></th></tr></thead>
+<tbody>
+<tr><td class="">Harcourt Brain Center</td><td class="num">$751.16</td><td class="num">32,460</td><td class="num">211</td><td class="num">14</td><td class="num">$0.00</td><td class="num">$53.65</td><td class="num">0.65%</td><td class="num">0.00x</td><td class="num">8.63</td><td class="num">0.00</td><td class="">2026-01-28</td><td class="">2026-02-26</td><td class="date-cell">2026-01-28</td><td class="date-cell">2026-02-26</td><td class="num">48,417</td><td class="">VIDEO</td><td class="">https://d27fb2d4tylaks.cloudfront.net/stream/8536b1a5-23ae-4dc9-ae7c-124f62a696c2%2Fchiropractic%2Fe7d4a290f951.mp4</td><td class="num">$75.00</td><td class="num">$67,500.00</td></tr>
+<tr><td class="">Harcourt Brain Center</td><td class="num">$471.25</td><td class="num">27,656</td><td class="num">139</td><td class="num">10</td><td class="num">$0.00</td><td class="num">$47.12</td><td class="num">0.50%</td><td class="num">0.00x</td><td class="num">7.23</td><td class="num">0.00</td><td class="">2026-01-28</td><td class="">2026-02-26</td><td class="date-cell">2026-01-28</td><td class="date-cell">2026-02-26</td><td class="num">48,418</td><td class="">VIDEO</td><td class="">https://d27fb2d4tylaks.cloudfront.net/stream/8536b1a5-23ae-4dc9-ae7c-124f62a696c2%2Fchiropractic%2F73447cba9506.mp4</td><td class="num">$75.00</td><td class="num">$67,500.00</td></tr>
+<tr><td class="">Harcourt Brain Center</td><td class="num">$438.44</td><td class="num">20,716</td><td class="num">136</td><td class="num">4</td><td class="num">$0.00</td><td class="num">$109.61</td><td class="num">0.66%</td><td class="num">0.00x</td><td class="num">3.86</td><td class="num">0.00</td><td class="">2026-01-28</td><td class="">2026-02-26</td><td class="date-cell">2026-01-28</td><td class="date-cell">2026-02-26</td><td class="num">49,961</td><td class="">VIDEO</td><td class="">https://d27fb2d4tylaks.cloudfront.net/stream/8536b1a5-23ae-4dc9-ae7c-124f62a696c2%2Fchiropractic%2Fd0ddc12f3f66.mp4</td><td class="num">$75.00</td><td class="num">$67,500.00</td></tr>
+<tr><td class="">Harcourt Brain Center</td><td class="num">$436.88</td><td class="num">22,282</td><td class="num">122</td><td class="num">9</td><td class="num">$0.00</td><td class="num">$48.54</td><td class="num">0.55%</td><td class="num">0.00x</td><td class="num">8.08</td><td class="num">0.00</td><td class="">2026-02-09</td><td class="">2026-02-26</td><td class="date-cell">2026-01-28</td><td class="date-cell">2026-02-26</td><td class="num">48,416</td><td class="">VIDEO</td><td class="">https://d27fb2d4tylaks.cloudfront.net/stream/8536b1a5-23ae-4dc9-ae7c-124f62a696c2%2Fchiropractic%2F43f9a0301fd2.mp4</td><td class="num">$75.00</td><td class="num">$67,500.00</td></tr>
+<tr><td class="">Harcourt Brain Center</td><td class="num">$384.08</td><td class="num">15,459</td><td class="num">46</td><td class="num">0</td><td class="num">$0.00</td><td class="num"><span class="dash">—</span></td><td class="num">0.30%</td><td class="num">0.00x</td><td class="num">0.00</td><td class="num">0.00</td><td class="">2026-01-28</td><td class="">2026-02-26</td><td class="date-cell">2026-01-28</td><td class="date-cell">2026-02-26</td><td class="num"><span class="dash">—</span></td><td class="">VIDEO</td><td class="">https://d27fb2d4tylaks.cloudfront.net/stream/8536b1a5-23ae-4dc9-ae7c-124f62a696c2%2Fchiropractic%2F43f9a0301fd2.mp4</td><td class="num">$75.00</td><td class="num">$67,500.00</td></tr>
+<tr><td class="">Harcourt Brain Center</td><td class="num">$10.02</td><td class="num">471</td><td class="num">1</td><td class="num">0</td><td class="num">$0.00</td><td class="num"><span class="dash">—</span></td><td class="num">0.21%</td><td class="num">0.00x</td><td class="num">0.00</td><td class="num">0.00</td><td class="">2026-01-28</td><td class="">2026-02-26</td><td class="date-cell">2026-01-28</td><td class="date-cell">2026-02-26</td><td class="num">48,862</td><td class="">VIDEO</td><td class="">https://d27fb2d4tylaks.cloudfront.net/stream/8536b1a5-23ae-4dc9-ae7c-124f62a696c2%2Fchiropractic%2F40d01dd7be95.mp4</td><td class="num">$75.00</td><td class="num">$67,500.00</td></tr>
+</tbody>
+</table>
+</div>
+<script type="application/json" id="data-asset-table">[{"office_phone": "+1717***8734", "vertical": "chiropractic", "office": "Harcourt Brain Center", "spend": 384.08, "imp": 15459, "lclicks": 46, "leads": 0, "ltv": 0.0, "lctr": 0.3, "roas": 0.0, "lp20m": 0.0, "ltv20m": 0.0, "first_ran": "2026-01-28", "last_ran": "2026-02-26", "period_start": "2026-01-28", "period_end": "2026-02-26", "asset_type": "VIDEO", "asset_link": "https://d27fb2d4tylaks.cloudfront.net/stream/8536b1a5-23ae-4dc9-ae7c-124f62a696c2%2Fchiropractic%2F43f9a0301fd2.mp4", "transcript": "Struggling with migraines, dizziness, vertigo, or post concussion? This week we're offering a $75 brain body insight session at Harcourt Brain Center. Hi, I'm Dr. Harcourt, the owner at Harcourt Brain Center. We specialize in the treatment of migraine, concussion or post concussion syndrome, and dizziness or vertigo disorders. These are the primary conditions we treat, but we also address movement disorders, back pain, neck pain, and similar issues. When you come in, the goal is to gather as much information about you as possible to make the right prescriptions regarding therapies, treatments, nutritional plans, outcomes, hormonal therapies, and so forth. For most of our patients with neurological conditions, we use many different neurological rehab therapies. The best way to think about it is that we're doing physical therapy for the brain. From there, we'll tailor each of our neurological therapies to activate specific areas or networks of the brain in a way and amount that will help that area to regenerate, recover, and ultimately decrease your symptoms. This can include gaze stabilization, where we help recalibrate how your eyes, head, and neck move together. It can also involve cervical spine proprioceptive retraining, where we put a laser on your head to help change how you perceive your head's movement in space. We use tools like hemi, stim, and saccade exercises with different lights and displays on an iPad or screen to aid rehabilitation. Sometimes, it's more classic physical-type rehab that we apply according to what we observe during your exam. Click below to book your $75 brain body insight session and get started today.", "is_raw": false, "is_generic": false, "offer_id": 1472, "offer_cost": 75.0, "budget": 67500.0}, {"office_phone": "+1717***8734", "vertical": "chiropractic", "office": "Harcourt Brain Center", "spend": 436.88, "imp": 22282, "lclicks": 122, "leads": 9, "ltv": 0.0, "cpl": 48.54, "lctr": 0.55, "roas": 0.0, "lp20m": 8.08, "ltv20m": 0.0, "first_ran": "2026-02-09", "last_ran": "2026-02-26", "period_start": "2026-01-28", "period_end": "2026-02-26", "asset_id": 48416, "platform_id": 1, "asset_type": "VIDEO", "asset_link": "https://d27fb2d4tylaks.cloudfront.net/stream/8536b1a5-23ae-4dc9-ae7c-124f62a696c2%2Fchiropractic%2F43f9a0301fd2.mp4", "transcript": "Struggling with migraines, dizziness, vertigo, or post concussion? This week we're offering a $75 brain body insight session at Harcourt Brain Center. Hi, I'm Dr. Harcourt, the owner at Harcourt Brain Center. We specialize in the treatment of migraine, concussion or post concussion syndrome, and dizziness or vertigo disorders. These are the primary conditions we treat, but we also address movement disorders, back pain, neck pain, and similar issues. When you come in, the goal is to gather as much information about you as possible to make the right prescriptions regarding therapies, treatments, nutritional plans, outcomes, hormonal therapies, and so forth. For most of our patients with neurological conditions, we use many different neurological rehab therapies. The best way to think about it is that we're doing physical therapy for the brain. From there, we'll tailor each of our neurological therapies to activate specific areas or networks of the brain in a way and amount that will help that area to regenerate, recover, and ultimately decrease your symptoms. This can include gaze stabilization, where we help recalibrate how your eyes, head, and neck move together. It can also involve cervical spine proprioceptive retraining, where we put a laser on your head to help change how you perceive your head's movement in space. We use tools like hemi, stim, and saccade exercises with different lights and displays on an iPad or screen to aid rehabilitation. Sometimes, it's more classic physical-type rehab that we apply according to what we observe during your exam. Click below to book your $75 brain body insight session and get started today.", "is_raw": false, "is_generic": false, "offer_id": 1472, "offer_cost": 75.0, "budget": 67500.0}, {"office_phone": "+1717***8734", "vertical": "chiropractic", "office": "Harcourt Brain Center", "spend": 751.16, "imp": 32460, "lclicks": 211, "leads": 14, "ltv": 0.0, "cpl": 53.65, "lctr": 0.65, "roas": 0.0, "lp20m": 8.63, "ltv20m": 0.0, "first_ran": "2026-01-28", "last_ran": "2026-02-26", "period_start": "2026-01-28", "period_end": "2026-02-26", "asset_id": 48417, "platform_id": 1, "asset_type": "VIDEO", "asset_link": "https://d27fb2d4tylaks.cloudfront.net/stream/8536b1a5-23ae-4dc9-ae7c-124f62a696c2%2Fchiropractic%2Fe7d4a290f951.mp4", "transcript": "Frustrated with ongoing concussion symptoms, this week we're offering a $75 brain body insight session at Harcourt Brain Center. What we found in Santa Barbara is there are a lot of people coming to us who had migraines, post-concussion syndrome, never got better, and dizziness, and they've been jumping around from person to person. When you come in, the goal is to gather as much information about you as possible in order to make the right prescriptions regarding therapies, treatments, nutritional outcomes, hormonal therapies, things like that. From most of our patients that come in for their neurological conditions, we use many different neurological rehab therapies. The best way to think about it is that we're doing physical therapy for the brain. During our exam, we try to figure out what area and what side of the brain has been most affected. From there, we'll tailor each one of our neurological therapies to activate those areas of the brain or the brain networks in a way and amount\u2014which is to say not too much or too little\u2014but that will help that area of the brain to regenerate, to recover and ultimately decrease your symptoms. This can include things like gaze stabilization, where we help to recalibrate the way your eyes and your head and your neck are all moving together. It can be things like cervical spine proprioceptive retraining, where we put a laser on your head and we help to change the way that you think your head is moving in space. We use things like hemistim and saccades, where there are different lights and things on the iPad or on screens that help rehab that. And then sometimes it's more classic physical-type rehab that we use again in accordance with what we see on your exam. In our practice, we've been pioneering some techniques where you can use low-level laser for the treatment of migraine or concussion or even dizziness. The cool thing about laser is you don't feel anything. So it's not painful, it's not hard to do. But what it does is two main things: one, it decreases inflammation. So if you had a concussion, there's a bunch of inflammation in the brain. This really helps to clear things up. And what that allows you to do is increase ATP, which is like the energy of your brain or energy of your body in general or any cell. And so areas that don't get a lot of blood flow or that don't recover quickly\u2014laser helps to increase the recovery and decrease the amount of time that you're having, say, joint pain or you're having pain of the ligaments or tendons or disc or things like that. We have different frequencies, different settings that we use that are appropriate to help with that condition. Click below to book your $75 brain body insight session and get started today.", "is_raw": false, "is_generic": false, "offer_id": 1472, "offer_cost": 75.0, "budget": 67500.0}, {"office_phone": "+1717***8734", "vertical": "chiropractic", "office": "Harcourt Brain Center", "spend": 471.25, "imp": 27656, "lclicks": 139, "leads": 10, "ltv": 0.0, "cpl": 47.12, "lctr": 0.5, "roas": 0.0, "lp20m": 7.23, "ltv20m": 0.0, "first_ran": "2026-01-28", "last_ran": "2026-02-26", "period_start": "2026-01-28", "period_end": "2026-02-26", "asset_id": 48418, "platform_id": 1, "asset_type": "VIDEO", "asset_link": "https://d27fb2d4tylaks.cloudfront.net/stream/8536b1a5-23ae-4dc9-ae7c-124f62a696c2%2Fchiropractic%2F73447cba9506.mp4", "transcript": "Struggling with migraines that just won't go away. This week, we're offering a $75 brain-body insight session at Harcourt Brain Center. One thing I have found consistent with migraine patients is not that they have a common hormone problem\u2014meaning it's not always high estrogen or low testosterone or something like that. What I find is that every migraine patient has some type of hormone imbalance. The nice thing is the baseline treatment for all our hormone programs ends up being nutritional. So a lot of times, we can fix the hormone issues just by changing your diet. But if that doesn't work, hormone testing will give us those last little pieces to dial in that hormonal synchrony or harmony of your hormone system, so it decreases your probability of having these migraines, especially as it gets closer to your cycle. We're able to decrease that probability and eventually get rid of those hormonal migraines. We're really going to try to figure out what foods are increasing your probability of migraine and then get rid of those. Because most people, when thinking about diet and migraine, think about triggers\u2014meaning you eat a food and get a migraine. Some of the therapies we use in our office are a variety of musculoskeletal therapies. By that, I mean anything involving muscles, tissues, joints, and the manual application of therapy. This could be something like traditional chiropractic care. We also provide a number of trigger point therapies and myofascial release. In addition, we have what\u2019s called rapid release or vibratory therapy. These are different modalities not only used for musculoskeletal pain, but because we know how they affect the brain, we commonly use these in different ways or on different sides of the body to affect your migraine, post-concussion syndrome, or help with any dizziness you might be having. Another common therapy we use is low-level laser therapy. The cool thing about laser is you don't feel anything, so it's not painful or hard to do. It has two main effects: one, it decreases inflammation\u2014so if you had a concussion with a lot of inflammation in the brain, this really helps clear things up. Depending on the wavelength, the laser affects different complexes, allowing you to increase ATP, which is the energy of your brain. For most patients who come in with neurological conditions, we use many different neurological rehab therapies. The best way to think about it is we're doing physical therapy for the brain. This includes things like gaze stabilization, where we help recalibrate how your eyes, head, and neck move together. It can also include cervical spine proprioceptive retraining, where we put a laser on your head to help change how you perceive head movement in space. We use things like hemistem and saccades, with different lights and stimuli on an iPad or screens that aid rehab. Sometimes, it's more classic physical therapy rehab, used according to what we see in your examination. Click below to book your $75 brain-body insight session and get started today.", "is_raw": false, "is_generic": false, "offer_id": 1472, "offer_cost": 75.0, "budget": 67500.0}, {"office_phone": "+1717***8734", "vertical": "chiropractic", "office": "Harcourt Brain Center", "spend": 10.02, "imp": 471, "lclicks": 1, "leads": 0, "ltv": 0.0, "lctr": 0.21, "roas": 0.0, "lp20m": 0.0, "ltv20m": 0.0, "first_ran": "2026-01-28", "last_ran": "2026-02-26", "period_start": "2026-01-28", "period_end": "2026-02-26", "asset_id": 48862, "platform_id": 1, "asset_type": "VIDEO", "asset_link": "https://d27fb2d4tylaks.cloudfront.net/stream/8536b1a5-23ae-4dc9-ae7c-124f62a696c2%2Fchiropractic%2F40d01dd7be95.mp4", "transcript": "Ready to stop missing out because of headaches? This week we're offering a $75 brain body insight session at Harcourt Brain Center. One thing that I found consistent with migraine patients is not that they have a common hormone problem, meaning it's not always high estrogen or low testosterone or something like that. What I find is that every migraine patient has some type of hormone imbalance. Now, the nice thing is the baseline treatment for all of our hormone programs ends up being nutritional. So a lot of times we can fix the hormone issues just by changing your diet. But if that doesn't do it, the hormone testing will give us those last little pieces to dial in that hormonal synchrony or harmony of your hormone system, if you will, so that it's decreasing your probability of having these migraines, especially as it gets closer to your cycle. We're able to decrease that probability and eventually get rid of those hormonal migraines. We're really going to try to figure out what foods are increasing your probability of migraine and then get rid of that. Because most people, when they're thinking about diet and migraine, they think about triggers, meaning you eat a food, you get a migraine. Some of the therapies we use in our office are a variety of musculoskeletal therapies. And what I mean by that is anything that involves the muscle, the tissues, the joints, and the manual application of the therapy. So this could be something like traditional chiropractic care. We also provide a number of trigger point therapies of myofascial release. In addition to that, we have what's called rapid release or vibratory therapy. And these are all different modalities that not only can be used for just musculoskeletal pain, but because we know how they affect the brain, we'll commonly use these in different ways or maybe different sides of the body to affect your migraine or to affect your post-concussion syndrome or help with any dizziness that you might be having. Another common therapy that we use is low-level laser therapy. The cool thing about laser is you don't feel anything. So it's not painful; it's not hard to do. But what it does are two main things: one, it decreases inflammation. So if you had a concussion, there's a bunch of inflammation in the brain. This really helps to clear things up. And the laser, depending on the wavelength, will affect the different complexes. And what that allows you to do is increase ATP, which is like the energy of your brain. For most of our patients that come in for their neurological conditions, we use many different neurological rehab therapies. The best way to think about it is that we're doing physical therapy for the brain. This can include things like gaze stabilization, where we help to recalibrate the way your eyes and your head and your neck are all moving together. It can be things like cervical spine proprioceptive retraining, where we put a laser on your head and we help to change the way that you think your head is moving in space. We use things like hemi stem and saccades, where there're different lights and things on the iPad or on screens that help rehab that. And then sometimes it's more classic physical-type rehab that we use again in accordance with what we see on your exam. Click below to book your $75 brain body insight session and get started today.", "is_raw": false, "is_generic": false, "offer_id": 1472, "offer_cost": 75.0, "budget": 67500.0}, {"office_phone": "+1717***8734", "vertical": "chiropractic", "office": "Harcourt Brain Center", "spend": 438.44, "imp": 20716, "lclicks": 136, "leads": 4, "ltv": 0.0, "cpl": 109.61, "lctr": 0.66, "roas": 0.0, "lp20m": 3.86, "ltv20m": 0.0, "first_ran": "2026-01-28", "last_ran": "2026-02-26", "period_start": "2026-01-28", "period_end": "2026-02-26", "asset_id": 49961, "platform_id": 1, "asset_type": "VIDEO", "asset_link": "https://d27fb2d4tylaks.cloudfront.net/stream/8536b1a5-23ae-4dc9-ae7c-124f62a696c2%2Fchiropractic%2Fd0ddc12f3f66.mp4", "transcript": "Speaker 1: \u00bfCansado de adivinar qu\u00e9 est\u00e1 desencadenando tus migra\u00f1as? Esta semana estamos ofreciendo una sesi\u00f3n de $75 de insight cuerpo y cerebro en el Harcourt Brain Center. Una cosa que he encontrado constante en pacientes con migra\u00f1a no es que tengan un problema hormonal com\u00fan, es decir, no siempre es estr\u00f3geno alto o testosterona baja o algo as\u00ed. Lo que encuentro es que cada paciente con migra\u00f1a tiene alg\u00fan tipo de desequilibrio hormonal. Ahora, lo bueno es que el tratamiento base para todos nuestros programas hormonales es nutricional. As\u00ed que muchas veces podemos solucionar los problemas hormonales solo cambiando tu dieta. Pero si eso no funciona, las pruebas hormonales nos dar\u00e1n esos \u00faltimos detalles para ajustar esa sincron\u00eda o armon\u00eda hormonal de tu sistema, si se quiere, para disminuir la probabilidad de que tengas estas migra\u00f1as, especialmente cuando se acerca tu ciclo. Podemos reducir esa probabilidad y eventualmente eliminar esas migra\u00f1as hormonales. Realmente vamos a tratar de identificar qu\u00e9 alimentos est\u00e1n aumentando tu probabilidad de migra\u00f1a y luego eliminarlos. Porque la mayor\u00eda de las personas cuando piensan en dieta y migra\u00f1a, piensan en desencadenantes, es decir, comer un alimento y que te d\u00e9 migra\u00f1a.\n\nAlgunas de las terapias que usamos en nuestra consulta son una variedad de terapias musculoesquel\u00e9ticas. Con esto me refiero a todo aquello que involucra m\u00fasculos, tejidos, articulaciones y la aplicaci\u00f3n manual de la terapia. Esto puede ser algo como el cuidado quiropr\u00e1ctico tradicional. Tambi\u00e9n proveemos varias terapias de puntos gatillo y liberaci\u00f3n miofascial. Adem\u00e1s de eso, tenemos lo que se llama liberaci\u00f3n r\u00e1pida o terapia vibratoria. Son modalidades diferentes que no solo se usan para el dolor musculoesquel\u00e9tico, sino que tambi\u00e9n, porque sabemos c\u00f3mo afectan el cerebro, com\u00fanmente las usamos de diferentes maneras o en diferentes partes del cuerpo para influir en tus migra\u00f1as, para tratar el s\u00edndrome postconmocional o para ayudar con cualquier mareo que puedas tener.\n\nOtra terapia com\u00fan que usamos es la terapia l\u00e1ser de bajo nivel. Lo bueno del l\u00e1ser es que no sientes nada; no duele ni es dif\u00edcil de hacer. Pero lo que hace son dos cosas principales: primero, reduce la inflamaci\u00f3n. Si has tenido una conmoci\u00f3n cerebral, hay mucha inflamaci\u00f3n en el cerebro y esto ayuda a despejarla. Y el l\u00e1ser, dependiendo de la longitud de onda, afecta diferentes complejos. Esto permite aumentar el ATP, que es la energ\u00eda de tu cerebro.\n\nPara la mayor\u00eda de nuestros pacientes con condiciones neurol\u00f3gicas, usamos muchas terapias diferentes de rehabilitaci\u00f3n neurol\u00f3gica. La mejor manera de verlo es pensando que hacemos terapia f\u00edsica para el cerebro. Esto puede incluir cosas como estabilizaci\u00f3n de la mirada, donde ayudamos a recalibrar la forma en que tus ojos, tu cabeza y cuello se mueven juntos. Puede incluir reentrenamiento propioceptivo de la columna cervical, donde colocamos un l\u00e1ser en tu cabeza y ayudamos a cambiar la percepci\u00f3n de c\u00f3mo se mueve tu cabeza en el espacio. Usamos t\u00e9cnicas como hemistim y sacadas, con luces y est\u00edmulos en el iPad o en pantallas que ayudan en esa rehabilitaci\u00f3n. Y a veces es la terapia f\u00edsica cl\u00e1sica que usamos acorde a lo que vemos en tu examen.\n\nHaz clic abajo para reservar tu sesi\u00f3n de $75 de insight cuerpo y cerebro y comienza hoy mismo.", "is_raw": false, "is_generic": false, "offer_id": 1472, "offer_cost": 75.0, "budget": 67500.0}]</script>
+</div>
+</section>
+<section id="offer-table" class="table-section">
+<div class="section-header" onclick="toggleSection('offer-table')">
+<h2>OFFER TABLE</h2>
+<div class="section-controls"><span class="toggle-icon collapsed" id="toggle-offer-table">▼</span></div>
+</div>
+<div class="section-body collapsed" id="body-offer-table">
+<div class="section-subtitle">Offer-level performance metrics over the last 30 days.</div>
+<div class="error-box">[ERROR] InsightsServiceError: Request to autom8_data timed out</div>
+</div>
+</section>
+<section id="unused-assets" class="table-section">
+<div class="section-header" onclick="toggleSection('unused-assets')">
+<h2>UNUSED ASSETS</h2>
+<div class="section-controls"><span class="toggle-icon collapsed" id="toggle-unused-assets">▼</span></div>
+</div>
+<div class="section-body collapsed" id="body-unused-assets">
+<div class="section-subtitle">Ad assets with zero spend and zero impressions in the last 30 days.</div>
+<p class="empty">No unused assets found</p>
+</div>
+</section>
+<footer class="report-footer">
+<span class="footer-item"><strong>Duration:</strong> 97.03s</span> &nbsp;&bull;&nbsp; <span class="footer-item"><strong>Tables:</strong> 5/12</span> &nbsp;&bull;&nbsp; <span class="footer-item"><strong>Errors:</strong> 7</span> &nbsp;&bull;&nbsp; <span class="footer-item"><strong>Version:</strong> insights-export-v1.0</span>
+</footer>
+</main>
+</div>
+</body>
+</html>

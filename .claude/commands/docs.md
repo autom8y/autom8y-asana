@@ -38,4 +38,4 @@ Switch to the documentation rite and display the pantheon. $ARGUMENTS
 
 ## Reference
 
-Full documentation: `rites/docs/mena/docs-ref/INDEX.lego.md`
+Full documentation: `.claude/skills/docs-ref/INDEX.md`

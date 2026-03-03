@@ -45,7 +45,7 @@ When switching rites, agents that exist in the current project but not in the ta
 |--------|-----|--------|
 | Keep | k | Agent stays in project (survives swap) |
 | Promote | p | Agent moves to `~/.claude/agents/` (user-level) |
-| Remove | r | Agent removed (available in `.claude/agents.backup/`) |
+| Remove | r | Agent removed |
 | Apply to all | a | Apply same choice to remaining orphans |
 
 For CI/scripts (non-interactive), use flags:

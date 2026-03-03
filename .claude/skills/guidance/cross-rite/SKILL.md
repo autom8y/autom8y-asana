@@ -9,15 +9,20 @@ description: "Cross-rite handoff protocols. Use when: completing 10x work that n
 
 ## When to Use
 
-Use these routes when 10x development work is complete and requires handoff to specialist rites:
+Use these routes when work in one rite is complete and requires handoff to a specialist rite:
 
 | Situation | Route |
 |-----------|-------|
 | Feature ready for production deployment | [10x-to-sre](routes/10x-to-sre.md) |
 | Security-sensitive code requires review | [10x-to-security](routes/10x-to-security.md) |
 | Feature documentation needed | [10x-to-doc](routes/10x-to-doc.md) |
+| Clinic diagnosis: fixable code bug identified | [clinic-to-10x](routes/clinic-to-10x.md) |
+| Clinic diagnosis: monitoring gaps revealed | [clinic-to-sre](routes/clinic-to-sre.md) |
+| Clinic diagnosis: systemic pattern identified | [clinic-to-debt-triage](routes/clinic-to-debt-triage.md) |
 
 ## Decision Tree
+
+### From 10x-dev (feature complete)
 
 ```
 Feature implementation complete?
@@ -39,13 +44,36 @@ Does it need user-facing documentation?
 +-- No -> Proceed to /wrap
 ```
 
+### From clinic (investigation complete)
+
+```
+Root cause identified?
++-- No -> Back-route (evidence gap or escalate to user)
++-- Yes -> Continue below
+
+Is the root cause a fixable bug or misconfiguration?
++-- Yes -> clinic-to-10x route
++-- No -> Continue below
+
+Were monitoring or observability gaps revealed?
++-- Yes -> clinic-to-sre route (may combine with clinic-to-10x)
+
+Is the root cause a systemic pattern across the codebase?
++-- Yes -> clinic-to-debt-triage route (may combine with clinic-to-10x)
+```
+
+Note: A single clinic investigation may produce multiple outbound handoffs. Fix the instance (10x), improve visibility (sre), and address the pattern (debt-triage) are independent workstreams.
+
 ## Route Summary
 
-| Route | Target Rite | Required For | Validation |
-|-------|-------------|--------------|------------|
-| [10x-to-sre](routes/10x-to-sre.md) | sre | SERVICE+ complexity, any production deploy | `ari hook handoff-validate --route=sre` |
-| [10x-to-security](routes/10x-to-security.md) | security | Auth, crypto, secrets, external input handling | `ari hook handoff-validate --route=security` |
-| [10x-to-doc](routes/10x-to-doc.md) | docs | User-facing features, API changes, config changes | `ari hook handoff-validate --route=doc` |
+| Route | Source Rite | Target Rite | Trigger |
+|-------|-------------|-------------|---------|
+| [10x-to-sre](routes/10x-to-sre.md) | 10x-dev | sre | SERVICE+ complexity, production deploy |
+| [10x-to-security](routes/10x-to-security.md) | 10x-dev | security | Auth, crypto, secrets, external input |
+| [10x-to-doc](routes/10x-to-doc.md) | 10x-dev | docs | User-facing features, API changes |
+| [clinic-to-10x](routes/clinic-to-10x.md) | clinic | 10x-dev | Fixable code bug or misconfiguration |
+| [clinic-to-sre](routes/clinic-to-sre.md) | clinic | sre | Monitoring or observability gaps |
+| [clinic-to-debt-triage](routes/clinic-to-debt-triage.md) | clinic | debt-triage | Systemic pattern across codebase |
 
 ## Integration with /wrap
 
@@ -77,15 +105,22 @@ assessment. Suggest next step: Create hygiene ticket for DRY violation review."
 
 ## Progressive Disclosure
 
+### 10x-dev outbound routes
 - [routes/10x-to-sre.md](routes/10x-to-sre.md) - SRE deployment handoff checklist
 - [routes/10x-to-security.md](routes/10x-to-security.md) - Security review handoff checklist
 - [routes/10x-to-doc.md](routes/10x-to-doc.md) - Documentation handoff checklist
+
+### clinic outbound routes
+- [routes/clinic-to-10x.md](routes/clinic-to-10x.md) - Fix implementation handoff
+- [routes/clinic-to-sre.md](routes/clinic-to-sre.md) - Monitoring gap handoff
+- [routes/clinic-to-debt-triage.md](routes/clinic-to-debt-triage.md) - Systemic issue handoff
+
 - [validation.md](validation.md) - Hook integration specification
 
 ## Related Skills
 
 | Skill | When to Use |
 |-------|-------------|
-| [cross-rite-handoff](../../../rites/shared/mena/cross-rite-handoff/INDEX.lego.md) | HANDOFF artifact schema for formal transfers |
-| [wrap](../../session/wrap/INDEX.dro.md) | Session completion with quality gates |
-| [handoff](../../session/handoff/INDEX.dro.md) | Within-rite agent transitions |
+| `cross-rite-handoff` skill | HANDOFF artifact schema for formal transfers |
+| `/wrap` command | Session completion with quality gates |
+| `/handoff` command | Within-rite agent transitions |

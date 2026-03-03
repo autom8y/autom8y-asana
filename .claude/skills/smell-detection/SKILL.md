@@ -81,5 +81,4 @@ Provides canonical smell taxonomy, detection heuristics, and severity classifica
 
 ## Related Skills
 
-- [doc-ecosystem](../../../ecosystem/mena/doc-ecosystem/INDEX.lego.md) - Smell report template
-- [standards](../../../../mena/guidance/standards/INDEX.lego.md) - Code conventions
+- `doc-ecosystem` skill — Smell report template

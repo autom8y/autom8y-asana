@@ -42,8 +42,8 @@ Test Plan: 18 items
 Documentation: Updated (README.md, API.md)
 
 Related:
-- PRD: /docs/requirements/PRD-user-authentication.md
-- TDD: /docs/design/TDD-user-authentication.md
+- PRD: .ledge/specs/PRD-user-authentication.md
+- TDD: .ledge/specs/TDD-user-authentication.md
 - ADR-0042: JWT vs Sessions
 - ADR-0043: Token expiration strategy
 
@@ -104,11 +104,11 @@ Documentation: Complete
 - Runbook for payment monitoring
 
 Related:
-- PRD: /docs/requirements/PRD-payment-processing.md
-- TDD: /docs/design/TDD-payment-processing.md
+- PRD: .ledge/specs/PRD-payment-processing.md
+- TDD: .ledge/specs/TDD-payment-processing.md
 - ADR-0050: Async vs Sync Processing
 - ADR-0051: Stripe vs Square API
-- TEST Plan: /docs/testing/TEST-payment-processing.md
+- TEST Plan: .ledge/specs/TEST-payment-processing.md
 
 Security Review: Required (PCI compliance)
 

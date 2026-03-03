@@ -89,7 +89,7 @@
 
 **Owner**: Requirements Analyst
 
-**Location**: `/docs/requirements/PRD-{NNNN}-{slug}.md`
+**Location**: `.ledge/specs/PRD-{NNNN}-{slug}.md`
 
 **Key Sections**: Problem Statement, Scope (In/Out), Functional Requirements, Acceptance Criteria
 
@@ -100,7 +100,7 @@
 
 **Owner**: Architect
 
-**Location**: `/docs/design/TDD-{NNNN}-{slug}.md`
+**Location**: `.ledge/specs/TDD-{NNNN}-{slug}.md`
 
 **Key Sections**: Overview, Component Architecture, Data Model, API Contracts, Implementation Plan
 
@@ -111,7 +111,7 @@
 
 **Owner**: Architect (primary), Principal Engineer (implementation-level)
 
-**Location**: `/docs/decisions/ADR-{NNNN}-{slug}.md`
+**Location**: `.ledge/decisions/ADR-{NNNN}-{slug}.md`
 
 **Key Sections**: Context, Decision, Rationale, Alternatives Considered, Consequences
 
@@ -124,7 +124,7 @@
 
 **Owner**: QA/Adversary
 
-**Location**: `/docs/testing/TP-{NNNN}-{slug}.md`
+**Location**: `.ledge/specs/TP-{NNNN}-{slug}.md`
 
 **Key Sections**: Test Scope, Requirements Traceability, Test Cases, Edge Cases, Exit Criteria
 

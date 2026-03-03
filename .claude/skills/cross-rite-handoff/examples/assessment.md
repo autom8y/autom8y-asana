@@ -10,8 +10,8 @@ initiative: "Payment Processing Overhaul"
 created_at: "2026-01-03T10:30:00Z"
 status: pending
 source_artifacts:
-  - docs/requirements/PRD-payment-processing.md
-  - docs/design/TDD-payment-processing.md
+  - .ledge/specs/PRD-payment-processing.md
+  - .ledge/specs/TDD-payment-processing.md
 session_id: session-20260103-100000-abc123
 items:
   - id: SEC-001

@@ -31,7 +31,7 @@ When executing an operation:
 
 1. Parse operation name from input
 2. Look up Fate domain in routing table above
-3. Read the Fate skill: `.claude/skills/session/moirai/{fate}.md`
+3. Read the Fate skill from the source mena: `mena/session/moirai/{fate}.md`
 4. Follow operation-specific guidance from the skill
 5. Execute via ari CLI where applicable
 6. Return structured JSON response

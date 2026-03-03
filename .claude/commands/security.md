@@ -44,4 +44,4 @@ threat-modeling -> compliance-design -> penetration-testing -> security-review
 
 ## Reference
 
-Full documentation: `rites/security/mena/security-ref/INDEX.lego.md`
+Full documentation: `.claude/skills/security-ref/INDEX.md`

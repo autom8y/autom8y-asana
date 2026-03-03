@@ -115,3 +115,19 @@ The user:
 4. Is the sole author in git history
 
 Do NOT add `Co-Authored-By`, `Generated with`, or any AI markers.
+
+## Sigil
+
+### On Success
+
+End your response with:
+
+📌 committed · next: {hint}
+
+Resolve the hint: if the current branch diverges from the base branch (origin/main or similar) → `next: /pr`. Otherwise, if a session is active, read `current_phase` from Session Context and `.claude/ACTIVE_WORKFLOW.yaml` to suggest the next workflow phase. No active session → output `📌 committed` without hint.
+
+### On Failure
+
+❌ commit failed: {brief reason} · fix: {recovery}
+
+Infer recovery: nothing to commit → `git add`; not in git repo → `git init`; hook failure → fix the issue flagged by the hook; uncertain → `/consult`.

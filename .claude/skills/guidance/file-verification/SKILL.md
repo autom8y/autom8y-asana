@@ -28,7 +28,7 @@ Construct absolute paths before writing:
 
 ```
 # For session artifacts
-/full/path/to/.claude/sessions/session-YYYYMMDD-HHMMSS-hash/artifacts/ARTIFACT-name.md
+/full/path/to/.sos/sessions/session-YYYYMMDD-HHMMSS-hash/artifacts/ARTIFACT-name.md
 
 # For code files
 /full/path/to/repository/src/module/file.ext

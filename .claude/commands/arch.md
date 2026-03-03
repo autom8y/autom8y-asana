@@ -62,4 +62,4 @@ Full docs: rites/arch/orchestrator.yaml
 
 ## Reference
 
-Full documentation: `rites/arch/orchestrator.yaml`
+Full documentation: See arch rite orchestrator (knossos-internal, not materialized to satellites)

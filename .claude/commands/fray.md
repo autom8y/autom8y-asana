@@ -119,3 +119,23 @@ git worktree remove {worktree_path}
 | Long-running parallel sprint | `/worktree create` + `/start` |
 
 Fray preserves session lineage (parent/child). Worktrees are independent.
+
+## Sigil
+
+### On Success
+
+If a worktree was created (default), end your response with:
+
+🧵 frayed · next: cd {worktree_path} && claude
+
+Use the `worktree_path` from the CLI output.
+
+If `--no-worktree` was used, end with:
+
+🧵 frayed · next: /go
+
+### On Failure
+
+❌ fray failed: {brief reason} · fix: {recovery}
+
+Infer recovery: no active session → `/start`; session is PARKED → `/continue` first; not in git repo → initialize git; uncertain → `/consult`.
