@@ -26,10 +26,10 @@ Mapping:
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class FreshnessIntent(str, Enum):
+class FreshnessIntent(StrEnum):
     """Cache freshness intent controlling validation behavior.
 
     Determines how aggressively the cache validates data against the source.
@@ -45,7 +45,7 @@ class FreshnessIntent(str, Enum):
     IMMEDIATE = "immediate"
 
 
-class FreshnessState(str, Enum):
+class FreshnessState(StrEnum):
     """Cache entry freshness state after evaluation.
 
     Six-state classification enabling graduated cache responses from

@@ -7,7 +7,7 @@ Every resolution operation returns a typed result, never raw entities or None.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Generic, TypeVar
 
 from autom8_asana.models.business.base import BusinessEntity
@@ -15,7 +15,7 @@ from autom8_asana.models.business.base import BusinessEntity
 T = TypeVar("T", bound=BusinessEntity)
 
 
-class ResolutionStatus(str, Enum):
+class ResolutionStatus(StrEnum):
     """Outcome of a resolution attempt."""
 
     RESOLVED = "resolved"  # Entity found with full confidence

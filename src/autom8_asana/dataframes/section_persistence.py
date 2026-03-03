@@ -45,7 +45,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -68,7 +68,7 @@ __all__ = [
 logger = get_logger(__name__)
 
 
-class SectionStatus(str, Enum):
+class SectionStatus(StrEnum):
     """Status of a section in the manifest."""
 
     PENDING = "pending"

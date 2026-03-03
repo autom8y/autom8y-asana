@@ -9,7 +9,7 @@ Frozen, no I/O, O(1) lookup, case-insensitive matching.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -17,7 +17,7 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 
-class AccountActivity(str, Enum):
+class AccountActivity(StrEnum):
     """Universal vocabulary for account activity state.
 
     Priority ordering (highest to lowest): ACTIVE > ACTIVATING > INACTIVE > IGNORED.

@@ -426,8 +426,8 @@ class TestGlobalRegistry:
         warmable = registry.warmable_entities()
         names = [d.name for d in warmable]
         assert names == [
-            "unit",
             "business",
+            "unit",
             "offer",
             "contact",
             "asset_edit",
@@ -447,7 +447,7 @@ class TestFacadeBackwardCompatibility:
         """ENTITY_TYPES facade produces same values as old hardcoded list."""
         from autom8_asana.core.entity_types import ENTITY_TYPES
 
-        expected = ["unit", "business", "offer", "contact", "asset_edit"]
+        expected = ["business", "unit", "offer", "contact", "asset_edit"]
         assert ENTITY_TYPES == expected
 
     def test_entity_types_with_derivatives_matches(self) -> None:
@@ -455,8 +455,8 @@ class TestFacadeBackwardCompatibility:
         from autom8_asana.core.entity_types import ENTITY_TYPES_WITH_DERIVATIVES
 
         expected = [
-            "unit",
             "business",
+            "unit",
             "offer",
             "contact",
             "asset_edit",

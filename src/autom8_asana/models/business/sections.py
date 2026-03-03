@@ -7,10 +7,10 @@ for a future phase.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class OfferSection(str, Enum):
+class OfferSection(StrEnum):
     """Section GIDs for the Business Offers project (1143843662099250).
 
     Maps human-readable section names to their Asana GIDs. These are
