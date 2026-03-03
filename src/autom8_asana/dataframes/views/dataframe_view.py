@@ -580,6 +580,11 @@ class DataFrameViewPlugin:
                 return self._extract_section(task_data, project_gid)
             case "tags":
                 return self._extract_tags(task_data)
+            case "parent_gid":
+                parent = task_data.get("parent")
+                if parent and isinstance(parent, dict):
+                    return parent.get("gid")
+                return None
             case _:
                 return None
 
