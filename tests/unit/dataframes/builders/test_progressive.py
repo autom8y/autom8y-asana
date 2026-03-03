@@ -496,15 +496,19 @@ class TestReconstructHierarchyFromDataframe:
 class TestWarmHierarchyGapsAsync:
     """Verify _warm_hierarchy_gaps_async warms missing ancestor links."""
 
-    async def test_calls_warm_ancestors_with_unique_parent_gids(self) -> None:
-        """Passes deduplicated parent_gids to hierarchy warmer."""
+    async def test_fetches_uncached_parents_via_put_batch(self) -> None:
+        """Fetches uncached parent GIDs via store.put_batch_async."""
         builder = _make_builder()
 
-        mock_hierarchy = MagicMock()
-        mock_semaphore = MagicMock()
+        mock_cache = MagicMock()
+        # h1 is cached, h2 is not
+        mock_cache.get_versioned.side_effect = lambda gid, _: (
+            MagicMock() if gid == "h1" else None
+        )
+
         mock_store = MagicMock()
-        mock_store.get_hierarchy_index.return_value = mock_hierarchy
-        mock_store._hierarchy_semaphore = mock_semaphore
+        mock_store.cache = mock_cache
+        mock_store.put_batch_async = AsyncMock()
         builder._store = mock_store
 
         mock_tasks_client = MagicMock()
@@ -514,22 +518,19 @@ class TestWarmHierarchyGapsAsync:
         df = pl.DataFrame(
             {
                 "gid": ["u1", "u2", "u3"],
-                "parent_gid": ["h1", "h1", "h2"],  # h1 appears twice
+                "parent_gid": ["h1", "h1", "h2"],  # h1 cached, h2 not
             }
         )
 
-        with patch(
-            "autom8_asana.cache.integration.hierarchy_warmer.warm_ancestors_async",
-            new_callable=AsyncMock,
-            return_value=2,
-        ) as mock_warm:
-            result = await builder._warm_hierarchy_gaps_async(df)
+        result = await builder._warm_hierarchy_gaps_async(df)
 
-        assert result == 2
-        mock_warm.assert_called_once()
-        call_kwargs = mock_warm.call_args[1]
-        assert set(call_kwargs["gids"]) == {"h1", "h2"}
-        assert call_kwargs["max_depth"] == 3
+        assert result == 1  # only h2 was uncached
+        mock_store.put_batch_async.assert_called_once()
+        call_args = mock_store.put_batch_async.call_args
+        task_dicts = call_args[0][0]
+        assert len(task_dicts) == 1
+        assert task_dicts[0]["gid"] == "h2"
+        assert call_args[1]["warm_hierarchy"] is True
 
     async def test_no_store_returns_zero(self) -> None:
         """Returns 0 when store is None."""

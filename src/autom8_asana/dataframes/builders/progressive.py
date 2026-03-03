@@ -1237,18 +1237,24 @@ class ProgressiveProjectBuilder:
         return registered
 
     async def _warm_hierarchy_gaps_async(self, df: pl.DataFrame) -> int:
-        """Warm hierarchy gaps after reconstruction from parquet.
+        """Warm hierarchy gaps by fetching uncached parent tasks from API.
 
         Per TDD-CASCADE-RESUME-FIX: After reconstructing unit → unit_holder
         links from parquet parent_gid, the unit_holder → business links are
-        still missing. This method passes parent GIDs to the hierarchy warmer
-        which fetches missing ancestors from cache/API and completes the chain.
+        still missing because unit_holders were registered only as parents
+        (not as tasks with their own parent). This method directly fetches
+        uncached parent GIDs from the API — the API response reveals their
+        parent (business), which gets registered in the hierarchy, completing
+        the chain for cascade resolution.
+
+        Uses the same put_batch_async(warm_hierarchy=True) path as fresh
+        fetches, which recursively fetches and caches parent chains.
 
         Args:
             df: Merged DataFrame with 'parent_gid' column.
 
         Returns:
-            Count of ancestor tasks warmed.
+            Count of gap tasks fetched and cached.
         """
         if self._store is None or "parent_gid" not in df.columns:
             return 0
@@ -1257,26 +1263,48 @@ class ProgressiveProjectBuilder:
         if not parent_gids:
             return 0
 
-        from autom8_asana.cache.integration.hierarchy_warmer import (
-            warm_ancestors_async,
+        # Filter to parent GIDs not already cached as full task data
+        from autom8_asana.cache.models.entry import EntryType
+
+        uncached = []
+        for gid in parent_gids:
+            cached = self._store.cache.get_versioned(gid, EntryType.TASK)
+            if cached is None:
+                uncached.append(gid)
+
+        if not uncached:
+            return 0
+
+        logger.info(
+            "hierarchy_gap_fetch_starting",
+            extra={
+                "project_gid": self._project_gid,
+                "entity_type": self._entity_type,
+                "total_parent_gids": len(parent_gids),
+                "uncached_count": len(uncached),
+            },
         )
 
+        # Fetch uncached parents via the store's hierarchy warming path.
+        # put_batch_async(warm_hierarchy=True) fetches each parent from API,
+        # registers it in the hierarchy (discovering its own parent), caches it,
+        # and recursively warms ancestors — completing the full chain.
         try:
-            return await warm_ancestors_async(
-                gids=parent_gids,
-                hierarchy_index=self._store.get_hierarchy_index(),
+            task_dicts = [{"gid": gid} for gid in uncached]
+            await self._store.put_batch_async(
+                task_dicts,
+                opt_fields=BASE_OPT_FIELDS,
                 tasks_client=self._client.tasks,
-                max_depth=3,
-                unified_store=self._store,
-                global_semaphore=self._store._hierarchy_semaphore,
+                warm_hierarchy=True,
             )
+            return len(uncached)
         except Exception as e:  # BROAD-CATCH: enrichment
             logger.warning(
                 "hierarchy_gap_warming_failed",
                 extra={
                     "project_gid": self._project_gid,
                     "entity_type": self._entity_type,
-                    "parent_gids_count": len(parent_gids),
+                    "parent_gids_count": len(uncached),
                     "error": str(e),
                     "error_type": type(e).__name__,
                 },
