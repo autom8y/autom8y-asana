@@ -37,7 +37,7 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from autom8y_log import get_logger
@@ -69,7 +69,7 @@ def _resolve_dotted_path(dotted_path: str) -> Any:
     return getattr(module, attr_name)
 
 
-class EntityCategory(str, Enum):
+class EntityCategory(StrEnum):
     """Classification of entity types by their role in the hierarchy."""
 
     ROOT = "root"  # Business
@@ -387,7 +387,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         model_class_path="autom8_asana.models.business.business.Business",
         default_ttl_seconds=3600,
         warmable=True,
-        warm_priority=2,
+        warm_priority=1,
         aliases=("office",),
         join_keys=(
             ("unit", "office_phone"),
@@ -411,7 +411,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         model_class_path="autom8_asana.models.business.unit.Unit",
         default_ttl_seconds=900,
         warmable=True,
-        warm_priority=1,
+        warm_priority=2,
         aliases=("business_unit",),
         join_keys=(
             ("business", "office_phone"),

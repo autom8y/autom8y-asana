@@ -8,11 +8,12 @@ Note: bare-except sites are preserved as-is from main.py.
 They are tagged for narrowing in I6 (Exception Narrowing).
 """
 
+from __future__ import annotations
+
 import asyncio
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
-from fastapi import FastAPI
 
 from .constants import (
     HEARTBEAT_INTERVAL_SECONDS,
@@ -24,10 +25,79 @@ if TYPE_CHECKING:
     from datetime import datetime
 
     import polars as pl
+    from fastapi import FastAPI
 
+    from autom8_asana.dataframes.models.schema import DataFrameSchema
     from autom8_asana.services.resolver import EntityProjectRegistry
 
 logger = get_logger(__name__)
+
+
+def _has_cascade_fields(schema: DataFrameSchema) -> bool:
+    """Check if a schema has any cascade-sourced columns.
+
+    Args:
+        schema: DataFrameSchema to inspect.
+
+    Returns:
+        True if any column has a ``cascade:`` source prefix.
+    """
+    return schema.has_cascade_columns()
+
+
+def _dataframe_to_task_dicts(
+    df: pl.DataFrame,
+    cascade_field_mapping: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Convert DataFrame rows to minimal task dicts for store population.
+
+    Used to populate the shared UnifiedTaskStore from a cascade provider
+    DataFrame loaded via S3 fast-path, so that downstream cascade validation
+    can resolve fields like ``office_phone`` from provider ancestors.
+
+    Args:
+        df: Business DataFrame with ``gid`` column and cascade source columns.
+        cascade_field_mapping: Maps DataFrame column name to Asana custom
+            field name.  E.g., ``{"office_phone": "Office Phone"}``.
+
+    Returns:
+        List of task dicts compatible with
+        ``UnifiedTaskStore.put_batch_async()``.  Each dict has ``gid`` and
+        ``custom_fields`` keys.
+    """
+    if "gid" not in df.columns:
+        return []
+
+    task_dicts: list[dict[str, Any]] = []
+    gids = df["gid"].to_list()
+
+    # Pre-fetch column data for mapped fields that exist in the DataFrame
+    col_data: dict[str, list[Any]] = {}
+    for col_name in cascade_field_mapping:
+        if col_name in df.columns:
+            col_data[col_name] = df[col_name].to_list()
+
+    for row_idx, gid in enumerate(gids):
+        if gid is None:
+            continue
+
+        custom_fields: list[dict[str, Any]] = []
+        for col_name, field_name in cascade_field_mapping.items():
+            if col_name in col_data:
+                value = col_data[col_name][row_idx]
+                if value is not None:
+                    custom_fields.append({"name": field_name, "display_value": value})
+
+        task_dicts.append(
+            {
+                "gid": str(gid),
+                "custom_fields": custom_fields,
+                # parent=None is fine -- hierarchy index is managed separately
+                "parent": None,
+            }
+        )
+
+    return task_dicts
 
 
 def _invoke_cache_warmer_lambda_from_preload(
@@ -358,6 +428,124 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                             ),
                                         },
                                     )
+
+                                    # WS-2: Populate shared store from cascade provider
+                                    # fast-path so downstream cascade validation can resolve.
+                                    from autom8_asana.dataframes.cascade_utils import (
+                                        cascade_provider_field_mapping,
+                                        is_cascade_provider,
+                                    )
+
+                                    if (
+                                        is_cascade_provider(entity_type)
+                                        and shared_store is not None
+                                    ):
+                                        try:
+                                            mapping = cascade_provider_field_mapping(
+                                                entity_type
+                                            )
+                                            if mapping:
+                                                task_dicts = _dataframe_to_task_dicts(
+                                                    s3_df,
+                                                    cascade_field_mapping=mapping,
+                                                )
+                                                if task_dicts:
+                                                    await shared_store.put_batch_async(
+                                                        task_dicts,
+                                                    )
+                                                    logger.info(
+                                                        "progressive_preload_store_populated_from_parquet",
+                                                        extra={
+                                                            "project_gid": project_gid,
+                                                            "entity_type": entity_type,
+                                                            "task_count": len(
+                                                                task_dicts
+                                                            ),
+                                                        },
+                                                    )
+                                        except (
+                                            Exception
+                                        ) as e:  # BROAD-CATCH: enrichment
+                                            logger.warning(
+                                                "progressive_preload_store_populate_failed",
+                                                extra={
+                                                    "project_gid": project_gid,
+                                                    "error": str(e),
+                                                    "error_type": type(e).__name__,
+                                                },
+                                            )
+
+                                    # WS-1: Run cascade validation on entities
+                                    # that have cascade fields. Entities without
+                                    # cascade columns (e.g., Business) naturally
+                                    # skip via _has_cascade_fields check.
+                                    if shared_store is not None and _has_cascade_fields(
+                                        schema
+                                    ):
+                                        try:
+                                            from autom8_asana.dataframes.builders.cascade_validator import (
+                                                validate_cascade_fields_async,
+                                            )
+                                            from autom8_asana.dataframes.views.cascade_view import (
+                                                CascadeViewPlugin,
+                                            )
+
+                                            cascade_plugin = CascadeViewPlugin(
+                                                store=shared_store,
+                                            )
+                                            (
+                                                s3_df,
+                                                cascade_result,
+                                            ) = await validate_cascade_fields_async(
+                                                merged_df=s3_df,
+                                                store=shared_store,
+                                                cascade_plugin=cascade_plugin,
+                                                project_gid=project_gid,
+                                                entity_type=entity_type,
+                                                schema=schema,
+                                            )
+                                            logger.info(
+                                                "progressive_preload_cascade_validated",
+                                                extra={
+                                                    "project_gid": project_gid,
+                                                    "entity_type": entity_type,
+                                                    "rows_checked": cascade_result.rows_checked,
+                                                    "rows_corrected": cascade_result.rows_corrected,
+                                                },
+                                            )
+
+                                            # Self-heal: re-persist corrected
+                                            # DataFrame to S3 so next cold start
+                                            # loads the fixed version.
+                                            if (
+                                                cascade_result.rows_corrected > 0
+                                                and df_storage is not None
+                                                and s3_watermark is not None
+                                            ):
+                                                await df_storage.save_dataframe(
+                                                    project_gid, s3_df, s3_watermark
+                                                )
+                                                logger.info(
+                                                    "progressive_preload_cascade_self_healed",
+                                                    extra={
+                                                        "project_gid": project_gid,
+                                                        "entity_type": entity_type,
+                                                        "rows_corrected": cascade_result.rows_corrected,
+                                                    },
+                                                )
+                                        except (
+                                            Exception
+                                        ) as e:  # BROAD-CATCH: cascade is additive
+                                            logger.warning(
+                                                "progressive_preload_cascade_validation_failed",
+                                                extra={
+                                                    "project_gid": project_gid,
+                                                    "entity_type": entity_type,
+                                                    "error": str(e),
+                                                    "error_type": type(e).__name__,
+                                                },
+                                            )
+
                                     if s3_watermark is not None:
                                         watermark_repo.set_watermark(
                                             project_gid, s3_watermark
@@ -456,44 +644,35 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                     projects_in_progress.discard(project_gid)
                     projects_completed.add(project_gid)
 
-        # Process Business first for cascade dependencies
-        # Unit cascade fields (office_phone, vertical) need Business data in store
-        business_configs = [
-            (gid, etype) for gid, etype in project_configs if etype == "business"
-        ]
-        other_configs = [
-            (gid, etype) for gid, etype in project_configs if etype != "business"
-        ]
+        # Process projects in cascade-safe phase order.
+        # Providers (business, unit) warm before consumers (offer, contact, ...).
+        from autom8_asana.dataframes.cascade_utils import cascade_warm_phases
 
-        # Process Business project(s) first
-        if business_configs:
-            logger.info(
-                "progressive_preload_business_first",
-                extra={"business_count": len(business_configs)},
-            )
-            business_results = await asyncio.gather(
-                *[
-                    process_project(project_gid, entity_type)
-                    for project_gid, entity_type in business_configs
-                ],
-                return_exceptions=True,
-            )
-            for result in business_results:
-                if isinstance(result, bool) and result:
-                    loaded_count += 1
+        phases = cascade_warm_phases()
+        config_map = {etype: gid for gid, etype in project_configs}
 
-        # Then process remaining projects in parallel
-        if other_configs:
-            other_results = await asyncio.gather(
-                *[
-                    process_project(project_gid, entity_type)
-                    for project_gid, entity_type in other_configs
-                ],
-                return_exceptions=True,
-            )
-            for result in other_results:
-                if isinstance(result, bool) and result:
-                    loaded_count += 1
+        for phase_idx, phase_types in enumerate(phases):
+            phase_configs = [
+                (config_map[et], et) for et in phase_types if et in config_map
+            ]
+            if phase_configs:
+                logger.info(
+                    "progressive_preload_phase",
+                    extra={
+                        "phase": phase_idx,
+                        "entity_types": [c[1] for c in phase_configs],
+                    },
+                )
+                phase_results = await asyncio.gather(
+                    *[
+                        process_project(project_gid, entity_type)
+                        for project_gid, entity_type in phase_configs
+                    ],
+                    return_exceptions=True,
+                )
+                for result in phase_results:
+                    if isinstance(result, bool) and result:
+                        loaded_count += 1
 
         # Invoke Lambda once for all entities missing S3 manifests
         if projects_needing_lambda:

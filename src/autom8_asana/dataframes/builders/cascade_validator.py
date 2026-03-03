@@ -15,16 +15,10 @@ from autom8y_log import get_logger
 
 if TYPE_CHECKING:
     from autom8_asana.cache.providers.unified import UnifiedTaskStore
+    from autom8_asana.dataframes.models.schema import DataFrameSchema
     from autom8_asana.dataframes.views.cascade_view import CascadeViewPlugin
 
 logger = get_logger(__name__)
-
-# Fields that cascade from Business and are critical for downstream
-# consumers (reconcile-spend, resolution index). These are the fields
-# worth validating because a None here causes downstream anomalies.
-CASCADE_CRITICAL_FIELDS: list[tuple[str, str]] = [
-    ("office_phone", "Office Phone"),  # (column_name, cascade_field_name)
-]
 
 
 @dataclass
@@ -44,6 +38,8 @@ async def validate_cascade_fields_async(
     cascade_plugin: CascadeViewPlugin,
     project_gid: str,
     entity_type: str,
+    *,
+    schema: DataFrameSchema | None = None,
 ) -> tuple[pl.DataFrame, CascadeValidationResult]:
     """Validate and correct cascade-critical fields in merged DataFrame.
 
@@ -57,6 +53,9 @@ async def validate_cascade_fields_async(
         cascade_plugin: CascadeViewPlugin for field resolution.
         project_gid: Project GID for logging.
         entity_type: Entity type for logging.
+        schema: Optional DataFrameSchema. When provided, cascade columns
+            are derived dynamically via ``schema.get_cascade_columns()``.
+            When None, no fields are validated (safe degradation).
 
     Returns:
         Tuple of (corrected DataFrame, validation result).
@@ -72,7 +71,8 @@ async def validate_cascade_fields_async(
     hierarchy = store.get_hierarchy_index()
     corrections: dict[int, dict[str, Any]] = {}  # row_index -> {col: value}
 
-    for col_name, cascade_field_name in CASCADE_CRITICAL_FIELDS:
+    cascade_fields = schema.get_cascade_columns() if schema is not None else []
+    for col_name, cascade_field_name in cascade_fields:
         if col_name not in merged_df.columns:
             continue
 
@@ -118,7 +118,7 @@ async def validate_cascade_fields_async(
     # Apply corrections if any
     if corrections:
         # Build correction series for each column
-        for col_name, _ in CASCADE_CRITICAL_FIELDS:
+        for col_name, _ in cascade_fields:
             if col_name not in merged_df.columns:
                 continue
 

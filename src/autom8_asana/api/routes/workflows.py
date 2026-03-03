@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
     AuthContextDep,
@@ -49,6 +49,8 @@ class WorkflowInvokeRequest(BaseModel):
         dry_run: If True, skip write operations.
         params: Additional workflow-specific parameter overrides.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     entity_ids: list[str]
     dry_run: bool = False

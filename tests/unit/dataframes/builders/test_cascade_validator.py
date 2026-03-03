@@ -14,10 +14,20 @@ import polars as pl
 import pytest
 
 from autom8_asana.dataframes.builders.cascade_validator import (
-    CASCADE_CRITICAL_FIELDS,
     CascadeValidationResult,
     validate_cascade_fields_async,
 )
+
+
+def _make_office_phone_schema() -> MagicMock:
+    """Create a mock schema with office_phone as a cascade column.
+
+    Returns a mock DataFrameSchema where ``get_cascade_columns()``
+    returns ``[("office_phone", "Office Phone")]``.
+    """
+    schema = MagicMock()
+    schema.get_cascade_columns.return_value = [("office_phone", "Office Phone")]
+    return schema
 
 
 def _make_mock_store(
@@ -38,8 +48,8 @@ def _make_mock_store(
     parent_chains = parent_chains or {}
 
     mock_hierarchy = MagicMock()
-    mock_hierarchy.get_ancestor_chain.side_effect = (
-        lambda gid, max_depth=5: ancestor_chains.get(gid, [])
+    mock_hierarchy.get_ancestor_chain.side_effect = lambda gid, max_depth=5: (
+        ancestor_chains.get(gid, [])
     )
 
     mock_store = MagicMock()
@@ -123,6 +133,7 @@ async def test_validation_corrects_null_office_phone() -> None:
         cascade_plugin=plugin,
         project_gid="proj-1",
         entity_type="offer",
+        schema=_make_office_phone_schema(),
     )
 
     assert result.rows_checked == 1
@@ -157,6 +168,7 @@ async def test_validation_noop_when_all_populated() -> None:
         cascade_plugin=plugin,
         project_gid="proj-1",
         entity_type="offer",
+        schema=_make_office_phone_schema(),
     )
 
     assert result.rows_checked == 0
@@ -194,6 +206,7 @@ async def test_validation_noop_when_no_ancestors() -> None:
         cascade_plugin=plugin,
         project_gid="proj-1",
         entity_type="offer",
+        schema=_make_office_phone_schema(),
     )
 
     assert result.rows_checked == 1
@@ -242,6 +255,7 @@ async def test_validation_noop_when_ancestors_also_null() -> None:
         cascade_plugin=plugin,
         project_gid="proj-1",
         entity_type="offer",
+        schema=_make_office_phone_schema(),
     )
 
     assert result.rows_checked == 1
@@ -304,6 +318,7 @@ async def test_validation_multiple_rows() -> None:
         cascade_plugin=plugin,
         project_gid="proj-1",
         entity_type="offer",
+        schema=_make_office_phone_schema(),
     )
 
     assert result.rows_checked == 3
@@ -340,6 +355,7 @@ async def test_validation_skips_when_no_gid_column() -> None:
         cascade_plugin=plugin,
         project_gid="proj-1",
         entity_type="offer",
+        schema=_make_office_phone_schema(),
     )
 
     assert result.rows_checked == 0
@@ -371,6 +387,7 @@ async def test_validation_skips_when_column_not_present() -> None:
         cascade_plugin=plugin,
         project_gid="proj-1",
         entity_type="offer",
+        schema=_make_office_phone_schema(),
     )
 
     assert result.rows_checked == 0
@@ -406,6 +423,7 @@ async def test_validation_skips_when_parent_chain_empty() -> None:
         cascade_plugin=plugin,
         project_gid="proj-1",
         entity_type="offer",
+        schema=_make_office_phone_schema(),
     )
 
     assert result.rows_checked == 1
@@ -439,6 +457,7 @@ async def test_validation_result_duration_populated() -> None:
         cascade_plugin=plugin,
         project_gid="proj-1",
         entity_type="offer",
+        schema=_make_office_phone_schema(),
     )
 
     assert result.duration_ms >= 0.0
@@ -464,3 +483,73 @@ def test_feature_flag_disabled_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     settings = Settings()
     assert settings.runtime.section_cascade_validation == "0"
+
+
+@pytest.mark.asyncio
+async def test_schema_driven_validates_all_cascade_columns() -> None:
+    """When schema is passed, validates ALL its cascade columns, not just office_phone."""
+    schema = MagicMock()
+    schema.get_cascade_columns.return_value = [
+        ("office_phone", "Office Phone"),
+        ("vertical", "Vertical"),
+    ]
+
+    merged_df = pl.DataFrame(
+        {"gid": ["t-1"], "office_phone": [None], "vertical": [None]},
+        schema={"gid": pl.Utf8, "office_phone": pl.Utf8, "vertical": pl.Utf8},
+    )
+
+    store = _make_mock_store(
+        ancestor_chains={"t-1": ["holder-1", "biz-1"]},
+        parent_chains={
+            "t-1": [
+                {"gid": "holder-1", "custom_fields": []},
+                {"gid": "biz-1", "custom_fields": []},
+            ]
+        },
+    )
+    plugin = _make_mock_cascade_plugin(
+        field_values={
+            "holder-1": {"Office Phone": None, "Vertical": None},
+            "biz-1": {"Office Phone": "555-0001", "Vertical": "Chiro"},
+        }
+    )
+
+    corrected_df, result = await validate_cascade_fields_async(
+        merged_df=merged_df,
+        store=store,
+        cascade_plugin=plugin,
+        project_gid="proj-1",
+        entity_type="test",
+        schema=schema,
+    )
+
+    # Both cascade columns should be checked and corrected
+    assert result.rows_checked == 2  # 1 row x 2 cascade columns
+    assert result.rows_corrected == 2
+    assert corrected_df["office_phone"][0] == "555-0001"
+    assert corrected_df["vertical"][0] == "Chiro"
+
+
+@pytest.mark.asyncio
+async def test_no_schema_validates_nothing() -> None:
+    """When schema=None, no cascade fields are checked (safe degradation)."""
+    merged_df = pl.DataFrame(
+        {"gid": ["t-1"], "office_phone": [None]},
+        schema={"gid": pl.Utf8, "office_phone": pl.Utf8},
+    )
+
+    store = _make_mock_store()
+    plugin = _make_mock_cascade_plugin()
+
+    _, result = await validate_cascade_fields_async(
+        merged_df=merged_df,
+        store=store,
+        cascade_plugin=plugin,
+        project_gid="proj-1",
+        entity_type="test",
+        # schema=None (default)
+    )
+
+    assert result.rows_checked == 0
+    assert result.rows_corrected == 0

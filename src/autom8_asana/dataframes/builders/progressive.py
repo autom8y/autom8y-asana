@@ -490,6 +490,7 @@ class ProgressiveProjectBuilder:
                             cascade_plugin=cascade_plugin,
                             project_gid=self._project_gid,
                             entity_type=self._entity_type,
+                            schema=self._schema,
                         )
                         total_rows = len(merged_df)
                     except Exception as e:  # BROAD-CATCH: validation is additive

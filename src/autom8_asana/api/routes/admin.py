@@ -15,7 +15,7 @@ import uuid
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
@@ -35,6 +35,8 @@ class CacheRefreshRequest(BaseModel):
         entity_type: Specific entity type to refresh. If None, refresh all.
         force_full_rebuild: If True, delete manifests and rebuild from scratch.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     entity_type: str | None = None
     force_full_rebuild: bool = False

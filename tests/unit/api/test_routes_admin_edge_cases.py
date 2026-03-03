@@ -111,32 +111,19 @@ class TestAdminRefreshAdversarialInputs:
 
         assert response.status_code == 400
 
-    def test_extra_unknown_fields_ignored(self, client: TestClient) -> None:
-        """Extra fields in request body should be ignored (Pydantic default)."""
-        with (
-            patch(
-                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
-                return_value=MagicMock(),
-            ),
-            patch(
-                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
-            ) as mock_registry_cls,
-        ):
-            mock_registry = MagicMock()
-            mock_registry.is_ready.return_value = True
-            mock_registry_cls.return_value = mock_registry
+    def test_extra_unknown_fields_rejected(self, client: TestClient) -> None:
+        """Extra fields in request body should be rejected (extra='forbid')."""
+        response = client.post(
+            "/v1/admin/cache/refresh",
+            json={
+                "entity_type": "offer",
+                "evil_field": "malicious_payload",
+                "__proto__": {"polluted": True},
+            },
+        )
 
-            response = client.post(
-                "/v1/admin/cache/refresh",
-                json={
-                    "entity_type": "offer",
-                    "evil_field": "malicious_payload",
-                    "__proto__": {"polluted": True},
-                },
-            )
-
-        # Should succeed (extra fields ignored by Pydantic)
-        assert response.status_code == 202
+        # Should fail with 422 (extra fields forbidden)
+        assert response.status_code == 422
 
     def test_invalid_json_body_returns_422(self, client: TestClient) -> None:
         """Non-JSON body should return 422 Unprocessable Entity."""
