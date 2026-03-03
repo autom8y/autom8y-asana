@@ -1,13 +1,14 @@
-"""Base schema with 12 columns applicable to all task types.
+"""Base schema with 13 columns applicable to all task types.
 
 Per FR-MODEL-002: BASE_SCHEMA defines common fields for all tasks.
+Per TDD-CASCADE-RESUME-FIX: parent_gid added for hierarchy reconstruction on resume.
 """
 
 from __future__ import annotations
 
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 
-# Base column definitions (12 columns) - FR-MODEL-002
+# Base column definitions (13 columns) - FR-MODEL-002 + TDD-CASCADE-RESUME-FIX
 BASE_COLUMNS: list[ColumnDef] = [
     ColumnDef(
         name="gid",
@@ -93,6 +94,13 @@ BASE_COLUMNS: list[ColumnDef] = [
         source="tags",
         description="List of tag names",
     ),
+    ColumnDef(
+        name="parent_gid",
+        dtype="Utf8",
+        nullable=True,
+        source=None,  # Derived via _extract_parent_gid() — nested access not supported by _extract_attribute
+        description="Parent task GID for hierarchy reconstruction on resume",
+    ),
 ]
 
 
@@ -100,5 +108,5 @@ BASE_SCHEMA = DataFrameSchema(
     name="base",
     task_type="*",  # Wildcard: applies to all task types
     columns=BASE_COLUMNS,
-    version="1.0.0",
+    version="1.1.0",  # parent_gid column added for hierarchy reconstruction on resume
 )

@@ -19,7 +19,7 @@ from tests.unit.dataframes.conftest import _TestBuilder, make_mock_task
 
 
 def _get_base_column_names() -> set[str]:
-    """Return the set of base 12 column names."""
+    """Return the set of base 13 column names."""
     return {c.name for c in BASE_COLUMNS}
 
 
@@ -198,4 +198,4 @@ class TestSchemaAudit:
         """The '*' base schema must always be registered."""
         schema = schema_registry.get_schema("*")
         assert schema.task_type == "*"
-        assert len(schema.columns) == 12
+        assert len(schema.columns) == 13

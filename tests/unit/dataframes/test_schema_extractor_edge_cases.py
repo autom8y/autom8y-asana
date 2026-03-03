@@ -30,7 +30,7 @@ def _make_schema(
     task_type: str,
     extra_columns: list[ColumnDef] | None = None,
 ) -> DataFrameSchema:
-    """Create a test schema with optional extra columns beyond base 12."""
+    """Create a test schema with optional extra columns beyond base 13."""
     cols = list(BASE_COLUMNS)
     if extra_columns:
         cols.extend(extra_columns)
@@ -46,7 +46,7 @@ class TestSchemaWithZeroExtraColumns:
     """Schema with 0 extra columns should NOT trigger SchemaExtractor."""
 
     def test_base_only_schema_uses_default_extractor(self) -> None:
-        """A schema with only the base 12 columns should use DefaultExtractor,
+        """A schema with only the base 13 columns should use DefaultExtractor,
         not SchemaExtractor, when passed to _create_extractor via the fallback."""
         schema = _make_schema("test_base_only", "TestBaseOnly")
         builder = _TestBuilder(schema)
@@ -64,7 +64,7 @@ class TestSchemaWithZeroExtraColumns:
         row = extractor.extract(task)
         assert row is not None
         d = row.to_dict()
-        assert len(d) == 12
+        assert len(d) == 13
 
 
 class TestSchemaAllNullableColumns:
@@ -441,7 +441,7 @@ class TestSchemaExtractorWithSyntheticSchema:
     """Tests using synthetic schemas to probe boundary conditions."""
 
     def test_schema_with_single_extra_column(self) -> None:
-        """Schema with exactly 1 extra column beyond base 12."""
+        """Schema with exactly 1 extra column beyond base 13."""
         _MODEL_CACHE.pop("SingleExtra", None)
         extra = [
             ColumnDef(name="one_extra", dtype="Utf8", nullable=True, source="cf:One")
@@ -452,7 +452,7 @@ class TestSchemaExtractorWithSyntheticSchema:
         row = ext.extract(task)
         assert row is not None
         d = row.to_dict()
-        assert len(d) == 13  # 12 base + 1 extra
+        assert len(d) == 14  # 13 base + 1 extra
 
     def test_schema_with_many_extra_columns(self) -> None:
         """Schema with 50 extra columns (stress test)."""
@@ -469,7 +469,7 @@ class TestSchemaExtractorWithSyntheticSchema:
         row = ext.extract(task)
         assert row is not None
         d = row.to_dict()
-        assert len(d) == 62  # 12 base + 50 extra
+        assert len(d) == 63  # 13 base + 50 extra
 
     def test_schema_with_derived_fields_only(self) -> None:
         """Schema with extra columns that all have source=None (derived)."""

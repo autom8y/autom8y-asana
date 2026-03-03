@@ -36,7 +36,7 @@ class TaskRow(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid", strict=True)
 
-    # Base fields (12) - FR-MODEL-021
+    # Base fields (13) - FR-MODEL-021 + TDD-CASCADE-RESUME-FIX
     gid: str
     name: str
     type: str
@@ -49,6 +49,7 @@ class TaskRow(BaseModel):
     last_modified: dt.datetime
     section: str | None = None
     tags: list[str] = Field(default_factory=list)
+    parent_gid: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dict for Polars compatibility (FR-MODEL-024).

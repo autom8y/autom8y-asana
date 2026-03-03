@@ -593,25 +593,42 @@ class UnifiedTaskStore:
 
         async def _fetch_immediate_parent(parent_gid: str) -> bool:
             async with self._hierarchy_semaphore:
-                try:
-                    parent_task = await tasks_client.get_async(
-                        parent_gid, opt_fields=_HIERARCHY_OPT_FIELDS
-                    )
-                    if parent_task:
-                        parent_dict = parent_task.model_dump(exclude_none=True)
-                        self._hierarchy.register(parent_dict)
-                        await self.put_async(
-                            parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        parent_task = await tasks_client.get_async(
+                            parent_gid, opt_fields=_HIERARCHY_OPT_FIELDS
                         )
-                        return True
-                except CACHE_TRANSIENT_ERRORS as e:
-                    logger.warning(
-                        "warm_immediate_parent_failed",
-                        extra={
-                            "parent_gid": parent_gid,
-                            "error": str(e),
-                        },
-                    )
+                        if parent_task:
+                            parent_dict = parent_task.model_dump(exclude_none=True)
+                            self._hierarchy.register(parent_dict)
+                            await self.put_async(
+                                parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS
+                            )
+                            return True
+                        return False
+                    except CACHE_TRANSIENT_ERRORS as e:
+                        if attempt < max_retries - 1:
+                            delay = 0.5 * (2**attempt)  # 0.5s, 1.0s
+                            logger.warning(
+                                "warm_immediate_parent_retry",
+                                extra={
+                                    "parent_gid": parent_gid,
+                                    "attempt": attempt + 1,
+                                    "delay_seconds": delay,
+                                    "error": str(e),
+                                },
+                            )
+                            await asyncio.sleep(delay)
+                        else:
+                            logger.warning(
+                                "warm_immediate_parent_failed_final",
+                                extra={
+                                    "parent_gid": parent_gid,
+                                    "attempts": max_retries,
+                                    "error": str(e),
+                                },
+                            )
             return False
 
         parent_gid_list = list(parent_gids_needed)

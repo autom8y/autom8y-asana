@@ -1,6 +1,6 @@
 """Tests for BASE_SCHEMA definition.
 
-Verifies the base schema has exactly 12 columns with correct
+Verifies the base schema has exactly 13 columns with correct
 names, types, and nullability.
 """
 
@@ -29,10 +29,10 @@ class TestBaseSchemaStructure:
         assert len(parts) == 3
         assert all(part.isdigit() for part in parts)
 
-    def test_column_count_is_12(self) -> None:
-        """Verify BASE_SCHEMA has exactly 12 columns."""
-        assert len(BASE_SCHEMA) == 12
-        assert len(BASE_COLUMNS) == 12
+    def test_column_count_is_13(self) -> None:
+        """Verify BASE_SCHEMA has exactly 13 columns."""
+        assert len(BASE_SCHEMA) == 13
+        assert len(BASE_COLUMNS) == 13
 
 
 class TestBaseSchemaColumns:
@@ -53,6 +53,7 @@ class TestBaseSchemaColumns:
             "last_modified",
             "section",
             "tags",
+            "parent_gid",
         ]
         assert BASE_SCHEMA.column_names() == expected_names
 
@@ -77,6 +78,7 @@ class TestBaseSchemaColumns:
             ),
             pytest.param("section", "Utf8", True, None, id="section"),
             pytest.param("tags", "List[Utf8]", False, "tags", id="tags"),
+            pytest.param("parent_gid", "Utf8", True, None, id="parent_gid"),
         ],
     )
     def test_column_definition(
@@ -113,6 +115,7 @@ class TestBaseSchemaPolarsConversion:
         assert isinstance(polars_schema["last_modified"], pl.Datetime)
         assert polars_schema["section"] == pl.Utf8
         assert isinstance(polars_schema["tags"], pl.List)
+        assert polars_schema["parent_gid"] == pl.Utf8
 
     def test_datetime_columns_have_utc_timezone(self) -> None:
         """Verify datetime columns use UTC timezone."""
@@ -134,7 +137,7 @@ class TestBaseSchemaToDict:
         assert result["name"] == "base"
         assert result["task_type"] == "*"
         assert result["version"] == BASE_SCHEMA.version
-        assert len(result["columns"]) == 12
+        assert len(result["columns"]) == 13
 
     def test_to_dict_column_includes_description(self) -> None:
         """Verify column descriptions are included."""
@@ -164,6 +167,7 @@ class TestBaseSchemaValidation:
             "last_modified": "2024-01-01T00:00:00Z",
             "section": None,
             "tags": [],
+            "parent_gid": None,
         }
         errors = BASE_SCHEMA.validate_row(row)
         assert errors == []

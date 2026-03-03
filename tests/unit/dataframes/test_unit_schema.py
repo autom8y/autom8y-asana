@@ -1,6 +1,6 @@
 """Tests for UNIT_SCHEMA definition.
 
-Verifies the Unit schema has exactly 23 columns (12 base + 11 Unit-specific)
+Verifies the Unit schema has exactly 24 columns (13 base + 11 Unit-specific)
 with correct names, types, and nullability.
 """
 
@@ -30,16 +30,16 @@ class TestUnitSchemaStructure:
         assert len(parts) == 3
         assert all(part.isdigit() for part in parts)
 
-    def test_column_count_is_23(self) -> None:
-        """Verify UNIT_SCHEMA has exactly 23 columns (12 base + 11 Unit)."""
-        assert len(UNIT_SCHEMA) == 23
-        assert len(BASE_COLUMNS) == 12
+    def test_column_count_is_24(self) -> None:
+        """Verify UNIT_SCHEMA has exactly 24 columns (13 base + 11 Unit)."""
+        assert len(UNIT_SCHEMA) == 24
+        assert len(BASE_COLUMNS) == 13
         assert len(UNIT_COLUMNS) == 11
 
     def test_includes_all_base_columns(self) -> None:
         """Verify all base columns are present at the start."""
         base_names = [col.name for col in BASE_COLUMNS]
-        unit_names = UNIT_SCHEMA.column_names()[:12]
+        unit_names = UNIT_SCHEMA.column_names()[:13]
         assert unit_names == base_names
 
 
@@ -62,7 +62,7 @@ class TestUnitSchemaColumns:
             "max_pipeline_stage",
         ]
         # Unit columns come after base columns
-        unit_names = UNIT_SCHEMA.column_names()[12:]
+        unit_names = UNIT_SCHEMA.column_names()[13:]
         assert unit_names == expected_unit_columns
 
     @pytest.mark.parametrize(
@@ -117,12 +117,13 @@ class TestUnitSchemaColumnOrder:
         """Verify columns are ordered: base columns first, then Unit columns."""
         names = UNIT_SCHEMA.column_names()
 
-        # First 12 should be base columns
+        # First 13 should be base columns
         assert names[0] == "gid"
         assert names[11] == "tags"
+        assert names[12] == "parent_gid"
 
-        # 13th column (index 12) should be first Unit column
-        assert names[12] == "mrr"
+        # 14th column (index 13) should be first Unit column
+        assert names[13] == "mrr"
 
         # Last column should be max_pipeline_stage
         assert names[-1] == "max_pipeline_stage"
@@ -138,7 +139,7 @@ class TestUnitSchemaToDict:
         assert result["name"] == "unit"
         assert result["task_type"] == "Unit"
         assert result["version"] == UNIT_SCHEMA.version
-        assert len(result["columns"]) == 23
+        assert len(result["columns"]) == 24
 
     def test_to_dict_includes_unit_columns(self) -> None:
         """Verify Unit columns are included in to_dict output."""

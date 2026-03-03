@@ -328,6 +328,41 @@ class TestBaseExtractor:
 
         assert tags == []
 
+    # -------------------------------------------------------------------------
+    # parent_gid extraction tests (TDD-CASCADE-RESUME-FIX)
+    # -------------------------------------------------------------------------
+
+    def test_extract_parent_gid_with_parent(self, minimal_task: Task) -> None:
+        """Test parent_gid extraction when task has a parent."""
+        minimal_task.parent = NameGid(gid="parent_123", name="Parent Task")
+        extractor = ConcreteExtractor(BASE_SCHEMA)
+        result = extractor._extract_parent_gid(minimal_task)
+
+        assert result == "parent_123"
+
+    def test_extract_parent_gid_no_parent(self, minimal_task: Task) -> None:
+        """Test parent_gid extraction when task has no parent."""
+        minimal_task.parent = None
+        extractor = ConcreteExtractor(BASE_SCHEMA)
+        result = extractor._extract_parent_gid(minimal_task)
+
+        assert result is None
+
+    def test_extract_parent_gid_parent_empty_gid(self) -> None:
+        """Test parent_gid extraction when parent has empty gid."""
+        task = Task(
+            gid="test_gid",
+            name="Test",
+            created_at="2024-01-01T00:00:00.000Z",
+            modified_at="2024-01-01T00:00:00.000Z",
+            resource_type="task",
+        )
+        task.parent = NameGid(gid="", name="Empty Parent")
+        extractor = ConcreteExtractor(BASE_SCHEMA)
+        result = extractor._extract_parent_gid(task)
+
+        assert result is None
+
     def test_extract_date_defaults_to_due_on(self, full_task: Task) -> None:
         """Test date extraction defaults to due_on."""
         extractor = ConcreteExtractor(BASE_SCHEMA)
@@ -1167,11 +1202,11 @@ class TestExtractorIntegration:
         contact_resolver: MockCustomFieldResolver,
     ) -> None:
         """Test that schema column counts match expected values."""
-        # UNIT_SCHEMA should have 23 columns (12 base + 11 unit)
-        assert len(UNIT_SCHEMA.columns) == 23
+        # UNIT_SCHEMA should have 24 columns (13 base + 11 unit)
+        assert len(UNIT_SCHEMA.columns) == 24
 
-        # CONTACT_SCHEMA should have 25 columns (12 base + 13 contact)
-        assert len(CONTACT_SCHEMA.columns) == 25
+        # CONTACT_SCHEMA should have 26 columns (13 base + 13 contact)
+        assert len(CONTACT_SCHEMA.columns) == 26
 
-        # BASE_SCHEMA should have 12 columns
-        assert len(BASE_SCHEMA.columns) == 12
+        # BASE_SCHEMA should have 13 columns
+        assert len(BASE_SCHEMA.columns) == 13
