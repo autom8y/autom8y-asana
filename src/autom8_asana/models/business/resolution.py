@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Generic, TypeVar
 
 from autom8y_log import get_logger
@@ -35,7 +35,7 @@ T = TypeVar("T", bound="BusinessEntity")
 logger = get_logger(__name__)
 
 
-class ResolutionStrategy(str, Enum):
+class ResolutionStrategy(StrEnum):
     """Available resolution strategies with priority ordering.
 
     Per FR-STRATEGY-001: Enum defining available strategies and priority order.

@@ -10,14 +10,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from autom8_asana.cache.models.freshness_stamp import FreshnessStamp
 
 
-class EntryType(str, Enum):
+class EntryType(StrEnum):
     """Types of cache entries with distinct versioning strategies.
 
     Each entry type corresponds to a different Asana resource relationship

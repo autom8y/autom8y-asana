@@ -7,11 +7,11 @@ Per TDD-CACHE-INVALIDATION-001: Dataclass describing what was mutated
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class MutationType(str, Enum):
+class MutationType(StrEnum):
     """Type of mutation operation."""
 
     CREATE = "create"
@@ -22,7 +22,7 @@ class MutationType(str, Enum):
     REMOVE_MEMBER = "remove"  # Remove from project/section
 
 
-class EntityKind(str, Enum):
+class EntityKind(StrEnum):
     """Kind of entity being mutated."""
 
     TASK = "task"

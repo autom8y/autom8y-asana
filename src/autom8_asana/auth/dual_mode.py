@@ -16,13 +16,13 @@ Per TDD-S2S-001 Section 5.1:
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated
 
 from fastapi import Header, HTTPException
 
 
-class AuthMode(str, Enum):
+class AuthMode(StrEnum):
     """Authentication mode for the current request.
 
     Attributes:

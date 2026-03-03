@@ -16,7 +16,7 @@ field that doesn't exist on the underlying Asana task returns None.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, ClassVar
 
 from autom8y_log import get_logger
@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class ProcessType(str, Enum):
+class ProcessType(StrEnum):
     """Process types representing workflow stages.
 
     Per TDD-PROCESS-PIPELINE/ADR-0096: ProcessType includes pipeline types.
@@ -86,7 +86,7 @@ class ProcessType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class ProcessSection(str, Enum):
+class ProcessSection(StrEnum):
     """Standard sections in process pipeline projects.
 
     Per TDD-PROCESS-PIPELINE/ADR-0097: State representation via section membership.

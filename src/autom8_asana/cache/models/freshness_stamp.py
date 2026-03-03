@@ -13,10 +13,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 
 
-class VerificationSource(str, Enum):
+class VerificationSource(StrEnum):
     """How the data was verified as fresh.
 
     Tracking the source of a freshness verification allows

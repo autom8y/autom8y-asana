@@ -15,7 +15,7 @@ import asyncio
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class BuildOutcome(str, Enum):
+class BuildOutcome(StrEnum):
     """Outcome of a build request.
 
     Each outcome maps to a distinct code path in build_or_wait_async:

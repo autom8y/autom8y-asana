@@ -18,7 +18,7 @@ Components:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     import polars as pl
 
 
-class SectionOutcome(str, Enum):
+class SectionOutcome(StrEnum):
     """Outcome of fetching and persisting a single section.
 
     Three terminal states for a section fetch:
@@ -87,7 +87,7 @@ class SectionResult:
         return self.outcome == SectionOutcome.ERROR
 
 
-class BuildStatus(str, Enum):
+class BuildStatus(StrEnum):
     """Overall outcome of a DataFrame build.
 
     Per ADR-C2-001: Three states mapping to three consumer actions:

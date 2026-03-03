@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
@@ -55,7 +55,7 @@ def compute_gid_hash(gids: list[str]) -> str:
     return hashlib.sha256("|".join(sorted(gids)).encode()).hexdigest()[:16]
 
 
-class ProbeVerdict(str, Enum):
+class ProbeVerdict(StrEnum):
     """Result of probing a single section for freshness."""
 
     CLEAN = "clean"

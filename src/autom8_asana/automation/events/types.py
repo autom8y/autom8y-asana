@@ -4,10 +4,10 @@ Per GAP-03 FR-001: Closed EventType enum replacing hardcoded strings.
 Per ADR-GAP03-001: str inheritance for backward compatibility.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     """Closed vocabulary of event types.
 
     Inherits from str for backward compatibility with existing

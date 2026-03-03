@@ -8,7 +8,7 @@ See ADR-QE-002 for the rationale behind this approach.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Any, Literal
 
 from pydantic import (
@@ -24,7 +24,7 @@ from pydantic import (
 from autom8_asana.query.join import JoinSpec
 
 
-class Op(str, Enum):
+class Op(StrEnum):
     """Supported comparison operators."""
 
     EQ = "eq"
@@ -119,7 +119,7 @@ OrGroup.model_rebuild()
 NotGroup.model_rebuild()
 
 
-class AggFunction(str, Enum):
+class AggFunction(StrEnum):
     """Supported aggregation functions for /aggregate endpoint."""
 
     SUM = "sum"

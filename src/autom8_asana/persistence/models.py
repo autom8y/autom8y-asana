@@ -14,7 +14,7 @@ Per TDD-DETECTION/ADR-0095: Self-healing models for entity repair.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import TYPE_CHECKING, Any
 
 from autom8_asana.patterns import RetryableErrorMixin
@@ -448,7 +448,7 @@ class HealingReport:
 # ---------------------------------------------------------------------------
 
 
-class ActionType(str, Enum):
+class ActionType(StrEnum):
     """Type of action operation for non-batch API endpoints.
 
     Per TDD-0011: Action endpoints for relationship management.
