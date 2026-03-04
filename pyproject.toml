@@ -7,7 +7,7 @@ name = "autom8y-asana"
 version = "1.0.0"
 description = "Async-first Asana API client extracted from autom8"
 # readme = "README.md"  # Deferred to Phase 5
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.25.0",
     "pydantic>=2.0.0",
@@ -23,7 +23,7 @@ dependencies = [
     "opentelemetry-instrumentation-httpx>=0.42b0",  # W3C traceparent auto-propagation on outbound httpx calls
     "autom8y-core>=1.1.0",
     # Platform observability (PRD-PLATFORM-OBSERVABILITY-STD M3.3)
-    "autom8y-telemetry[fastapi]>=0.3.0",
+    "autom8y-telemetry[aws,fastapi]>=0.4.0",
     "boto3>=1.42.19",                    # S3 for progressive cache warming (asyncio.to_thread)
     "pyyaml>=6.0.0",                     # YAML config parsing (lifecycle, automation, query/saved)
 ]
@@ -104,7 +104,7 @@ exclude_lines = [
 ]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 warn_return_any = true
 warn_unused_ignores = true
@@ -156,7 +156,7 @@ ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 88
-target-version = "py311"
+target-version = "py312"
 src = ["src"]
 
 # Exclude non-production code from strict linting

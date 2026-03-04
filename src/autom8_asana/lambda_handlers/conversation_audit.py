@@ -46,6 +46,7 @@ _config = WorkflowHandlerConfig(
         "date_range_days": 30,
     },
     response_metadata_keys=("truncated_count",),
+    dms_namespace="Autom8y/AsanaAudit",
 )
 
 handler = create_workflow_handler(_config)

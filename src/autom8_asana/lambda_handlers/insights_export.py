@@ -51,6 +51,7 @@ _config = WorkflowHandlerConfig(
         "row_limits": DEFAULT_ROW_LIMITS,
     },
     response_metadata_keys=("total_tables_succeeded", "total_tables_failed"),
+    dms_namespace="Autom8y/AsanaInsights",
 )
 
 handler = create_workflow_handler(_config)

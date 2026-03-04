@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
+from autom8y_telemetry.aws import emit_success_timestamp, instrument_lambda
 
 from autom8_asana.core.scope import EntityScope
 from autom8_asana.lambda_handlers.cloudwatch import emit_metric
@@ -58,6 +59,9 @@ class WorkflowHandlerConfig:
         response_metadata_keys: Extra keys from ``WorkflowResult.metadata``
             to include in the Lambda response body.
         requires_data_client: Whether to init ``DataServiceClient`` (default True).
+        dms_namespace: CloudWatch namespace for dead-man's-switch metric emission.
+            When set, ``emit_success_timestamp(dms_namespace)`` is called after
+            successful workflow execution. When ``None``, no DMS metric is emitted.
     """
 
     workflow_factory: Callable[..., WorkflowAction]
@@ -66,6 +70,7 @@ class WorkflowHandlerConfig:
     default_params: dict[str, Any] = field(default_factory=dict)
     response_metadata_keys: tuple[str, ...] = ()
     requires_data_client: bool = True
+    dms_namespace: str | None = None
 
 
 def create_workflow_handler(
@@ -77,6 +82,7 @@ def create_workflow_handler(
     AWS Lambda's handler entry point.
     """
 
+    @instrument_lambda
     def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         return asyncio.run(_handler_async(event, context))
 
@@ -192,6 +198,12 @@ def create_workflow_handler(
             unit="Percent",
             dimensions={"workflow_id": config.workflow_id},
         )
+
+        # Dead-man's-switch: record successful completion timestamp.
+        # Emitted only when a dms_namespace is configured and the workflow
+        # completed without total failure.
+        if config.dms_namespace:
+            emit_success_timestamp(config.dms_namespace)
 
         return {
             "statusCode": 200,
