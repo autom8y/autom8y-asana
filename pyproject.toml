@@ -16,12 +16,12 @@ dependencies = [
     "polars>=0.20.0",
     "arrow>=1.3.0",
     # Platform primitives (TDD-PRIMITIVE-MIGRATION-001)
-    "autom8y-config>=0.4.0",
+    "autom8y-config>=1.2.0",
     "autom8y-http[otel]>=0.5.0",
     "autom8y-cache>=0.4.0",  # Per TDD-GID-RESOLUTION-SERVICE: HierarchyAwareResolver + schema versioning
-    "autom8y-log>=0.5.5",
+    "autom8y-log>=0.5.6",
     "opentelemetry-instrumentation-httpx>=0.42b0",  # W3C traceparent auto-propagation on outbound httpx calls
-    "autom8y-core>=1.1.0",
+    "autom8y-core>=1.1.1",
     # Platform observability (PRD-PLATFORM-OBSERVABILITY-STD M3.3)
     "autom8y-telemetry[aws,fastapi]>=0.4.0",
     "boto3>=1.42.19",                    # S3 for progressive cache warming (asyncio.to_thread)
@@ -65,11 +65,11 @@ dev = [
     "boto3-stubs[secretsmanager]>=1.34.0", # Type stubs for boto3
     "autom8y-auth[observability]>=1.1.0",  # Required for test_auth tests
     # SDK testing subpackages (per TDD-SDK-TESTING-ADOPTION)
-    "autom8y-log[testing]>=0.5.5",
+    "autom8y-log[testing]>=0.5.6",
     "autom8y-cache[testing]>=0.4.0",
     "autom8y-http[testing]>=0.5.0",
-    "autom8y-config[testing]>=0.4.0",
-    "autom8y-core[testing]>=1.1.0",
+    "autom8y-config[testing]>=1.2.0",
+    "autom8y-core[testing]>=1.1.1",
     "autom8y-auth[testing]>=1.1.0",
 ]
 
