@@ -42,11 +42,15 @@ from typing import Any
 
 from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_log import get_logger
+from autom8y_telemetry.aws import emit_success_timestamp, instrument_lambda
 
 from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 from autom8_asana.settings import get_settings
 
 logger = get_logger(__name__)
+
+# Dead-man's-switch namespace for Grafana alerting (24h threshold)
+DMS_NAMESPACE = "Autom8y/AsanaCacheWarmer"
 
 # Flag to track if bootstrap has run (for lazy initialization)
 _bootstrap_initialized = False
@@ -941,6 +945,7 @@ async def _warm_cache_async(
         )
 
 
+@instrument_lambda
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Lambda handler for cache warming.
 
@@ -1039,6 +1044,11 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             message=f"Handler exception: {e}",
             invocation_id=invocation_id,
         )
+
+    # Dead-man's-switch: record successful completion timestamp.
+    # A Grafana alert fires when this metric is absent or stale >24h.
+    if response.success:
+        emit_success_timestamp(DMS_NAMESPACE)
 
     # Return Lambda response format
     status_code = 200 if response.success else 500
