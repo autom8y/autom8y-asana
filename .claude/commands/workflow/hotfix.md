@@ -1,0 +1,95 @@
+---
+name: hotfix
+description: Rapid fix workflow for urgent issues
+argument-hint: "<issue-description> [--severity=LEVEL]"
+allowed-tools: Bash, Read, Task, Glob, Grep
+model: opus
+disable-model-invocation: true
+---
+
+## Context
+Auto-injected by SessionStart hook (project, rite, session, git, workflow).
+
+## Pre-flight
+
+1. **Workflow required**:
+   - Verify `.knossos/ACTIVE_WORKFLOW.yaml` exists
+   - If missing: ERROR "No active workflow. Use /rite to select a rite first."
+
+2. **Rite context**:
+   - Verify `.knossos/ACTIVE_RITE` exists
+   - If missing: ERROR "No rite active. Use /rite <rite-name> to select a rite."
+
+## Your Task
+
+Execute a rapid fix for an urgent issue. $ARGUMENTS
+
+## Workflow Resolution
+
+For hotfix, use the implementation agent with fast-path workflow:
+
+```bash
+# Get implementation agent from workflow
+IMPL_AGENT=$(grep -B1 "produces: code\|produces: commits\|produces: documentation" .knossos/ACTIVE_WORKFLOW.yaml | grep "agent:" | awk '{print $2}')
+```
+
+## Behavior
+
+**Skip initial phases, minimal design. Focus on: diagnose → fix → validate → ship.**
+
+1. **Diagnose issue**:
+   - Reproduce the problem
+   - Identify root cause
+   - Determine blast radius
+
+2. **Plan fix** (minimal design):
+   - What changes are needed
+   - What could break
+   - Rollback strategy
+
+3. **Implement fix** → Invoke implementation agent:
+   - Minimal, focused changes
+   - Add regression test/check
+   - Inline documentation
+   - Agent varies by rite:
+     - 10x-dev → principal-engineer
+     - docs → tech-writer
+     - hygiene → janitor
+
+4. **Fast validation** → Quick verification:
+   - Verify fix works
+   - Check for regressions
+   - Confirm rollback path
+
+5. **Document for follow-up**:
+   - Create TODO for proper fix if needed
+   - Note technical debt incurred
+
+## Severity Levels
+
+| Level | Response Time | Scope |
+|-------|--------------|-------|
+| CRITICAL | < 1 hour | Production down |
+| HIGH | < 4 hours | Major feature broken |
+| MEDIUM | < 1 day | Degraded functionality |
+
+## Example
+
+```
+/hotfix "API returning 500 errors on login" --severity=CRITICAL
+/hotfix "Broken link in documentation"
+```
+
+## Sigil
+
+### On Success
+
+End your response with:
+
+🩹 patched · next: /commit && /pr
+
+### On Failure
+
+❌ hotfix failed: {brief reason} · fix: {recovery}
+
+Infer recovery: no workflow active → `/rite` to select a rite; diagnosis inconclusive → try reproducing with more context; uncertain → `/consult`.
