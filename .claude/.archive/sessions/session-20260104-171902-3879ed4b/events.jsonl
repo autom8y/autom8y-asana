@@ -1,3 +1,0 @@
-{"timestamp":"2026-01-04T16:19:02Z","event":"SESSION_CREATED","from":"NONE","to":"ACTIVE","metadata":{"initiative":"Cache SDK Primitive Generalization"}}}
-{"timestamp":"2026-01-04T17:03:28Z","event":"SESSION_PARKED","from":"ACTIVE","to":"PARKED","metadata":{"reason":"Session stopped (auto-park)","auto":true}}}}
-{"timestamp":"2026-01-04T17:11:14Z","event":"SESSION_ARCHIVED","from":"PARKED","to":"ARCHIVED","metadata":{}}}}

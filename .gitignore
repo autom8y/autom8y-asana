@@ -37,6 +37,8 @@ env/
 
 # Testing
 .coverage
+coverage.json
+coverage.xml
 htmlcov/
 .pytest_cache/
 .tox/
@@ -49,4 +51,13 @@ htmlcov/
 # Environment files (secrets)
 .env/*
 !.env/*.example
-.claude/worktrees/
+
+# Knossos
+.knossos/
+.claude/CLAUDE.md
+**/.sos/*
+!**/.sos/archive/
+!**/.sos/archive/**
+**/.ledge/*
+!**/.ledge/shelf/
+!**/.ledge/shelf/**

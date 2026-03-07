@@ -137,4 +137,3 @@ See [04-troubleshooting.md](./04-troubleshooting.md) for detailed solutions.
 | Missing ASANA_PAT | Not configured | Run `just setup-env` |
 | Path not configured | Missing paths.env | Run `just bootstrap-paths` |
 | Server not responding | Not running | Run `just serve-api` |
-

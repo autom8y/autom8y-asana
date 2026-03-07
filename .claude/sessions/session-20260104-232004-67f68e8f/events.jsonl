@@ -1,2 +1,0 @@
-{"timestamp":"2026-01-04T22:20:04Z","event":"SESSION_CREATED","from":"NONE","to":"ACTIVE","metadata":{"initiative":"--work-type"}}}
-{"timestamp":"2026-01-04T22:26:57Z","event":"SESSION_PARKED","from":"ACTIVE","to":"PARKED","metadata":{"reason":"Session stopped (auto-park)","auto":true}}}}

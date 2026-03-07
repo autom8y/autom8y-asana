@@ -124,4 +124,3 @@ If all steps passed, your environment is configured correctly.
 **Next steps:**
 - `01-authentication.md` - PAT validation and Asana API testing
 - `02-local-development.md` - Development server and testing
-

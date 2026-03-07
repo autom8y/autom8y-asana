@@ -1,4 +1,0 @@
-{"timestamp":"2026-01-02T18:52:44Z","event":"SESSION_CREATED","from":"NONE","to":"ACTIVE","metadata":{"initiative":"Unified Cache Migration - Legacy Path Elimination"}}}
-{"timestamp":"2026-01-02T19:38:09Z","event":"SESSION_PARKED","source":"migration","reason":"Session stopped (auto-park)"}
-{"ts":"2026-02-10T22:01:07.497Z","type":"session.parked","summary":"Session parked: session-20260102-195244-cd094308","meta":{"from":"ACTIVE","reason":"Stale — parking for hygiene initiative","session_id":"session-20260102-195244-cd094308","to":"PARKED"}}
-{"ts":"2026-02-10T22:01:07.497Z","type":"session.ended","summary":"Session ended: parked","meta":{"duration_ms":3380903497,"session_id":"session-20260102-195244-cd094308","status":"parked"}}
