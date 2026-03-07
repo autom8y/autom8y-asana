@@ -65,6 +65,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         cache_warming_task).
     """
     # Startup
+    # Bootstrap business model registry before any detection calls
+    from autom8_asana.models.business._bootstrap import bootstrap
+
+    bootstrap()
+
     settings = get_settings()
     configure_logging(
         level=settings.log_level,

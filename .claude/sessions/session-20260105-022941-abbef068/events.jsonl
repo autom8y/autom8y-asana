@@ -1,2 +1,0 @@
-{"ts":"2026-02-10T22:01:07.540Z","type":"session.parked","summary":"Session parked: session-20260105-022941-abbef068","meta":{"from":"ACTIVE","reason":"Stale — parking for hygiene initiative","session_id":"session-20260105-022941-abbef068","to":"PARKED"}}
-{"ts":"2026-02-10T22:01:07.540Z","type":"session.ended","summary":"Session ended: parked","meta":{"duration_ms":3180592540,"session_id":"session-20260105-022941-abbef068","status":"parked"}}

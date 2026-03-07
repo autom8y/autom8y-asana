@@ -330,4 +330,3 @@ esac
 | Can't connect | `test_connectivity` | Check network/firewall |
 | Server not responding | `diagnose_server` | Start with `just serve-api` |
 | Port in use | `check_port` | Use alternate port |
-

@@ -1,5 +1,0 @@
-{"timestamp":"2026-02-03T11:47:09Z","event":"SESSION_CREATED","from":"NONE","to":"ACTIVE","metadata":{"initiative":"Dynamic Query Service"}}}
-{"timestamp":"2026-02-03T11:55:08Z","event":"PHASE_TRANSITIONED","from_phase":"requirements","to_phase":"design","metadata":{"artifacts_validated":true}}
-{"ts":"2026-02-04T10:00:24.464Z","type":"sails_generated","path":"/Users/tomtenuta/Code/autom8_asana/.claude/sessions/session-20260203-124709-9df8e766/WHITE_SAILS.yaml","summary":"Generated WHITE_SAILS: GRAY","meta":{"color":"GRAY","computed_base":"GRAY","file_path":"/Users/tomtenuta/Code/autom8_asana/.claude/sessions/session-20260203-124709-9df8e766/WHITE_SAILS.yaml","reasons":["required proof 'tests' has status UNKNOWN (not PASS or SKIP)"],"session_id":"session-20260203-124709-9df8e766"}}
-{"timestamp":"2026-02-04T10:00:24Z","event":"SESSION_ARCHIVED","from":"ACTIVE","to":"ARCHIVED"}
-{"ts":"2026-02-04T10:00:24.465Z","type":"session_end","summary":"Session ended: completed","meta":{"duration_ms":79995465,"session_id":"session-20260203-124709-9df8e766","status":"completed"}}

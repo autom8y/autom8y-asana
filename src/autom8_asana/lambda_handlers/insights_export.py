@@ -14,6 +14,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from autom8_asana.models.business._bootstrap import bootstrap
+
+bootstrap()
+
+# ruff: noqa: E402
 from autom8_asana.automation.workflows.insights_export import (
     DEFAULT_ATTACHMENT_PATTERN,
     DEFAULT_MAX_CONCURRENCY,
