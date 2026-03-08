@@ -540,7 +540,9 @@ class DataServiceSettings(Autom8yBaseSettings):
     """autom8_data satellite service configuration.
 
     Environment Variables:
-        AUTOM8_DATA_URL: Base URL for autom8_data API (default: http://localhost:8000)
+        AUTOM8Y_DATA_URL: Base URL for autom8_data API (default: http://localhost:8000)
+            Canonical name per ADR-env-naming-convention Tier 3.
+            AUTOM8_DATA_URL accepted as backward-compat alias.
         AUTOM8_DATA_CACHE_TTL: Client-side cache TTL in seconds (default: 300)
         AUTOM8_DATA_INSIGHTS_ENABLED: Emergency kill switch (default: true)
 
@@ -568,6 +570,7 @@ class DataServiceSettings(Autom8yBaseSettings):
     url: str = Field(
         default="http://localhost:8000",
         description="Base URL for autom8_data API",
+        validation_alias=AliasChoices("AUTOM8Y_DATA_URL", "AUTOM8_DATA_URL"),
     )
     cache_ttl: int = Field(
         default=300,
