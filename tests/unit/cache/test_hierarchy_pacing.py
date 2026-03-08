@@ -8,10 +8,13 @@ preventing 429 bursts from unbounded asyncio.gather().
 from __future__ import annotations
 
 import asyncio
+import os
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+from autom8_asana.settings import reset_settings
 
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
@@ -199,17 +202,22 @@ class TestHierarchyBatchSizing:
         """Sleep calls use HIERARCHY_BATCH_DELAY value."""
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
-        with patch(
-            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
-        ) as mock_sleep:
-            with patch("autom8_asana.config.HIERARCHY_BATCH_DELAY", 2.5):
-                await store.put_batch_async(
-                    tasks,
-                    warm_hierarchy=True,
-                    tasks_client=mock_tasks_client,
-                )
-                for call in mock_sleep.call_args_list:
-                    assert call[0][0] == 2.5
+        with (
+            patch(
+                "autom8_asana.cache.providers.unified.asyncio.sleep",
+                new_callable=AsyncMock,
+            ) as mock_sleep,
+            patch.dict(os.environ, {"ASANA_PACING_HIERARCHY_BATCH_DELAY": "2.5"}),
+        ):
+            reset_settings()
+            await store.put_batch_async(
+                tasks,
+                warm_hierarchy=True,
+                tasks_client=mock_tasks_client,
+            )
+            for call in mock_sleep.call_args_list:
+                assert call[0][0] == 2.5
+        reset_settings()
 
 
 class TestHierarchyPacingResults:
@@ -506,12 +514,14 @@ class TestPacingBatchEdgeCases:
                 "autom8_asana.cache.providers.unified.asyncio.sleep",
                 new_callable=AsyncMock,
             ) as mock_sleep,
-            patch("autom8_asana.config.HIERARCHY_BATCH_SIZE", 200),
+            patch.dict(os.environ, {"ASANA_PACING_HIERARCHY_BATCH_SIZE": "200"}),
         ):
+            reset_settings()
             await store.put_batch_async(
                 tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
             )
             mock_sleep.assert_not_called()
+        reset_settings()
 
     @pytest.mark.asyncio
     async def test_all_parents_fetched_after_batching_250(

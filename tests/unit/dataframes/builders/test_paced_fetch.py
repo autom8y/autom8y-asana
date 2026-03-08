@@ -7,10 +7,13 @@ and small section passthrough per TDD-large-section-resilience section 9.1.
 from __future__ import annotations
 
 import asyncio
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
+
+from autom8_asana.settings import reset_settings
 
 from autom8_asana.dataframes.builders.progressive import (
     ProgressiveProjectBuilder,
@@ -184,20 +187,21 @@ class TestPacingSleepIntervals:
         builder._client.tasks.list_async.return_value = _FakePageIterator(7500)
 
         with (
+            patch.dict(
+                os.environ,
+                {
+                    "ASANA_PACING_PAGES_PER_PAUSE": "25",
+                    "ASANA_PACING_CHECKPOINT_EVERY_N_PAGES": "50",
+                },
+            ),
             patch(
                 "autom8_asana.dataframes.builders.progressive.asyncio.sleep",
                 new_callable=AsyncMock,
             ) as mock_sleep,
-            patch(
-                "autom8_asana.dataframes.builders.progressive.PACE_PAGES_PER_PAUSE",
-                25,
-            ),
-            patch(
-                "autom8_asana.dataframes.builders.progressive.CHECKPOINT_EVERY_N_PAGES",
-                50,
-            ),
         ):
+            reset_settings()
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
+        reset_settings()
 
         assert result is True
         # Sleep called at page boundaries: 25, 50, 75
@@ -223,20 +227,21 @@ class TestCheckpointWriteAtIntervals:
         builder._client.tasks.list_async.return_value = _FakePageIterator(12000)
 
         with (
+            patch.dict(
+                os.environ,
+                {
+                    "ASANA_PACING_CHECKPOINT_EVERY_N_PAGES": "50",
+                    "ASANA_PACING_PAGES_PER_PAUSE": "25",
+                },
+            ),
             patch(
                 "autom8_asana.dataframes.builders.progressive.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
-            patch(
-                "autom8_asana.dataframes.builders.progressive.CHECKPOINT_EVERY_N_PAGES",
-                50,
-            ),
-            patch(
-                "autom8_asana.dataframes.builders.progressive.PACE_PAGES_PER_PAUSE",
-                25,
-            ),
         ):
+            reset_settings()
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
+        reset_settings()
 
         assert result is True
         # Checkpoint writes go directly to S3 client (not write_section_async)
@@ -263,20 +268,21 @@ class TestCheckpointMetadataUpdated:
         builder._client.tasks.list_async.return_value = _FakePageIterator(5000)
 
         with (
+            patch.dict(
+                os.environ,
+                {
+                    "ASANA_PACING_CHECKPOINT_EVERY_N_PAGES": "50",
+                    "ASANA_PACING_PAGES_PER_PAUSE": "25",
+                },
+            ),
             patch(
                 "autom8_asana.dataframes.builders.progressive.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
-            patch(
-                "autom8_asana.dataframes.builders.progressive.CHECKPOINT_EVERY_N_PAGES",
-                50,
-            ),
-            patch(
-                "autom8_asana.dataframes.builders.progressive.PACE_PAGES_PER_PAUSE",
-                25,
-            ),
         ):
+            reset_settings()
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
+        reset_settings()
 
         assert result is True
         # write_checkpoint_async internally updates metadata and saves manifest
@@ -381,20 +387,21 @@ class TestFinalWriteReplacesCheckpoint:
         builder._client.tasks.list_async.return_value = _FakePageIterator(25000)
 
         with (
+            patch.dict(
+                os.environ,
+                {
+                    "ASANA_PACING_CHECKPOINT_EVERY_N_PAGES": "50",
+                    "ASANA_PACING_PAGES_PER_PAUSE": "25",
+                },
+            ),
             patch(
                 "autom8_asana.dataframes.builders.progressive.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
-            patch(
-                "autom8_asana.dataframes.builders.progressive.CHECKPOINT_EVERY_N_PAGES",
-                50,
-            ),
-            patch(
-                "autom8_asana.dataframes.builders.progressive.PACE_PAGES_PER_PAUSE",
-                25,
-            ),
         ):
+            reset_settings()
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
+        reset_settings()
 
         assert result is True
         # Final write through write_section_async has all rows

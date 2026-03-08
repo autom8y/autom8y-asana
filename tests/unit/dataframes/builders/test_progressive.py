@@ -7,11 +7,14 @@ to full extraction, per R5 comparison requirement.
 
 from __future__ import annotations
 
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
+
+from autom8_asana.settings import reset_settings
 
 from autom8_asana.dataframes.builders.progressive import (
     ProgressiveProjectBuilder,
@@ -342,16 +345,15 @@ class TestDeltaCheckpointEndToEnd:
         builder._client.tasks.list_async.return_value = _FakePageIterator(300)
 
         with (
-            patch(
-                "autom8_asana.dataframes.builders.progressive.CHECKPOINT_EVERY_N_PAGES",
-                2,
-            ),
+            patch.dict(os.environ, {"ASANA_PACING_CHECKPOINT_EVERY_N_PAGES": "2"}),
             patch(
                 "autom8_asana.dataframes.builders.progressive.asyncio.sleep",
                 new_callable=AsyncMock,
             ),
         ):
+            reset_settings()
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
+        reset_settings()
 
         assert result is True
         # Checkpoint should have been written

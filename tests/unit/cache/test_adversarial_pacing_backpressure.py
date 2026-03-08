@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import os
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+from autom8_asana.settings import reset_settings
 
 from autom8_asana.cache.integration.hierarchy_warmer import (
     _fetch_parent,
@@ -233,13 +236,15 @@ class TestBatchEdgeCases:
                 "autom8_asana.cache.providers.unified.asyncio.sleep",
                 new_callable=AsyncMock,
             ) as mock_sleep,
-            patch("autom8_asana.config.HIERARCHY_BATCH_SIZE", 200),
+            patch.dict(os.environ, {"ASANA_PACING_HIERARCHY_BATCH_SIZE": "200"}),
         ):
+            reset_settings()
             await store.put_batch_async(
                 tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
             )
             # Single batch that fits everything -> no pause needed
             mock_sleep.assert_not_called()
+        reset_settings()
 
     @pytest.mark.asyncio
     async def test_all_parents_fetched_after_batching(
