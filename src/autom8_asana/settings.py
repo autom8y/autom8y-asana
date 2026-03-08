@@ -425,6 +425,36 @@ class PacingSettings(Autom8yBaseSettings):
     )
 
 
+class RateLimitSettings(Autom8yBaseSettings):
+    """Rate limiting configuration for Asana API requests.
+
+    Environment Variables:
+        ASANA_RATELIMIT_MAX_REQUESTS: Maximum requests per window (default: 1500)
+        ASANA_RATELIMIT_WINDOW_SECONDS: Rate limit window in seconds (default: 60)
+
+    Attributes:
+        max_requests: Maximum requests per rate limit window.
+        window_seconds: Rate limit window duration in seconds.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="ASANA_RATELIMIT_",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    max_requests: int = Field(
+        default=1500,
+        description="Maximum requests per window (Asana API limit)",
+        ge=1,
+    )
+    window_seconds: int = Field(
+        default=60,
+        description="Rate limit window in seconds",
+        ge=1,
+    )
+
+
 class S3RetrySettings(Autom8yBaseSettings):
     """S3 storage retry, budget, and circuit breaker configuration.
 
@@ -772,6 +802,7 @@ class Settings(Autom8yBaseSettings):
     redis: RedisSettings = Field(default_factory=RedisSettings)
     s3: S3Settings = Field(default_factory=S3Settings)
     pacing: PacingSettings = Field(default_factory=PacingSettings)
+    rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
     s3_retry: S3RetrySettings = Field(default_factory=S3RetrySettings)
     webhook: WebhookSettings = Field(default_factory=WebhookSettings)
     data_service: DataServiceSettings = Field(default_factory=DataServiceSettings)
