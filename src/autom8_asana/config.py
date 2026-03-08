@@ -119,8 +119,12 @@ class RateLimitConfig:
     Default: 1500 requests per 60 seconds (Asana's limit).
     """
 
-    max_requests: int = 1500
-    window_seconds: int = 60
+    max_requests: int = field(
+        default_factory=lambda: get_settings().rate_limit.max_requests
+    )
+    window_seconds: int = field(
+        default_factory=lambda: get_settings().rate_limit.window_seconds
+    )
 
     def __post_init__(self) -> None:
         """Validate configuration values."""
