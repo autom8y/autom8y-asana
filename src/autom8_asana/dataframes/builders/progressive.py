@@ -22,12 +22,8 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 from autom8y_log import get_logger
 
-from autom8_asana.config import (
-    CHECKPOINT_EVERY_N_PAGES,
-    PACE_DELAY_SECONDS,
-    PACE_PAGES_PER_PAUSE,
-)
 from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+from autom8_asana.settings import get_settings
 from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.builders.build_result import (
     BuildResult,
@@ -930,6 +926,11 @@ class ProgressiveProjectBuilder:
         Returns:
             All tasks including first page.
         """
+        _pacing = get_settings().pacing
+        pace_pages_per_pause = _pacing.pages_per_pause
+        pace_delay_seconds = _pacing.delay_seconds
+        checkpoint_every_n_pages = _pacing.checkpoint_every_n_pages
+
         all_tasks: list[Task] = list(first_page_tasks)
         pages_fetched = 1
         current_page_task_count = 0
@@ -943,20 +944,20 @@ class ProgressiveProjectBuilder:
                 current_page_task_count = 0
 
                 # Pacing: pause every N pages
-                if pages_fetched % PACE_PAGES_PER_PAUSE == 0:
+                if pages_fetched % pace_pages_per_pause == 0:
                     logger.info(
                         "section_pace_pause",
                         extra={
                             "section_gid": section_gid,
                             "pages_fetched": pages_fetched,
                             "rows_so_far": len(all_tasks),
-                            "pause_seconds": PACE_DELAY_SECONDS,
+                            "pause_seconds": pace_delay_seconds,
                         },
                     )
-                    await asyncio.sleep(PACE_DELAY_SECONDS)
+                    await asyncio.sleep(pace_delay_seconds)
 
                 # Checkpoint: persist every N pages
-                if pages_fetched % CHECKPOINT_EVERY_N_PAGES == 0:
+                if pages_fetched % checkpoint_every_n_pages == 0:
                     await self._write_checkpoint(section_gid, all_tasks, pages_fetched)
 
         # Account for final partial page

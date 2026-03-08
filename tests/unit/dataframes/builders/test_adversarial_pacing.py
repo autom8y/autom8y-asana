@@ -10,10 +10,14 @@ QA Adversary: These tests exist to break things on purpose.
 from __future__ import annotations
 
 import asyncio
+import os
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
+
+from autom8_asana.settings import reset_settings
 
 from autom8_asana.dataframes.builders.progressive import (
     ProgressiveProjectBuilder,
@@ -128,29 +132,44 @@ def _make_builder(
     return builder
 
 
+@contextmanager
+def _pacing_env(
+    pace_pages: int = 25,
+    checkpoint_pages: int = 50,
+    delay: float = 2.0,
+):
+    """Context manager that sets pacing env vars and resets settings."""
+    env_overrides = {
+        "ASANA_PACING_PAGES_PER_PAUSE": str(pace_pages),
+        "ASANA_PACING_CHECKPOINT_EVERY_N_PAGES": str(checkpoint_pages),
+        "ASANA_PACING_DELAY_SECONDS": str(delay),
+    }
+    with patch.dict(os.environ, env_overrides):
+        reset_settings()
+        try:
+            yield
+        finally:
+            reset_settings()
+
+
 def _patch_pacing(
     pace_pages: int = 25,
     checkpoint_pages: int = 50,
     delay: float = 2.0,
 ):
-    """Context manager to patch all three pacing constants plus asyncio.sleep."""
+    """Context manager to patch asyncio.sleep and set pacing env vars.
+
+    Returns a tuple of context managers for use in ``with`` statements:
+        sleep_mock, pacing_env = _patch_pacing(...)
+        with sleep_mock as mock_sleep, pacing_env:
+            ...
+    """
     return (
         patch(
             "autom8_asana.dataframes.builders.progressive.asyncio.sleep",
             new_callable=AsyncMock,
         ),
-        patch(
-            "autom8_asana.dataframes.builders.progressive.PACE_PAGES_PER_PAUSE",
-            pace_pages,
-        ),
-        patch(
-            "autom8_asana.dataframes.builders.progressive.CHECKPOINT_EVERY_N_PAGES",
-            checkpoint_pages,
-        ),
-        patch(
-            "autom8_asana.dataframes.builders.progressive.PACE_DELAY_SECONDS",
-            delay,
-        ),
+        _pacing_env(pace_pages, checkpoint_pages, delay),
     )
 
 
@@ -262,10 +281,10 @@ class TestSectionSizeBoundaries:
         builder = _make_builder(manifest=manifest)
         builder._client.tasks.list_async.return_value = _FakePageIterator(10000)
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=25, checkpoint_pages=50
         )
-        with sleep_mock as mock_sleep, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock as mock_sleep, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -305,10 +324,10 @@ class TestS3WriteFailureDuringCheckpoint:
         # 5000 tasks = 50 pages -> 1 checkpoint attempt at page 50
         builder._client.tasks.list_async.return_value = _FakePageIterator(5000)
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=25, checkpoint_pages=50
         )
-        with sleep_mock, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         # Fetch still completes despite checkpoint failure
@@ -340,10 +359,10 @@ class TestManifestUpdateFailureDuringCheckpoint:
         # 5000 tasks = 50 pages -> 1 checkpoint at page 50
         builder._client.tasks.list_async.return_value = _FakePageIterator(5000)
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=25, checkpoint_pages=50
         )
-        with sleep_mock, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         # _write_checkpoint catches exceptions and returns False
@@ -373,8 +392,8 @@ class TestTaskToDictExceptionMidLoop:
         iterator._tasks[150].model_dump.side_effect = ValueError("Bad task data")
         builder._client.tasks.list_async.return_value = iterator
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing()
-        with sleep_mock, pace_mock, ckpt_mock, delay_mock:
+        sleep_mock, pacing_env = _patch_pacing()
+        with sleep_mock, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         # The exception happens during task_dicts = [self._task_to_dict(task) ...]
@@ -419,10 +438,10 @@ class TestRowExtractionExceptionAtCheckpoint:
             side_effect=flaky_extract
         )
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=25, checkpoint_pages=50
         )
-        with sleep_mock, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         # _write_checkpoint catches the exception internally, fetch continues
@@ -467,10 +486,10 @@ class TestConcurrentLargeSections:
             500, start_gid=300
         )
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=2, checkpoint_pages=3
         )
-        with sleep_mock, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock, pacing_env:
             results = await asyncio.gather(
                 builder1._fetch_and_persist_section("sec_1", None, 0, 2),
                 builder2._fetch_and_persist_section("sec_2", None, 1, 2),
@@ -607,10 +626,10 @@ class TestConfigurationBoundaries:
         # Pacing loop: pages 2 and 3. With pace=1, sleep at page 2 and page 3.
         builder._client.tasks.list_async.return_value = _FakePageIterator(300)
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=1, checkpoint_pages=1000, delay=0.1
         )
-        with sleep_mock as mock_sleep, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock as mock_sleep, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -630,10 +649,10 @@ class TestConfigurationBoundaries:
         # 300 tasks = 3 pages. Pages 2 and 3 in pacing loop.
         builder._client.tasks.list_async.return_value = _FakePageIterator(300)
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=25, checkpoint_pages=1
         )
-        with sleep_mock, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -651,10 +670,10 @@ class TestConfigurationBoundaries:
         builder = _make_builder(manifest=manifest)
         builder._client.tasks.list_async.return_value = _FakePageIterator(300)
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=1, checkpoint_pages=1000, delay=0.0
         )
-        with sleep_mock as mock_sleep, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock as mock_sleep, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -685,10 +704,10 @@ class TestDataIntegrity:
         total_tasks = 350  # 3.5 pages
         builder._client.tasks.list_async.return_value = _FakePageIterator(total_tasks)
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=1, checkpoint_pages=2
         )
-        with sleep_mock, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -723,10 +742,10 @@ class TestDataIntegrity:
             captured_dfs.append(self_df.clone())
             return original_write_parquet(self_df, file, *args, **kwargs)
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=25, checkpoint_pages=50
         )
-        with sleep_mock, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -746,10 +765,10 @@ class TestDataIntegrity:
         total_tasks = 7500  # 75 pages
         builder._client.tasks.list_async.return_value = _FakePageIterator(total_tasks)
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=25, checkpoint_pages=50
         )
-        with sleep_mock, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -796,10 +815,10 @@ class TestMixedCheckpointResults:
         # 10000 tasks = 100 pages -> checkpoints at 50 and 100
         builder._client.tasks.list_async.return_value = _FakePageIterator(10000)
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=25, checkpoint_pages=50
         )
-        with sleep_mock, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -830,10 +849,10 @@ class TestPageBoundaryAccounting:
         builder = _make_builder(manifest=manifest)
         builder._client.tasks.list_async.return_value = _FakePageIterator(250)
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=1, checkpoint_pages=1000
         )
-        with sleep_mock as mock_sleep, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock as mock_sleep, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -857,10 +876,10 @@ class TestPageBoundaryAccounting:
         builder = _make_builder(manifest=manifest)
         builder._client.tasks.list_async.return_value = _FakePageIterator(500)
 
-        sleep_mock, pace_mock, ckpt_mock, delay_mock = _patch_pacing(
+        sleep_mock, pacing_env = _patch_pacing(
             pace_pages=1, checkpoint_pages=1000
         )
-        with sleep_mock as mock_sleep, pace_mock, ckpt_mock, delay_mock:
+        with sleep_mock as mock_sleep, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True

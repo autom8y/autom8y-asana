@@ -565,11 +565,12 @@ class UnifiedTaskStore:
         from autom8_asana.cache.integration.hierarchy_warmer import (
             _HIERARCHY_OPT_FIELDS,
         )
-        from autom8_asana.config import (
-            HIERARCHY_BATCH_DELAY,
-            HIERARCHY_BATCH_SIZE,
-            HIERARCHY_PACING_THRESHOLD,
-        )
+        from autom8_asana.settings import get_settings as _get_settings
+
+        _pacing = _get_settings().pacing
+        HIERARCHY_BATCH_DELAY = _pacing.hierarchy_batch_delay
+        HIERARCHY_BATCH_SIZE = _pacing.hierarchy_batch_size
+        HIERARCHY_PACING_THRESHOLD = _pacing.hierarchy_threshold
 
         # Check which parents need fetching
         parent_gids_needed: set[str] = set()
