@@ -55,6 +55,8 @@ htmlcov/
 !.env/*.example
 .env.keys
 .envrc.local
+.direnv/
+.devbox/
 
 # Knossos
 .knossos/
