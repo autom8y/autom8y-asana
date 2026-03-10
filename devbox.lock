@@ -5,7 +5,7 @@
       "last_modified": "2026-03-08T08:02:12Z",
       "resolved": "github:NixOS/nixpkgs/608d0cadfed240589a7eea422407a547ad626a14?lastModified=1772956932&narHash=sha256-M0yS4AafhKxPPmOHGqIV0iKxgNO8bHDWdl1kOwGBwRY%3D"
     },
-    "shellcheck@latest": {
+    "shellcheck@0.11.0": {
       "last_modified": "2026-03-02T11:03:52Z",
       "resolved": "github:NixOS/nixpkgs/dc7513872406b53d2ff417a003895d6daffdff2f#shellcheck",
       "source": "devbox-search",
@@ -109,7 +109,7 @@
         }
       }
     },
-    "shfmt@latest": {
+    "shfmt@3.12.0": {
       "last_modified": "2026-02-23T15:40:43Z",
       "resolved": "github:NixOS/nixpkgs/80d901ec0377e19ac3f7bb8c035201e2e098cc97#shfmt",
       "source": "devbox-search",
