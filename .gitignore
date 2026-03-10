@@ -48,9 +48,15 @@ htmlcov/
 # Project-specific
 .profiling/
 
-# Environment files (secrets)
+# Environment files
 .env/*
+!.env/defaults
+!.env/secrets
 !.env/*.example
+.env.keys
+.envrc.local
+.direnv/
+.devbox/
 
 # Knossos
 .knossos/
