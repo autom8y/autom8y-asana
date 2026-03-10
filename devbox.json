@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/main/.schema/devbox.schema.json",
   "packages": [
-    "shellcheck@latest",
-    "shfmt@latest"
+    "shellcheck@0.11.0",
+    "shfmt@3.12.0"
   ],
   "shell": {
     "init_hook": [
