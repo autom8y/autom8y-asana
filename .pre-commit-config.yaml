@@ -42,3 +42,19 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+
+  # Gitleaks (secrets scanning at commit time)
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  # Hadolint (Dockerfile linting)
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        name: hadolint
+        entry: hadolint
+        language: docker_image
+        types: [dockerfile]

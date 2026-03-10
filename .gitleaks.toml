@@ -1,0 +1,61 @@
+# Gitleaks configuration for autom8y-asana satellite
+# Propagated from Security Hardening Campaign (SEC-03: config travels with fork)
+
+[extend]
+useDefault = true
+
+# Custom rules for autom8y-specific secret patterns
+
+[[rules]]
+id = "aws-codeartifact-token"
+description = "AWS CodeArtifact authorization token"
+regex = '''(?i)(codeartifact|authorization)[_\-\s]*token[\s]*[=:]\s*["']?[A-Za-z0-9/+=]{50,}'''
+keywords = ["codeartifact", "authorization"]
+tags = ["aws", "codeartifact"]
+
+[[rules]]
+id = "aws-codeartifact-atk"
+description = "AWS CodeArtifact Atk- prefixed token"
+regex = '''Atk-[A-Za-z0-9_/+=]{20,}'''
+keywords = ["Atk-"]
+tags = ["aws", "codeartifact"]
+
+[[rules]]
+id = "presigned-s3-url"
+description = "AWS pre-signed S3 URL"
+regex = '''https?://[a-zA-Z0-9\-]+\.s3[.\-][a-zA-Z0-9\-]+\.amazonaws\.com/[^\s"']+[?&]X-Amz-Signature=[a-fA-F0-9]{64}'''
+keywords = ["X-Amz-Signature"]
+tags = ["aws", "s3", "presigned"]
+
+[[rules]]
+id = "presigned-lambda-url"
+description = "AWS pre-signed Lambda function URL"
+regex = '''https://[a-zA-Z0-9]+\.lambda-url\.[a-zA-Z0-9\-]+\.on\.aws/[^\s"']*[?&]X-Amz-Signature=[a-fA-F0-9]{64}'''
+keywords = ["lambda-url", "X-Amz-Signature"]
+tags = ["aws", "lambda", "presigned"]
+
+[[rules]]
+id = "slack-webhook-url"
+description = "Slack incoming webhook URL"
+regex = '''https://hooks\.slack\.com/services/T[A-Z0-9]{8,}/B[A-Z0-9]{8,}/[a-zA-Z0-9]{20,}'''
+keywords = ["hooks.slack.com"]
+tags = ["slack", "webhook"]
+
+[allowlist]
+description = "Global allowlist for safe patterns"
+paths = [
+    '''(?i)\.gitleaks\.toml$''',
+    '''(?i)renovate\.json5?$''',
+    '''(?i)\.know/.*\.md$''',
+    '''(?i)\.claude/.*\.md$''',
+    '''(?i)\.sos/.*\.md$''',
+    '''(?i)README\.md$''',
+    '''(?i)CHANGELOG\.md$''',
+    '''(?i)docs/.*\.md$''',
+    '''(?i)testdata/''',
+    '''(?i)test_fixtures/''',
+    '''(?i)\.github/.*\.md$''',
+    '''(?i)uv\.lock$''',
+    '''(?i)\.venv/''',
+    '''(?i)__pycache__/''',
+]
