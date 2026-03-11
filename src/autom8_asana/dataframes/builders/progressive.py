@@ -23,7 +23,6 @@ import polars as pl
 from autom8y_log import get_logger
 
 from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
-from autom8_asana.settings import get_settings
 from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.builders.build_result import (
     BuildResult,
@@ -40,6 +39,7 @@ from autom8_asana.dataframes.section_persistence import (
     SectionPersistence,
     SectionStatus,
 )
+from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:
     from collections.abc import Callable
