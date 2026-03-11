@@ -22,5 +22,5 @@ jobs:
       coverage_threshold: 80
       test_parallel: true
       run_integration: ${{ github.event_name == 'push' }}
-      test_env: 'ASANA_WORKSPACE_GID=1234567890123456'
+      test_env: 'ASANA_WORKSPACE_GID=${{ vars.ASANA_WORKSPACE_GID }}'
     secrets: inherit
