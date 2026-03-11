@@ -14,10 +14,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.settings import reset_settings
-
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
+from autom8_asana.settings import reset_settings
 
 if TYPE_CHECKING:
     from autom8_asana.cache.models.entry import EntryType

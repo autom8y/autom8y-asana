@@ -13,8 +13,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
-from autom8_asana.settings import reset_settings
-
 from autom8_asana.dataframes.builders.progressive import (
     ProgressiveProjectBuilder,
 )
@@ -24,6 +22,7 @@ from autom8_asana.dataframes.section_persistence import (
     SectionPersistence,
     SectionStatus,
 )
+from autom8_asana.settings import reset_settings
 
 
 def _make_mock_task(gid: str) -> MagicMock:
