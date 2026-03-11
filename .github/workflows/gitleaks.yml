@@ -29,7 +29,7 @@ jobs:
         run: gitleaks detect --source . --report-format sarif --report-path gitleaks-results.sarif --verbose || true
 
       - name: Upload SARIF
-        if: always()
+        if: always() && github.event.repository.visibility == 'public'
         uses: github/codeql-action/upload-sarif@45580472a5bb82c4681c4ac726cfdb60060c2ee1 # v3
         with:
           sarif_file: gitleaks-results.sarif
