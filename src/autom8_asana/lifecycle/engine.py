@@ -17,7 +17,7 @@ Error Contract:
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from autom8y_log import get_logger
@@ -25,6 +25,14 @@ from autom8y_log import get_logger
 from autom8_asana.core.timing import elapsed_ms
 from autom8_asana.persistence.models import AutomationResult
 from autom8_asana.resolution.context import ResolutionContext
+
+# Re-export canonical result types from their authoritative modules so that
+# callers importing from engine (e.g., tests) continue to work unchanged.
+from autom8_asana.lifecycle.completion import CompletionResult as CompletionResult
+from autom8_asana.lifecycle.creation import CreationResult as CreationResult
+from autom8_asana.lifecycle.reopen import ReopenResult as ReopenResult
+from autom8_asana.lifecycle.sections import CascadeResult as CascadeResult
+from autom8_asana.lifecycle.wiring import WiringResult as WiringResult
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
@@ -45,47 +53,8 @@ logger = get_logger(__name__)
 
 
 @dataclass
-class CreationResult:
-    """Result of entity creation (Phase 1)."""
-
-    success: bool
-    entity_gid: str = ""
-    error: str = ""
-
-
-@dataclass
-class CascadeResult:
-    """Result of cascading section updates (Phase 2)."""
-
-    updates: list[str] = field(default_factory=list)
-
-
-@dataclass
-class CompletionResult:
-    """Result of source process auto-completion (Phase 2)."""
-
-    completed: list[str] = field(default_factory=list)
-
-
-@dataclass
 class LifecycleActionResult:
     """Result of a single init action (Phase 3)."""
-
-    success: bool
-    entity_gid: str = ""
-    error: str = ""
-
-
-@dataclass
-class WiringResult:
-    """Result of dependency wiring (Phase 4)."""
-
-    wired: list[str] = field(default_factory=list)
-
-
-@dataclass
-class ReopenResult:
-    """Result of DNC reopen operation."""
 
     success: bool
     entity_gid: str = ""
@@ -422,7 +391,8 @@ class LifecycleEngine:
             result.fail(f"Process creation failed: {creation_result.error}")
             return
 
-        result.add_entity_created(creation_result.entity_gid)
+        entity_gid = creation_result.entity_gid or ""
+        result.add_entity_created(entity_gid)
         result.add_action("create_process")
 
         # Phase 2: CONFIGURE
@@ -432,12 +402,12 @@ class LifecycleEngine:
 
         # Phase 3: ACTIONS
         await self._phase_actions_async(
-            target_stage, creation_result.entity_gid, ctx, source_process, result
+            target_stage, entity_gid, ctx, source_process, result
         )
 
         # Phase 4: WIRE
         await self._phase_wire_async(
-            target_stage, creation_result.entity_gid, ctx, result
+            target_stage, entity_gid, ctx, result
         )
 
     async def _phase_configure_async(
@@ -801,14 +771,14 @@ def _import_creation_service(
     """Lazily import and construct EntityCreationService."""
     from autom8_asana.lifecycle.creation import EntityCreationService
 
-    return EntityCreationService(client, config)  # type: ignore[return-value]
+    return EntityCreationService(client, config)
 
 
 def _import_section_service(client: AsanaClient) -> SectionServiceProtocol:
     """Lazily import and construct CascadingSectionService."""
     from autom8_asana.lifecycle.sections import CascadingSectionService
 
-    return CascadingSectionService(client)  # type: ignore[return-value]
+    return CascadingSectionService(client)
 
 
 def _import_completion_service(
@@ -817,7 +787,7 @@ def _import_completion_service(
     """Lazily import and construct CompletionService."""
     from autom8_asana.lifecycle.completion import CompletionService
 
-    return CompletionService(client)  # type: ignore[return-value]
+    return CompletionService(client)
 
 
 def _import_wiring_service(
@@ -826,11 +796,11 @@ def _import_wiring_service(
     """Lazily import and construct DependencyWiringService."""
     from autom8_asana.lifecycle.wiring import DependencyWiringService
 
-    return DependencyWiringService(client, config)  # type: ignore[return-value]
+    return DependencyWiringService(client, config)
 
 
 def _import_reopen_service(client: AsanaClient) -> ReopenServiceProtocol:
     """Import and construct ReopenService."""
     from autom8_asana.lifecycle.reopen import ReopenService
 
-    return ReopenService(client)  # type: ignore[return-value]
+    return ReopenService(client)
