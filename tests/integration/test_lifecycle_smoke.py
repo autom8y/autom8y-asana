@@ -948,10 +948,10 @@ class TestLifecycleEngineIntegration:
         """Build a LifecycleEngine with all mock services."""
         from autom8_asana.lifecycle.config import LifecycleConfig
         from autom8_asana.lifecycle.engine import (
-            ActionResult,
             CascadeResult,
             CompletionResult,
             CreationResult,
+            LifecycleActionResult,
             LifecycleEngine,
             ReopenResult,
             WiringResult,
@@ -983,7 +983,7 @@ class TestLifecycleEngineIntegration:
         # Mock init action registry
         init_action_registry = MagicMock()
         init_action_registry.execute_actions_async = AsyncMock(
-            return_value=[ActionResult(success=True, entity_gid="play_gid")]
+            return_value=[LifecycleActionResult(success=True, entity_gid="play_gid")]
         )
 
         # Mock wiring service
@@ -1617,7 +1617,7 @@ class TestEdgeCasesAdversarial:
         assert action.always_create_new is False
 
     def test_default_init_action_registry_unknown_type(self):
-        """_DefaultInitActionRegistry should return failed ActionResult
+        """_DefaultInitActionRegistry should return failed LifecycleActionResult
         for unknown action types."""
         from autom8_asana.lifecycle.config import (
             InitActionConfig,
