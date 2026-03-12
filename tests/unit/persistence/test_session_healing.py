@@ -36,6 +36,7 @@ def create_mock_client() -> MagicMock:
     mock_http = AsyncMock()
     mock_http.request = AsyncMock(return_value={"data": {}})
     mock_client._http = mock_http
+    mock_client.http = mock_http  # Public property exposed in SM-001
 
     return mock_client
 
