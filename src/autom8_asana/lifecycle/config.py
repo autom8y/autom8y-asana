@@ -22,11 +22,13 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class SelfLoopConfig(BaseModel):
     """Configuration for self-loop stages."""
+
+    model_config = ConfigDict(extra="forbid")
 
     max_iterations: int = 5
     delay_schedule: list[int] = Field(default_factory=list)
@@ -34,6 +36,8 @@ class SelfLoopConfig(BaseModel):
 
 class InitActionConfig(BaseModel):
     """Configuration for init-time actions on a stage."""
+
+    model_config = ConfigDict(extra="forbid")
 
     type: str
     condition: str | None = None
@@ -55,12 +59,16 @@ class InitActionConfig(BaseModel):
 class ValidationRuleConfig(BaseModel):
     """Validation rules for a transition."""
 
+    model_config = ConfigDict(extra="forbid")
+
     required_fields: list[str] = Field(default_factory=list)
     mode: Literal["warn", "block"] = "warn"
 
 
 class ValidationConfig(BaseModel):
     """Pre/post validation for a stage."""
+
+    model_config = ConfigDict(extra="forbid")
 
     pre_transition: ValidationRuleConfig | None = None
     post_transition: ValidationRuleConfig | None = None
@@ -69,6 +77,8 @@ class ValidationConfig(BaseModel):
 class CascadingSectionConfig(BaseModel):
     """Sections to set on related entities."""
 
+    model_config = ConfigDict(extra="forbid")
+
     offer: str | None = None
     unit: str | None = None
     business: str | None = None
@@ -76,6 +86,8 @@ class CascadingSectionConfig(BaseModel):
 
 class TransitionConfig(BaseModel):
     """Transition routing for a stage."""
+
+    model_config = ConfigDict(extra="forbid")
 
     converted: str | None = None
     did_not_convert: str | None = None
@@ -86,6 +98,8 @@ class TransitionConfig(BaseModel):
 class SeedingConfig(BaseModel):
     """Field seeding configuration per stage."""
 
+    model_config = ConfigDict(extra="forbid")
+
     exclude_fields: list[str] = Field(default_factory=list)
     computed_fields: dict[str, str] = Field(default_factory=dict)
     # e.g., {"Launch Date": "today", "Status": "New"}
@@ -94,12 +108,16 @@ class SeedingConfig(BaseModel):
 class AssigneeConfig(BaseModel):
     """Assignee resolution per stage."""
 
+    model_config = ConfigDict(extra="forbid")
+
     assignee_source: str | None = None  # e.g., "rep", "onboarding_specialist"
     assignee_gid: str | None = None  # fixed fallback GID
 
 
 class StageConfig(BaseModel):
     """Complete configuration for a lifecycle stage."""
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str
     project_gid: str | None = None
@@ -126,6 +144,8 @@ class StageConfig(BaseModel):
 class WiringRuleConfig(BaseModel):
     """Dependency wiring rule."""
 
+    model_config = ConfigDict(extra="forbid")
+
     dependents: list[dict[str, str]] = Field(default_factory=list)
     dependencies: list[dict[str, str]] = Field(default_factory=list)
     dependency_of: str | None = None
@@ -133,6 +153,8 @@ class WiringRuleConfig(BaseModel):
 
 class LifecycleConfigModel(BaseModel):
     """Top-level Pydantic model for lifecycle_stages.yaml."""
+
+    model_config = ConfigDict(extra="forbid")
 
     stages: dict[str, StageConfig]
     dependency_wiring: dict[str, WiringRuleConfig] = Field(default_factory=dict)

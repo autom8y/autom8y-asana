@@ -6,7 +6,7 @@ from typing import Any
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 logger = get_logger(__name__)
 
@@ -15,6 +15,8 @@ router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 
 class AsanaWebhookPayload(BaseModel):
     """Payload from Asana Rule webhook."""
+
+    model_config = ConfigDict(extra="forbid")
 
     task_gid: str
     task_name: str | None = None
@@ -26,6 +28,8 @@ class AsanaWebhookPayload(BaseModel):
 
 class WebhookResponse(BaseModel):
     """Response to Asana webhook."""
+
+    model_config = ConfigDict(extra="forbid")
 
     accepted: bool
     message: str = ""
