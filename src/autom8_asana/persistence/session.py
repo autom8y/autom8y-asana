@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import threading
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from autom8_asana.clients.name_resolver import NameResolver
 from autom8_asana.persistence.action_executor import ActionExecutor
@@ -474,7 +474,7 @@ class SaveSession:
             if recursive:
                 self._track_recursive(entity)
 
-            return tracked
+            return cast(T, tracked)
 
     def _track_recursive(self, entity: AsanaResource) -> None:
         """Recursively track all children in entity's holders.
@@ -1678,7 +1678,7 @@ class SaveSession:
         from autom8_asana.persistence.cascade import CascadeOperation
 
         op = CascadeOperation(
-            source_entity=entity,
+            source_entity=entity,  # type: ignore[arg-type]  # caller must pass BusinessEntity
             field_name=field_name,
             target_types=target_types,
         )

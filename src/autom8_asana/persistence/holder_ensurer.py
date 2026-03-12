@@ -202,7 +202,7 @@ class HolderEnsurer:
         Returns:
             List of newly constructed holders for this parent.
         """
-        holder_key_map = parent.HOLDER_KEY_MAP
+        holder_key_map = parent.HOLDER_KEY_MAP  # type: ignore[attr-defined]  # narrowed by caller
         parent_gid = parent.gid or f"temp_{id(parent)}"
 
         # Determine which holder types are missing
