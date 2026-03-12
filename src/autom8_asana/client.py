@@ -292,6 +292,19 @@ class AsanaClient:
         return self._observability_hook
 
     @property
+    def http(self) -> AsanaHttpClient:
+        """Access the underlying HTTP client.
+
+        Provides internal collaborators (e.g. HealingManager) a stable public
+        interface to the HTTP transport layer, avoiding direct access to the
+        private ``_http`` attribute across module boundaries.
+
+        Returns:
+            The configured AsanaHttpClient instance.
+        """
+        return self._http
+
+    @property
     def cache_metrics(self) -> CacheMetrics | None:
         """Access cache metrics for observability.
 
