@@ -68,7 +68,7 @@ class CompletionResult:
 
 
 @dataclass
-class ActionResult:
+class LifecycleActionResult:
     """Result of a single init action (Phase 3)."""
 
     success: bool
@@ -140,7 +140,7 @@ class InitActionRegistryProtocol(Protocol):
         created_entity_gid: str,
         ctx: ResolutionContext,
         source_process: Process,
-    ) -> list[ActionResult]: ...
+    ) -> list[LifecycleActionResult]: ...
 
 
 @runtime_checkable
@@ -730,7 +730,7 @@ class _DefaultInitActionRegistry:
     """Adapts the existing HANDLER_REGISTRY dict to InitActionRegistryProtocol.
 
     Dispatches each init action config to the matching handler from the
-    registry. Unknown types produce a failed ActionResult with a warning.
+    registry. Unknown types produce a failed LifecycleActionResult with a warning.
     """
 
     def __init__(self, client: AsanaClient, config: LifecycleConfig) -> None:
@@ -743,7 +743,7 @@ class _DefaultInitActionRegistry:
         created_entity_gid: str,
         ctx: ResolutionContext,
         source_process: Process,
-    ) -> list[ActionResult]:
+    ) -> list[LifecycleActionResult]:
         """Execute all init actions in parallel with bounded concurrency."""
         from autom8_asana.core.concurrency import gather_with_semaphore
         from autom8_asana.lifecycle.init_actions import HANDLER_REGISTRY
@@ -767,11 +767,11 @@ class _DefaultInitActionRegistry:
         ctx: ResolutionContext,
         source_process: Process,
         handler_registry: dict[str, Any],
-    ) -> ActionResult:
-        """Execute a single init action, returning ActionResult."""
+    ) -> LifecycleActionResult:
+        """Execute a single init action, returning LifecycleActionResult."""
         handler_cls = handler_registry.get(action_config.type)
         if handler_cls is None:
-            return ActionResult(
+            return LifecycleActionResult(
                 success=False,
                 error=f"Unknown init action: {action_config.type}",
             )
@@ -781,13 +781,13 @@ class _DefaultInitActionRegistry:
             creation_result = await handler.execute_async(
                 ctx, created_entity_gid, action_config, source_process
             )
-            return ActionResult(
+            return LifecycleActionResult(
                 success=creation_result.success,
                 entity_gid=creation_result.entity_gid or "",
                 error=creation_result.error or "",
             )
         except Exception as e:  # BROAD-CATCH: per-action isolation
-            return ActionResult(success=False, error=str(e))
+            return LifecycleActionResult(success=False, error=str(e))
 
 
 # ---------------------------------------------------------------------------

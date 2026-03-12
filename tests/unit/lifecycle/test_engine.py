@@ -17,10 +17,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from autom8_asana.lifecycle.engine import (
-    ActionResult,
     CascadeResult,
     CompletionResult,
     CreationResult,
+    LifecycleActionResult,
     LifecycleEngine,
     ReopenResult,
     TransitionResult,
@@ -55,7 +55,7 @@ def _make_mock_services(
     creation_error: str = "",
     cascade_updates: list[str] | None = None,
     completion_completed: list[str] | None = None,
-    action_results: list[ActionResult] | None = None,
+    action_results: list[LifecycleActionResult] | None = None,
     wiring_wired: list[str] | None = None,
     reopen_success: bool = True,
     reopen_gid: str = "reopened_789",
@@ -460,8 +460,8 @@ class TestResultAccumulator:
         # Make init actions return a failure (soft)
         services["init_action_registry"].execute_actions_async = AsyncMock(
             return_value=[
-                ActionResult(success=True, entity_gid=""),
-                ActionResult(success=False, error="comment handler not found"),
+                LifecycleActionResult(success=True, entity_gid=""),
+                LifecycleActionResult(success=False, error="comment handler not found"),
             ]
         )
         engine = _make_engine_with_services(lifecycle_config, mock_client, services)
@@ -662,7 +662,7 @@ class TestPhaseOrdering:
 
         async def track_actions(*args, **kwargs):
             call_order.append("actions")
-            return [ActionResult(success=True)]
+            return [LifecycleActionResult(success=True)]
 
         async def track_wiring(*args, **kwargs):
             call_order.append("wire")
@@ -858,8 +858,8 @@ class TestInitActions:
         """Onboarding target has products_check and create_comment."""
         services = _make_mock_services(
             action_results=[
-                ActionResult(success=True, entity_gid="vid_123"),
-                ActionResult(success=True),
+                LifecycleActionResult(success=True, entity_gid="vid_123"),
+                LifecycleActionResult(success=True),
             ],
             completion_completed=["src_123"],
         )
@@ -886,8 +886,8 @@ class TestInitActions:
         """Failed init action -> warning, not hard failure."""
         services = _make_mock_services(
             action_results=[
-                ActionResult(success=False, error="Handler not found"),
-                ActionResult(success=True),
+                LifecycleActionResult(success=False, error="Handler not found"),
+                LifecycleActionResult(success=True),
             ],
             completion_completed=["src_123"],
         )
