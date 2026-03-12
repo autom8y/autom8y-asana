@@ -41,9 +41,9 @@ try:
     _SCHEMA_VERSIONING_AVAILABLE = True
 except ImportError:
     # SDK version doesn't have schema versioning yet
-    CompatibilityMode = None
-    SchemaVersion = None
-    register_schema_provider = None
+    CompatibilityMode = None  # type: ignore[misc, assignment]
+    SchemaVersion = None  # type: ignore[misc, assignment]
+    register_schema_provider = None  # type: ignore[assignment]
 
 
 class AsanaSchemaProvider:
