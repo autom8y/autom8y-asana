@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from autom8y_log import get_logger
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from autom8_asana.models.business.process import ProcessType
 
@@ -52,6 +52,8 @@ class BusinessData(BaseModel):
     All new fields are optional for backward compatibility.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str
     company_id: str | None = None
     business_address_line_1: str | None = None
@@ -72,6 +74,8 @@ class ContactData(BaseModel):
     Per FR-SEED-010.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     full_name: str
     contact_email: str | None = None
     contact_phone: str | None = None
@@ -83,6 +87,8 @@ class ProcessData(BaseModel):
     Per FR-SEED-005, FR-SEED-006.
     Per ADR-0101: initial_state removed (process inherits section from hierarchy).
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     name: str
     process_type: ProcessType
