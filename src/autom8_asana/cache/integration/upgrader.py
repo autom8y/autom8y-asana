@@ -211,8 +211,3 @@ class AsanaTaskUpgrader:
                 extra={"modified_at": modified_at},
             )
             return datetime.now(UTC)
-
-
-# Verify protocol compliance at import time
-assert isinstance(AsanaTaskUpgrader.__init__, object)  # Basic check
-# Runtime check happens when instantiated with runtime_checkable protocol
