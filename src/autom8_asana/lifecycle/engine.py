@@ -23,16 +23,22 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from autom8y_log import get_logger
 
 from autom8_asana.core.timing import elapsed_ms
-from autom8_asana.persistence.models import AutomationResult
-from autom8_asana.resolution.context import ResolutionContext
 
 # Re-export canonical result types from their authoritative modules so that
 # callers importing from engine (e.g., tests) continue to work unchanged.
-from autom8_asana.lifecycle.completion import CompletionResult as CompletionResult
-from autom8_asana.lifecycle.creation import CreationResult as CreationResult
-from autom8_asana.lifecycle.reopen import ReopenResult as ReopenResult
-from autom8_asana.lifecycle.sections import CascadeResult as CascadeResult
-from autom8_asana.lifecycle.wiring import WiringResult as WiringResult
+from autom8_asana.lifecycle.completion import (
+    CompletionResult as CompletionResult,  # noqa: TC001
+)
+from autom8_asana.lifecycle.creation import (
+    CreationResult as CreationResult,  # noqa: TC001
+)
+from autom8_asana.lifecycle.reopen import ReopenResult as ReopenResult  # noqa: TC001
+from autom8_asana.lifecycle.sections import (
+    CascadeResult as CascadeResult,  # noqa: TC001
+)
+from autom8_asana.lifecycle.wiring import WiringResult as WiringResult  # noqa: TC001
+from autom8_asana.persistence.models import AutomationResult
+from autom8_asana.resolution.context import ResolutionContext
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
@@ -406,9 +412,7 @@ class LifecycleEngine:
         )
 
         # Phase 4: WIRE
-        await self._phase_wire_async(
-            target_stage, entity_gid, ctx, result
-        )
+        await self._phase_wire_async(target_stage, entity_gid, ctx, result)
 
     async def _phase_configure_async(
         self,

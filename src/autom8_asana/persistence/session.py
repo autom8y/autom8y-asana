@@ -474,7 +474,7 @@ class SaveSession:
             if recursive:
                 self._track_recursive(entity)
 
-            return cast(T, tracked)
+            return cast("T", tracked)
 
     def _track_recursive(self, entity: AsanaResource) -> None:
         """Recursively track all children in entity's holders.
