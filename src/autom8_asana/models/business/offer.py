@@ -222,7 +222,7 @@ class Offer(
         """
         # Walk the hydrated hierarchy to find the corresponding entities
         if business._unit_holder is not None:
-            for unit in business._unit_holder.units:  # type: ignore[attr-defined]
+            for unit in business._unit_holder.units:
                 if unit._offer_holder is not None:
                     for offer in unit._offer_holder.offers:
                         if offer.gid == self.gid:
