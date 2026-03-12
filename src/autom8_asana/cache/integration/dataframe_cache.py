@@ -76,9 +76,9 @@ class DataFrameCacheEntry:
     Per TDD-PARTIAL-FAILURE-SIGNALING-001 (C2): Optional build_quality field
     records build completeness metadata for downstream consumers.
 
-    Per TDD-unified-cacheentry-hierarchy (ADR-S4-001): Renamed from
-    ``DataFrameCacheEntry`` to ``DataFrameCacheEntry`` to resolve the naming
-    collision with the versioned ``DataFrameCacheEntry``.
+    Per TDD-unified-cacheentry-hierarchy (ADR-S4-001): This is the integration-
+    tier cache entry, distinct from the versioned ``DataFrameCacheEntry`` in
+    ``cache/models/entry.py``. The naming collision is resolved by module scope.
 
     Attributes:
         project_gid: Asana project GID this DataFrame belongs to.
