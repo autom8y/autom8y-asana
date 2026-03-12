@@ -124,7 +124,7 @@ def store_derived_timelines(
     cache.set_versioned(key, entry)
 
 
-def _serialize_timeline(timeline: SectionTimeline) -> dict[str, Any]:
+def serialize_timeline(timeline: SectionTimeline) -> dict[str, Any]:
     """Serialize a SectionTimeline to a JSON-compatible dict.
 
     Per TDD-SECTION-TIMELINE-REMEDIATION AMB-6: JSON dict serialization
@@ -158,13 +158,13 @@ def _serialize_timeline(timeline: SectionTimeline) -> dict[str, Any]:
     }
 
 
-def _deserialize_timeline(data: dict[str, Any]) -> SectionTimeline:
+def deserialize_timeline(data: dict[str, Any]) -> SectionTimeline:
     """Deserialize a SectionTimeline from a JSON dict.
 
-    Per TDD-SECTION-TIMELINE-REMEDIATION AMB-6: Inverse of _serialize_timeline.
+    Per TDD-SECTION-TIMELINE-REMEDIATION AMB-6: Inverse of serialize_timeline.
 
     Args:
-        data: JSON dict previously produced by _serialize_timeline.
+        data: JSON dict previously produced by serialize_timeline.
 
     Returns:
         SectionTimeline domain object.

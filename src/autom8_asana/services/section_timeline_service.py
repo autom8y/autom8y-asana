@@ -395,9 +395,9 @@ async def get_or_compute_timelines(
         List of OfferTimelineEntry with day counts.
     """
     from autom8_asana.cache.integration.derived import (
-        _deserialize_timeline,
-        _serialize_timeline,
+        deserialize_timeline,
         get_cached_timelines,
+        serialize_timeline,
         store_derived_timelines,
     )
     from autom8_asana.cache.integration.stories import read_stories_batch
@@ -429,7 +429,7 @@ async def get_or_compute_timelines(
     cached_entry = get_cached_timelines(project_gid, classifier_name, cache)
     if cached_entry is not None:
         timelines_data = cached_entry.data.get("timelines", [])
-        timelines = [_deserialize_timeline(d) for d in timelines_data]
+        timelines = [deserialize_timeline(d) for d in timelines_data]
         return _compute_day_counts(
             timelines,
             period_start,
@@ -445,7 +445,7 @@ async def get_or_compute_timelines(
         cached_entry = get_cached_timelines(project_gid, classifier_name, cache)
         if cached_entry is not None:
             timelines_data = cached_entry.data.get("timelines", [])
-            timelines = [_deserialize_timeline(d) for d in timelines_data]
+            timelines = [deserialize_timeline(d) for d in timelines_data]
             return _compute_day_counts(
                 timelines,
                 period_start,
@@ -613,7 +613,7 @@ async def get_or_compute_timelines(
         compute_duration_ms = (time_module.perf_counter() - compute_start) * 1000
 
         # Step 6: Store derived entry in cache
-        timeline_data = [_serialize_timeline(t) for t in timelines]
+        timeline_data = [serialize_timeline(t) for t in timelines]
         try:
             store_derived_timelines(
                 project_gid=project_gid,
