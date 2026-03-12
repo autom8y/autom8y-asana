@@ -314,11 +314,11 @@ class BusinessEntity(Task):
                 if new_constants:
                     # Create subclass with new constants
                     fields_cls = type("Fields", (existing_fields,), new_constants)
-                    cls.Fields = fields_cls
+                    cls.Fields = fields_cls  # type: ignore[attr-defined]  # dynamically created
             else:
                 # Create new Fields class
                 fields_cls = type("Fields", (), field_constants)
-                cls.Fields = fields_cls
+                cls.Fields = fields_cls  # type: ignore[attr-defined]  # dynamically created
 
         # Per TDD-registry-consolidation: Registration REMOVED from __init_subclass__.
         # Registration now happens explicitly via register_all_models() in _bootstrap.py.

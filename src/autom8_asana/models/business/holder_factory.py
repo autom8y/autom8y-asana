@@ -317,7 +317,7 @@ class HolderFactory(Task, HolderMixin[Task]):
             setattr(child, self.PARENT_REF_NAME, self)
 
             # Propagate business reference (child is dynamically-typed at runtime)
-            child._business = self._business
+            child._business = self._business  # type: ignore[attr-defined]  # set on BusinessEntity subclasses
 
             children.append(child)
 

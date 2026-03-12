@@ -247,7 +247,7 @@ class Unit(
         """
         if self._offer_holder is None:
             return []
-        offers: list[Offer] = self._offer_holder.offers
+        offers: list[Offer] = self._offer_holder.offers  # type: ignore[attr-defined]  # set by HolderFactory semantic_alias
         return offers
 
     @property
@@ -259,7 +259,7 @@ class Unit(
         """
         if self._offer_holder is None:
             return []
-        offers: list[Offer] = self._offer_holder.offers
+        offers: list[Offer] = self._offer_holder.offers  # type: ignore[attr-defined]  # set by HolderFactory semantic_alias
         return [o for o in offers if o.has_active_ads]
 
     @property
@@ -271,7 +271,7 @@ class Unit(
         """
         if self._process_holder is None:
             return []
-        procs: list[Process] = self._process_holder.processes
+        procs: list[Process] = self._process_holder.processes  # type: ignore[attr-defined]  # set by HolderFactory semantic_alias
         return procs
 
     # --- Section Activity Classification (TDD-section-activity-classifier Phase 2) ---
