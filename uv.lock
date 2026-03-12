@@ -267,15 +267,15 @@ testing = [
 
 [[package]]
 name = "autom8y-config"
-version = "1.2.0"
+version = "1.2.1"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-config/1.2.0/autom8y_config-1.2.0.tar.gz", hash = "sha256:3749046d5a9dec1716dd0089f35b80a7457bbff5b92132f40bfc8dccbdc35f9d" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-config/1.2.1/autom8y_config-1.2.1.tar.gz", hash = "sha256:ae3a83c7c6488560da7e5f30bc030b622a447341c5b71aca340ac6329ad1af56" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-config/1.2.0/autom8y_config-1.2.0-py3-none-any.whl", hash = "sha256:9b1664ed94075603e12ab5516474971b08ad9695c3cac782e3608519be1821c6" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-config/1.2.1/autom8y_config-1.2.1-py3-none-any.whl", hash = "sha256:26f1915c3fc190da75ec800b554f369259bb5aa73e2c16ec7ce25ce1770519fa" },
 ]
 
 [package.optional-dependencies]
