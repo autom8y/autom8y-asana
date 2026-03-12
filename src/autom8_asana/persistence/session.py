@@ -474,7 +474,7 @@ class SaveSession:
             if recursive:
                 self._track_recursive(entity)
 
-            return tracked  # type: ignore[return-value]  # ChangeTracker.track returns AsanaResource
+            return tracked
 
     def _track_recursive(self, entity: AsanaResource) -> None:
         """Recursively track all children in entity's holders.
@@ -1678,7 +1678,7 @@ class SaveSession:
         from autom8_asana.persistence.cascade import CascadeOperation
 
         op = CascadeOperation(
-            source_entity=entity,  # type: ignore[arg-type]  # T is expected to be BusinessEntity for cascades
+            source_entity=entity,
             field_name=field_name,
             target_types=target_types,
         )
