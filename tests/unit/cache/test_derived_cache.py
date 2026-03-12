@@ -2,7 +2,7 @@
 
 Per TDD-SECTION-TIMELINE-REMEDIATION: Tests for Gap 3 primitives:
 - make_derived_timeline_key() format
-- _serialize_timeline() / _deserialize_timeline() round-trip
+- serialize_timeline() / deserialize_timeline() round-trip
 - get_cached_timelines() hit/miss paths
 - store_derived_timelines() creates correct entry
 - DerivedTimelineCacheEntry to_dict() / from_dict() round-trip
@@ -17,10 +17,10 @@ from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.cache.integration.derived import (
     _DERIVED_TIMELINE_TTL,
-    _deserialize_timeline,
-    _serialize_timeline,
+    deserialize_timeline,
     get_cached_timelines,
     make_derived_timeline_key,
+    serialize_timeline,
     store_derived_timelines,
 )
 from autom8_asana.cache.models.entry import (
@@ -138,7 +138,7 @@ class TestMakeDerivedTimelineKey:
 
 
 # ---------------------------------------------------------------------------
-# _serialize_timeline / _deserialize_timeline round-trip
+# serialize_timeline / deserialize_timeline round-trip
 # ---------------------------------------------------------------------------
 
 
@@ -146,8 +146,8 @@ class TestSerializationRoundTrip:
     def test_full_round_trip(self) -> None:
         """Serialize then deserialize preserves all fields."""
         original = _make_timeline()
-        serialized = _serialize_timeline(original)
-        restored = _deserialize_timeline(serialized)
+        serialized = serialize_timeline(original)
+        restored = deserialize_timeline(serialized)
 
         assert restored.offer_gid == original.offer_gid
         assert restored.office_phone == original.office_phone
@@ -158,8 +158,8 @@ class TestSerializationRoundTrip:
     def test_interval_fields_preserved(self) -> None:
         """Interval section_name, classification, entered_at, exited_at preserved."""
         original = _make_timeline()
-        serialized = _serialize_timeline(original)
-        restored = _deserialize_timeline(serialized)
+        serialized = serialize_timeline(original)
+        restored = deserialize_timeline(serialized)
 
         for orig_iv, rest_iv in zip(original.intervals, restored.intervals):
             assert rest_iv.section_name == orig_iv.section_name
@@ -170,8 +170,8 @@ class TestSerializationRoundTrip:
     def test_none_office_phone(self) -> None:
         """office_phone=None round-trips correctly."""
         original = _make_timeline(office_phone=None)
-        serialized = _serialize_timeline(original)
-        restored = _deserialize_timeline(serialized)
+        serialized = serialize_timeline(original)
+        restored = deserialize_timeline(serialized)
         assert restored.office_phone is None
 
     def test_none_task_created_at(self) -> None:
@@ -184,8 +184,8 @@ class TestSerializationRoundTrip:
             task_created_at=None,
             story_count=0,
         )
-        serialized = _serialize_timeline(original)
-        restored = _deserialize_timeline(serialized)
+        serialized = serialize_timeline(original)
+        restored = deserialize_timeline(serialized)
         assert restored.task_created_at is None
 
     def test_none_classification(self) -> None:
@@ -197,15 +197,15 @@ class TestSerializationRoundTrip:
             exited_at=None,
         )
         original = _make_timeline(intervals=(interval,), story_count=1)
-        serialized = _serialize_timeline(original)
-        restored = _deserialize_timeline(serialized)
+        serialized = serialize_timeline(original)
+        restored = deserialize_timeline(serialized)
         assert restored.intervals[0].classification is None
 
     def test_none_exited_at(self) -> None:
         """Open interval (exited_at=None) round-trips correctly."""
         original = _make_timeline()
-        serialized = _serialize_timeline(original)
-        restored = _deserialize_timeline(serialized)
+        serialized = serialize_timeline(original)
+        restored = deserialize_timeline(serialized)
         assert restored.intervals[-1].exited_at is None
 
     def test_empty_intervals(self) -> None:
@@ -218,29 +218,29 @@ class TestSerializationRoundTrip:
             task_created_at=_utc(2025, 1, 1),
             story_count=0,
         )
-        serialized = _serialize_timeline(original)
-        restored = _deserialize_timeline(serialized)
+        serialized = serialize_timeline(original)
+        restored = deserialize_timeline(serialized)
         assert restored.intervals == ()
 
     def test_zero_story_count(self) -> None:
         """story_count=0 round-trips correctly (imputed timelines)."""
         original = _make_timeline(story_count=0)
-        serialized = _serialize_timeline(original)
-        restored = _deserialize_timeline(serialized)
+        serialized = serialize_timeline(original)
+        restored = deserialize_timeline(serialized)
         assert restored.story_count == 0
 
     def test_offer_id_round_trip(self) -> None:
         """SC-8, SC-10: offer_id survives serialize-then-deserialize."""
         original = _make_timeline(offer_id="OFR-1234")
-        serialized = _serialize_timeline(original)
-        restored = _deserialize_timeline(serialized)
+        serialized = serialize_timeline(original)
+        restored = deserialize_timeline(serialized)
         assert restored.offer_id == "OFR-1234"
 
     def test_offer_id_none_round_trip(self) -> None:
         """SC-8, SC-10: offer_id=None survives serialize-then-deserialize."""
         original = _make_timeline(offer_id=None)
-        serialized = _serialize_timeline(original)
-        restored = _deserialize_timeline(serialized)
+        serialized = serialize_timeline(original)
+        restored = deserialize_timeline(serialized)
         assert restored.offer_id is None
 
     def test_backward_compat_missing_offer_id(self) -> None:
@@ -253,13 +253,13 @@ class TestSerializationRoundTrip:
             "story_count": 0,
         }
         # Note: no "offer_id" key in data
-        restored = _deserialize_timeline(data)
+        restored = deserialize_timeline(data)
         assert restored.offer_id is None
 
     def test_serialized_includes_offer_id_key(self) -> None:
         """SC-8: Serialized dict always contains offer_id key, even when None."""
         original = _make_timeline(offer_id=None)
-        serialized = _serialize_timeline(original)
+        serialized = serialize_timeline(original)
         assert "offer_id" in serialized
         assert serialized["offer_id"] is None
 
@@ -268,7 +268,7 @@ class TestSerializationRoundTrip:
         import json
 
         original = _make_timeline()
-        serialized = _serialize_timeline(original)
+        serialized = serialize_timeline(original)
         # Should not raise
         json_str = json.dumps(serialized)
         assert isinstance(json_str, str)
@@ -342,7 +342,7 @@ class TestStoreDerivedTimelines:
 
     def test_stores_entry_in_cache(self, cache: MockCacheProvider) -> None:
         """store_derived_timelines writes a DerivedTimelineCacheEntry."""
-        timeline_data = [_serialize_timeline(_make_timeline())]
+        timeline_data = [serialize_timeline(_make_timeline())]
         store_derived_timelines(
             project_gid="proj1",
             classifier_name="offer",
