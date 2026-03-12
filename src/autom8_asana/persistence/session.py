@@ -965,7 +965,7 @@ class SaveSession:
         healing_report: HealingReport | None = None
         if self._healing_manager.queue:
             healing_report = await self._healing_manager.execute_async(
-                self._client._http
+                self._client.http
             )
             if self._log:
                 for result in healing_report.results:
