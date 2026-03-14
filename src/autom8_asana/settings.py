@@ -32,14 +32,14 @@ Environment Variables:
     ASANA_CACHE_DF_CB_FAILURE_THRESHOLD: DataFrame circuit breaker failures (default: 3)
     ASANA_CACHE_DF_CB_RESET_TIMEOUT: DataFrame circuit breaker reset secs (default: 60)
     ASANA_CACHE_DF_CB_SUCCESS_THRESHOLD: DataFrame circuit breaker successes (default: 1)
-    AUTOM8_DATA_URL: Base URL for autom8_data service (default: http://localhost:8000)
-    AUTOM8_DATA_CACHE_TTL: Cache TTL in seconds for data service insights (default: 300)
-    AUTOM8_DATA_INSIGHTS_ENABLED: Emergency kill switch for insights integration (default: true)
-    CLOUDWATCH_NAMESPACE: CloudWatch metric namespace (default: autom8/lambda)
-    ENVIRONMENT: Deployment environment for metrics dimensions (default: staging)
-    DATAFRAME_CACHE_BYPASS: Bypass DataFrame cache for testing (default: false)
-    CONTAINER_MEMORY_MB: Explicit container memory limit override in MB (default: None)
-    SECTION_FRESHNESS_PROBE: Enable section freshness probing (default: 1)
+    AUTOM8Y_DATA_URL: Base URL for autom8_data service (default: http://localhost:8000)
+    AUTOM8Y_DATA_CACHE_TTL: Cache TTL in seconds for data service insights (default: 300)
+    AUTOM8Y_DATA_INSIGHTS_ENABLED: Emergency kill switch for insights integration (default: true)
+    ASANA_CW_NAMESPACE: CloudWatch metric namespace (default: autom8/lambda)
+    ASANA_CW_ENVIRONMENT: Deployment environment for metrics dimensions (default: staging)
+    ASANA_RUNTIME_DATAFRAME_CACHE_BYPASS: Bypass DataFrame cache for testing (default: false)
+    ASANA_RUNTIME_CONTAINER_MEMORY_MB: Explicit container memory limit override in MB (default: None)
+    ASANA_RUNTIME_SECTION_FRESHNESS_PROBE: Enable section freshness probing (default: 1)
     API_HOST: Host for ECS uvicorn server (default: 0.0.0.0)
     API_PORT: Port for ECS uvicorn server (default: 8000)
     ASANA_PACING_PAGES_PER_PAUSE: Pages fetched before pausing (default: 25)
@@ -539,12 +539,13 @@ class S3RetrySettings(Autom8yBaseSettings):
 class DataServiceSettings(Autom8yBaseSettings):
     """autom8_data satellite service configuration.
 
+    Per ADR-ENV-NAMING-CONVENTION: env_prefix is AUTOM8Y_DATA_.
+
     Environment Variables:
         AUTOM8Y_DATA_URL: Base URL for autom8_data API (default: http://localhost:8000)
-            Canonical name per ADR-env-naming-convention Tier 3.
-            AUTOM8_DATA_URL accepted as backward-compat alias.
-        AUTOM8_DATA_CACHE_TTL: Client-side cache TTL in seconds (default: 300)
-        AUTOM8_DATA_INSIGHTS_ENABLED: Emergency kill switch (default: true)
+            Canonical name per ADR-ENV-NAMING-CONVENTION Tier 3.
+        AUTOM8Y_DATA_CACHE_TTL: Client-side cache TTL in seconds (default: 300)
+        AUTOM8Y_DATA_INSIGHTS_ENABLED: Emergency kill switch (default: true)
 
     Attributes:
         url: Base URL for autom8_data service.
@@ -554,23 +555,27 @@ class DataServiceSettings(Autom8yBaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_prefix="AUTOM8_DATA_",
+        env_prefix="AUTOM8Y_DATA_",
         extra="ignore",
         case_sensitive=False,
     )
 
     # Override autom8y_env with explicit alias so AUTOM8Y_ENV is read directly,
-    # bypassing the AUTOM8_DATA_ prefix. Required for the production URL guard
+    # bypassing the AUTOM8Y_DATA_ prefix. Required for the production URL guard
     # to correctly identify the environment.
     autom8y_env: Autom8yEnvironment = Field(
         default=Autom8yEnvironment.LOCAL,
-        validation_alias=AliasChoices("AUTOM8Y_ENV", "ASANA_ENVIRONMENT"),
+        validation_alias=AliasChoices(
+            "AUTOM8Y_ENV",                 # canonical (Tier 1)
+        ),
     )
 
     url: str = Field(
         default="http://localhost:8000",
         description="Base URL for autom8_data API",
-        validation_alias=AliasChoices("AUTOM8Y_DATA_URL", "AUTOM8_DATA_URL"),
+        validation_alias=AliasChoices(
+            "AUTOM8Y_DATA_URL",            # canonical (Tier 3)
+        ),
     )
     cache_ttl: int = Field(
         default=300,
@@ -587,8 +592,12 @@ class ObservabilitySettings(Autom8yBaseSettings):
     """Observability and environment settings for Lambda handlers.
 
     Environment Variables:
-        CLOUDWATCH_NAMESPACE: CloudWatch metric namespace (default: autom8/lambda)
-        ENVIRONMENT: Deployment environment for metric dimensions (default: staging)
+        ASANA_CW_NAMESPACE: CloudWatch metric namespace (default: autom8/lambda)
+        ASANA_CW_ENVIRONMENT: Deployment environment for metric dimensions (default: staging)
+
+    Per ADR-ENV-NAMING-CONVENTION Decision 9 (C9): Bare ENVIRONMENT field replaced
+    with ASANA_CW_ENVIRONMENT to avoid collision with AUTOM8Y_ENV. The env_prefix
+    is set to ASANA_CW_ to namespace observability settings under the service.
 
     Attributes:
         cloudwatch_namespace: CloudWatch metric namespace.
@@ -596,7 +605,7 @@ class ObservabilitySettings(Autom8yBaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_prefix="",
+        env_prefix="ASANA_CW_",
         extra="ignore",
         case_sensitive=False,
     )
@@ -614,13 +623,15 @@ class ObservabilitySettings(Autom8yBaseSettings):
 class RuntimeSettings(Autom8yBaseSettings):
     """Runtime and operational feature flag settings.
 
-    Environment Variables:
-        DATAFRAME_CACHE_BYPASS: Bypass DataFrame cache (default: false)
-        CONTAINER_MEMORY_MB: Override container memory limit in MB (default: None)
-        SECTION_FRESHNESS_PROBE: Enable section freshness probing (default: 1)
-        SECTION_CASCADE_VALIDATION: Enable post-build cascade validation (default: 1)
-        API_HOST: ECS uvicorn bind host (default: 0.0.0.0)
-        API_PORT: ECS uvicorn bind port (default: 8000)
+    Per ADR-ENV-NAMING-CONVENTION Decision 4: env_prefix is "ASANA_RUNTIME_".
+
+    Environment Variables (canonical):
+        ASANA_RUNTIME_DATAFRAME_CACHE_BYPASS: Bypass DataFrame cache (default: false)
+        ASANA_RUNTIME_CONTAINER_MEMORY_MB: Override container memory limit (default: None)
+        ASANA_RUNTIME_SECTION_FRESHNESS_PROBE: Enable freshness probing (default: 1)
+        ASANA_RUNTIME_SECTION_CASCADE_VALIDATION: Enable cascade validation (default: 1)
+        API_HOST: ECS uvicorn bind host (default: 0.0.0.0) -- kept bare (infra convention)
+        API_PORT: ECS uvicorn bind port (default: 8000) -- kept bare (infra convention)
 
     Attributes:
         dataframe_cache_bypass: If true, skip DataFrame cache lookup.
@@ -632,7 +643,7 @@ class RuntimeSettings(Autom8yBaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_prefix="",
+        env_prefix="ASANA_RUNTIME_",
         extra="ignore",
         case_sensitive=False,
     )
@@ -655,10 +666,16 @@ class RuntimeSettings(Autom8yBaseSettings):
     )
     api_host: str = Field(
         default="0.0.0.0",
+        validation_alias=AliasChoices(
+            "API_HOST",                    # kept bare (infra convention)
+        ),
         description="Bind host for ECS uvicorn server",
     )
     api_port: int = Field(
         default=8000,
+        validation_alias=AliasChoices(
+            "API_PORT",                    # kept bare (infra convention)
+        ),
         description="Bind port for ECS uvicorn server",
     )
 
@@ -792,11 +809,12 @@ class Settings(Autom8yBaseSettings):
         case_sensitive=False,
     )
 
-    # SDK-standard environment field. AliasChoices: AUTOM8Y_ENV takes
-    # precedence; ASANA_ENVIRONMENT for backward compat.
+    # SDK-standard environment field. AUTOM8Y_ENV is the canonical Tier 1 name.
     autom8y_env: Autom8yEnvironment = Field(
         default=Autom8yEnvironment.LOCAL,
-        validation_alias=AliasChoices("AUTOM8Y_ENV", "ASANA_ENVIRONMENT"),
+        validation_alias=AliasChoices(
+            "AUTOM8Y_ENV",                 # canonical (Tier 1)
+        ),
     )
 
     # Subsettings - initialized lazily to allow environment override
@@ -837,8 +855,8 @@ class Settings(Autom8yBaseSettings):
         checks on nested URL fields and os.environ-sourced URLs (AUTH_JWKS_URL)
         that the SDK guard cannot reach.
 
-        Uses the explicit-only pattern: only fires when AUTOM8Y_ENV or
-        ASANA_ENVIRONMENT is explicitly set in os.environ.
+        Uses the explicit-only pattern: only fires when AUTOM8Y_ENV
+        is explicitly set in os.environ.
 
         See TDD-LOCAL-DEV-ENV.md Section 6.3, Section 10 (HAZ-1).
         """
@@ -861,7 +879,7 @@ class Settings(Autom8yBaseSettings):
         if data_url and _prod_domain in str(data_url):
             raise ValueError(
                 f"FATAL: Production URL detected in {env} environment: "
-                f"AUTOM8_DATA_URL={data_url}. "
+                f"AUTOM8Y_DATA_URL={data_url}. "
                 f"Override in docker-compose.override.yml or .env."
             )
 

@@ -33,15 +33,16 @@ services:
       ASANA_CACHE_S3_BUCKET: autom8-s3
       ASANA_CACHE_S3_ENDPOINT_URL: http://localstack:4566
       ASANA_CACHE_S3_REGION: us-east-1
-      AUTOM8_DATA_URL: http://data:8000
-      AUTH_JWKS_URL: http://auth:8000/.well-known/jwks.json
-      AUTH_ISSUER: auth.api.autom8y.io
-      AUTH_DEV_MODE: "true"
+      AUTOM8Y_DATA_URL: http://data:8000
+      AUTH__JWKS_URL: http://auth:8000/.well-known/jwks.json
+      AUTH__ISSUER: auth.api.autom8y.io
+      AUTH__DEV_MODE: "true"
       ASANA_PAT: ${ASANA_PAT:-}
       ASANA_WORKSPACE_GID: ${ASANA_WORKSPACE_GID:-}
       API_HOST: 0.0.0.0
       API_PORT: "8000"
-      ENVIRONMENT: development
+      # ENVIRONMENT: development  # LEGACY: replaced by ASANA_CW_ENVIRONMENT per ADR C9
+      ASANA_CW_ENVIRONMENT: development
       WEBHOOK_INBOUND_TOKEN: ""
       AWS_ACCESS_KEY_ID: test
       AWS_SECRET_ACCESS_KEY: test

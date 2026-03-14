@@ -63,7 +63,7 @@ EXCLUDED_VARS: set[str] = set()
 
 TOML_PATH = Path("secretspec.toml")
 
-# ADR-env-naming-convention: valid prefix patterns for this service.
+# ADR-ENV-NAMING-CONVENTION: valid prefix patterns for this service.
 # Tier 1: AUTOM8Y_ (ecosystem), Tier 3: AUTOM8Y_{TARGET}_URL (cross-service),
 # Tier 4: service-specific, Vendor: REDIS_ (infrastructure convention).
 # Bare-prefix classes (ObservabilitySettings, RuntimeSettings) use exact prefixes.
@@ -276,7 +276,7 @@ def check_naming_conventions(
     valid_prefixes: list[str],
     verbose: bool = False,
 ) -> list[str]:
-    """Check env var names against ADR-env-naming-convention tier system.
+    """Check env var names against ADR-ENV-NAMING-CONVENTION tier system.
 
     Rules enforced:
     - REJECT A8_* prefix (Tier 2 is CLI-only, not for Python services)
@@ -288,11 +288,11 @@ def check_naming_conventions(
     violations: list[str] = []
 
     for var in sorted(env_vars):
-        # Tier 2 rejection: A8_* is CLI-only per ADR-env-naming-convention
+        # Tier 2 rejection: A8_* is CLI-only per ADR-ENV-NAMING-CONVENTION
         if var.startswith("A8_"):
             violations.append(
                 f"NAMING ERROR: '{var}' uses A8_* prefix "
-                f"(CLI-only per ADR-env-naming-convention Tier 2)"
+                f"(CLI-only per ADR-ENV-NAMING-CONVENTION Tier 2)"
             )
             continue
 
@@ -319,7 +319,7 @@ def main() -> int:
     parser.add_argument("--verbose", action="store_true", help="Print introspection details")
     parser.add_argument(
         "--check-naming", action="store_true",
-        help="Enforce ADR-env-naming-convention tier system",
+        help="Enforce ADR-ENV-NAMING-CONVENTION tier system",
     )
     args = parser.parse_args()
 
