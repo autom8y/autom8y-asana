@@ -306,7 +306,7 @@ class TestServiceTokenAuthProvider:
             from autom8_asana.auth.service_token import ServiceTokenAuthProvider
 
             provider = ServiceTokenAuthProvider()
-            token = provider.get_secret("AUTOM8_DATA_API_KEY")
+            token = provider.get_secret("AUTOM8Y_DATA_API_KEY")
 
         assert token == "jwt-token-abc"
         mock_config_cls.assert_called_once_with(

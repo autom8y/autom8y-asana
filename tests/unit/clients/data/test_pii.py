@@ -237,7 +237,7 @@ class TestExportErrorPiiRedaction:
 
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.get("/api/v1/messages/export").respond(
                     status_code=500,
@@ -268,7 +268,7 @@ class TestExportErrorPiiRedaction:
             side_effect=SdkCircuitBreakerOpenError(5.0, "CB open")
         )
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with pytest.raises(ExportError) as exc:
                 await client.get_export_csv_async("+17705753103")
 
@@ -287,7 +287,7 @@ class TestExportErrorPiiRedaction:
 
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.get("/api/v1/messages/export").respond(
                     status_code=400,
@@ -319,7 +319,7 @@ class TestSimpleCacheKeyPiiRedaction:
         mock_cache.get.return_value = None  # No stale data
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.get("/api/v1/appointments").respond(
                     status_code=500,
@@ -349,7 +349,7 @@ class TestSimpleCacheKeyPiiRedaction:
         mock_cache.get.return_value = None
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.get("/api/v1/leads").respond(
                     status_code=500,
@@ -391,7 +391,7 @@ class TestBatchErrorPiiRedaction:
 
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 # Simulate an error response that echoes phone back
                 respx.post("/api/v1/data-service/insights").respond(

@@ -340,7 +340,7 @@ class TestDataServiceConfig:
             config = DataServiceConfig()
 
         assert config.base_url == "http://localhost:8000"
-        assert config.token_key == "AUTOM8_DATA_API_KEY"
+        assert config.token_key == "AUTOM8Y_DATA_API_KEY"
         assert config.cache_ttl == 300
         assert config.max_batch_size == 500
 
@@ -474,7 +474,7 @@ class TestDataServiceConfigFromEnv:
         assert config.cache_ttl == 600
 
     def test_handles_invalid_cache_ttl(self) -> None:
-        """Invalid AUTOM8_DATA_CACHE_TTL causes Settings to raise a ValidationError.
+        """Invalid AUTOM8Y_DATA_CACHE_TTL causes Settings to raise a ValidationError.
 
         Per D-011: Settings reads env vars at construction time with strict validation.
         Invalid integer strings are rejected at the Settings layer, not silently
@@ -537,7 +537,7 @@ class TestDataServiceConfigFromEnv:
             default_config = DataServiceConfig()
             assert default_config.base_url == "http://localhost:8000"
 
-        # Simulate Settings reading AUTOM8_DATA_URL from env by patching get_settings
+        # Simulate Settings reading AUTOM8Y_DATA_URL from env by patching get_settings
         mock_settings = MagicMock()
         mock_settings.data_service.url = "https://custom.example.com"
         mock_settings.data_service.cache_ttl = 300

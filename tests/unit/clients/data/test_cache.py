@@ -74,7 +74,7 @@ class TestCacheHit:
         mock_cache = MagicMock()
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -124,7 +124,7 @@ class TestCacheHit:
         config = DataServiceConfig(cache_ttl=600)  # 10 minutes
         client = DataServiceClient(config=config, cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -158,7 +158,7 @@ class TestCacheHit:
 
         client = DataServiceClient()  # No cache provider
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -199,7 +199,7 @@ class TestCacheMiss:
         mock_cache.get.return_value = None  # Cache miss
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 route = respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -257,7 +257,7 @@ class TestStaleFallback:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
@@ -311,7 +311,7 @@ class TestStaleFallback:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=status_code,
@@ -351,7 +351,7 @@ class TestStaleFallback:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").mock(
                     side_effect=httpx.TimeoutException("Request timed out")
@@ -390,7 +390,7 @@ class TestStaleFallback:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").mock(
                     side_effect=httpx.ConnectError("Connection refused")
@@ -417,7 +417,7 @@ class TestStaleFallback:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
@@ -457,7 +457,7 @@ class TestStaleFallback:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=400,
@@ -498,7 +498,7 @@ class TestStaleFallback:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=404,
@@ -528,7 +528,7 @@ class TestCacheFailureGracefulDegradation:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -567,7 +567,7 @@ class TestCacheFailureGracefulDegradation:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
@@ -596,7 +596,7 @@ class TestCacheFailureGracefulDegradation:
 
         client = DataServiceClient(cache_provider=mock_cache, logger=mock_logger)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -653,7 +653,7 @@ class TestStaleResponseMetadata:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
@@ -693,7 +693,7 @@ class TestStaleResponseMetadata:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
@@ -736,7 +736,7 @@ class TestStaleResponseMetadata:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
@@ -777,7 +777,7 @@ class TestStaleResponseMetadata:
 
         client = DataServiceClient(cache_provider=mock_cache)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,

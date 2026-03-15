@@ -125,13 +125,13 @@ InsightsError (base)
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `AUTOM8_DATA_BASE_URL` | Base URL for autom8_data service | `https://data.autom8.io` |
-| `AUTOM8_DATA_API_KEY` | JWT token for S2S authentication | None |
-| `AUTOM8_DATA_INSIGHTS_ENABLED` | Emergency kill switch (see below) | `true` |
+| `AUTOM8Y_DATA_BASE_URL` | Base URL for autom8_data service | `https://data.autom8.io` |
+| `AUTOM8Y_DATA_API_KEY` | JWT token for S2S authentication | None |
+| `AUTOM8Y_DATA_INSIGHTS_ENABLED` | Emergency kill switch (see below) | `true` |
 
 ### Emergency Kill Switch
 
-The `AUTOM8_DATA_INSIGHTS_ENABLED` environment variable serves as an **emergency kill switch** for the insights integration. This is NOT intended for A/B testing or gradual rollout - it exists solely for emergency disable scenarios.
+The `AUTOM8Y_DATA_INSIGHTS_ENABLED` environment variable serves as an **emergency kill switch** for the insights integration. This is NOT intended for A/B testing or gradual rollout - it exists solely for emergency disable scenarios.
 
 **When to use:**
 - Service causing widespread failures or degradation
@@ -141,7 +141,7 @@ The `AUTOM8_DATA_INSIGHTS_ENABLED` environment variable serves as an **emergency
 
 **How to disable:**
 ```bash
-export AUTOM8_DATA_INSIGHTS_ENABLED=false
+export AUTOM8Y_DATA_INSIGHTS_ENABLED=false
 ```
 
 Valid disable values: `false`, `0`, `no` (case-insensitive)
@@ -153,9 +153,9 @@ Valid disable values: `false`, `0`, `no` (case-insensitive)
 
 **Re-enabling:**
 ```bash
-unset AUTOM8_DATA_INSIGHTS_ENABLED
+unset AUTOM8Y_DATA_INSIGHTS_ENABLED
 # or
-export AUTOM8_DATA_INSIGHTS_ENABLED=true
+export AUTOM8Y_DATA_INSIGHTS_ENABLED=true
 ```
 
 **Note:** Under normal operation, this flag should not be set. The integration is stable and has been validated with comprehensive testing (485 client tests, P95 < 2ms overhead).
@@ -168,7 +168,7 @@ from autom8_asana.clients.data.config import DataServiceConfig
 
 config = DataServiceConfig(
     base_url="https://data.autom8.io",
-    token_key="AUTOM8_DATA_API_KEY",
+    token_key="AUTOM8Y_DATA_API_KEY",
     cache_ttl=300,  # 5 minutes
 )
 

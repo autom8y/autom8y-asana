@@ -2,7 +2,7 @@
 """Standalone CLI entry point for autom8_asana.query.
 
 Sets required environment variables BEFORE importing the package tree,
-bypassing the settings guard (AUTOM8_DATA_URL production check) and
+bypassing the settings guard (AUTOM8Y_DATA_URL production check) and
 suppressing import-time log noise (structlog JSON from HolderFactory,
 schema warnings, etc.).
 
@@ -23,7 +23,7 @@ import sys
 def main() -> int:
     """CLI entry point with pre-import environment setup."""
     # G-01: Bypass settings guard for offline CLI.
-    os.environ.setdefault("AUTOM8_DATA_URL", "http://offline-cli.local")
+    os.environ.setdefault("AUTOM8Y_DATA_URL", "http://offline-cli.local")
     os.environ.setdefault("ASANA_WORKSPACE_GID", "offline")
     # G-02: Suppress import-time structlog noise.
     # autom8y_log reads LOG_LEVEL during its auto-configure step.

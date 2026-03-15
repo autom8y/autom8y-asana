@@ -304,7 +304,21 @@ class FieldResolver:
             )
 
         if field_type == "multi_enum":
-            multi_value = self._resolve_multi_enum(field_def, value, list_mode)
+            multi_value, unresolved = self._resolve_multi_enum(field_def, value, list_mode)
+            if not multi_value and unresolved:
+                # All values failed resolution -- report as error with available options
+                options = _available_enum_options(field_def)
+                return ResolvedField(
+                    input_name=input_name,
+                    matched_name=display_name,
+                    gid=gid,
+                    status="skipped",
+                    error=(
+                        f"No multi-enum values resolved for '{input_name}'. "
+                        f"Unresolved: {unresolved}"
+                    ),
+                    suggestions=options,
+                )
             return ResolvedField(
                 input_name=input_name,
                 matched_name=display_name,
@@ -369,7 +383,7 @@ class FieldResolver:
         field_def: dict[str, Any],
         value: Any,
         list_mode: str,
-    ) -> list[str]:
+    ) -> tuple[list[str], list[str]]:
         """Resolve multi-enum values with optional append.
 
         Args:
@@ -378,7 +392,9 @@ class FieldResolver:
             list_mode: "replace" or "append".
 
         Returns:
-            List of resolved option GIDs.
+            Tuple of (resolved_gids, unresolved_items).
+            resolved_gids: List of resolved option GIDs.
+            unresolved_items: List of input values that could not be matched.
         """
         enum_options = field_def.get("enum_options", [])
         lookup = _build_enum_lookup(enum_options)
@@ -387,10 +403,31 @@ class FieldResolver:
             value = [value]
 
         resolved_gids: list[str] = []
+        unresolved: list[str] = []
         for item in value:
             gid = _resolve_single_option(item, lookup, enum_options)
             if gid:
                 resolved_gids.append(gid)
+            else:
+                unresolved.append(str(item))
+
+        if unresolved:
+            field_name = field_def.get("name", "unknown")
+            available = [
+                opt.get("name", "")
+                for opt in enum_options
+                if opt.get("name") and opt.get("enabled", True)
+            ]
+            logger.warning(
+                "multi_enum_option_mismatch",
+                extra={
+                    "field_name": field_name,
+                    "unresolved_values": unresolved,
+                    "resolved_count": len(resolved_gids),
+                    "total_count": len(value),
+                    "available_options": available,
+                },
+            )
 
         if list_mode == "append":
             # Merge with existing selections
@@ -403,9 +440,9 @@ class FieldResolver:
             for gid in resolved_gids:
                 if gid not in combined:
                     combined.append(gid)
-            return combined
+            return combined, unresolved
 
-        return resolved_gids
+        return resolved_gids, unresolved
 
     # ------------------------------------------------------------------
     # Text append

@@ -498,7 +498,12 @@ class TestWarmHierarchyGapsAsync:
     """Verify _warm_hierarchy_gaps_async warms missing ancestor links."""
 
     async def test_fetches_uncached_parents_via_put_batch(self) -> None:
-        """Fetches uncached parent GIDs via store.put_batch_async."""
+        """Fetches uncached parent GIDs from API, then passes to put_batch_async.
+
+        Per WS-1-cascade-null-fix: Full task data is fetched from the API
+        instead of passing GID-only stubs, so that put_batch_async's hierarchy
+        warming can discover the complete parent chain.
+        """
         builder = _make_builder()
 
         mock_cache = MagicMock()
@@ -512,9 +517,29 @@ class TestWarmHierarchyGapsAsync:
         mock_store.put_batch_async = AsyncMock()
         builder._store = mock_store
 
-        mock_tasks_client = MagicMock()
+        # Mock the API to return a task with parent info
+        mock_task = MagicMock()
+        mock_task.gid = "h2"
+        mock_task.name = "Holder 2"
+        mock_task.resource_subtype = None
+        mock_task.completed = None
+        mock_task.completed_at = None
+        mock_task.created_at = None
+        mock_task.modified_at = None
+        mock_task.due_on = None
+        mock_task.tags = []
+        mock_task.memberships = []
+        mock_task.custom_fields = []
+        mock_parent = MagicMock()
+        mock_parent.gid = "business-1"
+        mock_parent.model_dump = MagicMock(return_value={"gid": "business-1"})
+        mock_task.parent = mock_parent
+        mock_task.model_dump = MagicMock(
+            return_value={"gid": "h2", "parent": {"gid": "business-1"}}
+        )
+
         builder._client = MagicMock()
-        builder._client.tasks = mock_tasks_client
+        builder._client.tasks.get_async = AsyncMock(return_value=mock_task)
 
         df = pl.DataFrame(
             {
@@ -526,11 +551,15 @@ class TestWarmHierarchyGapsAsync:
         result = await builder._warm_hierarchy_gaps_async(df)
 
         assert result == 1  # only h2 was uncached
+        # API was called to fetch h2
+        builder._client.tasks.get_async.assert_called_once()
         mock_store.put_batch_async.assert_called_once()
         call_args = mock_store.put_batch_async.call_args
         task_dicts = call_args[0][0]
         assert len(task_dicts) == 1
         assert task_dicts[0]["gid"] == "h2"
+        # Per WS-1 fix: parent field must be present for hierarchy warming
+        assert task_dicts[0]["parent"] is not None
         assert call_args[1]["warm_hierarchy"] is True
 
     async def test_no_store_returns_zero(self) -> None:

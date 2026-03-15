@@ -11,8 +11,8 @@ Three contract checks:
   3. **Orphan detection** -- consumer entries not found in the API are flagged.
 
 Requirements:
-    AUTOM8_DATA_URL: Base URL for autom8_data service.
-    AUTOM8_DATA_API_KEY: Bearer token (S2S JWT or dev token).
+    AUTOM8Y_DATA_URL: Base URL for autom8_data service.
+    AUTOM8Y_DATA_API_KEY: Bearer token (S2S JWT or dev token).
 
 Run with:
     .venv/bin/pytest tests/integration/test_schema_contract.py -v --timeout=30
@@ -43,12 +43,12 @@ from autom8_asana.automation.workflows.insights_formatter import (
 # Environment & skip guard
 # ---------------------------------------------------------------------------
 
-_DATA_URL = os.environ.get("AUTOM8_DATA_URL", "").rstrip("/")
-_DATA_API_KEY = os.environ.get("AUTOM8_DATA_API_KEY", "")
+_DATA_URL = os.environ.get("AUTOM8Y_DATA_URL", "").rstrip("/")
+_DATA_API_KEY = os.environ.get("AUTOM8Y_DATA_API_KEY", "")
 
 _requires_data_service = pytest.mark.skipif(
     not _DATA_URL or not _DATA_API_KEY,
-    reason="AUTOM8_DATA_URL and AUTOM8_DATA_API_KEY required",
+    reason="AUTOM8Y_DATA_URL and AUTOM8Y_DATA_API_KEY required",
 )
 
 pytestmark = pytest.mark.integration

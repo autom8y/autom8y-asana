@@ -301,6 +301,61 @@ class TestMultiEnumResolution:
         # Existing OPT_FB first, then newly added OPT_GOOG
         assert rf.value == ["OPT_FB", "OPT_GOOG"]
 
+    def test_resolve_multi_enum_all_unresolved_skipped(
+        self, resolver: FieldResolver
+    ) -> None:
+        """All values unresolved -> skipped with error and suggestions.
+
+        Per WS-4 hardening: prevents silent field-clear when all option names
+        mismatch (the independent T3 failure mode).
+        """
+        results = resolver.resolve_fields(
+            {"platforms": ["Nonexistent1", "Nonexistent2"]}, list_mode="replace"
+        )
+        assert len(results) == 1
+        rf = results[0]
+        assert rf.status == "skipped"
+        assert rf.error is not None
+        assert "No multi-enum values resolved" in rf.error
+        assert "Nonexistent1" in rf.error
+        assert "Nonexistent2" in rf.error
+        # Suggestions list available enabled options
+        assert rf.suggestions is not None
+        assert "Facebook" in rf.suggestions
+        assert "Google" in rf.suggestions
+        assert "TikTok" in rf.suggestions
+
+    def test_resolve_multi_enum_partial_unresolved_writes_resolved(
+        self, resolver: FieldResolver
+    ) -> None:
+        """Some values unresolved -> resolved with only matched GIDs.
+
+        When at least one option matches, the field is written with the
+        matched values. Unresolved values are logged but do not block
+        the write of matched values.
+        """
+        results = resolver.resolve_fields(
+            {"platforms": ["Facebook", "Nonexistent"]}, list_mode="replace"
+        )
+        assert len(results) == 1
+        rf = results[0]
+        assert rf.status == "resolved"
+        assert rf.value == ["OPT_FB"]
+        # Partial success -- one matched, one dropped
+
+    def test_resolve_multi_enum_single_string_all_unresolved(
+        self, resolver: FieldResolver
+    ) -> None:
+        """Single string value (not list) that fails resolution -> skipped."""
+        results = resolver.resolve_fields(
+            {"platforms": "NotARealPlatform"}, list_mode="replace"
+        )
+        assert len(results) == 1
+        rf = results[0]
+        assert rf.status == "skipped"
+        assert rf.error is not None
+        assert "No multi-enum values resolved" in rf.error
+
 
 # ---------------------------------------------------------------------------
 # 11-13. Text append

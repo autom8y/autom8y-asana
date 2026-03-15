@@ -155,7 +155,7 @@ class TestFeatureFlagEnabled:
 
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": ""}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": ""}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -197,7 +197,7 @@ class TestFeatureFlagEnabled:
 
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": env_value}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": env_value}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -238,7 +238,7 @@ class TestCheckFeatureEnabled:
         """_check_feature_enabled does not raise when env var is empty (Story 2.7)."""
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": ""}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": ""}):
             # Should not raise - empty means enabled (default)
             client._check_feature_enabled()
 
@@ -246,7 +246,7 @@ class TestCheckFeatureEnabled:
         """_check_feature_enabled does not raise when explicitly enabled."""
         client = DataServiceClient()
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             # Should not raise
             client._check_feature_enabled()
 
@@ -281,5 +281,5 @@ class TestCheckFeatureEnabled:
         error_message = str(exc.value)
         assert "Insights integration is disabled" in error_message
         # Updated per Story 2.7: message now explains how to re-enable
-        assert "AUTOM8_DATA_INSIGHTS_ENABLED" in error_message
+        assert "AUTOM8Y_DATA_INSIGHTS_ENABLED" in error_message
         assert "true" in error_message.lower()

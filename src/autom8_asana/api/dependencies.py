@@ -540,7 +540,7 @@ def get_data_service_client(request: Request) -> DataServiceClient | None:
 
         # Prefer SERVICE_API_KEY → TokenManager → JWT (ecosystem standard).
         # Falls back to DataServiceClient without auth_provider, which reads
-        # AUTOM8_DATA_API_KEY from env (backward compat for Lambda/ECS).
+        # AUTOM8Y_DATA_API_KEY from env (backward compat for Lambda/ECS).
         auth_provider = None
         try:
             from autom8_asana.auth.service_token import ServiceTokenAuthProvider

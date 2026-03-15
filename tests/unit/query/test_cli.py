@@ -524,23 +524,23 @@ class TestSettingsGuardBypass:
     def test_main_sets_autom8_data_url_default(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """main() should set AUTOM8_DATA_URL if not already set."""
+        """main() should set AUTOM8Y_DATA_URL if not already set."""
         import os
 
-        monkeypatch.delenv("AUTOM8_DATA_URL", raising=False)
+        monkeypatch.delenv("AUTOM8Y_DATA_URL", raising=False)
         # Call main with no command to trigger early exit after env setup
         main([])
-        assert os.environ.get("AUTOM8_DATA_URL") == "http://offline-cli.local"
+        assert os.environ.get("AUTOM8Y_DATA_URL") == "http://offline-cli.local"
 
     def test_main_does_not_override_existing_data_url(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """main() should NOT override AUTOM8_DATA_URL if already set."""
-        monkeypatch.setenv("AUTOM8_DATA_URL", "http://my-custom-url:8000")
+        """main() should NOT override AUTOM8Y_DATA_URL if already set."""
+        monkeypatch.setenv("AUTOM8Y_DATA_URL", "http://my-custom-url:8000")
         main([])
         import os
 
-        assert os.environ.get("AUTOM8_DATA_URL") == "http://my-custom-url:8000"
+        assert os.environ.get("AUTOM8Y_DATA_URL") == "http://my-custom-url:8000"
 
     def test_main_sets_workspace_gid_default(
         self, monkeypatch: pytest.MonkeyPatch
@@ -1118,7 +1118,7 @@ class TestGetLiveConfig:
     def test_returns_url_and_jwt_headers(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """_get_live_config exchanges service key for JWT via TokenManager."""
         monkeypatch.setenv("SERVICE_API_KEY", "sk_test_key")
-        monkeypatch.setenv("AUTOM8_DATA_URL", "http://myhost:9999")
+        monkeypatch.setenv("AUTOM8Y_DATA_URL", "http://myhost:9999")
 
         mock_manager = MagicMock()
         mock_manager.get_token.return_value = "jwt-token-abc"
@@ -1139,7 +1139,7 @@ class TestGetLiveConfig:
     def test_default_url_is_production(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """_get_live_config defaults to production API URL."""
         monkeypatch.setenv("SERVICE_API_KEY", "sk_test_key")
-        monkeypatch.delenv("AUTOM8_DATA_URL", raising=False)
+        monkeypatch.delenv("AUTOM8Y_DATA_URL", raising=False)
 
         mock_manager = MagicMock()
         mock_manager.get_token.return_value = "jwt-token"

@@ -88,7 +88,7 @@ class TestObservabilityLogging:
         mock_logger = MagicMock()
         client = DataServiceClient(logger=mock_logger)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -133,7 +133,7 @@ class TestObservabilityLogging:
         mock_logger = MagicMock()
         client = DataServiceClient(logger=mock_logger)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -179,7 +179,7 @@ class TestObservabilityLogging:
         mock_logger = MagicMock()
         client = DataServiceClient(logger=mock_logger)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
@@ -215,7 +215,7 @@ class TestObservabilityLogging:
         mock_logger = MagicMock()
         client = DataServiceClient(logger=mock_logger)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -265,7 +265,7 @@ class TestObservabilityMetrics:
 
         client = DataServiceClient(metrics_hook=mock_hook)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -320,7 +320,7 @@ class TestObservabilityMetrics:
 
         client = DataServiceClient(metrics_hook=mock_hook)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=500,
@@ -365,7 +365,7 @@ class TestObservabilityMetrics:
 
         client = DataServiceClient(metrics_hook=mock_hook)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").mock(
                     side_effect=httpx.TimeoutException("Timeout")
@@ -397,7 +397,7 @@ class TestObservabilityMetrics:
 
         client = DataServiceClient(metrics_hook=mock_hook)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -446,7 +446,7 @@ class TestObservabilityIntegration:
 
         client = DataServiceClient(logger=mock_logger, metrics_hook=mock_hook)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     json={
@@ -500,7 +500,7 @@ class TestObservabilityIntegration:
 
         client = DataServiceClient(logger=mock_logger, metrics_hook=mock_hook)
 
-        with patch.dict(os.environ, {"AUTOM8_DATA_INSIGHTS_ENABLED": "true"}):
+        with patch.dict(os.environ, {"AUTOM8Y_DATA_INSIGHTS_ENABLED": "true"}):
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
                     status_code=400,

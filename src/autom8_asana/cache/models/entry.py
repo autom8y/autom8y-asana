@@ -48,7 +48,7 @@ class EntryType(StrEnum):
     GID_ENUMERATION = "gid_enumeration"  # TTL: 300s (5 min)
 
     # Per ADR-INS-004: autom8_data insights caching
-    INSIGHTS = "insights"  # TTL: 300s (default, configurable via AUTOM8_DATA_CACHE_TTL)
+    INSIGHTS = "insights"  # TTL: 300s (default, configurable via AUTOM8Y_DATA_CACHE_TTL)
 
     # Per TDD-SECTION-TIMELINE-REMEDIATION: Derived/computed cache entries
     # materialized from other cached data (e.g., timelines derived from stories)

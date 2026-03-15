@@ -38,10 +38,10 @@ VALID_PERIODS = {"T7", "T14", "T30", "LIFETIME"}
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Remove production URL env vars that trigger the SDK's production URL guard.
 
-    DataServiceClient reads AUTOM8_DATA_URL from env. Tests mock at localhost:8000
+    DataServiceClient reads AUTOM8Y_DATA_URL from env. Tests mock at localhost:8000
     (the config default). Production URLs cause FATAL guard errors.
     """
-    monkeypatch.delenv("AUTOM8_DATA_URL", raising=False)
+    monkeypatch.delenv("AUTOM8Y_DATA_URL", raising=False)
     monkeypatch.delenv("AUTOM8Y_ENV", raising=False)
     monkeypatch.delenv("ASANA_ENVIRONMENT", raising=False)
 
