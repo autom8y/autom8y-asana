@@ -613,6 +613,7 @@ class ObservabilitySettings(Autom8yBaseSettings):
     cloudwatch_namespace: str = Field(
         default="autom8/lambda",
         description="CloudWatch metric namespace",
+        validation_alias=AliasChoices("ASANA_CW_NAMESPACE"),
     )
     environment: str = Field(
         default="staging",
