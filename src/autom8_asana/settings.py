@@ -566,7 +566,7 @@ class DataServiceSettings(Autom8yBaseSettings):
     autom8y_env: Autom8yEnvironment = Field(
         default=Autom8yEnvironment.LOCAL,
         validation_alias=AliasChoices(
-            "AUTOM8Y_ENV",                 # canonical (Tier 1)
+            "AUTOM8Y_ENV",  # canonical (Tier 1)
         ),
     )
 
@@ -574,7 +574,7 @@ class DataServiceSettings(Autom8yBaseSettings):
         default="http://localhost:8000",
         description="Base URL for autom8_data API",
         validation_alias=AliasChoices(
-            "AUTOM8Y_DATA_URL",            # canonical (Tier 3)
+            "AUTOM8Y_DATA_URL",  # canonical (Tier 3)
         ),
     )
     cache_ttl: int = Field(
@@ -667,14 +667,14 @@ class RuntimeSettings(Autom8yBaseSettings):
     api_host: str = Field(
         default="0.0.0.0",
         validation_alias=AliasChoices(
-            "API_HOST",                    # kept bare (infra convention)
+            "API_HOST",  # kept bare (infra convention)
         ),
         description="Bind host for ECS uvicorn server",
     )
     api_port: int = Field(
         default=8000,
         validation_alias=AliasChoices(
-            "API_PORT",                    # kept bare (infra convention)
+            "API_PORT",  # kept bare (infra convention)
         ),
         description="Bind port for ECS uvicorn server",
     )
@@ -813,7 +813,7 @@ class Settings(Autom8yBaseSettings):
     autom8y_env: Autom8yEnvironment = Field(
         default=Autom8yEnvironment.LOCAL,
         validation_alias=AliasChoices(
-            "AUTOM8Y_ENV",                 # canonical (Tier 1)
+            "AUTOM8Y_ENV",  # canonical (Tier 1)
         ),
     )
 

@@ -439,6 +439,14 @@ class TestDataServiceConfig:
 class TestDataServiceConfigFromEnv:
     """Tests for DataServiceConfig.from_env() method."""
 
+    @pytest.fixture(autouse=True)
+    def _reset(self):
+        from autom8_asana.settings import reset_settings
+
+        reset_settings()
+        yield
+        reset_settings()
+
     def test_uses_defaults_when_no_env_vars(self) -> None:
         """Uses default values when no env vars are set."""
         with patch.dict(os.environ, {}, clear=True):
@@ -448,8 +456,8 @@ class TestDataServiceConfigFromEnv:
         assert config.cache_ttl == 300
 
     def test_reads_autom8_data_url(self) -> None:
-        """Reads AUTOM8_DATA_URL environment variable."""
-        env = {"AUTOM8_DATA_URL": "https://data.prod.example.com"}
+        """Reads AUTOM8Y_DATA_URL environment variable."""
+        env = {"AUTOM8Y_DATA_URL": "https://data.prod.example.com"}
 
         with patch.dict(os.environ, env, clear=True):
             config = DataServiceConfig.from_env()
@@ -457,8 +465,8 @@ class TestDataServiceConfigFromEnv:
         assert config.base_url == "https://data.prod.example.com"
 
     def test_reads_autom8_data_cache_ttl(self) -> None:
-        """Reads AUTOM8_DATA_CACHE_TTL environment variable."""
-        env = {"AUTOM8_DATA_CACHE_TTL": "600"}
+        """Reads AUTOM8Y_DATA_CACHE_TTL environment variable."""
+        env = {"AUTOM8Y_DATA_CACHE_TTL": "600"}
 
         with patch.dict(os.environ, env, clear=True):
             config = DataServiceConfig.from_env()
@@ -493,8 +501,8 @@ class TestDataServiceConfigFromEnv:
     def test_reads_multiple_env_vars(self) -> None:
         """Reads all supported environment variables."""
         env = {
-            "AUTOM8_DATA_URL": "https://data.staging.example.com",
-            "AUTOM8_DATA_CACHE_TTL": "900",
+            "AUTOM8Y_DATA_URL": "https://data.staging.example.com",
+            "AUTOM8Y_DATA_CACHE_TTL": "900",
         }
 
         with patch.dict(os.environ, env, clear=True):
