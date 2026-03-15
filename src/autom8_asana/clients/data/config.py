@@ -204,15 +204,15 @@ class DataServiceConfig:
     Per TDD-INSIGHTS-001 Section 7.1: Main configuration dataclass for
     autom8_data satellite client.
 
-    Per FR-001.2: base_url defaults from AUTOM8_DATA_URL env var.
+    Per FR-001.2: base_url defaults from AUTOM8Y_DATA_URL env var.
     Per ADR-INS-004: cache_ttl for client-side insights caching.
 
     Environment Variables:
-        AUTOM8_DATA_URL: Base URL for autom8_data service.
+        AUTOM8Y_DATA_URL: Base URL for autom8_data service.
             Default: "http://localhost:8000"
-        AUTOM8_DATA_API_KEY: API key environment variable name.
+        AUTOM8Y_DATA_API_KEY: API key environment variable name.
             Used with AuthProvider.get_secret().
-        AUTOM8_DATA_CACHE_TTL: Cache TTL in seconds for insights.
+        AUTOM8Y_DATA_CACHE_TTL: Cache TTL in seconds for insights.
             Default: 300 (5 minutes for live analytics).
 
     Attributes:
@@ -239,7 +239,7 @@ class DataServiceConfig:
     """
 
     base_url: str = field(default_factory=lambda: get_settings().data_service.url)
-    token_key: str = "AUTOM8_DATA_API_KEY"
+    token_key: str = "AUTOM8Y_DATA_API_KEY"
 
     timeout: TimeoutConfig = field(default_factory=TimeoutConfig)
     connection_pool: ConnectionPoolConfig = field(default_factory=ConnectionPoolConfig)
@@ -278,20 +278,20 @@ class DataServiceConfig:
     def from_env(cls) -> DataServiceConfig:
         """Create config from environment variables.
 
-        Per FR-001.2: Reads AUTOM8_DATA_* environment variables.
+        Per FR-001.2: Reads AUTOM8Y_DATA_* environment variables.
 
         Environment Variables:
-            AUTOM8_DATA_URL: Base URL (default: "http://localhost:8000")
-            AUTOM8_DATA_API_KEY: Token key name (used as-is, not resolved)
-            AUTOM8_DATA_CACHE_TTL: Cache TTL in seconds (default: 300)
+            AUTOM8Y_DATA_URL: Base URL (default: "http://localhost:8000")
+            AUTOM8Y_DATA_API_KEY: Token key name (used as-is, not resolved)
+            AUTOM8Y_DATA_CACHE_TTL: Cache TTL in seconds (default: 300)
 
         Returns:
             DataServiceConfig populated from environment.
 
         Example:
             >>> import os
-            >>> os.environ["AUTOM8_DATA_URL"] = "https://data.prod.example.com"
-            >>> os.environ["AUTOM8_DATA_CACHE_TTL"] = "600"
+            >>> os.environ["AUTOM8Y_DATA_URL"] = "https://data.prod.example.com"
+            >>> os.environ["AUTOM8Y_DATA_CACHE_TTL"] = "600"
             >>> config = DataServiceConfig.from_env()
             >>> config.base_url
             'https://data.prod.example.com'

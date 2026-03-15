@@ -108,13 +108,13 @@ def _get_data_service_url() -> str | None:
     Returns:
         Base URL string, or None if not configured.
     """
-    return os.environ.get("AUTOM8_DATA_URL")
+    return os.environ.get("AUTOM8Y_DATA_URL")
 
 
 def _get_auth_token() -> str | None:
     """Resolve the S2S JWT token for autom8_data.
 
-    Uses the same ``AUTOM8_DATA_API_KEY`` environment variable that
+    Uses the same ``AUTOM8Y_DATA_API_KEY`` environment variable that
     ``DataServiceClient`` uses, resolved through the Lambda extension
     helper (supports SSM/Secrets Manager ARN references).
 
@@ -122,7 +122,7 @@ def _get_auth_token() -> str | None:
         Bearer token string, or None if not available.
     """
     try:
-        return resolve_secret_from_env("AUTOM8_DATA_API_KEY")
+        return resolve_secret_from_env("AUTOM8Y_DATA_API_KEY")
     except ValueError:
         return None
 
@@ -147,9 +147,9 @@ async def push_gid_mappings_to_data_service(
         project_gid: Asana project GID that the mappings belong to.
         index: The freshly-built GidLookupIndex to push.
         data_service_url: Override for the autom8_data base URL.
-            Defaults to ``AUTOM8_DATA_URL`` environment variable.
+            Defaults to ``AUTOM8Y_DATA_URL`` environment variable.
         auth_token: Override for the S2S JWT bearer token.
-            Defaults to ``AUTOM8_DATA_API_KEY`` environment variable.
+            Defaults to ``AUTOM8Y_DATA_API_KEY`` environment variable.
 
     Returns:
         True if the push succeeded (HTTP 2xx), False otherwise.
@@ -172,7 +172,7 @@ async def push_gid_mappings_to_data_service(
             "gid_push_skipped",
             extra={
                 "project_gid": project_gid,
-                "reason": "AUTOM8_DATA_URL not configured",
+                "reason": "AUTOM8Y_DATA_URL not configured",
             },
         )
         return False
@@ -183,7 +183,7 @@ async def push_gid_mappings_to_data_service(
             "gid_push_skipped",
             extra={
                 "project_gid": project_gid,
-                "reason": "AUTOM8_DATA_API_KEY not available",
+                "reason": "AUTOM8Y_DATA_API_KEY not available",
             },
         )
         return False

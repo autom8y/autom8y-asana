@@ -1248,8 +1248,12 @@ class ProgressiveProjectBuilder:
         parent (business), which gets registered in the hierarchy, completing
         the chain for cascade resolution.
 
-        Uses the same put_batch_async(warm_hierarchy=True) path as fresh
-        fetches, which recursively fetches and caches parent chains.
+        Per WS-1-cascade-null-fix: Fetches full task data from the API
+        instead of storing GID-only stubs. Stubs lack the ``parent`` field
+        needed by ``put_batch_async``'s hierarchy warming to discover the
+        next level (e.g., unit_holder → business). Without the parent field,
+        ``_fetch_immediate_parents`` finds no parents to fetch, leaving the
+        chain incomplete and cascade fields unresolvable.
 
         Args:
             df: Merged DataFrame with 'parent_gid' column.
@@ -1286,19 +1290,76 @@ class ProgressiveProjectBuilder:
             },
         )
 
-        # Fetch uncached parents via the store's hierarchy warming path.
-        # put_batch_async(warm_hierarchy=True) fetches each parent from API,
-        # registers it in the hierarchy (discovering its own parent), caches it,
-        # and recursively warms ancestors — completing the full chain.
+        # Fetch full task data from the API for each uncached parent.
+        # Per WS-1-cascade-null-fix: GID-only stubs lack the ``parent``
+        # field, so put_batch_async's _fetch_immediate_parents cannot
+        # discover the next ancestor level. Fetching full task data
+        # ensures the parent link is present, allowing hierarchy warming
+        # to traverse the complete chain (e.g., unit_holder → business).
         try:
-            task_dicts = [{"gid": gid} for gid in uncached]
+            fetched_task_dicts: list[dict[str, Any]] = []
+
+            async def _fetch_gap_parent(gid: str) -> dict[str, Any] | None:
+                try:
+                    task = await self._client.tasks.get_async(
+                        gid, opt_fields=BASE_OPT_FIELDS
+                    )
+                    if task is not None:
+                        return self._task_to_dict(task)
+                    return None
+                except S3_TRANSPORT_ERRORS as e:
+                    logger.warning(
+                        "hierarchy_gap_fetch_failed",
+                        extra={
+                            "parent_gid": gid,
+                            "error": str(e),
+                            "error_type": type(e).__name__,
+                        },
+                    )
+                    return None
+
+            results = await gather_with_limit(
+                [_fetch_gap_parent(gid) for gid in uncached],
+                max_concurrent=self._max_concurrent,
+            )
+
+            for result in results:
+                if result is not None:
+                    fetched_task_dicts.append(result)
+
+            if not fetched_task_dicts:
+                logger.warning(
+                    "hierarchy_gap_no_tasks_fetched",
+                    extra={
+                        "project_gid": self._project_gid,
+                        "entity_type": self._entity_type,
+                        "attempted": len(uncached),
+                    },
+                )
+                return 0
+
+            # Store fetched tasks with hierarchy warming enabled.
+            # Now that task_dicts contain full parent info,
+            # _fetch_immediate_parents will discover and fetch the
+            # next ancestor level (e.g., business from unit_holder.parent).
             await self._store.put_batch_async(
-                task_dicts,
+                fetched_task_dicts,
                 opt_fields=BASE_OPT_FIELDS,
                 tasks_client=self._client.tasks,
                 warm_hierarchy=True,
             )
-            return len(uncached)
+
+            logger.info(
+                "hierarchy_gap_warming_complete",
+                extra={
+                    "project_gid": self._project_gid,
+                    "entity_type": self._entity_type,
+                    "attempted": len(uncached),
+                    "fetched": len(fetched_task_dicts),
+                },
+            )
+
+            return len(fetched_task_dicts)
         except Exception as e:  # BROAD-CATCH: enrichment
             logger.warning(
                 "hierarchy_gap_warming_failed",

@@ -411,7 +411,7 @@ class TestDataServiceClientGetAuthToken:
         token = client._get_auth_token()
 
         assert token == "provider-token"
-        mock_auth.get_secret.assert_called_once_with("AUTOM8_DATA_API_KEY")
+        mock_auth.get_secret.assert_called_once_with("AUTOM8Y_DATA_API_KEY")
 
     def test_uses_custom_token_key_from_config(self) -> None:
         """Uses token_key from config when calling auth_provider."""
@@ -480,7 +480,7 @@ class TestDataServiceClientGetAuthToken:
         """Resolves token via Lambda extension when {KEY}_ARN is set."""
         config = DataServiceConfig(
             base_url="https://test.example.com",
-            token_key="AUTOM8_DATA_API_KEY",
+            token_key="AUTOM8Y_DATA_API_KEY",
         )
         client = DataServiceClient(config=config)
 
@@ -488,7 +488,7 @@ class TestDataServiceClientGetAuthToken:
             patch.dict(
                 os.environ,
                 {
-                    "AUTOM8_DATA_API_KEY_ARN": "arn:aws:secretsmanager:us-east-1:123:secret:key"
+                    "AUTOM8Y_DATA_API_KEY_ARN": "arn:aws:secretsmanager:us-east-1:123:secret:key"
                 },
                 clear=False,
             ),

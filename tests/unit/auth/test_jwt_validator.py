@@ -28,7 +28,7 @@ def reset_client(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]
     Also removes production URL env vars that trigger the SDK's
     production URL guard (FATAL: Production URL detected in local environment).
     """
-    monkeypatch.delenv("AUTOM8_DATA_URL", raising=False)
+    monkeypatch.delenv("AUTOM8Y_DATA_URL", raising=False)
     monkeypatch.delenv("AUTOM8Y_ENV", raising=False)
     monkeypatch.delenv("ASANA_ENVIRONMENT", raising=False)
     reset_auth_client()

@@ -75,7 +75,7 @@ class DataServiceClient:
     - Connection pooling for efficient request handling
     - Configurable timeouts for analytics queries
     - Optional client-side caching for resilience (per ADR-INS-004)
-    - Emergency kill switch via AUTOM8_DATA_INSIGHTS_ENABLED env var
+    - Emergency kill switch via AUTOM8Y_DATA_INSIGHTS_ENABLED env var
 
     Per FR-001.5: Use as async context manager for proper resource cleanup.
 
@@ -91,13 +91,13 @@ class DataServiceClient:
 
     Note:
         The insights integration is enabled by default and stable.
-        The AUTOM8_DATA_INSIGHTS_ENABLED environment variable exists as an
+        The AUTOM8Y_DATA_INSIGHTS_ENABLED environment variable exists as an
         emergency kill switch only. Set to 'false' to disable without code
         deployment if service issues arise.
     """
 
     # Feature flag environment variable name
-    FEATURE_FLAG_ENV_VAR = "AUTOM8_DATA_INSIGHTS_ENABLED"
+    FEATURE_FLAG_ENV_VAR = "AUTOM8Y_DATA_INSIGHTS_ENABLED"
 
     def __init__(
         self,
@@ -839,7 +839,7 @@ class DataServiceClient:
         )
 
     # Maximum PVPs per HTTP request (autom8_data's max_length limit)
-    _AUTOM8_DATA_MAX_PVP_PER_REQUEST = 1000
+    _AUTOM8Y_DATA_MAX_PVP_PER_REQUEST = 1000
 
     async def get_insights_batch_async(
         self,
@@ -927,7 +927,7 @@ class DataServiceClient:
             pass  # results stays empty, counts computed below
         else:
             # Chunk PVPs into groups of 1000 (autom8_data's max_length)
-            chunk_size = self._AUTOM8_DATA_MAX_PVP_PER_REQUEST
+            chunk_size = self._AUTOM8Y_DATA_MAX_PVP_PER_REQUEST
             chunks = [
                 pairs[i : i + chunk_size] for i in range(0, len(pairs), chunk_size)
             ]

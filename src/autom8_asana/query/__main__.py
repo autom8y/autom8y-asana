@@ -246,7 +246,7 @@ def _get_live_config() -> tuple[str, dict[str, str]]:
     from autom8y_core import Config, TokenManager
     from autom8y_core.errors import TokenAcquisitionError
 
-    base_url = os.environ.get("AUTOM8_DATA_URL", "https://data.api.autom8y.io")
+    base_url = os.environ.get("AUTOM8Y_DATA_URL", "https://data.api.autom8y.io")
     try:
         config = Config.from_env()
     except ValueError:
@@ -497,7 +497,7 @@ def _create_data_client_if_needed(
         from autom8_asana.clients.data.client import DataServiceClient
 
         # Prefer SERVICE_API_KEY → TokenManager → JWT (ecosystem standard).
-        # Falls back to AUTOM8_DATA_API_KEY env var via DataServiceClient default.
+        # Falls back to AUTOM8Y_DATA_API_KEY env var via DataServiceClient default.
         auth_provider = None
         try:
             from autom8_asana.auth.service_token import ServiceTokenAuthProvider
@@ -509,8 +509,8 @@ def _create_data_client_if_needed(
         return DataServiceClient(auth_provider=auth_provider)
     except Exception as e:
         raise CLIError(
-            f"Data-service joins require AUTOM8_DATA_URL and authentication "
-            f"(SERVICE_API_KEY or AUTOM8_DATA_API_KEY). Error: {e}"
+            f"Data-service joins require AUTOM8Y_DATA_URL and authentication "
+            f"(SERVICE_API_KEY or AUTOM8Y_DATA_API_KEY). Error: {e}"
         ) from None
 
 
@@ -1705,7 +1705,7 @@ def main(argv: list[str] | None = None) -> int:
     # data service or workspace GID.  setdefault() is safe: it only sets
     # the value when the var is absent, so it won't interfere with tests
     # or production environments that already set these.
-    os.environ.setdefault("AUTOM8_DATA_URL", "http://offline-cli.local")
+    os.environ.setdefault("AUTOM8Y_DATA_URL", "http://offline-cli.local")
     os.environ.setdefault("ASANA_WORKSPACE_GID", "offline")
     # G-02: Suppress import-time log noise.  When invoked via
     # `python -m autom8_asana.query`, the package __init__.py has already

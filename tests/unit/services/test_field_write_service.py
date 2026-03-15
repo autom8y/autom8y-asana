@@ -341,3 +341,93 @@ class TestFieldWriteService:
                 fields={"name": "Test"},
             )
         assert exc_info.value.retry_after == 30
+
+    @pytest.mark.asyncio
+    async def test_multi_enum_all_unresolved_skips_field(self) -> None:
+        """Multi-enum with all-unresolved options is skipped, not silently cleared.
+
+        Per WS-4 hardening: when every multi-enum option name fails resolution,
+        the field becomes skipped (not written). If form_questions is the ONLY
+        field, this raises NoValidFieldsError.
+        """
+        # Task with multi-enum custom field
+        task_data = {
+            **MOCK_TASK_DATA,
+            "custom_fields": [
+                {
+                    "gid": "cf_fq",
+                    "name": "Form Questions",
+                    "resource_subtype": "multi_enum",
+                    "multi_enum_values": [],
+                    "enum_options": [
+                        {"gid": "opt_q1", "name": "First Name", "enabled": True},
+                        {"gid": "opt_q2", "name": "Last Name", "enabled": True},
+                        {"gid": "opt_q3", "name": "Email", "enabled": True},
+                    ],
+                },
+            ],
+        }
+        client = _make_mock_client(task_data=task_data)
+        write_info = WritableEntityInfo(
+            entity_type="unit",
+            model_class=type("FakeUnit", (), {}),
+            project_gid=PROJECT_GID,
+            descriptor_index={"form_questions": "Form Questions"},
+            core_fields=CORE_FIELD_NAMES,
+        )
+        registry = MagicMock(spec=EntityWriteRegistry)
+        registry.get.return_value = write_info
+        service = FieldWriteService(client, registry)
+
+        # All values are bogus -- should raise NoValidFieldsError
+        with pytest.raises(NoValidFieldsError):
+            await service.write_async(
+                entity_type="unit",
+                gid="9999999999",
+                fields={"form_questions": ["Bogus Q1", "Bogus Q2"]},
+            )
+
+    @pytest.mark.asyncio
+    async def test_multi_enum_partial_unresolved_writes_matched(self) -> None:
+        """Multi-enum with some unresolved options writes matched values.
+
+        Per WS-4: partial resolution writes only matched values
+        (unresolved are dropped but the write proceeds).
+        """
+        task_data = {
+            **MOCK_TASK_DATA,
+            "custom_fields": [
+                {
+                    "gid": "cf_fq",
+                    "name": "Form Questions",
+                    "resource_subtype": "multi_enum",
+                    "multi_enum_values": [],
+                    "enum_options": [
+                        {"gid": "opt_q1", "name": "First Name", "enabled": True},
+                        {"gid": "opt_q2", "name": "Last Name", "enabled": True},
+                    ],
+                },
+            ],
+        }
+        client = _make_mock_client(task_data=task_data)
+        write_info = WritableEntityInfo(
+            entity_type="unit",
+            model_class=type("FakeUnit", (), {}),
+            project_gid=PROJECT_GID,
+            descriptor_index={"form_questions": "Form Questions"},
+            core_fields=CORE_FIELD_NAMES,
+        )
+        registry = MagicMock(spec=EntityWriteRegistry)
+        registry.get.return_value = write_info
+        service = FieldWriteService(client, registry)
+
+        result = await service.write_async(
+            entity_type="unit",
+            gid="9999999999",
+            fields={"form_questions": ["First Name", "Bogus"]},
+        )
+
+        assert result.fields_written == 1
+        # Verify the API call includes only the matched GID
+        call_kwargs = client.tasks.update_async.call_args.kwargs
+        assert call_kwargs["custom_fields"]["cf_fq"] == ["opt_q1"]

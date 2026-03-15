@@ -517,7 +517,7 @@ class TestGetInsightsBatchAsync:
             respx.mock,
             patch.object(
                 DataServiceClient,
-                "_AUTOM8_DATA_MAX_PVP_PER_REQUEST",
+                "_AUTOM8Y_DATA_MAX_PVP_PER_REQUEST",
                 200,
             ),
         ):

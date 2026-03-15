@@ -13,7 +13,7 @@ import pytest
 @pytest.fixture
 def enable_insights_feature(monkeypatch: pytest.MonkeyPatch) -> None:
     """Enable insights feature flag for testing."""
-    monkeypatch.setenv("AUTOM8_DATA_INSIGHTS_ENABLED", "true")
+    monkeypatch.setenv("AUTOM8Y_DATA_INSIGHTS_ENABLED", "true")
 
 
 @pytest.fixture

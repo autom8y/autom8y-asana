@@ -205,7 +205,7 @@ class TestPushGidMappingsToDataService:
     async def test_skips_when_no_data_service_url(
         self, sample_index: GidLookupIndex
     ) -> None:
-        """Returns False when AUTOM8_DATA_URL is not configured."""
+        """Returns False when AUTOM8Y_DATA_URL is not configured."""
         with patch.dict("os.environ", {}, clear=True):
             result = await push_gid_mappings_to_data_service(
                 project_gid="1201081073731555",
@@ -218,7 +218,7 @@ class TestPushGidMappingsToDataService:
     async def test_skips_when_no_auth_token(self, sample_index: GidLookupIndex) -> None:
         """Returns False when auth token is not available."""
         with patch.dict(
-            "os.environ", {"AUTOM8_DATA_URL": "http://localhost:8000"}, clear=True
+            "os.environ", {"AUTOM8Y_DATA_URL": "http://localhost:8000"}, clear=True
         ):
             result = await push_gid_mappings_to_data_service(
                 project_gid="1201081073731555",
@@ -230,7 +230,7 @@ class TestPushGidMappingsToDataService:
     @pytest.mark.asyncio
     async def test_empty_index_returns_true(self, empty_index: GidLookupIndex) -> None:
         """Returns True (no-op success) when index has no mappings."""
-        with patch.dict("os.environ", {"AUTOM8_DATA_URL": "http://localhost:8000"}):
+        with patch.dict("os.environ", {"AUTOM8Y_DATA_URL": "http://localhost:8000"}):
             result = await push_gid_mappings_to_data_service(
                 project_gid="1201081073731555",
                 index=empty_index,

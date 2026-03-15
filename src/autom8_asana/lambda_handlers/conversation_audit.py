@@ -5,8 +5,8 @@ Triggered by EventBridge rule on configured schedule.
 
 Environment Variables Required:
     ASANA_PAT: Asana Personal Access Token
-    AUTOM8_DATA_URL: Base URL for autom8_data
-    AUTOM8_DATA_API_KEY: API key for autom8_data
+    AUTOM8Y_DATA_URL: Base URL for autom8_data
+    AUTOM8Y_DATA_API_KEY: API key for autom8_data
     AUTOM8_AUDIT_ENABLED: Feature flag (default: "true")
 """
 
