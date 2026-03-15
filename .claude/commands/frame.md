@@ -8,7 +8,7 @@ model: opus
 
 # /frame -- Initiative Framing
 
-Dispatches context-engineer to analyze the current conversation and codebase state, producing a structured framing document that can feed directly into `/start`, `/sprint`, or `/rite` invocations.
+Dispatches context-engineer to analyze the current conversation and codebase state, producing a structured framing document that can feed directly into `/sos start`, `/sprint`, or `/rite` invocations.
 
 ## Context
 
@@ -63,7 +63,9 @@ Task(subagent_type="context-engineer", prompt="
 
 Analyze the conversation history above and the user's brief to produce a framing document.
 
-The framing document should decompose the initiative into actionable workstreams, identify the right starting point, and end with concrete suggested next commands (e.g., `/start`, `/sprint`, `/rite`, `/go` invocations the user can run immediately).
+The framing document should decompose the initiative into actionable workstreams, identify the right starting point, and end with concrete suggested next commands (e.g., `/sos start`, `/sprint`, `/rite`, `/go` invocations the user can run immediately).
+
+For INITIATIVE complexity or cross-rite scope (multiple rites involved), include `/shape "{slug}"` as a recommended next step in the ## Next Commands section with a note: "(recommended for cross-rite processions — produces the execution shape for Potnia orchestration)". For TASK or MODULE complexity within a single rite, omit the /shape suggestion.
 
 You have full discretion over the framing document's structure -- there are no prescribed sections. Design the schema that best serves this specific initiative.
 

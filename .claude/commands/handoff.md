@@ -18,7 +18,7 @@ Hand off work to a different agent with full context transfer. $ARGUMENTS
 
 ## Pre-flight
 
-1. Verify active session exists (check Session Status in context above)
+1. Verify active session exists (check `status` in YAML frontmatter above)
 2. **CRITICAL: Validate target agent exists BEFORE any state changes**:
    ```bash
    [ -f ".claude/agents/$AGENT_NAME.md" ] || { echo "Agent not found: $AGENT_NAME"; exit 1; }
@@ -37,6 +37,7 @@ Hand off work to a different agent with full context transfer. $ARGUMENTS
    - Key decisions made
    - Open questions and blockers
    - Artifacts produced with locations
+   - **Session complexity** (`complexity` from hook frontmatter) — tells the receiving agent the expected ceremony level
    - Determine FROM agent (from SESSION_CONTEXT last_agent or infer from current phase)
 
 3. **Execute atomic handoff** via Moirai agent:
@@ -80,4 +81,5 @@ The handoff itself IS the phase transition — the target agent is now active. S
 
 ❌ handoff failed: {brief reason} · fix: {recovery}
 
-Infer recovery: agent not found → check name against `ls .claude/agents/`; no active session → `/start`; state conflict → `/go` to check status; uncertain → `/consult`.
+Infer recovery: agent not found → check name against `ls .claude/agents/`; no active session → `/sos start`; state conflict → `/go` to check status; uncertain → `/consult`.
+

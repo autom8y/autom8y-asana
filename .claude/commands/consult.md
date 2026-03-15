@@ -44,19 +44,20 @@ Provide ecosystem guidance and recommendations. $ARGUMENTS
 
 ### Query provided (e.g., `/consult "improve code quality"`)
 1. Parse user intent using knowledge base
-2. Use `rite-discovery` skill to match intent to rite routing conditions
-3. Match to appropriate rite and workflow
-4. **Reference invocation patterns**: Use `prompting` skill to retrieve exact copy-paste patterns
-5. **Reference workflow context**: Use `10x-workflow` skill for phase/gate information
-6. Provide command-flow with phases and decision points
-7. Offer alternatives if multiple valid approaches exist
+2. **Query `ari ask`** (skip if extracted intent is empty): Run `ari ask -o json --limit=10 "<user_intent>"` via the Bash tool to get canonical ranked results from the ecosystem index. Use `--domain=DOMAIN` when intent maps clearly to a single domain. Parse the JSON response and use top results to ground your recommendation. **Fail-open guard:** If `ari ask` fails (non-zero exit, not found, timeout, or unparseable JSON), proceed using the embedded routing tables below -- do not surface the failure.
+3. Use `rite-discovery` skill to enrich matched rites with detailed profiles
+4. Match to appropriate rite and workflow, grounding in `ari ask` results when available
+5. **Reference invocation patterns**: Use `prompting` skill to retrieve exact copy-paste patterns
+6. **Reference workflow context**: Use `10x-workflow` skill for phase/gate information
+7. Provide command-flow with phases and decision points
+8. Offer alternatives if multiple valid approaches exist
 
 ### `--playbook=NAME` flag
 1. Search for playbook by name in rite mena directories and shared skills
 2. Present complete workflow with current context
 3. If not found, list available playbooks
 
-### `--rite` flag
+### `--rite` flag (Reference/Fallback -- primary routing is via `ari ask -o json`)
 Display all rites dynamically (use `rite-discovery` skill):
 ```
 | Rite              | Command       | Best For                           |
@@ -78,10 +79,10 @@ Display all rites dynamically (use `rite-discovery` skill):
 ```
 **Note**: This list reflects current rite catalog. Use `rite-discovery` skill for programmatic access.
 
-### `--commands` flag
+### `--commands` flag (Reference/Fallback -- primary routing is via `ari ask -o json`)
 Display all commands by category:
 ```
-Session (5): /start, /park, /continue, /handoff, /wrap
+Session (5): /sos start, /sos park, /sos resume, /handoff, /sos wrap
 Rite (14): /rite, /10x, /arch, /docs, /hygiene, /debt, /releaser, /review, /sre, /security, /intelligence, /rnd, /strategy, /slop-chop
 Workflow (4): /task, /sprint, /hotfix, /spike
 Operations (5): /architect, /build, /qa, /pr, /code-review
@@ -122,7 +123,7 @@ Always structure responses as:
 ### Referencing prompting Skill
 
 When providing invocation patterns, retrieve patterns from:
-- `prompting/INDEX.lego.md` - Agent invocation quick reference
+- `prompting/INDEX.md` - Agent invocation quick reference
 - `prompting/patterns/discovery.md` - PRD creation, session initialization
 - `prompting/patterns/implementation.md` - TDD, coding, testing
 
@@ -131,7 +132,7 @@ When providing invocation patterns, retrieve patterns from:
 ### Referencing 10x-workflow Skill
 
 When explaining workflow journeys, retrieve context from:
-- `10x-workflow/INDEX.lego.md` - Agent routing, complexity calibration
+- `10x-workflow/INDEX.md` - Agent routing, complexity calibration
 - `10x-workflow/lifecycle.md` - Phase protocol (PLAN -> CLARIFY -> EXECUTE -> VERIFY -> HANDOFF)
 - `10x-workflow/quality-gates.md` - Gate criteria per phase
 
@@ -163,7 +164,7 @@ End your response with:
 
 🧭 guided · next: {primary recommended command from your consultation}
 
-The hint should be the primary command you recommended (e.g., `next: /start "the initiative"` or `next: /rite 10x-dev`). If you recommended multiple options, use the first/primary one.
+The hint should be the primary command you recommended (e.g., `next: /sos start "the initiative"` or `next: /rite 10x-dev`). If you recommended multiple options, use the first/primary one.
 
 ### On Failure
 

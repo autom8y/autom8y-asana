@@ -1,0 +1,11 @@
+# Local secrets -- copy to .env/local and fill in real values.
+# This file is committed; .env/local is gitignored.
+#
+# Fetch from AWS:
+#   just fetch-secrets
+#
+# Or manually:
+#   aws secretsmanager get-secret-value --secret-id "autom8y/asana/asana-pat" --query SecretString --output text
+#   aws secretsmanager get-secret-value --secret-id "autom8y/asana/asana-workspace-gid" --query SecretString --output text
+ASANA_PAT=REPLACE_WITH_ACTUAL_ASANA_PAT
+ASANA_WORKSPACE_GID=REPLACE_WITH_ACTUAL_WORKSPACE_GID

@@ -4,8 +4,6 @@ description: Time-boxed research and exploration (no production code)
 argument-hint: "<question> [--timebox=DURATION]"
 allowed-tools: Bash, Read, Write, Task, Glob, Grep, WebFetch, WebSearch
 model: opus
-disable-model-invocation: true
-context: fork
 ---
 
 ## Context
@@ -65,7 +63,7 @@ Spike report at `.sos/wip/SPIKE-{slug}.md`:
 
 ## Reference
 
-Full documentation: `.claude/commands/operations/spike/INDEX.md`
+Full documentation: `.claude/commands/spike.md`
 
 ## Sigil
 
@@ -79,7 +77,7 @@ End your response with:
 - Find active session: look for `status: "ACTIVE"` in `.sos/sessions/*/SESSION_CONTEXT.md`
 - No active session found → output `🔭 explored` without hint.
 
-Natural follow-on: `next: /consult` (to plan next steps based on findings) or `next: /start` (if the spike informed a new initiative).
+Natural follow-on: `next: /consult` (to plan next steps based on findings) or `next: /sos start` (if the spike informed a new initiative).
 
 ### On Failure
 

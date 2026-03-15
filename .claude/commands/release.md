@@ -8,13 +8,13 @@ model: opus
 
 # /release - Orchestrated Release Workflow
 
-One command from code to verified deployment. `/release` captures your intent, consults Pythia for complexity gating and phase routing, dispatches specialists in order, and loops until the verification report renders a chain-aware verdict.
+One command from code to verified deployment. `/release` captures your intent, consults Potnia for complexity gating and phase routing, dispatches specialists in order, and loops until the verification report renders a chain-aware verdict.
 
 ## Arguments
 
 | Argument | Description | Example |
 |----------|-------------|---------|
-| positional | Glob pattern or comma-separated repo names | `~/code/autom8y*`, `autom8y-data,autom8y-ads` |
+| positional | Glob pattern or comma-separated repo names | `~/code/acme-*`, `acme-data,acme-ads` |
 | `--complexity` | Override auto-detection (PATCH, RELEASE, PLATFORM) | `--complexity=RELEASE` |
 | `--dry-run` | Run reconnaissance only, produce state map, stop before execution | |
 
@@ -24,7 +24,7 @@ If no positional argument is given, ask the user what they want to release.
 
 ### Phase 0 -- Pre-Flight
 
-1. **Verify releaser rite is active**: Check `.claude/CLAUDE.md` for `releaser` in the agent configurations section. If not active, run `ari sync --rite releaser` first and inform the user.
+1. **Verify releaser rite is active**: Check the context file for `releaser` in the agent configurations section. If not active, run `ari sync --rite releaser` first and inform the user.
 2. **Verify gh auth**: Run `gh auth status` -- if unauthenticated, ERROR and stop.
 3. **Clean slate**: Check `.sos/wip/release/` for artifacts from a prior run. If found, ask the user whether to clear them or resume from where the prior run left off.
 4. **Parse arguments**: Extract glob pattern or repo list from `$ARGUMENTS`. Extract `--complexity` and `--dry-run` flags.
@@ -45,12 +45,12 @@ If no positional argument is given, ask the user what they want to release.
      contents. Flag any discrepancies between cached and observed state.
      ```
 
-### Phase 1 -- Initial Pythia Consultation
+### Phase 1 -- Initial Potnia Consultation
 
-Construct a startup CONSULTATION_REQUEST and invoke Pythia:
+Construct a startup CONSULTATION_REQUEST and invoke Potnia:
 
 ```
-Task(subagent_type="pythia", prompt="
+Task(subagent_type="potnia", prompt="
 ## CONSULTATION_REQUEST
 
 consultation:
@@ -79,15 +79,15 @@ consultation:
 ")
 ```
 
-Store Pythia's agent ID for throughline resumption.
+Store Potnia's agent ID for throughline resumption.
 
 ### Phase 2 -- Orchestration Loop
 
-Loop until Pythia returns `directive.action: complete`:
+Loop until Potnia returns `directive.action: complete`:
 
 #### On `invoke_specialist`:
 
-1. Read `specialist.agent` and `specialist.prompt` from Pythia's response
+1. Read `specialist.agent` and `specialist.prompt` from Potnia's response
 2. **Inject cached release knowledge** (if available from Phase 0 step 5):
    - If the specialist is `cartographer` AND `platform-profile.md` is fresh: append to the specialist prompt:
      ```
@@ -110,9 +110,9 @@ Loop until Pythia returns `directive.action: complete`:
    - release-planner: `release-plan.yaml`
    - release-executor: `execution-ledger.yaml`
    - pipeline-monitor: `verification-report.yaml`
-4. Construct a continuation CONSULTATION_REQUEST and re-consult Pythia (with `resume` if agent ID available):
+4. Construct a continuation CONSULTATION_REQUEST and re-consult Potnia (with `resume` if agent ID available):
    ```
-   Task(subagent_type="pythia", resume="{pythia_agent_id}", prompt="
+   Task(subagent_type="potnia", resume="{potnia_agent_id}", prompt="
    ## CONSULTATION_REQUEST
 
    consultation:
@@ -139,7 +139,7 @@ Loop until Pythia returns `directive.action: complete`:
 
 1. Read `user_question.prompt` and `user_question.context`
 2. Present to the user via AskUserQuestion
-3. Feed the user's answer back to Pythia in the next consultation
+3. Feed the user's answer back to Potnia in the next consultation
 
 #### On specialist failure:
 
@@ -154,7 +154,7 @@ Loop until Pythia returns `directive.action: complete`:
      context_summary: |
        {failure reason and any partial output}
    ```
-2. Pythia will either retry with adjusted prompt, recommend phase rollback, or escalate to user
+2. Potnia will either retry with adjusted prompt, recommend phase rollback, or escalate to user
 
 ### Phase 3 -- Dry-Run Exit (if `--dry-run`)
 
@@ -166,7 +166,7 @@ After the reconnaissance phase (cartographer produces `platform-state-map.yaml`)
 
 ### Phase 4 -- Completion
 
-When Pythia returns `directive.action: complete`:
+When Potnia returns `directive.action: complete`:
 
 1. Read `verification-report.yaml` from `.sos/wip/release/`
 2. Display the verdict to the user:
@@ -280,20 +280,20 @@ After verification completes (regardless of PASS/FAIL/PARTIAL verdict), persist 
 
 ## Throughline Resumption
 
-Store Pythia's agent ID after the first consultation. On subsequent consultations, pass `resume: {agent_id}` to maintain Pythia's decision history across the full workflow. If resume fails (ID expired, session changed), fall back to a fresh consultation with full context in `context_summary`.
+Store Potnia's agent ID after the first consultation. On subsequent consultations, pass `resume: {agent_id}` to maintain Potnia's decision history across the full workflow. If resume fails (ID expired, session changed), fall back to a fresh consultation with full context in `context_summary`.
 
 ## Error Recovery
 
 | Scenario | Action |
 |----------|--------|
-| Specialist times out (maxTurns exceeded) | Report to Pythia as failure; Pythia may retry with narrower scope |
+| Specialist times out (maxTurns exceeded) | Report to Potnia as failure; Potnia may retry with narrower scope |
 | gh auth expires mid-workflow | Stop, inform user, they re-auth, then `/release --resume` |
-| Artifact missing after specialist claims completion | Report to Pythia as failure with details |
+| Artifact missing after specialist claims completion | Report to Potnia as failure with details |
 | User Ctrl+C during long CI monitoring | Artifacts remain in `.sos/wip/release/`; next `/release` detects and offers resume |
 
 ## Anti-Patterns
 
-- **Skipping Pythia**: Never invoke specialists directly without consulting Pythia first. Pythia gates complexity, manages auto-escalation, and verifies handoff criteria.
-- **Ignoring specialist failures**: Always report failures back to Pythia. Never silently retry or skip.
-- **Hardcoding phase order**: Let Pythia determine routing. PATCH skips dependency-analysis and release-planning. Auto-escalation may add phases mid-flight.
+- **Skipping Potnia**: Never invoke specialists directly without consulting Potnia first. Potnia gates complexity, manages auto-escalation, and verifies handoff criteria.
+- **Ignoring specialist failures**: Always report failures back to Potnia. Never silently retry or skip.
+- **Hardcoding phase order**: Let Potnia determine routing. PATCH skips dependency-analysis and release-planning. Auto-escalation may add phases mid-flight.
 - **Treating dry-run as no-op**: Dry-run still runs full reconnaissance. The state map is valuable even without execution.

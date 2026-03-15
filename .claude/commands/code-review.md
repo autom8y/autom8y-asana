@@ -4,8 +4,6 @@ description: Structured review with categorized feedback
 argument-hint: "<pr-number-or-branch> [--focus=AREA]"
 allowed-tools: Bash, Read, Glob, Grep
 model: opus
-disable-model-invocation: true
-context: fork
 ---
 
 ## Context
@@ -28,7 +26,7 @@ Use the validation agent in review mode:
 
 ```bash
 # Get validation agent from workflow (last phase)
-REVIEW_AGENT=$(grep -B1 "next: null" .claude/ACTIVE_WORKFLOW.yaml | grep "agent:" | awk '{print $2}')
+REVIEW_AGENT=$(grep -B1 "next: null" .knossos/ACTIVE_WORKFLOW.yaml | grep "agent:" | awk '{print $2}')
 ```
 
 ## Behavior
@@ -85,7 +83,7 @@ REVIEW_AGENT=$(grep -B1 "next: null" .claude/ACTIVE_WORKFLOW.yaml | grep "agent:
 
 ## Reference
 
-Full documentation: `.claude/commands/operations/code-review/INDEX.md`
+Full documentation: `.claude/commands/code-review.md`
 
 ## Sigil
 
@@ -97,7 +95,7 @@ End your response with:
 
 **Fork-context note**: This command may run without conversation history. To resolve the hint, read session state from disk:
 - Find active session: look for `status: "ACTIVE"` in `.sos/sessions/*/SESSION_CONTEXT.md`
-- Read `current_phase` from its frontmatter and check `.claude/ACTIVE_WORKFLOW.yaml` for phase ordering
+- Read `current_phase` from its frontmatter and check `.knossos/ACTIVE_WORKFLOW.yaml` for phase ordering
 - No active session found → output `🔍 reviewed` without hint.
 
 Resolve hint from your review recommendation:

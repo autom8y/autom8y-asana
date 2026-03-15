@@ -1,6 +1,6 @@
 ---
 name: worktree
-description: Manage isolated worktrees for parallel Claude sessions
+description: Manage isolated worktrees for parallel AI coding sessions
 argument-hint: "<create|list|remove|cleanup|status> [args]"
 allowed-tools: Bash, Read
 model: sonnet
@@ -10,7 +10,7 @@ context: fork
 
 ## Context
 
-Git worktrees provide true filesystem isolation for parallel Claude sessions. Each worktree has its own `.claude/` directory (CC primitives), `.knossos/` (framework state), and `.sos/` (session state).
+Git worktrees provide true filesystem isolation for parallel AI coding sessions. Each worktree has its own channel directory (harness primitives), `.knossos/` (framework state), and `.sos/` (session state).
 
 ## Pre-flight
 
@@ -44,6 +44,7 @@ ari worktree create "<name>" --rite "<rite-name>"
 
 **Output to user:**
 - Worktree ID and path
+<!-- HA-CLI: "claude" is the CC CLI binary name -->
 - Instructions: `cd <path> && claude`
 
 ### list
@@ -111,19 +112,19 @@ ari worktree cleanup --older-than=7d
 2. Open new terminal, navigate to worktree:
    ```bash
    cd ~/Code/project/worktrees/wt-20251224-150000-xyz
-   claude
+   claude  # HA-CLI: CC CLI binary name
    ```
 
 3. Work in complete isolation (different rite, sprint, session)
 
 4. When done:
    ```
-   /wrap  # Will offer to remove worktree
+   /sos wrap  # Will offer to remove worktree
    ```
 
 ## Reference
 
-Full documentation: `.claude/commands/navigation/worktree/INDEX.md`
+Full documentation: `.claude/commands/worktree.md`
 
 ## Sigil
 
@@ -136,6 +137,7 @@ End your response with:
 **Fork-context note**: This command may run without conversation history. To resolve the hint, read session state from disk if needed.
 
 Resolve hint based on subcommand:
+<!-- HA-CLI: "claude" is the CC CLI binary name -->
 - `create` → `next: cd {worktree_path} && claude`
 - `list`, `status`, `remove`, `cleanup` → output `🌿 branched` without hint (informational subcommands).
 

@@ -1,25 +1,25 @@
 schema_version: "1.0"
-inscription_version: "6"
-last_sync: 2026-03-05T10:21:23.99519Z
+inscription_version: "8"
+last_sync: 2026-03-15T00:11:00.233813Z
 active_rite: releaser
 template_path: knossos/templates/CLAUDE.md.tpl
 regions:
     agent-configurations:
         owner: regenerate
         source: agents/*.md
-        hash: sha256:d069d61170d2627ea14c6786fef79cec380a48d7128870dff39853e1500da868
+        hash: sha256:4eead310fda2093b3f8e8dadc55485baad764c29e92c704e498e21e17a0ce0d2
     agent-routing:
         owner: knossos
-        hash: sha256:996019558baa21447eeffca540e4bffa134fe2a7390d13e917ae13b71ccdadd9
+        hash: sha256:41e26d347a524baf7bd9f3510b107c0d3c8e175963e2acc0979392a403284812
     commands:
         owner: knossos
-        hash: sha256:0be05996b9be8baf3f4027289b1cf4471d3ab7067f8e1572b0c85cd49b3069e5
+        hash: sha256:8b595ff03d37d075375633e00a7ebada093b2a5aef8e55617211b76937c3e77b
     execution-mode:
         owner: knossos
-        hash: sha256:02d505214651211c19fb1a5f53e84d807ba2d959d946e9c69b56175cf986d826
+        hash: sha256:ed65eb542ec0fc298c76cdb402c59c71ac2a95e71b2fb0b7143a47e096530501
     know:
         owner: knossos
-        hash: sha256:d197a616a0e64f04e7c0b39d19c86bb20bce12696db47ada556814a2aa4c4c42
+        hash: sha256:0b7002053c88736d9698b2aee04fda76349bdf248564a9fa6f0564b9139c4098
     model-override:
         owner: knossos
     platform-infrastructure:
@@ -28,7 +28,7 @@ regions:
     quick-start:
         owner: regenerate
         source: ACTIVE_RITE+agents
-        hash: sha256:58de45e32daacead8daa4c86d1995f232bff50a59c6a1774176d9cb9ee7cb82d
+        hash: sha256:790cad7e8e2d3fd682e8fe59d1bb37290e385d12bae7534d692a0c6817f66243
     user-content:
         owner: satellite
 section_order:

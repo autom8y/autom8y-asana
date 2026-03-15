@@ -11,7 +11,7 @@ Use the available agents and slash commands. Delegate complex work to specialist
 
 | Agent | Role |
 | ----- | ---- |
-| **pythia** | Coordinates release phases, gates complexity, manages DAG-branch failure halting |
+| **potnia** | Coordinates release phases, gates complexity, manages DAG-branch failure halting |
 | **cartographer** | Discovers repos, maps git state, identifies package ecosystems and available commands |
 | **dependency-resolver** | Builds cross-repo dependency DAG, detects version mismatches, calculates blast radius |
 | **release-planner** | Creates phased execution plan with parallel groups, rollback boundaries, and CI time estimates |
@@ -25,7 +25,7 @@ Delegate to specialists via Task tool.
 ## Agent Routing
 
 Delegate to specialists via Task tool.
-Agents cannot spawn agents — only the main thread has Task tool access.<!-- KNOSSOS:END agent-routing -->
+<!-- KNOSSOS:END agent-routing -->
 
 <!-- KNOSSOS:START commands -->
 ## CC Primitives
@@ -39,12 +39,12 @@ Agents cannot spawn agents — only the main thread has Task tool access.<!-- KN
 Agents cannot spawn other agents — only the main thread has Task tool access.
 <!-- KNOSSOS:END commands -->
 
-<!-- KNOSSOS:START agent-configurations regenerate=true source=agents/*.md -->
+<!-- KNOSSOS:START agent-configurations source=agents/*.md regenerate=true -->
 ## Agents
 
 Prompts in `.claude/agents/`:
 
-- `pythia.md` - Coordinates release phases, gates complexity, manages DAG-branch failure halting
+- `potnia.md` - Coordinates release phases, gates complexity, manages DAG-branch failure halting
 - `cartographer.md` - Discovers repos, maps git state, identifies package ecosystems and available commands
 - `dependency-resolver.md` - Builds cross-repo dependency DAG, detects version mismatches, calculates blast radius
 - `release-planner.md` - Creates phased execution plan with parallel groups, rollback boundaries, and CI time estimates
