@@ -304,7 +304,9 @@ class FieldResolver:
             )
 
         if field_type == "multi_enum":
-            multi_value, unresolved = self._resolve_multi_enum(field_def, value, list_mode)
+            multi_value, unresolved = self._resolve_multi_enum(
+                field_def, value, list_mode
+            )
             if not multi_value and unresolved:
                 # All values failed resolution -- report as error with available options
                 options = _available_enum_options(field_def)
