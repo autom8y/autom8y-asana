@@ -27,9 +27,9 @@ class TestProductionUrlGuard:
     def test_dev_env_with_production_data_url_raises(
         self, monkeypatch: pytest.MonkeyPatch, env: str
     ) -> None:
-        """Setting a production AUTOM8_DATA_URL in dev env must fail."""
+        """Setting a production AUTOM8Y_DATA_URL in dev env must fail."""
         monkeypatch.setenv("AUTOM8Y_ENV", env)
-        monkeypatch.setenv("AUTOM8_DATA_URL", "https://data.api.autom8y.io")
+        monkeypatch.setenv("AUTOM8Y_DATA_URL", "https://data.api.autom8y.io")
         # Ensure AUTH_JWKS_URL is NOT set to a production URL
         monkeypatch.delenv("AUTH_JWKS_URL", raising=False)
 
@@ -42,7 +42,7 @@ class TestProductionUrlGuard:
     ) -> None:
         """Setting a production AUTH_JWKS_URL in dev env must fail."""
         monkeypatch.setenv("AUTOM8Y_ENV", env)
-        monkeypatch.setenv("AUTOM8_DATA_URL", "http://data:8000")
+        monkeypatch.setenv("AUTOM8Y_DATA_URL", "http://data:8000")
         monkeypatch.setenv(
             "AUTH_JWKS_URL",
             "https://auth.api.autom8y.io/.well-known/jwks.json",
@@ -57,7 +57,7 @@ class TestProductionUrlGuard:
     ) -> None:
         """Local URLs in a dev environment must not trigger the guard."""
         monkeypatch.setenv("AUTOM8Y_ENV", env)
-        monkeypatch.setenv("AUTOM8_DATA_URL", "http://data:8000")
+        monkeypatch.setenv("AUTOM8Y_DATA_URL", "http://data:8000")
         monkeypatch.setenv(
             "AUTH_JWKS_URL",
             "http://auth:8000/.well-known/jwks.json",
@@ -71,7 +71,7 @@ class TestProductionUrlGuard:
     ) -> None:
         """Production URLs in production environment must not trigger the guard."""
         monkeypatch.setenv("AUTOM8Y_ENV", "production")
-        monkeypatch.setenv("AUTOM8_DATA_URL", "https://data.api.autom8y.io")
+        monkeypatch.setenv("AUTOM8Y_DATA_URL", "https://data.api.autom8y.io")
         monkeypatch.setenv(
             "AUTH_JWKS_URL",
             "https://auth.api.autom8y.io/.well-known/jwks.json",
@@ -85,7 +85,7 @@ class TestProductionUrlGuard:
     ) -> None:
         """Production URLs in staging environment must not trigger the guard."""
         monkeypatch.setenv("AUTOM8Y_ENV", "staging")
-        monkeypatch.setenv("AUTOM8_DATA_URL", "https://data.api.autom8y.io")
+        monkeypatch.setenv("AUTOM8Y_DATA_URL", "https://data.api.autom8y.io")
 
         settings = Settings()
         assert settings.data_service.url == "https://data.api.autom8y.io"
@@ -99,7 +99,7 @@ class TestProductionUrlGuard:
         which does NOT contain autom8y.io, so no guard fires.
         """
         monkeypatch.delenv("AUTOM8Y_ENV", raising=False)
-        monkeypatch.delenv("AUTOM8_DATA_URL", raising=False)
+        monkeypatch.delenv("AUTOM8Y_DATA_URL", raising=False)
         monkeypatch.delenv("AUTH_JWKS_URL", raising=False)
 
         settings = Settings()
@@ -116,7 +116,7 @@ class TestProductionUrlGuard:
         only activates on explicit AUTOM8Y_ENV=local/test, not the default value.
         """
         monkeypatch.delenv("AUTOM8Y_ENV", raising=False)
-        monkeypatch.setenv("AUTOM8_DATA_URL", "https://data.api.autom8y.io")
+        monkeypatch.setenv("AUTOM8Y_DATA_URL", "https://data.api.autom8y.io")
         monkeypatch.setenv(
             "AUTH_JWKS_URL",
             "https://auth.api.autom8y.io/.well-known/jwks.json",

@@ -18,19 +18,23 @@ class TestGetContainerMemoryBytes:
     """Tests for _get_container_memory_bytes()."""
 
     def test_env_var_override_takes_precedence(self) -> None:
-        """CONTAINER_MEMORY_MB env var overrides all other detection."""
-        with patch.dict("os.environ", {"CONTAINER_MEMORY_MB": "2048"}):
+        """ASANA_RUNTIME_CONTAINER_MEMORY_MB env var overrides all other detection."""
+        from autom8_asana.settings import reset_settings
+
+        with patch.dict("os.environ", {"ASANA_RUNTIME_CONTAINER_MEMORY_MB": "2048"}):
+            reset_settings()
             result = _get_container_memory_bytes()
+        reset_settings()  # cleanup
         assert result == 2048 * 1024 * 1024
 
     def test_env_var_invalid_ignored(self) -> None:
         """When container_memory_mb is None (not set), falls through to cgroup/fallback.
 
-        Per D-011: Settings reads CONTAINER_MEMORY_MB at construction time with
-        strict integer validation. An invalid non-numeric value raises a pydantic
-        ValidationError at Settings init time, before _get_container_memory_bytes()
-        is called. This test verifies the fallback when settings returns None
-        (i.e., CONTAINER_MEMORY_MB is not set).
+        Per D-011: Settings reads ASANA_RUNTIME_CONTAINER_MEMORY_MB at construction
+        time with strict integer validation. An invalid non-numeric value raises a
+        pydantic ValidationError at Settings init time, before
+        _get_container_memory_bytes() is called. This test verifies the fallback
+        when settings returns None (i.e., ASANA_RUNTIME_CONTAINER_MEMORY_MB is not set).
         """
         from unittest.mock import MagicMock
 
@@ -58,7 +62,7 @@ class TestGetContainerMemoryBytes:
             env = {
                 k: v
                 for k, v in __import__("os").environ.items()
-                if k != "CONTAINER_MEMORY_MB"
+                if k != "ASANA_RUNTIME_CONTAINER_MEMORY_MB"
             }
             with patch.dict("os.environ", env, clear=True):
                 result = _get_container_memory_bytes()

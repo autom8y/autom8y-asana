@@ -52,9 +52,15 @@ class TestDataframeCacheDecorator:
     @pytest.fixture(autouse=True)
     def cleanup_env(self) -> None:
         """Clean up environment after each test."""
+        from autom8_asana.settings import reset_settings
+
+        reset_settings()
         yield
         if "DATAFRAME_CACHE_BYPASS" in os.environ:
             del os.environ["DATAFRAME_CACHE_BYPASS"]
+        if "ASANA_RUNTIME_DATAFRAME_CACHE_BYPASS" in os.environ:
+            del os.environ["ASANA_RUNTIME_DATAFRAME_CACHE_BYPASS"]
+        reset_settings()
         reset_dataframe_cache()
 
     @pytest.mark.asyncio
@@ -222,10 +228,14 @@ class TestDataframeCacheDecorator:
         assert "DATAFRAME_BUILD_ERROR" in exc_info.value.detail["error"]
 
     @pytest.mark.asyncio
-    async def test_bypass_env_var(self) -> None:
+    async def test_bypass_env_var(self, monkeypatch) -> None:
         """Bypass caching when env var is set."""
+        from autom8_asana.settings import reset_settings
+
+        reset_settings()
         mock_cache = make_mock_cache()
-        os.environ["DATAFRAME_CACHE_BYPASS"] = "true"
+        monkeypatch.setenv("ASANA_RUNTIME_DATAFRAME_CACHE_BYPASS", "true")
+        reset_settings()  # Force fresh settings with new env var
 
         @dataframe_cache(
             cache_provider=lambda: mock_cache,

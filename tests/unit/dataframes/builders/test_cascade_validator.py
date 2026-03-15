@@ -476,10 +476,12 @@ def test_feature_flag_default_is_enabled() -> None:
 
 
 def test_feature_flag_disabled_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """When SECTION_CASCADE_VALIDATION=0, the setting reflects disabled state."""
-    monkeypatch.setenv("SECTION_CASCADE_VALIDATION", "0")
+    """When ASANA_RUNTIME_SECTION_CASCADE_VALIDATION=0, the setting reflects disabled state."""
+    from autom8_asana.settings import Settings, reset_settings
 
-    from autom8_asana.settings import Settings
+    reset_settings()
+    monkeypatch.setenv("ASANA_RUNTIME_SECTION_CASCADE_VALIDATION", "0")
+    reset_settings()  # Force fresh settings with new env var
 
     settings = Settings()
     assert settings.runtime.section_cascade_validation == "0"
