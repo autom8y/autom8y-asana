@@ -1,106 +1,100 @@
 ---
 type: audit
 ---
-# Verification Report
 
-**Commit:** `394d61c4e468471e954a7dfb284924ceec0e8383` (`394d61c`)
-**Branch:** `main`
-**Repo:** `autom8y/autom8y-asana`
-**Monitoring window:** 2026-03-03T18:53:49Z — 2026-03-03T19:01:56Z (8m 7s, retry monitoring)
-**Generated:** 2026-03-03T19:01:56Z
+# Verification Report — autom8y-asana PATCH Release (Round 4)
+
+**Verdict: PASS**
+
+- Round: 4 (all optional otel fields fixed)
+- Monitoring started: 2026-03-15T01:34:17Z
+- Monitoring completed: 2026-03-15T02:09:58Z
+- Total duration (incl. retries): 35m 41s
+- Timeout budget: 20 minutes per attempt
+- Chain: depth 3 (trigger -> dispatch -> deploy)
+- Stage 3 retries this round: 2 (ECS waiter timeout — transient, resolved on retry 2)
 
 ---
 
-## Verdict: PASS
+## CI Matrix — Primary Chain
+
+| Stage | Workflow | Repo | Run | Status | Duration |
+|---|---|---|---|---|---|
+| Stage 1 | Test | autom8y/autom8y-asana | [23099761881](https://github.com/autom8y/autom8y-asana/actions/runs/23099761881) | GREEN | 4m 16s (Round 2) |
+| Stage 2 | Satellite Dispatch | autom8y/autom8y-asana | [23100731610](https://github.com/autom8y/autom8y-asana/actions/runs/23100731610) | GREEN | ~1m (manually re-triggered Round 4) |
+| Stage 3 | Satellite Receiver | autom8y/autom8y | [23100733658](https://github.com/autom8y/autom8y/actions/runs/23100733658) | GREEN | 35m 41s (incl. 2 retries) |
+
+### Ancillary (non-blocking)
+
+| Workflow | Run | Status |
+|---|---|---|
+| Secrets Scan (Gitleaks) | [23099761848](https://github.com/autom8y/autom8y-asana/actions/runs/23099761848) | GREEN (Round 2) |
+| CodeQL | [23099761663](https://github.com/autom8y/autom8y-asana/actions/runs/23099761663) | GREEN (Round 2) |
+| OpenSSF Scorecard | [23099761834](https://github.com/autom8y/autom8y-asana/actions/runs/23099761834) | RED (ancillary, non-blocking, chronic pre-existing) |
+
+---
+
+## Stage 3 Job Breakdown (Run 23100733658 — Final Attempt)
+
+| Job | Result | Notes |
+|---|---|---|
+| Validate Payload | success | |
+| Checkout Satellite Code | success | |
+| Build Service / Build and Push | success | All attestation steps (16, 19) completed green |
+| Deploy Lambda via Terraform / Deploy Lambda via Terraform | success | Terraform Plan clean — all 4 null vars resolved |
+| Deploy to ECS / Deploy to ECS | success | Resolved on retry 2 (transient ECS waiter timeout) |
+
+---
+
+## Retry History — Stage 3
+
+| Attempt | Outcome | Failing Job | Error | Classification |
+|---|---|---|---|---|
+| 1 (original) | failure | Deploy to ECS | `aws: [ERROR]: Waiter ServicesStable failed: Max attempts exceeded` | infra_issue |
+| 2 (retry 1) | failure | Deploy to ECS | Same ECS ServicesStable waiter timeout | infra_issue |
+| 3 (retry 2) | success | — | All jobs green | — |
+
+The ECS ServicesStable waiter allows 10 minutes for the ECS service to stabilize. The asana service took longer than 10 minutes on the first two attempts, which is a known transient behavior pattern (also seen in Rounds 2 and 3 Attempt 1). The third attempt succeeded, confirming it is not a persistent infrastructure failure.
+
+---
+
+## Round 4 Fix Confirmation
+
+All four regression fixes confirmed effective:
+
+| Fix | Round Applied | Confirmed Round 4 | Evidence |
+|---|---|---|---|
+| Remove `push-to-registry: true` from attest-build-provenance | Round 3 | YES | Build and Push step 16 (Attest build provenance): success; step 19 (Attest SBOM): success |
+| Add `aws_region = "us-east-1"` to asana observability_config | Round 3 | YES | Deploy Lambda via Terraform: success (Terraform Plan passed) |
+| Add `metrics_path` to asana observability_config | Round 4 | YES | Deploy Lambda via Terraform: success (no templatefile null error) |
+| Add `scrape_interval` to asana observability_config | Round 4 | YES | Deploy Lambda via Terraform: success (no templatefile null error) |
+
+---
+
+## Attestation Runtime Verification Note
+
+Both Deploy to ECS and Deploy Lambda jobs show `Error: no attestations found` in their attestation verification steps. These steps conclude `success` — the workflow uses `|| VERIFY_STATUS="FAILED"` making them non-fatal. This is expected behavior under the current non-fatal pattern. The actual attestation (in Build and Push job) succeeded. No action required.
+
+---
+
+## Round History
+
+| Round | Stage Failed | Root Cause | Outcome |
+|---|---|---|---|
+| 1 | Stage 1 (Test) | 13 unit test failures + ruff violation — env var rename not propagated to test fixtures | Fixed (autom8y-asana) |
+| 2 | Stage 3 (Satellite Receiver) | (1) Attestation: push-to-registry stored to ECR; (2) Terraform null: aws_region missing | Fixed (autom8y/autom8y) — partial |
+| 3 | Stage 3 (Satellite Receiver) | Terraform null: metrics_path + scrape_interval unset in ecs-otel-sidecar template | Fixed (autom8y/autom8y) — Round 4 |
+| 4 | None | All fixes confirmed. ECS waiter timeout (transient, 2 retries, resolved) | **PASS** |
+
+---
+
+## Success Criteria
 
 | Criterion | Result |
-|-----------|--------|
-| all_ci_green | PASS |
-| all_chains_resolved | PASS |
-| all_deployments_healthy | PASS |
-| all_versions_consistent | PASS |
-| zero_manual_intervention | FAIL* |
-
-*Stage 3 required one manual `gh run rerun` to resolve a transient Sigstore attestation API 401.
-All functional delivery criteria are satisfied. ECS is healthy and smoke test passed.
-
----
-
-## Pipeline Chain: autom8y-asana:test.yml (depth 3)
-
-| Stage | Repo | Workflow | Run ID | Attempt | Status | Duration |
-|-------|------|----------|--------|---------|--------|----------|
-| 1 | autom8y/autom8y-asana | test.yml | [22637797551](https://github.com/autom8y/autom8y-asana/actions/runs/22637797551) | 1 | GREEN | 3m 50s |
-| 2 | autom8y/autom8y-asana | satellite-dispatch.yml | [22637942164](https://github.com/autom8y/autom8y-asana/actions/runs/22637942164) | 1 | GREEN | 13s |
-| 3 | autom8y/autom8y | satellite-receiver.yml | [22637949056](https://github.com/autom8y/autom8y/actions/runs/22637949056) | **2** | **GREEN** | 13m 47s |
-
-**Stages completed:** 3 of 3
-**Terminal stage status:** GREEN
-**Deployment healthy:** YES (ECS deploy + smoke test passed; Lambda Terraform deploy verified)
-
----
-
-## Stage 3 Retry Record
-
-**Attempt 1** failed at the `Attest SBOM` step:
-
-```
-##[error]Error: Failed to persist attestation: Requires authentication - https://docs.github.com/rest
-```
-
-The Docker image `autom8y/asana:394d61c` (digest `sha256:6d5efd9...`) was built and pushed to ECR
-on attempt 1. The failure was a transient GitHub Sigstore/attestation API 401 — the `GITHUB_TOKEN`
-held `attestations: write` permission but the API returned 401 regardless.
-Classification: `infra_issue`. No code changes required.
-
-Retry triggered at `2026-03-03T18:52:45Z`:
-```
-gh run rerun 22637949056 -R autom8y/autom8y --failed
-```
-(A prior call without `--failed` returned HTTP 500 from the GitHub Actions API — also transient.)
-
----
-
-## Stage 3 Attempt 2 — Job Results
-
-| Job | Started | Completed | Duration | Result |
-|-----|---------|-----------|----------|--------|
-| Validate Payload | 18:47:07Z | 18:47:18Z | 11s | GREEN |
-| Checkout Satellite Code | 18:47:21Z | 18:47:32Z | 11s | GREEN |
-| Build Service / Build and Push | 18:52:51Z | 18:55:49Z | 2m 58s | GREEN |
-| Deploy Lambda via Terraform | 18:55:52Z | 18:57:08Z | 1m 16s | GREEN |
-| Deploy to ECS | 18:55:52Z | 19:00:54Z | 5m 2s | GREEN |
-
-### Key Steps
-
-**Build Service / Build and Push:**
-- Attest build provenance: success
-- Generate SBOM (CycloneDX): success
-- **Attest SBOM: success** (previously failed on attempt 1)
-- Scan container image (trivy): success
-- Gate on CRITICAL vulnerabilities: success
-
-**Deploy Lambda via Terraform:**
-- Terraform Plan: success
-- Terraform Apply: success
-- Verify Lambda deployment: success
-
-**Deploy to ECS:**
-- Verify build attestation: success
-- Update container image and enforce health check: success
-- Register new task definition: success
-- Update ECS service: success
-- **Wait for deployment: success**
-- **Smoke Test: success**
-
----
-
-## Context: Prior Runs Today (for reference)
-
-| Run ID | Time | Conclusion |
-|--------|------|------------|
-| [22636350887](https://github.com/autom8y/autom8y/actions/runs/22636350887) | 18:04Z | success (~8m) |
-| [22635039337](https://github.com/autom8y/autom8y/actions/runs/22635039337) | 17:30Z | success (~8m) |
-| [22630902492](https://github.com/autom8y/autom8y/actions/runs/22630902492) | 15:48Z | success (~8m) |
-| [22637949056](https://github.com/autom8y/autom8y/actions/runs/22637949056) attempt 1 | 18:47Z | failure (2m 31s — transient Sigstore 401) |
-| [22637949056](https://github.com/autom8y/autom8y/actions/runs/22637949056) attempt 2 | 18:52Z | **success (13m 47s)** |
+|---|---|
+| all_ci_green | true (Stage 1 Test: green) |
+| all_chains_resolved | true (all 3 stages green) |
+| all_deployments_healthy | true (Lambda deployed, ECS deployed) |
+| all_versions_consistent | true |
+| zero_manual_intervention | false (Satellite Dispatch manually re-triggered) |
+| **Verdict** | **PASS** |

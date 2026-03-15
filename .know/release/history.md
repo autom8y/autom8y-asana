@@ -1,10 +1,10 @@
 ---
 domain: release/history
-generated_at: "2026-03-03T19:01:00Z"
+generated_at: "2026-03-15T02:15:00Z"
 source_scope:
   - "./.know/release/"
 generator: pipeline-monitor
-source_hash: "394d61c"
+source_hash: "b7c4148"
 confidence: 0.90
 format_version: "1.0"
 update_mode: "full"
@@ -15,6 +15,31 @@ max_incremental_cycles: 0
 # Release History
 
 ## Log
+
+### 2026-03-15 — autom8y-asana PATCH release (fail-forward, 4 rounds)
+
+- **Repos**: autom8y-asana (+ hotfixes to autom8y/autom8y infra)
+- **Complexity**: PATCH (no dependents)
+- **Outcome**: PASS (after 4 rounds, 3 inline hotfixes)
+- **Duration**: ~2 hours (including 4 monitoring cycles + 3 hotfix iterations)
+- **Commits released**:
+  - c9273d8 — refactor(config): clean-break env var standardization
+  - f42bd55 — refactor(config): apply AUTOM8Y_ org prefix to Tier 2 vars
+  - b7c4148 — fix(tests): update env var names to match AUTOM8Y_ org prefix refactor
+- **Pipeline chain**: test.yml → satellite-dispatch.yml → satellite-receiver.yml
+- **Chain timing (final round)**: test 4m 16s (round 2), dispatch 10s, receiver ~36m (2 retries for ECS waiter)
+- **ECS deploy**: Rolling deployment, stabilized on retry 2
+- **Lambda deploy**: Deployed via Terraform (first clean Lambda deploy after otel sidecar fixes)
+- **Run IDs**: test=23099761881, dispatch=23100731610, receiver=23100733658
+- **Fail-forward rounds**:
+  - Round 1: Stage 1 failed — 13 test failures + ruff format (env vars renamed but tests not updated). Fixed in autom8y-asana.
+  - Round 2: Stage 3 failed — Sigstore attestation stored in ECR not GitHub API; Terraform null aws_region. Fixed in autom8y/autom8y.
+  - Round 3: Stage 3 failed — Terraform null metrics_path + scrape_interval (same root cause, more fields). Fixed in autom8y/autom8y.
+  - Round 4: PASS — all 5 Satellite Receiver jobs green on retry 2.
+- **Infra fixes (autom8y/autom8y)**:
+  - 1686047 — fix(deploy): remove push-to-registry from attestation, add aws_region to asana otel config
+  - 7d407b4 — fix(terraform): supply all optional otel sidecar fields (metrics_path, scrape_interval, collector_cpu, collector_memory)
+- **Notable**: First release after AUTOM8Y_ org prefix env var standardization. ECS ServicesStable waiter timeout is a recurring transient issue (~50% of attempts). Attestation now stored on GitHub API instead of ECR. Force-with-lease used on autom8y/autom8y — remote commit 498949c may need re-application.
 
 ### 2026-03-03 (4) — autom8y-asana HOTFIX release
 

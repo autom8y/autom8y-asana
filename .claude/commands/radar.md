@@ -73,7 +73,7 @@ Filter domains with `scope: radar` from the registry. The 7 radar signal domains
 
 For each radar signal domain, read its criteria file:
 ```
-Read(".claude/skills/pinakes/domains/{domain}.md")
+Read(".channel/skills/pinakes/domains/{domain}.md")
 ```
 
 Store all loaded criteria keyed by domain name. This content is injected into each theoros dispatch prompt in Phase 2.
@@ -179,7 +179,7 @@ When multiple signals flag the same package or file:
 5. Combine all evidence items from all contributing signals.
 6. Write one Suggested Action addressing all signals together.
 
-Reference the deduplication rules in `radar/schemas/report.lego.md` for exact behavior.
+Reference the deduplication rules in `radar/schemas/report.md` for exact behavior.
 
 ### 3c. Prioritize
 
@@ -204,7 +204,7 @@ This prose is optional and should only be generated when 3+ signals converge on 
 
 ### 4a. Build the report
 
-Assemble the full report following the `.know/radar.md` body template in `radar/schemas/report.lego.md`:
+Assemble the full report following the `.know/radar.md` body template in `radar/schemas/report.md`:
 
 ```
 # Knowledge Radar — {YYYY-MM-DD}
@@ -229,7 +229,7 @@ Assemble the full report following the `.know/radar.md` body template in `radar/
 - **Run date**: {YYYY-MM-DD}
 ```
 
-Build frontmatter following `radar/schemas/report.lego.md`:
+Build frontmatter following `radar/schemas/report.md`:
 
 ```yaml
 ---
@@ -296,7 +296,7 @@ Archive: `.ledge/reviews/RADAR-{YYYY-MM-DD}.md`
 
 ### 4e. If --json flag
 
-After the display summary, emit JSON to stdout using the shape defined in `radar/schemas/report.lego.md`. Do NOT write JSON to disk.
+After the display summary, emit JSON to stdout using the shape defined in `radar/schemas/report.md`. Do NOT write JSON to disk.
 
 ---
 
@@ -323,14 +323,14 @@ Skill("pinakes")
 ```
 
 Look up available challenge domains for the requested domain:
-- Check if `advocatus-{domain}` exists in the registry (scope: adversarial).
-- Check if `socratic-{domain}` exists in the registry (scope: socratic).
-- If NEITHER exists: ERROR — "No challenge criteria available for domain `{domain}`. Available challenge domains: {list all advocatus- and socratic- domains from registry}."
+- Check if `adversarial-{domain}` exists in the registry (scope: adversarial).
+- Check if `dialectic-{domain}` exists in the registry (scope: dialectic).
+- If NEITHER exists: ERROR — "No challenge criteria available for domain `{domain}`. Available challenge domains: {list all adversarial- and dialectic- domains from registry}."
 
 For each that exists, read its criteria:
 ```
-Read(".claude/skills/pinakes/domains/advocatus-{domain}.md")   # if exists
-Read(".claude/skills/pinakes/domains/socratic-{domain}.md")    # if exists
+Read(".channel/skills/pinakes/domains/adversarial-{domain}.md")   # if exists
+Read(".channel/skills/pinakes/domains/dialectic-{domain}.md")    # if exists
 ```
 
 ### Challenge Dispatch
@@ -339,7 +339,7 @@ Dispatch ALL available theoros for this domain in a SINGLE response block (paral
 
 ```
 Task(subagent_type="theoros", prompt="
-## Challenge Mode: {advocatus|socratic}-{domain}
+## Challenge Mode: {adversarial|dialectic}-{domain}
 
 You are running an ADVERSARIAL CHALLENGE of a .know/ file. Your goal is to find evidence that CONTRADICTS claims in the challenged document.
 
@@ -386,7 +386,7 @@ If no contradictions found: output `NO CONTRADICTIONS FOUND` with explanation. S
 After theoros agents return:
 
 1. Parse all `CHALLENGE FINDING:` blocks.
-2. Assemble the challenge report following the template in `radar/schemas/report.lego.md`.
+2. Assemble the challenge report following the template in `radar/schemas/report.md`.
 3. Write the report:
    ```
    Write(".ledge/reviews/CHALLENGE-{domain}-{YYYY-MM-DD}.md", challenge_report_content)
@@ -401,7 +401,7 @@ After theoros agents return:
 ```
 ## Challenge Report: {domain} — {YYYY-MM-DD}
 
-Challenge modes run: {list of advocatus-/socratic- domains dispatched}
+Challenge modes run: {list of adversarial-/dialectic- domains dispatched}
 Contradictions found: {N} ({high_count} HIGH, {medium_count} MEDIUM, {low_count} LOW)
 Claims checked: {N}
 

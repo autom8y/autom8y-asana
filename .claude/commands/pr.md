@@ -4,8 +4,6 @@ description: Create pull request with comprehensive description
 argument-hint: "[title] [--base=BRANCH]"
 allowed-tools: Bash, Read, Glob, Grep
 model: sonnet
-disable-model-invocation: true
-context: fork
 ---
 
 ## Context
@@ -62,7 +60,7 @@ Create a GitHub pull request with auto-generated description. $ARGUMENTS
 
 ## Reference
 
-Full documentation: `.claude/commands/operations/pr/INDEX.md`
+Full documentation: `.claude/commands/pr.md`
 
 ## Sigil
 
@@ -74,7 +72,7 @@ End your response with:
 
 **Fork-context note**: This command may run without conversation history. To resolve the hint, read session state from disk:
 - Find active session: look for `status: "ACTIVE"` in `.sos/sessions/*/SESSION_CONTEXT.md`
-- Read `current_phase` from its frontmatter and check `.claude/ACTIVE_WORKFLOW.yaml` for phase ordering
+- Read `current_phase` from its frontmatter and check `.knossos/ACTIVE_WORKFLOW.yaml` for phase ordering
 - No active session found → output `📬 opened` without hint.
 
 Natural follow-on: `next: /code-review {pr_number}` or `next: merge when green`.

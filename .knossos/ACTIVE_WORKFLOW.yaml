@@ -3,7 +3,7 @@ workflow_type: sequential
 description: Multi-repo release orchestration lifecycle (Reconnaissance -> Dependencies -> Planning -> Execution -> Verification)
 
 entry_point:
-  agent: pythia  # Orchestrator entry; pythia routes to cartographer for reconnaissance
+  agent: potnia  # Orchestrator entry; potnia routes to cartographer for reconnaissance
   first_phase: reconnaissance
   first_phase_agent: cartographer
 
@@ -49,14 +49,14 @@ complexity_levels:
     phases: [reconnaissance, dependency-analysis, release-planning, execution, verification]
 
 # Agent roles for command mapping:
-# /releaser          -> pythia (orchestrated, determines PATCH vs RELEASE vs PLATFORM)
+# /releaser          -> potnia (orchestrated, determines PATCH vs RELEASE vs PLATFORM)
 # Direct Task        -> cartographer (recon-only, no orchestration)
 
 # Auto-escalation protocol:
-# At PATCH complexity, after reconnaissance completes, Pythia reads the
+# At PATCH complexity, after reconnaissance completes, Potnia reads the
 # platform-state-map.yaml and checks the has_dependents flag on the target repo.
-# If has_dependents: true, Pythia auto-escalates to RELEASE complexity and
-# continues from the dependency-analysis phase. This is Pythia's responsibility
+# If has_dependents: true, Potnia auto-escalates to RELEASE complexity and
+# continues from the dependency-analysis phase. This is Potnia's responsibility
 # — the workflow engine treats it as a complexity upgrade mid-flight.
 
 # Artifact chain:
@@ -69,7 +69,7 @@ complexity_levels:
 #   release-plan.md           (release-planner -> user)
 #   execution-ledger.yaml     (release-executor -> pipeline-monitor)
 #   execution-ledger.md       (release-executor -> user)
-#   verification-report.yaml  (pipeline-monitor -> pythia)
+#   verification-report.yaml  (pipeline-monitor -> potnia)
 #   verification-report.md    (pipeline-monitor -> user)
 
 back_routes:

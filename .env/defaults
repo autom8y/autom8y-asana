@@ -1,0 +1,3 @@
+# Project non-secrets for autom8y-asana (committed).
+# Ecosystem defaults loaded from .a8/autom8y/env.defaults (Layer 1).
+ASANA_CW_ENVIRONMENT=development

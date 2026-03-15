@@ -4,7 +4,6 @@ description: Validation-only with review and approval
 argument-hint: "<feature-name> [--requirements=PATH]"
 allowed-tools: Bash, Read, Task, Glob, Grep
 model: opus
-disable-model-invocation: true
 ---
 
 ## Context
@@ -14,7 +13,7 @@ Auto-injected by SessionStart hook (project, rite, session, git, workflow).
 
 1. **Session context** (recommended):
    - Check Session Status in context above
-   - If no session: WARN "No active session. Consider /start for tracked workflow."
+   - If no session: WARN "No active session. Consider /sos start for tracked workflow."
 
 2. **Prerequisites check**:
    - Verify implementation exists to validate
@@ -33,7 +32,7 @@ Read the validation agent from workflow:
 ```bash
 # Find the final phase agent (validation, review, audit, etc.)
 # This is typically the last phase in the workflow
-VALIDATION_AGENT=$(grep -B1 "next: null" .claude/ACTIVE_WORKFLOW.yaml | grep "agent:" | awk '{print $2}')
+VALIDATION_AGENT=$(grep -B1 "next: null" .knossos/ACTIVE_WORKFLOW.yaml | grep "agent:" | awk '{print $2}')
 ```
 
 ## Behavior
@@ -77,12 +76,12 @@ VALIDATION_AGENT=$(grep -B1 "next: null" .claude/ACTIVE_WORKFLOW.yaml | grep "ag
 
 ```
 /qa "user-authentication"
-/qa "API documentation" --requirements=docs/audits/AUDIT-api.md
+/qa "API documentation" --requirements=.ledge/reviews/AUDIT-api.md
 ```
 
 ## Reference
 
-Full documentation: `.claude/commands/operations/qa/INDEX.md`
+Full documentation: `.claude/commands/qa.md`
 
 ## Sigil
 
@@ -93,7 +92,7 @@ End your response with:
 ✅ validated · next: {hint}
 
 Resolve the hint based on your validation outcome:
-- APPROVED → `next: /commit && /pr` (or `/wrap` if already committed).
+- APPROVED → `next: /commit && /pr` (or `/sos wrap` if already committed).
 - REJECTED → `next: fix issues, then /qa`.
 - CONDITIONAL → `next: /commit && /pr` (document caveats in PR).
 No active session → output `✅ validated` without hint.

@@ -1,7 +1,7 @@
 ---
 name: fray
 description: Fork current session into a parallel strand with optional worktree isolation
-argument-hint: "[--no-worktree] [--from=SESSION_ID]"
+argument-hint: "[--no-worktree] [--from=SESSION_ID] [--claim=SESSION_ID]"
 allowed-tools: Bash, Read
 disallowed-tools: Write, Edit, NotebookEdit
 disable-model-invocation: true
@@ -14,25 +14,43 @@ Auto-injected by SessionStart hook (project, rite, session, git).
 
 Fork the current session into a parallel strand. $ARGUMENTS
 
+### --claim Mode (Bind Only)
+
+If `--claim` is present:
+1. Extract `harness_session_id` from hook-injected YAML frontmatter
+2. Execute: `ari session claim {claim-session-id} --harness-session-id {cc-id}`
+3. Display: `Claimed: bound to {session-id}`
+4. Sigil: `claimed -- next: /go`
+5. STOP (do not proceed to fray logic)
+
 ## Pre-flight
 
 1. **Active session required**:
-   - Read session state from hook-injected context above
-   - If no active session: ERROR "No active session to fray. Use `/start` to begin."
-   - If session is PARKED: ERROR "Cannot fray a parked session. Use `/continue` first."
+   - Read `status` from hook-injected YAML frontmatter above
+   - If no active session: ERROR "No active session to fray. Use `/sos start` to begin."
+   - If session is PARKED: ERROR "Cannot fray a parked session. Use `/sos resume` first."
 
 2. **Git repository required** (if worktree mode):
    - Verify in git repository: `git rev-parse --git-dir`
    - If not in git repo and no `--no-worktree`: WARN and add `--no-worktree`
+
+## Existing Strands
+
+Before fraying, check if `strands:` is present in the hook-injected YAML frontmatter. If present, display existing strands so the user sees prior children and their status:
+
+```
+Existing strands:
+  {strand.session_id}: {strand.status} (landed: {strand.landed_at | "pending"})
+```
+
+If no strands exist, skip this section silently.
 
 ## Behavior
 
 ### 1. Extract Session ID
 
 **CRITICAL**: The CLI cannot discover the session automatically from a Bash subprocess.
-You MUST extract the session ID from the hook-injected Session Context table above.
-
-Look for the row: `| Session | session-YYYYMMDD-HHMMSS-XXXXXXXX |`
+You MUST extract `session_id` from the hook-injected YAML frontmatter above.
 
 Store this value — you will pass it via `--from` to the CLI.
 
@@ -47,7 +65,7 @@ ari session fray --from <session-id> [--no-worktree]
 | `/fray` | `ari session fray --from <session-id>` |
 | `/fray --no-worktree` | `ari session fray --from <session-id> --no-worktree` |
 
-Always pass `--from` with the session ID extracted from the context table.
+Always pass `--from` with the session ID extracted from the YAML frontmatter.
 
 ### 3. Execute
 
@@ -81,10 +99,11 @@ Worktree: {worktree_path}
 
 Next steps:
   cd {worktree_path} && claude
+  /fray --claim {child_id}    # bind the new CC instance to the child session
   # Start working in the parallel strand
 
 To return to parent:
-  /continue   (from original directory)
+  /sos resume   (from original directory)
 ```
 
 **Without worktree** (`--no-worktree`):
@@ -95,9 +114,12 @@ Phase: {fray_point}
 The child session shares this working tree.
 Parent is parked. You are now on the child strand.
 
+Claim this strand:
+  /fray --claim {child_id}    # bind this CC instance to the child session
+
 To return to parent:
-  /park       (park child)
-  /continue   (resume parent)
+  /sos park      (park child)
+  /sos resume    (resume parent)
 ```
 
 ### 5. Known Limitation
@@ -116,7 +138,7 @@ git worktree remove {worktree_path}
 | Explore alternative approach mid-session | `/fray` |
 | Start independent parallel work | `/worktree create` |
 | Quick spike that might be discarded | `/fray --no-worktree` |
-| Long-running parallel sprint | `/worktree create` + `/start` |
+| Long-running parallel sprint | `/worktree create` + `/sos start` |
 
 Fray preserves session lineage (parent/child). Worktrees are independent.
 
@@ -138,4 +160,4 @@ If `--no-worktree` was used, end with:
 
 ❌ fray failed: {brief reason} · fix: {recovery}
 
-Infer recovery: no active session → `/start`; session is PARKED → `/continue` first; not in git repo → initialize git; uncertain → `/consult`.
+Infer recovery: no active session → `/sos start`; session is PARKED → `/sos resume` first; not in git repo → initialize git; uncertain → `/consult`.

@@ -4,7 +4,6 @@ description: Create git commit with AI-generated message
 argument-hint: "[--all] [--message='override']"
 allowed-tools: Bash, Read, Glob, Grep
 model: sonnet
-disable-model-invocation: true
 ---
 
 ## Context
@@ -102,7 +101,7 @@ Create a git commit with an AI-generated message. $ARGUMENTS
 
 ## Reference
 
-Full documentation: `.claude/commands/operations/commit/INDEX.md`
+Full documentation: `.claude/commands/commit.md`
 
 ## Attribution Policy
 
@@ -124,7 +123,7 @@ End your response with:
 
 📌 committed · next: {hint}
 
-Resolve the hint: if the current branch diverges from the base branch (origin/main or similar) → `next: /pr`. Otherwise, if a session is active, read `current_phase` from Session Context and `.claude/ACTIVE_WORKFLOW.yaml` to suggest the next workflow phase. No active session → output `📌 committed` without hint.
+Resolve the hint: if the current branch diverges from the base branch (origin/main or similar) → `next: /pr`. Otherwise, if a session is active, read `current_phase` from Session Context and `.knossos/ACTIVE_WORKFLOW.yaml` to suggest the next workflow phase. No active session → output `📌 committed` without hint.
 
 ### On Failure
 

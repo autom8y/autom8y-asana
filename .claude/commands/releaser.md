@@ -28,7 +28,7 @@ After successful switch, show the agent table:
 
 | Agent | Role |
 |-------|------|
-| pythia | Coordinates release phases, gates complexity, manages DAG-branch failure halting |
+| potnia | Coordinates release phases, gates complexity, manages DAG-branch failure halting |
 | cartographer | Discovers repos, maps git state, identifies ecosystems and available commands |
 | dependency-resolver | Builds cross-repo dependency DAG, detects version mismatches, calculates blast radius |
 | release-planner | Creates phased execution plan with parallel groups, rollback boundaries, and CI estimates |
@@ -37,7 +37,7 @@ After successful switch, show the agent table:
 
 ### 3. Update Session
 
-If a session is active, update `active_rite` to `releaser`.
+Confirm `ari sync` output shows the correct active rite.
 
 ## Flags
 

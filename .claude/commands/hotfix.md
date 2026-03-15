@@ -4,7 +4,6 @@ description: Rapid fix workflow for urgent issues
 argument-hint: "<issue-description> [--severity=LEVEL]"
 allowed-tools: Bash, Read, Task, Glob, Grep
 model: opus
-disable-model-invocation: true
 ---
 
 ## Context
@@ -13,11 +12,11 @@ Auto-injected by SessionStart hook (project, rite, session, git, workflow).
 ## Pre-flight
 
 1. **Workflow required**:
-   - Verify `.claude/ACTIVE_WORKFLOW.yaml` exists
+   - Verify `.knossos/ACTIVE_WORKFLOW.yaml` exists
    - If missing: ERROR "No active workflow. Use /rite to select a rite first."
 
 2. **Rite context**:
-   - Verify `.claude/ACTIVE_RITE` exists
+   - Verify `.knossos/ACTIVE_RITE` exists
    - If missing: ERROR "No rite active. Use /rite <rite-name> to select a rite."
 
 ## Your Task
@@ -30,7 +29,7 @@ For hotfix, use the implementation agent with fast-path workflow:
 
 ```bash
 # Get implementation agent from workflow
-IMPL_AGENT=$(grep -B1 "produces: code\|produces: commits\|produces: documentation" .claude/ACTIVE_WORKFLOW.yaml | grep "agent:" | awk '{print $2}')
+IMPL_AGENT=$(grep -B1 "produces: code\|produces: commits\|produces: documentation" .knossos/ACTIVE_WORKFLOW.yaml | grep "agent:" | awk '{print $2}')
 ```
 
 ## Behavior
@@ -93,3 +92,4 @@ End your response with:
 ❌ hotfix failed: {brief reason} · fix: {recovery}
 
 Infer recovery: no workflow active → `/rite` to select a rite; diagnosis inconclusive → try reproducing with more context; uncertain → `/consult`.
+
