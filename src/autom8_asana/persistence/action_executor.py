@@ -7,6 +7,7 @@ calls when batch_client is None or the batch endpoint fails.
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, Any
 
 from autom8_asana.batch.models import BatchRequest, BatchResult
@@ -416,9 +417,7 @@ class ActionExecutor:
             return task.model_copy(update={"gid": real_gid})
 
         # Fallback: directly update gid (may require unfreezing)
-        try:
+        with contextlib.suppress(TypeError, AttributeError):
             object.__setattr__(task, "gid", real_gid)
-        except (TypeError, AttributeError):
-            pass  # Can't modify, use original
 
         return task

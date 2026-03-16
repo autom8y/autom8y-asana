@@ -77,10 +77,7 @@ def _extract_multi_enum(multi_values: Any) -> list[str] | None:
     items = multi_values or []
     result: list[str] = []
     for opt in items:
-        if isinstance(opt, dict):
-            name = opt.get("name")
-        else:
-            name = getattr(opt, "name", None)
+        name = opt.get("name") if isinstance(opt, dict) else getattr(opt, "name", None)
         if name:
             result.append(name)
     return result if result else None
@@ -98,10 +95,7 @@ def _extract_people(people_value: Any) -> list[str] | None:
     items = people_value or []
     gids: list[str] = []
     for p in items:
-        if isinstance(p, dict):
-            gid = p.get("gid")
-        else:
-            gid = getattr(p, "gid", None)
+        gid = p.get("gid") if isinstance(p, dict) else getattr(p, "gid", None)
         if gid:
             gids.append(gid)
     return gids if gids else None
@@ -185,10 +179,7 @@ def get_custom_field_value(task_or_dict: Any, field_name: str) -> Any:
     normalized_name = field_name.lower().strip()
 
     for cf in custom_fields:
-        if isinstance(cf, dict):
-            cf_name = cf.get("name")
-        else:
-            cf_name = getattr(cf, "name", None)
+        cf_name = cf.get("name") if isinstance(cf, dict) else getattr(cf, "name", None)
         if cf_name and cf_name.lower().strip() == normalized_name:
             return extract_cf_value(cf)
 

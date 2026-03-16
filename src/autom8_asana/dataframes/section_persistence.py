@@ -146,16 +146,16 @@ class SectionManifest(BaseModel):
         now = datetime.now(UTC)
         result: list[str] = []
         for gid, info in self.sections.items():
-            if info.status in (SectionStatus.PENDING, SectionStatus.FAILED):
+            if (
+                info.status in (SectionStatus.PENDING, SectionStatus.FAILED)
+                or info.status == SectionStatus.IN_PROGRESS
+                and (
+                    info.in_progress_since is None
+                    or (now - info.in_progress_since).total_seconds()
+                    > stale_timeout_seconds
+                )
+            ):
                 result.append(gid)
-            elif info.status == SectionStatus.IN_PROGRESS:
-                # Treat as stuck if no timestamp (legacy) or older than threshold
-                if info.in_progress_since is None:
-                    result.append(gid)
-                elif (
-                    now - info.in_progress_since
-                ).total_seconds() > stale_timeout_seconds:
-                    result.append(gid)
         return result
 
     def get_complete_section_gids(self) -> list[str]:

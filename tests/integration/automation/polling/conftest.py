@@ -13,6 +13,7 @@ Environment Variables:
 
 from __future__ import annotations
 
+import contextlib
 import os
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -153,11 +154,8 @@ async def test_task(
     yield task
 
     # Cleanup: delete the task
-    try:
+    with contextlib.suppress(Exception):
         await asana_client.tasks.delete_async(task.gid)
-    except Exception:
-        # Task may already be deleted or inaccessible - that's fine
-        pass
 
 
 # ============================================================================

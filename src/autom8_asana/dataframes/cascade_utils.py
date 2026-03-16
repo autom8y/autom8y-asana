@@ -104,14 +104,14 @@ def cascade_provider_field_mapping(entity_type: str) -> dict[str, str]:
     for _norm_name, (owner_class, field_def) in cascade_registry.items():
         if owner_class is not model_class:
             continue
+        # The source_field (e.g., "name") is the Task attribute, not a custom field.
+        # The corresponding column name on the schema IS the source_field.
         if (
             field_def.source_field is not None
             and field_def.name not in mapping.values()
+            and field_def.source_field in [c.name for c in schema.columns]
         ):
-            # The source_field (e.g., "name") is the Task attribute, not a custom field.
-            # The corresponding column name on the schema IS the source_field.
-            if field_def.source_field in [c.name for c in schema.columns]:
-                mapping[field_def.source_field] = field_def.name
+            mapping[field_def.source_field] = field_def.name
 
     return mapping
 

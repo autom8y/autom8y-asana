@@ -251,14 +251,13 @@ class ChangeTracker:
         for key, entity in self._entities.items():
             state = self._states.get(key, EntityState.CLEAN)
 
-            if state == EntityState.DELETED:
+            if (
+                state == EntityState.DELETED
+                or state == EntityState.NEW
+                or state == EntityState.CLEAN
+                and self._is_modified(entity)
+            ):
                 dirty.append(entity)
-            elif state == EntityState.NEW:
-                dirty.append(entity)
-            elif state == EntityState.CLEAN:
-                # Check if actually modified since tracking
-                if self._is_modified(entity):
-                    dirty.append(entity)
 
         return dirty
 

@@ -620,9 +620,6 @@ def _matches_holder_pattern(task: Task, name_pattern: str, emoji: str) -> bool:
         return True
 
     # Check contains match (e.g., "All Contacts Here" contains "contacts")
-    if pattern_lower in task_name_lower:
-        return True
-
     # Fall back to emoji (not currently implemented in Task model)
     # Would check task.custom_emoji.name == emoji if available
-    return False
+    return pattern_lower in task_name_lower

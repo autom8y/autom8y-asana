@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -156,10 +157,8 @@ class RateLimitError(AsanaError):
         base = AsanaError.from_response(response)
         retry_after = None
         if "retry-after" in response.headers:
-            try:
+            with contextlib.suppress(ValueError):
                 retry_after = int(response.headers["retry-after"])
-            except ValueError:
-                pass
         return cls(
             base.message,
             status_code=base.status_code,

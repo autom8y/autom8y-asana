@@ -123,9 +123,9 @@ def _make_mock_process(**overrides: Any) -> MagicMock:
     process = MagicMock()
     process.gid = overrides.get("gid", "src_proc_gid")
     process.name = overrides.get("name", "Source Process")
-    process.process_holder = overrides.get("process_holder", None)
+    process.process_holder = overrides.get("process_holder")
     process.custom_fields = overrides.get("custom_fields", [])
-    process.rep = overrides.get("rep", None)
+    process.rep = overrides.get("rep")
     return process
 
 

@@ -11,6 +11,7 @@ They are tagged for narrowing in I6 (Exception Narrowing).
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -364,269 +365,265 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                 projects_in_progress.add(project_gid)
 
                 try:
-                    async with persistence:
-                        async with AsanaClient(
+                    async with (
+                        persistence,
+                        AsanaClient(
                             token=bot_pat, workspace_gid=workspace_gid
-                        ) as client:
-                            task_type = to_pascal_case(entity_type)
-                            schema = get_schema(task_type)
-                            resolver = DefaultCustomFieldResolver()
+                        ) as client,
+                    ):
+                        task_type = to_pascal_case(entity_type)
+                        schema = get_schema(task_type)
+                        resolver = DefaultCustomFieldResolver()
 
-                            from autom8_asana.services.gid_lookup import (
-                                build_gid_index_data,
-                            )
+                        from autom8_asana.services.gid_lookup import (
+                            build_gid_index_data,
+                        )
 
-                            builder = ProgressiveProjectBuilder(
-                                client=client,
-                                project_gid=project_gid,
-                                entity_type=entity_type,
-                                schema=schema,
-                                persistence=persistence,
-                                resolver=resolver,
-                                store=shared_store,  # Use SHARED store for cascade resolution
-                                index_builder=build_gid_index_data,
-                            )
+                        builder = ProgressiveProjectBuilder(
+                            client=client,
+                            project_gid=project_gid,
+                            entity_type=entity_type,
+                            schema=schema,
+                            persistence=persistence,
+                            resolver=resolver,
+                            store=shared_store,  # Use SHARED store for cascade resolution
+                            index_builder=build_gid_index_data,
+                        )
 
-                            # Check if manifest exists — if not, the
-                            # progressive builder would do a full API fetch
-                            # which risks OOM.  Instead, try loading
-                            # dataframe.parquet that Lambda may have already
-                            # written.  Only delegate to Lambda if no parquet
-                            # exists either.
-                            manifest = await persistence.get_manifest_async(project_gid)
-                            if manifest is None:
-                                # Try loading existing dataframe.parquet from
-                                # S3 (Lambda writes this and deletes the
-                                # manifest after a successful warm).
-                                # Per TDD-UNIFIED-DF-PERSISTENCE-001:
-                                # Use S3DataFrameStorage when available.
-                                s3_df: pl.DataFrame | None = None
-                                s3_watermark: datetime | None = None
-                                if df_storage is not None:
-                                    (
-                                        s3_df,
-                                        s3_watermark,
-                                    ) = await df_storage.load_dataframe(project_gid)
-                                else:
-                                    # No storage available -- cannot load parquet
-                                    s3_df = None
-                                    s3_watermark = None
+                        # Check if manifest exists — if not, the
+                        # progressive builder would do a full API fetch
+                        # which risks OOM.  Instead, try loading
+                        # dataframe.parquet that Lambda may have already
+                        # written.  Only delegate to Lambda if no parquet
+                        # exists either.
+                        manifest = await persistence.get_manifest_async(project_gid)
+                        if manifest is None:
+                            # Try loading existing dataframe.parquet from
+                            # S3 (Lambda writes this and deletes the
+                            # manifest after a successful warm).
+                            # Per TDD-UNIFIED-DF-PERSISTENCE-001:
+                            # Use S3DataFrameStorage when available.
+                            s3_df: pl.DataFrame | None = None
+                            s3_watermark: datetime | None = None
+                            if df_storage is not None:
+                                (
+                                    s3_df,
+                                    s3_watermark,
+                                ) = await df_storage.load_dataframe(project_gid)
+                            else:
+                                # No storage available -- cannot load parquet
+                                s3_df = None
+                                s3_watermark = None
 
-                                if s3_df is not None and len(s3_df) > 0:
-                                    # Parquet exists — load directly into
-                                    # memory cache (no API calls needed).
-                                    logger.info(
-                                        "progressive_preload_loaded_from_parquet",
-                                        extra={
-                                            "project_gid": project_gid,
-                                            "entity_type": entity_type,
-                                            "rows": len(s3_df),
-                                            "watermark": (
-                                                s3_watermark.isoformat()
-                                                if s3_watermark
-                                                else None
-                                            ),
-                                        },
-                                    )
+                            if s3_df is not None and len(s3_df) > 0:
+                                # Parquet exists — load directly into
+                                # memory cache (no API calls needed).
+                                logger.info(
+                                    "progressive_preload_loaded_from_parquet",
+                                    extra={
+                                        "project_gid": project_gid,
+                                        "entity_type": entity_type,
+                                        "rows": len(s3_df),
+                                        "watermark": (
+                                            s3_watermark.isoformat()
+                                            if s3_watermark
+                                            else None
+                                        ),
+                                    },
+                                )
 
-                                    # WS-2: Populate shared store from cascade provider
-                                    # fast-path so downstream cascade validation can resolve.
-                                    from autom8_asana.dataframes.cascade_utils import (
-                                        cascade_provider_field_mapping,
-                                        is_cascade_provider,
-                                    )
+                                # WS-2: Populate shared store from cascade provider
+                                # fast-path so downstream cascade validation can resolve.
+                                from autom8_asana.dataframes.cascade_utils import (
+                                    cascade_provider_field_mapping,
+                                    is_cascade_provider,
+                                )
 
-                                    if (
-                                        is_cascade_provider(entity_type)
-                                        and shared_store is not None
-                                    ):
-                                        try:
-                                            mapping = cascade_provider_field_mapping(
-                                                entity_type
-                                            )
-                                            if mapping:
-                                                task_dicts = _dataframe_to_task_dicts(
-                                                    s3_df,
-                                                    cascade_field_mapping=mapping,
-                                                )
-                                                if task_dicts:
-                                                    await shared_store.put_batch_async(
-                                                        task_dicts,
-                                                    )
-                                                    logger.info(
-                                                        "progressive_preload_store_populated_from_parquet",
-                                                        extra={
-                                                            "project_gid": project_gid,
-                                                            "entity_type": entity_type,
-                                                            "task_count": len(
-                                                                task_dicts
-                                                            ),
-                                                        },
-                                                    )
-                                        except (
-                                            Exception
-                                        ) as e:  # BROAD-CATCH: enrichment
-                                            logger.warning(
-                                                "progressive_preload_store_populate_failed",
-                                                extra={
-                                                    "project_gid": project_gid,
-                                                    "error": str(e),
-                                                    "error_type": type(e).__name__,
-                                                },
-                                            )
-
-                                    # WS-1: Run cascade validation on entities
-                                    # that have cascade fields. Entities without
-                                    # cascade columns (e.g., Business) naturally
-                                    # skip via _has_cascade_fields check.
-                                    if shared_store is not None and _has_cascade_fields(
-                                        schema
-                                    ):
-                                        try:
-                                            from autom8_asana.dataframes.builders.cascade_validator import (
-                                                validate_cascade_fields_async,
-                                            )
-                                            from autom8_asana.dataframes.views.cascade_view import (
-                                                CascadeViewPlugin,
-                                            )
-
-                                            cascade_plugin = CascadeViewPlugin(
-                                                store=shared_store,
-                                            )
-                                            (
+                                if (
+                                    is_cascade_provider(entity_type)
+                                    and shared_store is not None
+                                ):
+                                    try:
+                                        mapping = cascade_provider_field_mapping(
+                                            entity_type
+                                        )
+                                        if mapping:
+                                            task_dicts = _dataframe_to_task_dicts(
                                                 s3_df,
-                                                cascade_result,
-                                            ) = await validate_cascade_fields_async(
-                                                merged_df=s3_df,
-                                                store=shared_store,
-                                                cascade_plugin=cascade_plugin,
-                                                project_gid=project_gid,
-                                                entity_type=entity_type,
-                                                schema=schema,
+                                                cascade_field_mapping=mapping,
                                             )
-                                            logger.info(
-                                                "progressive_preload_cascade_validated",
-                                                extra={
-                                                    "project_gid": project_gid,
-                                                    "entity_type": entity_type,
-                                                    "rows_checked": cascade_result.rows_checked,
-                                                    "rows_corrected": cascade_result.rows_corrected,
-                                                },
-                                            )
-
-                                            # Self-heal: re-persist corrected
-                                            # DataFrame to S3 so next cold start
-                                            # loads the fixed version.
-                                            if (
-                                                cascade_result.rows_corrected > 0
-                                                and df_storage is not None
-                                                and s3_watermark is not None
-                                            ):
-                                                await df_storage.save_dataframe(
-                                                    project_gid, s3_df, s3_watermark
+                                            if task_dicts:
+                                                await shared_store.put_batch_async(
+                                                    task_dicts,
                                                 )
                                                 logger.info(
-                                                    "progressive_preload_cascade_self_healed",
+                                                    "progressive_preload_store_populated_from_parquet",
                                                     extra={
                                                         "project_gid": project_gid,
                                                         "entity_type": entity_type,
-                                                        "rows_corrected": cascade_result.rows_corrected,
+                                                        "task_count": len(task_dicts),
                                                     },
                                                 )
-                                        except (
-                                            Exception
-                                        ) as e:  # BROAD-CATCH: cascade is additive
-                                            logger.warning(
-                                                "progressive_preload_cascade_validation_failed",
-                                                extra={
-                                                    "project_gid": project_gid,
-                                                    "entity_type": entity_type,
-                                                    "error": str(e),
-                                                    "error_type": type(e).__name__,
-                                                },
-                                            )
-
-                                    if s3_watermark is not None:
-                                        watermark_repo.set_watermark(
-                                            project_gid, s3_watermark
-                                        )
-                                    if (
-                                        dataframe_cache is not None
-                                        and s3_watermark is not None
-                                    ):
-                                        await dataframe_cache.put_async(
-                                            project_gid,
-                                            entity_type,
-                                            s3_df,
-                                            s3_watermark,
-                                        )
-                                    return True
-
-                                # No parquet either — delegate to Lambda
-                                lambda_arn = os.environ.get("CACHE_WARMER_LAMBDA_ARN")
-                                if lambda_arn:
-                                    projects_needing_lambda.append(entity_type)
-                                    logger.info(
-                                        "progressive_preload_no_manifest_delegating",
-                                        extra={
-                                            "project_gid": project_gid,
-                                            "entity_type": entity_type,
-                                            "reason": "no manifest or parquet, delegating to Lambda",
-                                        },
-                                    )
-                                    return False
-                                else:
-                                    # No manifest, no parquet, no Lambda ARN.
-                                    # In production/staging, Lambda should handle
-                                    # this — skip and let operators investigate.
-                                    # In local/test, do a cold-start build from
-                                    # the Asana API via the progressive builder.
-                                    if app_settings.is_production:
+                                    except Exception as e:  # BROAD-CATCH: enrichment
                                         logger.warning(
-                                            "progressive_preload_no_manifest_no_lambda",
+                                            "progressive_preload_store_populate_failed",
+                                            extra={
+                                                "project_gid": project_gid,
+                                                "error": str(e),
+                                                "error_type": type(e).__name__,
+                                            },
+                                        )
+
+                                # WS-1: Run cascade validation on entities
+                                # that have cascade fields. Entities without
+                                # cascade columns (e.g., Business) naturally
+                                # skip via _has_cascade_fields check.
+                                if shared_store is not None and _has_cascade_fields(
+                                    schema
+                                ):
+                                    try:
+                                        from autom8_asana.dataframes.builders.cascade_validator import (
+                                            validate_cascade_fields_async,
+                                        )
+                                        from autom8_asana.dataframes.views.cascade_view import (
+                                            CascadeViewPlugin,
+                                        )
+
+                                        cascade_plugin = CascadeViewPlugin(
+                                            store=shared_store,
+                                        )
+                                        (
+                                            s3_df,
+                                            cascade_result,
+                                        ) = await validate_cascade_fields_async(
+                                            merged_df=s3_df,
+                                            store=shared_store,
+                                            cascade_plugin=cascade_plugin,
+                                            project_gid=project_gid,
+                                            entity_type=entity_type,
+                                            schema=schema,
+                                        )
+                                        logger.info(
+                                            "progressive_preload_cascade_validated",
                                             extra={
                                                 "project_gid": project_gid,
                                                 "entity_type": entity_type,
-                                                "reason": "no manifest or parquet, no Lambda ARN — skipping",
+                                                "rows_checked": cascade_result.rows_checked,
+                                                "rows_corrected": cascade_result.rows_corrected,
                                             },
                                         )
-                                        return False
-                                    logger.info(
-                                        "progressive_preload_cold_start_build",
-                                        extra={
-                                            "project_gid": project_gid,
-                                            "entity_type": entity_type,
-                                            "env": app_settings.autom8y_env.value,
-                                        },
+
+                                        # Self-heal: re-persist corrected
+                                        # DataFrame to S3 so next cold start
+                                        # loads the fixed version.
+                                        if (
+                                            cascade_result.rows_corrected > 0
+                                            and df_storage is not None
+                                            and s3_watermark is not None
+                                        ):
+                                            await df_storage.save_dataframe(
+                                                project_gid, s3_df, s3_watermark
+                                            )
+                                            logger.info(
+                                                "progressive_preload_cascade_self_healed",
+                                                extra={
+                                                    "project_gid": project_gid,
+                                                    "entity_type": entity_type,
+                                                    "rows_corrected": cascade_result.rows_corrected,
+                                                },
+                                            )
+                                    except (
+                                        Exception
+                                    ) as e:  # BROAD-CATCH: cascade is additive
+                                        logger.warning(
+                                            "progressive_preload_cascade_validation_failed",
+                                            extra={
+                                                "project_gid": project_gid,
+                                                "entity_type": entity_type,
+                                                "error": str(e),
+                                                "error_type": type(e).__name__,
+                                            },
+                                        )
+
+                                if s3_watermark is not None:
+                                    watermark_repo.set_watermark(
+                                        project_gid, s3_watermark
                                     )
-                                    # Fall through to builder.build_progressive_async()
-
-                            result = await builder.build_progressive_async(resume=True)
-
-                            # Update totals
-                            sections_fetched_total += result.sections_succeeded
-                            sections_resumed_total += result.sections_resumed
-
-                            if result.total_rows > 0:
-                                # Store in watermark repo
-                                watermark_repo.set_watermark(
-                                    project_gid, result.watermark
-                                )
-
-                                # Store in DataFrameCache singleton
                                 if (
                                     dataframe_cache is not None
-                                    and result.dataframe is not None
+                                    and s3_watermark is not None
                                 ):
                                     await dataframe_cache.put_async(
                                         project_gid,
                                         entity_type,
-                                        result.dataframe,
-                                        result.watermark,
-                                        build_result=result,
+                                        s3_df,
+                                        s3_watermark,
                                     )
+                                return True
 
-                            return True
+                            # No parquet either — delegate to Lambda
+                            lambda_arn = os.environ.get("CACHE_WARMER_LAMBDA_ARN")
+                            if lambda_arn:
+                                projects_needing_lambda.append(entity_type)
+                                logger.info(
+                                    "progressive_preload_no_manifest_delegating",
+                                    extra={
+                                        "project_gid": project_gid,
+                                        "entity_type": entity_type,
+                                        "reason": "no manifest or parquet, delegating to Lambda",
+                                    },
+                                )
+                                return False
+                            else:
+                                # No manifest, no parquet, no Lambda ARN.
+                                # In production/staging, Lambda should handle
+                                # this — skip and let operators investigate.
+                                # In local/test, do a cold-start build from
+                                # the Asana API via the progressive builder.
+                                if app_settings.is_production:
+                                    logger.warning(
+                                        "progressive_preload_no_manifest_no_lambda",
+                                        extra={
+                                            "project_gid": project_gid,
+                                            "entity_type": entity_type,
+                                            "reason": "no manifest or parquet, no Lambda ARN — skipping",
+                                        },
+                                    )
+                                    return False
+                                logger.info(
+                                    "progressive_preload_cold_start_build",
+                                    extra={
+                                        "project_gid": project_gid,
+                                        "entity_type": entity_type,
+                                        "env": app_settings.autom8y_env.value,
+                                    },
+                                )
+                                # Fall through to builder.build_progressive_async()
+
+                        result = await builder.build_progressive_async(resume=True)
+
+                        # Update totals
+                        sections_fetched_total += result.sections_succeeded
+                        sections_resumed_total += result.sections_resumed
+
+                        if result.total_rows > 0:
+                            # Store in watermark repo
+                            watermark_repo.set_watermark(project_gid, result.watermark)
+
+                            # Store in DataFrameCache singleton
+                            if (
+                                dataframe_cache is not None
+                                and result.dataframe is not None
+                            ):
+                                await dataframe_cache.put_async(
+                                    project_gid,
+                                    entity_type,
+                                    result.dataframe,
+                                    result.watermark,
+                                    build_result=result,
+                                )
+
+                        return True
 
                 except Exception as e:  # BROAD-CATCH: isolation
                     logger.error(
@@ -695,10 +692,8 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         # Stop heartbeat
         if heartbeat_task is not None:
             heartbeat_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await heartbeat_task
-            except asyncio.CancelledError:
-                pass
 
         # Always set cache ready
         set_cache_ready(True)

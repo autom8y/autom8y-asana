@@ -227,7 +227,7 @@ class TestConvertedRouting:
         assert result.success is True
         assert "create_process" in result.actions_executed
         assert "new_456" in result.entities_created
-        assert "lifecycle_outreach_to_sales" == result.rule_id
+        assert result.rule_id == "lifecycle_outreach_to_sales"
 
     async def test_sales_converted_to_onboarding(self, lifecycle_config, mock_client):
         """FR-ROUTE-002: Sales CONVERTED creates Onboarding (PCR absorption)."""
@@ -251,7 +251,7 @@ class TestConvertedRouting:
         assert "create_process" in result.actions_executed
         assert "cascade_sections" in result.actions_executed
         assert "auto_complete_source" in result.actions_executed
-        assert "lifecycle_sales_to_onboarding" == result.rule_id
+        assert result.rule_id == "lifecycle_sales_to_onboarding"
         assert "offer1" in result.entities_updated
         assert "unit1" in result.entities_updated
 
@@ -279,7 +279,7 @@ class TestConvertedRouting:
         assert result.success is True
         assert "create_process" in result.actions_executed
         assert "pre_validation" in result.actions_executed
-        assert "lifecycle_onboarding_to_implementation" == result.rule_id
+        assert result.rule_id == "lifecycle_onboarding_to_implementation"
 
     async def test_implementation_converted_terminal(
         self, lifecycle_config, mock_client
@@ -298,7 +298,7 @@ class TestConvertedRouting:
         assert "terminal" in result.actions_executed
         # Implementation has auto_complete_prior: true
         assert "auto_complete_source" in result.actions_executed
-        assert "lifecycle_implementation_terminal" == result.rule_id
+        assert result.rule_id == "lifecycle_implementation_terminal"
         assert result.entities_created == []
 
 
@@ -327,7 +327,7 @@ class TestDncRouting:
         assert result.success is True
         assert "create_process" in result.actions_executed
         assert "new_456" in result.entities_created
-        assert "lifecycle_sales_dnc_outreach" == result.rule_id
+        assert result.rule_id == "lifecycle_sales_dnc_outreach"
 
     async def test_onboarding_dnc_reopens_sales(self, lifecycle_config, mock_client):
         """FR-DNC-002: Onboarding DNC reopens Sales (reopen)."""
@@ -350,7 +350,7 @@ class TestDncRouting:
         assert result.success is True
         assert "reopen_process" in result.actions_executed
         assert "sales_999" in result.entities_updated
-        assert "lifecycle_onboarding_dnc_reopen" == result.rule_id
+        assert result.rule_id == "lifecycle_onboarding_dnc_reopen"
         # No entities created for reopen
         assert result.entities_created == []
 
@@ -371,7 +371,7 @@ class TestDncRouting:
 
         assert result.success is True
         assert "create_process" in result.actions_executed
-        assert "lifecycle_implementation_dnc_outreach" == result.rule_id
+        assert result.rule_id == "lifecycle_implementation_dnc_outreach"
 
     async def test_outreach_dnc_deferred(self, lifecycle_config, mock_client):
         """FR-DNC-004: Outreach DNC is deferred (self-loop out of scope)."""
@@ -382,7 +382,7 @@ class TestDncRouting:
 
         assert result.success is True
         assert "dnc_deferred" in result.actions_executed
-        assert "lifecycle_outreach_dnc_deferred" == result.rule_id
+        assert result.rule_id == "lifecycle_outreach_dnc_deferred"
         # No creation, no reopen
         assert result.entities_created == []
         assert result.entities_updated == []
@@ -784,7 +784,7 @@ class TestTerminalTransitions:
 
         assert result.success is True
         assert "terminal" in result.actions_executed
-        assert "lifecycle_month1_terminal" == result.rule_id
+        assert result.rule_id == "lifecycle_month1_terminal"
 
 
 # ---------------------------------------------------------------------------

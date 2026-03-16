@@ -63,12 +63,10 @@ class TemporalFilter:
                 return False
 
         # Check since/until against entered_at
-        if self.since is not None:
-            if interval.entered_at.date() < self.since:
-                return False
-        if self.until is not None:
-            if interval.entered_at.date() > self.until:
-                return False
+        if self.since is not None and interval.entered_at.date() < self.since:
+            return False
+        if self.until is not None and interval.entered_at.date() > self.until:
+            return False
 
         # Check moved_from (previous interval's section or classification)
         if self.moved_from is not None:

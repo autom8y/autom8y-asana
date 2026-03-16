@@ -989,10 +989,7 @@ class TestRequestIndexCorrelation:
 
         # Check that failures are at correct indices
         for i, r in enumerate(results):
-            if i < 10:
-                expected_success = i % 2 == 0
-            else:
-                expected_success = (i - 10) % 2 == 0
+            expected_success = i % 2 == 0 if i < 10 else (i - 10) % 2 == 0
             assert r.success == expected_success, (
                 f"Index {i}: expected success={expected_success}"
             )

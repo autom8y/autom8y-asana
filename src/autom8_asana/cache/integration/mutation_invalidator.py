@@ -262,9 +262,7 @@ class MutationInvalidator:
             and event.entity_kind.value not in self._soft_config.soft_entity_kinds
         ):
             return False
-        if event.mutation_type.value not in self._soft_config.soft_mutation_types:
-            return False
-        return True
+        return event.mutation_type.value in self._soft_config.soft_mutation_types
 
     def _soft_invalidate_entity_entries(self, gid: str, event: MutationEvent) -> None:
         """Mark entries stale without evicting.

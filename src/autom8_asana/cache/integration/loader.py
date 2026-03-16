@@ -89,10 +89,7 @@ async def load_task_entry(
 
     # Extract version from data if available, otherwise use current time
     version_str = data.get("modified_at")
-    if version_str:
-        version = _parse_version(version_str)
-    else:
-        version = datetime.now(UTC)
+    version = _parse_version(version_str) if version_str else datetime.now(UTC)
 
     # Create new cache entry
     entry = CacheEntry(
@@ -283,10 +280,7 @@ async def load_batch_entries(
 
             # Extract version from data
             version_str = data.get("modified_at")
-            if version_str:
-                version = _parse_version(version_str)
-            else:
-                version = datetime.now(UTC)
+            version = _parse_version(version_str) if version_str else datetime.now(UTC)
 
             entry = CacheEntry(
                 key=gid,

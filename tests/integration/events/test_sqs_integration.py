@@ -8,6 +8,7 @@ These tests are skipped if LocalStack is not running.
 
 from __future__ import annotations
 
+import contextlib
 import json
 
 import pytest
@@ -61,18 +62,14 @@ def sqs_queue() -> str:
     queue_url = response["QueueUrl"]
 
     # Purge any leftover messages
-    try:
+    with contextlib.suppress(client.exceptions.PurgeQueueInProgress):
         client.purge_queue(QueueUrl=queue_url)
-    except client.exceptions.PurgeQueueInProgress:
-        pass
 
     yield queue_url
 
     # Cleanup
-    try:
+    with contextlib.suppress(Exception):
         client.delete_queue(QueueUrl=queue_url)
-    except Exception:
-        pass
 
 
 @pytest.fixture

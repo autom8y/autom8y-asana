@@ -270,10 +270,7 @@ class DefaultRetryPolicy:
         # Migration compatibility: check error tuple membership
         from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 
-        if isinstance(error, CACHE_TRANSIENT_ERRORS):
-            return True
-
-        return False
+        return isinstance(error, CACHE_TRANSIENT_ERRORS)
 
 
 # ---------------------------------------------------------------------------
@@ -455,10 +452,7 @@ class CircuitBreaker:
             effective = self._get_effective_state()
             if effective == CBState.CLOSED:
                 return True
-            if effective == CBState.HALF_OPEN:
-                return True
-            # OPEN
-            return False
+            return effective == CBState.HALF_OPEN
 
     def record_success(self) -> None:
         """Record a successful operation.

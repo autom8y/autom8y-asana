@@ -78,10 +78,7 @@ class AutomationContext:
 
         # Check visited set
         key = (entity_gid, rule_id)
-        if key in self.visited:
-            return False
-
-        return True
+        return key not in self.visited
 
     def mark_visited(self, entity_gid: str, rule_id: str) -> None:
         """Mark entity/rule pair as visited.

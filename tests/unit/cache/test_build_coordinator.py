@@ -8,6 +8,7 @@ and metrics accuracy.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from datetime import UTC, datetime
 
 import polars as pl
@@ -691,10 +692,8 @@ class TestBuildCoordinatorCancellation:
         # Cancel waiter1
         waiter1_task.cancel()
 
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await waiter1_task
-        except asyncio.CancelledError:
-            pass
 
         # waiter2 and builder should still succeed
         builder_result = await builder_task
@@ -789,10 +788,8 @@ class TestBuildCoordinatorForceCleanup:
 
         # Cancel the hanging task to clean up
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError, Exception):
             await task
-        except (asyncio.CancelledError, Exception):
-            pass
 
     @pytest.mark.asyncio
     async def test_force_cleanup_nonexistent_key(

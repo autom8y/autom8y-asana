@@ -378,7 +378,7 @@ class TestDetectByParent:
             EntityType.LOCATION_HOLDER: EntityType.LOCATION,
         }
 
-        assert PARENT_CHILD_MAP == expected_mappings
+        assert expected_mappings == PARENT_CHILD_MAP
 
 
 # --- Test: Tier 4 - Structure Inspection ---

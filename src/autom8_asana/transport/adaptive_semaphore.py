@@ -329,17 +329,16 @@ class AsyncAdaptiveSemaphore:
         self._consecutive_rejects += 1
 
         # Cooldown stub check (FR-008)
-        if self._consecutive_rejects >= self._config.cooldown_trigger:
-            if self._logger:
-                self._logger.warning(
-                    "aimd_cooldown_threshold_reached",
-                    extra={
-                        "name": self._name,
-                        "consecutive_rejects": self._consecutive_rejects,
-                        "cooldown_trigger": self._config.cooldown_trigger,
-                        "note": "cooldown_not_active_in_v1",
-                    },
-                )
+        if self._consecutive_rejects >= self._config.cooldown_trigger and self._logger:
+            self._logger.warning(
+                "aimd_cooldown_threshold_reached",
+                extra={
+                    "name": self._name,
+                    "consecutive_rejects": self._consecutive_rejects,
+                    "cooldown_trigger": self._config.cooldown_trigger,
+                    "note": "cooldown_not_active_in_v1",
+                },
+            )
 
         if self._logger:
             at_floor = self._window <= float(self._config.floor)

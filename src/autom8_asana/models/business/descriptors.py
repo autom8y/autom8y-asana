@@ -712,9 +712,6 @@ class DateField(CustomFieldDescriptor[Arrow | None]):
             obj: Instance to set value on.
             value: Arrow object, or None to clear.
         """
-        if value is None:
-            api_value = None
-        else:
-            # Serialize to ISO 8601 date format for Asana
-            api_value = value.format("YYYY-MM-DD")
+        # Serialize to ISO 8601 date format for Asana
+        api_value = None if value is None else value.format("YYYY-MM-DD")
         obj.custom_fields_editor().set(self.field_name, api_value)

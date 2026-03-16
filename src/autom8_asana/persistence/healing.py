@@ -156,10 +156,7 @@ class HealingManager:
             return False
 
         # Must have needs_healing flag set
-        if not detection.needs_healing:
-            return False
-
-        return True
+        return detection.needs_healing
 
     def enqueue(self, entity: Any) -> None:
         """Add entity to healing queue if eligible.

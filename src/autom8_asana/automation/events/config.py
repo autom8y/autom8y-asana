@@ -37,9 +37,7 @@ class SubscriptionEntry:
         """
         if self.event_types and event_type not in self.event_types:
             return False
-        if self.entity_types and entity_type not in self.entity_types:
-            return False
-        return True
+        return not self.entity_types or entity_type in self.entity_types
 
 
 @dataclass

@@ -169,11 +169,13 @@ class DependencyGraph:
         dependent_gid = self._get_gid(dependent)
         dependency_gid = self._get_gid(dependency)
 
-        if dependent_gid in self._entities and dependency_gid in self._entities:
-            # Only add if not already present
-            if dependent_gid not in self._adjacency.get(dependency_gid, set()):
-                self._adjacency[dependency_gid].add(dependent_gid)
-                self._in_degree[dependent_gid] += 1
+        if (
+            dependent_gid in self._entities
+            and dependency_gid in self._entities
+            and dependent_gid not in self._adjacency.get(dependency_gid, set())
+        ):
+            self._adjacency[dependency_gid].add(dependent_gid)
+            self._in_degree[dependent_gid] += 1
 
     def _get_gid(self, entity: AsanaResource) -> str:
         """Get or generate GID for entity.

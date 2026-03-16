@@ -72,10 +72,10 @@ async def load_dataframe_cached(
         # Try cache
         cached = cache.get_versioned(key, EntryType.DATAFRAME)
 
-        if cached is not None:
-            # Check if still current
-            if current_modified_at is None or cached.is_current(current_modified_at):
-                return cached.data, cached, True
+        if cached is not None and (
+            current_modified_at is None or cached.is_current(current_modified_at)
+        ):
+            return cached.data, cached, True
 
     # Compute fresh dataframe entry
     dataframe_data = await compute_fn(task_gid, project_gid)

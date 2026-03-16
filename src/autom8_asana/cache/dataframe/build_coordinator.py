@@ -455,10 +455,9 @@ class BuildCoordinator:
         """
         count = 0
         for key, build in self._in_flight.items():
-            if key[0] == project_gid:
-                if entity_type is None or key[1] == entity_type:
-                    build.invalidated = True
-                    count += 1
+            if key[0] == project_gid and (entity_type is None or key[1] == entity_type):
+                build.invalidated = True
+                count += 1
 
         if count > 0:
             logger.info(

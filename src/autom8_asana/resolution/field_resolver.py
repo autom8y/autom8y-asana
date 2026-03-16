@@ -491,40 +491,35 @@ class FieldResolver:
         Returns:
             Error message string if validation fails, None if valid.
         """
-        if field_type == "number":
-            if not isinstance(value, (int, float)):
-                return (
-                    f"Field '{input_name}' expects a number, got {type(value).__name__}"
-                )
+        if field_type == "number" and not isinstance(value, (int, float)):
+            return f"Field '{input_name}' expects a number, got {type(value).__name__}"
 
-        if field_type == "text":
-            if not isinstance(value, str):
-                # Allow list for text fields (append mode handles it)
-                if not isinstance(value, list):
-                    return (
-                        f"Field '{input_name}' expects text (str), "
-                        f"got {type(value).__name__}"
-                    )
+        # Allow list for text fields (append mode handles it)
+        if (
+            field_type == "text"
+            and not isinstance(value, str)
+            and not isinstance(value, list)
+        ):
+            return (
+                f"Field '{input_name}' expects text (str), got {type(value).__name__}"
+            )
 
-        if field_type == "enum":
-            if not isinstance(value, str):
-                return (
-                    f"Field '{input_name}' expects an enum string, "
-                    f"got {type(value).__name__}"
-                )
+        if field_type == "enum" and not isinstance(value, str):
+            return (
+                f"Field '{input_name}' expects an enum string, "
+                f"got {type(value).__name__}"
+            )
 
-        if field_type == "multi_enum":
-            if not isinstance(value, (list, str)):
-                return (
-                    f"Field '{input_name}' expects a list of enum values, "
-                    f"got {type(value).__name__}"
-                )
+        if field_type == "multi_enum" and not isinstance(value, (list, str)):
+            return (
+                f"Field '{input_name}' expects a list of enum values, "
+                f"got {type(value).__name__}"
+            )
 
-        if field_type == "date":
-            if not isinstance(value, str):
-                return (
-                    f"Field '{input_name}' expects a date string, "
-                    f"got {type(value).__name__}"
-                )
+        if field_type == "date" and not isinstance(value, str):
+            return (
+                f"Field '{input_name}' expects a date string, "
+                f"got {type(value).__name__}"
+            )
 
         return None

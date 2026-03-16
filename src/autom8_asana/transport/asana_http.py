@@ -369,9 +369,11 @@ class AsanaHttpClient:
         # Apply rate limiting once per stream
         await self._rate_limiter.acquire()
 
-        async with platform_client.raw() as raw_client:
-            async with raw_client.stream(method, path, **kwargs) as response:
-                yield response
+        async with (
+            platform_client.raw() as raw_client,
+            raw_client.stream(method, path, **kwargs) as response,
+        ):
+            yield response
 
     async def post_multipart(
         self,
@@ -499,12 +501,14 @@ class AsanaHttpClient:
         platform_client = await self._get_client()
         await self._rate_limiter.acquire()
 
-        async with platform_client.raw() as raw_client:
-            async with raw_client.stream("GET", url) as response:
-                if response.status_code >= 400:
-                    raise AsanaError(f"Failed to download: HTTP {response.status_code}")
-                async for chunk in response.aiter_bytes():
-                    yield chunk
+        async with (
+            platform_client.raw() as raw_client,
+            raw_client.stream("GET", url) as response,
+        ):
+            if response.status_code >= 400:
+                raise AsanaError(f"Failed to download: HTTP {response.status_code}")
+            async for chunk in response.aiter_bytes():
+                yield chunk
 
     async def request(
         self,

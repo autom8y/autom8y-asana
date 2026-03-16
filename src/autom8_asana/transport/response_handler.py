@@ -9,6 +9,7 @@ extracts the actual data and converts error responses to appropriate exceptions.
 
 from __future__ import annotations
 
+import contextlib
 import json
 from typing import TYPE_CHECKING, Any
 
@@ -186,10 +187,8 @@ class AsanaResponseHandler:
         # Parse retry_after from header
         retry_after: int | None = None
         if "Retry-After" in response.headers:
-            try:
+            with contextlib.suppress(ValueError):
                 retry_after = int(response.headers["Retry-After"])
-            except ValueError:
-                pass
 
         # Get message from response body
         request_id = response.headers.get("X-Request-Id")

@@ -903,9 +903,12 @@ Business: {business_name}"""
             # Check if field is missing or empty
             if field_value is None:
                 errors.append(f"Missing required field: {field_name}")
-            elif isinstance(field_value, str) and not field_value.strip():
-                errors.append(f"Empty required field: {field_name}")
-            elif isinstance(field_value, (list, dict)) and len(field_value) == 0:
+            elif (
+                isinstance(field_value, str)
+                and not field_value.strip()
+                or isinstance(field_value, (list, dict))
+                and len(field_value) == 0
+            ):
                 errors.append(f"Empty required field: {field_name}")
 
         if errors:

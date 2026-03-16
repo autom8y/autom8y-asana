@@ -134,12 +134,11 @@ def compute_reorder_plan(
     # Degenerate cases
     if n <= 1 and len(desired_order) == n:
         # Validate gids match for single-element case
-        if n == 1:
-            if current_order[0].gid != desired_order[0].gid:
-                raise ValueError(
-                    f"Mismatched elements: current has {{{current_order[0].gid}}}, "
-                    f"desired has {{{desired_order[0].gid}}}"
-                )
+        if n == 1 and current_order[0].gid != desired_order[0].gid:
+            raise ValueError(
+                f"Mismatched elements: current has {{{current_order[0].gid}}}, "
+                f"desired has {{{desired_order[0].gid}}}"
+            )
         return ReorderPlan(moves=(), lis_length=n, total_children=n)
 
     # Build desired_position: gid -> index in desired_order

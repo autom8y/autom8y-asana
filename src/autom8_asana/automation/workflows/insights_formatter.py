@@ -287,9 +287,11 @@ class HtmlRenderer:
         for section in sections:
             if section.error is not None:
                 parts.append(self._render_error_section(section))
-            elif section.rows is None or (not section.rows and section.empty_message):
-                parts.append(self._render_empty_section(section))
-            elif not section.rows:
+            elif (
+                section.rows is None
+                or (not section.rows and section.empty_message)
+                or not section.rows
+            ):
                 parts.append(self._render_empty_section(section))
             else:
                 parts.append(self._render_table_section(section))
@@ -335,10 +337,7 @@ class HtmlRenderer:
 
     def _render_header(self, title: str, metadata: dict[str, str]) -> str:
         # Extract business name from title by splitting on ": "
-        if ": " in title:
-            business_name = title.split(": ", 1)[1]
-        else:
-            business_name = title
+        business_name = title.split(": ", 1)[1] if ": " in title else title
         escaped_business = html.escape(business_name)
 
         # Build metadata items

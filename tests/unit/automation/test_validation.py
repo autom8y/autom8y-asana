@@ -71,16 +71,10 @@ class TestValidationResultBoolConversion:
         failure = ValidationResult.failure(["Error"])
 
         # These should work without explicit .valid check
-        if success:
-            passed = True
-        else:
-            passed = False
+        passed = bool(success)
         assert passed is True
 
-        if failure:
-            passed = True
-        else:
-            passed = False
+        passed = bool(failure)
         assert passed is False
 
 

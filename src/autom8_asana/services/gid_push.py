@@ -226,9 +226,11 @@ async def push_gid_mappings_to_data_service(
     )
 
     try:
-        async with Autom8yHttpClient(_PUSH_CONFIG) as client:
-            async with client.raw() as raw_client:
-                response = await raw_client.post(url, json=payload, headers=headers)
+        async with (
+            Autom8yHttpClient(_PUSH_CONFIG) as client,
+            client.raw() as raw_client,
+        ):
+            response = await raw_client.post(url, json=payload, headers=headers)
 
         if response.status_code < 300:
             try:

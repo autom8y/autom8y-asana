@@ -123,7 +123,7 @@ class AsyncMethodPair(Generic[R]):
             """
             # Check for async context per ADR-0002
             running_loop: asyncio.AbstractEventLoop | None = None
-            try:
+            try:  # noqa: SIM105 — must capture loop assignment; suppress() cannot assign
                 running_loop = asyncio.get_running_loop()
             except RuntimeError:
                 # No running event loop - this is the expected case for sync usage

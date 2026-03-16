@@ -1028,10 +1028,10 @@ class TestNameGidHashingEquality:
         """Equality with non-NameGid types returns False."""
         ref = NameGid(gid="123")
 
-        assert not (ref == "123")
-        assert not (ref == {"gid": "123"})
-        assert not (ref == 123)
-        assert not (ref == None)
+        assert ref != "123"
+        assert ref != {"gid": "123"}
+        assert ref != 123
+        assert ref != None  # noqa: E711
 
     def test_inequality_operator(self) -> None:
         """!= operator works correctly."""
@@ -1040,7 +1040,7 @@ class TestNameGidHashingEquality:
         ref3 = NameGid(gid="123")
 
         assert ref1 != ref2
-        assert not (ref1 != ref3)
+        assert ref1 == ref3
 
 
 # ---------------------------------------------------------------------------

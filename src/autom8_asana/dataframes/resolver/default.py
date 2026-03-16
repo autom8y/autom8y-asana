@@ -132,10 +132,7 @@ class DefaultCustomFieldResolver:
             return field_name[4:]
 
         # Handle cf: prefix (explicit custom field name)
-        if field_name.startswith("cf:"):
-            lookup_name = field_name[3:]
-        else:
-            lookup_name = field_name
+        lookup_name = field_name[3:] if field_name.startswith("cf:") else field_name
 
         normalized = NameNormalizer.normalize(lookup_name)
         gid = self._index.get(normalized)

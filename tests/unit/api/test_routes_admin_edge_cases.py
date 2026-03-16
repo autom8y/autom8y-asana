@@ -201,7 +201,7 @@ class TestAdminRefreshValidEntityTypes:
     def test_valid_entity_types_set(self) -> None:
         """VALID_ENTITY_TYPES should contain the expected entity types."""
         expected = {"unit", "business", "offer", "contact", "asset_edit"}
-        assert VALID_ENTITY_TYPES == expected
+        assert expected == VALID_ENTITY_TYPES
 
     def test_asset_edit_holder_not_in_valid_types(self) -> None:
         """asset_edit_holder is NOT in VALID_ENTITY_TYPES (not directly refreshable)."""
