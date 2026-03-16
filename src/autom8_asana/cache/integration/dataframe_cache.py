@@ -916,9 +916,10 @@ class DataFrameCache:
             return FreshnessState.SCHEMA_INVALID
 
         # Watermark check — hard-reject if source has newer data
-        if current_watermark is not None:
-            if not entry.is_fresh_by_watermark(current_watermark):
-                return FreshnessState.WATERMARK_BEHIND
+        if current_watermark is not None and not entry.is_fresh_by_watermark(
+            current_watermark
+        ):
+            return FreshnessState.WATERMARK_BEHIND
 
         # Entity-aware TTL with SWR grace window
         from autom8_asana.config import (

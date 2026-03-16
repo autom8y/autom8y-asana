@@ -89,12 +89,8 @@ class RetryableErrorMixin:
         if status_code == 429:
             return True
 
-        # Server errors are retryable
-        if 500 <= status_code < 600:
-            return True
-
-        # Client errors are not retryable
-        return False
+        # Server errors are retryable; client errors are not
+        return 500 <= status_code < 600
 
     @property
     def recovery_hint(self) -> str:

@@ -11,6 +11,7 @@ The SDK mocks its own JWKS client internally for testability.
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING
 
 import pytest
@@ -95,10 +96,8 @@ class TestAuthClientUsesSettings:
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            try:
-                _get_auth_client()
-            except Exception:
-                pass  # JWKS fetch may fail in test env
+            with contextlib.suppress(Exception):
+                _get_auth_client()  # JWKS fetch may fail in test env
             deprecation_warnings = [
                 x
                 for x in w

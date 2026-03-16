@@ -134,11 +134,10 @@ class BatchResult:
         message = "Batch action failed"
         errors: list[dict[str, Any]] = []
 
-        if self.body and isinstance(self.body, dict):
-            if "errors" in self.body:
-                errors = self.body.get("errors", [])
-                messages = [e.get("message", "Unknown error") for e in errors]
-                message = "; ".join(messages) if messages else message
+        if self.body and isinstance(self.body, dict) and "errors" in self.body:
+            errors = self.body.get("errors", [])
+            messages = [e.get("message", "Unknown error") for e in errors]
+            message = "; ".join(messages) if messages else message
 
         return AsanaError(
             message,

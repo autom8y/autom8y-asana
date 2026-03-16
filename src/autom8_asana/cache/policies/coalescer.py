@@ -9,6 +9,7 @@ Per ADR-0132: 50ms default window, 100 max batch, immediate flush at max.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -130,10 +131,8 @@ class RequestCoalescer:
                     # Cancel timer and flush immediately
                     if self._timer_task and not self._timer_task.done():
                         self._timer_task.cancel()
-                        try:
+                        with contextlib.suppress(asyncio.CancelledError):
                             await self._timer_task
-                        except asyncio.CancelledError:
-                            pass
                     await self._flush_batch()
 
                 future_to_await = future
@@ -258,9 +257,7 @@ class RequestCoalescer:
         async with self._lock:
             if self._timer_task and not self._timer_task.done():
                 self._timer_task.cancel()
-                try:
+                with contextlib.suppress(asyncio.CancelledError):
                     await self._timer_task
-                except asyncio.CancelledError:
-                    pass
             if self._pending:
                 await self._flush_batch()

@@ -286,7 +286,7 @@ class SchemaRegistry:
         self._ensure_initialized()
 
         with self._lock:
-            return [k for k in self._schemas.keys() if k != "*"]
+            return [k for k in self._schemas if k != "*"]
 
     def get_all_schemas(self) -> dict[str, DataFrameSchema]:
         """Get all registered schemas.

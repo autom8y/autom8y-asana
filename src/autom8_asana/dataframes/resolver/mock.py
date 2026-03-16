@@ -68,7 +68,7 @@ class MockCustomFieldResolver:
         }
         # Track original names for debugging
         self._name_map: dict[str, str] = {
-            NameNormalizer.normalize(k): k for k in field_values.keys()
+            NameNormalizer.normalize(k): k for k in field_values
         }
 
     def build_index(self, custom_fields: list[CustomField]) -> None:

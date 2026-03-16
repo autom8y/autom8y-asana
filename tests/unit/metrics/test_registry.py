@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+
 import pytest
 
 from autom8_asana.metrics.expr import MetricExpr
@@ -100,10 +102,8 @@ class TestLazyInitialization:
     def test_initialized_after_get_metric(self) -> None:
         registry = MetricRegistry()
         # This triggers _ensure_initialized which imports definitions
-        try:
+        with contextlib.suppress(KeyError):
             registry.get_metric("active_mrr")
-        except KeyError:
-            pass
         assert registry._initialized is True
 
     def test_definitions_loaded_on_first_access(self) -> None:

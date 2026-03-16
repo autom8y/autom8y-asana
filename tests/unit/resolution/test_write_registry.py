@@ -141,7 +141,7 @@ class TestEntityWriteRegistry:
     def test_core_fields_set(self) -> None:
         """CORE_FIELD_NAMES contains exactly {name, assignee, due_on, completed, notes}."""
         expected = frozenset({"name", "assignee", "due_on", "completed", "notes"})
-        assert CORE_FIELD_NAMES == expected
+        assert expected == CORE_FIELD_NAMES
 
         # Also verify it's set on WritableEntityInfo
         info = _write_registry.get("offer")

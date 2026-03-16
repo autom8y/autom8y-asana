@@ -226,16 +226,17 @@ class DataFrameCacheIntegration:
                 return None
 
             # Check data staleness if modified_at provided
-            if current_modified_at is not None:
-                if not self._check_staleness(entry.version, current_modified_at):
-                    self._log_cache_event(
-                        "evict",
-                        key,
-                        entry_type="dataframe",
-                        metadata={"reason": "data_stale"},
-                    )
-                    await self.invalidate_async(task_gid, project_gid)
-                    return None
+            if current_modified_at is not None and not self._check_staleness(
+                entry.version, current_modified_at
+            ):
+                self._log_cache_event(
+                    "evict",
+                    key,
+                    entry_type="dataframe",
+                    metadata={"reason": "data_stale"},
+                )
+                await self.invalidate_async(task_gid, project_gid)
+                return None
 
             # Valid cache hit
             self._log_cache_event("hit", key, entry_type="dataframe")

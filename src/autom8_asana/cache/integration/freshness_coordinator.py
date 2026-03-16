@@ -402,16 +402,19 @@ class FreshnessCoordinator:
             )
 
         # For EVENTUAL mode with non-expired entry, return fresh
-        if mode == FreshnessIntent.EVENTUAL and root_entry is not None:
-            if not root_entry.is_expired():
-                self._stats["fresh_count"] += 1
-                return FreshnessResult(
-                    gid=root_gid,
-                    is_fresh=True,
-                    cached_version=root_entry.version,
-                    current_version=None,
-                    action="use_cache",
-                )
+        if (
+            mode == FreshnessIntent.EVENTUAL
+            and root_entry is not None
+            and not root_entry.is_expired()
+        ):
+            self._stats["fresh_count"] += 1
+            return FreshnessResult(
+                gid=root_gid,
+                is_fresh=True,
+                cached_version=root_entry.version,
+                current_version=None,
+                action="use_cache",
+            )
 
         # Check via API
         if self.batch_client is None:

@@ -426,9 +426,12 @@ class SavePipeline:
             # Resolve parent GID if it was a temp GID
             if "parent" in payload:
                 parent_ref = payload["parent"]
-                if isinstance(parent_ref, str) and parent_ref.startswith("temp_"):
-                    if parent_ref in gid_map:
-                        payload["parent"] = gid_map[parent_ref]
+                if (
+                    isinstance(parent_ref, str)
+                    and parent_ref.startswith("temp_")
+                    and parent_ref in gid_map
+                ):
+                    payload["parent"] = gid_map[parent_ref]
 
             operations.append((entity, op_type, payload))
 

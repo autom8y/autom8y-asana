@@ -272,11 +272,7 @@ class CompositeBlockingRule:
         # If we have data on both sides and it doesn't match, exclude
         # If data is missing, the rule passes through
 
-        for rule in self._rules:
-            if rule.matches(query, candidate):
-                return True
-
-        return False
+        return any(rule.matches(query, candidate) for rule in self._rules)
 
     def filter_candidates(
         self,

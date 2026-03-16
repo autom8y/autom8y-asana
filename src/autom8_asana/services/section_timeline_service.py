@@ -707,9 +707,11 @@ def _compute_day_counts(
                 current_classification = last_interval.classification.value
 
         # Apply classification filter (O(n) post-cache filtering)
-        if classification_filter is not None:
-            if current_classification != classification_filter:
-                continue
+        if (
+            classification_filter is not None
+            and current_classification != classification_filter
+        ):
+            continue
 
         active_days = timeline.active_days_in_period(period_start, period_end)
         billable_days = timeline.billable_days_in_period(period_start, period_end)

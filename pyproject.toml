@@ -163,7 +163,7 @@ src = ["src"]
 extend-exclude = ["examples/", "prototypes/", "scripts/", "tmp/", "docs/"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "G", "LOG", "TCH", "TID"]
+select = ["E", "F", "I", "UP", "B", "G", "LOG", "TCH", "TID", "SIM"]
 ignore = [
     "E501", # Line length handled by formatter
     "B904", # raise-without-from-inside-except - common pattern in HTTP handlers
@@ -200,6 +200,7 @@ ignore = [
     "B017",
     "B023",
     "TID251",
+    "SIM117",  # nested `with` using patch.object + pytest.raises is intentional in tests
 ]
 "**/conftest.py" = ["F841", "E402"]
 # Intentional delayed imports (circular import avoidance, logger-before-imports)

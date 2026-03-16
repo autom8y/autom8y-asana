@@ -1850,9 +1850,12 @@ class SaveSession:
         for action_result in action_results:
             if action_result.success and action_result.action.task:
                 action_task = action_result.action.task
-                if hasattr(action_task, "gid") and action_task.gid:
-                    if action_task.gid not in gid_to_entity:
-                        gid_to_entity[action_task.gid] = action_task
+                if (
+                    hasattr(action_task, "gid")
+                    and action_task.gid
+                    and action_task.gid not in gid_to_entity
+                ):
+                    gid_to_entity[action_task.gid] = action_task
 
         return gid_to_entity
 

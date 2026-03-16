@@ -62,10 +62,7 @@ def is_s3_not_found_error(error: Exception) -> bool:
 
     # Check string patterns for S3 not-found errors
     error_str = str(error).lower()
-    if "nosuchkey" in error_str or "not found" in error_str or "404" in error_str:
-        return True
-
-    return False
+    return "nosuchkey" in error_str or "not found" in error_str or "404" in error_str
 
 
 def is_s3_retryable_error(error: Exception) -> bool:

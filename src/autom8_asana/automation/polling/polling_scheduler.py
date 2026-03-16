@@ -590,7 +590,7 @@ class PollingScheduler:
 
         try:
             # Open or create lock file
-            lock_file = open(lock_path, "w")
+            lock_file = open(lock_path, "w")  # noqa: SIM115 — lock file held across function return; cannot use `with` block
 
             # Try to acquire non-blocking exclusive lock
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)

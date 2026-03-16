@@ -23,6 +23,7 @@ Skip these tests:
 
 from __future__ import annotations
 
+import contextlib
 import os
 import tempfile
 import textwrap
@@ -78,11 +79,8 @@ async def e2e_test_task(
     yield task
 
     # Cleanup: delete the task
-    try:
+    with contextlib.suppress(Exception):
         await asana_client.tasks.delete_async(task.gid)
-    except Exception:
-        # Task may already be deleted or inaccessible - that's fine
-        pass
 
 
 @pytest.fixture
@@ -114,10 +112,8 @@ async def multiple_e2e_tasks(
 
     # Cleanup: delete all tasks
     for task in tasks:
-        try:
+        with contextlib.suppress(Exception):
             await asana_client.tasks.delete_async(task.gid)
-        except Exception:
-            pass
 
 
 # ============================================================================

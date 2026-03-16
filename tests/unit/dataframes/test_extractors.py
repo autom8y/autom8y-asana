@@ -422,7 +422,7 @@ class TestBaseExtractor:
         assert row.is_completed is True
         assert row.section == "In Progress"
         assert row.tags == ["Priority", "Review"]
-        assert "https://app.asana.com/0/0/9876543210" == row.url
+        assert row.url == "https://app.asana.com/0/0/9876543210"
 
     def test_extract_continues_on_field_error(
         self,

@@ -326,12 +326,11 @@ class ResolutionContext:
 
         # Determine parent GID
         effective_parent_gid = parent_gid or self._business_gid
-        if effective_parent_gid is None:
+        if effective_parent_gid is None and self._trigger_entity is not None:
             # Try to get parent GID from trigger entity's parent
-            if self._trigger_entity is not None:
-                parent_attr = getattr(self._trigger_entity, "parent", None)
-                if parent_attr is not None:
-                    effective_parent_gid = getattr(parent_attr, "gid", None)
+            parent_attr = getattr(self._trigger_entity, "parent", None)
+            if parent_attr is not None:
+                effective_parent_gid = getattr(parent_attr, "gid", None)
 
         if effective_parent_gid is None:
             logger.warning(

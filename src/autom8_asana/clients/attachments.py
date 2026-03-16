@@ -468,7 +468,7 @@ class AttachmentsClient(BaseClient):
 
         if isinstance(destination, (str, Path)):
             dest_path = Path(destination)
-            file_obj = open(dest_path, "wb")
+            file_obj = open(dest_path, "wb")  # noqa: SIM115 — file managed via try-finally; conditional open cannot use `with`
             should_close = True
         else:
             file_obj = destination

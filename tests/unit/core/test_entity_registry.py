@@ -448,7 +448,7 @@ class TestFacadeBackwardCompatibility:
         from autom8_asana.core.entity_types import ENTITY_TYPES
 
         expected = ["business", "unit", "offer", "contact", "asset_edit"]
-        assert ENTITY_TYPES == expected
+        assert expected == ENTITY_TYPES
 
     def test_entity_types_with_derivatives_matches(self) -> None:
         """ENTITY_TYPES_WITH_DERIVATIVES facade matches."""
@@ -462,7 +462,7 @@ class TestFacadeBackwardCompatibility:
             "asset_edit",
             "asset_edit_holder",
         ]
-        assert ENTITY_TYPES_WITH_DERIVATIVES == expected
+        assert expected == ENTITY_TYPES_WITH_DERIVATIVES
 
     def test_default_entity_ttls_matches(self) -> None:
         """DEFAULT_ENTITY_TTLS facade produces same dict."""
@@ -477,7 +477,7 @@ class TestFacadeBackwardCompatibility:
             "location": 3600,
             "hours": 3600,
         }
-        assert DEFAULT_ENTITY_TTLS == expected
+        assert expected == DEFAULT_ENTITY_TTLS
 
     def test_entity_aliases_matches(self) -> None:
         """ENTITY_ALIASES facade produces same dict."""
@@ -491,7 +491,7 @@ class TestFacadeBackwardCompatibility:
             "asset_edit": ["process"],
             "asset_edit_holder": [],
         }
-        assert ENTITY_ALIASES == expected
+        assert expected == ENTITY_ALIASES
 
     def test_default_key_columns_matches(self) -> None:
         """DEFAULT_KEY_COLUMNS facade produces same dict."""
@@ -510,7 +510,7 @@ class TestFacadeBackwardCompatibility:
             ],
             "asset_edit_holder": ["office_phone"],
         }
-        assert DEFAULT_KEY_COLUMNS == expected
+        assert expected == DEFAULT_KEY_COLUMNS
 
 
 # =============================================================================

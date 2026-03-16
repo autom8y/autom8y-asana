@@ -5,6 +5,7 @@ Per TDD-0007 and ADR-0013: Provides @error_handler decorator for client methods.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import time
 from typing import TYPE_CHECKING, Any, TypeVar, cast
@@ -95,18 +96,14 @@ def error_handler(
                 e.correlation_id = correlation_id  # type: ignore[attr-defined]
             except AttributeError:
                 # Exception may be immutable, try with object.__setattr__
-                try:
+                with contextlib.suppress(AttributeError, TypeError):
                     object.__setattr__(e, "correlation_id", correlation_id)
-                except (AttributeError, TypeError):
-                    pass  # Some exceptions truly cannot be modified
 
             try:
                 e.operation = operation  # type: ignore[attr-defined]
             except AttributeError:
-                try:
+                with contextlib.suppress(AttributeError, TypeError):
                     object.__setattr__(e, "operation", operation)
-                except (AttributeError, TypeError):
-                    pass
 
             if log_provider:
                 # Log error with correlation ID

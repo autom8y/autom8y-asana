@@ -950,7 +950,7 @@ class AsanaClient:
 
         # Check if we're in an async context
         running_loop: asyncio.AbstractEventLoop | None = None
-        try:
+        try:  # noqa: SIM105 — must capture loop assignment; suppress() cannot assign
             running_loop = asyncio.get_running_loop()
         except RuntimeError:
             # No running event loop - this is the expected case for sync usage

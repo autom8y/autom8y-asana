@@ -482,7 +482,7 @@ class TestNameResolverPerSessionCaching:
         assert gid == "tag_123"
         # Verify cache was populated with the resolution
         assert len(resolver._cache) > 0
-        assert any("tag" in key for key in resolver._cache.keys())
+        assert any("tag" in key for key in resolver._cache)
 
     @pytest.mark.asyncio
     async def test_cache_hit_prevents_api_call(

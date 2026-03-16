@@ -125,9 +125,7 @@ class S3TransportError(TransportError):
             "AllAccessDisabled",
             "InvalidBucketName",
         }
-        if self.error_code in permanent_codes:
-            return False
-        return True
+        return self.error_code not in permanent_codes
 
     @classmethod
     def from_boto_error(

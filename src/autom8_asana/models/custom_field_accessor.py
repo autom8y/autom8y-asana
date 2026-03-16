@@ -225,9 +225,12 @@ class CustomFieldAccessor:
             # Wrap date values in required API format
             # Asana API requires: {"date": "YYYY-MM-DD"} not just "YYYY-MM-DD"
             field = self._get_field_by_gid(gid)
-            if field and field.get("resource_subtype") == "date":
-                if isinstance(formatted_value, str):
-                    formatted_value = {"date": formatted_value}
+            if (
+                field
+                and field.get("resource_subtype") == "date"
+                and isinstance(formatted_value, str)
+            ):
+                formatted_value = {"date": formatted_value}
 
             result[gid] = formatted_value
         return result
@@ -479,13 +482,12 @@ class CustomFieldAccessor:
                     f"Expected types: str (ISO date like '2025-12-12'), or None."
                 )
 
-        elif field_type == "people":
-            if not isinstance(value, list):
-                raise GidValidationError(
-                    f"Custom field '{field_name}' expects people (list), got {type(value).__name__}. "
-                    f"Field type: people. Provided value: {value!r}. "
-                    f"Expected types: list of user GIDs, or None."
-                )
+        elif field_type == "people" and not isinstance(value, list):
+            raise GidValidationError(
+                f"Custom field '{field_name}' expects people (list), got {type(value).__name__}. "
+                f"Field type: people. Provided value: {value!r}. "
+                f"Expected types: list of user GIDs, or None."
+            )
 
     def __len__(self) -> int:
         """Return number of custom fields."""

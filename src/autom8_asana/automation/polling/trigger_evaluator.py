@@ -141,19 +141,19 @@ class TriggerEvaluator:
             True if task matches the condition, False otherwise.
         """
         # All specified triggers in a condition must match
-        if condition.stale is not None:
-            if not self._evaluate_stale_trigger(task, condition.stale, now):
-                return False
+        if condition.stale is not None and not self._evaluate_stale_trigger(
+            task, condition.stale, now
+        ):
+            return False
 
-        if condition.deadline is not None:
-            if not self._evaluate_deadline_trigger(task, condition.deadline, now):
-                return False
+        if condition.deadline is not None and not self._evaluate_deadline_trigger(
+            task, condition.deadline, now
+        ):
+            return False
 
-        if condition.age is not None:
-            if not self._evaluate_age_trigger(task, condition.age, now):
-                return False
-
-        return True
+        return condition.age is None or self._evaluate_age_trigger(
+            task, condition.age, now
+        )
 
     def _evaluate_stale_trigger(
         self,

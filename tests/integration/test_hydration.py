@@ -467,12 +467,13 @@ class TestHydrateFromGidAsync:
 
         # Mock API responses for traversal
         async def mock_get(gid: str, **kwargs: Any) -> Task:
-            if gid == "contact_001":
-                return contact_task
-            elif gid == "holder_001":
-                return holder_task
-            elif gid == "bus_001":
-                return business_task
+            task_map = {
+                "contact_001": contact_task,
+                "holder_001": holder_task,
+                "bus_001": business_task,
+            }
+            if gid in task_map:
+                return task_map[gid]
             raise ValueError(f"Unexpected GID: {gid}")
 
         mock_client.tasks.get_async = mock_get

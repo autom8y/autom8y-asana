@@ -351,7 +351,7 @@ class TestMakeStoriesFetcher:
         # Assert: opt_fields was included
         call_args = mock_http.get_paginated.call_args
         assert "opt_fields" in call_args[1]["params"]
-        assert "gid,text,created_at" == call_args[1]["params"]["opt_fields"]
+        assert call_args[1]["params"]["opt_fields"] == "gid,text,created_at"
 
     @pytest.mark.asyncio
     async def test_make_stories_fetcher_returns_raw_dicts(
@@ -445,7 +445,7 @@ class TestOptFieldsPropagation:
         # Assert
         call_args = mock_http.get_paginated.call_args
         assert "opt_fields" in call_args[1]["params"]
-        assert "gid,text,resource_subtype" == call_args[1]["params"]["opt_fields"]
+        assert call_args[1]["params"]["opt_fields"] == "gid,text,resource_subtype"
 
 
 class TestTaskModifiedAtVersioning:

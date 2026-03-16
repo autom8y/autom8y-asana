@@ -478,9 +478,10 @@ class ProductsCheckHandler(InitActionHandler):
                     if fnmatch.fnmatch(str(product).lower(), pattern.lower()):
                         matched = True
                         break
-            elif isinstance(products, str):
-                if fnmatch.fnmatch(products.lower(), pattern.lower()):
-                    matched = True
+            elif isinstance(products, str) and fnmatch.fnmatch(
+                products.lower(), pattern.lower()
+            ):
+                matched = True
 
             if not matched:
                 logger.info(

@@ -1733,7 +1733,7 @@ class TestFormatCellHtmlFormatting:
         for field in rate_fields:
             result = _format_cell_html(0.05, field)
             assert result.endswith("%"), f"{field} should produce % suffix"
-            assert "5.00%" == result, f"{field}: 0.05 should display as 5.00%"
+            assert result == "5.00%", f"{field}: 0.05 should display as 5.00%"
 
     def test_all_percentage_fields_format_correctly(self):
         """Every field mapped as 'percentage' displays as-is with % suffix."""
@@ -1742,7 +1742,7 @@ class TestFormatCellHtmlFormatting:
         for field in pct_fields:
             result = _format_cell_html(42.5, field)
             assert result.endswith("%"), f"{field} should produce % suffix"
-            assert "42.50%" == result, f"{field}: 42.5 should display as 42.50%"
+            assert result == "42.50%", f"{field}: 42.5 should display as 42.50%"
 
     def test_xss_safety_preserved(self):
         """Formatted output still goes through html.escape."""

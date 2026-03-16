@@ -87,7 +87,7 @@ class AutomationDispatch:
         section_name = trigger.get("section_name", "").lower()
 
         # Determine outcome from section
-        if "converted" == section_name:
+        if section_name == "converted":
             outcome = "converted"
         elif "did not convert" in section_name or "did_not_convert" in section_name:
             outcome = "did_not_convert"

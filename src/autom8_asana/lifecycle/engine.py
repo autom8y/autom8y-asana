@@ -665,9 +665,7 @@ class LifecycleEngine:
         missing = []
         for field_name in required_fields:
             value = getattr(process, field_name.lower().replace(" ", "_"), None)
-            if value is None:
-                missing.append(field_name)
-            elif isinstance(value, str) and not value.strip():
+            if value is None or isinstance(value, str) and not value.strip():
                 missing.append(field_name)
         return missing
 

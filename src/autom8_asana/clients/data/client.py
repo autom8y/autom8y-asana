@@ -7,6 +7,7 @@ fallback (ADR-INS-004), resilience, and full observability.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid
 from typing import TYPE_CHECKING, Any, cast
 
@@ -241,7 +242,7 @@ class DataServiceClient:
             SyncInAsyncContextError: If called from an async context.
         """
         running_loop: asyncio.AbstractEventLoop | None = None
-        try:
+        try:  # noqa: SIM105 — must capture loop assignment; suppress() cannot assign
             running_loop = asyncio.get_running_loop()
         except RuntimeError:
             # No running loop - safe to use asyncio.run()
@@ -304,24 +305,24 @@ class DataServiceClient:
 
                 # Check for retryable HTTP status codes (Story 2.2)
                 status = response.status_code
-                if status in self._config.retry.retryable_status_codes:
-                    if self._retry_handler.should_retry(status, attempt):
-                        # Extract Retry-After header for 429 responses
-                        retry_after: int | None = None
-                        if status == 429:
-                            retry_after_header = response.headers.get("Retry-After")
-                            if retry_after_header:
-                                try:
-                                    retry_after = int(retry_after_header)
-                                except ValueError:
-                                    pass  # Ignore non-integer values
+                if (
+                    status in self._config.retry.retryable_status_codes
+                    and self._retry_handler.should_retry(status, attempt)
+                ):
+                    # Extract Retry-After header for 429 responses
+                    retry_after: int | None = None
+                    if status == 429:
+                        retry_after_header = response.headers.get("Retry-After")
+                        if retry_after_header:
+                            with contextlib.suppress(ValueError):
+                                retry_after = int(retry_after_header)
 
-                        if on_retry is not None:
-                            await on_retry(attempt, status, retry_after)
+                    if on_retry is not None:
+                        await on_retry(attempt, status, retry_after)
 
-                        await self._retry_handler.wait(attempt, retry_after)
-                        attempt += 1
-                        continue  # Retry the request
+                    await self._retry_handler.wait(attempt, retry_after)
+                    attempt += 1
+                    continue  # Retry the request
 
                 # Non-retryable status or success - exit retry loop
                 break

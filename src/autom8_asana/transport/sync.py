@@ -50,7 +50,7 @@ def sync_wrapper(
             # Check if we're in an async context using get_running_loop()
             # This returns the loop if called from a coroutine/callback, or raises RuntimeError
             running_loop: asyncio.AbstractEventLoop | None = None
-            try:
+            try:  # noqa: SIM105 — must capture loop assignment; suppress() cannot assign
                 running_loop = asyncio.get_running_loop()
             except RuntimeError:
                 # No running event loop - this is the expected case for sync usage

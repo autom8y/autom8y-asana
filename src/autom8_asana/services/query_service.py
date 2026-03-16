@@ -539,10 +539,7 @@ class EntityQueryService:
             )
 
         # Apply expression filter
-        if expr is not None:
-            filtered_df = df.filter(expr)
-        else:
-            filtered_df = df
+        filtered_df = df.filter(expr) if expr is not None else df
 
         total_count = len(filtered_df)
 
