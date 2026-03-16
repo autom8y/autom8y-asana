@@ -195,10 +195,18 @@ class AsanaClient:
             if env_workspace and env_workspace.strip():
                 workspace_gid = env_workspace.strip()
             elif token is not None:
-                # Auto-detect only if token was explicitly provided
-                workspace_gid = self._auto_detect_workspace(
-                    self._auth_provider, self._config.token_key
-                )
+                # Auto-detect only if token was explicitly provided and no
+                # async event loop is running (sync HTTP would raise
+                # SyncInAsyncContextError inside an async context).
+                try:
+                    asyncio.get_running_loop()
+                    # In async context — skip sync auto-detection
+                    workspace_gid = None
+                except RuntimeError:
+                    # No event loop running — safe to make sync HTTP call
+                    workspace_gid = self._auto_detect_workspace(
+                        self._auth_provider, self._config.token_key
+                    )
 
         self.default_workspace_gid = workspace_gid
 
