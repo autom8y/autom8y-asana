@@ -39,8 +39,8 @@ from autom8_asana.api.routes.internal import (
     require_service_claims,
 )
 from autom8_asana.services.intake_create_service import (
-    IntakeCreateService,
     VALID_PROCESS_TYPES,
+    IntakeCreateService,
 )
 from autom8_asana.services.intake_resolve_service import is_valid_e164
 

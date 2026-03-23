@@ -12,7 +12,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # ---------------------------------------------------------------------------
 # Business Creation (ADR section 2.3)
 # ---------------------------------------------------------------------------
