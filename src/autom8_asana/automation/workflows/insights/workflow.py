@@ -4,12 +4,14 @@ Per TDD-EXPORT-001: Second WorkflowAction implementation.
 Enumerates active Offers, resolves each to office_phone + vertical,
 fetches 12 tables from autom8_data, composes HTML report,
 and uploads as attachment to each Offer task.
+
+Per ADR-bridge-intermediate-base-class: Rebased onto
+BridgeWorkflowAction in sprint-3.
 """
 
 from __future__ import annotations
 
 import asyncio
-import os
 import pathlib
 import re
 import time
@@ -20,22 +22,24 @@ from typing import TYPE_CHECKING, Any
 from autom8y_log import get_logger
 
 from autom8_asana.automation.workflows.base import (
-    WorkflowAction,
     WorkflowItemError,
     WorkflowResult,
 )
-from autom8_asana.automation.workflows.insights_formatter import (
+from autom8_asana.automation.workflows.bridge_base import (
+    BridgeOutcome,
+    BridgeWorkflowAction,
+)
+from autom8_asana.automation.workflows.insights.formatter import (
     InsightsReportData,
     TableResult,
     compose_report,
 )
-from autom8_asana.automation.workflows.insights_tables import (
+from autom8_asana.automation.workflows.insights.tables import (
     TABLE_SPECS,
     DispatchType,
     TableSpec,
 )
-from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
-from autom8_asana.clients.data._pii import mask_phone_number
+from autom8_asana.clients.utils.pii import mask_phone_number
 from autom8_asana.models.business.activity import (
     OFFER_CLASSIFIER,
     AccountActivity,
@@ -82,13 +86,15 @@ TABLE_NAMES = [s.table_name for s in TABLE_SPECS]
 TOTAL_TABLE_COUNT = len(TABLE_NAMES)  # 12
 
 
-class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
+class InsightsExportWorkflow(BridgeWorkflowAction):
     """Daily insights export HTML report for Offer tasks.
 
     Per PRD-EXPORT-001: Second WorkflowAction implementation.
+    Per ADR-bridge-intermediate-base-class: Inherits from
+    BridgeWorkflowAction (sprint-3 migration).
 
     Lifecycle:
-    1. Check feature flag (AUTOM8_EXPORT_ENABLED)
+    1. Check feature flag (AUTOM8_EXPORT_ENABLED) -- inherited
     2. Enumerate active Offer tasks in BusinessOffers project
     3. For each Offer (with concurrency limit):
        a. Resolve parent Business -> office_phone + vertical
@@ -104,15 +110,18 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         attachments_client: AttachmentsClient for upload/delete operations.
     """
 
+    feature_flag_env_var = EXPORT_ENABLED_ENV_VAR
+
     def __init__(
         self,
         asana_client: Any,  # AsanaClient (TYPE_CHECKING avoids circular)
         data_client: DataServiceClient,
         attachments_client: AttachmentsClient,
     ) -> None:
-        self._asana_client = asana_client
-        self._data_client = data_client
-        self._attachments_client = attachments_client
+        super().__init__(asana_client, data_client, attachments_client)
+        # Narrow type for mypy: base class stores DataSource | None,
+        # but this bridge always has a concrete DataServiceClient.
+        self._data_client: DataServiceClient = data_client
         # Dedup cache: business_gid -> (office_phone, vertical, business_name)
         # Per AT3-001: eliminates redundant Business fetches across offers.
         self._business_cache: dict[str, tuple[str, str, str | None] | None] = {}
@@ -125,38 +134,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
     def workflow_id(self) -> str:  # type: ignore[override]  # read-only property overrides base attribute
         return "insights-export"
 
-    async def validate_async(self) -> list[str]:
-        """Pre-flight validation.
-
-        Checks:
-        1. Feature flag is enabled (AUTOM8_EXPORT_ENABLED).
-        2. DataServiceClient circuit breaker is not open.
-
-        Returns:
-            List of validation error strings (empty = ready).
-        """
-        errors: list[str] = []
-
-        # Check feature flag
-        env_value = os.environ.get(EXPORT_ENABLED_ENV_VAR, "").lower()
-        if env_value in {"false", "0", "no"}:
-            errors.append(f"Workflow disabled via {EXPORT_ENABLED_ENV_VAR}={env_value}")
-            return errors  # Short-circuit
-
-        # Check DataServiceClient circuit breaker
-        try:
-            from autom8y_http import CircuitBreakerOpenError as SdkCBOpen
-
-            await self._data_client._circuit_breaker.check()
-        except SdkCBOpen:
-            errors.append(
-                "DataServiceClient circuit breaker is open. "
-                "autom8_data may be degraded."
-            )
-        except (ConnectionError, TimeoutError, OSError):
-            pass  # Non-circuit-breaker errors are not pre-flight failures
-
-        return errors
+    # --- Bridge hooks ---
 
     async def enumerate_async(
         self,
@@ -168,6 +146,9 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         When scope.has_entity_ids: return synthetic offer dicts for each GID.
         When scope is empty: perform full section-targeted enumeration.
 
+        Overrides base to add targeted logging before delegating to
+        super() for fast-path and limit handling.
+
         Args:
             scope: EntityScope controlling targeting, filtering, and limits.
 
@@ -175,22 +156,43 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             List of offer dicts with {gid, name} shape.
         """
         if scope.has_entity_ids:
-            offers = [{"gid": gid, "name": None} for gid in scope.entity_ids]
             logger.info(
                 "insights_export_targeted",
                 entity_ids=scope.entity_ids,
                 dry_run=scope.dry_run,
             )
-            return offers
+        return await super().enumerate_async(scope)
 
-        # Full enumeration (existing _enumerate_offers logic)
-        offers = await self._enumerate_offers()
+    async def enumerate_entities(
+        self,
+        scope: EntityScope,
+    ) -> list[dict[str, Any]]:
+        """Full enumeration: section-targeted fetch of ACTIVE offers.
 
-        # Apply limit if provided
-        if scope.limit is not None and len(offers) > scope.limit:
-            offers = offers[: scope.limit]
+        Per ADR-bridge-intermediate-base-class: Implements the abstract
+        hook called by base class enumerate_async() for the full path.
+        """
+        return await self._enumerate_offers()
 
-        return offers
+    async def process_entity(
+        self,
+        entity: dict[str, Any],
+        params: dict[str, Any],
+    ) -> _OfferOutcome:
+        """Dispatch to _process_offer with params extraction.
+
+        Per ADR-bridge-intermediate-base-class: Implements the abstract
+        hook called by base class execute_async() for each entity.
+        """
+        return await self._process_offer(
+            offer_gid=entity["gid"],
+            offer_name=entity.get("name"),
+            attachment_pattern=params.get(
+                "attachment_pattern", DEFAULT_ATTACHMENT_PATTERN
+            ),
+            row_limits=params.get("row_limits", DEFAULT_ROW_LIMITS),
+            dry_run=params.get("dry_run", False),
+        )
 
     async def execute_async(
         self,
@@ -198,6 +200,9 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
         params: dict[str, Any],
     ) -> WorkflowResult:
         """Execute the insights export for the given entities.
+
+        Overrides base to add start/completion logging that preserves
+        existing observability events.
 
         Args:
             entities: Offer dicts from enumerate_async.
@@ -212,115 +217,86 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             WorkflowResult with total/succeeded/failed/skipped counts
             and per-offer table tracking in metadata.
         """
-        started_at = datetime.now(UTC)
-
         max_concurrency = params.get("max_concurrency", DEFAULT_MAX_CONCURRENCY)
-        attachment_pattern = params.get(
-            "attachment_pattern", DEFAULT_ATTACHMENT_PATTERN
-        )
-        row_limits = params.get("row_limits", DEFAULT_ROW_LIMITS)
         dry_run = params.get("dry_run", False)
-
-        offers = entities  # Named alias for clarity
 
         logger.info(
             "insights_export_started",
-            total_offers=len(offers),
+            total_offers=len(entities),
             max_concurrency=max_concurrency,
             dry_run=dry_run,
         )
 
-        # Process each offer with concurrency control
-        semaphore = asyncio.Semaphore(max_concurrency)
-        results: list[_OfferOutcome] = []
+        result = await super().execute_async(entities, params)
 
-        async def process_one(
-            offer_gid: str,
-            offer_name: str | None,
-        ) -> None:
-            async with semaphore:
-                outcome = await self._process_offer(
-                    offer_gid=offer_gid,
-                    offer_name=offer_name,
-                    attachment_pattern=attachment_pattern,
-                    row_limits=row_limits,
-                    dry_run=dry_run,
-                )
-                results.append(outcome)
+        logger.info(
+            "insights_export_completed",
+            total=result.total,
+            succeeded=result.succeeded,
+            failed=result.failed,
+            skipped=result.skipped,
+            total_tables_succeeded=result.metadata.get(
+                "total_tables_succeeded", 0
+            ),
+            total_tables_failed=result.metadata.get(
+                "total_tables_failed", 0
+            ),
+            duration_seconds=round(result.duration_seconds, 2),
+        )
 
-        await asyncio.gather(*[process_one(o["gid"], o.get("name")) for o in offers])
+        return result
 
-        # Log Business cache summary for observability (per AT3-001)
+    def _build_result_metadata(
+        self,
+        outcomes: list[BridgeOutcome],
+    ) -> dict[str, Any]:
+        """Build insights-specific metadata: table counts + preview paths.
+
+        Also emits cache summary log (per AT3-001).
+        """
+        # Cache summary log (moved from execute_async)
         logger.info(
             "insights_business_cache_summary",
             extra={
-                "total_offers": len(offers),
+                "total_offers": len(outcomes),
                 "unique_businesses": len(self._business_cache),
                 "cache_hits": self._cache_hits,
                 "api_calls_saved": self._cache_hits,
             },
         )
 
-        # Step 3: Aggregate results
-        succeeded = sum(1 for r in results if r.status == "succeeded")
-        failed = sum(1 for r in results if r.status == "failed")
-        skipped = sum(1 for r in results if r.status == "skipped")
-        errors = [r.error for r in results if r.error is not None]
-
         # Per-offer table counts
         per_offer_table_counts: dict[str, dict[str, int | None]] = {}
         total_tables_succeeded = 0
         total_tables_failed = 0
-        for r in results:
-            if r.tables_succeeded is not None:
-                per_offer_table_counts[r.offer_gid] = {
-                    "tables_succeeded": r.tables_succeeded,
-                    "tables_failed": r.tables_failed,
+        for o in outcomes:
+            if isinstance(o, _OfferOutcome) and o.tables_succeeded is not None:
+                per_offer_table_counts[o.gid] = {
+                    "tables_succeeded": o.tables_succeeded,
+                    "tables_failed": o.tables_failed,
                 }
-                total_tables_succeeded += r.tables_succeeded
-                total_tables_failed += r.tables_failed or 0
-
-        completed_at = datetime.now(UTC)
+                total_tables_succeeded += o.tables_succeeded
+                total_tables_failed += o.tables_failed or 0
 
         metadata: dict[str, Any] = {
             "per_offer_table_counts": per_offer_table_counts,
             "total_tables_succeeded": total_tables_succeeded,
             "total_tables_failed": total_tables_failed,
         }
-        if dry_run:
+
+        # Dry-run preview paths
+        dry_run_outcomes = [
+            o
+            for o in outcomes
+            if isinstance(o, _OfferOutcome) and o.preview_path is not None
+        ]
+        if dry_run_outcomes:
             metadata["dry_run"] = True
-            preview_paths = {
-                r.offer_gid: r.preview_path
-                for r in results
-                if r.preview_path is not None
+            metadata["preview_paths"] = {
+                o.gid: o.preview_path for o in dry_run_outcomes
             }
-            if preview_paths:
-                metadata["preview_paths"] = preview_paths
 
-        workflow_result = WorkflowResult(
-            workflow_id=self.workflow_id,
-            started_at=started_at,
-            completed_at=completed_at,
-            total=len(offers),
-            succeeded=succeeded,
-            failed=failed,
-            skipped=skipped,
-            errors=errors,
-            metadata=metadata,
-        )
-
-        logger.info(
-            "insights_export_completed",
-            total=workflow_result.total,
-            succeeded=workflow_result.succeeded,
-            failed=workflow_result.failed,
-            skipped=workflow_result.skipped,
-            total_tables_succeeded=total_tables_succeeded,
-            total_tables_failed=total_tables_failed,
-            duration_seconds=round(workflow_result.duration_seconds, 2),
-        )
-
-        return workflow_result
+        return metadata
 
     # --- Private Methods ---
 
@@ -495,7 +471,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     reason="no_resolution",
                 )
                 return _OfferOutcome(
-                    offer_gid=offer_gid,
+                    gid=offer_gid,
                     status="skipped",
                     reason="no_resolution",
                 )
@@ -529,7 +505,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     error_count=tables_failed,
                 )
                 return _OfferOutcome(
-                    offer_gid=offer_gid,
+                    gid=offer_gid,
                     status="failed",
                     tables_succeeded=0,
                     tables_failed=tables_failed,
@@ -609,7 +585,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
             )
 
             return _OfferOutcome(
-                offer_gid=offer_gid,
+                gid=offer_gid,
                 status="succeeded",
                 tables_succeeded=tables_succeeded,
                 tables_failed=tables_failed,
@@ -625,7 +601,7 @@ class InsightsExportWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 error_type=type(exc).__name__,
             )
             return _OfferOutcome(
-                offer_gid=offer_gid,
+                gid=offer_gid,
                 status="failed",
                 error=WorkflowItemError(
                     item_id=offer_gid,
@@ -886,13 +862,14 @@ def _sanitize_business_name(name: str) -> str:
 
 
 @_dataclass
-class _OfferOutcome:
-    """Internal per-offer processing result."""
+class _OfferOutcome(BridgeOutcome):
+    """Internal per-offer processing result.
 
-    offer_gid: str
-    status: str  # "succeeded", "failed", "skipped"
-    reason: str | None = None
-    error: WorkflowItemError | None = None
+    Extends BridgeOutcome with insights-specific fields for table
+    tracking and dry-run preview.
+    """
+
+    # Inherited from BridgeOutcome: gid, status, reason, error
     tables_succeeded: int | None = None
     tables_failed: int | None = None
     report_preview: str | None = None

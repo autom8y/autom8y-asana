@@ -29,11 +29,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from autom8_asana.automation.workflows.insights_tables import (
+from autom8_asana.automation.workflows.insights.tables import (
     TABLE_SPECS,
     DispatchType,
 )
-from autom8_asana.clients.data._pii import mask_phone_number
+from autom8_asana.clients.utils.pii import mask_phone_number
 
 # Preferred leading columns for period-based and reconciliation tables.
 # Keys must match TABLE_ORDER names exactly.

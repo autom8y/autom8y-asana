@@ -164,6 +164,25 @@ class DataServiceClient:
             config=sdk_retry_config, logger=self._log
         )
 
+    # --- Health Check (ADR-bridge-validate-extraction Decision 1) ---
+
+    async def is_healthy(self) -> None:
+        """Check data service health via the circuit breaker.
+
+        Raises:
+            CircuitBreakerOpenError: If the circuit breaker is open
+                (data service unavailable).
+
+        Returns normally if the data service is healthy (circuit breaker
+        closed or half-open).
+
+        This is the public interface for health checks. Do not access
+        _circuit_breaker directly.
+
+        Per ADR-bridge-validate-extraction Decision 1.
+        """
+        await self._circuit_breaker.check()
+
     # --- Async Context Manager Protocol (FR-001.5) ---
 
     async def __aenter__(self) -> DataServiceClient:

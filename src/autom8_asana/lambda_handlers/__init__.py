@@ -18,10 +18,14 @@ from autom8_asana.lambda_handlers.conversation_audit import (
 from autom8_asana.lambda_handlers.insights_export import (
     handler as insights_export_handler,
 )
+from autom8_asana.lambda_handlers.payment_reconciliation import (
+    handler as payment_reconciliation_handler,
+)
 
 __all__ = [
     "cache_invalidate_handler",
     "cache_warmer_handler",
     "conversation_audit_handler",
     "insights_export_handler",
+    "payment_reconciliation_handler",
 ]

@@ -7,11 +7,13 @@ with Memory + S3 tiering, request coalescing, and circuit breaker patterns.
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
+from autom8y_telemetry import trace_computation
 
 from autom8_asana.cache.models.freshness_unified import FreshnessState
 
@@ -233,6 +235,7 @@ class DataFrameCache:
                 "lkg_circuit_serves": 0,
             }
 
+    @trace_computation("cache.get", engine="autom8y-asana")
     async def get_async(
         self,
         project_gid: str,
@@ -260,6 +263,11 @@ class DataFrameCache:
         Returns:
             DataFrameCacheEntry if found and fresh/stale-servable, None otherwise.
         """
+        from opentelemetry import trace as _otel_trace
+
+        _cache_span = _otel_trace.get_current_span()
+        _cache_start = time.perf_counter()
+
         cache_key = self._build_key(project_gid, entity_type)
 
         # Check circuit breaker
@@ -273,7 +281,10 @@ class DataFrameCache:
                     "entity_type": entity_type,
                 },
             )
-            return await self._get_circuit_lkg(cache_key, project_gid, entity_type)
+            _result = await self._get_circuit_lkg(cache_key, project_gid, entity_type)
+            _cache_span.set_attribute("computation.cache_hit", _result is not None)
+            _cache_span.set_attribute("computation.duration_ms", (time.perf_counter() - _cache_start) * 1000)
+            return _result
 
         # Try memory tier first
         entry = self.memory_tier.get(cache_key)
@@ -282,6 +293,8 @@ class DataFrameCache:
                 entry, current_watermark, project_gid, entity_type, cache_key, "memory"
             )
             if result is not None:
+                _cache_span.set_attribute("computation.cache_hit", True)
+                _cache_span.set_attribute("computation.duration_ms", (time.perf_counter() - _cache_start) * 1000)
                 return result
 
         self._stats[entity_type]["memory_misses"] += 1
@@ -298,6 +311,8 @@ class DataFrameCache:
                 if result is entry:
                     # Hydrate memory tier on S3 hit
                     self.memory_tier.put(cache_key, entry)
+                _cache_span.set_attribute("computation.cache_hit", True)
+                _cache_span.set_attribute("computation.duration_ms", (time.perf_counter() - _cache_start) * 1000)
                 return result
 
         self._stats[entity_type]["s3_misses"] += 1
@@ -315,6 +330,8 @@ class DataFrameCache:
                 "staleness_seconds": None,
             },
         )
+        _cache_span.set_attribute("computation.cache_hit", False)
+        _cache_span.set_attribute("computation.duration_ms", (time.perf_counter() - _cache_start) * 1000)
         return None
 
     async def _get_circuit_lkg(

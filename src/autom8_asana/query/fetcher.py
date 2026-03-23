@@ -12,10 +12,12 @@ the typical unique PVP count, the fetcher must implement pre-chunking (P3, defer
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
 import polars as pl
 from autom8y_log import get_logger
+from autom8y_telemetry import trace_computation
 
 if TYPE_CHECKING:
     from autom8_asana.clients.data.client import DataServiceClient
@@ -35,6 +37,7 @@ class DataServiceJoinFetcher:
     def __init__(self, data_client: DataServiceClient) -> None:
         self._client = data_client
 
+    @trace_computation("data_service.fetch_join", record_dataframe_shape=True, df_param="primary_df", engine="autom8y-asana")
     async def fetch_for_join(
         self,
         primary_df: pl.DataFrame,
@@ -54,12 +57,20 @@ class DataServiceJoinFetcher:
             pl.DataFrame with office_phone, vertical, and metric columns.
             Empty DataFrame if no pairs to fetch or all fetches fail.
         """
+        from opentelemetry import trace as _otel_trace
+
+        _span = _otel_trace.get_current_span()
+        _fetch_start = time.perf_counter()
+
         pairs = self._extract_pvps(primary_df, join_key)
         if not pairs:
             logger.info(
                 "data_service_join_no_pvps",
                 extra={"factory": factory, "join_key": join_key},
             )
+            _span.set_attribute("computation.duration_ms", (time.perf_counter() - _fetch_start) * 1000)
+            _span.set_attribute("computation.batch.success_count", 0)
+            _span.set_attribute("computation.batch.failure_count", 0)
             return pl.DataFrame()
 
         logger.info(
@@ -84,6 +95,9 @@ class DataServiceJoinFetcher:
                 if df.height > 0:
                     frames.append(df)
 
+        _span.set_attribute("computation.batch.success_count", batch_response.success_count)
+        _span.set_attribute("computation.batch.failure_count", batch_response.failure_count)
+
         if not frames:
             logger.warning(
                 "data_service_join_no_results",
@@ -95,6 +109,7 @@ class DataServiceJoinFetcher:
                     "failure_count": batch_response.failure_count,
                 },
             )
+            _span.set_attribute("computation.duration_ms", (time.perf_counter() - _fetch_start) * 1000)
             return pl.DataFrame()
 
         combined = pl.concat(frames)
@@ -111,6 +126,7 @@ class DataServiceJoinFetcher:
             },
         )
 
+        _span.set_attribute("computation.duration_ms", (time.perf_counter() - _fetch_start) * 1000)
         return combined
 
     def _extract_pvps(self, df: pl.DataFrame, join_key: str) -> list[PhoneVerticalPair]:

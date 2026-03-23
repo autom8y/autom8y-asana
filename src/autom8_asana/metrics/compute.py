@@ -6,14 +6,17 @@ and MetricExpr configuration. Returns a DataFrame for caller aggregation.
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
 
 import polars as pl
+from autom8y_telemetry import trace_computation
 
 if TYPE_CHECKING:
     from autom8_asana.metrics.metric import Metric
 
 
+@trace_computation("metric.compute", record_dataframe_shape=True, df_param="df", engine="autom8y-asana")
 def compute_metric(
     metric: Metric,
     df: pl.DataFrame,
@@ -50,6 +53,11 @@ def compute_metric(
         pl.exceptions.ColumnNotFoundError: If metric.expr.column or any
             dedup_key is missing from the DataFrame.
     """
+    from opentelemetry import trace as _otel_trace
+
+    _span = _otel_trace.get_current_span()
+    _metric_start = time.perf_counter()
+
     expr = metric.expr
     scope = metric.scope
 
@@ -115,4 +123,5 @@ def compute_metric(
             print(result)
         print()
 
+    _span.set_attribute("computation.duration_ms", (time.perf_counter() - _metric_start) * 1000)
     return result
