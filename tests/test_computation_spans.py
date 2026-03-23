@@ -704,7 +704,9 @@ class TestDataServiceJoinFetcherFetchForJoin:
 class TestDataServiceClientGetInsightsBatchAsync:
     """T9: computation.data_service.get_insights_batch — CROSS-SERVICE BRIDGE"""
 
-    @pytest.mark.skip(reason="DataServiceClient.get_insights_batch_async not yet instrumented with @trace_computation")
+    @pytest.mark.skip(
+        reason="DataServiceClient.get_insights_batch_async not yet instrumented with @trace_computation"
+    )
     async def test_span_name_and_batch_attributes(self, otel_provider):
         """get_insights_batch_async emits computation.data_service.get_insights_batch."""
         _, exporter = otel_provider

@@ -243,7 +243,9 @@ class TestConversationAuditE2E:
         mock_data_client.get_export_csv_async = AsyncMock()
 
         mock_attachments = MagicMock()
-        mock_attachments.list_for_task_async = MagicMock(return_value=_AsyncIterator([]))
+        mock_attachments.list_for_task_async = MagicMock(
+            return_value=_AsyncIterator([])
+        )
         mock_attachments.upload_async = AsyncMock(return_value=MagicMock())
         mock_attachments.delete_async = AsyncMock()
 
