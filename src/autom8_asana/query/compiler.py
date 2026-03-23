@@ -190,7 +190,9 @@ class PredicateCompiler:
         _span = _otel_trace.get_current_span()
         start = time.perf_counter()
         result = self._compile_node(node, schema)
-        _span.set_attribute("computation.duration_ms", (time.perf_counter() - start) * 1000)
+        _span.set_attribute(
+            "computation.duration_ms", (time.perf_counter() - start) * 1000
+        )
         return result
 
     def _compile_node(self, node: PredicateNode, schema: DataFrameSchema) -> pl.Expr:

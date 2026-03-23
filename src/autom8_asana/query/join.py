@@ -87,7 +87,12 @@ class JoinResult:
     unmatched_count: int
 
 
-@trace_computation("entity.join", record_dataframe_shape=True, df_param="primary_df", engine="autom8y-asana")
+@trace_computation(
+    "entity.join",
+    record_dataframe_shape=True,
+    df_param="primary_df",
+    engine="autom8y-asana",
+)
 def execute_join(
     primary_df: pl.DataFrame,
     target_df: pl.DataFrame,
@@ -177,7 +182,9 @@ def execute_join(
 
     unmatched_count = enriched.height - matched_count
 
-    _span.set_attribute("computation.duration_ms", (time.perf_counter() - _join_start) * 1000)
+    _span.set_attribute(
+        "computation.duration_ms", (time.perf_counter() - _join_start) * 1000
+    )
     _span.set_attribute("computation.join.matched_count", matched_count)
     _span.set_attribute("computation.join.unmatched_count", unmatched_count)
 

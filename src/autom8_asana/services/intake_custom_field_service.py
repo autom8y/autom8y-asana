@@ -65,9 +65,17 @@ class IntakeCustomFieldService:
         field_name_to_gid: dict[str, str] = {}
         field_gid_to_meta: dict[str, dict[str, Any]] = {}
         for cf in current_custom_fields:
-            cf_name = cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
-            cf_gid = cf.get("gid", "") if isinstance(cf, dict) else getattr(cf, "gid", "")
-            cf_subtype = cf.get("resource_subtype", "") if isinstance(cf, dict) else getattr(cf, "resource_subtype", "")
+            cf_name = (
+                cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
+            )
+            cf_gid = (
+                cf.get("gid", "") if isinstance(cf, dict) else getattr(cf, "gid", "")
+            )
+            cf_subtype = (
+                cf.get("resource_subtype", "")
+                if isinstance(cf, dict)
+                else getattr(cf, "resource_subtype", "")
+            )
             if cf_name and cf_gid:
                 # Map both the raw name and a normalized version
                 field_name_to_gid[cf_name.lower()] = cf_gid
@@ -77,11 +85,15 @@ class IntakeCustomFieldService:
                 field_gid_to_meta[cf_gid] = {
                     "name": cf_name,
                     "resource_subtype": cf_subtype,
-                    "enum_options": cf.get("enum_options", []) if isinstance(cf, dict) else getattr(cf, "enum_options", []) or [],
+                    "enum_options": cf.get("enum_options", [])
+                    if isinstance(cf, dict)
+                    else getattr(cf, "enum_options", []) or [],
                 }
 
         # Also try SchemaRegistry for more comprehensive field resolution
-        self._enrich_from_schema_registry(field_name_to_gid, field_gid_to_meta, task_data)
+        self._enrich_from_schema_registry(
+            field_name_to_gid, field_gid_to_meta, task_data
+        )
 
         # Resolve fields and build Asana custom_fields dict
         custom_fields_payload: dict[str, Any] = {}
@@ -185,9 +197,17 @@ class IntakeCustomFieldService:
         if resource_subtype == "enum" and isinstance(value, str):
             enum_options = field_meta.get("enum_options", [])
             for opt in enum_options:
-                opt_name = opt.get("name", "") if isinstance(opt, dict) else getattr(opt, "name", "")
+                opt_name = (
+                    opt.get("name", "")
+                    if isinstance(opt, dict)
+                    else getattr(opt, "name", "")
+                )
                 if opt_name.lower() == value.lower():
-                    return opt.get("gid") if isinstance(opt, dict) else getattr(opt, "gid", value)
+                    return (
+                        opt.get("gid")
+                        if isinstance(opt, dict)
+                        else getattr(opt, "gid", value)
+                    )
             # No matching enum option -- return raw value (Asana may reject)
             return value
 

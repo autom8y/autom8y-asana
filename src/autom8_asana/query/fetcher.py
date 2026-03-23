@@ -37,7 +37,12 @@ class DataServiceJoinFetcher:
     def __init__(self, data_client: DataServiceClient) -> None:
         self._client = data_client
 
-    @trace_computation("data_service.fetch_join", record_dataframe_shape=True, df_param="primary_df", engine="autom8y-asana")
+    @trace_computation(
+        "data_service.fetch_join",
+        record_dataframe_shape=True,
+        df_param="primary_df",
+        engine="autom8y-asana",
+    )
     async def fetch_for_join(
         self,
         primary_df: pl.DataFrame,
@@ -68,7 +73,9 @@ class DataServiceJoinFetcher:
                 "data_service_join_no_pvps",
                 extra={"factory": factory, "join_key": join_key},
             )
-            _span.set_attribute("computation.duration_ms", (time.perf_counter() - _fetch_start) * 1000)
+            _span.set_attribute(
+                "computation.duration_ms", (time.perf_counter() - _fetch_start) * 1000
+            )
             _span.set_attribute("computation.batch.success_count", 0)
             _span.set_attribute("computation.batch.failure_count", 0)
             return pl.DataFrame()
@@ -95,8 +102,12 @@ class DataServiceJoinFetcher:
                 if df.height > 0:
                     frames.append(df)
 
-        _span.set_attribute("computation.batch.success_count", batch_response.success_count)
-        _span.set_attribute("computation.batch.failure_count", batch_response.failure_count)
+        _span.set_attribute(
+            "computation.batch.success_count", batch_response.success_count
+        )
+        _span.set_attribute(
+            "computation.batch.failure_count", batch_response.failure_count
+        )
 
         if not frames:
             logger.warning(
@@ -109,7 +120,9 @@ class DataServiceJoinFetcher:
                     "failure_count": batch_response.failure_count,
                 },
             )
-            _span.set_attribute("computation.duration_ms", (time.perf_counter() - _fetch_start) * 1000)
+            _span.set_attribute(
+                "computation.duration_ms", (time.perf_counter() - _fetch_start) * 1000
+            )
             return pl.DataFrame()
 
         combined = pl.concat(frames)
@@ -126,7 +139,9 @@ class DataServiceJoinFetcher:
             },
         )
 
-        _span.set_attribute("computation.duration_ms", (time.perf_counter() - _fetch_start) * 1000)
+        _span.set_attribute(
+            "computation.duration_ms", (time.perf_counter() - _fetch_start) * 1000
+        )
         return combined
 
     def _extract_pvps(self, df: pl.DataFrame, join_key: str) -> list[PhoneVerticalPair]:

@@ -85,7 +85,9 @@ def _make_mock_asana_client(
     return mock_client
 
 
-def _resolve_patches(mock_client: MagicMock | None = None, index_gid: str | None = None):
+def _resolve_patches(
+    mock_client: MagicMock | None = None, index_gid: str | None = None
+):
     """Create context manager patches for JWT, bot PAT, AsanaClient, and index."""
     jwt_patch = patch(
         "autom8_asana.api.routes.internal.validate_service_token",
@@ -370,8 +372,16 @@ class TestResolveContactEndpoint:
                     "gid": CONTACT_GID,
                     "name": "Jane Doe",
                     "custom_fields": [
-                        {"name": "contact_email", "text_value": "jane@example.com", "gid": "cf_email"},
-                        {"name": "contact_phone", "text_value": "+15559876543", "gid": "cf_phone"},
+                        {
+                            "name": "contact_email",
+                            "text_value": "jane@example.com",
+                            "gid": "cf_email",
+                        },
+                        {
+                            "name": "contact_phone",
+                            "text_value": "+15559876543",
+                            "gid": "cf_phone",
+                        },
                     ],
                 },
             ],
@@ -407,8 +417,16 @@ class TestResolveContactEndpoint:
                     "gid": CONTACT_GID,
                     "name": "John Smith",
                     "custom_fields": [
-                        {"name": "contact_email", "text_value": "john@other.com", "gid": "cf_email"},
-                        {"name": "contact_phone", "text_value": "+15559876543", "gid": "cf_phone"},
+                        {
+                            "name": "contact_email",
+                            "text_value": "john@other.com",
+                            "gid": "cf_email",
+                        },
+                        {
+                            "name": "contact_phone",
+                            "text_value": "+15559876543",
+                            "gid": "cf_phone",
+                        },
                     ],
                 },
             ],
@@ -441,16 +459,32 @@ class TestResolveContactEndpoint:
                     "gid": "contact_a",
                     "name": "Contact A",
                     "custom_fields": [
-                        {"name": "contact_email", "text_value": "target@example.com", "gid": "cf_email"},
-                        {"name": "contact_phone", "text_value": "+10000000000", "gid": "cf_phone"},
+                        {
+                            "name": "contact_email",
+                            "text_value": "target@example.com",
+                            "gid": "cf_email",
+                        },
+                        {
+                            "name": "contact_phone",
+                            "text_value": "+10000000000",
+                            "gid": "cf_phone",
+                        },
                     ],
                 },
                 {
                     "gid": "contact_b",
                     "name": "Contact B",
                     "custom_fields": [
-                        {"name": "contact_email", "text_value": "other@example.com", "gid": "cf_email"},
-                        {"name": "contact_phone", "text_value": "+15559876543", "gid": "cf_phone"},
+                        {
+                            "name": "contact_email",
+                            "text_value": "other@example.com",
+                            "gid": "cf_email",
+                        },
+                        {
+                            "name": "contact_phone",
+                            "text_value": "+15559876543",
+                            "gid": "cf_phone",
+                        },
                     ],
                 },
             ],
@@ -485,8 +519,16 @@ class TestResolveContactEndpoint:
                     "gid": CONTACT_GID,
                     "name": "Existing Contact",
                     "custom_fields": [
-                        {"name": "contact_email", "text_value": "other@example.com", "gid": "cf_email"},
-                        {"name": "contact_phone", "text_value": "+10000000000", "gid": "cf_phone"},
+                        {
+                            "name": "contact_email",
+                            "text_value": "other@example.com",
+                            "gid": "cf_email",
+                        },
+                        {
+                            "name": "contact_phone",
+                            "text_value": "+10000000000",
+                            "gid": "cf_phone",
+                        },
                     ],
                 },
             ],
@@ -570,7 +612,11 @@ class TestResolveContactEndpoint:
                     "gid": CONTACT_GID,
                     "name": "Jane Doe",
                     "custom_fields": [
-                        {"name": "contact_email", "text_value": "Jane@Example.com", "gid": "cf_email"},
+                        {
+                            "name": "contact_email",
+                            "text_value": "Jane@Example.com",
+                            "gid": "cf_email",
+                        },
                     ],
                 },
             ],

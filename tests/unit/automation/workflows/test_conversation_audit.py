@@ -173,6 +173,9 @@ def _make_workflow(
         return _make_export_result(phone=phone)
 
     mock_data_client.get_export_csv_async = AsyncMock(side_effect=mock_export)
+    # is_healthy() used by BridgeWorkflowAction.validate_async()
+    mock_data_client.is_healthy = AsyncMock()
+    # Legacy _circuit_breaker kept for tests that inspect it directly
     mock_data_client._circuit_breaker = MagicMock()
     mock_data_client._circuit_breaker.check = AsyncMock()
 
@@ -278,11 +281,10 @@ class TestValidateAsync:
 
         from autom8y_http import CircuitBreakerOpenError as SdkCBOpen
 
-        mock_cb = AsyncMock()
-        mock_cb.check = AsyncMock(
+        # BridgeWorkflowAction.validate_async() calls is_healthy()
+        mock_data.is_healthy = AsyncMock(
             side_effect=SdkCBOpen(time_remaining=30.0, message="CB open")
         )
-        mock_data._circuit_breaker = mock_cb
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop(AUDIT_ENABLED_ENV_VAR, None)
             errors = await wf.validate_async()
@@ -960,9 +962,7 @@ class TestResolveBusinessActivity:
     patch at the conversation_audit module's import site.
     """
 
-    _HYDRATE_PATH = (
-        "autom8_asana.automation.workflows.conversation_audit.hydrate_from_gid_async"
-    )
+    _HYDRATE_PATH = "autom8_asana.automation.workflows.conversation_audit.workflow.hydrate_from_gid_async"
 
     def _make_clean_workflow(self):
         """Create workflow without pre-populated activity_map."""

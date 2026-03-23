@@ -213,8 +213,7 @@ def create_workflow_handler(
                     "dry_run": result.metadata.get("dry_run", False),
                 },
                 idempotency_key=(
-                    f"{result.workflow_id}-"
-                    f"{result.completed_at.isoformat()}"
+                    f"{result.workflow_id}-{result.completed_at.isoformat()}"
                 ),
             )
             publisher.publish(event)

@@ -235,12 +235,8 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             succeeded=result.succeeded,
             failed=result.failed,
             skipped=result.skipped,
-            total_tables_succeeded=result.metadata.get(
-                "total_tables_succeeded", 0
-            ),
-            total_tables_failed=result.metadata.get(
-                "total_tables_failed", 0
-            ),
+            total_tables_succeeded=result.metadata.get("total_tables_succeeded", 0),
+            total_tables_failed=result.metadata.get("total_tables_failed", 0),
             duration_seconds=round(result.duration_seconds, 2),
         )
 

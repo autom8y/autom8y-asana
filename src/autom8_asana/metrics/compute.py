@@ -16,7 +16,9 @@ if TYPE_CHECKING:
     from autom8_asana.metrics.metric import Metric
 
 
-@trace_computation("metric.compute", record_dataframe_shape=True, df_param="df", engine="autom8y-asana")
+@trace_computation(
+    "metric.compute", record_dataframe_shape=True, df_param="df", engine="autom8y-asana"
+)
 def compute_metric(
     metric: Metric,
     df: pl.DataFrame,
@@ -123,5 +125,7 @@ def compute_metric(
             print(result)
         print()
 
-    _span.set_attribute("computation.duration_ms", (time.perf_counter() - _metric_start) * 1000)
+    _span.set_attribute(
+        "computation.duration_ms", (time.perf_counter() - _metric_start) * 1000
+    )
     return result

@@ -14,7 +14,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.automation.workflows.insights_export import (
+from autom8_asana.automation.workflows.insights.tables import (
+    DispatchType,
+    TableSpec,
+)
+from autom8_asana.automation.workflows.insights.workflow import (
     DEFAULT_ATTACHMENT_PATTERN,
     DEFAULT_MAX_CONCURRENCY,
     DEFAULT_ROW_LIMITS,
@@ -24,10 +28,6 @@ from autom8_asana.automation.workflows.insights_export import (
     TOTAL_TABLE_COUNT,
     InsightsExportWorkflow,
     _sanitize_business_name,
-)
-from autom8_asana.automation.workflows.insights_tables import (
-    DispatchType,
-    TableSpec,
 )
 from autom8_asana.clients.data.models import (
     ColumnInfo,
@@ -207,6 +207,9 @@ def _make_workflow(
 
     mock_data_client._circuit_breaker = MagicMock()
     mock_data_client._circuit_breaker.check = AsyncMock()
+    # is_healthy() is the public health-check interface used by
+    # BridgeWorkflowAction.validate_async() (per ADR-bridge-validate-extraction).
+    mock_data_client.is_healthy = AsyncMock()
 
     # Upload
     mock_attachments.upload_async = AsyncMock(return_value=MagicMock())
@@ -315,11 +318,12 @@ class TestValidateAsync:
 
         from autom8y_http import CircuitBreakerOpenError as SdkCBOpen
 
-        mock_cb = AsyncMock()
-        mock_cb.check = AsyncMock(
+        # Mock is_healthy() to raise CircuitBreakerOpenError, matching
+        # the BridgeWorkflowAction.validate_async() code path
+        # (per ADR-bridge-validate-extraction Decision 1).
+        mock_data.is_healthy = AsyncMock(
             side_effect=SdkCBOpen(time_remaining=30.0, message="CB open")
         )
-        mock_data._circuit_breaker = mock_cb
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop(EXPORT_ENABLED_ENV_VAR, None)
             errors = await wf.validate_async()
@@ -1054,7 +1058,7 @@ class TestAdversarialComposeRaisesPreventsUpload:
         wf, _, _, mock_att = _make_workflow(offers=[o1])
 
         with patch(
-            "autom8_asana.automation.workflows.insights_export.compose_report",
+            "autom8_asana.automation.workflows.insights.workflow.compose_report",
             side_effect=TypeError("Unexpected data format"),
         ):
             result = await _enumerate_and_execute(wf)

@@ -269,9 +269,7 @@ class ConversationAuditWorkflow(BridgeWorkflowAction):
         Also includes dry-run CSV row counts when applicable.
         """
         truncated_count = sum(
-            1
-            for o in outcomes
-            if isinstance(o, _HolderOutcome) and o.truncated
+            1 for o in outcomes if isinstance(o, _HolderOutcome) and o.truncated
         )
         activity_skipped = sum(
             1
