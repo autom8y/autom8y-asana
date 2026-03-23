@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
 
-
 # ---------------------------------------------------------------------------
 # Business Resolution (ADR section 2.1)
 # ---------------------------------------------------------------------------

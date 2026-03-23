@@ -23,7 +23,6 @@ from autom8y_log import get_logger
 from autom8_asana.api.routes.intake_create_models import (
     IntakeBusinessCreateRequest,
     IntakeBusinessCreateResponse,
-    IntakeRouteRequest,
     IntakeRouteResponse,
 )
 

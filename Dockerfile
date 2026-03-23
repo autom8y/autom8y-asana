@@ -49,7 +49,7 @@ COPY --link src ./src
 # Install production dependencies with frozen lockfile
 # Includes api (FastAPI/uvicorn), auth (JWT), and lambda (awslambdaric) extras
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --extra api --extra auth --extra lambda
+    uv sync --frozen --no-dev --no-sources --extra api --extra auth --extra lambda
 
 # =============================================================================
 # Stage 2: Runtime
