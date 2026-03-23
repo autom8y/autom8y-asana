@@ -239,6 +239,7 @@ class TestConversationAuditE2E:
         mock_data_client = MagicMock()
         mock_data_client._circuit_breaker = MagicMock()
         mock_data_client._circuit_breaker.check = AsyncMock()
+        mock_data_client.is_healthy = AsyncMock(return_value=True)
         mock_data_client.get_export_csv_async = AsyncMock()
 
         mock_attachments = MagicMock()
