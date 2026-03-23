@@ -194,7 +194,7 @@ def create_workflow_handler(
         asyncio.to_thread() if called from ECS async path.
         """
         try:
-            from autom8y_events import (  # type: ignore[import]
+            from autom8y_events import (
                 DomainEvent,
                 EventPublisher,
             )
