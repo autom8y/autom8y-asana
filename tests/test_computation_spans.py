@@ -24,12 +24,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
+from autom8y_telemetry.testing import find_span
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-
-from autom8y_telemetry.testing import find_span
 
 # =============================================================================
 # Shared OTel fixture
@@ -512,7 +511,7 @@ class TestDataFrameCacheGetAsync:
             coalescer=coalescer,
             circuit_breaker=circuit_breaker,
         )
-        cache._stats = {"offer": {k: 0 for k in cache._stats.get("offer", {}).keys()}}
+        cache._stats = {"offer": {k: 0 for k in cache._stats.get("offer", {})}}
         cache._ensure_stats("offer")
 
         result = await cache.get_async("proj-123", "offer")
