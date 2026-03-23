@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 from autom8y_log import get_logger
+from autom8y_telemetry import trace_computation
 
 from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
 from autom8_asana.dataframes.builders.base import gather_with_limit
@@ -359,6 +360,7 @@ class ProgressiveProjectBuilder:
 
         return merged_df
 
+    @trace_computation("progressive.build", engine="autom8y-asana")
     async def build_progressive_async(
         self,
         resume: bool = True,
@@ -584,6 +586,13 @@ class ProgressiveProjectBuilder:
 
         # Release in-memory section DataFrames
         self._section_dfs.clear()
+
+        from opentelemetry import trace as _otel_trace
+
+        _span = _otel_trace.get_current_span()
+        _span.set_attribute("computation.duration_ms", build_result.total_time_ms)
+        _span.set_attribute("computation.materialize.sections_built", build_result.sections_succeeded)
+        _span.set_attribute("computation.materialize.total_rows", build_result.total_rows)
 
         return build_result
 

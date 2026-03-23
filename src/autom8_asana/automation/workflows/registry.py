@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-__all__ = ["WorkflowRegistry"]
+__all__ = ["WorkflowRegistry", "get_workflow_registry", "reset_workflow_registry"]
 
 
 class WorkflowRegistry:
@@ -63,3 +63,37 @@ class WorkflowRegistry:
             Sorted list of registered workflow_id strings.
         """
         return sorted(self._workflows.keys())
+
+
+_default_registry: WorkflowRegistry | None = None
+
+
+def get_workflow_registry() -> WorkflowRegistry:
+    """Get or create the per-process workflow registry.
+
+    Each Lambda invocation constructs a fresh registry.
+    The registry is NOT a cross-invocation singleton -- it lives
+    for the duration of one Lambda container warm invocation.
+
+    Per ADR-bridge-invocation-model: per-invocation instance,
+    not a module-level singleton with shared mutable state.
+    """
+    global _default_registry  # noqa: PLW0603
+    if _default_registry is None:
+        _default_registry = WorkflowRegistry()
+    return _default_registry
+
+
+def reset_workflow_registry() -> None:
+    """Reset the registry for test isolation.
+
+    Per LB-003 pattern: registered with SystemContext.register_reset()
+    to ensure test cleanup.
+    """
+    global _default_registry  # noqa: PLW0603
+    _default_registry = None
+
+
+from autom8_asana.core.system_context import register_reset  # noqa: E402
+
+register_reset(reset_workflow_registry)

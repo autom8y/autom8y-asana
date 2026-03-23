@@ -7,10 +7,12 @@ a shared column join.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Literal
 
 import polars as pl
+from autom8y_telemetry import trace_computation
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from autom8_asana.query.errors import JoinError
@@ -85,6 +87,7 @@ class JoinResult:
     unmatched_count: int
 
 
+@trace_computation("entity.join", record_dataframe_shape=True, df_param="primary_df", engine="autom8y-asana")
 def execute_join(
     primary_df: pl.DataFrame,
     target_df: pl.DataFrame,
@@ -114,6 +117,11 @@ def execute_join(
     Raises:
         JoinError: If join_key missing from either DataFrame.
     """
+    from opentelemetry import trace as _otel_trace
+
+    _span = _otel_trace.get_current_span()
+    _join_start = time.perf_counter()
+
     # 1. Validate join key exists in both DataFrames
     if join_key not in primary_df.columns:
         raise JoinError(
@@ -168,6 +176,10 @@ def execute_join(
         matched_count = enriched.height
 
     unmatched_count = enriched.height - matched_count
+
+    _span.set_attribute("computation.duration_ms", (time.perf_counter() - _join_start) * 1000)
+    _span.set_attribute("computation.join.matched_count", matched_count)
+    _span.set_attribute("computation.join.unmatched_count", unmatched_count)
 
     return JoinResult(
         df=enriched,

@@ -4,15 +4,17 @@ Per TDD-CONV-AUDIT-001 Section 3.8: First WorkflowAction implementation.
 Enumerates active ContactHolders, resolves each to a Business office_phone,
 fetches 30-day conversation CSV from autom8_data, and replaces the
 attachment on each ContactHolder task.
+
+Per ADR-bridge-intermediate-base-class: Rebased onto
+BridgeWorkflowAction in sprint-4.
 """
 
 from __future__ import annotations
 
 import asyncio
 import io
-import os
 from dataclasses import dataclass as _dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -24,12 +26,14 @@ if TYPE_CHECKING:
 from autom8y_log import get_logger
 
 from autom8_asana.automation.workflows.base import (
-    WorkflowAction,
     WorkflowItemError,
     WorkflowResult,
 )
-from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
-from autom8_asana.clients.data._pii import mask_phone_number
+from autom8_asana.automation.workflows.bridge_base import (
+    BridgeOutcome,
+    BridgeWorkflowAction,
+)
+from autom8_asana.clients.utils.pii import mask_phone_number
 from autom8_asana.exceptions import ExportError
 from autom8_asana.models.business.activity import AccountActivity
 from autom8_asana.models.business.contact import ContactHolder
@@ -54,21 +58,24 @@ DEFAULT_ATTACHMENT_PATTERN = "conversations_*.csv"
 DEFAULT_DATE_RANGE_DAYS = 30
 
 
-class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
+class ConversationAuditWorkflow(BridgeWorkflowAction):
     """Weekly conversation audit CSV refresh for ContactHolders.
 
     Per PRD REQ-F18: First concrete WorkflowAction implementation.
+    Per ADR-bridge-intermediate-base-class: Inherits from
+    BridgeWorkflowAction (sprint-4 migration).
 
     Lifecycle:
-    1. Check feature flag (AUTOM8_AUDIT_ENABLED)
-    2. Enumerate active ContactHolder tasks in PRIMARY_PROJECT_GID
-    3. For each ContactHolder (with concurrency limit):
+    1. Check feature flag (AUTOM8_AUDIT_ENABLED) -- inherited
+    2. Check data source health -- inherited
+    3. Enumerate active ContactHolder tasks in PRIMARY_PROJECT_GID
+    4. For each ContactHolder (with concurrency limit):
        a. Check parent Business activity (skip if not ACTIVE)
        b. Resolve parent Business -> office_phone
        c. Fetch CSV from DataServiceClient.get_export_csv_async()
        d. Upload new CSV attachment (upload-first)
        e. Delete old matching CSV attachments
-    4. Return WorkflowResult with per-item tracking
+    5. Return WorkflowResult with per-item tracking
 
     Args:
         asana_client: AsanaClient for Asana API operations.
@@ -76,53 +83,25 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         attachments_client: AttachmentsClient for upload/delete operations.
     """
 
+    feature_flag_env_var = AUDIT_ENABLED_ENV_VAR
+
     def __init__(
         self,
         asana_client: Any,  # AsanaClient (TYPE_CHECKING avoids circular)
         data_client: DataServiceClient,
         attachments_client: AttachmentsClient,
     ) -> None:
-        self._asana_client = asana_client
-        self._data_client = data_client
-        self._attachments_client = attachments_client
+        super().__init__(asana_client, data_client, attachments_client)
+        # Narrow type for mypy: base class stores DataSource | None,
+        # but this bridge always has a concrete DataServiceClient.
+        self._data_client: DataServiceClient = data_client
         self._activity_map: dict[str, AccountActivity | None] = {}
 
     @property
     def workflow_id(self) -> str:  # type: ignore[override]  # read-only property overrides base attribute
         return "conversation-audit"
 
-    async def validate_async(self) -> list[str]:
-        """Pre-flight validation.
-
-        Checks:
-        1. Feature flag is enabled.
-        2. DataServiceClient is reachable (circuit breaker not open).
-
-        Returns:
-            List of validation error strings (empty = ready).
-        """
-        errors: list[str] = []
-
-        # Check feature flag
-        env_value = os.environ.get(AUDIT_ENABLED_ENV_VAR, "").lower()
-        if env_value in {"false", "0", "no"}:
-            errors.append(f"Workflow disabled via {AUDIT_ENABLED_ENV_VAR}={env_value}")
-            return errors  # Short-circuit; no point checking other things
-
-        # Check DataServiceClient circuit breaker
-        try:
-            from autom8y_http import CircuitBreakerOpenError as SdkCBOpen
-
-            await self._data_client._circuit_breaker.check()
-        except SdkCBOpen:
-            errors.append(
-                "DataServiceClient circuit breaker is open. "
-                "autom8_data may be degraded."
-            )
-        except (ConnectionError, TimeoutError, OSError):
-            pass  # Non-circuit-breaker errors are not pre-flight failures
-
-        return errors
+    # --- Bridge hooks ---
 
     async def enumerate_async(
         self,
@@ -135,6 +114,9 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
             Skips bulk pre-resolution (single entity does not benefit).
         When scope is empty: perform full enumeration + bulk pre-resolution
             + pre-filter by business activity.
+
+        Overrides base to add targeted logging, custom dict shape with
+        parent_gid/parent fields, and activity pre-filtering.
 
         Args:
             scope: EntityScope controlling targeting, filtering, and limits.
@@ -183,12 +165,56 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
 
         return active_holders
 
+    async def enumerate_entities(
+        self,
+        scope: EntityScope,
+    ) -> list[dict[str, Any]]:
+        """Full enumeration path (not used -- enumerate_async overridden).
+
+        This bridge overrides enumerate_async() directly to handle the
+        custom dict shape and activity pre-filtering. This method exists
+        only to satisfy the abstract contract.
+
+        Per ADR-bridge-intermediate-base-class: Subclasses that override
+        enumerate_async() may implement this as a no-op.
+        """
+        return await self._enumerate_contact_holders()
+
+    async def process_entity(
+        self,
+        entity: dict[str, Any],
+        params: dict[str, Any],
+    ) -> _HolderOutcome:
+        """Dispatch to _process_holder with params extraction.
+
+        Per ADR-bridge-intermediate-base-class: Implements the abstract
+        hook called by base class execute_async() for each entity.
+        """
+        date_range_days = params.get("date_range_days", DEFAULT_DATE_RANGE_DAYS)
+        end_date = date.today()
+        start_date = end_date - timedelta(days=date_range_days)
+
+        return await self._process_holder(
+            holder_gid=entity["gid"],
+            holder_name=entity.get("name"),
+            parent_gid=entity.get("parent_gid"),
+            attachment_pattern=params.get(
+                "attachment_pattern", DEFAULT_ATTACHMENT_PATTERN
+            ),
+            start_date=start_date,
+            end_date=end_date,
+            dry_run=params.get("dry_run", False),
+        )
+
     async def execute_async(
         self,
         entities: list[dict[str, Any]],
         params: dict[str, Any],
     ) -> WorkflowResult:
         """Execute the conversation audit for the given entities.
+
+        Overrides base to add start/completion logging that preserves
+        existing observability events.
 
         Args:
             entities: Holder dicts from enumerate_async.
@@ -202,109 +228,73 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
         Returns:
             WorkflowResult with total/succeeded/failed/skipped counts.
         """
-        started_at = datetime.now(UTC)
-
         max_concurrency = params.get("max_concurrency", DEFAULT_MAX_CONCURRENCY)
-        attachment_pattern = params.get(
-            "attachment_pattern", DEFAULT_ATTACHMENT_PATTERN
-        )
-        date_range_days = params.get("date_range_days", DEFAULT_DATE_RANGE_DAYS)
         dry_run = params.get("dry_run", False)
-
-        # Compute export date window from date_range_days
-        end_date = date.today()
-        start_date = end_date - timedelta(days=date_range_days)
-
-        holders = entities  # Named alias
 
         logger.info(
             "conversation_audit_started",
-            total_holders=len(holders),
+            total_holders=len(entities),
             max_concurrency=max_concurrency,
             dry_run=dry_run,
         )
 
-        # Process each holder with concurrency control
-        semaphore = asyncio.Semaphore(max_concurrency)
-        results: list[_HolderOutcome] = []
+        result = await super().execute_async(entities, params)
 
-        async def process_one(
-            holder_gid: str,
-            holder_name: str | None,
-            parent_gid: str | None,
-        ) -> None:
-            async with semaphore:
-                outcome = await self._process_holder(
-                    holder_gid=holder_gid,
-                    holder_name=holder_name,
-                    parent_gid=parent_gid,
-                    attachment_pattern=attachment_pattern,
-                    start_date=start_date,
-                    end_date=end_date,
-                    dry_run=dry_run,
-                )
-                results.append(outcome)
+        # Inject dry_run flag into metadata (matches pre-migration behavior)
+        if dry_run:
+            result.metadata["dry_run"] = True
+        else:
+            # csv_row_count is only included in metadata during dry_run
+            result.metadata.pop("csv_row_count", None)
 
-        await asyncio.gather(
-            *[
-                process_one(h["gid"], h.get("name"), h.get("parent_gid"))
-                for h in holders
-            ]
+        logger.info(
+            "conversation_audit_completed",
+            total=result.total,
+            succeeded=result.succeeded,
+            failed=result.failed,
+            skipped=result.skipped,
+            truncated=result.metadata.get("truncated_count", 0),
+            activity_skipped=result.metadata.get("activity_skipped_count", 0),
+            duration_seconds=round(result.duration_seconds, 2),
         )
 
-        # Aggregate results
-        succeeded = sum(1 for r in results if r.status == "succeeded")
-        failed = sum(1 for r in results if r.status == "failed")
-        skipped = sum(1 for r in results if r.status == "skipped")
-        truncated_count = sum(1 for r in results if r.truncated)
+        return result
+
+    def _build_result_metadata(
+        self,
+        outcomes: list[BridgeOutcome],
+    ) -> dict[str, Any]:
+        """Build audit-specific metadata: truncation + activity skip counts.
+
+        Also includes dry-run CSV row counts when applicable.
+        """
+        truncated_count = sum(
+            1
+            for o in outcomes
+            if isinstance(o, _HolderOutcome) and o.truncated
+        )
         activity_skipped = sum(
             1
-            for r in results
-            if r.status == "skipped"
-            and r.reason in ("business_not_active", "activity_unknown")
+            for o in outcomes
+            if o.status == "skipped"
+            and o.reason in ("business_not_active", "activity_unknown")
         )
-        errors = [r.error for r in results if r.error is not None]
-
-        completed_at = datetime.now(UTC)
 
         metadata: dict[str, Any] = {
             "truncated_count": truncated_count,
             "activity_skipped_count": activity_skipped,
         }
-        if dry_run:
-            metadata["dry_run"] = True
-            row_counts = {
-                r.holder_gid: r.csv_row_count
-                for r in results
-                if r.csv_row_count is not None
-            }
-            if row_counts:
-                metadata["csv_row_count"] = row_counts
 
-        workflow_result = WorkflowResult(
-            workflow_id=self.workflow_id,
-            started_at=started_at,
-            completed_at=completed_at,
-            total=len(holders),
-            succeeded=succeeded,
-            failed=failed,
-            skipped=skipped,
-            errors=errors,
-            metadata=metadata,
-        )
+        # Check if any outcome has dry_run info (csv_row_count populated)
+        row_counts = {
+            o.gid: o.csv_row_count
+            for o in outcomes
+            if isinstance(o, _HolderOutcome) and o.csv_row_count is not None
+        }
+        if row_counts:
+            metadata["csv_row_count"] = row_counts
 
-        logger.info(
-            "conversation_audit_completed",
-            total=workflow_result.total,
-            succeeded=workflow_result.succeeded,
-            failed=workflow_result.failed,
-            skipped=workflow_result.skipped,
-            truncated=truncated_count,
-            activity_skipped=activity_skipped,
-            duration_seconds=round(workflow_result.duration_seconds, 2),
-        )
-
-        return workflow_result
+        return metadata
 
     # --- Private Methods ---
 
@@ -448,7 +438,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                         activity=activity.value if activity else None,
                     )
                     return _HolderOutcome(
-                        holder_gid=holder_gid,
+                        gid=holder_gid,
                         status="skipped",
                         reason=reason,
                     )
@@ -464,7 +454,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     holder_name=holder_name,
                 )
                 return _HolderOutcome(
-                    holder_gid=holder_gid,
+                    gid=holder_gid,
                     status="skipped",
                     reason="no_office_phone",
                 )
@@ -486,7 +476,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     reason=e.reason,
                 )
                 return _HolderOutcome(
-                    holder_gid=holder_gid,
+                    gid=holder_gid,
                     status="failed",
                     error=WorkflowItemError(
                         item_id=holder_gid,
@@ -504,7 +494,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                     office_phone=masked,
                 )
                 return _HolderOutcome(
-                    holder_gid=holder_gid,
+                    gid=holder_gid,
                     status="skipped",
                     reason="zero_rows",
                 )
@@ -539,7 +529,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
             )
 
             return _HolderOutcome(
-                holder_gid=holder_gid,
+                gid=holder_gid,
                 status="succeeded",
                 truncated=export.truncated,
                 csv_row_count=export.row_count,
@@ -553,7 +543,7 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
                 error_type=type(exc).__name__,
             )
             return _HolderOutcome(
-                holder_gid=holder_gid,
+                gid=holder_gid,
                 status="failed",
                 error=WorkflowItemError(
                     item_id=holder_gid,
@@ -609,12 +599,18 @@ class ConversationAuditWorkflow(AttachmentReplacementMixin, WorkflowAction):
 
 
 @_dataclass
-class _HolderOutcome:
-    """Internal per-holder processing result."""
+class _HolderOutcome(BridgeOutcome):
+    """Internal per-holder processing result.
 
-    holder_gid: str
-    status: str  # "succeeded", "failed", "skipped"
-    reason: str | None = None
-    error: WorkflowItemError | None = None
+    Extends BridgeOutcome with audit-specific fields for truncation
+    tracking and CSV row counts.
+    """
+
+    # Inherited from BridgeOutcome: gid, status, reason, error
     truncated: bool = False
     csv_row_count: int | None = None
+
+    @property
+    def holder_gid(self) -> str:
+        """Alias for gid -- backward compatibility with log/metadata consumers."""
+        return self.gid

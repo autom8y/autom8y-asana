@@ -23,9 +23,11 @@ dependencies = [
     "opentelemetry-instrumentation-httpx>=0.42b0",  # W3C traceparent auto-propagation on outbound httpx calls
     "autom8y-core>=1.1.1",
     # Platform observability (PRD-PLATFORM-OBSERVABILITY-STD M3.3)
-    "autom8y-telemetry[aws,fastapi,otlp]>=0.5.0",
+    # glass-S9: 0.6.0+ required for trace_computation decorator
+    "autom8y-telemetry[aws,fastapi,otlp]>=0.6.0",
     "boto3>=1.42.19",                    # S3 for progressive cache warming (asyncio.to_thread)
     "pyyaml>=6.0.0",                     # YAML config parsing (lifecycle, automation, query/saved)
+    "openpyxl>=3.1.0,<4.0",              # Excel workbook generation (payment reconciliation bridge)
 ]
 
 [project.optional-dependencies]
@@ -44,6 +46,12 @@ api = [
 # auth: Platform authentication via autom8y-auth SDK
 # JWT validation, JWKS fetching, and crypto are encapsulated in the SDK
 auth = ["autom8y-auth[observability]>=1.1.0"]
+# events: Domain event publishing via autom8y-events (EventBridge)
+# Per ADR-bridge-dispatch-model Decision 3: BridgeExecutionComplete emission
+events = ["autom8y-events>=0.1.0"]
+# interop: Cross-service protocol alignment via autom8y-interop
+# Per ADR-bridge-dispatch-model: Protocol annotation pressure, NOT client migration
+interop = ["autom8y-interop>=1.2.0"]
 # scheduler: Polling scheduler for development mode (production uses cron)
 scheduler = ["apscheduler>=3.10.0"]
 # lambda: AWS Lambda Runtime Interface Client for container-based Lambda execution
@@ -144,6 +152,14 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "uvicorn.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "autom8y_events.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "autom8y_interop.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
@@ -260,6 +276,8 @@ autom8y-http = { index = "autom8y" }
 autom8y-log = { index = "autom8y" }
 autom8y-core = { index = "autom8y" }
 autom8y-telemetry = { index = "autom8y" }
+autom8y-events = { index = "autom8y" }
+autom8y-interop = { index = "autom8y" }
 
 [dependency-groups]
 dev = [

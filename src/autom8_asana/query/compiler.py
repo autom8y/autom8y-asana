@@ -6,12 +6,14 @@ compiler instance can serve multiple entity types.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from datetime import date, datetime
 from functools import reduce
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
+from autom8y_telemetry import trace_computation
 
 from autom8_asana.query.errors import (
     CoercionError,
@@ -163,6 +165,7 @@ class PredicateCompiler:
     instance can serve multiple entity types.
     """
 
+    @trace_computation("predicate.compile", engine="autom8y-asana")
     def compile(
         self,
         node: PredicateNode,
@@ -182,7 +185,13 @@ class PredicateCompiler:
             InvalidOperatorError: Op incompatible with field dtype.
             CoercionError: Value cannot be coerced to field dtype.
         """
-        return self._compile_node(node, schema)
+        from opentelemetry import trace as _otel_trace
+
+        _span = _otel_trace.get_current_span()
+        start = time.perf_counter()
+        result = self._compile_node(node, schema)
+        _span.set_attribute("computation.duration_ms", (time.perf_counter() - start) * 1000)
+        return result
 
     def _compile_node(self, node: PredicateNode, schema: DataFrameSchema) -> pl.Expr:
         """Recursively compile any predicate node."""

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 import polars as pl
 from autom8y_log import get_logger
+from autom8y_telemetry import trace_computation
 
 from autom8_asana.dataframes.models.registry import SchemaRegistry
 from autom8_asana.query.compiler import PredicateCompiler
@@ -72,6 +73,7 @@ class QueryEngine:
     limits: QueryLimits = field(default_factory=QueryLimits)
     data_client: DataServiceClient | None = None  # For cross-service joins
 
+    @trace_computation("entity.query_rows", record_dataframe_shape=True, engine="autom8y-asana")
     async def execute_rows(
         self,
         entity_type: str,
@@ -107,6 +109,9 @@ class QueryEngine:
             QueryEngineError subclass for all domain errors.
             CacheNotWarmError if DataFrame unavailable.
         """
+        from opentelemetry import trace as _otel_trace
+
+        _span = _otel_trace.get_current_span()
         start = time.monotonic()
 
         # 1. Depth guard (before any I/O)
@@ -222,6 +227,7 @@ class QueryEngine:
 
         # 12. Build response
         elapsed_ms = (time.monotonic() - start) * 1000
+        _span.set_attribute("computation.duration_ms", elapsed_ms)
         data = df.to_dicts()
 
         # Read freshness info from query_service side-channel
@@ -242,6 +248,7 @@ class QueryEngine:
             ),
         )
 
+    @trace_computation("entity.query_aggregate", record_dataframe_shape=True, engine="autom8y-asana")
     async def execute_aggregate(
         self,
         entity_type: str,
@@ -278,6 +285,9 @@ class QueryEngine:
             QueryEngineError subclass for all domain errors.
             CacheNotWarmError if DataFrame unavailable.
         """
+        from opentelemetry import trace as _otel_trace
+
+        _span = _otel_trace.get_current_span()
         start = time.monotonic()
 
         # 1. Depth guard for WHERE
@@ -358,6 +368,7 @@ class QueryEngine:
 
         # 12. Build response
         elapsed_ms = (time.monotonic() - start) * 1000
+        _span.set_attribute("computation.duration_ms", elapsed_ms)
         data = result_df.to_dicts()
 
         # Read freshness info from query_service side-channel

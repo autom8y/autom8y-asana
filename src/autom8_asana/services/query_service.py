@@ -20,11 +20,13 @@ Components:
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import polars as pl
 from autom8y_log import get_logger
+from autom8y_telemetry import trace_computation
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -570,6 +572,7 @@ class EntityQueryService:
             project_gid=project_gid,
         )
 
+    @trace_computation("entity_query.get_dataframe", record_dataframe_shape=True, engine="autom8y-asana")
     async def get_dataframe(
         self,
         entity_type: str,
@@ -595,11 +598,20 @@ class EntityQueryService:
         Raises:
             CacheNotWarmError: DataFrame unavailable after self-refresh.
         """
+        from opentelemetry import trace as _otel_trace
+
+        _eqs_span = _otel_trace.get_current_span()
+        _eqs_start = time.perf_counter()
+
         assert self.strategy_factory is not None
         strategy = self.strategy_factory(entity_type)
         df = await strategy._get_dataframe(project_gid, client)
         if df is None:
+            _eqs_span.set_attribute("computation.duration_ms", (time.perf_counter() - _eqs_start) * 1000)
+            _eqs_span.set_attribute("computation.cache_hit", False)
             raise CacheNotWarmError(f"DataFrame unavailable for {entity_type}.")
         # Propagate freshness info from strategy (typed attribute)
         self._last_freshness_info = strategy._last_freshness_info
+        _eqs_span.set_attribute("computation.duration_ms", (time.perf_counter() - _eqs_start) * 1000)
+        _eqs_span.set_attribute("computation.cache_hit", df is not None)
         return df

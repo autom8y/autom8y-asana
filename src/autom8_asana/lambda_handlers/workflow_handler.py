@@ -33,7 +33,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
-from autom8y_telemetry.aws import emit_success_timestamp, instrument_lambda
+from autom8y_telemetry.aws import (
+    emit_business_metric,
+    emit_success_timestamp,
+    instrument_lambda,
+)
 
 from autom8_asana.core.scope import EntityScope
 from autom8_asana.lambda_handlers.cloudwatch import emit_metric
@@ -41,7 +45,7 @@ from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from autom8_asana.automation.workflows.base import WorkflowAction
+    from autom8_asana.automation.workflows.base import WorkflowAction, WorkflowResult
 
 logger = get_logger(__name__)
 
@@ -62,6 +66,11 @@ class WorkflowHandlerConfig:
         dms_namespace: CloudWatch namespace for dead-man's-switch metric emission.
             When set, ``emit_success_timestamp(dms_namespace)`` is called after
             successful workflow execution. When ``None``, no DMS metric is emitted.
+        fleet_namespace: CloudWatch namespace for fleet-level observability.
+            When set, ``BridgeFleetHealth`` metric and fleet DMS are emitted
+            after workflow execution. Defaults to the bridge fleet namespace
+            so all bridge handlers participate automatically. Non-bridge
+            workflows should set ``fleet_namespace=None`` to opt out.
     """
 
     workflow_factory: Callable[..., WorkflowAction]
@@ -71,6 +80,7 @@ class WorkflowHandlerConfig:
     response_metadata_keys: tuple[str, ...] = ()
     requires_data_client: bool = True
     dms_namespace: str | None = None
+    fleet_namespace: str | None = "Autom8y/AsanaBridgeFleet"
 
 
 def create_workflow_handler(
@@ -147,10 +157,83 @@ def create_workflow_handler(
 
             async with DataServiceClient() as data_client:
                 workflow = config.workflow_factory(asana_client, data_client)
+                _register_workflow(workflow)
                 return await _validate_enumerate_and_run(workflow, scope, params)
         else:
             workflow = config.workflow_factory(asana_client, None)
+            _register_workflow(workflow)
             return await _validate_enumerate_and_run(workflow, scope, params)
+
+    def _register_workflow(workflow: WorkflowAction) -> None:
+        """Register the workflow in the per-process registry.
+
+        Handles warm-container re-registration gracefully via
+        contextlib.suppress(ValueError). Per ADR-bridge-invocation-model.
+        """
+        import contextlib
+
+        from autom8_asana.automation.workflows.registry import (
+            get_workflow_registry,
+        )
+
+        registry = get_workflow_registry()
+        with contextlib.suppress(ValueError):
+            registry.register(workflow)
+
+    def _publish_bridge_event(result: WorkflowResult) -> None:
+        """Publish BridgeExecutionComplete domain event (fire-and-forget).
+
+        Per ADR-bridge-dispatch-model Decision 3: Emit after successful
+        workflow execution. Failure to publish must NEVER fail the handler.
+
+        The autom8y-events import is guarded so the ``events`` extra is
+        truly optional -- workflows still function without it installed.
+
+        Per ADR sync concern: EventPublisher is sync boto3. Fine in Lambda
+        (already sync top-level via asyncio.run()). Must wrap in
+        asyncio.to_thread() if called from ECS async path.
+        """
+        try:
+            from autom8y_events import (  # type: ignore[import-untyped]
+                DomainEvent,
+                EventPublisher,
+            )
+
+            publisher = EventPublisher()
+            event = DomainEvent(
+                source="asana",
+                detail_type="BridgeExecutionComplete",
+                detail={
+                    "workflow_id": result.workflow_id,
+                    "total": result.total,
+                    "succeeded": result.succeeded,
+                    "failed": result.failed,
+                    "skipped": result.skipped,
+                    "duration_seconds": round(result.duration_seconds, 2),
+                    "dry_run": result.metadata.get("dry_run", False),
+                },
+                idempotency_key=(
+                    f"{result.workflow_id}-"
+                    f"{result.completed_at.isoformat()}"
+                ),
+            )
+            publisher.publish(event)
+            logger.info(
+                f"{config.log_prefix}_event_published",
+                detail_type="BridgeExecutionComplete",
+                workflow_id=result.workflow_id,
+            )
+        except ImportError:
+            logger.debug(
+                f"{config.log_prefix}_event_skipped",
+                reason="autom8y_events not installed",
+            )
+        except Exception:  # BROAD-CATCH: fire-and-forget per ADR
+            logger.warning(
+                f"{config.log_prefix}_event_publish_failed",
+                workflow_id=result.workflow_id,
+                exc_info=True,
+            )
 
     async def _validate_enumerate_and_run(
         workflow: WorkflowAction,
@@ -169,6 +252,18 @@ def create_workflow_handler(
                 1,
                 dimensions={"workflow_id": config.workflow_id},
             )
+            # Fleet-level failure signal on validation skip.
+            # Per ADR-bridge-observability-fleet: value=0.0 indicates the
+            # bridge attempted to run but was skipped (kill-switch, circuit
+            # breaker). No fleet DMS is emitted -- staleness IS the signal.
+            if config.fleet_namespace:
+                emit_metric(
+                    "BridgeFleetHealth",
+                    0.0,
+                    unit="Count",
+                    dimensions={"workflow_id": config.workflow_id},
+                    namespace=config.fleet_namespace,
+                )
             return {
                 "statusCode": 200,
                 "body": json.dumps(
@@ -199,11 +294,47 @@ def create_workflow_handler(
             dimensions={"workflow_id": config.workflow_id},
         )
 
+        # Per H-006: Emit business metrics via autom8y-telemetry for
+        # standardized observability. Uses computation.* namespace
+        # (bridge.* namespace requires platform team approval).
+        emit_business_metric(
+            namespace=config.dms_namespace or "BridgeWorkflows",
+            metric_name="EntitiesProcessed",
+            value=result.total,
+            unit="Count",
+            dimensions={"workflow_id": config.workflow_id},
+        )
+        emit_business_metric(
+            namespace=config.dms_namespace or "BridgeWorkflows",
+            metric_name="WorkflowDuration",
+            value=round(result.duration_seconds, 2),
+            unit="Seconds",
+            dimensions={"workflow_id": config.workflow_id},
+        )
+
         # Dead-man's-switch: record successful completion timestamp.
         # Emitted only when a dms_namespace is configured and the workflow
         # completed without total failure.
         if config.dms_namespace:
             emit_success_timestamp(config.dms_namespace)
+
+        # Fleet-level observability (Tier 2 + 3).
+        # Per ADR-bridge-observability-fleet: Emit BridgeFleetHealth metric
+        # and fleet DMS timestamp after successful execution. Non-blocking:
+        # emit_metric() already swallows CloudWatch errors internally.
+        if config.fleet_namespace:
+            emit_metric(
+                "BridgeFleetHealth",
+                1.0 if result.succeeded > 0 else 0.0,
+                unit="Count",
+                dimensions={"workflow_id": config.workflow_id},
+                namespace=config.fleet_namespace,
+            )
+            emit_success_timestamp(config.fleet_namespace)
+
+        # Per ADR-bridge-dispatch-model Decision 3: Publish domain event
+        # after successful execution. Fire-and-forget semantics.
+        _publish_bridge_event(result)
 
         return {
             "statusCode": 200,
