@@ -19,12 +19,18 @@ Current routes:
 - Resolver router (/v1/resolve) - S2S only (entity resolution)
 - Query router (/v1/query) - S2S only (entity query)
 - Entity write router (/api/v1/entity) - S2S only (entity write)
+- Intake resolve router (/v1/resolve/business, /v1/resolve/contact) - S2S only (intake resolution)
+- Intake custom fields router (/v1/tasks/{gid}/custom-fields) - S2S only (custom field writes)
+- Intake create router (/v1/intake/business, /v1/intake/route) - S2S only (business creation + routing)
 """
 
 from .admin import router as admin_router
 from .dataframes import router as dataframes_router
 from .entity_write import router as entity_write_router
 from .health import router as health_router
+from .intake_create import router as intake_create_router
+from .intake_custom_fields import router as intake_custom_fields_router
+from .intake_resolve import router as intake_resolve_router
 from .internal import router as internal_router
 from .projects import router as projects_router
 from .query import router as query_router
@@ -42,6 +48,9 @@ __all__ = [
     "dataframes_router",
     "entity_write_router",
     "health_router",
+    "intake_create_router",
+    "intake_custom_fields_router",
+    "intake_resolve_router",
     "internal_router",
     "projects_router",
     "query_router",
