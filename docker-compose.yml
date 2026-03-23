@@ -4,12 +4,12 @@ version: "3.8"
 
 services:
   localstack:
-    image: localstack/localstack:3.8.1
+    image: localstack/localstack:4.14.0
     container_name: autom8-localstack
     ports:
       - "4566:4566"  # LocalStack gateway
     environment:
-      - SERVICES=s3,sqs
+      - SERVICES=s3,secretsmanager
       - DEBUG=0
       - PERSISTENCE=1
     volumes:

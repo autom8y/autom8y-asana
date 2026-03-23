@@ -1,6 +1,6 @@
 schema_version: "1.0"
-inscription_version: "10"
-last_sync: 2026-03-15T11:24:06.279646Z
+inscription_version: "42"
+last_sync: 2026-03-18T22:40:13.880142Z
 active_rite: 10x-dev
 template_path: knossos/templates/CLAUDE.md.tpl
 regions:

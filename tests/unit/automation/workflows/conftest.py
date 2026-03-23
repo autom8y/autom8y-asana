@@ -34,7 +34,7 @@ def mock_client() -> MagicMock:
 # --- ResolutionContext fixture (per TDD-SPRINT-C D-09, D-10) ---
 
 # Patch target for ResolutionContext in insights_export module
-_RC_PATCH_PATH = "autom8_asana.automation.workflows.insights_export.ResolutionContext"
+_RC_PATCH_PATH = "autom8_asana.automation.workflows.insights.workflow.ResolutionContext"
 
 
 def _make_mock_business(

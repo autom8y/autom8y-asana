@@ -164,7 +164,7 @@ class TestHandlerValidation:
 
         with (
             patch(
-                "autom8_asana.automation.workflows.insights_export.InsightsExportWorkflow",
+                "autom8_asana.automation.workflows.insights.InsightsExportWorkflow",
                 return_value=mock_workflow,
             ),
             patch(
@@ -197,7 +197,7 @@ class TestHandlerValidation:
 
         with (
             patch(
-                "autom8_asana.automation.workflows.insights_export.InsightsExportWorkflow",
+                "autom8_asana.automation.workflows.insights.InsightsExportWorkflow",
                 return_value=mock_workflow,
             ),
             patch(
@@ -244,7 +244,7 @@ class TestHandlerExecution:
 
         with (
             patch(
-                "autom8_asana.automation.workflows.insights_export.InsightsExportWorkflow",
+                "autom8_asana.automation.workflows.insights.InsightsExportWorkflow",
                 return_value=mock_workflow,
             ),
             patch(
@@ -291,7 +291,7 @@ class TestHandlerExecution:
 
         with (
             patch(
-                "autom8_asana.automation.workflows.insights_export.InsightsExportWorkflow",
+                "autom8_asana.automation.workflows.insights.InsightsExportWorkflow",
                 return_value=mock_workflow,
             ),
             patch(
@@ -322,7 +322,7 @@ class TestHandlerExecution:
 
         with (
             patch(
-                "autom8_asana.automation.workflows.insights_export.InsightsExportWorkflow",
+                "autom8_asana.automation.workflows.insights.InsightsExportWorkflow",
                 return_value=mock_workflow,
             ),
             patch(

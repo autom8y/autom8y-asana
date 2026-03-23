@@ -283,7 +283,9 @@ class DataFrameCache:
             )
             _result = await self._get_circuit_lkg(cache_key, project_gid, entity_type)
             _cache_span.set_attribute("computation.cache_hit", _result is not None)
-            _cache_span.set_attribute("computation.duration_ms", (time.perf_counter() - _cache_start) * 1000)
+            _cache_span.set_attribute(
+                "computation.duration_ms", (time.perf_counter() - _cache_start) * 1000
+            )
             return _result
 
         # Try memory tier first
@@ -294,7 +296,10 @@ class DataFrameCache:
             )
             if result is not None:
                 _cache_span.set_attribute("computation.cache_hit", True)
-                _cache_span.set_attribute("computation.duration_ms", (time.perf_counter() - _cache_start) * 1000)
+                _cache_span.set_attribute(
+                    "computation.duration_ms",
+                    (time.perf_counter() - _cache_start) * 1000,
+                )
                 return result
 
         self._stats[entity_type]["memory_misses"] += 1
@@ -312,7 +317,10 @@ class DataFrameCache:
                     # Hydrate memory tier on S3 hit
                     self.memory_tier.put(cache_key, entry)
                 _cache_span.set_attribute("computation.cache_hit", True)
-                _cache_span.set_attribute("computation.duration_ms", (time.perf_counter() - _cache_start) * 1000)
+                _cache_span.set_attribute(
+                    "computation.duration_ms",
+                    (time.perf_counter() - _cache_start) * 1000,
+                )
                 return result
 
         self._stats[entity_type]["s3_misses"] += 1
@@ -331,7 +339,9 @@ class DataFrameCache:
             },
         )
         _cache_span.set_attribute("computation.cache_hit", False)
-        _cache_span.set_attribute("computation.duration_ms", (time.perf_counter() - _cache_start) * 1000)
+        _cache_span.set_attribute(
+            "computation.duration_ms", (time.perf_counter() - _cache_start) * 1000
+        )
         return None
 
     async def _get_circuit_lkg(

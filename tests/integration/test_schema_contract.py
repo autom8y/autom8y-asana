@@ -35,7 +35,7 @@ import pytest
 # ---------------------------------------------------------------------------
 # Consumer-side formatter mapping (source of truth for this repo)
 # ---------------------------------------------------------------------------
-from autom8_asana.automation.workflows.insights_formatter import (
+from autom8_asana.automation.workflows.insights.formatter import (
     _FIELD_FORMAT,
 )
 

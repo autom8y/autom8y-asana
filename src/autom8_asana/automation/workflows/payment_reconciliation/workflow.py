@@ -161,7 +161,9 @@ class PaymentReconciliationWorkflow(BridgeWorkflowAction):
 
         return entities
 
-    @trace_reconciliation("payment_reconciliation.process_entity", engine="autom8y-asana")
+    @trace_reconciliation(
+        "payment_reconciliation.process_entity", engine="autom8y-asana"
+    )
     async def process_entity(
         self,
         entity: dict[str, Any],

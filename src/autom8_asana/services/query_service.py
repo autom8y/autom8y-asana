@@ -572,7 +572,11 @@ class EntityQueryService:
             project_gid=project_gid,
         )
 
-    @trace_computation("entity_query.get_dataframe", record_dataframe_shape=True, engine="autom8y-asana")
+    @trace_computation(
+        "entity_query.get_dataframe",
+        record_dataframe_shape=True,
+        engine="autom8y-asana",
+    )
     async def get_dataframe(
         self,
         entity_type: str,
@@ -607,11 +611,15 @@ class EntityQueryService:
         strategy = self.strategy_factory(entity_type)
         df = await strategy._get_dataframe(project_gid, client)
         if df is None:
-            _eqs_span.set_attribute("computation.duration_ms", (time.perf_counter() - _eqs_start) * 1000)
+            _eqs_span.set_attribute(
+                "computation.duration_ms", (time.perf_counter() - _eqs_start) * 1000
+            )
             _eqs_span.set_attribute("computation.cache_hit", False)
             raise CacheNotWarmError(f"DataFrame unavailable for {entity_type}.")
         # Propagate freshness info from strategy (typed attribute)
         self._last_freshness_info = strategy._last_freshness_info
-        _eqs_span.set_attribute("computation.duration_ms", (time.perf_counter() - _eqs_start) * 1000)
+        _eqs_span.set_attribute(
+            "computation.duration_ms", (time.perf_counter() - _eqs_start) * 1000
+        )
         _eqs_span.set_attribute("computation.cache_hit", df is not None)
         return df

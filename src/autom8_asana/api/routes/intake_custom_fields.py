@@ -39,7 +39,9 @@ __all__ = ["router"]
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/v1/tasks", tags=["intake-custom-fields"], include_in_schema=False)
+router = APIRouter(
+    prefix="/v1/tasks", tags=["intake-custom-fields"], include_in_schema=False
+)
 
 
 @router.post("/{task_gid}/custom-fields", response_model=CustomFieldWriteResponse)

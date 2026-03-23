@@ -26,7 +26,7 @@ from unittest.mock import patch
 
 import pytest
 
-from autom8_asana.automation.workflows.insights_formatter import (
+from autom8_asana.automation.workflows.insights.formatter import (
     _COLUMN_TOOLTIPS,
     _CONDITIONAL_FORMAT_THRESHOLDS,
     _DEFAULT_EXPANDED_SECTIONS,
@@ -49,7 +49,7 @@ from autom8_asana.automation.workflows.insights_formatter import (
     _to_title_case,
     compose_report,
 )
-from autom8_asana.automation.workflows.insights_tables import TABLE_SPECS
+from autom8_asana.automation.workflows.insights.tables import TABLE_SPECS
 
 # Derived from TABLE_SPECS for backward compatibility in tests.
 TABLE_ORDER: list[str] = [s.table_name for s in TABLE_SPECS]
@@ -704,7 +704,7 @@ class TestComposeReport:
             started_at=started_at,
         )
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_is_valid_html(self, mock_monotonic):
         """Output is a valid HTML document."""
         mock_monotonic.return_value = 103.45
@@ -716,7 +716,7 @@ class TestComposeReport:
         assert "<head>" in report
         assert "<body>" in report
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_sections_in_order(self, mock_monotonic):
         """Section ordering matches TABLE_ORDER."""
         mock_monotonic.return_value = 103.45
@@ -736,7 +736,7 @@ class TestComposeReport:
         ordered_names = sorted(section_positions, key=section_positions.get)
         assert ordered_names == TABLE_ORDER
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_header_at_top(self, mock_monotonic):
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
@@ -747,7 +747,7 @@ class TestComposeReport:
         first_section_pos = report.find("table-section")
         assert header_pos < first_section_pos
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_footer_at_bottom(self, mock_monotonic):
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
@@ -759,14 +759,14 @@ class TestComposeReport:
         last_section_close_pos = report.rfind("</section>")
         assert footer_tag_pos > last_section_close_pos
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_ends_with_newline(self, mock_monotonic):
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
         report = compose_report(data)
         assert report.endswith("\n")
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_error_section_present(self, mock_monotonic):
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
@@ -774,7 +774,7 @@ class TestComposeReport:
         assert "[ERROR] InsightsServiceError: Request timed out" in report
         assert "error-box" in report
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_empty_section_present(self, mock_monotonic):
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
@@ -782,14 +782,14 @@ class TestComposeReport:
         # BY QUARTER is empty
         assert "No data available" in report
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_unused_assets_empty(self, mock_monotonic):
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
         report = compose_report(data)
         assert "No unused assets found" in report
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_missing_table_gets_error(self, mock_monotonic):
         """Tables not in table_results get a 'missing' error marker."""
         mock_monotonic.return_value = 101.0
@@ -806,7 +806,7 @@ class TestComposeReport:
         # APPOINTMENTS is missing -- check its section exists
         assert 'id="appointments"' in report
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_footer_counts(self, mock_monotonic):
         """Footer reflects correct succeeded/failed counts."""
         mock_monotonic.return_value = 103.45
@@ -816,7 +816,7 @@ class TestComposeReport:
         assert "11/12" in report
         assert "Errors" in report
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_contains_inline_css(self, mock_monotonic):
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
@@ -901,7 +901,7 @@ class TestAdversarialSanitizeBusinessName:
 
     def test_all_special_chars(self):
         """All special characters produce 'unknown' fallback (per F-10)."""
-        from autom8_asana.automation.workflows.insights_export import (
+        from autom8_asana.automation.workflows.insights.workflow import (
             _sanitize_business_name,
         )
 
@@ -910,7 +910,7 @@ class TestAdversarialSanitizeBusinessName:
 
     def test_unicode_chars_stripped(self):
         """Unicode (non-ASCII) characters are stripped."""
-        from autom8_asana.automation.workflows.insights_export import (
+        from autom8_asana.automation.workflows.insights.workflow import (
             _sanitize_business_name,
         )
 
@@ -920,7 +920,7 @@ class TestAdversarialSanitizeBusinessName:
 
     def test_very_long_name(self):
         """Very long business name does not cause issues."""
-        from autom8_asana.automation.workflows.insights_export import (
+        from autom8_asana.automation.workflows.insights.workflow import (
             _sanitize_business_name,
         )
 
@@ -1327,7 +1327,7 @@ class TestReconciliationTables:
         result = _render_section("T14 RECONCILIATIONS", rows=rows, row_count=1)
         assert 'id="t14-reconciliations"' in result
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_includes_reconciliation_sections(self, mock_monotonic):
         """compose_report includes reconciliation sections in output."""
         mock_monotonic.return_value = 101.0
@@ -1385,7 +1385,7 @@ class TestReconciliationTables:
 
         assert leads_pos < lifetime_pos < t14_pos < quarter_pos
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_footer_reflects_12_tables(self, mock_monotonic):
         """Footer table count reflects 12 tables when all succeed."""
         mock_monotonic.return_value = 101.0
@@ -1486,7 +1486,7 @@ class TestReconciliationPending:
         ]
         assert _is_payment_data_pending(rows) is False
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_recon_pending_shows_info_message(self, mock_monotonic):
         """Reconciliation tables with all-null payment cols show pending message."""
         mock_monotonic.return_value = 101.0
@@ -1522,7 +1522,7 @@ class TestReconciliationPending:
         assert 'id="lifetime-reconciliations"' in report
         assert 'id="t14-reconciliations"' in report
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_recon_with_data_renders_normally(self, mock_monotonic):
         """Reconciliation tables with actual payment data render as normal tables."""
         mock_monotonic.return_value = 101.0
@@ -1570,7 +1570,7 @@ class TestReconciliationPending:
         assert "$5,000.00" in report  # collected value rendered
         assert "$1,200.00" in report
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_recon_independent_detection(self, mock_monotonic):
         """Each recon table is checked independently for pending status."""
         mock_monotonic.return_value = 101.0
@@ -1940,7 +1940,7 @@ class TestPhase1Constants:
 
     # --- compose_report: offer_gid in metadata ---
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_includes_offer_gid_in_metadata(self, mock_monotonic):
         """When offer_gid is set, it appears in the report header."""
         mock_monotonic.return_value = 101.0
@@ -1959,7 +1959,7 @@ class TestPhase1Constants:
         assert "Offer" in report
         assert "1234567890" in report
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_omits_offer_when_none(self, mock_monotonic):
         """When offer_gid is None, Offer does not appear in metadata."""
         mock_monotonic.return_value = 101.0
@@ -1973,7 +1973,7 @@ class TestPhase1Constants:
 
     # --- compose_report: ASSET TABLE sort + exclude ---
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_asset_table_sorted_by_spend_desc(self, mock_monotonic):
         """ASSET TABLE rows are sorted by spend descending."""
         mock_monotonic.return_value = 101.0
@@ -1998,7 +1998,7 @@ class TestPhase1Constants:
         row_names = _extract_row_names(asset_tbody)
         assert row_names.index("High") < row_names.index("Mid") < row_names.index("Low")
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_asset_table_excludes_metadata_columns(self, mock_monotonic):
         """ASSET TABLE display rows exclude _ASSET_EXCLUDE_COLUMNS."""
         mock_monotonic.return_value = 101.0
@@ -2031,7 +2031,7 @@ class TestPhase1Constants:
 
     # --- compose_report: period table column filtering ---
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_period_table_filters_display_columns(self, mock_monotonic):
         """Period tables only display columns from _PERIOD_DISPLAY_COLUMNS."""
         mock_monotonic.return_value = 101.0
@@ -2070,7 +2070,7 @@ class TestPhase1Constants:
 
     # --- compose_report: full_rows populated ---
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_populates_full_rows(self, mock_monotonic):
         """DataSection.full_rows contains the original unfiltered data."""
         mock_monotonic.return_value = 101.0
@@ -2631,7 +2631,7 @@ class TestPhase6QA:
     # ASSET TABLE Processing
     # -----------------------------------------------------------------------
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_asset_table_sort_by_spend_desc_10_rows(self, mock_monotonic):
         """ASSET TABLE with 10 rows sorted by spend descending."""
         mock_monotonic.return_value = 101.0
@@ -2688,7 +2688,7 @@ class TestPhase6QA:
                 f"{expected_order[i]} should appear before {expected_order[i + 1]}"
             )
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_asset_table_null_spend_sorted_to_bottom(self, mock_monotonic):
         """ASSET TABLE: null spend treated as 0 and sorted to bottom."""
         mock_monotonic.return_value = 101.0
@@ -2717,7 +2717,7 @@ class TestPhase6QA:
             < row_names.index("NoSpend")
         ), "Null spend should sort to bottom"
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_asset_table_excluded_columns_not_in_display(self, mock_monotonic):
         """ASSET TABLE: excluded columns removed from display rows."""
         mock_monotonic.return_value = 101.0
@@ -2759,7 +2759,7 @@ class TestPhase6QA:
         assert "TestAsset" in asset_section
         assert "Name" in thead or "name" in thead.lower()
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_asset_table_excluded_columns_in_full_rows(self, mock_monotonic):
         """ASSET TABLE: excluded columns present in full_rows (for Copy TSV)."""
 
@@ -2801,7 +2801,7 @@ class TestPhase6QA:
     # Period Table Column Filtering
     # -----------------------------------------------------------------------
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_by_week_display_rows_filtered(self, mock_monotonic):
         """BY WEEK display rows contain only _PERIOD_DISPLAY_COLUMNS."""
         mock_monotonic.return_value = 101.0
@@ -2847,7 +2847,7 @@ class TestPhase6QA:
         assert ">Start<" in thead  # period_start
         assert ">Spend<" in thead
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_by_month_display_rows_filtered(self, mock_monotonic):
         """BY MONTH display rows also filter to _PERIOD_DISPLAY_COLUMNS."""
         mock_monotonic.return_value = 101.0
@@ -2879,7 +2879,7 @@ class TestPhase6QA:
         assert ">Period<" in thead
         assert ">Spend<" in thead
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_by_quarter_display_rows_filtered(self, mock_monotonic):
         """BY QUARTER display rows also filter to _PERIOD_DISPLAY_COLUMNS."""
         mock_monotonic.return_value = 101.0
@@ -2909,7 +2909,7 @@ class TestPhase6QA:
         assert "Extra Field" not in thead
         assert ">Period<" in thead
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_period_table_full_rows_contain_all_columns(self, mock_monotonic):
         """Period table full_rows (for Copy TSV) contain ALL original columns."""
 
@@ -2946,7 +2946,7 @@ class TestPhase6QA:
         assert "another_metric" in parsed[0]
         assert parsed[0]["extra_hidden"] == "secret"
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_period_table_missing_display_column_silently_skipped(self, mock_monotonic):
         """Period display column not in data -> silently skipped."""
         mock_monotonic.return_value = 101.0
@@ -3038,7 +3038,7 @@ class TestPhase6QA:
     # Reconciliation Pending (re-verification)
     # -----------------------------------------------------------------------
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_recon_pending_shows_empty_state(self, mock_monotonic):
         """Reconciliation table with all-null payment cols renders as empty section."""
         mock_monotonic.return_value = 101.0
@@ -3073,7 +3073,7 @@ class TestPhase6QA:
         assert '<table class="data-table"' not in lifetime_section
         assert 'class="empty"' in lifetime_section
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_recon_with_data_renders_as_table(self, mock_monotonic):
         """Reconciliation table with actual data renders as a normal table."""
         mock_monotonic.return_value = 101.0
@@ -3193,7 +3193,7 @@ class TestPhase6QA:
     # Full Document Integration Test
     # -----------------------------------------------------------------------
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_full_report_with_all_features(self, mock_monotonic):
         """Integration: full report with all features renders without error."""
         mock_monotonic.return_value = 103.45
@@ -3297,7 +3297,7 @@ class TestPhase6QA:
     # Offer GID Asana Link
     # -----------------------------------------------------------------------
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_offer_gid_renders_asana_link(self, mock_monotonic):
         """offer_gid in metadata renders as 'View in Asana' link."""
         mock_monotonic.return_value = 101.0
@@ -3314,7 +3314,7 @@ class TestPhase6QA:
         assert "View in Asana" in report
         assert "https://app.asana.com/0/0/9876543210" in report
 
-    @patch("autom8_asana.automation.workflows.insights_formatter.time.monotonic")
+    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_offer_gid_none_no_asana_link(self, mock_monotonic):
         """No offer_gid -> no 'View in Asana' link."""
         mock_monotonic.return_value = 101.0
@@ -3442,7 +3442,7 @@ class TestPiiPhoneMasking:
 
     def test_phone_masking_in_json_embed(self):
         """Phone numbers are masked in the JSON data embed (Copy TSV)."""
-        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+        from autom8_asana.automation.workflows.insights.formatter import _mask_pii_rows
 
         rows = [
             {"office_phone": "+17705753103", "spend": 100.50},
@@ -3457,7 +3457,7 @@ class TestPiiPhoneMasking:
 
     def test_mask_pii_rows_no_phone_columns(self):
         """Rows without phone columns pass through unchanged."""
-        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+        from autom8_asana.automation.workflows.insights.formatter import _mask_pii_rows
 
         rows = [{"spend": 100, "leads": 50}]
         result = _mask_pii_rows(rows)
@@ -3465,7 +3465,7 @@ class TestPiiPhoneMasking:
 
     def test_mask_pii_rows_empty(self):
         """Empty row list passes through."""
-        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+        from autom8_asana.automation.workflows.insights.formatter import _mask_pii_rows
 
         assert _mask_pii_rows([]) == []
 
@@ -3508,7 +3508,7 @@ class TestMaskPiiRows:
 
     def test_no_op_when_no_pii_columns(self):
         """Rows without any PII column keys pass through unchanged (fast path)."""
-        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+        from autom8_asana.automation.workflows.insights.formatter import _mask_pii_rows
 
         rows = [
             {"spend": 100.50, "impressions": 5000, "clicks": 200},
@@ -3520,7 +3520,7 @@ class TestMaskPiiRows:
 
     def test_masks_office_phone_column(self):
         """office_phone values are masked, preserving last 4 digits."""
-        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+        from autom8_asana.automation.workflows.insights.formatter import _mask_pii_rows
 
         rows = [{"office_phone": "+17705753103", "spend": 100.50}]
         result = _mask_pii_rows(rows)
@@ -3534,7 +3534,7 @@ class TestMaskPiiRows:
 
     def test_masks_canonical_key_phone_column(self):
         """'phone' column (canonical_key alias) is also masked."""
-        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+        from autom8_asana.automation.workflows.insights.formatter import _mask_pii_rows
 
         rows = [{"phone": "+14045551234", "vertical": "dental"}]
         result = _mask_pii_rows(rows)
@@ -3545,7 +3545,7 @@ class TestMaskPiiRows:
 
     def test_preserves_non_pii_columns(self):
         """All non-PII columns pass through with original values and types."""
-        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+        from autom8_asana.automation.workflows.insights.formatter import _mask_pii_rows
 
         rows = [
             {
@@ -3566,14 +3566,14 @@ class TestMaskPiiRows:
 
     def test_handles_empty_row_list(self):
         """Empty list returns empty list."""
-        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+        from autom8_asana.automation.workflows.insights.formatter import _mask_pii_rows
 
         result = _mask_pii_rows([])
         assert result == []
 
     def test_handles_non_string_values_in_pii_columns(self):
         """Non-string values in PII columns are left as-is (no masking attempted)."""
-        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+        from autom8_asana.automation.workflows.insights.formatter import _mask_pii_rows
 
         rows = [
             {"office_phone": None, "spend": 100},
@@ -3588,7 +3588,7 @@ class TestMaskPiiRows:
 
     def test_does_not_mutate_original_rows(self):
         """Original row dicts are not modified (shallow copy per row)."""
-        from autom8_asana.automation.workflows.insights_formatter import _mask_pii_rows
+        from autom8_asana.automation.workflows.insights.formatter import _mask_pii_rows
 
         original = {"office_phone": "+17705753103", "spend": 100}
         rows = [original]

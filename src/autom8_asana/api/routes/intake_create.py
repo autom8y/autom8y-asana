@@ -116,7 +116,10 @@ async def create_intake_business(
         )
 
     # Validate process_type if provided
-    if body.process is not None and body.process.process_type not in VALID_PROCESS_TYPES:
+    if (
+        body.process is not None
+        and body.process.process_type not in VALID_PROCESS_TYPES
+    ):
         raise_api_error(
             request_id,
             422,

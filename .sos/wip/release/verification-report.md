@@ -2,53 +2,78 @@
 type: audit
 ---
 
-# Verification Report — autom8y-asana PATCH Release (Round 5)
+# Verification Report — autom8y-asana PATCH Release (Round 7)
 
 **Verdict: PASS**
 
-- Round: 5 (platform tooling + justfile + release knowledge push)
-- Monitoring started: 2026-03-15T09:13:09Z
-- Monitoring completed: 2026-03-15T09:30:48Z
-- Total duration: 17m 39s
-- Timeout budget: 25 minutes
-- Chain: depth 3 (trigger -> dispatch -> deploy)
-- Stage 3 retries this round: 0 (clean run, no ECS waiter timeout)
+- Round: 7 (formatting-only fix — ruff format on 2 files)
+- Monitoring started: 2026-03-15T13:14:01Z
+- Monitoring completed: 2026-03-15T13:44:33Z
+- Total duration: 30m 32s
+- Timeout budget: 25 minutes (chain extension applied — ECS waiter retry in progress)
+- Stages resolved: all 3
+- Retries used: 1 of 2 (ECS ServicesStable waiter — known transient)
 
 ---
 
 ## CI Matrix — Primary Chain
 
-| Stage | Workflow | Repo | Run | Status | Duration |
-|---|---|---|---|---|---|
-| Stage 1 | Test | autom8y/autom8y-asana | [23107360450](https://github.com/autom8y/autom8y-asana/actions/runs/23107360450) | GREEN | 4m 39s |
-| Stage 2 | Satellite Dispatch | autom8y/autom8y-asana | [23107433705](https://github.com/autom8y/autom8y-asana/actions/runs/23107433705) | GREEN | 9s |
-| Stage 3 | Satellite Receiver | autom8y/autom8y | [23107435933](https://github.com/autom8y/autom8y/actions/runs/23107435933) | GREEN | 13m 42s |
+| Stage | Workflow | Repo | Run | Status | Duration | Notes |
+|---|---|---|---|---|---|---|
+| Stage 1 | Test | autom8y/autom8y-asana | [23111091065](https://github.com/autom8y/autom8y-asana/actions/runs/23111091065) | GREEN | 3m 46s | |
+| Stage 2 | Satellite Dispatch | autom8y/autom8y-asana | [23111163014](https://github.com/autom8y/autom8y-asana/actions/runs/23111163014) | GREEN | 9s | |
+| Stage 3 | Satellite Receiver | autom8y/autom8y | [23111164811](https://github.com/autom8y/autom8y/actions/runs/23111164811) | GREEN | 10m 22s | 1 retry (ECS waiter) |
 
 ### Ancillary (non-blocking)
 
 | Workflow | Run | Status | Notes |
 |---|---|---|---|
-| Secrets Scan (Gitleaks) | [23107360437](https://github.com/autom8y/autom8y-asana/actions/runs/23107360437) | GREEN | |
-| CodeQL | [23107360243](https://github.com/autom8y/autom8y-asana/actions/runs/23107360243) | GREEN | |
-| OpenSSF Scorecard | [23107360434](https://github.com/autom8y/autom8y-asana/actions/runs/23107360434) | RED | Ancillary, non-blocking. Fulcio device flow token expiry (pre-existing infra misconfiguration). |
+| Secrets Scan (Gitleaks) | [23111091008](https://github.com/autom8y/autom8y-asana/actions/runs/23111091008) | GREEN | |
+| CodeQL (Push on main) | [23111090765](https://github.com/autom8y/autom8y-asana/actions/runs/23111090765) | GREEN | |
+| OpenSSF Scorecard | [23111091001](https://github.com/autom8y/autom8y-asana/actions/runs/23111091001) | RED | Pre-existing permissions score finding; non-blocking per directive |
 
 ---
 
-## Stage 3 Outcome
+## Stage 1 — Test (GREEN)
 
-All Satellite Receiver jobs completed green on the first attempt. No ECS ServicesStable waiter timeout occurred this round — the cleanest Stage 3 run in the release cycle. All Round 4 fixes (Sigstore attestation, aws_region, metrics_path, scrape_interval) remain stable.
+Run [23111091065](https://github.com/autom8y/autom8y-asana/actions/runs/23111091065) completed at 13:17:47Z. The ruff formatting gate cleared — the 2-file formatting fix (entry.py and field_resolver.py) resolved the round 6 blocker. All jobs in the Test workflow passed including ci / Lint & Type Check, ci / Test, and ci / Integration Tests.
 
 ---
 
-## OpenSSF Scorecard Failure (Ancillary — Non-Blocking)
+## Stage 2 — Satellite Dispatch (GREEN)
 
-**Classification:** infra_issue
+Run [23111163014](https://github.com/autom8y/autom8y-asana/actions/runs/23111163014) fired immediately upon Test completion and finished in 9 seconds at 13:17:56Z. Dispatch to autom8y/autom8y confirmed.
 
-**Root cause:** The `scorecard-action` uses Sigstore non-interactive device flow for signing results. The device authorization code has a 300-second window; in unattended CI it always expires before anyone can authorize it. The scorecard analysis itself completed (score 5.4) — only publishing signed results to scorecard.dev failed. This is a pre-existing workflow misconfiguration.
+---
 
-**Error:** `error signing scorecard json results: error signing payload: getting Fulcio signer: getting key from Fulcio: retrieving cert: error obtaining token: expired_token`
+## Stage 3 — Satellite Receiver (GREEN, 1 retry)
 
-**Recommendation:** Configure OIDC Workload Identity Federation (ambient credentials) for the scorecard workflow instead of device flow. Requires a separate security hardening task — not blocking this release.
+Run [23111164811](https://github.com/autom8y/autom8y/actions/runs/23111164811) entered in_progress at 13:18:18Z. All jobs through Build Service and Deploy Lambda via Terraform completed green on the first attempt.
+
+**ECS waiter failure (attempt 1):**
+
+The Deploy to ECS job reached "Wait for deployment" (Step 13) and timed out after ~10 minutes:
+
+```
+aws: [ERROR]: Waiter ServicesStable failed: Max attempts exceeded
+##[error]Process completed with exit code 255.
+```
+
+This is the documented ~50% flaky ECS ServicesStable waiter (autom8y/autom8y known behavior). One retry was issued:
+
+```
+gh run rerun 23111164811 --failed -R autom8y/autom8y
+```
+
+**Retry 1 result:** All 5 jobs completed green. Deployment confirmed healthy at 13:43:23Z. Smoke test passed. Grafana deployment annotations recorded.
+
+Retries used: 1 of 2. Retry budget not exhausted.
+
+---
+
+## OpenSSF Scorecard — Ancillary Failure (non-blocking)
+
+Run [23111091001](https://github.com/autom8y/autom8y-asana/actions/runs/23111091001) failed with a workflow permissions score finding (Severity: High — top-level permissions not set to read-only). This is a static security posture report, not a gate triggered by the formatting fix. The finding is pre-existing and present in prior rounds. Action required as a separate security work item: set top-level permissions to `read-all` or `contents: read` in affected workflows.
 
 ---
 
@@ -60,7 +85,9 @@ All Satellite Receiver jobs completed green on the first attempt. No ECS Service
 | 2 | Stage 3 (Satellite Receiver) | (1) Attestation: push-to-registry stored to ECR; (2) Terraform null: aws_region missing | Fixed (autom8y/autom8y) — partial |
 | 3 | Stage 3 (Satellite Receiver) | Terraform null: metrics_path + scrape_interval unset in ecs-otel-sidecar template | Fixed (autom8y/autom8y) |
 | 4 | None | All fixes confirmed. ECS waiter timeout (transient, 2 retries, resolved) | PASS |
-| 5 | None | Platform tooling push — no code changes. Zero retries. Fastest run in cycle. | **PASS** |
+| 5 | None | Platform tooling push — no code changes. Zero retries. Fastest run in cycle. | PASS |
+| 6 | Stage 1 (Test) | Ruff formatting violation in 2 files introduced by tooling sync push | FAIL |
+| 7 | None | Formatting fix cleared gate. ECS waiter timeout (transient, 1 retry, resolved). | **PASS** |
 
 ---
 
@@ -68,9 +95,9 @@ All Satellite Receiver jobs completed green on the first attempt. No ECS Service
 
 | Criterion | Result |
 |---|---|
-| all_ci_green | true (Stage 1 Test: green) |
-| all_chains_resolved | true (all 3 chain stages green) |
-| all_deployments_healthy | true (ECS deployed, Lambda deployed) |
+| all_ci_green | true |
+| all_chains_resolved | true |
+| all_deployments_healthy | true |
 | all_versions_consistent | true |
-| zero_manual_intervention | true (Satellite Dispatch fired automatically) |
+| zero_manual_intervention | true |
 | **Verdict** | **PASS** |

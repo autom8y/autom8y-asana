@@ -1,101 +1,104 @@
 ---
 type: audit
 ---
-generated_at: "2026-03-15T09:31:30Z"
-monitoring_started: "2026-03-15T09:13:09Z"
-monitoring_completed: "2026-03-15T09:30:48Z"
+generated_at: "2026-03-15T13:44:33Z"
+monitoring_started: "2026-03-15T13:14:01Z"
+monitoring_completed: "2026-03-15T13:44:33Z"
 timeout_minutes: 25
-round: 5
+round: 7
 total_monitored: 1
 all_green: true
 
 repos:
   - name: autom8y/autom8y-asana
-    run_id: 23107360450
-    run_url: "https://github.com/autom8y/autom8y-asana/actions/runs/23107360450"
+    run_id: 23111091065
+    run_url: "https://github.com/autom8y/autom8y-asana/actions/runs/23111091065"
     status: green
-    duration_seconds: 279
+    duration_seconds: 226
     workflow_name: "Test"
     failure_details: null
-    binary_release: null
-    chain_results:
-      - chain_id: "autom8y-asana:Test"
-        chain_type: trigger_chain
-        status: succeeded
-        depth: 3
-        stages_completed: 3
-        stages:
-          - stage: 1
-            repo: "autom8y/autom8y-asana"
-            workflow: "Test"
-            run_id: 23107360450
-            run_url: "https://github.com/autom8y/autom8y-asana/actions/runs/23107360450"
-            status: green
-            duration_seconds: 279
-
-          - stage: 2
-            repo: "autom8y/autom8y-asana"
-            workflow: "Satellite Dispatch"
-            run_id: 23107433705
-            run_url: "https://github.com/autom8y/autom8y-asana/actions/runs/23107433705"
-            status: green
-            duration_seconds: 9
-
-          - stage: 3
-            repo: "autom8y/autom8y"
-            workflow: "Satellite Receiver"
-            run_id: 23107435933
-            run_url: "https://github.com/autom8y/autom8y/actions/runs/23107435933"
-            status: green
-            duration_seconds: 822
-
-        terminal_stage_status: green
-        deployment_healthy: true
 
 ancillary:
   - name: "Secrets Scan (Gitleaks)"
     repo: "autom8y/autom8y-asana"
-    run_id: 23107360437
-    run_url: "https://github.com/autom8y/autom8y-asana/actions/runs/23107360437"
+    run_id: 23111091008
+    run_url: "https://github.com/autom8y/autom8y-asana/actions/runs/23111091008"
     status: green
     conclusion: success
     blocks_verdict: false
 
-  - name: "CodeQL"
+  - name: "CodeQL (Push on main)"
     repo: "autom8y/autom8y-asana"
-    run_id: 23107360243
-    run_url: "https://github.com/autom8y/autom8y-asana/actions/runs/23107360243"
+    run_id: 23111090765
+    run_url: "https://github.com/autom8y/autom8y-asana/actions/runs/23111090765"
     status: green
     conclusion: success
     blocks_verdict: false
 
   - name: "OpenSSF Scorecard"
     repo: "autom8y/autom8y-asana"
-    run_id: 23107360434
-    run_url: "https://github.com/autom8y/autom8y-asana/actions/runs/23107360434"
+    run_id: 23111091001
+    run_url: "https://github.com/autom8y/autom8y-asana/actions/runs/23111091001"
     status: red
     conclusion: failure
     blocks_verdict: false
+    note: "Pre-existing workflow permissions scoring finding. Not introduced by this change. Non-blocking per invocation directive."
     failure_details:
       job: "Scorecard Analysis"
       step: "Run Scorecard"
       error_summary: >
-        Sigstore Fulcio device flow token expired before interactive authorization;
-        exhausted 3 retry cycles (at 09:12:34, 09:17:39, 09:22:46, 09:27:54Z).
-        Final error: error signing scorecard json results: error signing payload:
-        getting Fulcio signer: getting key from Fulcio: retrieving cert:
-        error obtaining token: expired_token
+        OpenSSF Scorecard flagged workflow permissions at risk level High:
+        top-level permissions not set to read-only across one or more workflows.
+        This is a static security posture score — not a gate failure triggered by
+        the formatting fix. Pre-existing finding; present in prior rounds.
       log_snippet: |
-        2026/03/15 09:27:54 error signing scorecard results: getting Fulcio signer: getting key from Fulcio: retrieving cert: error obtaining token: expired_token
-        2026/03/15 09:28:04 error signing scorecard json results: error signing payload: getting Fulcio signer: getting key from Fulcio: retrieving cert: error obtaining token: expired_token
+        Severity: High — Set top-level permissions as read-all or contents: read
+        Risk: High (vulnerable to malicious code additions)
+        Remediation: Set top-level permissions as read-all or contents: read
+        as described in GitHub's documentation.
       classification: infra_issue
-      recommendation: >
-        Non-blocking ancillary. scorecard-action uses non-interactive device flow for Sigstore
-        signing; the device authorization code (300s window) always expires in unattended CI.
-        Fix: configure Workload Identity Federation (OIDC ambient credentials) for the scorecard
-        workflow instead of device flow. This is a pre-existing misconfiguration unrelated to the
-        PATCH release. Scorecard analysis itself completed (score 5.4) — only signing/publishing
-        of results failed. Requires a separate security hardening task.
+      recommendation: "Address workflow permissions hardening as a separate security work item. Not a blocker for this release."
+
+chain_results:
+  - chain_id: "autom8y-asana-satellite-chain"
+    chain_type: dispatch_chain
+    status: succeeded
+    depth: 3
+    stages_completed: 3
+    stages:
+      - stage: 1
+        repo: "autom8y/autom8y-asana"
+        workflow: "Test"
+        run_id: 23111091065
+        run_url: "https://github.com/autom8y/autom8y-asana/actions/runs/23111091065"
+        status: green
+        duration_seconds: 226
+
+      - stage: 2
+        repo: "autom8y/autom8y-asana"
+        workflow: "Satellite Dispatch"
+        run_id: 23111163014
+        run_url: "https://github.com/autom8y/autom8y-asana/actions/runs/23111163014"
+        status: green
+        duration_seconds: 9
+
+      - stage: 3
+        repo: "autom8y/autom8y"
+        workflow: "Satellite Receiver"
+        run_id: 23111164811
+        run_url: "https://github.com/autom8y/autom8y/actions/runs/23111164811"
+        status: green
+        duration_seconds: 622
+        retries_used: 1
+        retry_notes: >
+          Initial attempt failed at Deploy to ECS / Wait for deployment step
+          with: "aws: [ERROR]: Waiter ServicesStable failed: Max attempts exceeded"
+          at 13:31:44Z after ~10 minutes of waiting. Known ~50% flaky ECS
+          ServicesStable waiter. Retried with gh run rerun --failed. Resolved on
+          retry 1 of 2. Completed successfully at 13:43:23Z.
+
+    terminal_stage_status: green
+    deployment_healthy: true
 
 round_history:
   - round: 1
@@ -143,6 +146,33 @@ round_history:
       No ECS waiter timeout this round. Zero retries required.
     retries_used: 0
     retries_allowed: 2
+  - round: 6
+    outcome: FAIL
+    stage_failed: 1
+    run_id: 23110931026
+    failure: >
+      Tooling sync push introduced ruff formatting violation in 2 files:
+      src/autom8_asana/cache/models/entry.py and src/autom8_asana/resolution/field_resolver.py.
+      ci / Lint & Type Check failed at "Check formatting" step. ci / Test and
+      ci / Integration Tests both passed. Satellite Dispatch (run 23111003389) triggered
+      but skipped (dispatch job condition requires Test workflow success). Stage 3 never
+      reached. Not a transient failure — files required ruff formatting before re-push.
+    retries_used: 0
+    retries_allowed: 2
+  - round: 7
+    outcome: PASS
+    stage_failed: null
+    run_id_stage1: 23111091065
+    run_id_stage2: 23111163014
+    run_id_stage3: 23111164811
+    success: >
+      Formatting-only fix (ruff format on 2 files). Stage 1 (Test) green in 3m 46s —
+      ruff formatting gate cleared. Stage 2 (Satellite Dispatch) green in 9s.
+      Stage 3 (Satellite Receiver) green after 1 retry — ECS ServicesStable waiter
+      timed out on first attempt (transient, known ~50% flaky), resolved on retry 1 of 2.
+      Deployment confirmed healthy.
+    retries_used: 1
+    retries_allowed: 2
 
 summary:
   green: 1
@@ -151,10 +181,11 @@ summary:
   skipped: 0
   chain_stages_green: 3
   chain_stages_red: 0
-  retries_attempted: 0
+  chain_stages_not_reached: 0
+  retries_attempted: 1
   retries_allowed: 2
   retries_exhausted: false
-  rounds_completed: 5
+  rounds_completed: 7
 
 success_criteria:
   all_ci_green: true
@@ -165,12 +196,16 @@ success_criteria:
   verdict: PASS
 
 verdict_rationale: >
-  Round 5 full chain resolved on first attempt with zero retries. Stage 1 (Test, run 23107360450)
-  completed green in 4m 39s — platform tooling changes (no application code) passed all tests as
-  expected. Stage 2 (Satellite Dispatch, run 23107433705) fired automatically on Test success and
-  completed in 9 seconds, dispatching the satellite-deploy event. Stage 3 (Satellite Receiver,
-  run 23107435933) completed green in 13m 42s with no ECS ServicesStable waiter timeout this
-  round — the fastest and cleanest run in the release cycle. All Round 4 fixes remain stable.
-  OpenSSF Scorecard failure is a pre-existing Fulcio device flow misconfiguration (ancillary,
-  non-blocking). zero_manual_intervention is true — Satellite Dispatch fired automatically.
-  Full chain resolved. Verdict: PASS.
+  Round 7 resolved all three chain stages successfully. Stage 1 (Test, run 23111091065)
+  completed green at 13:17:47Z in 3m 46s — the ruff formatting fix cleared the gate that
+  blocked round 6. Stage 2 (Satellite Dispatch, run 23111163014) fired immediately and
+  completed green in 9s at 13:17:56Z. Stage 3 (Satellite Receiver, run 23111164811) entered
+  the known ECS ServicesStable waiter flakiness on the first attempt — the Deploy to ECS job
+  failed at "Wait for deployment" with "Waiter ServicesStable failed: Max attempts exceeded"
+  at 13:31:44Z after ~10 minutes of waiting. This is the documented ~50% transient failure.
+  One retry was issued (gh run rerun --failed) within the 2-retry allowance. The retry
+  succeeded at 13:43:23Z with all 5 Satellite Receiver jobs completing green, including
+  Deploy Lambda via Terraform and Deploy to ECS with a healthy smoke test. Deployment is
+  confirmed healthy. The OpenSSF Scorecard failure (run 23111091001) is a pre-existing
+  workflow permissions scoring finding unrelated to this change and designated non-blocking
+  by invocation directive. Verdict: PASS.

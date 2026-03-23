@@ -114,9 +114,7 @@ def _make_mock_asana_client(
         mock_client.tasks.create_in_workspace_async = AsyncMock(
             side_effect=raise_on_create
         )
-        mock_client.tasks.create_subtask_async = AsyncMock(
-            side_effect=raise_on_create
-        )
+        mock_client.tasks.create_subtask_async = AsyncMock(side_effect=raise_on_create)
     else:
         # Phase 1: create_in_workspace_async returns business
         mock_client.tasks.create_in_workspace_async = AsyncMock(
@@ -155,15 +153,43 @@ def _make_mock_asana_client(
             return_value={
                 "gid": BUSINESS_GID,
                 "custom_fields": [
-                    {"gid": "cf_facebook", "name": "Facebook URL", "resource_subtype": "text"},
-                    {"gid": "cf_instagram", "name": "Instagram URL", "resource_subtype": "text"},
-                    {"gid": "cf_youtube", "name": "YouTube URL", "resource_subtype": "text"},
-                    {"gid": "cf_linkedin", "name": "LinkedIn URL", "resource_subtype": "text"},
-                    {"gid": "cf_street", "name": "Street Number", "resource_subtype": "text"},
+                    {
+                        "gid": "cf_facebook",
+                        "name": "Facebook URL",
+                        "resource_subtype": "text",
+                    },
+                    {
+                        "gid": "cf_instagram",
+                        "name": "Instagram URL",
+                        "resource_subtype": "text",
+                    },
+                    {
+                        "gid": "cf_youtube",
+                        "name": "YouTube URL",
+                        "resource_subtype": "text",
+                    },
+                    {
+                        "gid": "cf_linkedin",
+                        "name": "LinkedIn URL",
+                        "resource_subtype": "text",
+                    },
+                    {
+                        "gid": "cf_street",
+                        "name": "Street Number",
+                        "resource_subtype": "text",
+                    },
                     {"gid": "cf_city", "name": "City", "resource_subtype": "text"},
                     {"gid": "cf_state", "name": "State", "resource_subtype": "text"},
-                    {"gid": "cf_postal", "name": "Postal Code", "resource_subtype": "text"},
-                    {"gid": "cf_country", "name": "Country", "resource_subtype": "text"},
+                    {
+                        "gid": "cf_postal",
+                        "name": "Postal Code",
+                        "resource_subtype": "text",
+                    },
+                    {
+                        "gid": "cf_country",
+                        "name": "Country",
+                        "resource_subtype": "text",
+                    },
                 ],
             },
         )
@@ -480,7 +506,9 @@ class TestCreateIntakeBusinessEndpoint:
             if name == expected_name:
                 unit_created = True
                 break
-        assert unit_created, f"Unit not created with expected default name: {expected_name}"
+        assert unit_created, (
+            f"Unit not created with expected default name: {expected_name}"
+        )
 
     def test_holders_dict_contains_all_seven(self, client: TestClient) -> None:
         """Response holders dict has all 7 holder types."""

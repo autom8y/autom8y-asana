@@ -73,7 +73,9 @@ class QueryEngine:
     limits: QueryLimits = field(default_factory=QueryLimits)
     data_client: DataServiceClient | None = None  # For cross-service joins
 
-    @trace_computation("entity.query_rows", record_dataframe_shape=True, engine="autom8y-asana")
+    @trace_computation(
+        "entity.query_rows", record_dataframe_shape=True, engine="autom8y-asana"
+    )
     async def execute_rows(
         self,
         entity_type: str,
@@ -248,7 +250,9 @@ class QueryEngine:
             ),
         )
 
-    @trace_computation("entity.query_aggregate", record_dataframe_shape=True, engine="autom8y-asana")
+    @trace_computation(
+        "entity.query_aggregate", record_dataframe_shape=True, engine="autom8y-asana"
+    )
     async def execute_aggregate(
         self,
         entity_type: str,

@@ -591,8 +591,12 @@ class ProgressiveProjectBuilder:
 
         _span = _otel_trace.get_current_span()
         _span.set_attribute("computation.duration_ms", build_result.total_time_ms)
-        _span.set_attribute("computation.materialize.sections_built", build_result.sections_succeeded)
-        _span.set_attribute("computation.materialize.total_rows", build_result.total_rows)
+        _span.set_attribute(
+            "computation.materialize.sections_built", build_result.sections_succeeded
+        )
+        _span.set_attribute(
+            "computation.materialize.total_rows", build_result.total_rows
+        )
 
         return build_result
 

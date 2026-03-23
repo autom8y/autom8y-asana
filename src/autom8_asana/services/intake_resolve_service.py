@@ -38,7 +38,9 @@ def is_valid_e164(phone: str) -> bool:
     return bool(_E164_PATTERN.match(phone))
 
 
-def _extract_custom_field(custom_fields: list[dict[str, Any]], field_name: str) -> str | None:
+def _extract_custom_field(
+    custom_fields: list[dict[str, Any]], field_name: str
+) -> str | None:
     """Extract a custom field value by name from Asana custom_fields list."""
     for cf in custom_fields:
         if cf.get("name", "").lower() == field_name.lower():
@@ -52,7 +54,9 @@ def _extract_custom_field(custom_fields: list[dict[str, Any]], field_name: str) 
     return None
 
 
-def resolve_gid_from_index(office_phone: str, vertical: str | None = None) -> str | None:
+def resolve_gid_from_index(
+    office_phone: str, vertical: str | None = None
+) -> str | None:
     """Resolve GID from the DynamicIndex cache.
 
     Module-level function to enable clean patching in tests.
@@ -168,7 +172,11 @@ class IntakeResolveService:
             )
             subtask_list = self._to_list(subtasks)
             for st in subtask_list:
-                st_name = st.get("name", "") if isinstance(st, dict) else getattr(st, "name", "")
+                st_name = (
+                    st.get("name", "")
+                    if isinstance(st, dict)
+                    else getattr(st, "name", "")
+                )
                 if st_name and "unit_holder" in st_name.lower():
                     has_unit = True
                 if st_name and "contact_holder" in st_name.lower():
@@ -240,12 +248,28 @@ class IntakeResolveService:
         # Step 1: Email match
         if email:
             for contact in contacts:
-                custom_fields = contact.get("custom_fields", []) if isinstance(contact, dict) else getattr(contact, "custom_fields", []) or []
-                contact_email = _extract_custom_field(custom_fields, _CONTACT_EMAIL_FIELD)
+                custom_fields = (
+                    contact.get("custom_fields", [])
+                    if isinstance(contact, dict)
+                    else getattr(contact, "custom_fields", []) or []
+                )
+                contact_email = _extract_custom_field(
+                    custom_fields, _CONTACT_EMAIL_FIELD
+                )
                 if contact_email and contact_email.lower() == email.lower():
-                    contact_gid = contact.get("gid") if isinstance(contact, dict) else getattr(contact, "gid", None)
-                    contact_name = contact.get("name") if isinstance(contact, dict) else getattr(contact, "name", None)
-                    contact_phone = _extract_custom_field(custom_fields, _CONTACT_PHONE_FIELD)
+                    contact_gid = (
+                        contact.get("gid")
+                        if isinstance(contact, dict)
+                        else getattr(contact, "gid", None)
+                    )
+                    contact_name = (
+                        contact.get("name")
+                        if isinstance(contact, dict)
+                        else getattr(contact, "name", None)
+                    )
+                    contact_phone = _extract_custom_field(
+                        custom_fields, _CONTACT_PHONE_FIELD
+                    )
                     return ContactResolveResponse(
                         found=True,
                         contact_gid=contact_gid,
@@ -258,12 +282,28 @@ class IntakeResolveService:
         # Step 2: Phone match
         if phone:
             for contact in contacts:
-                custom_fields = contact.get("custom_fields", []) if isinstance(contact, dict) else getattr(contact, "custom_fields", []) or []
-                contact_phone = _extract_custom_field(custom_fields, _CONTACT_PHONE_FIELD)
+                custom_fields = (
+                    contact.get("custom_fields", [])
+                    if isinstance(contact, dict)
+                    else getattr(contact, "custom_fields", []) or []
+                )
+                contact_phone = _extract_custom_field(
+                    custom_fields, _CONTACT_PHONE_FIELD
+                )
                 if contact_phone and contact_phone == phone:
-                    contact_gid = contact.get("gid") if isinstance(contact, dict) else getattr(contact, "gid", None)
-                    contact_name = contact.get("name") if isinstance(contact, dict) else getattr(contact, "name", None)
-                    contact_email = _extract_custom_field(custom_fields, _CONTACT_EMAIL_FIELD)
+                    contact_gid = (
+                        contact.get("gid")
+                        if isinstance(contact, dict)
+                        else getattr(contact, "gid", None)
+                    )
+                    contact_name = (
+                        contact.get("name")
+                        if isinstance(contact, dict)
+                        else getattr(contact, "name", None)
+                    )
+                    contact_email = _extract_custom_field(
+                        custom_fields, _CONTACT_EMAIL_FIELD
+                    )
                     return ContactResolveResponse(
                         found=True,
                         contact_gid=contact_gid,
@@ -296,9 +336,13 @@ class IntakeResolveService:
             raise
 
         for st in subtasks:
-            st_name = st.get("name", "") if isinstance(st, dict) else getattr(st, "name", "")
+            st_name = (
+                st.get("name", "") if isinstance(st, dict) else getattr(st, "name", "")
+            )
             if st_name and "contact_holder" in st_name.lower():
-                return st.get("gid") if isinstance(st, dict) else getattr(st, "gid", None)
+                return (
+                    st.get("gid") if isinstance(st, dict) else getattr(st, "gid", None)
+                )
 
         return None
 
