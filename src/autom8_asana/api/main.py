@@ -42,6 +42,9 @@ from .routes import (
     dataframes_router,
     entity_write_router,
     health_router,
+    intake_create_router,
+    intake_custom_fields_router,
+    intake_resolve_router,
     internal_router,
     projects_router,
     query_router,
@@ -171,6 +174,10 @@ def create_app() -> FastAPI:
     app.include_router(projects_router)
     app.include_router(sections_router)
     app.include_router(internal_router)
+    # Intake resolve endpoints BEFORE resolver_router so explicit paths
+    # (/v1/resolve/business, /v1/resolve/contact) match before the
+    # wildcard /v1/resolve/{entity_type} pattern.
+    app.include_router(intake_resolve_router)
     app.include_router(resolver_router)
     # Single query router: /rows and /aggregate (active) + deprecated
     # POST /{entity_type} (sunset 2026-06-01). Route order within the
@@ -181,6 +188,10 @@ def create_app() -> FastAPI:
     app.include_router(workflows_router)
     app.include_router(entity_write_router)
     app.include_router(section_timelines_router)
+    # Intake custom field writes
+    app.include_router(intake_custom_fields_router)
+    # Intake business creation and process routing
+    app.include_router(intake_create_router)
 
     # --- Exception Handlers ---
     register_exception_handlers(app)
