@@ -19,7 +19,7 @@ from typing import Annotated
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
     AsanaClientDualMode,
@@ -50,12 +50,32 @@ class SectionTimelinesResponse(BaseModel):
         ..., description="Timeline entries for all offers"
     )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "timelines": [
+                        {
+                            "offer_gid": "1234567890123456",
+                            "office_phone": "+15551234567",
+                            "offer_id": "OFF-0042",
+                            "active_section_days": 18,
+                            "billable_section_days": 22,
+                            "current_section": "ACTIVE",
+                            "current_classification": "active",
+                        }
+                    ]
+                }
+            ]
+        },
+    )
 
 
 @router.get(
     "/section-timelines",
     summary="Get section timelines for all offers",
+    response_description="Section timeline entries for all offers in the period",
     response_model=SuccessResponse[SectionTimelinesResponse],
 )
 async def get_offer_section_timelines(
@@ -72,36 +92,44 @@ async def get_offer_section_timelines(
     classification: Annotated[
         str | None,
         Query(
-            description="Filter by current classification (active, activating, inactive, ignored)"
+            description=(
+                "Filter by current classification "
+                "(active, activating, inactive, ignored)"
+            )
         ),
     ] = None,
 ) -> SuccessResponse[SectionTimelinesResponse]:
     """Get section timelines for all offers in the Business Offers project.
 
-    Computes active_section_days and billable_section_days for each offer
-    based on their Asana section history within the specified date range.
+    Computes ``active_section_days`` and ``billable_section_days`` for
+    each offer by replaying its Asana section history within the specified
+    date range. Each entry also reports the offer's ``current_section`` and
+    ``current_classification``.
 
-    Optionally filter by classification to return only entries whose
-    current section matches the requested category.
+    **Performance**: Results are cached after the first computation.
 
-    Per TDD-SECTION-TIMELINE-REMEDIATION: Reads from derived cache on
-    warm path (<2s). On cold cache, computes on demand from cached stories
-    (<5s) and stores result for subsequent requests.
+    - Warm path (cache hit): < 2 seconds.
+    - Cold path (cache miss): < 5 seconds. The endpoint computes on demand
+      from cached task stories, then stores the result for reuse.
+
+    **Classification filter**: When provided, only entries whose current
+    section matches the requested classification are returned. Valid values:
+    ``active``, ``activating``, ``inactive``, ``ignored``.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
-        client: AsanaClient for task enumeration on cache miss.
-        request_id: Request correlation ID.
-        period_start: Start date for day counting (inclusive).
-        period_end: End date for day counting (inclusive).
-        classification: Optional classification filter (e.g., "active").
+        period_start: Start date for day counting (inclusive, YYYY-MM-DD).
+        period_end: End date for day counting (inclusive, YYYY-MM-DD).
+        classification: Optional classification filter.
 
     Returns:
-        SuccessResponse containing list of OfferTimelineEntry.
+        List of ``OfferTimelineEntry`` records for the period.
 
     Raises:
-        HTTPException: 422 if period_start > period_end.
-        HTTPException: 422 if classification is not a valid AccountActivity value.
-        HTTPException: 502 if Asana API fails during task enumeration.
+        422: ``period_start`` is after ``period_end``.
+        422: ``classification`` is not a valid ``AccountActivity`` value.
+        502: Asana API failed during on-demand task enumeration.
     """
     start_time = time.perf_counter()
 

@@ -36,11 +36,34 @@ class AsanaResource(BaseModel):
         name: Display name of the resource (optional, depends on opt_fields).
     """
 
-    gid: str = Field(..., description="Globally unique Asana resource identifier")
-    resource_type: str | None = Field(default=None, description="Asana resource type")
-    name: str | None = Field(default=None, description="Resource display name")
+    gid: str = Field(
+        ...,
+        description="Globally unique Asana resource identifier",
+        examples=["1234567890123456"],
+    )
+    resource_type: str | None = Field(
+        default=None,
+        description="Asana resource type",
+        examples=["task"],
+    )
+    name: str | None = Field(
+        default=None,
+        description="Resource display name",
+        examples=["Review Q3 marketing proposal"],
+    )
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(
+        extra="allow",
+        json_schema_extra={
+            "examples": [
+                {
+                    "gid": "1234567890123456",
+                    "resource_type": "task",
+                    "name": "Review Q3 marketing proposal",
+                }
+            ]
+        },
+    )
 
 
 class PaginationMeta(BaseModel):
@@ -54,14 +77,35 @@ class PaginationMeta(BaseModel):
         next_offset: Opaque cursor for next page (None if no more pages).
     """
 
-    limit: int = Field(..., ge=1, description="Number of items per page")
-    has_more: bool = Field(..., description="Whether more items exist")
+    limit: int = Field(
+        ...,
+        ge=1,
+        description="Number of items per page",
+        examples=[100],
+    )
+    has_more: bool = Field(
+        ...,
+        description="Whether more items exist",
+        examples=[True],
+    )
     next_offset: str | None = Field(
         default=None,
         description="Opaque cursor for next page",
+        examples=["eyJvZmZzZXQiOjEwMH0"],
     )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "limit": 100,
+                    "has_more": True,
+                    "next_offset": "eyJvZmZzZXQiOjEwMH0",
+                }
+            ]
+        },
+    )
 
 
 class ResponseMeta(BaseModel):
@@ -80,17 +124,30 @@ class ResponseMeta(BaseModel):
         ...,
         min_length=1,
         description="Request correlation ID",
+        examples=["a1b2c3d4e5f67890"],
     )
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         description="Response timestamp (UTC)",
+        examples=["2026-03-15T10:30:00Z"],
     )
     pagination: PaginationMeta | None = Field(
         default=None,
         description="Pagination metadata for list responses",
     )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "request_id": "a1b2c3d4e5f67890",
+                    "timestamp": "2026-03-15T10:30:00Z",
+                    "pagination": None,
+                }
+            ]
+        },
+    )
 
 
 class SuccessResponse(BaseModel, Generic[T]):
@@ -106,7 +163,25 @@ class SuccessResponse(BaseModel, Generic[T]):
     data: T = Field(..., description="Response data payload")
     meta: ResponseMeta = Field(..., description="Response metadata")
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "data": {
+                        "gid": "1234567890123456",
+                        "resource_type": "task",
+                        "name": "Review Q3 marketing proposal",
+                    },
+                    "meta": {
+                        "request_id": "a1b2c3d4e5f67890",
+                        "timestamp": "2026-03-15T10:30:00Z",
+                        "pagination": None,
+                    },
+                }
+            ]
+        },
+    )
 
 
 class ErrorDetail(BaseModel):
@@ -120,14 +195,34 @@ class ErrorDetail(BaseModel):
         details: Additional context about the error (optional).
     """
 
-    code: str = Field(..., description="Machine-readable error code")
-    message: str = Field(..., description="Human-readable error message")
+    code: str = Field(
+        ...,
+        description="Machine-readable error code",
+        examples=["RESOURCE_NOT_FOUND"],
+    )
+    message: str = Field(
+        ...,
+        description="Human-readable error message",
+        examples=["Task with GID 1234567890123456 not found"],
+    )
     details: dict[str, Any] | None = Field(
         default=None,
         description="Additional error context",
+        examples=[None],
     )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "code": "RESOURCE_NOT_FOUND",
+                    "message": "Task with GID 1234567890123456 not found",
+                    "details": None,
+                }
+            ]
+        },
+    )
 
 
 class ErrorResponse(BaseModel):
@@ -144,7 +239,25 @@ class ErrorResponse(BaseModel):
     error: ErrorDetail = Field(..., description="Error details")
     meta: ResponseMeta = Field(..., description="Response metadata")
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "error": {
+                        "code": "RESOURCE_NOT_FOUND",
+                        "message": "Task with GID 1234567890123456 not found",
+                        "details": None,
+                    },
+                    "meta": {
+                        "request_id": "a1b2c3d4e5f67890",
+                        "timestamp": "2026-03-15T10:30:00Z",
+                        "pagination": None,
+                    },
+                }
+            ]
+        },
+    )
 
 
 def build_success_response(
@@ -216,22 +329,54 @@ class CreateTaskRequest(BaseModel):
         workspace: Workspace GID (required if no projects specified).
     """
 
-    name: str = Field(..., min_length=1, description="Task name")
-    notes: str | None = Field(default=None, description="Task description")
-    assignee: str | None = Field(default=None, description="Assignee user GID")
+    name: str = Field(
+        ...,
+        min_length=1,
+        description="Task name",
+        examples=["Review Q3 marketing proposal"],
+    )
+    notes: str | None = Field(
+        default=None,
+        description="Task description",
+        examples=["Check accuracy and completeness before the team review."],
+    )
+    assignee: str | None = Field(
+        default=None,
+        description="Assignee user GID",
+        examples=["9876543210987654"],
+    )
     projects: list[str] | None = Field(
-        default=None, description="Project GIDs to add task to"
+        default=None,
+        description="Project GIDs to add task to",
+        examples=[["1234567890123456"]],
     )
     due_on: str | None = Field(
         default=None,
         pattern=r"^\d{4}-\d{2}-\d{2}$",
         description="Due date (YYYY-MM-DD)",
+        examples=["2026-03-15"],
     )
     workspace: str | None = Field(
-        default=None, description="Workspace GID (required if no projects)"
+        default=None,
+        description="Workspace GID (required if no projects)",
+        examples=["1111111111111111"],
     )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "Review Q3 marketing proposal",
+                    "notes": "Check accuracy and completeness before the team review.",
+                    "assignee": "9876543210987654",
+                    "projects": ["1234567890123456"],
+                    "due_on": "2026-03-15",
+                    "workspace": None,
+                }
+            ]
+        },
+    )
 
 
 class UpdateTaskRequest(BaseModel):
@@ -248,15 +393,41 @@ class UpdateTaskRequest(BaseModel):
         due_on: Due date in YYYY-MM-DD format (null to clear).
     """
 
-    name: str | None = Field(default=None, min_length=1, description="Task name")
-    notes: str | None = Field(default=None, description="Task description")
-    completed: bool | None = Field(default=None, description="Completion status")
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Task name",
+        examples=["Review Q3 marketing proposal (updated)"],
+    )
+    notes: str | None = Field(
+        default=None,
+        description="Task description",
+        examples=["Updated after stakeholder review."],
+    )
+    completed: bool | None = Field(
+        default=None,
+        description="Completion status",
+        examples=[True],
+    )
     due_on: str | None = Field(
         default=None,
         description="Due date (YYYY-MM-DD, null to clear)",
+        examples=["2026-03-20"],
     )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": None,
+                    "notes": "Updated after stakeholder review.",
+                    "completed": True,
+                    "due_on": "2026-03-20",
+                }
+            ]
+        },
+    )
 
 
 class AddTagRequest(BaseModel):
@@ -268,9 +439,17 @@ class AddTagRequest(BaseModel):
         tag_gid: GID of the tag to add.
     """
 
-    tag_gid: str = Field(..., min_length=1, description="Tag GID to add")
+    tag_gid: str = Field(
+        ...,
+        min_length=1,
+        description="Tag GID to add",
+        examples=["2222222222222222"],
+    )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"tag_gid": "2222222222222222"}]},
+    )
 
 
 class MoveSectionRequest(BaseModel):
@@ -283,12 +462,30 @@ class MoveSectionRequest(BaseModel):
         project_gid: GID of the project containing the section.
     """
 
-    section_gid: str = Field(..., min_length=1, description="Target section GID")
+    section_gid: str = Field(
+        ...,
+        min_length=1,
+        description="Target section GID",
+        examples=["3333333333333333"],
+    )
     project_gid: str = Field(
-        ..., min_length=1, description="Project GID containing section"
+        ...,
+        min_length=1,
+        description="Project GID containing section",
+        examples=["1234567890123456"],
     )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "section_gid": "3333333333333333",
+                    "project_gid": "1234567890123456",
+                }
+            ]
+        },
+    )
 
 
 class SetAssigneeRequest(BaseModel):
@@ -301,10 +498,15 @@ class SetAssigneeRequest(BaseModel):
     """
 
     assignee_gid: str | None = Field(
-        default=None, description="User GID to assign (null to unassign)"
+        default=None,
+        description="User GID to assign (null to unassign)",
+        examples=["9876543210987654"],
     )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"assignee_gid": "9876543210987654"}]},
+    )
 
 
 class AddToProjectRequest(BaseModel):
@@ -316,9 +518,17 @@ class AddToProjectRequest(BaseModel):
         project_gid: GID of the project to add task to.
     """
 
-    project_gid: str = Field(..., min_length=1, description="Project GID to add to")
+    project_gid: str = Field(
+        ...,
+        min_length=1,
+        description="Project GID to add to",
+        examples=["1234567890123456"],
+    )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"project_gid": "1234567890123456"}]},
+    )
 
 
 class DuplicateTaskRequest(BaseModel):
@@ -330,9 +540,19 @@ class DuplicateTaskRequest(BaseModel):
         name: Name for the new duplicated task.
     """
 
-    name: str = Field(..., min_length=1, description="Name for duplicated task")
+    name: str = Field(
+        ...,
+        min_length=1,
+        description="Name for duplicated task",
+        examples=["Review Q3 marketing proposal (copy)"],
+    )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [{"name": "Review Q3 marketing proposal (copy)"}]
+        },
+    )
 
 
 # --- Project Request Models ---
@@ -349,11 +569,36 @@ class CreateProjectRequest(BaseModel):
         team: Team GID (optional, for organization workspaces).
     """
 
-    name: str = Field(..., min_length=1, description="Project name")
-    workspace: str = Field(..., min_length=1, description="Workspace GID")
-    team: str | None = Field(default=None, description="Team GID (for organizations)")
+    name: str = Field(
+        ...,
+        min_length=1,
+        description="Project name",
+        examples=["Website Redesign"],
+    )
+    workspace: str = Field(
+        ...,
+        min_length=1,
+        description="Workspace GID",
+        examples=["1111111111111111"],
+    )
+    team: str | None = Field(
+        default=None,
+        description="Team GID (for organizations)",
+        examples=["4444444444444444"],
+    )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "Website Redesign",
+                    "workspace": "1111111111111111",
+                    "team": "4444444444444444",
+                }
+            ]
+        },
+    )
 
 
 class UpdateProjectRequest(BaseModel):
@@ -369,11 +614,35 @@ class UpdateProjectRequest(BaseModel):
         archived: Archive status.
     """
 
-    name: str | None = Field(default=None, min_length=1, description="Project name")
-    notes: str | None = Field(default=None, description="Project description")
-    archived: bool | None = Field(default=None, description="Archive status")
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Project name",
+        examples=["Website Redesign (Phase 2)"],
+    )
+    notes: str | None = Field(
+        default=None,
+        description="Project description",
+        examples=["Continuation of the Q2 redesign initiative."],
+    )
+    archived: bool | None = Field(
+        default=None,
+        description="Archive status",
+        examples=[False],
+    )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": None,
+                    "notes": "Continuation of the Q2 redesign initiative.",
+                    "archived": False,
+                }
+            ]
+        },
+    )
 
 
 class MembersRequest(BaseModel):
@@ -385,9 +654,19 @@ class MembersRequest(BaseModel):
         members: List of user GIDs to add or remove.
     """
 
-    members: list[str] = Field(..., min_length=1, description="List of user GIDs")
+    members: list[str] = Field(
+        ...,
+        min_length=1,
+        description="List of user GIDs",
+        examples=[["9876543210987654", "9876543210987655"]],
+    )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [{"members": ["9876543210987654", "9876543210987655"]}]
+        },
+    )
 
 
 # --- Section Request Models ---
@@ -403,10 +682,30 @@ class CreateSectionRequest(BaseModel):
         project: Project GID to create section in (required).
     """
 
-    name: str = Field(..., min_length=1, description="Section name")
-    project: str = Field(..., min_length=1, description="Project GID")
+    name: str = Field(
+        ...,
+        min_length=1,
+        description="Section name",
+        examples=["In Progress"],
+    )
+    project: str = Field(
+        ...,
+        min_length=1,
+        description="Project GID",
+        examples=["1234567890123456"],
+    )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "name": "In Progress",
+                    "project": "1234567890123456",
+                }
+            ]
+        },
+    )
 
 
 class UpdateSectionRequest(BaseModel):
@@ -418,9 +717,17 @@ class UpdateSectionRequest(BaseModel):
         name: New section name.
     """
 
-    name: str = Field(..., min_length=1, description="Section name")
+    name: str = Field(
+        ...,
+        min_length=1,
+        description="Section name",
+        examples=["Done"],
+    )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"name": "Done"}]},
+    )
 
 
 class AddTaskToSectionRequest(BaseModel):
@@ -432,9 +739,17 @@ class AddTaskToSectionRequest(BaseModel):
         task_gid: GID of the task to add.
     """
 
-    task_gid: str = Field(..., min_length=1, description="Task GID to add")
+    task_gid: str = Field(
+        ...,
+        min_length=1,
+        description="Task GID to add",
+        examples=["1234567890123456"],
+    )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={"examples": [{"task_gid": "1234567890123456"}]},
+    )
 
 
 class ReorderSectionRequest(BaseModel):
@@ -450,15 +765,35 @@ class ReorderSectionRequest(BaseModel):
         after_section: Section GID to insert after (optional).
     """
 
-    project_gid: str = Field(..., min_length=1, description="Project GID")
+    project_gid: str = Field(
+        ...,
+        min_length=1,
+        description="Project GID",
+        examples=["1234567890123456"],
+    )
     before_section: str | None = Field(
-        default=None, description="Section GID to insert before"
+        default=None,
+        description="Section GID to insert before",
+        examples=["3333333333333333"],
     )
     after_section: str | None = Field(
-        default=None, description="Section GID to insert after"
+        default=None,
+        description="Section GID to insert after",
+        examples=[None],
     )
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "project_gid": "1234567890123456",
+                    "before_section": "3333333333333333",
+                    "after_section": None,
+                }
+            ]
+        },
+    )
 
 
 __all__ = [

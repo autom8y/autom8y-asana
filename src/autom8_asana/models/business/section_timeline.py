@@ -170,25 +170,57 @@ class OfferTimelineEntry(BaseModel):
             sections during period.
     """
 
-    offer_gid: str = Field(..., description="Asana task GID")
+    offer_gid: str = Field(
+        ...,
+        description="Asana task GID",
+        examples=["1234567890123456"],
+    )
     office_phone: str | None = Field(
-        default=None, description="Office phone custom field"
+        default=None,
+        description="Office phone custom field",
+        examples=["+15551234567"],
     )
     offer_id: str | None = Field(
         default=None,
         description="Internal business offer ID (Offer ID custom field)",
+        examples=["OFF-0042"],
     )
-    active_section_days: int = Field(..., ge=0, description="Days in ACTIVE sections")
+    active_section_days: int = Field(
+        ...,
+        ge=0,
+        description="Days in ACTIVE sections",
+        examples=[18],
+    )
     billable_section_days: int = Field(
-        ..., ge=0, description="Days in ACTIVE or ACTIVATING sections"
+        ...,
+        ge=0,
+        description="Days in ACTIVE or ACTIVATING sections",
+        examples=[22],
     )
     current_section: str | None = Field(
         default=None,
         description="Current Asana section name (from last interval)",
+        examples=["ACTIVE"],
     )
     current_classification: str | None = Field(
         default=None,
         description="Classification of current section (e.g., active, activating)",
+        examples=["active"],
     )
 
-    model_config = {"extra": "forbid"}
+    model_config = {
+        "extra": "forbid",
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "offer_gid": "1234567890123456",
+                    "office_phone": "+15551234567",
+                    "offer_id": "OFF-0042",
+                    "active_section_days": 18,
+                    "billable_section_days": 22,
+                    "current_section": "ACTIVE",
+                    "current_classification": "active",
+                }
+            ]
+        },
+    }

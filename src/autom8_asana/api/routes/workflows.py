@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
     AuthContextDep,
@@ -50,11 +50,37 @@ class WorkflowInvokeRequest(BaseModel):
         params: Additional workflow-specific parameter overrides.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "examples": [
+                {
+                    "entity_ids": ["1234567890123456", "1234567890123457"],
+                    "dry_run": False,
+                    "params": {},
+                }
+            ]
+        },
+    )
 
-    entity_ids: list[str]
-    dry_run: bool = False
-    params: dict[str, Any] = {}
+    entity_ids: list[str] = Field(
+        ...,
+        description=(
+            "Asana GIDs of entities to process. Must be non-empty numeric strings "
+            "(1–100 items)."
+        ),
+        examples=[["1234567890123456", "1234567890123457"]],
+    )
+    dry_run: bool = Field(
+        default=False,
+        description="If true, validate and enumerate entities but skip all write operations.",
+        examples=[False],
+    )
+    params: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Workflow-specific parameter overrides merged on top of registered defaults.",
+        examples=[{}],
+    )
 
     @field_validator("entity_ids")
     @classmethod
@@ -83,12 +109,56 @@ class WorkflowInvokeResponse(BaseModel):
         result: Serialized WorkflowResult.
     """
 
-    request_id: str
-    invocation_source: str = "api"
-    workflow_id: str
-    dry_run: bool
-    entity_count: int
-    result: dict[str, Any]
+    model_config = ConfigDict(
+        json_schema_extra={
+            "examples": [
+                {
+                    "request_id": "a1b2c3d4e5f67890",
+                    "invocation_source": "api",
+                    "workflow_id": "update-offer-status",
+                    "dry_run": False,
+                    "entity_count": 2,
+                    "result": {
+                        "succeeded": 2,
+                        "failed": 0,
+                        "duration_seconds": 1.42,
+                    },
+                }
+            ]
+        }
+    )
+
+    request_id: str = Field(
+        ...,
+        description="Request correlation ID for tracing this invocation.",
+        examples=["a1b2c3d4e5f67890"],
+    )
+    invocation_source: str = Field(
+        default="api",
+        description="Origin of the invocation. Always 'api' for this endpoint.",
+        examples=["api"],
+    )
+    workflow_id: str = Field(
+        ...,
+        description="Registered workflow identifier that was invoked.",
+        examples=["update-offer-status"],
+    )
+    dry_run: bool = Field(
+        ...,
+        description="Whether this was a dry-run invocation (no writes performed).",
+        examples=[False],
+    )
+    entity_count: int = Field(
+        ...,
+        ge=0,
+        description="Number of entities that were processed.",
+        examples=[2],
+    )
+    result: dict[str, Any] = Field(
+        ...,
+        description="Serialized WorkflowResult with counts and any workflow-specific metadata.",
+        examples=[{"succeeded": 2, "failed": 0, "duration_seconds": 1.42}],
+    )
 
 
 # --- Registry Functions ---
@@ -120,14 +190,16 @@ def _get_workflow_factory(workflow_id: str) -> WorkflowHandlerConfig | None:
 
 @router.post(
     "/{workflow_id}/invoke",
+    summary="Invoke a workflow against specific entities",
+    response_description="Workflow invocation result with counts and metadata",
     response_model=WorkflowInvokeResponse,
     responses={
         400: {"description": "Validation error (empty entity_ids, non-numeric GID)"},
         401: {"description": "Missing or invalid authentication"},
         404: {"description": "Unknown workflow_id"},
         422: {"description": "Workflow pre-flight validation failed"},
-        429: {"description": "Rate limit exceeded"},
-        504: {"description": "Workflow execution timed out"},
+        429: {"description": "Rate limit exceeded (10 requests/minute)"},
+        504: {"description": "Workflow execution timed out (120s limit)"},
     },
 )
 @limiter.limit("10/minute")
@@ -138,12 +210,41 @@ async def invoke_workflow(
     auth_context: AuthContextDep,
     request_id: RequestId,
 ) -> WorkflowInvokeResponse:
-    """Invoke a workflow for specific entities.
+    """Invoke a registered workflow against a list of Asana entity GIDs.
 
-    Production endpoint: rate limited, audit logged, timeout-aware.
+    Workflows are identified by ``workflow_id`` and must be registered
+    at application startup. Use ``dry_run: true`` to validate and enumerate
+    entities without performing any writes — useful for previewing impact.
 
-    Constructs workflow with per-request clients, calls enumerate_async
-    with targeted scope, then execute_async with the entity list.
+    **Execution lifecycle** (per invocation):
+    1. Pre-flight validation via ``workflow.validate_async()``
+    2. Entity enumeration scoped to the provided ``entity_ids``
+    3. Workflow execution with a 120-second timeout
+    4. CloudWatch metric emission (``WorkflowInvokeCount``)
+
+    **Rate limit**: 10 requests per minute per client.
+
+    **Audit logging**: Every invocation is logged with workflow ID,
+    entity IDs, caller service, and auth mode.
+
+    Requires Bearer token authentication (JWT or PAT).
+
+    Args:
+        workflow_id: Registered workflow identifier
+            (e.g. ``"update-offer-status"``).
+        body: ``entity_ids`` (1–100 numeric Asana GIDs), ``dry_run`` flag,
+            and optional ``params`` overrides.
+
+    Returns:
+        Invocation result with ``succeeded``, ``failed``, ``entity_count``,
+        and workflow-specific metadata.
+
+    Raises:
+        400: ``entity_ids`` is empty or contains non-numeric values.
+        404: ``workflow_id`` is not registered.
+        422: Workflow pre-flight validation failed.
+        429: Rate limit exceeded.
+        504: Execution timed out after 120 seconds.
     """
     # Audit log (full invocation context)
     logger.info(
