@@ -215,8 +215,8 @@ def create_app() -> FastAPI:
         version="0.1.0",
         lifespan=lifespan,
         # Disable automatic docs in production
-        docs_url="/docs" if settings.debug else None,
-        redoc_url="/redoc" if settings.debug else None,
+        docs_url="/docs",
+        redoc_url="/redoc",
     )
 
     # --- Platform Observability ---
