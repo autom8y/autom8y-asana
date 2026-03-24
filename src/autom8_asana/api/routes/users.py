@@ -19,6 +19,10 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query
 
 from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
+from autom8_asana.api.error_responses import (
+    authenticated_responses,
+    entity_responses,
+)
 from autom8_asana.api.models import (
     AsanaResource,
     PaginationMeta,
@@ -38,6 +42,7 @@ MAX_LIMIT = 100
     summary="Get the current authenticated user",
     response_description="Current user profile",
     response_model=SuccessResponse[AsanaResource],
+    responses=authenticated_responses(),
 )
 async def get_current_user(
     client: AsanaClientDualMode,
@@ -64,6 +69,7 @@ async def get_current_user(
     summary="Get a user by GID",
     response_description="User profile",
     response_model=SuccessResponse[AsanaResource],
+    responses=entity_responses(),
 )
 async def get_user(
     gid: str,
@@ -92,6 +98,7 @@ async def get_user(
     summary="List users in a workspace",
     response_description="Paginated list of workspace users",
     response_model=SuccessResponse[list[AsanaResource]],
+    responses=authenticated_responses(),
 )
 async def list_users(
     client: AsanaClientDualMode,

@@ -18,6 +18,10 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query
 
 from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
+from autom8_asana.api.error_responses import (
+    authenticated_responses,
+    entity_responses,
+)
 from autom8_asana.api.models import (
     AsanaResource,
     PaginationMeta,
@@ -37,6 +41,7 @@ MAX_LIMIT = 100
     summary="List accessible workspaces",
     response_description="Paginated list of workspaces",
     response_model=SuccessResponse[list[AsanaResource]],
+    responses=authenticated_responses(),
 )
 async def list_workspaces(
     client: AsanaClientDualMode,
@@ -96,6 +101,7 @@ async def list_workspaces(
     summary="Get a workspace by GID",
     response_description="Workspace details",
     response_model=SuccessResponse[AsanaResource],
+    responses=entity_responses(),
 )
 async def get_workspace(
     gid: str,

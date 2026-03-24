@@ -24,6 +24,11 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Query, status
 
 from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
+from autom8_asana.api.error_responses import (
+    authenticated_responses,
+    entity_responses,
+    mutation_responses,
+)
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.models import (
     AsanaResource,
@@ -50,6 +55,7 @@ MAX_LIMIT = 100
     summary="List projects in a workspace",
     response_description="Paginated list of projects",
     response_model=SuccessResponse[list[AsanaResource]],
+    responses=authenticated_responses(),
 )
 async def list_projects(
     client: AsanaClientDualMode,
@@ -110,6 +116,7 @@ async def list_projects(
     summary="Get a project by GID",
     response_description="Project details",
     response_model=SuccessResponse[AsanaResource],
+    responses=entity_responses(),
 )
 async def get_project(
     gid: str,
@@ -119,7 +126,7 @@ async def get_project(
         str | None,
         Query(
             description="Comma-separated list of fields to include",
-            example="name,notes,owner,team",
+            examples=["name,notes,owner,team"],
         ),
     ] = None,
 ) -> SuccessResponse[AsanaResource]:
@@ -155,6 +162,7 @@ async def get_project(
     response_description="Created project details",
     response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
+    responses=mutation_responses(),
 )
 async def create_project(
     body: CreateProjectRequest,
@@ -192,6 +200,7 @@ async def create_project(
     summary="Update a project",
     response_description="Updated project details",
     response_model=SuccessResponse[AsanaResource],
+    responses={**entity_responses(), **mutation_responses()},
 )
 async def update_project(
     gid: str,
@@ -243,6 +252,7 @@ async def update_project(
     summary="Delete a project",
     response_description="No content",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses=entity_responses(),
 )
 async def delete_project(
     gid: str,
@@ -276,6 +286,7 @@ async def delete_project(
     summary="List sections in a project",
     response_description="Paginated list of sections",
     response_model=SuccessResponse[list[AsanaResource]],
+    responses=entity_responses(),
 )
 async def list_sections(
     gid: str,
@@ -338,6 +349,7 @@ async def list_sections(
     summary="Add members to a project",
     response_description="Updated project with new members",
     response_model=SuccessResponse[AsanaResource],
+    responses={**entity_responses(), **mutation_responses()},
 )
 async def add_members(
     gid: str,
@@ -374,6 +386,7 @@ async def add_members(
     summary="Remove members from a project",
     response_description="Updated project with members removed",
     response_model=SuccessResponse[AsanaResource],
+    responses={**entity_responses(), **mutation_responses()},
 )
 async def remove_members(
     gid: str,
