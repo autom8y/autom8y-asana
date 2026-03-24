@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from autom8_asana.api.dependencies import get_request_id
+from autom8_asana.api.error_responses import authenticated_responses
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
@@ -301,6 +302,7 @@ async def _process_inbound_task(task: Task, cache_provider: Any) -> None:
     "/inbound",
     summary="Receive an inbound webhook event from Asana",
     response_description="Accepted status for valid payloads",
+    responses=authenticated_responses(),
 )
 async def receive_inbound_webhook(
     request: Request,

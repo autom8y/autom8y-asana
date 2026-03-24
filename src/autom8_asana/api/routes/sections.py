@@ -23,6 +23,10 @@ from autom8_asana.api.dependencies import (
     RequestId,
     SectionServiceDep,
 )
+from autom8_asana.api.error_responses import (
+    entity_responses,
+    mutation_responses,
+)
 from autom8_asana.api.errors import raise_service_error
 from autom8_asana.api.models import (
     AddTaskToSectionRequest,
@@ -46,6 +50,7 @@ router = APIRouter(prefix="/api/v1/sections", tags=["sections"])
     summary="Get a section by GID",
     response_description="Section details",
     response_model=SuccessResponse[AsanaResource],
+    responses=entity_responses(),
 )
 async def get_section(
     gid: str,
@@ -84,6 +89,7 @@ async def get_section(
     response_description="Created section details",
     response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
+    responses=mutation_responses(),
 )
 async def create_section(
     body: CreateSectionRequest,
@@ -123,6 +129,7 @@ async def create_section(
     summary="Rename a section",
     response_description="Updated section details",
     response_model=SuccessResponse[AsanaResource],
+    responses={**entity_responses(), **mutation_responses()},
 )
 async def update_section(
     gid: str,
@@ -162,6 +169,7 @@ async def update_section(
     summary="Delete a section",
     response_description="No content",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses=entity_responses(),
 )
 async def delete_section(
     gid: str,
@@ -200,6 +208,7 @@ async def delete_section(
     summary="Add a task to a section",
     response_description="No content",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={**entity_responses(), **mutation_responses()},
 )
 async def add_task_to_section(
     gid: str,
@@ -240,6 +249,7 @@ async def add_task_to_section(
     summary="Reorder a section within a project",
     response_description="No content",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses={**entity_responses(), **mutation_responses()},
 )
 async def reorder_section(
     gid: str,

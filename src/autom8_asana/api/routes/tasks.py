@@ -36,6 +36,11 @@ from autom8_asana.api.dependencies import (
     RequestId,
     TaskServiceDep,
 )
+from autom8_asana.api.error_responses import (
+    authenticated_responses,
+    entity_responses,
+    mutation_responses,
+)
 from autom8_asana.api.errors import raise_service_error
 from autom8_asana.api.models import (
     AddTagRequest,
@@ -68,6 +73,7 @@ MAX_LIMIT = 100
     summary="List tasks in a project or section",
     response_description="Paginated list of tasks",
     response_model=SuccessResponse[list[AsanaResource]],
+    responses=authenticated_responses(),
 )
 async def list_tasks(
     client: AsanaClientDualMode,
@@ -136,6 +142,7 @@ async def list_tasks(
     summary="Get a task by GID",
     response_description="Task details",
     response_model=SuccessResponse[AsanaResource],
+    responses=entity_responses(),
 )
 async def get_task(
     gid: str,
@@ -186,6 +193,7 @@ async def get_task(
     response_description="Created task details",
     response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
+    responses=mutation_responses(),
 )
 async def create_task(
     body: CreateTaskRequest,
@@ -235,6 +243,7 @@ async def create_task(
     summary="Update a task",
     response_description="Updated task details",
     response_model=SuccessResponse[AsanaResource],
+    responses={**entity_responses(), **mutation_responses()},
 )
 async def update_task(
     gid: str,
@@ -283,6 +292,7 @@ async def update_task(
     summary="Delete a task",
     response_description="No content",
     status_code=status.HTTP_204_NO_CONTENT,
+    responses=entity_responses(),
 )
 async def delete_task(
     gid: str,
@@ -320,6 +330,7 @@ async def delete_task(
     summary="List subtasks of a task",
     response_description="Paginated list of subtasks",
     response_model=SuccessResponse[list[AsanaResource]],
+    responses=entity_responses(),
 )
 async def list_subtasks(
     gid: str,
@@ -376,6 +387,7 @@ async def list_subtasks(
     summary="List tasks that depend on a task",
     response_description="Paginated list of dependent tasks",
     response_model=SuccessResponse[list[AsanaResource]],
+    responses=entity_responses(),
 )
 async def list_dependents(
     gid: str,
@@ -434,6 +446,7 @@ async def list_dependents(
     response_description="Newly duplicated task details",
     response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
+    responses={**entity_responses(), **mutation_responses()},
 )
 async def duplicate_task(
     gid: str,
@@ -476,6 +489,7 @@ async def duplicate_task(
     summary="Add a tag to a task",
     response_description="Updated task with new tag",
     response_model=SuccessResponse[AsanaResource],
+    responses={**entity_responses(), **mutation_responses()},
 )
 async def add_tag(
     gid: str,

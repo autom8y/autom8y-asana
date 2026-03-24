@@ -25,6 +25,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     AsanaClientDualMode,
     RequestId,
 )
+from autom8_asana.api.error_responses import authenticated_responses
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.models.business.activity import AccountActivity
@@ -77,6 +78,7 @@ class SectionTimelinesResponse(BaseModel):
     summary="Get section timelines for all offers",
     response_description="Section timeline entries for all offers in the period",
     response_model=SuccessResponse[SectionTimelinesResponse],
+    responses=authenticated_responses(),
 )
 async def get_offer_section_timelines(
     client: AsanaClientDualMode,
