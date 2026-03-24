@@ -128,6 +128,7 @@ class TestUniversalResolutionStrategy:
             criteria=[{"office_phone": "+11234567890", "vertical": "dental"}],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         assert len(results) == 1
@@ -154,6 +155,7 @@ class TestUniversalResolutionStrategy:
             ],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         assert len(results) == 3
@@ -188,6 +190,7 @@ class TestUniversalResolutionStrategy:
                 criteria=[{"contact_email": "a@test.com"}],
                 project_gid="test-project",
                 client=MagicMock(),
+                active_only=False,
             )
 
         assert len(results) == 1
@@ -214,6 +217,7 @@ class TestUniversalResolutionStrategy:
             criteria=[{"office_phone": "+10000000000", "vertical": "unknown"}],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         assert len(results) == 1
@@ -233,6 +237,7 @@ class TestUniversalResolutionStrategy:
             criteria=[],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         assert results == []
@@ -253,6 +258,7 @@ class TestUniversalResolutionStrategy:
             criteria=[{"phone": "+11234567890", "vertical": "dental"}],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         assert len(results) == 1
@@ -275,6 +281,7 @@ class TestUniversalResolutionStrategy:
             criteria=[{"office_phone": "+11234567890", "vertical": "dental"}],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         # Check index is cached
@@ -289,6 +296,7 @@ class TestUniversalResolutionStrategy:
             criteria=[{"office_phone": "+19876543210", "vertical": "medical"}],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         # Stats should show cache hit
@@ -370,6 +378,7 @@ class TestUniversalStrategyBackwardsCompatibility:
             criteria=[{"office_phone": "+11234567890", "vertical": "dental"}],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         assert len(results) == 1
@@ -393,6 +402,7 @@ class TestUniversalStrategyBackwardsCompatibility:
             criteria=[{"office_phone": "+11234567890", "vertical": "DENTAL"}],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         assert len(results) == 1
@@ -426,6 +436,7 @@ class TestCriterionValidationIntegration:
                 criteria=[{"invalid_field": "value"}],
                 project_gid="test-project",
                 client=MagicMock(),
+                active_only=False,
             )
 
         assert len(results) == 1
@@ -548,6 +559,7 @@ class TestResolutionResultIntegration:
             criteria=[{"office_phone": "+11234567890", "vertical": "dental"}],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         result_dict = results[0].to_dict()
@@ -574,6 +586,7 @@ class TestResolutionResultIntegration:
             criteria=[{"office_phone": "+10000000000", "vertical": "unknown"}],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         result_dict = results[0].to_dict()
@@ -603,6 +616,7 @@ class TestDynamicIndexBuilding:
             criteria=[{"office_phone": "+11234567890", "vertical": "dental"}],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         # Check index was built for those columns
@@ -638,6 +652,7 @@ class TestDynamicIndexBuilding:
                 criteria=[{"contact_email": "a@test.com"}],
                 project_gid="test-project",
                 client=MagicMock(),
+                active_only=False,
             )
 
             # Second call: contact_phone lookup
@@ -650,6 +665,7 @@ class TestDynamicIndexBuilding:
                 criteria=[{"contact_phone": "111-111-1111"}],
                 project_gid="test-project",
                 client=MagicMock(),
+                active_only=False,
             )
 
         # Both indexes should be cached with actual column names
@@ -859,6 +875,7 @@ class TestResolveWithFields:
             project_gid="test-project",
             client=MagicMock(),
             requested_fields=None,  # No fields
+            active_only=False,
         )
 
         assert len(results) == 1
@@ -881,6 +898,7 @@ class TestResolveWithFields:
             project_gid="test-project",
             client=MagicMock(),
             requested_fields=["name"],  # Request name field
+            active_only=False,
         )
 
         assert len(results) == 1
@@ -939,6 +957,7 @@ class TestResolveWithFields:
                 project_gid="test-project",
                 client=MagicMock(),
                 requested_fields=["name"],
+                active_only=False,
             )
 
         assert len(results) == 1
@@ -1038,6 +1057,7 @@ class TestBatchParallelization:
                     ],
                     project_gid="test-project",
                     client=MagicMock(),
+                    active_only=False,
                 )
 
         # Two distinct groups: (office_phone, vertical) and (offer_id,)
@@ -1115,6 +1135,7 @@ class TestBatchParallelization:
                 ],
                 project_gid="test-project",
                 client=MagicMock(),
+                active_only=False,
             )
 
         assert len(results) == 5
@@ -1200,6 +1221,7 @@ class TestBatchParallelization:
                     ],
                     project_gid="test-project",
                     client=MagicMock(),
+                    active_only=False,
                 )
 
         assert len(results) == 3
@@ -1278,6 +1300,7 @@ class TestBatchParallelization:
                     ],
                     project_gid="test-project",
                     client=MagicMock(),
+                    active_only=False,
                 )
 
         assert len(results) == 2
@@ -1307,6 +1330,7 @@ class TestBatchParallelization:
             criteria=[{"office_phone": "+11234567890", "vertical": "dental"}],
             project_gid="test-project",
             client=MagicMock(),
+            active_only=False,
         )
 
         assert len(results) == 1
@@ -1372,6 +1396,7 @@ class TestBatchParallelization:
                     ],
                     project_gid="test-project",
                     client=MagicMock(),
+                    active_only=False,
                 )
 
         # Only 1 index build call (single group)
@@ -1445,6 +1470,7 @@ class TestBatchParallelization:
                 ],
                 project_gid="test-project",
                 client=MagicMock(),
+                active_only=False,
             )
 
         assert len(results) == 4

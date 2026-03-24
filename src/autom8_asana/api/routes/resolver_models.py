@@ -101,16 +101,23 @@ class ResolutionRequest(BaseModel):
     """Request body for entity resolution.
 
     Per TDD: Batch resolution with max 1000 criteria.
+    Per TDD-STATUS-AWARE-RESOLUTION / FR-1, SD-1:
+    active_only defaults to True (intentional breaking change).
 
     Attributes:
         criteria: List of lookup criteria (max 1000 items)
         fields: Optional field filtering (Phase 2)
+        active_only: Per FR-1, SD-1. Filter to active statuses only.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     criteria: list[ResolutionCriterion]
     fields: list[str] | None = None
+
+    # Per TDD-STATUS-AWARE-RESOLUTION / FR-1, SD-1:
+    # Intentional breaking change. See ADR-status-aware-resolution Decision 1.
+    active_only: bool = True
 
     @field_validator("criteria")
     @classmethod
@@ -140,17 +147,22 @@ class ResolutionRequest(BaseModel):
 
 
 class ResolutionResultModel(BaseModel):
-    """Single resolution result.
+    """Single resolution result with status annotation.
 
     Per TDD: Result of a single criterion resolution.
     Per TDD-FIELDS-ENRICHMENT-001: Added data field for enriched field values.
+    Per TDD-STATUS-AWARE-RESOLUTION / FR-3:
+    Each match carries a status string from AccountActivity vocabulary.
 
     Attributes:
         gid: First matching GID or None if not found (backwards compat)
         gids: All matching GIDs (new multi-match support)
-        match_count: Number of matches
+        match_count: Number of matches (post-filter when active_only=True)
         error: Error code if resolution failed
         data: Field data for each match (only when fields requested)
+        status: Per FR-3. Parallel list, same length as gids.
+            None when no classifier available (FR-7).
+        total_match_count: Per FR-11. Pre-filter total for diagnostic visibility.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -160,6 +172,14 @@ class ResolutionResultModel(BaseModel):
     match_count: int = 0
     error: str | None = None
     data: list[dict[str, Any]] | None = None  # Field data per match
+
+    # Per TDD-STATUS-AWARE-RESOLUTION / FR-3:
+    # Parallel list, same length as gids. None when no classifier (FR-7).
+    status: list[str | None] | None = None
+
+    # Per TDD-STATUS-AWARE-RESOLUTION / FR-11:
+    # Pre-filter total for diagnostic visibility.
+    total_match_count: int | None = None
 
 
 class ResolutionMeta(BaseModel):

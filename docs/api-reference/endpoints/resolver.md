@@ -36,14 +36,16 @@ Resolve entity identifiers to Asana task GIDs in batch.
       "vertical": "medical"
     }
   ],
-  "fields": ["gid", "name", "mrr"]
+  "fields": ["gid", "name", "mrr"],
+  "active_only": true
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `criteria` | array | Yes | List of lookup criteria (max 1000 items) |
-| `fields` | array | No | Optional field filtering (returns enriched data) |
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `criteria` | array | Yes | - | List of lookup criteria (max 1000 items) |
+| `fields` | array | No | `null` | Optional field filtering (returns enriched data) |
+| `active_only` | boolean | No | `true` | Filter results to active/activating statuses only. **Breaking change**: defaults to `true`. Pass `false` to restore prior behavior (all matches returned). Ignored for entity types without a status classifier. |
 
 **Criterion Object:**
 
@@ -93,6 +95,8 @@ Phone numbers must conform to ITU-T E.164 format: `+[country][number]`
       "gid": "1234567890123456",
       "gids": ["1234567890123456"],
       "match_count": 1,
+      "total_match_count": null,
+      "status": ["active"],
       "error": null,
       "data": [
         {
@@ -106,6 +110,8 @@ Phone numbers must conform to ITU-T E.164 format: `+[country][number]`
       "gid": null,
       "gids": null,
       "match_count": 0,
+      "total_match_count": null,
+      "status": null,
       "error": "NOT_FOUND",
       "data": null
     }
@@ -134,7 +140,9 @@ Phone numbers must conform to ITU-T E.164 format: `+[country][number]`
 |-------|------|-------------|
 | `gid` | string \| null | First matching GID or null if not found (backwards compatible) |
 | `gids` | array \| null | All matching GIDs (supports multi-match scenarios) |
-| `match_count` | integer | Number of matches found |
+| `match_count` | integer | Number of matches found (post-filter when `active_only=true`) |
+| `total_match_count` | integer \| null | Pre-filter total match count. Present when `active_only=true` and filtering removed matches; `null` when `active_only=false` or no filtering occurred. |
+| `status` | array \| null | Activity status for each match, parallel to `gids`. Each entry is an `AccountActivity` value (`active`, `activating`, `inactive`, `ignored`) or `null` (unknown section). The entire field is `null` when no classifier exists for the entity type. |
 | `error` | string \| null | Error code if resolution failed (`NOT_FOUND`, `MULTIPLE_MATCHES`) |
 | `data` | array \| null | Field data for each match (only when `fields` requested) |
 
@@ -345,11 +353,94 @@ Example multi-match response:
   "gid": "1234567890123456",
   "gids": ["1234567890123456", "9876543210987654"],
   "match_count": 2,
+  "total_match_count": null,
+  "status": ["active", "activating"],
   "error": null,
   "data": [
     {"gid": "1234567890123456", "name": "Unit A"},
     {"gid": "9876543210987654", "name": "Unit B"}
   ]
+}
+```
+
+## Status Filtering
+
+The `active_only` parameter controls whether results are filtered by entity activity status.
+
+**`active_only=true` (default)**:
+- Only GIDs with `active` or `activating` status are returned
+- GIDs with `inactive`, `ignored`, or `null` (unknown) status are excluded
+- `match_count` reflects the post-filter count
+- `total_match_count` shows the pre-filter total when filtering removed matches
+
+**`active_only=false`**:
+- All matching GIDs are returned regardless of status
+- GIDs are ordered by priority: `active` > `activating` > `inactive` > `ignored` > unknown
+- `total_match_count` is `null` (no filtering occurred)
+
+**Entity types without a classifier** (e.g., `contact`, `business`):
+- `active_only` is ignored; all matches are returned
+- `status` is `null` in the response
+
+### AccountActivity Values
+
+The `status` array entries use the `AccountActivity` vocabulary:
+
+| Value | Description |
+|-------|-------------|
+| `"active"` | Actively running entities (e.g., Month 1, Consulting, Active, STAGED, ACTIVE sections) |
+| `"activating"` | Entities in onboarding or implementation (e.g., Onboarding, Implementing, ACTIVATING, LAUNCH ERROR sections) |
+| `"inactive"` | Paused or cancelled entities (e.g., Paused, Cancelled, INACTIVE, ACCOUNT ERROR sections) |
+| `"ignored"` | Template or system entities (e.g., Templates, Sales Process, Complete sections) |
+| `null` | Section not recognized by the classifier (unknown status) |
+
+### Example: Filtered Response with `active_only=true`
+
+When `active_only=true` filters out matches, `total_match_count` reveals the original count:
+
+```json
+{
+  "gid": "1234567890123456",
+  "gids": ["1234567890123456"],
+  "match_count": 1,
+  "total_match_count": 3,
+  "status": ["active"],
+  "error": null,
+  "data": null
+}
+```
+
+In this example, 3 entities matched the criteria but only 1 had an active status.
+
+### Example: Unfiltered Response with `active_only=false`
+
+```json
+{
+  "gid": "1234567890123456",
+  "gids": ["1234567890123456", "1111111111111111", "2222222222222222"],
+  "match_count": 3,
+  "total_match_count": null,
+  "status": ["active", "inactive", "ignored"],
+  "error": null,
+  "data": null
+}
+```
+
+GIDs are ordered by priority (`active` first), and all matches are included.
+
+### Example: Entity Type Without Classifier
+
+For entity types without a status classifier (e.g., `contact`), the `status` field is `null`:
+
+```json
+{
+  "gid": "3333333333333333",
+  "gids": ["3333333333333333"],
+  "match_count": 1,
+  "total_match_count": null,
+  "status": null,
+  "error": null,
+  "data": null
 }
 ```
 
@@ -417,3 +508,6 @@ Field filtering adds latency (additional Asana API call per result). Use only wh
 - Phone numbers are normalized to E.164 format before resolution
 - Field names in criteria are case-sensitive
 - The `gid` field in results maintains backwards compatibility with single-match behavior
+- **Breaking change**: `active_only` defaults to `true`. Callers who previously received all matches now receive only active/activating matches by default. Pass `active_only: false` to restore prior behavior.
+- The `status` list is always parallel to `gids` (same length, same order). When the entity type has no classifier, `status` is `null` rather than a list.
+- `ACTIVATING` status is distinct from `ACTIVE` in the `status` list; both pass the `active_only=true` filter

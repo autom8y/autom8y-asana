@@ -12,6 +12,7 @@ Entity resolution maps business identifiers (phone numbers, verticals, offer IDs
 - Schema-driven validation with helpful error messages
 - Multi-match detection with disambiguation support
 - Optional field enrichment for matched entities
+- Status-aware filtering with per-match activity annotations
 
 ## Quick Start
 
@@ -40,6 +41,8 @@ Response:
       "gid": "1234567890123456",
       "gids": ["1234567890123456"],
       "match_count": 1,
+      "total_match_count": null,
+      "status": ["active"],
       "error": null,
       "data": null
     }
@@ -111,6 +114,7 @@ The resolution API supports these entity types:
 **Request fields**:
 - `criteria` (required): Array of lookup criteria (max 1000 items)
 - `fields` (optional): Array of field names to include in response data
+- `active_only` (optional, default: `true`): When `true`, only entities with `active` or `activating` status are returned. Set to `false` to return all matches regardless of status. See [Status Filtering](#status-filtering) for details.
 
 **Response**:
 
@@ -121,6 +125,8 @@ The resolution API supports these entity types:
       "gid": "1234567890123456",
       "gids": ["1234567890123456"],
       "match_count": 1,
+      "total_match_count": null,
+      "status": ["active"],
       "error": null,
       "data": [
         {
@@ -134,6 +140,8 @@ The resolution API supports these entity types:
       "gid": null,
       "gids": null,
       "match_count": 0,
+      "total_match_count": null,
+      "status": null,
       "error": "NOT_FOUND",
       "data": null
     }
@@ -154,7 +162,9 @@ The resolution API supports these entity types:
 `results` array (one per criterion, in request order):
 - `gid`: First matching GID or null (backwards compatible)
 - `gids`: All matching GIDs (use this for multi-match handling)
-- `match_count`: Number of matches found
+- `match_count`: Number of matches found (post-filter when `active_only=true`)
+- `total_match_count`: Pre-filter total match count. Present when `active_only=true` and filtering removed matches; `null` otherwise.
+- `status`: List of activity status strings, parallel to `gids`. Each entry is one of `active`, `activating`, `inactive`, `ignored`, or `null` (unknown). The entire field is `null` when no classifier exists for the entity type.
 - `error`: Error code if resolution failed (NOT_FOUND, INVALID_CRITERIA, etc.)
 - `data`: Field values for each match (only when fields requested)
 
@@ -379,6 +389,8 @@ When multiple entities match the same criteria, the response includes all matche
   "gid": "1234567890123456",
   "gids": ["1234567890123456", "9876543210987654"],
   "match_count": 2,
+  "total_match_count": null,
+  "status": ["active", "activating"],
   "error": null
 }
 ```
@@ -480,6 +492,8 @@ curl -X POST https://api.autom8.app/v1/resolve/unit \
       "gid": "1234567890123456",
       "gids": ["1234567890123456"],
       "match_count": 1,
+      "total_match_count": null,
+      "status": ["active"],
       "error": null,
       "data": [
         {
@@ -505,7 +519,158 @@ curl -X POST https://api.autom8.app/v1/resolve/unit \
 
 **Available fields**: Check `meta.available_fields` in response or use schema discovery endpoint.
 
+## Status Filtering
+
+Resolution results include activity status annotations and support filtering by status. This lets callers work with only active entities by default while retaining access to the full match set when needed.
+
+### Breaking Change: `active_only` Defaults to `true`
+
+As of this release, `POST /v1/resolve/{entity_type}` defaults to `active_only: true`. This means **only entities with `active` or `activating` status are returned**. Entities classified as `inactive`, `ignored`, or with unknown status are excluded from results.
+
+Callers who previously received all matches will now receive a filtered subset. To restore the prior behavior, pass `active_only: false` explicitly:
+
+```bash
+curl -X POST https://api.autom8.app/v1/resolve/unit \
+  -H "Authorization: Bearer YOUR_SERVICE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "criteria": [
+      {"phone": "+15551234567", "vertical": "dental"}
+    ],
+    "active_only": false
+  }'
+```
+
+### AccountActivity Vocabulary
+
+Each matched GID carries a status annotation drawn from the `AccountActivity` vocabulary:
+
+| Value | Meaning | Example Sections |
+|-------|---------|-----------------|
+| `active` | Actively running entities | Month 1, Consulting, Active, STAGED, ACTIVE |
+| `activating` | Entities in onboarding or implementation | Onboarding, Implementing, ACTIVATING, LAUNCH ERROR |
+| `inactive` | Paused or cancelled entities | Paused, Cancelled, INACTIVE, ACCOUNT ERROR |
+| `ignored` | Template or system entities | Templates, Sales Process, Complete |
+
+A `null` status entry means the entity's section is not recognized by the classifier.
+
+### How Status Filtering Works
+
+**When `active_only=true` (default)**:
+- Only GIDs with `active` or `activating` status are returned
+- GIDs with `inactive`, `ignored`, or `null` (unknown) status are excluded
+- `match_count` reflects the post-filter count
+- `total_match_count` shows the pre-filter total when filtering removed matches
+
+**When `active_only=false`**:
+- All matching GIDs are returned regardless of status
+- GIDs are ordered by priority: `active` > `activating` > `inactive` > `ignored` > unknown
+- `total_match_count` is `null` (no filtering occurred)
+
+**Entity types without a classifier** (e.g., `contact`, `business`):
+- `active_only` is ignored — all matches are returned
+- `status` is `null` in the response (not a list, but the field itself)
+
+### Status Annotations in Responses
+
+The `status` field is a list parallel to `gids`. Each position corresponds to the GID at the same index:
+
+```json
+{
+  "gid": "1234567890123456",
+  "gids": ["1234567890123456", "9876543210987654"],
+  "match_count": 2,
+  "total_match_count": null,
+  "status": ["active", "activating"],
+  "error": null
+}
+```
+
+When `active_only=true` filters out matches, `total_match_count` reveals the original count:
+
+```json
+{
+  "gid": "1234567890123456",
+  "gids": ["1234567890123456"],
+  "match_count": 1,
+  "total_match_count": 3,
+  "status": ["active"],
+  "error": null
+}
+```
+
+In this example, 3 entities matched the criteria but only 1 had an active status. The other 2 (inactive, ignored, or unknown) were filtered out.
+
+### Python Example with Status Handling
+
+```python
+import httpx
+import asyncio
+
+async def resolve_active_units(phone: str, vertical: str) -> list[str]:
+    """Resolve only active unit GIDs by phone and vertical."""
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.autom8.app/v1/resolve/unit",
+            headers={"Authorization": f"Bearer {SERVICE_TOKEN}"},
+            json={
+                "criteria": [
+                    {"phone": phone, "vertical": vertical}
+                ]
+                # active_only defaults to true
+            }
+        )
+        response.raise_for_status()
+        result = response.json()["results"][0]
+
+        if result["error"]:
+            return []
+
+        # Check if filtering removed matches
+        if result["total_match_count"] and result["total_match_count"] > result["match_count"]:
+            print(
+                f"Filtered {result['total_match_count'] - result['match_count']} "
+                f"inactive matches"
+            )
+
+        return result["gids"]
+
+async def resolve_all_units_with_status(phone: str, vertical: str):
+    """Resolve all unit GIDs with their status annotations."""
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.autom8.app/v1/resolve/unit",
+            headers={"Authorization": f"Bearer {SERVICE_TOKEN}"},
+            json={
+                "criteria": [
+                    {"phone": phone, "vertical": vertical}
+                ],
+                "active_only": False
+            }
+        )
+        response.raise_for_status()
+        result = response.json()["results"][0]
+
+        if result["gids"] and result["status"]:
+            for gid, status in zip(result["gids"], result["status"]):
+                print(f"  {gid}: {status or 'unknown'}")
+```
+
 ## Troubleshooting
+
+### Results missing after upgrade (active_only filtering)
+
+**Symptoms**:
+- Fewer results than expected after upgrading to the latest API version
+- `match_count` is lower than before for the same criteria
+- `total_match_count` is present and higher than `match_count`
+
+**Root cause**: The `active_only` parameter now defaults to `true`. Entities with `inactive`, `ignored`, or unknown status are excluded from results by default.
+
+**Solution**:
+- Pass `active_only: false` in the request body to restore prior behavior and receive all matches
+- Check `total_match_count` to see how many matches existed before filtering
+- Review the `status` field to understand why specific entities were filtered
 
 ### Resolution returns NOT_FOUND but entity exists
 

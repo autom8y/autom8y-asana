@@ -1,7 +1,12 @@
-"""Resolution result supporting multi-match scenarios.
+"""Resolution result supporting multi-match scenarios with status classification.
 
 Per TDD-DYNAMIC-RESOLVER-001 / FR-004:
 Returns all matching GIDs while preserving backwards-compatible `gid` property.
+
+Per TDD-STATUS-AWARE-RESOLUTION / FR-3, FR-4, FR-8:
+Each matched GID carries an AccountActivity status annotation.
+GIDs are ordered by ACTIVITY_PRIORITY. The `gid` property returns
+the highest-priority match, not an arbitrary gids[0].
 """
 
 from __future__ import annotations
@@ -12,16 +17,23 @@ from typing import Any
 
 @dataclass(frozen=True)
 class ResolutionResult:
-    """Resolution result supporting multi-match scenarios.
+    """Resolution result supporting multi-match scenarios with status classification.
 
-    Per FR-004: Supports multiple GID matches while maintaining
-    backwards compatibility with single-GID responses.
+    Per TDD-STATUS-AWARE-RESOLUTION / FR-3, FR-4, FR-8:
+    Each matched GID carries an AccountActivity status annotation.
+    GIDs are ordered by ACTIVITY_PRIORITY. The `gid` property returns
+    the highest-priority match, not gids[0].
 
     Attributes:
-        gids: All matching GIDs (plural).
-        match_count: Explicit count of matches.
+        gids: All matching GIDs (plural), sorted by ACTIVITY_PRIORITY.
+        match_count: Explicit count of matches (post-filter).
         match_context: Optional additional fields per match.
         error: Error code if resolution failed.
+        status_annotations: Per FR-3. Parallel tuple, same length as gids.
+            None when no classifier available (FR-7 degradation).
+            Each entry is the AccountActivity.value string or None (UNKNOWN).
+        total_match_count: Per FR-11. Pre-filter total count for diagnostic
+            metadata. None when active_only=False or no classifier.
 
     Backwards Compatibility:
         The `gid` property returns the first match (or None),
@@ -32,8 +44,9 @@ class ResolutionResult:
         >>> result = ResolutionResult(
         ...     gids=["123", "456"],
         ...     match_count=2,
+        ...     status_annotations=("active", "activating"),
         ... )
-        >>> result.gid  # Backwards compatible
+        >>> result.gid  # Backwards compatible -- best match
         "123"
         >>> result.is_unique
         False
@@ -45,6 +58,14 @@ class ResolutionResult:
     match_count: int = 0
     match_context: tuple[dict[str, Any], ...] | None = None
     error: str | None = None
+
+    # Per TDD-STATUS-AWARE-RESOLUTION / FR-3:
+    # Parallel tuple, same length as gids. None when no classifier (FR-7).
+    status_annotations: tuple[str | None, ...] | None = None
+
+    # Per TDD-STATUS-AWARE-RESOLUTION / FR-11:
+    # Pre-filter total count for diagnostic metadata.
+    total_match_count: int | None = None
 
     def __post_init__(self) -> None:
         """Compute match_count from gids if not provided."""
@@ -115,6 +136,42 @@ class ResolutionResult:
         )
 
     @classmethod
+    def from_gids_with_status(
+        cls,
+        gids: list[str],
+        status_annotations: list[str | None] | None = None,
+        context: list[dict[str, Any]] | None = None,
+        total_match_count: int | None = None,
+    ) -> ResolutionResult:
+        """Factory from GIDs with status annotations.
+
+        Per TDD-STATUS-AWARE-RESOLUTION / FR-3:
+        Creates result with parallel status annotation tuple.
+        Caller is responsible for pre-sorting gids by ACTIVITY_PRIORITY.
+
+        Args:
+            gids: List of matching GID strings (pre-sorted).
+            status_annotations: Parallel list of status strings or None.
+            context: Optional context data per match.
+            total_match_count: Pre-filter total count (when active_only=True).
+
+        Returns:
+            Result with gids and status populated, or NOT_FOUND if empty.
+        """
+        if not gids:
+            return cls.not_found()
+
+        return cls(
+            gids=tuple(gids),
+            match_count=len(gids),
+            match_context=tuple(context) if context else None,
+            status_annotations=tuple(status_annotations)
+            if status_annotations
+            else None,
+            total_match_count=total_match_count,
+        )
+
+    @classmethod
     def error_result(cls, error: str) -> ResolutionResult:
         """Factory for error result.
 
@@ -128,6 +185,9 @@ class ResolutionResult:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to API response dict.
+
+        Per TDD-STATUS-AWARE-RESOLUTION / FR-3, FR-11:
+        Includes status_annotations and total_match_count when present.
 
         Returns:
             Dict suitable for JSON serialization.
@@ -143,5 +203,13 @@ class ResolutionResult:
 
         if self.match_context:
             result["context"] = list(self.match_context)
+
+        # Per TDD-STATUS-AWARE-RESOLUTION / FR-3:
+        if self.status_annotations is not None:
+            result["status_annotations"] = list(self.status_annotations)
+
+        # Per TDD-STATUS-AWARE-RESOLUTION / FR-11:
+        if self.total_match_count is not None:
+            result["total_match_count"] = self.total_match_count
 
         return result
