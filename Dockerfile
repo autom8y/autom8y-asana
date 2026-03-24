@@ -7,8 +7,8 @@
 # - Dual-mode entrypoint for ECS and Lambda deployment
 #
 # WP-LOCK: Uses uv.lock as single source of truth for dependency resolution.
-# No resolution happens at build time -- uv sync --frozen enforces lockfile
-# consistency and fails if uv.lock is stale.
+# No resolution happens at build time -- uv sync --no-sources ensures registry
+# resolution instead of monorepo path deps (DEF-009/SCAR-022).
 #
 # Build args:
 #   EXTRA_INDEX_URL: Optional URL for private package index (e.g., CodeArtifact)
@@ -46,10 +46,12 @@ COPY --link pyproject.toml uv.lock ./
 # Copy source code
 COPY --link src ./src
 
-# Install production dependencies with frozen lockfile
+# Install production dependencies
 # Includes api (FastAPI/uvicorn), auth (JWT), and lambda (awslambdaric) extras
+# --no-sources: resolve from registry, not monorepo path deps (DEF-009/SCAR-022)
+# --frozen omitted: mutually exclusive with --no-sources in uv >=0.15.4
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --extra api --extra auth --extra lambda
+    uv sync --no-sources --no-dev --extra api --extra auth --extra lambda
 
 # =============================================================================
 # Stage 2: Runtime
