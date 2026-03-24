@@ -136,7 +136,8 @@ def _format_dataframe_response(
 
 @router.get(
     "/project/{gid}",
-    summary="Get project tasks as dataframe",
+    summary="Get project tasks as a DataFrame",
+    response_description="DataFrame of project tasks in requested format",
     responses={
         200: {
             "description": "DataFrame data in requested format",
@@ -192,12 +193,42 @@ async def get_project_dataframe(
         Header(alias="Accept", description="Response format preference"),
     ] = MIME_JSON,
 ) -> Response:
-    """Get project tasks as a DataFrame.
+    """Fetch all tasks in a project as a structured DataFrame.
 
-    Per FR-API-DF-001, FR-API-DF-002, TDD-dynamic-schema-api:
-    - Fetches tasks from the specified project
-    - Returns DataFrame in JSON or Polars format based on Accept header
-    - Supports all registered schemas via dynamic validation
+    Extracts task fields according to the selected ``schema``, then returns
+    the result as either JSON records or Polars-serialized JSON depending
+    on the ``Accept`` header.
+
+    **Schemas** control which custom fields are extracted:
+
+    - ``base`` — GID, name, completed, created_at (default)
+    - ``unit`` / ``contact`` / ``business`` / ``offer`` — domain-specific
+      custom fields (office_phone, weekly_ad_spend, email, etc.)
+    - ``asset_edit`` / ``asset_edit_holder`` — asset editing metadata
+
+    **Response formats** (via ``Accept`` header):
+
+    - ``application/json`` (default) — JSON records array
+    - ``application/x-polars-json`` — Polars-serialized format for direct
+      DataFrame deserialization
+
+    Supports cursor-based pagination via ``offset`` and ``limit``.
+
+    Requires Bearer token authentication (JWT or PAT).
+
+    Args:
+        gid: Asana project GID.
+        schema: Field extraction schema (default ``base``).
+        limit: Items per page (1–100, default 100).
+        offset: Pagination cursor from previous response.
+        accept: Response format preference (``Accept`` header).
+
+    Returns:
+        DataFrame of project tasks in the requested format and schema.
+
+    Raises:
+        400: Invalid ``schema`` value. Response includes list of valid schemas.
+        404: Project not found or not accessible.
     """
     try:
         df_schema = dataframe_service.get_schema(schema)
@@ -224,7 +255,8 @@ async def get_project_dataframe(
 
 @router.get(
     "/section/{gid}",
-    summary="Get section tasks as dataframe",
+    summary="Get section tasks as a DataFrame",
+    response_description="DataFrame of section tasks in requested format",
     responses={
         200: {
             "description": "DataFrame data in requested format",
@@ -279,12 +311,39 @@ async def get_section_dataframe(
         Header(alias="Accept", description="Response format preference"),
     ] = MIME_JSON,
 ) -> Response:
-    """Get section tasks as a DataFrame.
+    """Fetch all tasks in a section as a structured DataFrame.
 
-    Per FR-API-DF-003, FR-API-DF-004, TDD-dynamic-schema-api:
-    - Fetches tasks from the specified section
-    - Returns DataFrame in JSON or Polars format based on Accept header
-    - Supports all registered schemas via dynamic validation
+    Identical to ``GET /api/v1/dataframes/project/{gid}`` but scoped to
+    a single section. Useful when you need task data from one lane of a
+    board without fetching the entire project.
+
+    **Schemas** control which custom fields are extracted:
+
+    - ``base`` — GID, name, completed, created_at (default)
+    - ``unit`` / ``contact`` / ``business`` / ``offer`` — domain-specific
+      custom fields
+    - ``asset_edit`` / ``asset_edit_holder`` — asset editing metadata
+
+    **Response formats** (via ``Accept`` header):
+
+    - ``application/json`` (default) — JSON records array
+    - ``application/x-polars-json`` — Polars-serialized format
+
+    Requires Bearer token authentication (JWT or PAT).
+
+    Args:
+        gid: Asana section GID.
+        schema: Field extraction schema (default ``base``).
+        limit: Items per page (1–100, default 100).
+        offset: Pagination cursor from previous response.
+        accept: Response format preference (``Accept`` header).
+
+    Returns:
+        DataFrame of section tasks in the requested format and schema.
+
+    Raises:
+        400: Invalid ``schema`` value. Response includes list of valid schemas.
+        404: Section not found or not accessible.
     """
     try:
         df_schema = dataframe_service.get_schema(schema)

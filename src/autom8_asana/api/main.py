@@ -108,18 +108,80 @@ _S2S_TAGS: frozenset[str] = frozenset(
 # Tags whose operations require no auth
 _NO_AUTH_TAGS: frozenset[str] = frozenset({"health"})
 
-# Tag descriptions for include_in_schema=True routers (Sprint 3 placeholder)
+# Tag descriptions for include_in_schema=True routers
 _TAG_DESCRIPTIONS: dict[str, str] = {
-    "health": "Liveness, readiness, and dependency health probes.",
-    "tasks": "Asana task CRUD and membership operations.",
-    "projects": "Asana project management.",
-    "sections": "Section management within projects.",
-    "users": "User information and workspace membership.",
-    "workspaces": "Workspace information and project listings.",
-    "dataframes": ("Tabular data access with schema-based transformation."),
-    "webhooks": "Inbound webhook event handling from Asana.",
-    "offers": "Offer activity timelines and section tracking.",
-    "workflows": "Workflow invocation against specific entities.",
+    "health": (
+        "Platform health probes. Three tiers: /health (liveness — always 200, "
+        "no I/O), /ready (readiness — 503 while cache warms), and /health/deps "
+        "(dependency probe — checks JWKS reachability and bot PAT configuration). "
+        "No authentication required."
+    ),
+    "tasks": (
+        "Full lifecycle management for Asana tasks. "
+        "Supports CRUD operations, subtask and dependent enumeration, "
+        "task duplication, tag management, section moves, assignee changes, "
+        "and multi-project membership. "
+        "Requires PAT Bearer authentication. "
+        "List endpoints use cursor-based pagination."
+    ),
+    "projects": (
+        "Manage Asana projects within a workspace. "
+        "Supports CRUD operations, section listing, and member management "
+        "(add/remove). "
+        "Requires PAT Bearer authentication. "
+        "List endpoints use cursor-based pagination."
+    ),
+    "sections": (
+        "Manage sections within Asana projects. "
+        "Sections organize tasks into swimlanes or workflow stages. "
+        "Supports CRUD operations, adding tasks to sections, and "
+        "reordering sections within a project. "
+        "Requires PAT Bearer authentication."
+    ),
+    "users": (
+        "Resolve and enumerate Asana users. "
+        "Supports fetching the current authenticated user, looking up a "
+        "user by GID, and listing all users in a workspace. "
+        "Requires PAT Bearer authentication."
+    ),
+    "workspaces": (
+        "Access Asana workspace information. "
+        "Supports listing all workspaces accessible to the authenticated "
+        "user and retrieving a single workspace by GID. "
+        "Workspace GIDs are required by project and user list endpoints. "
+        "Requires PAT Bearer authentication."
+    ),
+    "dataframes": (
+        "Fetch Asana task data as structured DataFrames for analytical use. "
+        "Schema-based extraction maps custom fields to typed columns "
+        "(base, unit, contact, business, offer, asset_edit, asset_edit_holder). "
+        "Supports JSON records (default) or Polars-serialized output via "
+        "Accept header content negotiation. "
+        "Requires PAT Bearer authentication."
+    ),
+    "webhooks": (
+        "Receive inbound task notifications from Asana Rules actions. "
+        "The /inbound endpoint accepts full task JSON payloads, verifies "
+        "a URL token (timing-safe), and enqueues background processing "
+        "for cache invalidation and dispatch. "
+        "Returns 200 immediately to prevent Asana retries. "
+        "Authentication via ?token= query parameter."
+    ),
+    "offers": (
+        "Offer activity timeline reporting for the Business Offers project. "
+        "Computes active_section_days and billable_section_days per offer "
+        "by replaying Asana section history over a date range. "
+        "Results are cached after first computation (warm path < 2s). "
+        "Requires PAT Bearer authentication."
+    ),
+    "workflows": (
+        "Invoke registered automation workflows against specific Asana entities. "
+        "Supports dry-run mode for impact preview, per-workflow parameter "
+        "overrides, and a 120-second execution timeout. "
+        "Rate limited to 10 requests per minute. "
+        "Every invocation is audit logged with caller context. "
+        "Requires PAT Bearer authentication."
+    ),
 }
 
 
