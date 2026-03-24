@@ -81,7 +81,9 @@ def _make_mock_strategy_resolve(
 ):
     """Create a mock resolve function using the universal strategy pattern."""
 
-    async def mock_resolve(self, criteria, project_gid, client, requested_fields=None, active_only=True):
+    async def mock_resolve(
+        self, criteria, project_gid, client, requested_fields=None, active_only=True
+    ):
         index = DynamicIndex.from_dataframe(mock_df, key_columns)
         results = []
         for criterion in criteria:

@@ -21,21 +21,15 @@ from autom8_asana.api.models import ErrorResponse
 STANDARD_ERROR_RESPONSES: dict[int, dict[str, Any]] = {
     401: {
         "model": ErrorResponse,
-        "description": (
-            "Authentication failed -- missing or invalid Bearer token"
-        ),
+        "description": ("Authentication failed -- missing or invalid Bearer token"),
     },
     403: {
         "model": ErrorResponse,
-        "description": (
-            "Forbidden -- valid token but insufficient permissions"
-        ),
+        "description": ("Forbidden -- valid token but insufficient permissions"),
     },
     404: {
         "model": ErrorResponse,
-        "description": (
-            "Resource not found or not accessible with the provided token"
-        ),
+        "description": ("Resource not found or not accessible with the provided token"),
     },
     422: {
         "description": "Validation error -- invalid request parameters",
@@ -43,8 +37,7 @@ STANDARD_ERROR_RESPONSES: dict[int, dict[str, Any]] = {
     429: {
         "model": ErrorResponse,
         "description": (
-            "Rate limited -- retry after the duration in the "
-            "Retry-After header"
+            "Rate limited -- retry after the duration in the Retry-After header"
         ),
     },
     500: {
@@ -60,10 +53,7 @@ def authenticated_responses() -> dict[int, dict[str, Any]]:
     Returns 401 and 403 entries. Use for list/aggregate endpoints
     that do not take a ``{gid}`` path parameter.
     """
-    return {
-        k: STANDARD_ERROR_RESPONSES[k]
-        for k in (401, 403)
-    }
+    return {k: STANDARD_ERROR_RESPONSES[k] for k in (401, 403)}
 
 
 def entity_responses() -> dict[int, dict[str, Any]]:
@@ -72,10 +62,7 @@ def entity_responses() -> dict[int, dict[str, Any]]:
     Returns 401, 403, and 404 entries. Use for any endpoint with a
     ``{gid}`` path parameter.
     """
-    return {
-        k: STANDARD_ERROR_RESPONSES[k]
-        for k in (401, 403, 404)
-    }
+    return {k: STANDARD_ERROR_RESPONSES[k] for k in (401, 403, 404)}
 
 
 def mutation_responses() -> dict[int, dict[str, Any]]:
@@ -85,10 +72,7 @@ def mutation_responses() -> dict[int, dict[str, Any]]:
     ``description`` only (no ``model``) to avoid conflicting with
     FastAPI's auto-generated ``HTTPValidationError``.
     """
-    return {
-        k: STANDARD_ERROR_RESPONSES[k]
-        for k in (401, 403, 422)
-    }
+    return {k: STANDARD_ERROR_RESPONSES[k] for k in (401, 403, 422)}
 
 
 def rate_limited_responses() -> dict[int, dict[str, Any]]:
@@ -97,10 +81,7 @@ def rate_limited_responses() -> dict[int, dict[str, Any]]:
     Returns 401, 403, and 429 entries. Use for endpoints that proxy
     to the Asana API with rate-limit exposure.
     """
-    return {
-        k: STANDARD_ERROR_RESPONSES[k]
-        for k in (401, 403, 429)
-    }
+    return {k: STANDARD_ERROR_RESPONSES[k] for k in (401, 403, 429)}
 
 
 __all__ = [
