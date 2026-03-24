@@ -65,7 +65,8 @@ MAX_LIMIT = 100
 
 @router.get(
     "",
-    summary="List tasks by project or section",
+    summary="List tasks in a project or section",
+    response_description="Paginated list of tasks",
     response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_tasks(
@@ -89,16 +90,25 @@ async def list_tasks(
         Query(description="Pagination cursor from previous response"),
     ] = None,
 ) -> SuccessResponse[list[AsanaResource]]:
-    """List tasks by project or section with pagination.
+    """List tasks from a project or section with cursor-based pagination.
+
+    Exactly one of ``project`` or ``section`` must be provided. Supplying
+    both or neither returns ``400 INVALID_PARAMETER``.
+
+    Use ``offset`` from the previous response's ``meta.pagination.next_offset``
+    to retrieve the next page. When ``has_more`` is false, you have reached
+    the last page.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         project: Project GID to list tasks from.
         section: Section GID to list tasks from.
-        limit: Number of items per page (1-100, default 100).
+        limit: Items per page (1–100, default 100).
         offset: Pagination cursor from previous response.
 
     Returns:
-        List of tasks with pagination metadata.
+        Paginated list of tasks with ``gid``, ``name``, and task fields.
 
     Raises:
         400: Neither project nor section provided, or both provided.
@@ -123,7 +133,8 @@ async def list_tasks(
 
 @router.get(
     "/{gid}",
-    summary="Get task by GID",
+    summary="Get a task by GID",
+    response_description="Task details",
     response_model=SuccessResponse[AsanaResource],
 )
 async def get_task(
@@ -139,14 +150,23 @@ async def get_task(
         ),
     ] = None,
 ) -> SuccessResponse[AsanaResource]:
-    """Get a task by its GID.
+    """Get a single task by its Asana GID.
+
+    Use ``opt_fields`` to limit the response to specific fields and reduce
+    payload size. When omitted, Asana returns its default field set.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
-        gid: Asana task GID.
-        opt_fields: Comma-separated list of fields to include in response.
+        gid: Asana task GID (numeric string, e.g. ``"1234567890123456"``).
+        opt_fields: Comma-separated Asana field names
+            (e.g. ``"name,notes,due_on,assignee"``).
 
     Returns:
-        Task data with requested fields.
+        Task resource with the requested fields populated.
+
+    Raises:
+        404: Task not found or not accessible with the provided token.
     """
     fields_list: list[str] | None = None
     if opt_fields:
@@ -162,7 +182,8 @@ async def get_task(
 # T1: POST /tasks - Create task
 @router.post(
     "",
-    summary="Create a new task",
+    summary="Create a task",
+    response_description="Created task details",
     response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
 )
@@ -172,16 +193,23 @@ async def create_task(
     request_id: RequestId,
     task_service: TaskServiceDep,
 ) -> SuccessResponse[AsanaResource]:
-    """Create a new task.
+    """Create a new task in Asana.
+
+    At least one of ``projects`` or ``workspace`` must be provided. When
+    ``projects`` is supplied, the task is added to each listed project.
+    When only ``workspace`` is supplied, the task is created in that
+    workspace without a project assignment.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
-        body: Task creation parameters.
+        body: Task creation parameters (name, projects, workspace, etc.).
 
     Returns:
-        Created task data.
+        The newly created task resource (HTTP 201).
 
     Raises:
-        400: Neither projects nor workspace provided.
+        400: Neither ``projects`` nor ``workspace`` was provided.
     """
     try:
         task = await task_service.create_task(
@@ -205,6 +233,7 @@ async def create_task(
 @router.put(
     "/{gid}",
     summary="Update a task",
+    response_description="Updated task details",
     response_model=SuccessResponse[AsanaResource],
 )
 async def update_task(
@@ -214,16 +243,22 @@ async def update_task(
     request_id: RequestId,
     task_service: TaskServiceDep,
 ) -> SuccessResponse[AsanaResource]:
-    """Update an existing task.
+    """Update fields on an existing task.
 
-    Only provided fields are updated; omitted fields retain their values.
+    This is a partial update: only fields included in the request body
+    are modified. Omitted fields retain their current values in Asana.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Asana task GID.
-        body: Fields to update.
+        body: Fields to update (``name``, ``notes``, ``completed``, ``due_on``).
 
     Returns:
-        Updated task data.
+        The updated task resource.
+
+    Raises:
+        404: Task not found or not accessible with the provided token.
     """
     try:
         task = await task_service.update_task(
@@ -246,6 +281,7 @@ async def update_task(
 @router.delete(
     "/{gid}",
     summary="Delete a task",
+    response_description="No content",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_task(
@@ -254,13 +290,21 @@ async def delete_task(
     request_id: RequestId,
     task_service: TaskServiceDep,
 ) -> None:
-    """Delete a task.
+    """Permanently delete a task from Asana.
+
+    This action is irreversible. The task and all its subtasks are removed
+    from Asana. Consider completing or archiving instead.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Asana task GID.
 
     Returns:
-        No content on success.
+        204 No Content on success.
+
+    Raises:
+        404: Task not found or not accessible with the provided token.
     """
     try:
         await task_service.delete_task(client, gid)
@@ -274,6 +318,7 @@ async def delete_task(
 @router.get(
     "/{gid}/subtasks",
     summary="List subtasks of a task",
+    response_description="Paginated list of subtasks",
     response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_subtasks(
@@ -290,15 +335,23 @@ async def list_subtasks(
         Query(description="Pagination cursor from previous response"),
     ] = None,
 ) -> SuccessResponse[list[AsanaResource]]:
-    """List subtasks of a task with pagination.
+    """List direct subtasks of a task with cursor-based pagination.
+
+    Returns the immediate child tasks of the specified parent. Only
+    direct children are included; grandchildren require separate calls.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Parent task GID.
-        limit: Number of items per page (1-100, default 100).
+        limit: Items per page (1–100, default 100).
         offset: Pagination cursor from previous response.
 
     Returns:
-        List of subtasks with pagination metadata.
+        Paginated list of subtask resources.
+
+    Raises:
+        404: Parent task not found or not accessible.
     """
     try:
         result = await task_service.list_subtasks(
@@ -320,7 +373,8 @@ async def list_subtasks(
 
 @router.get(
     "/{gid}/dependents",
-    summary="List dependent tasks",
+    summary="List tasks that depend on a task",
+    response_description="Paginated list of dependent tasks",
     response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_dependents(
@@ -337,15 +391,23 @@ async def list_dependents(
         Query(description="Pagination cursor from previous response"),
     ] = None,
 ) -> SuccessResponse[list[AsanaResource]]:
-    """List tasks that depend on this task with pagination.
+    """List tasks that depend on (are blocked by) this task.
+
+    Returns tasks that have marked this task as a prerequisite. These are
+    the tasks that cannot start until this one is completed.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Task GID to get dependents for.
-        limit: Number of items per page (1-100, default 100).
+        limit: Items per page (1–100, default 100).
         offset: Pagination cursor from previous response.
 
     Returns:
-        List of dependent tasks with pagination metadata.
+        Paginated list of dependent task resources.
+
+    Raises:
+        404: Task not found or not accessible.
     """
     try:
         result = await task_service.list_dependents(
@@ -369,6 +431,7 @@ async def list_dependents(
 @router.post(
     "/{gid}/duplicate",
     summary="Duplicate a task",
+    response_description="Newly duplicated task details",
     response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
 )
@@ -379,14 +442,23 @@ async def duplicate_task(
     request_id: RequestId,
     task_service: TaskServiceDep,
 ) -> SuccessResponse[AsanaResource]:
-    """Duplicate a task.
+    """Duplicate a task with a new name.
+
+    Creates a copy of the task in the same project and section. The
+    duplicate inherits the source task's description, assignee, and due
+    date but gets the name provided in the request body.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
-        gid: GID of task to duplicate.
-        body: Name for the duplicated task.
+        gid: GID of the source task to duplicate.
+        body: ``name`` for the new duplicate task.
 
     Returns:
-        New duplicated task data.
+        The newly created duplicate task resource (HTTP 201).
+
+    Raises:
+        404: Source task not found or not accessible.
     """
     try:
         task = await task_service.duplicate_task(client, gid, body.name)
@@ -401,7 +473,8 @@ async def duplicate_task(
 # T5: POST /tasks/{gid}/tags - Add tag
 @router.post(
     "/{gid}/tags",
-    summary="Add tag to task",
+    summary="Add a tag to a task",
+    response_description="Updated task with new tag",
     response_model=SuccessResponse[AsanaResource],
 )
 async def add_tag(
@@ -411,14 +484,22 @@ async def add_tag(
     request_id: RequestId,
     task_service: TaskServiceDep,
 ) -> SuccessResponse[AsanaResource]:
-    """Add a tag to a task.
+    """Add an existing Asana tag to a task.
+
+    The tag must already exist in Asana. To create a tag, use the Asana
+    API directly. Adding a tag that is already on the task is a no-op.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Task GID.
-        body: Tag GID to add.
+        body: ``tag_gid`` — GID of the tag to apply.
 
     Returns:
-        Updated task data.
+        The updated task resource with the tag applied.
+
+    Raises:
+        404: Task or tag not found, or not accessible.
     """
     try:
         task_data = await task_service.add_tag(client, gid, body.tag_gid)
@@ -430,7 +511,8 @@ async def add_tag(
 # T6: DELETE /tasks/{gid}/tags/{tag_gid} - Remove tag
 @router.delete(
     "/{gid}/tags/{tag_gid}",
-    summary="Remove tag from task",
+    summary="Remove a tag from a task",
+    response_description="Updated task with tag removed",
     response_model=SuccessResponse[AsanaResource],
 )
 async def remove_tag(
@@ -442,12 +524,20 @@ async def remove_tag(
 ) -> SuccessResponse[AsanaResource]:
     """Remove a tag from a task.
 
+    Removing a tag that is not on the task is a no-op. The tag itself is
+    not deleted from Asana — only the association with this task is removed.
+
+    Requires Bearer token authentication (JWT or PAT).
+
     Args:
         gid: Task GID.
-        tag_gid: Tag GID to remove.
+        tag_gid: GID of the tag to remove.
 
     Returns:
-        Updated task data.
+        The updated task resource with the tag removed.
+
+    Raises:
+        404: Task not found or not accessible.
     """
     try:
         task_data = await task_service.remove_tag(client, gid, tag_gid)
@@ -462,7 +552,8 @@ async def remove_tag(
 # T7: POST /tasks/{gid}/section - Move to section
 @router.post(
     "/{gid}/section",
-    summary="Move task to section",
+    summary="Move a task to a section",
+    response_description="Updated task with new section",
     response_model=SuccessResponse[AsanaResource],
 )
 async def move_to_section(
@@ -472,14 +563,23 @@ async def move_to_section(
     request_id: RequestId,
     task_service: TaskServiceDep,
 ) -> SuccessResponse[AsanaResource]:
-    """Move a task to a section within a project.
+    """Move a task to a different section within a project.
+
+    The task must already be a member of the specified project. Both
+    ``section_gid`` and ``project_gid`` are required to unambiguously
+    identify the destination (a task can belong to multiple projects).
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Task GID.
-        body: Target section and project GIDs.
+        body: ``section_gid`` and ``project_gid`` for the destination.
 
     Returns:
-        Updated task data.
+        The updated task resource with the new section membership.
+
+    Raises:
+        404: Task, section, or project not found or not accessible.
     """
     try:
         task_data = await task_service.move_to_section(
@@ -493,7 +593,8 @@ async def move_to_section(
 # T8: PUT /tasks/{gid}/assignee - Set assignee
 @router.put(
     "/{gid}/assignee",
-    summary="Set task assignee",
+    summary="Set or clear a task assignee",
+    response_description="Updated task with new assignee",
     response_model=SuccessResponse[AsanaResource],
 )
 async def set_assignee(
@@ -503,14 +604,22 @@ async def set_assignee(
     request_id: RequestId,
     task_service: TaskServiceDep,
 ) -> SuccessResponse[AsanaResource]:
-    """Set or clear the task assignee.
+    """Set or clear the assignee of a task.
+
+    Pass a valid user GID in ``assignee_gid`` to assign the task. Pass
+    ``null`` to remove the current assignee and leave the task unassigned.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Task GID.
-        body: Assignee user GID (null to unassign).
+        body: ``assignee_gid`` — user GID to assign, or ``null`` to unassign.
 
     Returns:
-        Updated task data.
+        The updated task resource with the new assignee.
+
+    Raises:
+        404: Task or user not found, or not accessible.
     """
     try:
         task = await task_service.set_assignee(client, gid, body.assignee_gid)
@@ -522,7 +631,8 @@ async def set_assignee(
 # T9: POST /tasks/{gid}/projects - Add to project
 @router.post(
     "/{gid}/projects",
-    summary="Add task to project",
+    summary="Add a task to a project",
+    response_description="Updated task with new project membership",
     response_model=SuccessResponse[AsanaResource],
 )
 async def add_to_project(
@@ -532,14 +642,22 @@ async def add_to_project(
     request_id: RequestId,
     task_service: TaskServiceDep,
 ) -> SuccessResponse[AsanaResource]:
-    """Add a task to a project.
+    """Add a task to an additional project.
+
+    A task can belong to multiple projects. This endpoint adds the task to
+    the specified project without removing it from existing projects.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Task GID.
-        body: Project GID to add task to.
+        body: ``project_gid`` — project to add the task to.
 
     Returns:
-        Updated task data.
+        The updated task resource with the new project membership.
+
+    Raises:
+        404: Task or project not found, or not accessible.
     """
     try:
         task_data = await task_service.add_to_project(client, gid, body.project_gid)
@@ -551,7 +669,8 @@ async def add_to_project(
 # T10: DELETE /tasks/{gid}/projects/{project_gid} - Remove from project
 @router.delete(
     "/{gid}/projects/{project_gid}",
-    summary="Remove task from project",
+    summary="Remove a task from a project",
+    response_description="Updated task with project membership removed",
     response_model=SuccessResponse[AsanaResource],
 )
 async def remove_from_project(
@@ -561,14 +680,23 @@ async def remove_from_project(
     request_id: RequestId,
     task_service: TaskServiceDep,
 ) -> SuccessResponse[AsanaResource]:
-    """Remove a task from a project.
+    """Remove a task from a project without deleting the task.
+
+    If the task belongs to multiple projects, it is removed only from the
+    specified project. The task itself is not deleted and remains accessible
+    from other projects it belongs to.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Task GID.
-        project_gid: Project GID to remove task from.
+        project_gid: GID of the project to remove the task from.
 
     Returns:
-        Updated task data.
+        The updated task resource with the project membership removed.
+
+    Raises:
+        404: Task or project not found, or not accessible.
     """
     try:
         task_data = await task_service.remove_from_project(client, gid, project_gid)

@@ -297,30 +297,49 @@ async def _process_inbound_task(task: Task, cache_provider: Any) -> None:
 # ---------------------------------------------------------------------------
 
 
-@router.post("/inbound")
+@router.post(
+    "/inbound",
+    summary="Receive an inbound webhook event from Asana",
+    response_description="Accepted status for valid payloads",
+)
 async def receive_inbound_webhook(
     request: Request,
     background_tasks: BackgroundTasks,
     _token: str = Depends(verify_webhook_token),
 ) -> JSONResponse:
-    """Receive Asana Rules action POST with full task JSON.
+    """Receive an Asana Rules action POST containing a full task JSON payload.
 
-    Per PRD-GAP-02 / FR-01, FR-04, FR-05:
-    1. Verify URL token (via Depends)
-    2. Parse request body as Task
-    3. Enqueue background processing
-    4. Return 200 immediately
+    This endpoint is designed to be registered as an Asana Rules action
+    target. Asana POSTs the full task JSON when a rule fires. The endpoint
+    accepts the payload, enqueues background processing, and returns 200
+    immediately so Asana does not retry.
+
+    **Authentication**: URL token via ``?token=<secret>`` query parameter.
+    The token is verified with a timing-safe comparison against
+    ``ASANA_WEBHOOK_INBOUND_TOKEN``. Requests without a valid token receive
+    401.
+
+    **Background processing** (after response is sent):
+    1. Cache invalidation — evicts stale TASK/SUBTASKS/DETECTION entries
+       if the inbound ``modified_at`` is newer than the cached version.
+    2. Dispatch — routes the parsed task to the registered handler
+       (no-op in V1; GAP-03 provides a real implementation).
+
+    Per PRD-GAP-02:
+    - Empty bodies are accepted (200) and silently ignored.
+    - Payloads without a ``gid`` field return 400.
+    - Dispatch errors do not affect the HTTP response.
 
     Args:
         request: FastAPI request for raw body access.
         background_tasks: FastAPI BackgroundTasks for async processing.
-        _token: Verified token (unused, presence confirms auth).
+        _token: Verified URL token (presence confirms authentication).
 
     Returns:
-        200 with {"status": "accepted"} for valid payloads.
-        400 for unparseable or invalid payloads.
-        401 for auth failures (handled by Depends).
-        503 if webhook not configured (handled by Depends).
+        - 200: ``{"status": "accepted"}`` — payload received and enqueued.
+        - 400: Malformed JSON or missing ``gid`` field.
+        - 401: Missing or invalid URL token.
+        - 503: Webhook endpoint not configured (token env var absent).
     """
     # Parse body
     try:

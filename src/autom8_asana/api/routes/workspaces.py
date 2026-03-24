@@ -34,7 +34,8 @@ MAX_LIMIT = 100
 
 @router.get(
     "",
-    summary="List all workspaces",
+    summary="List accessible workspaces",
+    response_description="Paginated list of workspaces",
     response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_workspaces(
@@ -49,16 +50,21 @@ async def list_workspaces(
         Query(description="Pagination cursor from previous response"),
     ] = None,
 ) -> SuccessResponse[list[AsanaResource]]:
-    """List all workspaces accessible to the authenticated user.
+    """List all Asana workspaces accessible to the authenticated user.
 
-    Returns a paginated list of workspaces the user has access to.
+    Returns workspaces the token owner can access. In most configurations
+    this is a single organization workspace. Use the returned GIDs with
+    ``GET /api/v1/projects``, ``GET /api/v1/users``, and task creation.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
-        limit: Number of items per page (1-100, default 100).
+        limit: Items per page (1–100, default 100).
         offset: Pagination cursor from previous response.
 
     Returns:
-        List of workspaces with pagination metadata.
+        Paginated list of workspace resources with ``gid``, ``name``,
+        ``is_organization``, and ``email_domains``.
     """
     # Build params for SDK call
     params: dict[str, Any] = {"limit": min(limit, MAX_LIMIT)}
@@ -87,7 +93,8 @@ async def list_workspaces(
 
 @router.get(
     "/{gid}",
-    summary="Get workspace by GID",
+    summary="Get a workspace by GID",
+    response_description="Workspace details",
     response_model=SuccessResponse[AsanaResource],
 )
 async def get_workspace(
@@ -95,13 +102,19 @@ async def get_workspace(
     client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[AsanaResource]:
-    """Get a workspace by its GID.
+    """Get a single workspace by its Asana GID.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Asana workspace GID.
 
     Returns:
-        Workspace data with gid, name, is_organization, and email_domains.
+        Workspace resource with ``gid``, ``name``, ``is_organization``,
+        and ``email_domains``.
+
+    Raises:
+        404: Workspace not found or not accessible with the provided token.
     """
     workspace = await client.workspaces.get_async(gid, raw=True)
     return build_success_response(data=workspace, request_id=request_id)

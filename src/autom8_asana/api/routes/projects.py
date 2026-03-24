@@ -47,7 +47,8 @@ MAX_LIMIT = 100
 
 @router.get(
     "",
-    summary="List projects by workspace",
+    summary="List projects in a workspace",
+    response_description="Paginated list of projects",
     response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_projects(
@@ -66,19 +67,21 @@ async def list_projects(
         Query(description="Pagination cursor from previous response"),
     ] = None,
 ) -> SuccessResponse[list[AsanaResource]]:
-    """List projects by workspace with pagination.
+    """List all projects in a workspace with cursor-based pagination.
 
-    Per FR-API-PROJ-005: List projects by workspace.
+    The ``workspace`` query parameter is required. Use ``offset`` from the
+    previous response's ``meta.pagination.next_offset`` to page through
+    large result sets.
 
-    Returns a paginated list of projects from the specified workspace.
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         workspace: Workspace GID to list projects from (required).
-        limit: Number of items per page (1-100, default 100).
+        limit: Items per page (1–100, default 100).
         offset: Pagination cursor from previous response.
 
     Returns:
-        List of projects with pagination metadata.
+        Paginated list of project resources.
     """
     params: dict[str, Any] = {
         "workspace": workspace,
@@ -104,7 +107,8 @@ async def list_projects(
 
 @router.get(
     "/{gid}",
-    summary="Get project by GID",
+    summary="Get a project by GID",
+    response_description="Project details",
     response_model=SuccessResponse[AsanaResource],
 )
 async def get_project(
@@ -119,16 +123,23 @@ async def get_project(
         ),
     ] = None,
 ) -> SuccessResponse[AsanaResource]:
-    """Get a project by its GID.
+    """Get a single project by its Asana GID.
 
-    Per FR-API-PROJ-001: Get project by GID.
+    Use ``opt_fields`` to limit the response to specific fields
+    (e.g. ``"name,notes,owner,team"``). When omitted, Asana returns its
+    default field set.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Asana project GID.
-        opt_fields: Comma-separated list of fields to include in response.
+        opt_fields: Comma-separated Asana field names to include.
 
     Returns:
-        Project data with requested fields.
+        Project resource with the requested fields populated.
+
+    Raises:
+        404: Project not found or not accessible.
     """
     fields_list: list[str] | None = None
     if opt_fields:
@@ -140,7 +151,8 @@ async def get_project(
 
 @router.post(
     "",
-    summary="Create a new project",
+    summary="Create a project",
+    response_description="Created project details",
     response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
 )
@@ -149,15 +161,18 @@ async def create_project(
     client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[AsanaResource]:
-    """Create a new project.
+    """Create a new project in a workspace.
 
-    Per FR-API-PROJ-002: Create project with name, workspace, and optional team.
+    Both ``name`` and ``workspace`` are required. Supply ``team`` to create
+    the project under a specific Asana team within the workspace.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
-        body: Project creation parameters.
+        body: Project creation parameters (``name``, ``workspace``, ``team``).
 
     Returns:
-        Created project data.
+        The newly created project resource (HTTP 201).
     """
     kwargs: dict[str, Any] = {}
     if body.team:
@@ -175,6 +190,7 @@ async def create_project(
 @router.put(
     "/{gid}",
     summary="Update a project",
+    response_description="Updated project details",
     response_model=SuccessResponse[AsanaResource],
 )
 async def update_project(
@@ -183,18 +199,24 @@ async def update_project(
     client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[AsanaResource]:
-    """Update an existing project.
+    """Update fields on an existing project.
 
-    Per FR-API-PROJ-003: Update project fields.
+    This is a partial update: only fields included in the request body are
+    modified. Omitted fields retain their current values. At least one of
+    ``name``, ``notes``, or ``archived`` must be provided.
 
-    Only provided fields are updated; omitted fields retain their values.
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Asana project GID.
-        body: Fields to update.
+        body: Fields to update (``name``, ``notes``, ``archived``).
 
     Returns:
-        Updated project data.
+        The updated project resource.
+
+    Raises:
+        400: No fields provided in the request body.
+        404: Project not found or not accessible.
     """
     kwargs: dict[str, Any] = {}
     if body.name is not None:
@@ -219,21 +241,29 @@ async def update_project(
 @router.delete(
     "/{gid}",
     summary="Delete a project",
+    response_description="No content",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_project(
     gid: str,
     client: AsanaClientDualMode,
 ) -> None:
-    """Delete a project.
+    """Permanently delete a project from Asana.
 
-    Per FR-API-PROJ-004: Delete project by GID.
+    This action is irreversible. All tasks, sections, and memberships
+    within the project are removed. Consider archiving (``PUT /projects/{gid}``
+    with ``archived: true``) if you want to preserve the data.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Asana project GID.
 
     Returns:
-        No content on success.
+        204 No Content on success.
+
+    Raises:
+        404: Project not found or not accessible.
     """
     await client.projects.delete_async(gid)  # type: ignore[attr-defined]
 
@@ -243,7 +273,8 @@ async def delete_project(
 
 @router.get(
     "/{gid}/sections",
-    summary="List sections in project",
+    summary="List sections in a project",
+    response_description="Paginated list of sections",
     response_model=SuccessResponse[list[AsanaResource]],
 )
 async def list_sections(
@@ -259,17 +290,23 @@ async def list_sections(
         Query(description="Pagination cursor from previous response"),
     ] = None,
 ) -> SuccessResponse[list[AsanaResource]]:
-    """List sections in a project with pagination.
+    """List sections within a project with cursor-based pagination.
 
-    Per FR-API-PROJ-006: List sections in project.
+    Sections are returned in display order. Use the ``sections`` endpoints
+    to create, rename, reorder, or delete individual sections.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Project GID.
-        limit: Number of items per page (1-100, default 100).
+        limit: Items per page (1–100, default 100).
         offset: Pagination cursor from previous response.
 
     Returns:
-        List of sections with pagination metadata.
+        Paginated list of section resources in display order.
+
+    Raises:
+        404: Project not found or not accessible.
     """
     params: dict[str, Any] = {"limit": min(limit, MAX_LIMIT)}
     if offset:
@@ -298,7 +335,8 @@ async def list_sections(
 
 @router.post(
     "/{gid}/members",
-    summary="Add members to project",
+    summary="Add members to a project",
+    response_description="Updated project with new members",
     response_model=SuccessResponse[AsanaResource],
 )
 async def add_members(
@@ -307,16 +345,23 @@ async def add_members(
     client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[AsanaResource]:
-    """Add members to a project.
+    """Add one or more users as members of a project.
 
-    Per FR-API-PROJ-007: Add members to project.
+    Provide a list of user GIDs in ``members``. Users already on the project
+    are not duplicated. Members gain visibility and task assignment access
+    within the project.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Project GID.
-        body: List of user GIDs to add.
+        body: ``members`` — list of user GIDs to add.
 
     Returns:
-        Updated project data.
+        The updated project resource with the new member list.
+
+    Raises:
+        404: Project or one or more users not found or not accessible.
     """
     project = await client.projects.add_members_async(
         gid, members=body.members, raw=True
@@ -326,7 +371,8 @@ async def add_members(
 
 @router.delete(
     "/{gid}/members",
-    summary="Remove members from project",
+    summary="Remove members from a project",
+    response_description="Updated project with members removed",
     response_model=SuccessResponse[AsanaResource],
 )
 async def remove_members(
@@ -335,16 +381,22 @@ async def remove_members(
     client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[AsanaResource]:
-    """Remove members from a project.
+    """Remove one or more members from a project.
 
-    Per FR-API-PROJ-008: Remove members from project.
+    Removing a user who is not a member is a no-op. The removed users
+    lose access to the project but their tasks within it are not deleted.
+
+    Requires Bearer token authentication (JWT or PAT).
 
     Args:
         gid: Project GID.
-        body: List of user GIDs to remove.
+        body: ``members`` — list of user GIDs to remove.
 
     Returns:
-        Updated project data.
+        The updated project resource with the members removed.
+
+    Raises:
+        404: Project not found or not accessible.
     """
     project = await client.projects.remove_members_async(
         gid, members=body.members, raw=True

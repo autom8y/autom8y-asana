@@ -76,17 +76,25 @@ def is_cache_ready() -> bool:
     return _cache_ready
 
 
-@router.get("/health")
+@router.get(
+    "/health",
+    summary="Check application liveness",
+    response_description="Application liveness status",
+)
 async def health_check() -> JSONResponse:
-    """Liveness probe -- pure liveness, no I/O, always 200.
+    """Liveness probe — pure liveness, no I/O, always 200.
 
-    This endpoint is used by ALB/ECS health checks to determine if the
-    application process is running and can accept connections. It never
-    performs dependency checks and always returns 200.
+    Returns 200 immediately if the application process is running and can
+    accept connections. This endpoint never checks dependencies and never
+    returns a non-200 status.
+
+    Use this endpoint for ALB/ECS liveness checks. Use ``/ready`` to gate
+    traffic on cache warmth and ``/health/deps`` to probe upstream services.
+
+    Does NOT require authentication.
 
     Returns:
-        JSON response with standard health contract envelope.
-        - 200: Application is running (always)
+        - 200: ``{"status": "healthy", "version": "0.1.0"}``
     """
     from autom8_asana.api.health_models import liveness_response
 
@@ -97,21 +105,27 @@ async def health_check() -> JSONResponse:
     )
 
 
-@router.get("/ready")
+@router.get(
+    "/ready",
+    summary="Check service readiness",
+    response_description="Service readiness status with cache state",
+)
 async def readiness_check() -> JSONResponse:
-    """Readiness probe -- checks cache warmth.
+    """Readiness probe — returns 200 when cache is warm, 503 while loading.
+
+    Use this endpoint to gate traffic: route requests here only after
+    receiving 200. The ALB should use ``/health`` for liveness; this
+    endpoint is for readiness-aware load balancers and deployment pipelines.
 
     Per sprint-materialization-002 FR-004:
     - Returns 503 (unavailable) during cache preload.
     - Returns 200 (ok) after cache is ready.
 
-    Use this endpoint for traffic gating decisions that require warm cache.
-    The ALB should use /health for liveness, not this endpoint.
+    Does NOT require authentication.
 
     Returns:
-        JSON response with standard health contract envelope.
-        - 200: Cache is ready, service can handle traffic optimally.
-        - 503: Cache is warming, service cannot serve traffic reliably.
+        - 200: Cache ready — service can handle all requests.
+        - 503: Cache warming — service is starting up.
     """
     from autom8_asana.api.health_models import (
         CheckResult,
@@ -142,21 +156,30 @@ async def readiness_check() -> JSONResponse:
     )
 
 
-@router.get("/health/deps")
+@router.get(
+    "/health/deps",
+    summary="Check dependency health",
+    response_description="Dependency health status with per-check results",
+)
 async def deps_check() -> JSONResponse:
-    """Dependency probe -- checks JWKS and PAT configuration.
+    """Dependency probe — checks JWKS reachability and bot PAT configuration.
+
+    Runs two checks and reports each result independently:
+
+    - ``jwks``: HTTP GET to the JWKS endpoint. Reports latency and whether
+      the response contains a valid ``keys`` array.
+    - ``bot_pat``: Presence check for the ``ASANA_PAT`` environment variable.
+      Never logs or returns the token value.
 
     Per PRD-S2S-001 NFR-OPS-002:
-    - Returns S2S connectivity status.
-    - Checks JWKS endpoint reachability.
-    - Checks bot PAT configuration.
+    - Degraded checks reduce the aggregate status but do not block the response.
+    - A single UNAVAILABLE check returns 503.
 
     Does NOT require authentication.
 
     Returns:
-        JSON response with standard health contract envelope.
-        - 200: All dependencies healthy (or degraded but non-critical).
-        - 503: Critical dependency unavailable.
+        - 200: All checks healthy or degraded (non-critical).
+        - 503: At least one critical dependency unavailable.
     """
     from autom8_asana.api.health_models import (
         CheckResult,
