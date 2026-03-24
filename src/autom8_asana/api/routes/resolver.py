@@ -321,6 +321,8 @@ async def resolve_entities(
             )
 
     # Resolve using strategy
+    # Per TDD-STATUS-AWARE-RESOLUTION / FR-1:
+    # Pass active_only from request to strategy
     try:
         async with AsanaClient(token=auth_context.asana_pat) as client:
             resolution_results = await strategy.resolve(
@@ -328,6 +330,7 @@ async def resolve_entities(
                 project_gid=project_gid,
                 client=client,
                 requested_fields=request_body.fields,
+                active_only=request_body.active_only,
             )
 
     except Exception as e:  # BROAD-CATCH: boundary
@@ -347,6 +350,8 @@ async def resolve_entities(
         )
 
     # Convert ResolutionResult to ResolutionResultModel
+    # Per TDD-STATUS-AWARE-RESOLUTION / FR-3, FR-11:
+    # Map status_annotations and total_match_count to response model
     results = [
         ResolutionResultModel(
             gid=r.gid,  # Backwards compat: first match
@@ -354,6 +359,8 @@ async def resolve_entities(
             match_count=r.match_count,
             error=r.error,
             data=list(r.match_context) if r.match_context else None,
+            status=list(r.status_annotations) if r.status_annotations else None,
+            total_match_count=r.total_match_count,
         )
         for r in resolution_results
     ]

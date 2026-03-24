@@ -19,6 +19,11 @@ from autom8y_log import get_logger
 
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.core.string_utils import to_pascal_case
+from autom8_asana.models.business.activity import (
+    ACTIVITY_PRIORITY,
+    AccountActivity,
+    get_classifier,
+)
 from autom8_asana.services.dynamic_index import DynamicIndex, DynamicIndexCache
 from autom8_asana.services.resolution_result import ResolutionResult
 from autom8_asana.settings import get_settings
@@ -56,6 +61,20 @@ _LOOKUP_ERRORS: tuple[type[Exception], ...] = (
     TypeError,
     RuntimeError,
 ) + CACHE_TRANSIENT_ERRORS
+
+# Per TDD-STATUS-AWARE-RESOLUTION / FR-1:
+# Statuses included in active_only=True results.
+_ACTIVE_STATUSES: frozenset[str] = frozenset(
+    {AccountActivity.ACTIVE.value, AccountActivity.ACTIVATING.value}
+)
+
+# Per TDD-STATUS-AWARE-RESOLUTION / FR-8:
+# Priority ordering for sort. Lower index = higher priority.
+# None (UNKNOWN) sorts after all known statuses.
+_PRIORITY_MAP: dict[str | None, int] = {
+    activity.value: idx for idx, activity in enumerate(ACTIVITY_PRIORITY)
+}
+_UNKNOWN_PRIORITY: int = len(ACTIVITY_PRIORITY)
 
 
 # FACADE: Delegates to EntityRegistry. Preserves existing import path.
@@ -121,6 +140,7 @@ class UniversalResolutionStrategy:
         project_gid: str,
         client: AsanaClient,
         requested_fields: list[str] | None = None,
+        active_only: bool = True,
     ) -> list[ResolutionResult]:
         """Resolve criteria to entity GIDs with optional field enrichment.
 
@@ -128,6 +148,8 @@ class UniversalResolutionStrategy:
         Per TDD-FIELDS-ENRICHMENT-001: When requested_fields is provided,
         returns field values from the DataFrame for each matched GID via match_context.
         Per TDD-B03: Group-and-gather parallel execution for batch resolution.
+        Per TDD-STATUS-AWARE-RESOLUTION / FR-1: When active_only=True (default),
+        results are filtered to ACTIVE + ACTIVATING statuses only.
 
         Resolution flow (3-phase):
         1. Validate + Group: Validate criteria, group by key_columns
@@ -140,6 +162,7 @@ class UniversalResolutionStrategy:
             project_gid: Target project GID.
             client: AsanaClient for DataFrame building.
             requested_fields: Optional list of field names to return.
+            active_only: Per FR-1, SD-1. Filter to active statuses only.
 
         Returns:
             List of ResolutionResult in same order as input.
@@ -189,6 +212,7 @@ class UniversalResolutionStrategy:
                     client=client,
                     requested_fields=requested_fields,
                     results=results,
+                    active_only=active_only,
                 )
                 for kc, entries in groups.items()
             ]
@@ -232,6 +256,7 @@ class UniversalResolutionStrategy:
         client: AsanaClient,
         requested_fields: list[str] | None,
         results: list[ResolutionResult | None],
+        active_only: bool = True,
     ) -> None:
         """Resolve all criteria in a single key_columns group.
 
@@ -240,6 +265,8 @@ class UniversalResolutionStrategy:
 
         Per TDD-B03: Each group builds its index once, then processes all
         criteria sharing those key_columns sequentially (lookups are O(1)).
+        Per TDD-STATUS-AWARE-RESOLUTION: After lookup, classifies GIDs by
+        status, filters by active_only, and sorts by ACTIVITY_PRIORITY.
 
         Args:
             key_columns: Column names for the index.
@@ -248,6 +275,7 @@ class UniversalResolutionStrategy:
             client: AsanaClient for DataFrame building.
             requested_fields: Optional list of field names to return.
             results: Shared results list for direct slot writes.
+            active_only: Per FR-1, SD-1. Filter to active statuses only.
         """
         # Build index once for the group
         try:
@@ -280,27 +308,70 @@ class UniversalResolutionStrategy:
                 )
             return
 
+        # Per TDD-STATUS-AWARE-RESOLUTION / FR-2, FR-7:
+        # Obtain classifier once per group for efficiency.
+        classifier = get_classifier(self.entity_type)
+
+        # Get DataFrame for classification and enrichment
+        df = (
+            self._cached_dataframe
+            if self._cached_dataframe is not None
+            else await self._get_dataframe(project_gid, client)
+        )
+
         # Process each criterion in the group (sync, O(1) each)
         for original_idx, normalized in entries:
             try:
                 gids = index.lookup(normalized)
 
-                # Enrich if fields requested and GIDs found
-                context: list[dict[str, Any]] | None = None
-                if requested_fields and gids:
-                    df = (
-                        self._cached_dataframe
-                        if self._cached_dataframe is not None
-                        else await self._get_dataframe(project_gid, client)
+                # Per TDD-STATUS-AWARE-RESOLUTION / FR-2:
+                # Classification step -- only when classifier exists and GIDs found
+                if gids and classifier is not None and df is not None:
+                    classified = self._classify_gids(df, gids, self.entity_type)
+                    total_count = len(classified)
+
+                    # Per TDD-STATUS-AWARE-RESOLUTION / FR-1:
+                    # Filter to active statuses when active_only=True
+                    if active_only:
+                        classified = [
+                            (g, s) for g, s in classified if s in _ACTIVE_STATUSES
+                        ]
+
+                    # Per TDD-STATUS-AWARE-RESOLUTION / FR-8:
+                    # Sort by ACTIVITY_PRIORITY (stable sort)
+                    classified.sort(
+                        key=lambda pair: _PRIORITY_MAP.get(pair[1], _UNKNOWN_PRIORITY)
                     )
-                    if df is not None:
+
+                    sorted_gids = [g for g, _s in classified]
+                    annotations = [s for _g, s in classified]
+
+                    # Enrich if fields requested (existing, unchanged)
+                    context: list[dict[str, Any]] | None = None
+                    if requested_fields and sorted_gids:
+                        context = self._enrich_from_dataframe(
+                            df, sorted_gids, requested_fields
+                        )
+
+                    # Per TDD-STATUS-AWARE-RESOLUTION / FR-9, EC-1:
+                    # Empty after filtering -> NOT_FOUND
+                    results[original_idx] = ResolutionResult.from_gids_with_status(
+                        sorted_gids,
+                        status_annotations=annotations,
+                        context=context,
+                        total_match_count=(total_count if active_only else None),
+                    )
+                else:
+                    # Per TDD-STATUS-AWARE-RESOLUTION / FR-7:
+                    # No classifier or no gids: existing behavior, no status
+                    context = None
+                    if requested_fields and gids and df is not None:
                         context = self._enrich_from_dataframe(
                             df, gids, requested_fields
                         )
-
-                results[original_idx] = ResolutionResult.from_gids(
-                    gids, context=context
-                )
+                    results[original_idx] = ResolutionResult.from_gids(
+                        gids, context=context
+                    )
 
             except _LOOKUP_ERRORS as e:  # NARROWED: per-criterion isolation
                 logger.warning(
@@ -312,6 +383,89 @@ class UniversalResolutionStrategy:
                     },
                 )
                 results[original_idx] = ResolutionResult.error_result("LOOKUP_ERROR")
+
+    def _classify_gids(
+        self,
+        df: pl.DataFrame,
+        gids: list[str],
+        entity_type: str,
+    ) -> list[tuple[str, str | None]]:
+        """Classify matched GIDs by AccountActivity status.
+
+        Per TDD-STATUS-AWARE-RESOLUTION / FR-2, FR-5, FR-6:
+        Uses SectionClassifier for O(1) per-GID classification.
+        is_completed=True overrides section classification (SD-6).
+        Null section maps to None (UNKNOWN) per SCAR-005/006.
+
+        Args:
+            df: Entity DataFrame with 'gid', 'section', 'is_completed' columns.
+            gids: List of matched GID strings.
+            entity_type: Entity type for classifier lookup.
+
+        Returns:
+            List of (gid, status_string_or_None) tuples.
+            status_string is AccountActivity.value ("active", "activating", etc.)
+            or None for UNKNOWN (null section, unrecognized section).
+        """
+        classifier = get_classifier(entity_type)
+
+        # Per TDD-STATUS-AWARE-RESOLUTION / FR-7:
+        # No classifier -> return all as UNKNOWN (None)
+        if classifier is None:
+            return [(gid, None) for gid in gids]
+
+        # Filter DataFrame to matching GIDs (one-time Polars op per group)
+        gid_set = set(gids)
+        available_columns = set(df.columns)
+
+        # Determine which columns we can access
+        has_section = "section" in available_columns
+        has_completed = "is_completed" in available_columns
+
+        # Build gid -> (section, is_completed) lookup dict from filtered rows
+        gid_data: dict[str, tuple[str | None, bool]] = {}
+        if has_section or has_completed:
+            select_cols = ["gid"]
+            if has_section:
+                select_cols.append("section")
+            if has_completed:
+                select_cols.append("is_completed")
+
+            filtered = df.filter(df["gid"].is_in(gid_set)).select(select_cols)
+            for row in filtered.iter_rows(named=True):
+                section = row.get("section") if has_section else None
+                completed = row.get("is_completed", False) if has_completed else False
+                gid_data[row["gid"]] = (section, bool(completed))
+
+        # Classify each GID
+        result: list[tuple[str, str | None]] = []
+        for gid in gids:
+            if gid not in gid_data:
+                # Per SCAR-005/006: GID not in DataFrame -> UNKNOWN
+                result.append((gid, None))
+                continue
+
+            section, is_completed = gid_data[gid]
+
+            # Per SD-6: is_completed=True is terminal override -> INACTIVE
+            if is_completed:
+                result.append((gid, AccountActivity.INACTIVE.value))
+                continue
+
+            # Per SD-5, SCAR-005/006: null section -> UNKNOWN
+            if section is None:
+                result.append((gid, None))
+                continue
+
+            # Per FR-2: classify via SectionClassifier (O(1) dict lookup)
+            activity = classifier.classify(section)
+            if activity is None:
+                # Per EC-9: unrecognized section name -> UNKNOWN
+                result.append((gid, None))
+            else:
+                result.append((gid, activity.value))
+
+        return result
 
     def validate_criterion(self, criterion: dict[str, Any]) -> list[str]:
         """Validate criterion fields against entity schema.
