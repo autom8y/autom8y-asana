@@ -15,6 +15,11 @@ Per ADR-ASANA-007:
 - SDK client lifecycle is per-request (via dependencies)
 - No persistent client state in app.state
 
+Per TDD-SPRINT1-CUSTOM-OPENAPI:
+- custom_openapi() post-processes the OpenAPI spec to inject dual-mode
+  security schemes, per-operation security annotations, authorization
+  parameter stripping, and tag descriptions.
+
 Design Principles:
 - Thin API layer that delegates to SDK
 - Request tracing via X-Request-ID header
@@ -22,9 +27,12 @@ Design Principles:
 - Structured JSON logging
 """
 
+from typing import Any
+
 from autom8y_log import get_logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -59,6 +67,60 @@ from .routes import (
 )
 
 logger = get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# OpenAPI security classification sets (ADR-SPRINT1-001: tag-based)
+#
+# When adding a new router, add its tag to the appropriate set below.
+# If a tag is not in any set, its operations receive no security annotation
+# in the spec (safe default: appears unauthenticated in documentation).
+# ---------------------------------------------------------------------------
+
+# Tags whose operations require PAT Bearer auth
+_PAT_TAGS: frozenset[str] = frozenset(
+    {
+        "tasks",
+        "projects",
+        "sections",
+        "users",
+        "workspaces",
+        "dataframes",
+        "webhooks",
+        "offers",
+        "workflows",
+    }
+)
+
+# Tags whose operations require S2S JWT auth
+_S2S_TAGS: frozenset[str] = frozenset(
+    {
+        "resolver",
+        "query",
+        "admin",
+        "internal",
+        "entity-write",
+        "intake-resolve",
+        "intake-custom-fields",
+        "intake-create",
+    }
+)
+
+# Tags whose operations require no auth
+_NO_AUTH_TAGS: frozenset[str] = frozenset({"health"})
+
+# Tag descriptions for include_in_schema=True routers (Sprint 3 placeholder)
+_TAG_DESCRIPTIONS: dict[str, str] = {
+    "health": "Liveness, readiness, and dependency health probes.",
+    "tasks": "Asana task CRUD and membership operations.",
+    "projects": "Asana project management.",
+    "sections": "Section management within projects.",
+    "users": "User information and workspace membership.",
+    "workspaces": "Workspace information and project listings.",
+    "dataframes": ("Tabular data access with schema-based transformation."),
+    "webhooks": "Inbound webhook event handling from Asana.",
+    "offers": "Offer activity timelines and section tracking.",
+    "workflows": "Workflow invocation against specific entities.",
+}
 
 
 def create_app() -> FastAPI:
@@ -195,6 +257,105 @@ def create_app() -> FastAPI:
 
     # --- Exception Handlers ---
     register_exception_handlers(app)
+
+    # --- Custom OpenAPI spec enrichment (TDD-SPRINT1-CUSTOM-OPENAPI) ---
+    def custom_openapi() -> dict[str, Any]:
+        """Post-process the auto-generated OpenAPI spec.
+
+        Enrichment steps:
+        1. Inject ``BearerAuth`` and ``ServiceJWT`` security schemes.
+        2. Annotate per-operation security based on tag classification.
+        3. Strip leaked ``authorization`` header parameters.
+        4. Seed tag descriptions for Sprint 3.
+
+        The function runs once per process lifetime; FastAPI caches the
+        result on ``app.openapi_schema``.
+        """
+        if app.openapi_schema:
+            return app.openapi_schema
+
+        spec = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+        )
+
+        # 1. Inject security schemes
+        components = spec.setdefault("components", {})
+        components["securitySchemes"] = {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "description": (
+                    "Asana Personal Access Token (PAT). The token"
+                    " is passed directly to the Asana API. Use for"
+                    " standard resource endpoints (/api/v1/*)."
+                ),
+            },
+            "ServiceJWT": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": (
+                    "Service-to-service JWT issued by the autom8y"
+                    " auth service. The service validates the JWT"
+                    " against its JWKS endpoint and uses a bot PAT"
+                    " for downstream Asana API calls. Use for"
+                    " internal service endpoints (/v1/*)."
+                ),
+            },
+        }
+
+        # 2-3. Per-operation security annotation + parameter stripping
+        for _path, path_item in spec.get("paths", {}).items():
+            for method in (
+                "get",
+                "post",
+                "put",
+                "patch",
+                "delete",
+                "options",
+                "head",
+                "trace",
+            ):
+                operation = path_item.get(method)
+                if operation is None:
+                    continue
+
+                tags = set(operation.get("tags", []))
+
+                # Apply security annotation (ADR-SPRINT1-001)
+                if tags & _NO_AUTH_TAGS:
+                    operation["security"] = []
+                elif tags & _S2S_TAGS:
+                    operation["security"] = [{"ServiceJWT": []}]
+                elif tags & _PAT_TAGS:
+                    operation["security"] = [{"BearerAuth": []}]
+                # else: unknown tag -- no security key (fail-open)
+
+                # Strip authorization header param (ADR-SPRINT1-002)
+                if "parameters" in operation:
+                    operation["parameters"] = [
+                        p
+                        for p in operation["parameters"]
+                        if not (
+                            p.get("name") == "authorization" and p.get("in") == "header"
+                        )
+                    ]
+                    if not operation["parameters"]:
+                        del operation["parameters"]
+
+        # 4. Seed tag descriptions
+        spec["tags"] = [
+            {"name": tag, "description": desc}
+            for tag, desc in _TAG_DESCRIPTIONS.items()
+        ]
+
+        app.openapi_schema = spec
+        return spec
+
+    app.openapi = custom_openapi  # type: ignore[method-assign]
 
     return app
 
