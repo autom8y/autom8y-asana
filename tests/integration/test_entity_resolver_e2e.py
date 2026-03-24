@@ -60,6 +60,7 @@ def _make_mock_strategy_resolve(
         client,
         *,
         requested_fields: list[str] | None = None,
+        active_only: bool = True,
     ):
         # Build index from mock DataFrame
         index = DynamicIndex.from_dataframe(mock_df, key_columns)
