@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: autom8y-asana API
+  title: autom8_asana API
   description: REST API for Asana integration via autom8_asana SDK
   version: 0.1.0
 paths:
@@ -8,101 +8,113 @@ paths:
     get:
       tags:
       - health
-      summary: Health Check
-      description: "Liveness probe - returns 200 if the application is running.\n\n\
-        Per FR-API-HEALTH-001:\n- Returns 200 with {\"status\": \"healthy\", \"version\"\
-        : \"0.1.0\"}\n\nPer FR-API-HEALTH-002:\n- This endpoint does NOT require authentication\n\
-        - No Authorization header needed\n\nThis endpoint is used by ALB/ECS health\
-        \ checks to determine if the\napplication process is running and can accept\
-        \ connections. It always\nreturns 200 to ensure containers are not killed\
-        \ during cache warming.\n\nFor cache readiness checks, use GET /health/ready\
-        \ instead.\n\nReturns:\n    JSON response with status and current version.\n\
-        \    - 200: Application is running (always)"
+      summary: Check application liveness
+      description: "Liveness probe — pure liveness, no I/O, always 200.\n\nReturns\
+        \ 200 immediately if the application process is running and can\naccept connections.\
+        \ This endpoint never checks dependencies and never\nreturns a non-200 status.\n\
+        \nUse this endpoint for ALB/ECS liveness checks. Use ``/ready`` to gate\n\
+        traffic on cache warmth and ``/health/deps`` to probe upstream services.\n\
+        \nDoes NOT require authentication.\n\nReturns:\n    - 200: ``{\"status\":\
+        \ \"healthy\", \"version\": \"0.1.0\"}``"
       operationId: health_check_health_get
       responses:
         '200':
-          description: Successful Response
+          description: Application liveness status
           content:
             application/json:
               schema: {}
-  /health/ready:
+      security: []
+  /ready:
     get:
       tags:
       - health
-      summary: Readiness Check
-      description: "Readiness probe - returns 200 only when cache is warm.\n\nPer\
-        \ sprint-materialization-002 FR-004:\n- Returns 503 with {\"status\": \"warming\"\
-        } during cache preload\n- Returns 200 with {\"status\": \"ready\"} after cache\
-        \ is ready\n\nUse this endpoint for traffic gating decisions that require\
-        \ warm cache.\nThe ALB should use /health for liveness, not this endpoint.\n\
-        \nReturns:\n    JSON response with status and current version.\n    - 200:\
-        \ Cache is ready, service can handle traffic optimally\n    - 503: Cache is\
-        \ warming, service may have degraded performance"
-      operationId: readiness_check_health_ready_get
+      summary: Check service readiness
+      description: "Readiness probe — returns 200 when cache is warm, 503 while loading.\n\
+        \nUse this endpoint to gate traffic: route requests here only after\nreceiving\
+        \ 200. The ALB should use ``/health`` for liveness; this\nendpoint is for\
+        \ readiness-aware load balancers and deployment pipelines.\n\nPer sprint-materialization-002\
+        \ FR-004:\n- Returns 503 (unavailable) during cache preload.\n- Returns 200\
+        \ (ok) after cache is ready.\n\nDoes NOT require authentication.\n\nReturns:\n\
+        \    - 200: Cache ready — service can handle all requests.\n    - 503: Cache\
+        \ warming — service is starting up."
+      operationId: readiness_check_ready_get
       responses:
         '200':
-          description: Successful Response
+          description: Service readiness status with cache state
           content:
             application/json:
               schema: {}
-  /health/s2s:
+      security: []
+  /health/deps:
     get:
       tags:
       - health
-      summary: S2S Health Check
-      description: "S2S readiness probe - checks JWT/S2S authentication dependencies.\n\
-        \nPer PRD-S2S-001 NFR-OPS-002:\n- Returns S2S connectivity status\n- Checks\
-        \ JWKS endpoint reachability\n- Checks bot PAT configuration\n\nThis endpoint\
-        \ verifies that the service can accept S2S (JWT) requests:\n1. JWKS endpoint\
-        \ is reachable for signature validation\n2. Bot PAT is configured for Asana\
-        \ API calls\n\nDoes NOT require authentication.\n\nReturns:\n    JSON response\
-        \ with S2S connectivity details.\n    - 200: All dependencies healthy\n  \
-        \  - 503: One or more dependencies unavailable"
-      operationId: s2s_health_check_health_s2s_get
+      summary: Check dependency health
+      description: "Dependency probe — checks JWKS reachability and bot PAT configuration.\n\
+        \nRuns two checks and reports each result independently:\n\n- ``jwks``: HTTP\
+        \ GET to the JWKS endpoint. Reports latency and whether\n  the response contains\
+        \ a valid ``keys`` array.\n- ``bot_pat``: Presence check for the ``ASANA_PAT``\
+        \ environment variable.\n  Never logs or returns the token value.\n\nPer PRD-S2S-001\
+        \ NFR-OPS-002:\n- Degraded checks reduce the aggregate status but do not block\
+        \ the response.\n- A single UNAVAILABLE check returns 503.\n\nDoes NOT require\
+        \ authentication.\n\nReturns:\n    - 200: All checks healthy or degraded (non-critical).\n\
+        \    - 503: At least one critical dependency unavailable."
+      operationId: deps_check_health_deps_get
       responses:
         '200':
-          description: Successful Response
+          description: Dependency health status with per-check results
           content:
             application/json:
               schema: {}
+      security: []
   /api/v1/users/me:
     get:
       tags:
       - users
-      summary: Get current authenticated user
-      description: "Get the current authenticated user.\n\nReturns the user associated\
-        \ with the provided PAT token.\n\nReturns:\n    User data with gid, name,\
-        \ email, and workspaces."
+      summary: Get the current authenticated user
+      description: "Get the user associated with the Bearer token in the request.\n\
+        \nUseful for resolving the token's owner GID before making workspace-\nor\
+        \ project-scoped calls. The returned GID can be passed to\n``GET /api/v1/users/{gid}``\
+        \ or used as an assignee value.\n\nRequires Bearer token authentication (JWT\
+        \ or PAT).\n\nReturns:\n    Current user resource with ``gid``, ``name``,\
+        \ ``email``,\n    and ``workspaces``."
       operationId: get_current_user_api_v1_users_me_get
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Current user profile
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/users/{gid}:
     get:
       tags:
       - users
-      summary: Get user by GID
-      description: "Get a user by their GID.\n\nArgs:\n    gid: Asana user GID.\n\n\
-        Returns:\n    User data with gid, name, email, and workspaces."
+      summary: Get a user by GID
+      description: "Get a specific Asana user by their GID.\n\nRequires Bearer token\
+        \ authentication (JWT or PAT).\n\nArgs:\n    gid: Asana user GID.\n\nReturns:\n\
+        \    User resource with ``gid``, ``name``, ``email``, and ``workspaces``.\n\
+        \nRaises:\n    404: User not found or not accessible with the provided token."
       operationId: get_user_api_v1_users__gid__get
       parameters:
       - name: gid
@@ -111,37 +123,52 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: User profile
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/users:
     get:
       tags:
       - users
-      summary: List users in workspace
-      description: "List users in a workspace with pagination.\n\nReturns a paginated\
-        \ list of users in the specified workspace.\n\nArgs:\n    workspace: Workspace\
-        \ GID (required).\n    limit: Number of items per page (1-100, default 100).\n\
-        \    offset: Pagination cursor from previous response.\n\nReturns:\n    List\
-        \ of users with pagination metadata."
+      summary: List users in a workspace
+      description: "List all users in a workspace with cursor-based pagination.\n\n\
+        The ``workspace`` query parameter is required. Returns all users\nwith access\
+        \ to the specified workspace — useful for populating\nassignee pickers or\
+        \ resolving names to GIDs.\n\nRequires Bearer token authentication (JWT or\
+        \ PAT).\n\nArgs:\n    workspace: Workspace GID (required).\n    limit: Items\
+        \ per page (1–100, default 100).\n    offset: Pagination cursor from previous\
+        \ response.\n\nReturns:\n    Paginated list of user resources with ``gid``,\
+        \ ``name``, and\n    ``email``."
       operationId: list_users_api_v1_users_get
       parameters:
       - name: workspace
@@ -173,37 +200,46 @@ paths:
           description: Pagination cursor from previous response
           title: Offset
         description: Pagination cursor from previous response
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Paginated list of workspace users
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/workspaces:
     get:
       tags:
       - workspaces
-      summary: List all workspaces
-      description: "List all workspaces accessible to the authenticated user.\n\n\
-        Returns a paginated list of workspaces the user has access to.\n\nArgs:\n\
-        \    limit: Number of items per page (1-100, default 100).\n    offset: Pagination\
-        \ cursor from previous response.\n\nReturns:\n    List of workspaces with\
-        \ pagination metadata."
+      summary: List accessible workspaces
+      description: "List all Asana workspaces accessible to the authenticated user.\n\
+        \nReturns workspaces the token owner can access. In most configurations\n\
+        this is a single organization workspace. Use the returned GIDs with\n``GET\
+        \ /api/v1/projects``, ``GET /api/v1/users``, and task creation.\n\nRequires\
+        \ Bearer token authentication (JWT or PAT).\n\nArgs:\n    limit: Items per\
+        \ page (1–100, default 100).\n    offset: Pagination cursor from previous\
+        \ response.\n\nReturns:\n    Paginated list of workspace resources with ``gid``,\
+        \ ``name``,\n    ``is_organization``, and ``email_domains``."
       operationId: list_workspaces_api_v1_workspaces_get
       parameters:
       - name: limit
@@ -227,35 +263,43 @@ paths:
           description: Pagination cursor from previous response
           title: Offset
         description: Pagination cursor from previous response
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Paginated list of workspaces
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/workspaces/{gid}:
     get:
       tags:
       - workspaces
-      summary: Get workspace by GID
-      description: "Get a workspace by its GID.\n\nArgs:\n    gid: Asana workspace\
-        \ GID.\n\nReturns:\n    Workspace data with gid, name, is_organization, and\
-        \ email_domains."
+      summary: Get a workspace by GID
+      description: "Get a single workspace by its Asana GID.\n\nRequires Bearer token\
+        \ authentication (JWT or PAT).\n\nArgs:\n    gid: Asana workspace GID.\n\n\
+        Returns:\n    Workspace resource with ``gid``, ``name``, ``is_organization``,\n\
+        \    and ``email_domains``.\n\nRaises:\n    404: Workspace not found or not\
+        \ accessible with the provided token."
       operationId: get_workspace_api_v1_workspaces__gid__get
       parameters:
       - name: gid
@@ -264,43 +308,62 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Workspace details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/dataframes/project/{gid}:
     get:
       tags:
       - dataframes
-      summary: Get project tasks as dataframe
-      description: "Get project tasks as a DataFrame.\n\nPer FR-API-DF-001, FR-API-DF-002,\
-        \ TDD-dynamic-schema-api:\n- Fetches tasks from the specified project\n- Returns\
-        \ DataFrame in JSON or Polars format based on Accept header\n- Supports all\
-        \ registered schemas via dynamic validation\n\nArgs:\n    gid: Asana project\
-        \ GID.\n    schema: Schema for extraction (base, unit, contact, business,\n\
-        \        offer, asset_edit, asset_edit_holder). Case-insensitive.\n    limit:\
-        \ Number of items per page (1-100, default 100).\n    offset: Pagination cursor\
-        \ from previous response.\n    accept: Accept header for content negotiation.\n\
-        \nReturns:\n    DataFrame data in requested format with pagination metadata.\n\
-        \nRaises:\n    HTTPException: 400 if schema is invalid (includes valid_schemas\
-        \ list)."
+      summary: Get project tasks as a DataFrame
+      description: "Fetch all tasks in a project as a structured DataFrame.\n\nExtracts\
+        \ task fields according to the selected ``schema``, then returns\nthe result\
+        \ as either JSON records or Polars-serialized JSON depending\non the ``Accept``\
+        \ header.\n\n**Schemas** control which custom fields are extracted:\n\n- ``base``\
+        \ — GID, name, completed, created_at (default)\n- ``unit`` / ``contact`` /\
+        \ ``business`` / ``offer`` — domain-specific\n  custom fields (office_phone,\
+        \ weekly_ad_spend, email, etc.)\n- ``asset_edit`` / ``asset_edit_holder``\
+        \ — asset editing metadata\n\n**Response formats** (via ``Accept`` header):\n\
+        \n- ``application/json`` (default) — JSON records array\n- ``application/x-polars-json``\
+        \ — Polars-serialized format for direct\n  DataFrame deserialization\n\nSupports\
+        \ cursor-based pagination via ``offset`` and ``limit``.\n\nRequires Bearer\
+        \ token authentication (JWT or PAT).\n\nArgs:\n    gid: Asana project GID.\n\
+        \    schema: Field extraction schema (default ``base``).\n    limit: Items\
+        \ per page (1–100, default 100).\n    offset: Pagination cursor from previous\
+        \ response.\n    accept: Response format preference (``Accept`` header).\n\
+        \nReturns:\n    DataFrame of project tasks in the requested format and schema.\n\
+        \nRaises:\n    400: Invalid ``schema`` value. Response includes list of valid\
+        \ schemas.\n    404: Project not found or not accessible."
       operationId: get_project_dataframe_api_v1_dataframes_project__gid__get
       parameters:
       - name: gid
@@ -352,14 +415,6 @@ paths:
           default: application/json
           title: Accept
         description: Response format preference
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: DataFrame data in requested format
@@ -388,22 +443,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/dataframes/section/{gid}:
     get:
       tags:
       - dataframes
-      summary: Get section tasks as dataframe
-      description: "Get section tasks as a DataFrame.\n\nPer FR-API-DF-003, FR-API-DF-004,\
-        \ TDD-dynamic-schema-api:\n- Fetches tasks from the specified section\n- Returns\
-        \ DataFrame in JSON or Polars format based on Accept header\n- Supports all\
-        \ registered schemas via dynamic validation\n\nArgs:\n    gid: Asana section\
-        \ GID.\n    schema: Schema for extraction (base, unit, contact, business,\n\
-        \        offer, asset_edit, asset_edit_holder). Case-insensitive.\n    limit:\
-        \ Number of items per page (1-100, default 100).\n    offset: Pagination cursor\
-        \ from previous response.\n    accept: Accept header for content negotiation.\n\
-        \nReturns:\n    DataFrame data in requested format with pagination metadata.\n\
-        \nRaises:\n    HTTPException: 400 if schema is invalid (includes valid_schemas\
-        \ list).\n    HTTPException: 404 if section not found or has no parent project."
+      summary: Get section tasks as a DataFrame
+      description: "Fetch all tasks in a section as a structured DataFrame.\n\nIdentical\
+        \ to ``GET /api/v1/dataframes/project/{gid}`` but scoped to\na single section.\
+        \ Useful when you need task data from one lane of a\nboard without fetching\
+        \ the entire project.\n\n**Schemas** control which custom fields are extracted:\n\
+        \n- ``base`` — GID, name, completed, created_at (default)\n- ``unit`` / ``contact``\
+        \ / ``business`` / ``offer`` — domain-specific\n  custom fields\n- ``asset_edit``\
+        \ / ``asset_edit_holder`` — asset editing metadata\n\n**Response formats**\
+        \ (via ``Accept`` header):\n\n- ``application/json`` (default) — JSON records\
+        \ array\n- ``application/x-polars-json`` — Polars-serialized format\n\nRequires\
+        \ Bearer token authentication (JWT or PAT).\n\nArgs:\n    gid: Asana section\
+        \ GID.\n    schema: Field extraction schema (default ``base``).\n    limit:\
+        \ Items per page (1–100, default 100).\n    offset: Pagination cursor from\
+        \ previous response.\n    accept: Response format preference (``Accept`` header).\n\
+        \nReturns:\n    DataFrame of section tasks in the requested format and schema.\n\
+        \nRaises:\n    400: Invalid ``schema`` value. Response includes list of valid\
+        \ schemas.\n    404: Section not found or not accessible."
       operationId: get_section_dataframe_api_v1_dataframes_section__gid__get
       parameters:
       - name: gid
@@ -455,14 +517,6 @@ paths:
           default: application/json
           title: Accept
         description: Response format preference
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
           description: DataFrame data in requested format
@@ -488,16 +542,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/tasks:
     get:
       tags:
       - tasks
-      summary: List tasks by project or section
-      description: "List tasks by project or section with pagination.\n\nArgs:\n \
-        \   project: Project GID to list tasks from.\n    section: Section GID to\
-        \ list tasks from.\n    limit: Number of items per page (1-100, default 100).\n\
-        \    offset: Pagination cursor from previous response.\n\nReturns:\n    List\
-        \ of tasks with pagination metadata.\n\nRaises:\n    400: Neither project\
+      summary: List tasks in a project or section
+      description: "List tasks from a project or section with cursor-based pagination.\n\
+        \nExactly one of ``project`` or ``section`` must be provided. Supplying\n\
+        both or neither returns ``400 INVALID_PARAMETER``.\n\nUse ``offset`` from\
+        \ the previous response's ``meta.pagination.next_offset``\nto retrieve the\
+        \ next page. When ``has_more`` is false, you have reached\nthe last page.\n\
+        \nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n    project:\
+        \ Project GID to list tasks from.\n    section: Section GID to list tasks\
+        \ from.\n    limit: Items per page (1–100, default 100).\n    offset: Pagination\
+        \ cursor from previous response.\n\nReturns:\n    Paginated list of tasks\
+        \ with ``gid``, ``name``, and task fields.\n\nRaises:\n    400: Neither project\
         \ nor section provided, or both provided."
       operationId: list_tasks_api_v1_tasks_get
       parameters:
@@ -542,44 +603,46 @@ paths:
           description: Pagination cursor from previous response
           title: Offset
         description: Pagination cursor from previous response
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Paginated list of tasks
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
     post:
       tags:
       - tasks
-      summary: Create a new task
-      description: "Create a new task.\n\nArgs:\n    body: Task creation parameters.\n\
-        \nReturns:\n    Created task data.\n\nRaises:\n    400: Neither projects nor\
-        \ workspace provided."
+      summary: Create a task
+      description: "Create a new task in Asana.\n\nAt least one of ``projects`` or\
+        \ ``workspace`` must be provided. When\n``projects`` is supplied, the task\
+        \ is added to each listed project.\nWhen only ``workspace`` is supplied, the\
+        \ task is created in that\nworkspace without a project assignment.\n\nRequires\
+        \ Bearer token authentication (JWT or PAT).\n\nArgs:\n    body: Task creation\
+        \ parameters (name, projects, workspace, etc.).\n\nReturns:\n    The newly\
+        \ created task resource (HTTP 201).\n\nRaises:\n    400: Neither ``projects``\
+        \ nor ``workspace`` was provided."
       operationId: create_task_api_v1_tasks_post
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -588,25 +651,40 @@ paths:
               $ref: '#/components/schemas/CreateTaskRequest'
       responses:
         '201':
-          description: Successful Response
+          description: Created task details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
-        '422':
-          description: Validation Error
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error -- invalid request parameters
+      security:
+      - BearerAuth: []
   /api/v1/tasks/{gid}:
     get:
       tags:
       - tasks
-      summary: Get task by GID
-      description: "Get a task by its GID.\n\nArgs:\n    gid: Asana task GID.\n  \
-        \  opt_fields: Comma-separated list of fields to include in response.\n\n\
-        Returns:\n    Task data with requested fields."
+      summary: Get a task by GID
+      description: "Get a single task by its Asana GID.\n\nUse ``opt_fields`` to limit\
+        \ the response to specific fields and reduce\npayload size. When omitted,\
+        \ Asana returns its default field set.\n\nRequires Bearer token authentication\
+        \ (JWT or PAT).\n\nArgs:\n    gid: Asana task GID (numeric string, e.g. ``\"\
+        1234567890123456\"``).\n    opt_fields: Comma-separated Asana field names\n\
+        \        (e.g. ``\"name,notes,due_on,assignee\"``).\n\nReturns:\n    Task\
+        \ resource with the requested fields populated.\n\nRaises:\n    404: Task\
+        \ not found or not accessible with the provided token."
       operationId: get_task_api_v1_tasks__gid__get
       parameters:
       - name: gid
@@ -627,34 +705,50 @@ paths:
           - name,notes,due_on,assignee
           title: Opt Fields
         description: Comma-separated list of fields to include
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Task details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
     put:
       tags:
       - tasks
       summary: Update a task
-      description: "Update an existing task.\n\nOnly provided fields are updated;\
-        \ omitted fields retain their values.\n\nArgs:\n    gid: Asana task GID.\n\
-        \    body: Fields to update.\n\nReturns:\n    Updated task data."
+      description: "Update fields on an existing task.\n\nThis is a partial update:\
+        \ only fields included in the request body\nare modified. Omitted fields retain\
+        \ their current values in Asana.\n\nRequires Bearer token authentication (JWT\
+        \ or PAT).\n\nArgs:\n    gid: Asana task GID.\n    body: Fields to update\
+        \ (``name``, ``notes``, ``completed``, ``due_on``).\n\nReturns:\n    The updated\
+        \ task resource.\n\nRaises:\n    404: Task not found or not accessible with\
+        \ the provided token."
       operationId: update_task_api_v1_tasks__gid__put
       parameters:
       - name: gid
@@ -663,14 +757,6 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -679,23 +765,42 @@ paths:
               $ref: '#/components/schemas/UpdateTaskRequest'
       responses:
         '200':
-          description: Successful Response
+          description: Updated task details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
-        '422':
-          description: Validation Error
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error -- invalid request parameters
+      security:
+      - BearerAuth: []
     delete:
       tags:
       - tasks
       summary: Delete a task
-      description: "Delete a task.\n\nArgs:\n    gid: Asana task GID.\n\nReturns:\n\
-        \    No content on success."
+      description: "Permanently delete a task from Asana.\n\nThis action is irreversible.\
+        \ The task and all its subtasks are removed\nfrom Asana. Consider completing\
+        \ or archiving instead.\n\nRequires Bearer token authentication (JWT or PAT).\n\
+        \nArgs:\n    gid: Asana task GID.\n\nReturns:\n    204 No Content on success.\n\
+        \nRaises:\n    404: Task not found or not accessible with the provided token."
       operationId: delete_task_api_v1_tasks__gid__delete
       parameters:
       - name: gid
@@ -704,32 +809,47 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '204':
-          description: Successful Response
+          description: No content
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/tasks/{gid}/subtasks:
     get:
       tags:
       - tasks
       summary: List subtasks of a task
-      description: "List subtasks of a task with pagination.\n\nArgs:\n    gid: Parent\
-        \ task GID.\n    limit: Number of items per page (1-100, default 100).\n \
-        \   offset: Pagination cursor from previous response.\n\nReturns:\n    List\
-        \ of subtasks with pagination metadata."
+      description: "List direct subtasks of a task with cursor-based pagination.\n\
+        \nReturns the immediate child tasks of the specified parent. Only\ndirect\
+        \ children are included; grandchildren require separate calls.\n\nRequires\
+        \ Bearer token authentication (JWT or PAT).\n\nArgs:\n    gid: Parent task\
+        \ GID.\n    limit: Items per page (1–100, default 100).\n    offset: Pagination\
+        \ cursor from previous response.\n\nReturns:\n    Paginated list of subtask\
+        \ resources.\n\nRaises:\n    404: Parent task not found or not accessible."
       operationId: list_subtasks_api_v1_tasks__gid__subtasks_get
       parameters:
       - name: gid
@@ -759,36 +879,51 @@ paths:
           description: Pagination cursor from previous response
           title: Offset
         description: Pagination cursor from previous response
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Paginated list of subtasks
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/tasks/{gid}/dependents:
     get:
       tags:
       - tasks
-      summary: List dependent tasks
-      description: "List tasks that depend on this task with pagination.\n\nArgs:\n\
-        \    gid: Task GID to get dependents for.\n    limit: Number of items per\
-        \ page (1-100, default 100).\n    offset: Pagination cursor from previous\
-        \ response.\n\nReturns:\n    List of dependent tasks with pagination metadata."
+      summary: List tasks that depend on a task
+      description: "List tasks that depend on (are blocked by) this task.\n\nReturns\
+        \ tasks that have marked this task as a prerequisite. These are\nthe tasks\
+        \ that cannot start until this one is completed.\n\nRequires Bearer token\
+        \ authentication (JWT or PAT).\n\nArgs:\n    gid: Task GID to get dependents\
+        \ for.\n    limit: Items per page (1–100, default 100).\n    offset: Pagination\
+        \ cursor from previous response.\n\nReturns:\n    Paginated list of dependent\
+        \ task resources.\n\nRaises:\n    404: Task not found or not accessible."
       operationId: list_dependents_api_v1_tasks__gid__dependents_get
       parameters:
       - name: gid
@@ -818,35 +953,51 @@ paths:
           description: Pagination cursor from previous response
           title: Offset
         description: Pagination cursor from previous response
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Paginated list of dependent tasks
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/tasks/{gid}/duplicate:
     post:
       tags:
       - tasks
       summary: Duplicate a task
-      description: "Duplicate a task.\n\nArgs:\n    gid: GID of task to duplicate.\n\
-        \    body: Name for the duplicated task.\n\nReturns:\n    New duplicated task\
-        \ data."
+      description: "Duplicate a task with a new name.\n\nCreates a copy of the task\
+        \ in the same project and section. The\nduplicate inherits the source task's\
+        \ description, assignee, and due\ndate but gets the name provided in the request\
+        \ body.\n\nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n \
+        \   gid: GID of the source task to duplicate.\n    body: ``name`` for the\
+        \ new duplicate task.\n\nReturns:\n    The newly created duplicate task resource\
+        \ (HTTP 201).\n\nRaises:\n    404: Source task not found or not accessible."
       operationId: duplicate_task_api_v1_tasks__gid__duplicate_post
       parameters:
       - name: gid
@@ -855,14 +1006,6 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -871,24 +1014,44 @@ paths:
               $ref: '#/components/schemas/DuplicateTaskRequest'
       responses:
         '201':
-          description: Successful Response
+          description: Newly duplicated task details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
-        '422':
-          description: Validation Error
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error -- invalid request parameters
+      security:
+      - BearerAuth: []
   /api/v1/tasks/{gid}/tags:
     post:
       tags:
       - tasks
-      summary: Add tag to task
-      description: "Add a tag to a task.\n\nArgs:\n    gid: Task GID.\n    body: Tag\
-        \ GID to add.\n\nReturns:\n    Updated task data."
+      summary: Add a tag to a task
+      description: "Add an existing Asana tag to a task.\n\nThe tag must already exist\
+        \ in Asana. To create a tag, use the Asana\nAPI directly. Adding a tag that\
+        \ is already on the task is a no-op.\n\nRequires Bearer token authentication\
+        \ (JWT or PAT).\n\nArgs:\n    gid: Task GID.\n    body: ``tag_gid`` — GID\
+        \ of the tag to apply.\n\nReturns:\n    The updated task resource with the\
+        \ tag applied.\n\nRaises:\n    404: Task or tag not found, or not accessible."
       operationId: add_tag_api_v1_tasks__gid__tags_post
       parameters:
       - name: gid
@@ -897,14 +1060,6 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -913,24 +1068,44 @@ paths:
               $ref: '#/components/schemas/AddTagRequest'
       responses:
         '200':
-          description: Successful Response
+          description: Updated task with new tag
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
-        '422':
-          description: Validation Error
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error -- invalid request parameters
+      security:
+      - BearerAuth: []
   /api/v1/tasks/{gid}/tags/{tag_gid}:
     delete:
       tags:
       - tasks
-      summary: Remove tag from task
-      description: "Remove a tag from a task.\n\nArgs:\n    gid: Task GID.\n    tag_gid:\
-        \ Tag GID to remove.\n\nReturns:\n    Updated task data."
+      summary: Remove a tag from a task
+      description: "Remove a tag from a task.\n\nRemoving a tag that is not on the\
+        \ task is a no-op. The tag itself is\nnot deleted from Asana — only the association\
+        \ with this task is removed.\n\nRequires Bearer token authentication (JWT\
+        \ or PAT).\n\nArgs:\n    gid: Task GID.\n    tag_gid: GID of the tag to remove.\n\
+        \nReturns:\n    The updated task resource with the tag removed.\n\nRaises:\n\
+        \    404: Task not found or not accessible."
       operationId: remove_tag_api_v1_tasks__gid__tags__tag_gid__delete
       parameters:
       - name: gid
@@ -945,17 +1120,9 @@ paths:
         schema:
           type: string
           title: Tag Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Updated task with tag removed
           content:
             application/json:
               schema:
@@ -966,14 +1133,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/tasks/{gid}/section:
     post:
       tags:
       - tasks
-      summary: Move task to section
-      description: "Move a task to a section within a project.\n\nArgs:\n    gid:\
-        \ Task GID.\n    body: Target section and project GIDs.\n\nReturns:\n    Updated\
-        \ task data."
+      summary: Move a task to a section
+      description: "Move a task to a different section within a project.\n\nThe task\
+        \ must already be a member of the specified project. Both\n``section_gid``\
+        \ and ``project_gid`` are required to unambiguously\nidentify the destination\
+        \ (a task can belong to multiple projects).\n\nRequires Bearer token authentication\
+        \ (JWT or PAT).\n\nArgs:\n    gid: Task GID.\n    body: ``section_gid`` and\
+        \ ``project_gid`` for the destination.\n\nReturns:\n    The updated task resource\
+        \ with the new section membership.\n\nRaises:\n    404: Task, section, or\
+        \ project not found or not accessible."
       operationId: move_to_section_api_v1_tasks__gid__section_post
       parameters:
       - name: gid
@@ -982,14 +1156,6 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -998,7 +1164,7 @@ paths:
               $ref: '#/components/schemas/MoveSectionRequest'
       responses:
         '200':
-          description: Successful Response
+          description: Updated task with new section
           content:
             application/json:
               schema:
@@ -1009,14 +1175,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/tasks/{gid}/assignee:
     put:
       tags:
       - tasks
-      summary: Set task assignee
-      description: "Set or clear the task assignee.\n\nArgs:\n    gid: Task GID.\n\
-        \    body: Assignee user GID (null to unassign).\n\nReturns:\n    Updated\
-        \ task data."
+      summary: Set or clear a task assignee
+      description: "Set or clear the assignee of a task.\n\nPass a valid user GID\
+        \ in ``assignee_gid`` to assign the task. Pass\n``null`` to remove the current\
+        \ assignee and leave the task unassigned.\n\nRequires Bearer token authentication\
+        \ (JWT or PAT).\n\nArgs:\n    gid: Task GID.\n    body: ``assignee_gid`` —\
+        \ user GID to assign, or ``null`` to unassign.\n\nReturns:\n    The updated\
+        \ task resource with the new assignee.\n\nRaises:\n    404: Task or user not\
+        \ found, or not accessible."
       operationId: set_assignee_api_v1_tasks__gid__assignee_put
       parameters:
       - name: gid
@@ -1025,14 +1197,6 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1041,7 +1205,7 @@ paths:
               $ref: '#/components/schemas/SetAssigneeRequest'
       responses:
         '200':
-          description: Successful Response
+          description: Updated task with new assignee
           content:
             application/json:
               schema:
@@ -1052,13 +1216,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/tasks/{gid}/projects:
     post:
       tags:
       - tasks
-      summary: Add task to project
-      description: "Add a task to a project.\n\nArgs:\n    gid: Task GID.\n    body:\
-        \ Project GID to add task to.\n\nReturns:\n    Updated task data."
+      summary: Add a task to a project
+      description: "Add a task to an additional project.\n\nA task can belong to multiple\
+        \ projects. This endpoint adds the task to\nthe specified project without\
+        \ removing it from existing projects.\n\nRequires Bearer token authentication\
+        \ (JWT or PAT).\n\nArgs:\n    gid: Task GID.\n    body: ``project_gid`` —\
+        \ project to add the task to.\n\nReturns:\n    The updated task resource with\
+        \ the new project membership.\n\nRaises:\n    404: Task or project not found,\
+        \ or not accessible."
       operationId: add_to_project_api_v1_tasks__gid__projects_post
       parameters:
       - name: gid
@@ -1067,14 +1238,6 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1083,7 +1246,7 @@ paths:
               $ref: '#/components/schemas/AddToProjectRequest'
       responses:
         '200':
-          description: Successful Response
+          description: Updated task with new project membership
           content:
             application/json:
               schema:
@@ -1094,14 +1257,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/tasks/{gid}/projects/{project_gid}:
     delete:
       tags:
       - tasks
-      summary: Remove task from project
-      description: "Remove a task from a project.\n\nArgs:\n    gid: Task GID.\n \
-        \   project_gid: Project GID to remove task from.\n\nReturns:\n    Updated\
-        \ task data."
+      summary: Remove a task from a project
+      description: "Remove a task from a project without deleting the task.\n\nIf\
+        \ the task belongs to multiple projects, it is removed only from the\nspecified\
+        \ project. The task itself is not deleted and remains accessible\nfrom other\
+        \ projects it belongs to.\n\nRequires Bearer token authentication (JWT or\
+        \ PAT).\n\nArgs:\n    gid: Task GID.\n    project_gid: GID of the project\
+        \ to remove the task from.\n\nReturns:\n    The updated task resource with\
+        \ the project membership removed.\n\nRaises:\n    404: Task or project not\
+        \ found, or not accessible."
       operationId: remove_from_project_api_v1_tasks__gid__projects__project_gid__delete
       parameters:
       - name: gid
@@ -1116,17 +1286,9 @@ paths:
         schema:
           type: string
           title: Project Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Updated task with project membership removed
           content:
             application/json:
               schema:
@@ -1137,17 +1299,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/projects:
     get:
       tags:
       - projects
-      summary: List projects by workspace
-      description: "List projects by workspace with pagination.\n\nPer FR-API-PROJ-005:\
-        \ List projects by workspace.\n\nReturns a paginated list of projects from\
-        \ the specified workspace.\n\nArgs:\n    workspace: Workspace GID to list\
-        \ projects from (required).\n    limit: Number of items per page (1-100, default\
-        \ 100).\n    offset: Pagination cursor from previous response.\n\nReturns:\n\
-        \    List of projects with pagination metadata."
+      summary: List projects in a workspace
+      description: "List all projects in a workspace with cursor-based pagination.\n\
+        \nThe ``workspace`` query parameter is required. Use ``offset`` from the\n\
+        previous response's ``meta.pagination.next_offset`` to page through\nlarge\
+        \ result sets.\n\nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n\
+        \    workspace: Workspace GID to list projects from (required).\n    limit:\
+        \ Items per page (1–100, default 100).\n    offset: Pagination cursor from\
+        \ previous response.\n\nReturns:\n    Paginated list of project resources."
       operationId: list_projects_api_v1_projects_get
       parameters:
       - name: workspace
@@ -1179,44 +1344,43 @@ paths:
           description: Pagination cursor from previous response
           title: Offset
         description: Pagination cursor from previous response
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Paginated list of projects
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
     post:
       tags:
       - projects
-      summary: Create a new project
-      description: "Create a new project.\n\nPer FR-API-PROJ-002: Create project with\
-        \ name, workspace, and optional team.\n\nArgs:\n    body: Project creation\
-        \ parameters.\n\nReturns:\n    Created project data."
+      summary: Create a project
+      description: "Create a new project in a workspace.\n\nBoth ``name`` and ``workspace``\
+        \ are required. Supply ``team`` to create\nthe project under a specific Asana\
+        \ team within the workspace.\n\nRequires Bearer token authentication (JWT\
+        \ or PAT).\n\nArgs:\n    body: Project creation parameters (``name``, ``workspace``,\
+        \ ``team``).\n\nReturns:\n    The newly created project resource (HTTP 201)."
       operationId: create_project_api_v1_projects_post
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1225,26 +1389,39 @@ paths:
               $ref: '#/components/schemas/CreateProjectRequest'
       responses:
         '201':
-          description: Successful Response
+          description: Created project details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
-        '422':
-          description: Validation Error
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error -- invalid request parameters
+      security:
+      - BearerAuth: []
   /api/v1/projects/{gid}:
     get:
       tags:
       - projects
-      summary: Get project by GID
-      description: "Get a project by its GID.\n\nPer FR-API-PROJ-001: Get project\
-        \ by GID.\n\nArgs:\n    gid: Asana project GID.\n    opt_fields: Comma-separated\
-        \ list of fields to include in response.\n\nReturns:\n    Project data with\
-        \ requested fields."
+      summary: Get a project by GID
+      description: "Get a single project by its Asana GID.\n\nUse ``opt_fields`` to\
+        \ limit the response to specific fields\n(e.g. ``\"name,notes,owner,team\"\
+        ``). When omitted, Asana returns its\ndefault field set.\n\nRequires Bearer\
+        \ token authentication (JWT or PAT).\n\nArgs:\n    gid: Asana project GID.\n\
+        \    opt_fields: Comma-separated Asana field names to include.\n\nReturns:\n\
+        \    Project resource with the requested fields populated.\n\nRaises:\n  \
+        \  404: Project not found or not accessible."
       operationId: get_project_api_v1_projects__gid__get
       parameters:
       - name: gid
@@ -1261,38 +1438,55 @@ paths:
           - type: string
           - type: 'null'
           description: Comma-separated list of fields to include
+          examples:
+          - name,notes,owner,team
           title: Opt Fields
         description: Comma-separated list of fields to include
-        example: name,notes,owner,team
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Project details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
     put:
       tags:
       - projects
       summary: Update a project
-      description: "Update an existing project.\n\nPer FR-API-PROJ-003: Update project\
-        \ fields.\n\nOnly provided fields are updated; omitted fields retain their\
-        \ values.\n\nArgs:\n    gid: Asana project GID.\n    body: Fields to update.\n\
-        \nReturns:\n    Updated project data."
+      description: "Update fields on an existing project.\n\nThis is a partial update:\
+        \ only fields included in the request body are\nmodified. Omitted fields retain\
+        \ their current values. At least one of\n``name``, ``notes``, or ``archived``\
+        \ must be provided.\n\nRequires Bearer token authentication (JWT or PAT).\n\
+        \nArgs:\n    gid: Asana project GID.\n    body: Fields to update (``name``,\
+        \ ``notes``, ``archived``).\n\nReturns:\n    The updated project resource.\n\
+        \nRaises:\n    400: No fields provided in the request body.\n    404: Project\
+        \ not found or not accessible."
       operationId: update_project_api_v1_projects__gid__put
       parameters:
       - name: gid
@@ -1301,14 +1495,6 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1317,23 +1503,43 @@ paths:
               $ref: '#/components/schemas/UpdateProjectRequest'
       responses:
         '200':
-          description: Successful Response
+          description: Updated project details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
-        '422':
-          description: Validation Error
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error -- invalid request parameters
+      security:
+      - BearerAuth: []
     delete:
       tags:
       - projects
       summary: Delete a project
-      description: "Delete a project.\n\nPer FR-API-PROJ-004: Delete project by GID.\n\
-        \nArgs:\n    gid: Asana project GID.\n\nReturns:\n    No content on success."
+      description: "Permanently delete a project from Asana.\n\nThis action is irreversible.\
+        \ All tasks, sections, and memberships\nwithin the project are removed. Consider\
+        \ archiving (``PUT /projects/{gid}``\nwith ``archived: true``) if you want\
+        \ to preserve the data.\n\nRequires Bearer token authentication (JWT or PAT).\n\
+        \nArgs:\n    gid: Asana project GID.\n\nReturns:\n    204 No Content on success.\n\
+        \nRaises:\n    404: Project not found or not accessible."
       operationId: delete_project_api_v1_projects__gid__delete
       parameters:
       - name: gid
@@ -1342,32 +1548,47 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '204':
-          description: Successful Response
+          description: No content
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/projects/{gid}/sections:
     get:
       tags:
       - projects
-      summary: List sections in project
-      description: "List sections in a project with pagination.\n\nPer FR-API-PROJ-006:\
-        \ List sections in project.\n\nArgs:\n    gid: Project GID.\n    limit: Number\
-        \ of items per page (1-100, default 100).\n    offset: Pagination cursor from\
-        \ previous response.\n\nReturns:\n    List of sections with pagination metadata."
+      summary: List sections in a project
+      description: "List sections within a project with cursor-based pagination.\n\
+        \nSections are returned in display order. Use the ``sections`` endpoints\n\
+        to create, rename, reorder, or delete individual sections.\n\nRequires Bearer\
+        \ token authentication (JWT or PAT).\n\nArgs:\n    gid: Project GID.\n   \
+        \ limit: Items per page (1–100, default 100).\n    offset: Pagination cursor\
+        \ from previous response.\n\nReturns:\n    Paginated list of section resources\
+        \ in display order.\n\nRaises:\n    404: Project not found or not accessible."
       operationId: list_sections_api_v1_projects__gid__sections_get
       parameters:
       - name: gid
@@ -1397,35 +1618,51 @@ paths:
           description: Pagination cursor from previous response
           title: Offset
         description: Pagination cursor from previous response
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Paginated list of sections
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_list_AsanaResource__'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/projects/{gid}/members:
     post:
       tags:
       - projects
-      summary: Add members to project
-      description: "Add members to a project.\n\nPer FR-API-PROJ-007: Add members\
-        \ to project.\n\nArgs:\n    gid: Project GID.\n    body: List of user GIDs\
-        \ to add.\n\nReturns:\n    Updated project data."
+      summary: Add members to a project
+      description: "Add one or more users as members of a project.\n\nProvide a list\
+        \ of user GIDs in ``members``. Users already on the project\nare not duplicated.\
+        \ Members gain visibility and task assignment access\nwithin the project.\n\
+        \nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n    gid: Project\
+        \ GID.\n    body: ``members`` — list of user GIDs to add.\n\nReturns:\n  \
+        \  The updated project resource with the new member list.\n\nRaises:\n   \
+        \ 404: Project or one or more users not found or not accessible."
       operationId: add_members_api_v1_projects__gid__members_post
       parameters:
       - name: gid
@@ -1434,14 +1671,6 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1450,24 +1679,43 @@ paths:
               $ref: '#/components/schemas/MembersRequest'
       responses:
         '200':
-          description: Successful Response
+          description: Updated project with new members
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
-        '422':
-          description: Validation Error
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error -- invalid request parameters
+      security:
+      - BearerAuth: []
     delete:
       tags:
       - projects
-      summary: Remove members from project
-      description: "Remove members from a project.\n\nPer FR-API-PROJ-008: Remove\
-        \ members from project.\n\nArgs:\n    gid: Project GID.\n    body: List of\
-        \ user GIDs to remove.\n\nReturns:\n    Updated project data."
+      summary: Remove members from a project
+      description: "Remove one or more members from a project.\n\nRemoving a user\
+        \ who is not a member is a no-op. The removed users\nlose access to the project\
+        \ but their tasks within it are not deleted.\n\nRequires Bearer token authentication\
+        \ (JWT or PAT).\n\nArgs:\n    gid: Project GID.\n    body: ``members`` — list\
+        \ of user GIDs to remove.\n\nReturns:\n    The updated project resource with\
+        \ the members removed.\n\nRaises:\n    404: Project not found or not accessible."
       operationId: remove_members_api_v1_projects__gid__members_delete
       parameters:
       - name: gid
@@ -1476,14 +1724,6 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1492,24 +1732,44 @@ paths:
               $ref: '#/components/schemas/MembersRequest'
       responses:
         '200':
-          description: Successful Response
+          description: Updated project with members removed
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
-        '422':
-          description: Validation Error
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error -- invalid request parameters
+      security:
+      - BearerAuth: []
   /api/v1/sections/{gid}:
     get:
       tags:
       - sections
-      summary: Get section by GID
-      description: "Get a section by its GID.\n\nArgs:\n    gid: Asana section GID.\n\
-        \nReturns:\n    Section data."
+      summary: Get a section by GID
+      description: "Get a single section by its Asana GID.\n\nReturns the section\
+        \ name, GID, and the project it belongs to.\nTo list all sections in a project,\
+        \ use\n``GET /api/v1/projects/{gid}/sections``.\n\nRequires Bearer token authentication\
+        \ (JWT or PAT).\n\nArgs:\n    gid: Asana section GID.\n\nReturns:\n    Section\
+        \ resource with name and parent project reference.\n\nRaises:\n    404: Section\
+        \ not found or not accessible."
       operationId: get_section_api_v1_sections__gid__get
       parameters:
       - name: gid
@@ -1518,33 +1778,50 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '200':
-          description: Successful Response
+          description: Section details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
     put:
       tags:
       - sections
-      summary: Update a section
-      description: "Update a section (rename).\n\nArgs:\n    gid: Asana section GID.\n\
-        \    body: Fields to update.\n\nReturns:\n    Updated section data."
+      summary: Rename a section
+      description: "Rename an existing section.\n\nCurrently only ``name`` can be\
+        \ updated. The section's position within\nthe project is unchanged. To reorder\
+        \ sections, use\n``POST /api/v1/sections/{gid}/reorder``.\n\nRequires Bearer\
+        \ token authentication (JWT or PAT).\n\nArgs:\n    gid: Asana section GID.\n\
+        \    body: ``name`` — new display name for the section.\n\nReturns:\n    The\
+        \ updated section resource.\n\nRaises:\n    404: Section not found or not\
+        \ accessible."
       operationId: update_section_api_v1_sections__gid__put
       parameters:
       - name: gid
@@ -1553,14 +1830,6 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1569,23 +1838,42 @@ paths:
               $ref: '#/components/schemas/UpdateSectionRequest'
       responses:
         '200':
-          description: Successful Response
+          description: Updated section details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
-        '422':
-          description: Validation Error
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error -- invalid request parameters
+      security:
+      - BearerAuth: []
     delete:
       tags:
       - sections
       summary: Delete a section
-      description: "Delete a section.\n\nArgs:\n    gid: Asana section GID.\n\nReturns:\n\
-        \    No content on success."
+      description: "Permanently delete a section from its project.\n\nTasks within\
+        \ the section are not deleted — they become uncategorized\nwithin the project.\
+        \ This action is irreversible.\n\nRequires Bearer token authentication (JWT\
+        \ or PAT).\n\nArgs:\n    gid: Asana section GID.\n\nReturns:\n    204 No Content\
+        \ on success.\n\nRaises:\n    404: Section not found or not accessible."
       operationId: delete_section_api_v1_sections__gid__delete
       parameters:
       - name: gid
@@ -1594,40 +1882,48 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       responses:
         '204':
-          description: Successful Response
+          description: No content
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
   /api/v1/sections:
     post:
       tags:
       - sections
-      summary: Create a new section
-      description: "Create a new section in a project.\n\nArgs:\n    body: Section\
-        \ creation parameters.\n\nReturns:\n    Created section data."
+      summary: Create a section in a project
+      description: "Create a new section within an existing project.\n\nBoth ``name``\
+        \ and ``project`` (project GID) are required. The section\nis appended at\
+        \ the end of the project's section list. To reorder it,\ncall ``POST /api/v1/sections/{gid}/reorder``\
+        \ after creation.\n\nRequires Bearer token authentication (JWT or PAT).\n\n\
+        Args:\n    body: ``name`` and ``project`` GID for the new section.\n\nReturns:\n\
+        \    The newly created section resource (HTTP 201).\n\nRaises:\n    404: Project\
+        \ not found or not accessible."
       operationId: create_section_api_v1_sections_post
-      parameters:
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1636,24 +1932,39 @@ paths:
               $ref: '#/components/schemas/CreateSectionRequest'
       responses:
         '201':
-          description: Successful Response
+          description: Created section details
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/SuccessResponse_AsanaResource_'
-        '422':
-          description: Validation Error
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error -- invalid request parameters
+      security:
+      - BearerAuth: []
   /api/v1/sections/{gid}/tasks:
     post:
       tags:
       - sections
-      summary: Add task to section
-      description: "Add a task to a section.\n\nArgs:\n    gid: Section GID.\n   \
-        \ body: Task GID to add.\n\nReturns:\n    No content on success."
+      summary: Add a task to a section
+      description: "Add a task to a section, moving it within its project.\n\nThe\
+        \ task must already be a member of the project that contains this\nsection.\
+        \ To move a task across projects, use\n``POST /api/v1/tasks/{gid}/projects``\
+        \ first.\n\nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n\
+        \    gid: Section GID.\n    body: ``task_gid`` — GID of the task to add.\n\
+        \nReturns:\n    204 No Content on success.\n\nRaises:\n    404: Section or\
+        \ task not found, or task not in the section's project."
       operationId: add_task_to_section_api_v1_sections__gid__tasks_post
       parameters:
       - name: gid
@@ -1662,14 +1973,6 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1678,23 +1981,45 @@ paths:
               $ref: '#/components/schemas/AddTaskToSectionRequest'
       responses:
         '204':
-          description: Successful Response
-        '422':
-          description: Validation Error
+          description: No content
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error -- invalid request parameters
+      security:
+      - BearerAuth: []
   /api/v1/sections/{gid}/reorder:
     post:
       tags:
       - sections
-      summary: Reorder section within project
-      description: "Reorder a section within a project.\n\nMoves the section to a\
-        \ new position. Exactly one of before_section\nor after_section must be provided.\n\
-        \nArgs:\n    gid: Section GID to reorder.\n    body: Reorder parameters including\
-        \ project and position.\n\nReturns:\n    No content on success.\n\nRaises:\n\
-        \    400: Neither or both of before_section/after_section provided."
+      summary: Reorder a section within a project
+      description: "Move a section to a new position within a project.\n\nExactly\
+        \ one of ``before_section`` or ``after_section`` must be provided:\n\n- ``before_section``:\
+        \ places this section immediately before the\n  specified section.\n- ``after_section``:\
+        \ places this section immediately after the\n  specified section.\n\nBoth\
+        \ the moving section and the reference section must belong to the\nsame project\
+        \ (identified by ``project_gid``).\n\nRequires Bearer token authentication\
+        \ (JWT or PAT).\n\nArgs:\n    gid: Section GID to reorder.\n    body: ``project_gid``\
+        \ plus exactly one of ``before_section`` or\n        ``after_section``.\n\n\
+        Returns:\n    204 No Content on success.\n\nRaises:\n    400: Neither or both\
+        \ of before_section/after_section provided.\n    404: Section or project not\
+        \ found or not accessible."
       operationId: reorder_section_api_v1_sections__gid__reorder_post
       parameters:
       - name: gid
@@ -1703,14 +2028,6 @@ paths:
         schema:
           type: string
           title: Gid
-      - name: authorization
-        in: header
-        required: false
-        schema:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Authorization
       requestBody:
         required: true
         content:
@@ -1719,27 +2036,54 @@ paths:
               $ref: '#/components/schemas/ReorderSectionRequest'
       responses:
         '204':
-          description: Successful Response
-        '422':
-          description: Validation Error
+          description: No content
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Resource not found or not accessible with the provided token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation error -- invalid request parameters
+      security:
+      - BearerAuth: []
   /api/v1/webhooks/inbound:
     post:
       tags:
       - webhooks
-      summary: Receive Inbound Webhook
-      description: "Receive Asana Rules action POST with full task JSON.\n\nPer PRD-GAP-02\
-        \ / FR-01, FR-04, FR-05:\n1. Verify URL token (via Depends)\n2. Parse request\
-        \ body as Task\n3. Enqueue background processing\n4. Return 200 immediately\n\
-        \nArgs:\n    request: FastAPI request for raw body access.\n    background_tasks:\
-        \ FastAPI BackgroundTasks for async processing.\n    _token: Verified token\
-        \ (unused, presence confirms auth).\n\nReturns:\n    200 with {\"status\"\
-        : \"accepted\"} for valid payloads.\n    400 for unparseable or invalid payloads.\n\
-        \    401 for auth failures (handled by Depends).\n    503 if webhook not configured\
-        \ (handled by Depends)."
+      summary: Receive an inbound webhook event from Asana
+      description: "Receive an Asana Rules action POST containing a full task JSON\
+        \ payload.\n\nThis endpoint is designed to be registered as an Asana Rules\
+        \ action\ntarget. Asana POSTs the full task JSON when a rule fires. The endpoint\n\
+        accepts the payload, enqueues background processing, and returns 200\nimmediately\
+        \ so Asana does not retry.\n\n**Authentication**: URL token via ``?token=<secret>``\
+        \ query parameter.\nThe token is verified with a timing-safe comparison against\n\
+        ``ASANA_WEBHOOK_INBOUND_TOKEN``. Requests without a valid token receive\n\
+        401.\n\n**Background processing** (after response is sent):\n1. Cache invalidation\
+        \ — evicts stale TASK/SUBTASKS/DETECTION entries\n   if the inbound ``modified_at``\
+        \ is newer than the cached version.\n2. Dispatch — routes the parsed task\
+        \ to the registered handler\n   (no-op in V1; GAP-03 provides a real implementation).\n\
+        \nPer PRD-GAP-02:\n- Empty bodies are accepted (200) and silently ignored.\n\
+        - Payloads without a ``gid`` field return 400.\n- Dispatch errors do not affect\
+        \ the HTTP response.\n\nArgs:\n    request: FastAPI request for raw body access.\n\
+        \    background_tasks: FastAPI BackgroundTasks for async processing.\n   \
+        \ _token: Verified URL token (presence confirms authentication).\n\nReturns:\n\
+        \    - 200: ``{\"status\": \"accepted\"}`` — payload received and enqueued.\n\
+        \    - 400: Malformed JSON or missing ``gid`` field.\n    - 401: Missing or\
+        \ invalid URL token.\n    - 503: Webhook endpoint not configured (token env\
+        \ var absent)."
       operationId: receive_inbound_webhook_api_v1_webhooks_inbound_post
       parameters:
       - name: token
@@ -1752,16 +2096,169 @@ paths:
           title: Token
       responses:
         '200':
-          description: Successful Response
+          description: Accepted status for valid payloads
           content:
             application/json:
               schema: {}
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
+  /api/v1/workflows/{workflow_id}/invoke:
+    post:
+      tags:
+      - workflows
+      summary: Invoke a workflow against specific entities
+      description: "Invoke a registered workflow against a list of Asana entity GIDs.\n\
+        \nWorkflows are identified by ``workflow_id`` and must be registered\nat application\
+        \ startup. Use ``dry_run: true`` to validate and enumerate\nentities without\
+        \ performing any writes — useful for previewing impact.\n\n**Execution lifecycle**\
+        \ (per invocation):\n1. Pre-flight validation via ``workflow.validate_async()``\n\
+        2. Entity enumeration scoped to the provided ``entity_ids``\n3. Workflow execution\
+        \ with a 120-second timeout\n4. CloudWatch metric emission (``WorkflowInvokeCount``)\n\
+        \n**Rate limit**: 10 requests per minute per client.\n\n**Audit logging**:\
+        \ Every invocation is logged with workflow ID,\nentity IDs, caller service,\
+        \ and auth mode.\n\nRequires Bearer token authentication (JWT or PAT).\n\n\
+        Args:\n    workflow_id: Registered workflow identifier\n        (e.g. ``\"\
+        update-offer-status\"``).\n    body: ``entity_ids`` (1–100 numeric Asana GIDs),\
+        \ ``dry_run`` flag,\n        and optional ``params`` overrides.\n\nReturns:\n\
+        \    Invocation result with ``succeeded``, ``failed``, ``entity_count``,\n\
+        \    and workflow-specific metadata.\n\nRaises:\n    400: ``entity_ids`` is\
+        \ empty or contains non-numeric values.\n    404: ``workflow_id`` is not registered.\n\
+        \    422: Workflow pre-flight validation failed.\n    429: Rate limit exceeded.\n\
+        \    504: Execution timed out after 120 seconds."
+      operationId: invoke_workflow_api_v1_workflows__workflow_id__invoke_post
+      parameters:
+      - name: workflow_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Workflow Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowInvokeRequest'
+      responses:
+        '200':
+          description: Workflow invocation result with counts and metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowInvokeResponse'
+        '400':
+          description: Validation error (empty entity_ids, non-numeric GID)
+        '401':
+          description: Missing or invalid authentication
+        '404':
+          description: Unknown workflow_id
+        '422':
+          description: Workflow pre-flight validation failed
+        '429':
+          description: Rate limit exceeded (10 requests/minute)
+        '504':
+          description: Workflow execution timed out (120s limit)
+      security:
+      - BearerAuth: []
+  /api/v1/offers/section-timelines:
+    get:
+      tags:
+      - offers
+      summary: Get section timelines for all offers
+      description: "Get section timelines for all offers in the Business Offers project.\n\
+        \nComputes ``active_section_days`` and ``billable_section_days`` for\neach\
+        \ offer by replaying its Asana section history within the specified\ndate\
+        \ range. Each entry also reports the offer's ``current_section`` and\n``current_classification``.\n\
+        \n**Performance**: Results are cached after the first computation.\n\n- Warm\
+        \ path (cache hit): < 2 seconds.\n- Cold path (cache miss): < 5 seconds. The\
+        \ endpoint computes on demand\n  from cached task stories, then stores the\
+        \ result for reuse.\n\n**Classification filter**: When provided, only entries\
+        \ whose current\nsection matches the requested classification are returned.\
+        \ Valid values:\n``active``, ``activating``, ``inactive``, ``ignored``.\n\n\
+        Requires Bearer token authentication (JWT or PAT).\n\nArgs:\n    period_start:\
+        \ Start date for day counting (inclusive, YYYY-MM-DD).\n    period_end: End\
+        \ date for day counting (inclusive, YYYY-MM-DD).\n    classification: Optional\
+        \ classification filter.\n\nReturns:\n    List of ``OfferTimelineEntry`` records\
+        \ for the period.\n\nRaises:\n    422: ``period_start`` is after ``period_end``.\n\
+        \    422: ``classification`` is not a valid ``AccountActivity`` value.\n \
+        \   502: Asana API failed during on-demand task enumeration."
+      operationId: get_offer_section_timelines_api_v1_offers_section_timelines_get
+      parameters:
+      - name: period_start
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          description: Period start date (YYYY-MM-DD, inclusive)
+          title: Period Start
+        description: Period start date (YYYY-MM-DD, inclusive)
+      - name: period_end
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          description: Period end date (YYYY-MM-DD, inclusive)
+          title: Period End
+        description: Period end date (YYYY-MM-DD, inclusive)
+      - name: classification
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter by current classification (active, activating, inactive,
+            ignored)
+          title: Classification
+        description: Filter by current classification (active, activating, inactive,
+          ignored)
+      responses:
+        '200':
+          description: Section timeline entries for all offers in the period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse_SectionTimelinesResponse_'
+        '401':
+          description: Authentication failed -- missing or invalid Bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden -- valid token but insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - BearerAuth: []
 components:
   schemas:
     AddTagRequest:
@@ -1771,6 +2268,8 @@ components:
           minLength: 1
           title: Tag Gid
           description: Tag GID to add
+          examples:
+          - '2222222222222222'
       additionalProperties: false
       type: object
       required:
@@ -1779,6 +2278,8 @@ components:
       description: "Request body for adding a tag to a task.\n\nPer FR-API-TASK-012:\
         \ Add tag to task endpoint.\n\nAttributes:\n    tag_gid: GID of the tag to\
         \ add."
+      examples:
+      - tag_gid: '2222222222222222'
     AddTaskToSectionRequest:
       properties:
         task_gid:
@@ -1786,6 +2287,8 @@ components:
           minLength: 1
           title: Task Gid
           description: Task GID to add
+          examples:
+          - '1234567890123456'
       additionalProperties: false
       type: object
       required:
@@ -1794,6 +2297,8 @@ components:
       description: "Request body for adding a task to a section.\n\nPer FR-API-SECT-005:\
         \ Add task to section endpoint.\n\nAttributes:\n    task_gid: GID of the task\
         \ to add."
+      examples:
+      - task_gid: '1234567890123456'
     AddToProjectRequest:
       properties:
         project_gid:
@@ -1801,6 +2306,8 @@ components:
           minLength: 1
           title: Project Gid
           description: Project GID to add to
+          examples:
+          - '1234567890123456'
       additionalProperties: false
       type: object
       required:
@@ -1809,24 +2316,32 @@ components:
       description: "Request body for adding task to a project.\n\nPer FR-API-TASK-016:\
         \ Add task to project endpoint.\n\nAttributes:\n    project_gid: GID of the\
         \ project to add task to."
+      examples:
+      - project_gid: '1234567890123456'
     AsanaResource:
       properties:
         gid:
           type: string
           title: Gid
           description: Globally unique Asana resource identifier
+          examples:
+          - '1234567890123456'
         resource_type:
           anyOf:
           - type: string
           - type: 'null'
           title: Resource Type
           description: Asana resource type
+          examples:
+          - task
         name:
           anyOf:
           - type: string
           - type: 'null'
           title: Name
           description: Resource display name
+          examples:
+          - Review Q3 marketing proposal
       additionalProperties: true
       type: object
       required:
@@ -1840,6 +2355,10 @@ components:
         \    gid: Globally unique identifier for the Asana resource.\n    resource_type:\
         \ Resource type string (e.g., \"task\", \"project\").\n    name: Display name\
         \ of the resource (optional, depends on opt_fields)."
+      examples:
+      - gid: '1234567890123456'
+        name: Review Q3 marketing proposal
+        resource_type: task
     CreateProjectRequest:
       properties:
         name:
@@ -1847,17 +2366,23 @@ components:
           minLength: 1
           title: Name
           description: Project name
+          examples:
+          - Website Redesign
         workspace:
           type: string
           minLength: 1
           title: Workspace
           description: Workspace GID
+          examples:
+          - '1111111111111111'
         team:
           anyOf:
           - type: string
           - type: 'null'
           title: Team
           description: Team GID (for organizations)
+          examples:
+          - '4444444444444444'
       additionalProperties: false
       type: object
       required:
@@ -1868,6 +2393,10 @@ components:
         \ project endpoint.\n\nAttributes:\n    name: Project name (required).\n \
         \   workspace: Workspace GID (required).\n    team: Team GID (optional, for\
         \ organization workspaces)."
+      examples:
+      - name: Website Redesign
+        team: '4444444444444444'
+        workspace: '1111111111111111'
     CreateSectionRequest:
       properties:
         name:
@@ -1875,11 +2404,15 @@ components:
           minLength: 1
           title: Name
           description: Section name
+          examples:
+          - In Progress
         project:
           type: string
           minLength: 1
           title: Project
           description: Project GID
+          examples:
+          - '1234567890123456'
       additionalProperties: false
       type: object
       required:
@@ -1889,6 +2422,9 @@ components:
       description: "Request body for creating a section.\n\nPer FR-API-SECT-002: Create\
         \ section endpoint.\n\nAttributes:\n    name: Section name (required).\n \
         \   project: Project GID to create section in (required)."
+      examples:
+      - name: In Progress
+        project: '1234567890123456'
     CreateTaskRequest:
       properties:
         name:
@@ -1896,18 +2432,24 @@ components:
           minLength: 1
           title: Name
           description: Task name
+          examples:
+          - Review Q3 marketing proposal
         notes:
           anyOf:
           - type: string
           - type: 'null'
           title: Notes
           description: Task description
+          examples:
+          - Check accuracy and completeness before the team review.
         assignee:
           anyOf:
           - type: string
           - type: 'null'
           title: Assignee
           description: Assignee user GID
+          examples:
+          - '9876543210987654'
         projects:
           anyOf:
           - items:
@@ -1916,6 +2458,8 @@ components:
           - type: 'null'
           title: Projects
           description: Project GIDs to add task to
+          examples:
+          - - '1234567890123456'
         due_on:
           anyOf:
           - type: string
@@ -1923,12 +2467,16 @@ components:
           - type: 'null'
           title: Due On
           description: Due date (YYYY-MM-DD)
+          examples:
+          - '2026-03-15'
         workspace:
           anyOf:
           - type: string
           - type: 'null'
           title: Workspace
           description: Workspace GID (required if no projects)
+          examples:
+          - '1111111111111111'
       additionalProperties: false
       type: object
       required:
@@ -1940,6 +2488,13 @@ components:
         \    projects: List of project GIDs to add task to (optional).\n    due_on:\
         \ Due date in YYYY-MM-DD format (optional).\n    workspace: Workspace GID\
         \ (required if no projects specified)."
+      examples:
+      - assignee: '9876543210987654'
+        due_on: '2026-03-15'
+        name: Review Q3 marketing proposal
+        notes: Check accuracy and completeness before the team review.
+        projects:
+        - '1234567890123456'
     DuplicateTaskRequest:
       properties:
         name:
@@ -1947,6 +2502,8 @@ components:
           minLength: 1
           title: Name
           description: Name for duplicated task
+          examples:
+          - Review Q3 marketing proposal (copy)
       additionalProperties: false
       type: object
       required:
@@ -1954,6 +2511,68 @@ components:
       title: DuplicateTaskRequest
       description: "Request body for duplicating a task.\n\nPer FR-API-TASK-011: Duplicate\
         \ task endpoint.\n\nAttributes:\n    name: Name for the new duplicated task."
+      examples:
+      - name: Review Q3 marketing proposal (copy)
+    ErrorDetail:
+      properties:
+        code:
+          type: string
+          title: Code
+          description: Machine-readable error code
+          examples:
+          - RESOURCE_NOT_FOUND
+        message:
+          type: string
+          title: Message
+          description: Human-readable error message
+          examples:
+          - Task with GID 1234567890123456 not found
+        details:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Details
+          description: Additional error context
+          examples:
+          - null
+      additionalProperties: false
+      type: object
+      required:
+      - code
+      - message
+      title: ErrorDetail
+      description: "Structured error information.\n\nPer ADR-ASANA-004: Error codes\
+        \ map to specific failure modes.\n\nAttributes:\n    code: Machine-readable\
+        \ error code (e.g., RESOURCE_NOT_FOUND).\n    message: Human-readable error\
+        \ description.\n    details: Additional context about the error (optional)."
+      examples:
+      - code: RESOURCE_NOT_FOUND
+        message: Task with GID 1234567890123456 not found
+    ErrorResponse:
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorDetail'
+          description: Error details
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+          description: Response metadata
+      additionalProperties: false
+      type: object
+      required:
+      - error
+      - meta
+      title: ErrorResponse
+      description: "Standard error response envelope.\n\nPer PRD-ASANA-SATELLITE (FR-ERR-008):\
+        \ All error responses\ninclude request_id for correlation.\n\nAttributes:\n\
+        \    error: Structured error details.\n    meta: Response metadata with request_id."
+      examples:
+      - error:
+          code: RESOURCE_NOT_FOUND
+          message: Task with GID 1234567890123456 not found
+        meta:
+          request_id: a1b2c3d4e5f67890
+          timestamp: '2026-03-15T10:30:00Z'
     HTTPValidationError:
       properties:
         detail:
@@ -1972,6 +2591,9 @@ components:
           minItems: 1
           title: Members
           description: List of user GIDs
+          examples:
+          - - '9876543210987654'
+            - '9876543210987655'
       additionalProperties: false
       type: object
       required:
@@ -1980,6 +2602,10 @@ components:
       description: "Request body for adding/removing project members.\n\nPer FR-API-PROJ-007/008:\
         \ Add/remove members endpoints.\n\nAttributes:\n    members: List of user\
         \ GIDs to add or remove."
+      examples:
+      - members:
+        - '9876543210987654'
+        - '9876543210987655'
     MoveSectionRequest:
       properties:
         section_gid:
@@ -1987,11 +2613,15 @@ components:
           minLength: 1
           title: Section Gid
           description: Target section GID
+          examples:
+          - '3333333333333333'
         project_gid:
           type: string
           minLength: 1
           title: Project Gid
           description: Project GID containing section
+          examples:
+          - '1234567890123456'
       additionalProperties: false
       type: object
       required:
@@ -2001,6 +2631,85 @@ components:
       description: "Request body for moving a task to a section.\n\nPer FR-API-TASK-014:\
         \ Move task to section endpoint.\n\nAttributes:\n    section_gid: GID of the\
         \ target section.\n    project_gid: GID of the project containing the section."
+      examples:
+      - project_gid: '1234567890123456'
+        section_gid: '3333333333333333'
+    OfferTimelineEntry:
+      properties:
+        offer_gid:
+          type: string
+          title: Offer Gid
+          description: Asana task GID
+          examples:
+          - '1234567890123456'
+        office_phone:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Office Phone
+          description: Office phone custom field
+          examples:
+          - '+15551234567'
+        offer_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Offer Id
+          description: Internal business offer ID (Offer ID custom field)
+          examples:
+          - OFF-0042
+        active_section_days:
+          type: integer
+          minimum: 0.0
+          title: Active Section Days
+          description: Days in ACTIVE sections
+          examples:
+          - 18
+        billable_section_days:
+          type: integer
+          minimum: 0.0
+          title: Billable Section Days
+          description: Days in ACTIVE or ACTIVATING sections
+          examples:
+          - 22
+        current_section:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Section
+          description: Current Asana section name (from last interval)
+          examples:
+          - ACTIVE
+        current_classification:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Current Classification
+          description: Classification of current section (e.g., active, activating)
+          examples:
+          - active
+      additionalProperties: false
+      type: object
+      required:
+      - offer_gid
+      - active_section_days
+      - billable_section_days
+      title: OfferTimelineEntry
+      description: "API response model for a single offer's timeline summary.\n\n\
+        Per AC-5.2: Contains offer_gid, office_phone, and both day counts.\n\nAttributes:\n\
+        \    offer_gid: Asana task GID of the offer.\n    office_phone: Office phone\
+        \ custom field value (null if not set).\n    offer_id: Internal business offer\
+        \ ID (null if not set).\n    active_section_days: Calendar days in ACTIVE\
+        \ sections during period.\n    billable_section_days: Calendar days in ACTIVE\
+        \ or ACTIVATING\n        sections during period."
+      examples:
+      - active_section_days: 18
+        billable_section_days: 22
+        current_classification: active
+        current_section: ACTIVE
+        offer_gid: '1234567890123456'
+        offer_id: OFF-0042
+        office_phone: '+15551234567'
     PaginationMeta:
       properties:
         limit:
@@ -2008,16 +2717,22 @@ components:
           minimum: 1.0
           title: Limit
           description: Number of items per page
+          examples:
+          - 100
         has_more:
           type: boolean
           title: Has More
           description: Whether more items exist
+          examples:
+          - true
         next_offset:
           anyOf:
           - type: string
           - type: 'null'
           title: Next Offset
           description: Opaque cursor for next page
+          examples:
+          - eyJvZmZzZXQiOjEwMH0
       additionalProperties: false
       type: object
       required:
@@ -2029,6 +2744,10 @@ components:
         \ of items requested per page.\n    has_more: Whether more items exist after\
         \ this page.\n    next_offset: Opaque cursor for next page (None if no more\
         \ pages)."
+      examples:
+      - has_more: true
+        limit: 100
+        next_offset: eyJvZmZzZXQiOjEwMH0
     ReorderSectionRequest:
       properties:
         project_gid:
@@ -2036,18 +2755,24 @@ components:
           minLength: 1
           title: Project Gid
           description: Project GID
+          examples:
+          - '1234567890123456'
         before_section:
           anyOf:
           - type: string
           - type: 'null'
           title: Before Section
           description: Section GID to insert before
+          examples:
+          - '3333333333333333'
         after_section:
           anyOf:
           - type: string
           - type: 'null'
           title: After Section
           description: Section GID to insert after
+          examples:
+          - null
       additionalProperties: false
       type: object
       required:
@@ -2058,6 +2783,9 @@ components:
         \ or after_section must be provided.\n\nAttributes:\n    project_gid: Project\
         \ GID containing the section.\n    before_section: Section GID to insert before\
         \ (optional).\n    after_section: Section GID to insert after (optional)."
+      examples:
+      - before_section: '3333333333333333'
+        project_gid: '1234567890123456'
     ResponseMeta:
       properties:
         request_id:
@@ -2065,11 +2793,15 @@ components:
           minLength: 1
           title: Request Id
           description: Request correlation ID
+          examples:
+          - a1b2c3d4e5f67890
         timestamp:
           type: string
           format: date-time
           title: Timestamp
           description: Response timestamp (UTC)
+          examples:
+          - '2026-03-15T10:30:00Z'
         pagination:
           anyOf:
           - $ref: '#/components/schemas/PaginationMeta'
@@ -2085,6 +2817,33 @@ components:
         Attributes:\n    request_id: Unique 16-character hex identifier for this request.\n\
         \    timestamp: UTC timestamp when response was generated.\n    pagination:\
         \ Pagination info for list responses (optional)."
+      examples:
+      - request_id: a1b2c3d4e5f67890
+        timestamp: '2026-03-15T10:30:00Z'
+    SectionTimelinesResponse:
+      properties:
+        timelines:
+          items:
+            $ref: '#/components/schemas/OfferTimelineEntry'
+          type: array
+          title: Timelines
+          description: Timeline entries for all offers
+      additionalProperties: false
+      type: object
+      required:
+      - timelines
+      title: SectionTimelinesResponse
+      description: "Response wrapper for section timeline data.\n\nAttributes:\n \
+        \   timelines: List of timeline entries for all offers."
+      examples:
+      - timelines:
+        - active_section_days: 18
+          billable_section_days: 22
+          current_classification: active
+          current_section: ACTIVE
+          offer_gid: '1234567890123456'
+          offer_id: OFF-0042
+          office_phone: '+15551234567'
     SetAssigneeRequest:
       properties:
         assignee_gid:
@@ -2093,12 +2852,16 @@ components:
           - type: 'null'
           title: Assignee Gid
           description: User GID to assign (null to unassign)
+          examples:
+          - '9876543210987654'
       additionalProperties: false
       type: object
       title: SetAssigneeRequest
       description: "Request body for setting task assignee.\n\nPer FR-API-TASK-015:\
         \ Set task assignee endpoint.\n\nAttributes:\n    assignee_gid: GID of the\
         \ user to assign (null to unassign)."
+      examples:
+      - assignee_gid: '9876543210987654'
     SuccessResponse_AsanaResource_:
       properties:
         data:
@@ -2113,6 +2876,36 @@ components:
       - data
       - meta
       title: SuccessResponse[AsanaResource]
+      examples:
+      - data:
+          gid: '1234567890123456'
+          name: Review Q3 marketing proposal
+          resource_type: task
+        meta:
+          request_id: a1b2c3d4e5f67890
+          timestamp: '2026-03-15T10:30:00Z'
+    SuccessResponse_SectionTimelinesResponse_:
+      properties:
+        data:
+          $ref: '#/components/schemas/SectionTimelinesResponse'
+          description: Response data payload
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+          description: Response metadata
+      additionalProperties: false
+      type: object
+      required:
+      - data
+      - meta
+      title: SuccessResponse[SectionTimelinesResponse]
+      examples:
+      - data:
+          gid: '1234567890123456'
+          name: Review Q3 marketing proposal
+          resource_type: task
+        meta:
+          request_id: a1b2c3d4e5f67890
+          timestamp: '2026-03-15T10:30:00Z'
     SuccessResponse_list_AsanaResource__:
       properties:
         data:
@@ -2130,6 +2923,14 @@ components:
       - data
       - meta
       title: SuccessResponse[list[AsanaResource]]
+      examples:
+      - data:
+          gid: '1234567890123456'
+          name: Review Q3 marketing proposal
+          resource_type: task
+        meta:
+          request_id: a1b2c3d4e5f67890
+          timestamp: '2026-03-15T10:30:00Z'
     UpdateProjectRequest:
       properties:
         name:
@@ -2139,18 +2940,24 @@ components:
           - type: 'null'
           title: Name
           description: Project name
+          examples:
+          - Website Redesign (Phase 2)
         notes:
           anyOf:
           - type: string
           - type: 'null'
           title: Notes
           description: Project description
+          examples:
+          - Continuation of the Q2 redesign initiative.
         archived:
           anyOf:
           - type: boolean
           - type: 'null'
           title: Archived
           description: Archive status
+          examples:
+          - false
       additionalProperties: false
       type: object
       title: UpdateProjectRequest
@@ -2158,6 +2965,9 @@ components:
         \ project endpoint.\n\nAll fields are optional; only provided fields are updated.\n\
         \nAttributes:\n    name: New project name.\n    notes: New project description.\n\
         \    archived: Archive status."
+      examples:
+      - archived: false
+        notes: Continuation of the Q2 redesign initiative.
     UpdateSectionRequest:
       properties:
         name:
@@ -2165,6 +2975,8 @@ components:
           minLength: 1
           title: Name
           description: Section name
+          examples:
+          - Done
       additionalProperties: false
       type: object
       required:
@@ -2172,6 +2984,8 @@ components:
       title: UpdateSectionRequest
       description: "Request body for updating a section.\n\nPer FR-API-SECT-003: Update\
         \ section endpoint.\n\nAttributes:\n    name: New section name."
+      examples:
+      - name: Done
     UpdateTaskRequest:
       properties:
         name:
@@ -2181,24 +2995,32 @@ components:
           - type: 'null'
           title: Name
           description: Task name
+          examples:
+          - Review Q3 marketing proposal (updated)
         notes:
           anyOf:
           - type: string
           - type: 'null'
           title: Notes
           description: Task description
+          examples:
+          - Updated after stakeholder review.
         completed:
           anyOf:
           - type: boolean
           - type: 'null'
           title: Completed
           description: Completion status
+          examples:
+          - true
         due_on:
           anyOf:
           - type: string
           - type: 'null'
           title: Due On
           description: Due date (YYYY-MM-DD, null to clear)
+          examples:
+          - '2026-03-20'
       additionalProperties: false
       type: object
       title: UpdateTaskRequest
@@ -2207,6 +3029,10 @@ components:
         \nAttributes:\n    name: New task name.\n    notes: New task description.\n\
         \    completed: Task completion status.\n    due_on: Due date in YYYY-MM-DD\
         \ format (null to clear)."
+      examples:
+      - completed: true
+        due_on: '2026-03-20'
+        notes: Updated after stakeholder review.
     ValidationError:
       properties:
         loc:
@@ -2222,9 +3048,186 @@ components:
         type:
           type: string
           title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
       type: object
       required:
       - loc
       - msg
       - type
       title: ValidationError
+    WorkflowInvokeRequest:
+      properties:
+        entity_ids:
+          items:
+            type: string
+          type: array
+          title: Entity Ids
+          description: Asana GIDs of entities to process. Must be non-empty numeric
+            strings (1–100 items).
+          examples:
+          - - '1234567890123456'
+            - '1234567890123457'
+        dry_run:
+          type: boolean
+          title: Dry Run
+          description: If true, validate and enumerate entities but skip all write
+            operations.
+          default: false
+          examples:
+          - false
+        params:
+          additionalProperties: true
+          type: object
+          title: Params
+          description: Workflow-specific parameter overrides merged on top of registered
+            defaults.
+          examples:
+          - {}
+      additionalProperties: false
+      type: object
+      required:
+      - entity_ids
+      title: WorkflowInvokeRequest
+      description: "Request body for workflow invocation.\n\nAttributes:\n    entity_ids:\
+        \ List of Asana GIDs to target. Must be non-empty.\n    dry_run: If True,\
+        \ skip write operations.\n    params: Additional workflow-specific parameter\
+        \ overrides."
+      examples:
+      - dry_run: false
+        entity_ids:
+        - '1234567890123456'
+        - '1234567890123457'
+        params: {}
+    WorkflowInvokeResponse:
+      properties:
+        request_id:
+          type: string
+          title: Request Id
+          description: Request correlation ID for tracing this invocation.
+          examples:
+          - a1b2c3d4e5f67890
+        invocation_source:
+          type: string
+          title: Invocation Source
+          description: Origin of the invocation. Always 'api' for this endpoint.
+          default: api
+          examples:
+          - api
+        workflow_id:
+          type: string
+          title: Workflow Id
+          description: Registered workflow identifier that was invoked.
+          examples:
+          - update-offer-status
+        dry_run:
+          type: boolean
+          title: Dry Run
+          description: Whether this was a dry-run invocation (no writes performed).
+          examples:
+          - false
+        entity_count:
+          type: integer
+          minimum: 0.0
+          title: Entity Count
+          description: Number of entities that were processed.
+          examples:
+          - 2
+        result:
+          additionalProperties: true
+          type: object
+          title: Result
+          description: Serialized WorkflowResult with counts and any workflow-specific
+            metadata.
+          examples:
+          - duration_seconds: 1.42
+            failed: 0
+            succeeded: 2
+      type: object
+      required:
+      - request_id
+      - workflow_id
+      - dry_run
+      - entity_count
+      - result
+      title: WorkflowInvokeResponse
+      description: "Response body wrapping WorkflowResult.\n\nAttributes:\n    request_id:\
+        \ Correlation ID for this invocation.\n    invocation_source: Always \"api\"\
+        \ for this endpoint.\n    workflow_id: ID of the invoked workflow.\n    dry_run:\
+        \ Whether this was a dry-run invocation.\n    entity_count: Number of entities\
+        \ processed.\n    result: Serialized WorkflowResult."
+      examples:
+      - dry_run: false
+        entity_count: 2
+        invocation_source: api
+        request_id: a1b2c3d4e5f67890
+        result:
+          duration_seconds: 1.42
+          failed: 0
+          succeeded: 2
+        workflow_id: update-offer-status
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Asana Personal Access Token (PAT). The token is passed directly
+        to the Asana API. Use for standard resource endpoints (/api/v1/*).
+    ServiceJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Service-to-service JWT issued by the autom8y auth service. The
+        service validates the JWT against its JWKS endpoint and uses a bot PAT for
+        downstream Asana API calls. Use for internal service endpoints (/v1/*).
+tags:
+- name: health
+  description: 'Platform health probes. Three tiers: /health (liveness — always 200,
+    no I/O), /ready (readiness — 503 while cache warms), and /health/deps (dependency
+    probe — checks JWKS reachability and bot PAT configuration). No authentication
+    required.'
+- name: tasks
+  description: Full lifecycle management for Asana tasks. Supports CRUD operations,
+    subtask and dependent enumeration, task duplication, tag management, section moves,
+    assignee changes, and multi-project membership. Requires PAT Bearer authentication.
+    List endpoints use cursor-based pagination.
+- name: projects
+  description: Manage Asana projects within a workspace. Supports CRUD operations,
+    section listing, and member management (add/remove). Requires PAT Bearer authentication.
+    List endpoints use cursor-based pagination.
+- name: sections
+  description: Manage sections within Asana projects. Sections organize tasks into
+    swimlanes or workflow stages. Supports CRUD operations, adding tasks to sections,
+    and reordering sections within a project. Requires PAT Bearer authentication.
+- name: users
+  description: Resolve and enumerate Asana users. Supports fetching the current authenticated
+    user, looking up a user by GID, and listing all users in a workspace. Requires
+    PAT Bearer authentication.
+- name: workspaces
+  description: Access Asana workspace information. Supports listing all workspaces
+    accessible to the authenticated user and retrieving a single workspace by GID.
+    Workspace GIDs are required by project and user list endpoints. Requires PAT Bearer
+    authentication.
+- name: dataframes
+  description: Fetch Asana task data as structured DataFrames for analytical use.
+    Schema-based extraction maps custom fields to typed columns (base, unit, contact,
+    business, offer, asset_edit, asset_edit_holder). Supports JSON records (default)
+    or Polars-serialized output via Accept header content negotiation. Requires PAT
+    Bearer authentication.
+- name: webhooks
+  description: Receive inbound task notifications from Asana Rules actions. The /inbound
+    endpoint accepts full task JSON payloads, verifies a URL token (timing-safe),
+    and enqueues background processing for cache invalidation and dispatch. Returns
+    200 immediately to prevent Asana retries. Authentication via ?token= query parameter.
+- name: offers
+  description: Offer activity timeline reporting for the Business Offers project.
+    Computes active_section_days and billable_section_days per offer by replaying
+    Asana section history over a date range. Results are cached after first computation
+    (warm path < 2s). Requires PAT Bearer authentication.
+- name: workflows
+  description: Invoke registered automation workflows against specific Asana entities.
+    Supports dry-run mode for impact preview, per-workflow parameter overrides, and
+    a 120-second execution timeout. Rate limited to 10 requests per minute. Every
+    invocation is audit logged with caller context. Requires PAT Bearer authentication.
