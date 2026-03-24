@@ -18,7 +18,7 @@ from typing import Any
 
 from autom8_asana.api.models import ErrorResponse
 
-STANDARD_ERROR_RESPONSES: dict[int, dict[str, Any]] = {
+STANDARD_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {
         "model": ErrorResponse,
         "description": ("Authentication failed -- missing or invalid Bearer token"),
@@ -47,7 +47,7 @@ STANDARD_ERROR_RESPONSES: dict[int, dict[str, Any]] = {
 }
 
 
-def authenticated_responses() -> dict[int, dict[str, Any]]:
+def authenticated_responses() -> dict[int | str, dict[str, Any]]:
     """Error responses for any authenticated endpoint.
 
     Returns 401 and 403 entries. Use for list/aggregate endpoints
@@ -56,7 +56,7 @@ def authenticated_responses() -> dict[int, dict[str, Any]]:
     return {k: STANDARD_ERROR_RESPONSES[k] for k in (401, 403)}
 
 
-def entity_responses() -> dict[int, dict[str, Any]]:
+def entity_responses() -> dict[int | str, dict[str, Any]]:
     """Error responses for endpoints that resolve a single entity by GID.
 
     Returns 401, 403, and 404 entries. Use for any endpoint with a
@@ -65,7 +65,7 @@ def entity_responses() -> dict[int, dict[str, Any]]:
     return {k: STANDARD_ERROR_RESPONSES[k] for k in (401, 403, 404)}
 
 
-def mutation_responses() -> dict[int, dict[str, Any]]:
+def mutation_responses() -> dict[int | str, dict[str, Any]]:
     """Error responses for POST/PUT endpoints with a request body.
 
     Returns 401, 403, and 422 entries. The 422 entry uses
@@ -75,7 +75,7 @@ def mutation_responses() -> dict[int, dict[str, Any]]:
     return {k: STANDARD_ERROR_RESPONSES[k] for k in (401, 403, 422)}
 
 
-def rate_limited_responses() -> dict[int, dict[str, Any]]:
+def rate_limited_responses() -> dict[int | str, dict[str, Any]]:
     """Error responses for endpoints with known rate-limit exposure.
 
     Returns 401, 403, and 429 entries. Use for endpoints that proxy
