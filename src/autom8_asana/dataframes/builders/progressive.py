@@ -33,7 +33,7 @@ from autom8_asana.dataframes.builders.build_result import (
 )
 from autom8_asana.dataframes.builders.fields import (
     BASE_OPT_FIELDS,
-    coerce_rows_to_schema,
+    safe_dataframe_construct,
 )
 from autom8_asana.dataframes.section_persistence import (
     SectionManifest,
@@ -520,6 +520,36 @@ class ProgressiveProjectBuilder:
                             },
                         )
 
+        # Step 5.6: Post-correction cascade null rate audit
+        # Per ADR-cascade-contract-policy: log null rates for cascade-sourced
+        # key columns so that regressions analogous to SCAR-005/006 are
+        # observable via structured logging.
+        if total_rows > 0 and self._schema is not None:
+            try:
+                from autom8_asana.core.entity_registry import get_registry
+                from autom8_asana.dataframes.builders.cascade_validator import (
+                    audit_cascade_key_nulls,
+                )
+
+                desc = get_registry().get(self._entity_type)
+                if desc is not None and desc.key_columns:
+                    audit_cascade_key_nulls(
+                        df=merged_df,
+                        entity_type=self._entity_type,
+                        project_gid=self._project_gid,
+                        schema=self._schema,
+                        key_columns=desc.key_columns,
+                    )
+            except Exception as e:  # BROAD-CATCH: audit is diagnostic only
+                logger.warning(
+                    "cascade_key_null_audit_failed",
+                    extra={
+                        "project_gid": self._project_gid,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    },
+                )
+
         # Step 6: Write final artifacts
         if total_rows > 0:
             index_data = self._build_index_data(merged_df)
@@ -1004,10 +1034,7 @@ class ProgressiveProjectBuilder:
                 # Branch (a): extract only new tasks since last checkpoint
                 task_dicts = [self._task_to_dict(task) for task in remaining_tasks]
                 rows = await self._extract_rows(task_dicts)
-                coerced_rows = coerce_rows_to_schema(rows, self._schema)
-                delta_df = pl.DataFrame(
-                    coerced_rows, schema=self._schema.to_polars_schema()
-                )
+                delta_df = safe_dataframe_construct(rows, self._schema)
                 section_df = pl.concat(
                     [self._checkpoint_df, delta_df], how="diagonal_relaxed"
                 )
@@ -1018,10 +1045,7 @@ class ProgressiveProjectBuilder:
             # Branch (c): no checkpoint, full extraction
             task_dicts = [self._task_to_dict(task) for task in tasks]
             rows = await self._extract_rows(task_dicts)
-            coerced_rows = coerce_rows_to_schema(rows, self._schema)
-            section_df = pl.DataFrame(
-                coerced_rows, schema=self._schema.to_polars_schema()
-            )
+            section_df = safe_dataframe_construct(rows, self._schema)
 
         from autom8_asana.dataframes.builders.freshness import compute_gid_hash
 
@@ -1091,10 +1115,7 @@ class ProgressiveProjectBuilder:
             new_tasks = tasks[self._checkpoint_task_count :]
             task_dicts = [self._task_to_dict(task) for task in new_tasks]
             rows = await self._extract_rows(task_dicts)
-            coerced_rows = coerce_rows_to_schema(rows, self._schema)
-            delta_df = pl.DataFrame(
-                coerced_rows, schema=self._schema.to_polars_schema()
-            )
+            delta_df = safe_dataframe_construct(rows, self._schema)
 
             # Concatenate with previous checkpoint if it exists
             if self._checkpoint_df is not None:

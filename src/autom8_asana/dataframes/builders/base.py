@@ -22,7 +22,10 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 import polars as pl
 
-from autom8_asana.dataframes.builders.fields import coerce_rows_to_schema
+from autom8_asana.dataframes.builders.fields import (
+    coerce_rows_to_schema,
+    safe_dataframe_construct,
+)
 from autom8_asana.dataframes.extractors import (
     BaseExtractor,
     DefaultExtractor,
@@ -372,8 +375,7 @@ class DataFrameBuilder(ABC):
             Polars DataFrame with extracted data
         """
         rows = [self._extract_row(task) for task in tasks]
-        coerced_rows = coerce_rows_to_schema(rows, self._schema)
-        return pl.DataFrame(coerced_rows, schema=self._schema.to_polars_schema())
+        return safe_dataframe_construct(rows, self._schema)
 
     def _build_lazy(self, tasks: list[Task]) -> pl.DataFrame:
         """Build DataFrame using lazy evaluation.
@@ -387,9 +389,25 @@ class DataFrameBuilder(ABC):
         Returns:
             Polars DataFrame with extracted data (collected from LazyFrame)
         """
+        from autom8_asana.dataframes.exceptions import DataFrameConstructionError
+
         rows = [self._extract_row(task) for task in tasks]
-        lazy_frame = pl.LazyFrame(rows, schema=self._schema.to_polars_schema())
-        return lazy_frame.collect()
+        coerced_rows = coerce_rows_to_schema(rows, self._schema)
+        try:
+            lazy_frame = pl.LazyFrame(
+                coerced_rows, schema=self._schema.to_polars_schema()
+            )
+            return lazy_frame.collect()
+        except (
+            pl.exceptions.SchemaError,
+            TypeError,
+            pl.exceptions.ComputeError,
+        ) as exc:
+            raise DataFrameConstructionError(
+                schema_name=self._schema.name,
+                row_count=len(rows),
+                original_error=exc,
+            ) from exc
 
     async def _build_eager_async(self, tasks: list[Task]) -> pl.DataFrame:
         """Build DataFrame using eager evaluation with async extraction.
@@ -411,8 +429,7 @@ class DataFrameBuilder(ABC):
         rows = await gather_with_limit(
             [self._extract_row_async(task) for task in tasks]
         )
-        coerced_rows = coerce_rows_to_schema(rows, self._schema)
-        return pl.DataFrame(coerced_rows, schema=self._schema.to_polars_schema())
+        return safe_dataframe_construct(rows, self._schema)
 
     async def _build_lazy_async(self, tasks: list[Task]) -> pl.DataFrame:
         """Build DataFrame using lazy evaluation with async extraction.
@@ -429,13 +446,29 @@ class DataFrameBuilder(ABC):
         Returns:
             Polars DataFrame with extracted data (collected from LazyFrame)
         """
+        from autom8_asana.dataframes.exceptions import DataFrameConstructionError
+
         # Per TDD-GID-RESOLUTION-SERVICE: Use gather_with_limit for bounded
         # parallel extraction instead of sequential awaits
         rows = await gather_with_limit(
             [self._extract_row_async(task) for task in tasks]
         )
-        lazy_frame = pl.LazyFrame(rows, schema=self._schema.to_polars_schema())
-        return lazy_frame.collect()
+        coerced_rows = coerce_rows_to_schema(rows, self._schema)
+        try:
+            lazy_frame = pl.LazyFrame(
+                coerced_rows, schema=self._schema.to_polars_schema()
+            )
+            return lazy_frame.collect()
+        except (
+            pl.exceptions.SchemaError,
+            TypeError,
+            pl.exceptions.ComputeError,
+        ) as exc:
+            raise DataFrameConstructionError(
+                schema_name=self._schema.name,
+                row_count=len(rows),
+                original_error=exc,
+            ) from exc
 
     def _extract_row(self, task: Task) -> dict[str, Any]:
         """Extract a single row from a task.

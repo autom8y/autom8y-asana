@@ -1059,8 +1059,8 @@ class TestAdversarialTaskOptFieldsDeduplication:
 
     def test_field_count_is_stable(self):
         """TASK_OPT_FIELDS has a known count (catches accidental additions/removals)."""
-        # 26 fields as of Phase 4 extraction
-        assert len(DataFrameService.TASK_OPT_FIELDS) == 26
+        # 28 fields: 26 from Phase 4 + parent, parent.gid for cascade warming
+        assert len(DataFrameService.TASK_OPT_FIELDS) == 28
 
 
 class TestAdversarialContentNegotiation:
