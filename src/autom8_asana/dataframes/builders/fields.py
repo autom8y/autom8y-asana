@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from typing import Any
 
+    import polars as pl
+
     from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 # Base opt_fields required for DataFrame extraction.
@@ -179,3 +181,57 @@ def _coerce_value(value: Any, dtype: str | None) -> Any:
 
     # Date/Datetime - pass through (extraction should handle)
     return value
+
+
+def safe_dataframe_construct(
+    rows: list[dict[str, Any]],
+    schema: DataFrameSchema,
+    *,
+    coerce: bool = True,
+) -> pl.DataFrame:
+    """Construct a Polars DataFrame with unified coercion and error boundary.
+
+    This is the single construction function that all DataFrame build paths
+    should call.  It applies ``coerce_rows_to_schema`` (unless opted out)
+    and wraps the Polars constructor in a diagnostic error boundary so that
+    type mismatches produce a ``DataFrameConstructionError`` (maps to HTTP
+    422) instead of an unhandled 500.
+
+    Args:
+        rows: List of row dicts extracted from tasks.
+        schema: The ``DataFrameSchema`` defining columns and Polars types.
+        coerce: Whether to run ``coerce_rows_to_schema`` first (default True).
+
+    Returns:
+        A Polars DataFrame matching the schema.
+
+    Raises:
+        DataFrameConstructionError: If construction fails after coercion.
+    """
+    import polars as pl
+    from autom8y_log import get_logger
+
+    from autom8_asana.dataframes.exceptions import DataFrameConstructionError
+
+    _logger = get_logger(__name__)
+
+    if coerce:
+        rows = coerce_rows_to_schema(rows, schema)
+
+    try:
+        return pl.DataFrame(rows, schema=schema.to_polars_schema())
+    except (pl.exceptions.SchemaError, TypeError, pl.exceptions.ComputeError) as exc:
+        _logger.error(
+            "dataframe_construction_failed",
+            extra={
+                "schema_name": schema.name,
+                "row_count": len(rows),
+                "error_type": type(exc).__name__,
+                "error_message": str(exc),
+            },
+        )
+        raise DataFrameConstructionError(
+            schema_name=schema.name,
+            row_count=len(rows),
+            original_error=exc,
+        ) from exc

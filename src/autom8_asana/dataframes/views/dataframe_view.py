@@ -186,7 +186,9 @@ class DataFrameViewPlugin:
         if not rows:
             return self._build_empty()
 
-        return pl.DataFrame(rows, schema=self._schema.to_polars_schema())
+        from autom8_asana.dataframes.builders.fields import safe_dataframe_construct
+
+        return safe_dataframe_construct(rows, self._schema)
 
     async def materialize_incremental_async(
         self,

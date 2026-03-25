@@ -1,7 +1,8 @@
 """Exception hierarchy for dataframe operations.
 
-Per FR-ERROR-001 through FR-ERROR-004: Define base exception and
-specific error types for schema, extraction, and type coercion failures.
+Per FR-ERROR-001 through FR-ERROR-005: Define base exception and
+specific error types for schema, extraction, type coercion, and
+DataFrame construction failures.
 """
 
 from __future__ import annotations
@@ -132,3 +133,35 @@ class SchemaVersionError(DataFrameError):
         self.schema_name = schema_name
         self.expected_version = expected_version
         self.actual_version = actual_version
+
+
+class DataFrameConstructionError(DataFrameError):
+    """DataFrame construction failed due to schema/type incompatibility (FR-ERROR-005).
+
+    Raised when ``pl.DataFrame()`` or ``pl.LazyFrame().collect()`` fails
+    because row data does not match the Polars schema, even after coercion.
+
+    Attributes:
+        schema_name: Name of the DataFrame schema that was being built.
+        row_count: Number of rows that were passed to the constructor.
+        original_error: The underlying Polars or Python exception.
+    """
+
+    def __init__(
+        self,
+        schema_name: str,
+        row_count: int,
+        original_error: Exception,
+    ) -> None:
+        super().__init__(
+            f"DataFrame construction failed for schema '{schema_name}' "
+            f"({row_count} rows): {original_error}",
+            context={
+                "schema_name": schema_name,
+                "row_count": row_count,
+                "error_type": type(original_error).__name__,
+            },
+        )
+        self.schema_name = schema_name
+        self.row_count = row_count
+        self.original_error = original_error

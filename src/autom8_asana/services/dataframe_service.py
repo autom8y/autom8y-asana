@@ -109,6 +109,11 @@ class DataFrameService:
         "start_on",
         "memberships.section.name",
         "memberships.project.gid",
+        # Parent reference for cascade: field resolution.
+        # Per TDD-cascade-warming-api-path: Required to build hierarchy
+        # for cascade field resolution on the API endpoint path.
+        "parent",
+        "parent.gid",
         "custom_fields",
         "custom_fields.gid",
         "custom_fields.name",
@@ -194,17 +199,32 @@ class DataFrameService:
 
         resolver = DefaultCustomFieldResolver()
         unified_store = UnifiedTaskStore(cache=InMemoryCacheProvider())
+
+        # Warm cascade store for schemas with cascade: columns.
+        # Per TDD-cascade-warming-api-path: pre-fetch parent chains
+        # so cascade resolution finds ancestor custom field values.
+        await self._warm_cascade_store(client, unified_store, data, schema)
+
         view_plugin = DataFrameViewPlugin(
             schema=schema,
             store=unified_store,
             resolver=resolver,
         )
 
+        from autom8_asana.dataframes.builders.fields import safe_dataframe_construct
+        from autom8_asana.dataframes.exceptions import DataFrameConstructionError
+
         rows = await view_plugin._extract_rows_async(data, project_gid=project_gid)
-        if rows:
-            df = pl.DataFrame(rows, schema=schema.to_polars_schema())
-        else:
-            df = pl.DataFrame(schema=schema.to_polars_schema())
+        try:
+            if rows:
+                df = safe_dataframe_construct(rows, schema)
+            else:
+                df = pl.DataFrame(schema=schema.to_polars_schema())
+        except DataFrameConstructionError as exc:
+            raise InvalidParameterError(
+                f"DataFrame construction failed for schema '{schema.name}': "
+                f"{exc.original_error}"
+            ) from exc
 
         return DataFrameResult(
             dataframe=df,
@@ -278,13 +298,21 @@ class DataFrameService:
         # SectionDataFrameBuilder expects a section-like object
         section_proxy = _SectionProxy(section_gid, project_gid, tasks)
 
+        from autom8_asana.dataframes.exceptions import DataFrameConstructionError
+
         builder = SectionDataFrameBuilder(
             section=section_proxy,
             task_type="*",
             schema=schema,
             resolver=resolver,
         )
-        df = builder.build(tasks=tasks)
+        try:
+            df = builder.build(tasks=tasks)
+        except DataFrameConstructionError as exc:
+            raise InvalidParameterError(
+                f"DataFrame construction failed for schema '{schema.name}': "
+                f"{exc.original_error}"
+            ) from exc
 
         return (
             DataFrameResult(
@@ -294,6 +322,74 @@ class DataFrameService:
             ),
             project_gid,
         )
+
+    async def _warm_cascade_store(
+        self,
+        client: AsanaClient,
+        store: Any,
+        tasks: list[dict[str, Any]],
+        schema: DataFrameSchema,
+    ) -> None:
+        """Warm cascade store with parent chain data for resolution.
+
+        Pre-populates the per-request ``UnifiedTaskStore`` by storing
+        fetched task dicts and triggering hierarchy warming.  Only
+        executes when the schema has ``cascade:`` columns.  Bounded by
+        ``MAX_CASCADE_PARENTS`` to prevent runaway API calls.
+
+        Per TDD-cascade-warming-api-path.
+        """
+        MAX_CASCADE_PARENTS = 50
+
+        if not schema.has_cascade_columns():
+            return
+
+        if not tasks:
+            return
+
+        parent_gids: set[str] = set()
+        for task in tasks:
+            parent = task.get("parent")
+            if parent and isinstance(parent, dict):
+                pgid = parent.get("gid")
+                if pgid:
+                    parent_gids.add(pgid)
+
+        if len(parent_gids) > MAX_CASCADE_PARENTS:
+            logger.warning(
+                "cascade_warming_parent_limit_exceeded",
+                extra={
+                    "unique_parents": len(parent_gids),
+                    "limit": MAX_CASCADE_PARENTS,
+                    "action": "warming_skipped",
+                },
+            )
+            return
+
+        try:
+            await store.put_batch_async(
+                tasks,
+                opt_fields=self.TASK_OPT_FIELDS,
+                tasks_client=client.tasks,
+                warm_hierarchy=True,
+            )
+            logger.info(
+                "cascade_warming_complete",
+                extra={
+                    "task_count": len(tasks),
+                    "unique_parents": len(parent_gids),
+                    "schema": schema.name,
+                },
+            )
+        except Exception:
+            logger.warning(
+                "cascade_warming_failed",
+                extra={
+                    "task_count": len(tasks),
+                    "schema": schema.name,
+                },
+                exc_info=True,
+            )
 
     @staticmethod
     def _get_schema_mapping() -> tuple[dict[str, str], list[str]]:
