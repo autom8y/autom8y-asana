@@ -111,11 +111,11 @@ async def validate_cascade_fields_async(
             # Search parent chain for field value using cascade-aware resolution.
             # Per GAP-A fix: use get_field_value() which handles source_field
             # (e.g., "Business Name" -> Task.name) instead of searching custom_fields only.
-            from autom8_asana.models.business.fields import get_cascading_field
             from autom8_asana.dataframes.views.cf_utils import (
-                get_field_value,
                 get_custom_field_value,
+                get_field_value,
             )
+            from autom8_asana.models.business.fields import get_cascading_field
 
             field_entry = get_cascading_field(cascade_field_name)
             for parent_data in parent_chain:
@@ -411,9 +411,6 @@ def audit_phone_e164_compliance(
     if df.is_empty() or "office_phone" not in df.columns:
         return
 
-    import re
-
-    total_rows = len(df)
     non_null = df.filter(pl.col("office_phone").is_not_null())
     non_null_count = len(non_null)
 
