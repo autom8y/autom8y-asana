@@ -294,15 +294,21 @@ async def test_validation_multiple_rows() -> None:
         parent_chains={
             "task-1": [
                 {"gid": "holder-1", "custom_fields": []},
-                {"gid": "business-1", "custom_fields": [
-                    {"name": "Office Phone", "text_value": "555-9999"},
-                ]},
+                {
+                    "gid": "business-1",
+                    "custom_fields": [
+                        {"name": "Office Phone", "text_value": "555-9999"},
+                    ],
+                },
             ],
             "task-2": [
                 {"gid": "holder-2", "custom_fields": []},
-                {"gid": "business-1", "custom_fields": [
-                    {"name": "Office Phone", "text_value": "555-9999"},
-                ]},
+                {
+                    "gid": "business-1",
+                    "custom_fields": [
+                        {"name": "Office Phone", "text_value": "555-9999"},
+                    ],
+                },
             ],
             "task-3": [
                 {"gid": "holder-3", "custom_fields": []},
@@ -506,10 +512,13 @@ async def test_schema_driven_validates_all_cascade_columns() -> None:
         parent_chains={
             "t-1": [
                 {"gid": "holder-1", "custom_fields": []},
-                {"gid": "biz-1", "custom_fields": [
-                    {"name": "Office Phone", "text_value": "555-0001"},
-                    {"name": "Vertical", "text_value": "Chiro"},
-                ]},
+                {
+                    "gid": "biz-1",
+                    "custom_fields": [
+                        {"name": "Office Phone", "text_value": "555-0001"},
+                        {"name": "Vertical", "text_value": "Chiro"},
+                    ],
+                },
             ]
         },
     )
@@ -690,10 +699,12 @@ class TestAuditCascadeKeyNulls:
             },
             schema={"office_phone": pl.Utf8, "vertical": pl.Utf8},
         )
-        schema = self._make_schema([
-            ("office_phone", "Office Phone"),
-            ("vertical", "Vertical"),
-        ])
+        schema = self._make_schema(
+            [
+                ("office_phone", "Office Phone"),
+                ("vertical", "Vertical"),
+            ]
+        )
 
         with patch(
             "autom8_asana.dataframes.builders.cascade_validator.logger"
@@ -724,10 +735,12 @@ class TestAuditCascadeKeyNulls:
             },
             schema={"office_phone": pl.Utf8, "mrr": pl.Utf8},
         )
-        schema = self._make_schema([
-            ("office_phone", "Office Phone"),
-            ("mrr", "MRR"),
-        ])
+        schema = self._make_schema(
+            [
+                ("office_phone", "Office Phone"),
+                ("mrr", "MRR"),
+            ]
+        )
 
         with patch(
             "autom8_asana.dataframes.builders.cascade_validator.logger"
@@ -811,8 +824,14 @@ class TestAuditCascadeKeyNulls:
             )
 
             extra = mock_logger.error.call_args[1]["extra"]
-            assert extra["cascade_key_nulls"]["office_phone"]["source_entity"] == "business"
-            assert extra["cascade_key_nulls"]["office_phone"]["cascade_source"] == "Office Phone"
+            assert (
+                extra["cascade_key_nulls"]["office_phone"]["source_entity"]
+                == "business"
+            )
+            assert (
+                extra["cascade_key_nulls"]["office_phone"]["cascade_source"]
+                == "Office Phone"
+            )
 
     def test_thresholds_match_adr_calibration(self) -> None:
         """Verify threshold constants match ADR-cascade-contract-policy specification."""
@@ -993,7 +1012,9 @@ class TestAuditCascadeDisplayNulls:
             ("office_phone", "Office Phone"),
         ]
 
-        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
+        with patch(
+            "autom8_asana.dataframes.builders.cascade_validator.logger"
+        ) as mock_logger:
             audit_cascade_display_nulls(
                 df=df,
                 entity_type="offer",
@@ -1021,7 +1042,9 @@ class TestAuditCascadeDisplayNulls:
         schema = MagicMock()
         schema.get_cascade_columns.return_value = [("office_phone", "Office Phone")]
 
-        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
+        with patch(
+            "autom8_asana.dataframes.builders.cascade_validator.logger"
+        ) as mock_logger:
             audit_cascade_display_nulls(
                 df=df,
                 entity_type="offer",
@@ -1044,15 +1067,17 @@ class TestAuditPhoneE164Compliance:
         df = pl.DataFrame(
             {
                 "office_phone": [
-                    "+15551234567",     # compliant
-                    "+16146362433",     # compliant
-                    "(614) 636-2433",   # non-compliant (raw format)
-                    None,               # null — excluded from count
+                    "+15551234567",  # compliant
+                    "+16146362433",  # compliant
+                    "(614) 636-2433",  # non-compliant (raw format)
+                    None,  # null — excluded from count
                 ],
             }
         )
 
-        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
+        with patch(
+            "autom8_asana.dataframes.builders.cascade_validator.logger"
+        ) as mock_logger:
             audit_phone_e164_compliance(
                 df=df,
                 entity_type="offer",
@@ -1061,9 +1086,9 @@ class TestAuditPhoneE164Compliance:
 
             mock_logger.info.assert_called_once()
             extra = mock_logger.info.call_args[1]["extra"]
-            assert extra["total_phones"] == 3       # 4 rows - 1 null = 3
-            assert extra["e164_compliant"] == 2     # two E.164 formatted
-            assert extra["non_compliant"] == 1      # one raw format
+            assert extra["total_phones"] == 3  # 4 rows - 1 null = 3
+            assert extra["e164_compliant"] == 2  # two E.164 formatted
+            assert extra["non_compliant"] == 1  # one raw format
 
     def test_skips_when_no_office_phone_column(self) -> None:
         """DataFrames without office_phone column are silently skipped."""
@@ -1073,7 +1098,9 @@ class TestAuditPhoneE164Compliance:
 
         df = pl.DataFrame({"name": ["Test"]})
 
-        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
+        with patch(
+            "autom8_asana.dataframes.builders.cascade_validator.logger"
+        ) as mock_logger:
             audit_phone_e164_compliance(
                 df=df,
                 entity_type="contact",
@@ -1091,7 +1118,9 @@ class TestAuditPhoneE164Compliance:
             {"office_phone": ["+15551234567", "+16146362433"]},
         )
 
-        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
+        with patch(
+            "autom8_asana.dataframes.builders.cascade_validator.logger"
+        ) as mock_logger:
             audit_phone_e164_compliance(
                 df=df,
                 entity_type="offer",

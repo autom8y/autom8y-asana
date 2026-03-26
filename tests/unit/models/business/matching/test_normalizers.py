@@ -73,14 +73,18 @@ class TestPhoneNormalizer:
     @pytest.mark.parametrize(
         "input_val,expected",
         [
-            pytest.param("(614) 636-2433", "+16146362433", id="parenthesized-area-code"),
+            pytest.param(
+                "(614) 636-2433", "+16146362433", id="parenthesized-area-code"
+            ),
             pytest.param("6146362433", "+16146362433", id="10-digit-plain"),
             pytest.param("+1 614-636-2433", "+16146362433", id="with-country-code"),
             pytest.param("1-614-636-2433", "+16146362433", id="with-1-prefix-dash"),
             pytest.param("+16146362433", "+16146362433", id="already-e164"),
         ],
     )
-    def test_normalize_all_documented_formats(self, input_val: str, expected: str) -> None:
+    def test_normalize_all_documented_formats(
+        self, input_val: str, expected: str
+    ) -> None:
         """All documented phone formats normalize to E.164.
 
         Per GAP-B scan: These are the format variants found in production data.
