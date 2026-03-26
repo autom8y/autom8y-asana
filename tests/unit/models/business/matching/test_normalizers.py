@@ -50,6 +50,44 @@ class TestPhoneNormalizer:
         norm = PhoneNormalizer()
         assert norm.normalize("call me") is None
 
+    def test_normalize_idempotent_on_e164(self) -> None:
+        """E.164 input passes through unchanged (idempotency).
+
+        Per GAP-B: PhoneNormalizer must be idempotent since it is now
+        called on both the read path and potentially in the matching engine.
+        """
+        norm = PhoneNormalizer()
+        e164 = "+15551234567"
+        assert norm.normalize(e164) == e164
+        assert norm.normalize(norm.normalize("(555) 123-4567")) == "+15551234567"
+
+    def test_normalize_trailing_whitespace_stripped(self) -> None:
+        """Trailing whitespace is handled (SCAR-020 guard).
+
+        Per SCAR-020: Phone values with trailing newlines must normalize cleanly.
+        """
+        norm = PhoneNormalizer()
+        assert norm.normalize("+15551234567\n") == "+15551234567"
+        assert norm.normalize("(555) 123-4567 ") == "+15551234567"
+
+    @pytest.mark.parametrize(
+        "input_val,expected",
+        [
+            pytest.param("(614) 636-2433", "+16146362433", id="parenthesized-area-code"),
+            pytest.param("6146362433", "+16146362433", id="10-digit-plain"),
+            pytest.param("+1 614-636-2433", "+16146362433", id="with-country-code"),
+            pytest.param("1-614-636-2433", "+16146362433", id="with-1-prefix-dash"),
+            pytest.param("+16146362433", "+16146362433", id="already-e164"),
+        ],
+    )
+    def test_normalize_all_documented_formats(self, input_val: str, expected: str) -> None:
+        """All documented phone formats normalize to E.164.
+
+        Per GAP-B scan: These are the format variants found in production data.
+        """
+        norm = PhoneNormalizer()
+        assert norm.normalize(input_val) == expected
+
 
 class TestEmailNormalizer:
     """Tests for EmailNormalizer."""

@@ -21,6 +21,7 @@ from autom8_asana.models.business.contact import Contact, ContactHolder
 from autom8_asana.models.business.descriptors import (
     EnumField,
     IntField,
+    PhoneTextField,
     TextField,
 )
 from autom8_asana.models.business.fields import CascadingFieldDef
@@ -263,7 +264,7 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
     facebook_page_id = TextField()
     fallback_page_id = TextField()
     google_cal_id = TextField()
-    office_phone = TextField(cascading=True)
+    office_phone = PhoneTextField(cascading=True)
     owner_name = TextField()
     owner_nickname = TextField()
     review_1 = TextField()
@@ -271,7 +272,7 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
     reviews_link = TextField()
     stripe_id = TextField()
     stripe_link = TextField()
-    twilio_phone_num = TextField()
+    twilio_phone_num = PhoneTextField()
 
     # Number fields (1)
     num_reviews = IntField()

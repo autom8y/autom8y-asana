@@ -267,6 +267,11 @@ class CascadeViewPlugin:
                 # Per TDD-WS3: Use get_field_value to check source_field first
                 value = get_field_value(parent_data, field_def)
                 if value is not None:
+                    # Per GAP-B fix: normalize phone fields to E.164 on cascade read
+                    if field_def.name == "Office Phone":
+                        from autom8_asana.models.business.matching.normalizers import PhoneNormalizer
+
+                        value = PhoneNormalizer().normalize(value)
                     logger.debug(
                         "cascade_view_field_found",
                         extra={
@@ -287,6 +292,11 @@ class CascadeViewPlugin:
                 # Per TDD-WS3: Use get_field_value to check source_field first
                 value = get_field_value(last_parent, field_def)
                 if value is not None:
+                    # Per GAP-B fix: normalize phone fields to E.164 on cascade read
+                    if field_def.name == "Office Phone":
+                        from autom8_asana.models.business.matching.normalizers import PhoneNormalizer
+
+                        value = PhoneNormalizer().normalize(value)
                     logger.debug(
                         "cascade_view_field_found_at_root",
                         extra={

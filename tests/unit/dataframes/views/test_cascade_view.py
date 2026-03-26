@@ -163,7 +163,7 @@ class TestCascadeViewPluginResolve:
                     "gid": "cf-1",
                     "name": "Office Phone",
                     "resource_subtype": "text",
-                    "text_value": "parent-phone",
+                    "text_value": "(614) 636-2433",
                 }
             ],
         }
@@ -181,8 +181,8 @@ class TestCascadeViewPluginResolve:
 
         result = await plugin.resolve_async(mock_task, "Office Phone")
 
-        # Should find value in parent
-        assert result == "parent-phone"
+        # Should find value in parent, normalized to E.164 by GAP-B cascade guard
+        assert result == "+16146362433"
         mock_store.get_with_upgrade_async.assert_called_once()
 
     @pytest.mark.asyncio
@@ -488,7 +488,7 @@ class TestCascadeViewPluginEdgeCases:
                     "gid": "cf-1",
                     "name": "Office Phone",  # Mixed case
                     "resource_subtype": "text",
-                    "text_value": "555-1234",
+                    "text_value": "(614) 636-2433",
                 }
             ],
         }
@@ -519,7 +519,8 @@ class TestCascadeViewPluginEdgeCases:
         # Search with different case (registry key should be normalized)
         result = await plugin.resolve_async(task, "office phone")
 
-        assert result == "555-1234"
+        # Per GAP-B: Office Phone values are normalized to E.164 on cascade read
+        assert result == "+16146362433"
 
     @pytest.mark.asyncio
     async def test_resolve_from_root_fallback(self, mock_store: MagicMock) -> None:
@@ -539,7 +540,7 @@ class TestCascadeViewPluginEdgeCases:
                     "gid": "cf-1",
                     "name": "Office Phone",
                     "resource_subtype": "text",
-                    "text_value": "root-phone",
+                    "text_value": "(614) 636-2433",
                 }
             ],
         }
@@ -569,8 +570,8 @@ class TestCascadeViewPluginEdgeCases:
 
         result = await plugin.resolve_async(task, "Office Phone")
 
-        # Should find at root
-        assert result == "root-phone"
+        # Should find at root, normalized to E.164 by GAP-B cascade guard
+        assert result == "+16146362433"
 
 
 class TestCascadeViewPluginMixedTypes:

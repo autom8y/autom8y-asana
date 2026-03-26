@@ -528,7 +528,9 @@ class ProgressiveProjectBuilder:
             try:
                 from autom8_asana.core.entity_registry import get_registry
                 from autom8_asana.dataframes.builders.cascade_validator import (
+                    audit_cascade_display_nulls,
                     audit_cascade_key_nulls,
+                    audit_phone_e164_compliance,
                 )
 
                 desc = get_registry().get(self._entity_type)
@@ -540,6 +542,22 @@ class ProgressiveProjectBuilder:
                         schema=self._schema,
                         key_columns=desc.key_columns,
                     )
+                    # Per GAP-A sprint-4: audit display-column null rates
+                    # (cascade-sourced but not key columns, e.g., office)
+                    audit_cascade_display_nulls(
+                        df=merged_df,
+                        entity_type=self._entity_type,
+                        project_gid=self._project_gid,
+                        schema=self._schema,
+                        key_columns=desc.key_columns,
+                    )
+                # Per GAP-B sprint-4: audit phone E.164 compliance
+                # (runs for any entity with office_phone column)
+                audit_phone_e164_compliance(
+                    df=merged_df,
+                    entity_type=self._entity_type,
+                    project_gid=self._project_gid,
+                )
             except Exception as e:  # BROAD-CATCH: audit is diagnostic only
                 logger.warning(
                     "cascade_key_null_audit_failed",
