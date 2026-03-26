@@ -475,6 +475,35 @@ class TextField(CustomFieldDescriptor[str | None]):
         return str(value)
 
 
+class PhoneTextField(TextField):
+    """TextField variant that normalizes phone values to E.164 on read.
+
+    Uses PhoneNormalizer's digit-extraction fallback (phonenumbers is not
+    a runtime dependency). Idempotent: already-E.164 values pass through
+    unchanged.
+
+    Example:
+        class Business(BusinessEntity):
+            office_phone = PhoneTextField(cascading=True)
+    """
+
+    def _get_value(self, obj: Any) -> str | None:
+        """Get phone value normalized to E.164.
+
+        Args:
+            obj: Instance to get value from.
+
+        Returns:
+            E.164-formatted phone string, or None if not set.
+        """
+        raw = super()._get_value(obj)
+        if raw is None:
+            return None
+        from autom8_asana.models.business.matching.normalizers import PhoneNormalizer
+
+        return PhoneNormalizer().normalize(raw)
+
+
 class EnumField(CustomFieldDescriptor[str | None]):
     """Descriptor for enum custom fields.
 

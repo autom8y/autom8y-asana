@@ -10,9 +10,11 @@ OFFER_COLUMNS: list[ColumnDef] = [
         name="office",
         dtype="Utf8",
         nullable=True,
-        source=None,  # Derived from business.office_phone lookup
-        description="Office name (derived)",
+        source="cascade:Business Name",  # Cascades from Business ancestor Task.name
+        description="Office name (cascades from Business)",
     ),
+    # CASCADE CONTRACT: sourced from Business.office_phone (warm_priority=1).
+    # Resolution key column -- null cascade = silent NOT_FOUND (FIND-005).
     ColumnDef(
         name="office_phone",
         dtype="Utf8",
@@ -20,6 +22,8 @@ OFFER_COLUMNS: list[ColumnDef] = [
         source="cascade:Office Phone",  # Cascades from Business ancestor
         description="Office phone number (cascades from Business)",
     ),
+    # CASCADE CONTRACT: sourced from Unit.vertical or Business.vertical (warm_priority=2/1).
+    # Resolution key column -- null cascade = silent NOT_FOUND (FIND-005).
     ColumnDef(
         name="vertical",
         dtype="Utf8",
@@ -99,5 +103,5 @@ OFFER_SCHEMA = DataFrameSchema(
         *BASE_COLUMNS,
         *[c for c in OFFER_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
-    version="1.3.0",  # parent_gid column added for hierarchy reconstruction on resume
+    version="1.4.0",  # office column cascade-sourced from Business Name (GAP-A fix)
 )

@@ -34,13 +34,13 @@ class TestGetCascadeColumns:
 
         assert BUSINESS_SCHEMA.get_cascade_columns() == []
 
-    def test_offer_schema_returns_four_cascade_columns(self) -> None:
+    def test_offer_schema_returns_five_cascade_columns(self) -> None:
         from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
 
         cols = OFFER_SCHEMA.get_cascade_columns()
-        assert len(cols) == 4
+        assert len(cols) == 5
         field_names = {c[1] for c in cols}
-        assert field_names == {"Office Phone", "Vertical", "MRR", "Weekly Ad Spend"}
+        assert field_names == {"Business Name", "Office Phone", "Vertical", "MRR", "Weekly Ad Spend"}
 
     def test_contact_schema_returns_two_cascade_columns(self) -> None:
         from autom8_asana.dataframes.schemas.contact import CONTACT_SCHEMA

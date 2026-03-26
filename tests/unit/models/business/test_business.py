@@ -260,10 +260,11 @@ class TestBusinessCustomFields:
         assert business.custom_fields_editor().has_changes()
 
     def test_office_phone_getter_setter(self) -> None:
-        """office_phone getter and setter work."""
+        """office_phone getter and setter work with E.164 normalization."""
         business = Business(gid="123", custom_fields=[])
-        business.office_phone = "555-1234"
-        assert business.office_phone == "555-1234"
+        business.office_phone = "(614) 636-2433"
+        # PhoneTextField normalizes to E.164 on read
+        assert business.office_phone == "+16146362433"
 
     def test_num_reviews_number_conversion(self) -> None:
         """num_reviews converts to int."""
