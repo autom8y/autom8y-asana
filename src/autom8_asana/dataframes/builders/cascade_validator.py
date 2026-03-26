@@ -112,7 +112,10 @@ async def validate_cascade_fields_async(
             # Per GAP-A fix: use get_field_value() which handles source_field
             # (e.g., "Business Name" -> Task.name) instead of searching custom_fields only.
             from autom8_asana.models.business.fields import get_cascading_field
-            from autom8_asana.dataframes.views.cf_utils import get_field_value, get_custom_field_value
+            from autom8_asana.dataframes.views.cf_utils import (
+                get_field_value,
+                get_custom_field_value,
+            )
 
             field_entry = get_cascading_field(cascade_field_name)
             for parent_data in parent_chain:
@@ -264,7 +267,9 @@ def audit_cascade_key_nulls(
     _span.set_attribute("computation.cascade_audit.entity_type", entity_type)
     _span.set_attribute("computation.cascade_audit.total_rows", total_rows)
     _span.set_attribute("computation.cascade_audit.max_severity", max_severity)
-    _span.set_attribute("computation.cascade_audit.null_column_count", len(cascade_key_nulls))
+    _span.set_attribute(
+        "computation.cascade_audit.null_column_count", len(cascade_key_nulls)
+    )
 
     if max_severity in ("warning", "error"):
         columns_at_warning = ",".join(
@@ -362,7 +367,9 @@ def audit_cascade_display_nulls(
         return
 
     _span = _otel_trace.get_current_span()
-    _span.set_attribute("computation.cascade_audit.display_null_column_count", len(display_nulls))
+    _span.set_attribute(
+        "computation.cascade_audit.display_null_column_count", len(display_nulls)
+    )
     for col_name, data in display_nulls.items():
         _span.set_attribute(
             f"computation.cascade_audit.display.{col_name}.null_rate",
@@ -414,9 +421,7 @@ def audit_phone_e164_compliance(
         return
 
     compliant_count = int(
-        non_null.filter(
-            pl.col("office_phone").str.contains(_E164_PATTERN)
-        ).height
+        non_null.filter(pl.col("office_phone").str.contains(_E164_PATTERN)).height
     )
     compliance_rate = compliant_count / non_null_count
     non_compliant_count = non_null_count - compliant_count
@@ -425,7 +430,9 @@ def audit_phone_e164_compliance(
     _span.set_attribute("computation.phone_audit.entity_type", entity_type)
     _span.set_attribute("computation.phone_audit.total_phones", non_null_count)
     _span.set_attribute("computation.phone_audit.e164_compliant", compliant_count)
-    _span.set_attribute("computation.phone_audit.e164_compliance_rate", round(compliance_rate, 6))
+    _span.set_attribute(
+        "computation.phone_audit.e164_compliance_rate", round(compliance_rate, 6)
+    )
 
     logger.info(
         "phone_e164_compliance_audit",

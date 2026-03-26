@@ -269,7 +269,9 @@ class CascadeViewPlugin:
                 if value is not None:
                     # Per GAP-B fix: normalize phone fields to E.164 on cascade read
                     if field_def.name == "Office Phone":
-                        from autom8_asana.models.business.matching.normalizers import PhoneNormalizer
+                        from autom8_asana.models.business.matching.normalizers import (
+                            PhoneNormalizer,
+                        )
 
                         value = PhoneNormalizer().normalize(value)
                     logger.debug(
@@ -294,7 +296,9 @@ class CascadeViewPlugin:
                 if value is not None:
                     # Per GAP-B fix: normalize phone fields to E.164 on cascade read
                     if field_def.name == "Office Phone":
-                        from autom8_asana.models.business.matching.normalizers import PhoneNormalizer
+                        from autom8_asana.models.business.matching.normalizers import (
+                            PhoneNormalizer,
+                        )
 
                         value = PhoneNormalizer().normalize(value)
                     logger.debug(
