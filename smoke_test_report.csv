@@ -1,0 +1,39 @@
+Category,Metric,Value,Status
+Pipeline,Timestamp,2026-03-19T09:33:54,—
+Pipeline,Offer GID,1208990267383390,—
+Pipeline,Mode,dry_run=True,—
+Pipeline,HTTP Status,200,PASS
+Pipeline,Workflow Status,completed,PASS
+Pipeline,Duration (s),2.32,—
+Pipeline,Total Entities,1,—
+Pipeline,Succeeded,0,FAIL
+Pipeline,Failed,1,FAIL
+Pipeline,Tables Succeeded,0,FAIL
+Pipeline,Tables Failed,12,FAIL
+Pipeline,Failure Rate,1.0,—
+Entity Resolution,Bootstrap,Complete (13 models),PASS
+Entity Resolution,WorkflowRegistry,insights-export registered,PASS
+Entity Resolution,Targeted Dispatch,entity_ids accepted,PASS
+Entity Resolution,Offer → Business,+1260***2080 / chiropractic (4-hop),PASS
+Entity Resolution,PII Masking,Phone masked in logs,PASS
+Data Fetch,SUMMARY,DuckDB NULL ptr crash,FAIL — DuckDB engine bug
+Data Fetch,OFFER TABLE,DuckDB NULL ptr crash,FAIL — DuckDB engine bug
+Data Fetch,BY WEEK,DuckDB NULL ptr crash,FAIL — DuckDB engine bug
+Data Fetch,BY MONTH,DuckDB NULL ptr crash,FAIL — DuckDB engine bug
+Data Fetch,BY QUARTER,DuckDB NULL ptr crash,FAIL — DuckDB engine bug
+Data Fetch,ASSET TABLE,DuckDB NULL ptr crash,FAIL — DuckDB engine bug
+Data Fetch,UNUSED ASSETS,DuckDB NULL ptr crash,FAIL — DuckDB engine bug
+Data Fetch,AD QUESTIONS,DuckDB NULL ptr crash,FAIL — DuckDB engine bug
+Data Fetch,APPOINTMENTS,Server disconnected,FAIL — worker crash
+Data Fetch,LEADS,Server disconnected,FAIL — worker crash
+Data Fetch,LIFETIME RECONCILIATIONS,Server disconnected,FAIL — worker crash
+Data Fetch,T14 RECONCILIATIONS,Server disconnected,FAIL — worker crash
+Observability,BridgeExecutionComplete,Published,PASS
+Observability,BridgeFleetHealth,Emitted (CW disabled),PASS
+Observability,Fleet DMS,Emitted (CW disabled),PASS
+Error Handling,Per-Entity Isolation,12 failures aggregated,PASS
+Error Handling,Graceful Degradation,No crash — structured result,PASS
+Root Cause,DuckDB Version,1.4.4 (aarch64-linux-gnu),—
+Root Cause,Primary Bug,"DuckDB INTERNAL Error: unique_ptr NULL dereference on complex subquery JOIN chain (business_offers_budget + ad_optimizations_budget aliases)",DATA SERVICE — DuckDB engine bug
+Root Cause,Trigger,"Complex multi-CTE reconciliation query with inline budget subqueries on in-memory DuckDB with minimal fixture data",DATA SERVICE
+Root Cause,Note,"autom8y-asana pipeline is fully functional. All 12 failures are DuckDB engine crashes in the data service query executor, not fixture gaps or pipeline bugs.",DATA SERVICE

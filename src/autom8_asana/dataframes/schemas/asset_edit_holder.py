@@ -11,6 +11,10 @@ from autom8_asana.dataframes.schemas.base import BASE_COLUMNS
 
 # AssetEditHolder columns - office_phone cascading from Business
 ASSET_EDIT_HOLDER_COLUMNS: list[ColumnDef] = [
+    # CASCADE CONTRACT: sourced from Business.office_phone (warm_priority=1).
+    # Resolution key column -- null cascade = silent NOT_FOUND (FIND-005).
+    # Sole key column (100% cascade dependency): if cascade fails, this
+    # entity is entirely unlookable.
     ColumnDef(
         name="office_phone",
         dtype="Utf8",

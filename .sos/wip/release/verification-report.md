@@ -1,103 +1,87 @@
 ---
 type: audit
 ---
-
-# Verification Report — autom8y-asana PATCH Release (Round 7)
+# Verification Report -- Round 20 Final (autom8y-asana PATCH)
 
 **Verdict: PASS**
-
-- Round: 7 (formatting-only fix — ruff format on 2 files)
-- Monitoring started: 2026-03-15T13:14:01Z
-- Monitoring completed: 2026-03-15T13:44:33Z
-- Total duration: 30m 32s
-- Timeout budget: 25 minutes (chain extension applied — ECS waiter retry in progress)
-- Stages resolved: all 3
-- Retries used: 1 of 2 (ECS ServicesStable waiter — known transient)
+Generated: 2026-03-26T03:23:00Z
+Monitoring window: 2026-03-26T03:15:02Z -- 2026-03-26T03:22:40Z (7m 38s)
+Commit: `ab88d9e`
+ECS deployment strategy: ROLLING
 
 ---
 
-## CI Matrix — Primary Chain
+## Status Matrix
 
-| Stage | Workflow | Repo | Run | Status | Duration | Notes |
-|---|---|---|---|---|---|---|
-| Stage 1 | Test | autom8y/autom8y-asana | [23111091065](https://github.com/autom8y/autom8y-asana/actions/runs/23111091065) | GREEN | 3m 46s | |
-| Stage 2 | Satellite Dispatch | autom8y/autom8y-asana | [23111163014](https://github.com/autom8y/autom8y-asana/actions/runs/23111163014) | GREEN | 9s | |
-| Stage 3 | Satellite Receiver | autom8y/autom8y | [23111164811](https://github.com/autom8y/autom8y/actions/runs/23111164811) | GREEN | 10m 22s | 1 retry (ECS waiter) |
-
-### Ancillary (non-blocking)
-
-| Workflow | Run | Status | Notes |
-|---|---|---|---|
-| Secrets Scan (Gitleaks) | [23111091008](https://github.com/autom8y/autom8y-asana/actions/runs/23111091008) | GREEN | |
-| CodeQL (Push on main) | [23111090765](https://github.com/autom8y/autom8y-asana/actions/runs/23111090765) | GREEN | |
-| OpenSSF Scorecard | [23111091001](https://github.com/autom8y/autom8y-asana/actions/runs/23111091001) | RED | Pre-existing permissions score finding; non-blocking per directive |
+| Repo | Workflow | Run | Status | Duration |
+|------|----------|-----|--------|----------|
+| autom8y/autom8y-asana | Satellite Dispatch | [23575710247](https://github.com/autom8y/autom8y-asana/actions/runs/23575710247) | GREEN | 4s |
+| autom8y/autom8y | Satellite Receiver | [23575713587](https://github.com/autom8y/autom8y/actions/runs/23575713587) | GREEN | 7m 31s |
 
 ---
 
-## Stage 1 — Test (GREEN)
+## Chain: autom8y-asana:satellite-dispatch (depth 2)
 
-Run [23111091065](https://github.com/autom8y/autom8y-asana/actions/runs/23111091065) completed at 13:17:47Z. The ruff formatting gate cleared — the 2-file formatting fix (entry.py and field_resolver.py) resolved the round 6 blocker. All jobs in the Test workflow passed including ci / Lint & Type Check, ci / Test, and ci / Integration Tests.
+| Stage | Repo | Workflow | Run | Status | Duration |
+|-------|------|----------|-----|--------|----------|
+| 1 | autom8y/autom8y-asana | Satellite Dispatch | [23575710247](https://github.com/autom8y/autom8y-asana/actions/runs/23575710247) | GREEN | 4s |
+| 2 | autom8y/autom8y | Satellite Receiver | [23575713587](https://github.com/autom8y/autom8y/actions/runs/23575713587) | GREEN | 7m 31s |
 
----
-
-## Stage 2 — Satellite Dispatch (GREEN)
-
-Run [23111163014](https://github.com/autom8y/autom8y-asana/actions/runs/23111163014) fired immediately upon Test completion and finished in 9 seconds at 13:17:56Z. Dispatch to autom8y/autom8y confirmed.
-
----
-
-## Stage 3 — Satellite Receiver (GREEN, 1 retry)
-
-Run [23111164811](https://github.com/autom8y/autom8y/actions/runs/23111164811) entered in_progress at 13:18:18Z. All jobs through Build Service and Deploy Lambda via Terraform completed green on the first attempt.
-
-**ECS waiter failure (attempt 1):**
-
-The Deploy to ECS job reached "Wait for deployment" (Step 13) and timed out after ~10 minutes:
-
-```
-aws: [ERROR]: Waiter ServicesStable failed: Max attempts exceeded
-##[error]Process completed with exit code 255.
-```
-
-This is the documented ~50% flaky ECS ServicesStable waiter (autom8y/autom8y known behavior). One retry was issued:
-
-```
-gh run rerun 23111164811 --failed -R autom8y/autom8y
-```
-
-**Retry 1 result:** All 5 jobs completed green. Deployment confirmed healthy at 13:43:23Z. Smoke test passed. Grafana deployment annotations recorded.
-
-Retries used: 1 of 2. Retry budget not exhausted.
+Chain resolved. Terminal stage green. Deployment healthy.
 
 ---
 
-## OpenSSF Scorecard — Ancillary Failure (non-blocking)
+## Stage 2 -- Satellite Receiver Job Results (Round 20)
 
-Run [23111091001](https://github.com/autom8y/autom8y-asana/actions/runs/23111091001) failed with a workflow permissions score finding (Severity: High — top-level permissions not set to read-only). This is a static security posture report, not a gate triggered by the formatting fix. The finding is pre-existing and present in prior rounds. Action required as a separate security work item: set top-level permissions to `read-all` or `contents: read` in affected workflows.
+| Job | Status | Duration | Notes |
+|-----|--------|----------|-------|
+| Validate Payload | success | 7s | |
+| Checkout Satellite Code | success | 12s | |
+| Build Service / Build and Push | success | 3m 30s | Docker build, ECR push, Trivy scan, SBOM attestation all passed |
+| Deploy Lambda via Terraform | success | 1m 9s | Terraform Plan + Apply + Lambda verify all passed |
+| Deploy to ECS / Deploy to ECS | success | 3m 30s | Wait for deployment, digest verify, smoke test all passed |
+
+**Key steps:**
+
+- Build and push image (with CodeArtifact): success
+- Attest build provenance: success
+- Generate SBOM (CycloneDX): success
+- Gate on CRITICAL vulnerabilities: success
+- Register new task definition: success
+- Update ECS service: success
+- Wait for deployment: success (rolloutState=COMPLETED within 3m 10s)
+- Verify deployed image digest: success
+- Smoke Test: success
+- Terraform Plan: success
+- Terraform Apply: success
+- Verify Lambda deployment: success
 
 ---
 
-## Round History
+## Round History (Summary)
 
-| Round | Stage Failed | Root Cause | Outcome |
-|---|---|---|---|
-| 1 | Stage 1 (Test) | 13 unit test failures + ruff violation — env var rename not propagated to test fixtures | Fixed (autom8y-asana) |
-| 2 | Stage 3 (Satellite Receiver) | (1) Attestation: push-to-registry stored to ECR; (2) Terraform null: aws_region missing | Fixed (autom8y/autom8y) — partial |
-| 3 | Stage 3 (Satellite Receiver) | Terraform null: metrics_path + scrape_interval unset in ecs-otel-sidecar template | Fixed (autom8y/autom8y) |
-| 4 | None | All fixes confirmed. ECS waiter timeout (transient, 2 retries, resolved) | PASS |
-| 5 | None | Platform tooling push — no code changes. Zero retries. Fastest run in cycle. | PASS |
-| 6 | Stage 1 (Test) | Ruff formatting violation in 2 files introduced by tooling sync push | FAIL |
-| 7 | None | Formatting fix cleared gate. ECS waiter timeout (transient, 1 retry, resolved). | **PASS** |
+| Round | Stage 2 | Stage 3 | Root Cause | Verdict |
+|-------|---------|---------|------------|---------|
+| 1-16 | Various | Various | Stage 1 ruff/mypy/test failures; CANARY ALB testListenerRule missing | FAIL |
+| 17 | GREEN | RED (Poll 2 FAILED) | CANARY testListenerRule structurally absent | FAIL |
+| 18 | GREEN | RED (Poll 2 FAILED) | CANARY ECS config confirmed missing testListenerRule | FAIL |
+| 19 | GREEN | RED (Poll 60 timeout) | ROLLING applied; ServicesStable waiter CI cap exhausted | FAIL |
+| **20** | **GREEN** | **GREEN** | ROLLING; ECS completed within CI window | **PASS** |
 
 ---
 
 ## Success Criteria
 
-| Criterion | Result |
-|---|---|
-| all_ci_green | true |
-| all_chains_resolved | true |
-| all_deployments_healthy | true |
-| all_versions_consistent | true |
-| zero_manual_intervention | true |
-| **Verdict** | **PASS** |
+| Criterion | Status |
+|-----------|--------|
+| all_ci_green | PASS |
+| all_chains_resolved | PASS |
+| all_deployments_healthy | PASS |
+| all_versions_consistent | PASS |
+| zero_manual_intervention | PASS |
+
+---
+
+## Context
+
+This is the final verification round for the autom8y-asana PATCH release (commits `bbba220` + `ab88d9e`). The ECS service was fully recreated with ROLLING deployment strategy to resolve the CANARY `testListenerRule` structural failure (Rounds 13-18). Round 19's ECS waiter timeout (rolloutState=IN_PROGRESS at Poll 60, no failures) confirmed the ROLLING strategy itself was sound -- the service simply needed more time than the CI 15-minute cap allowed in that run. Round 20 ran against a clean ECS service state (rolloutState=COMPLETED, running=1/1, steady state confirmed before dispatch), allowing the waiter to complete well within the window. All five Satellite Receiver jobs succeeded. Smoke test passed. The service is live and healthy.

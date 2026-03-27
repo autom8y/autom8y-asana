@@ -1,6 +1,6 @@
 ---
 name: frame
-description: "Invoke context-engineer to decompose initiatives into workstreams or frame rite handoffs. Produces .sos/wip/frames/{slug}.md."
+description: "Invoke myron to decompose initiatives into workstreams or frame rite handoffs. Produces .sos/wip/frames/{slug}.md."
 argument-hint: "<brief>"
 allowed-tools: Read, Glob, Grep, Write, Task, Skill
 model: opus
@@ -8,11 +8,11 @@ model: opus
 
 # /frame -- Initiative Framing
 
-Dispatches context-engineer to analyze the current conversation and codebase state, producing a structured framing document that can feed directly into `/sos start`, `/sprint`, or `/rite` invocations.
+Dispatches myron to analyze the current conversation and codebase state, producing a structured framing document that can feed directly into `/sos start`, `/sprint`, or `/rite` invocations.
 
 ## Context
 
-This command runs in the main thread. Main-thread execution is required because context-engineer needs full visibility into the conversation history -- a forked context would lose the conversation that makes framing meaningful. Single Task dispatch, no Argus pattern.
+This command runs in the main thread. Main-thread execution is required because myron needs full visibility into the conversation history -- a forked context would lose the conversation that makes framing meaningful. Single Task dispatch, no Argus pattern.
 
 ## Pre-flight
 
@@ -36,12 +36,12 @@ This command runs in the main thread. Main-thread execution is required because 
    - If it does not exist: note "no active session" -- framing proceeds without session context.
    - Do NOT call `ari` commands or run shell introspection to discover session state.
 
-## CE Dispatch
+## Myron Dispatch
 
-Construct the Task prompt and dispatch context-engineer. Include everything the CE needs to produce a useful framing document without asking clarifying questions.
+Construct the Task prompt and dispatch myron. Include everything myron needs to produce a useful framing document without asking clarifying questions.
 
 ```
-Task(subagent_type="context-engineer", prompt="
+Task(subagent_type="myron", prompt="
 ## Framing Request
 
 ### User's Brief
@@ -79,7 +79,7 @@ The document must end with a '## Next Commands' section listing the exact comman
 
 ## Report
 
-After context-engineer returns:
+After myron returns:
 
 1. Confirm the artifact was written:
    ```
@@ -90,12 +90,12 @@ After context-engineer returns:
    ```
    ## Frame: .sos/wip/frames/{slug}.md
 
-   {CE's suggested next commands, extracted from the ## Next Commands section}
+   {myron's suggested next commands, extracted from the ## Next Commands section}
 
    Read the full framing document: .sos/wip/frames/{slug}.md
    ```
 
-If the file was not written (CE did not produce output at the expected path), WARN: "context-engineer did not write the expected file. Check the CE output above for the framing document."
+If the file was not written (myron did not produce output at the expected path), WARN: "myron did not write the expected file. Check myron's output above for the framing document."
 
 ## Error Handling
 
@@ -103,12 +103,12 @@ If the file was not written (CE did not produce output at the expected path), WA
 |----------|--------|
 | No `$ARGUMENTS` provided | ERROR with usage message |
 | SESSION_CONTEXT.md unreadable | Proceed without session context, note omission |
-| CE Task dispatch fails | ERROR "Framing failed: {reason}" |
-| Output file not found after CE returns | WARN with path; display CE output directly |
+| Myron Task dispatch fails | ERROR "Framing failed: {reason}" |
+| Output file not found after myron returns | WARN with path; display myron output directly |
 
 ## Anti-Patterns
 
-- **Reading source files yourself**: You are the dispatcher. Let CE observe the codebase and conversation. Do not pre-load architecture files or run codebase scans.
-- **Prescribing the document schema**: CE has full discretion over artifact structure. The only required section is `## Next Commands`.
+- **Reading source files yourself**: You are the dispatcher. Let myron observe the codebase and conversation. Do not pre-load architecture files or run codebase scans.
+- **Prescribing the document schema**: Myron has full discretion over artifact structure. The only required section is `## Next Commands`.
 - **Running ari commands for session state**: Only read SESSION_CONTEXT.md if it exists. Do not shell out to discover session information.
 - **Forking context**: This dromenon intentionally runs in the main thread. Do not add `context: fork`.

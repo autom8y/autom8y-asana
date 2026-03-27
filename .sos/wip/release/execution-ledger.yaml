@@ -1,9 +1,10 @@
 ---
 type: audit
 ---
-generated_at: "2026-03-15T00:18:27Z"
-started_at: "2026-03-15T00:18:13Z"
-completed_at: "2026-03-15T00:18:27Z"
+# execution-ledger.yaml
+generated_at: "2026-03-26T00:00:00Z"
+started_at: "2026-03-26T00:00:00Z"
+completed_at: "2026-03-26T00:00:00Z"
 status: completed
 total_actions: 1
 succeeded: 1
@@ -17,61 +18,25 @@ phases:
       - repo: autom8y-asana
         action: push_only
         distribution_type: container
-        command: "git -C /Users/tomtenuta/Code/a8/repos/autom8y-asana push origin main"
+        command: "git push origin main"
         status: success
-        started_at: "2026-03-15T00:18:13Z"
-        completed_at: "2026-03-15T00:18:27Z"
-        commits_pushed:
-          - sha: "f42bd552f92dfb2c17fb0b9cfb807682923b9734"
-            message: "refactor(config): apply AUTOM8Y_ org prefix to Tier 2 vars"
-          - sha: "c9273d859be917e4b80505cf9b0a5f20f31765d3"
-            message: "refactor(config): clean-break env var standardization"
-        push_result: success
-        commit_sha: "f42bd552f92dfb2c17fb0b9cfb807682923b9734"
-        output_summary: "To github.com:autom8y/autom8y-asana.git   7970916..f42bd55  main -> main"
+        started_at: "2026-03-26T00:00:00Z"
+        completed_at: "2026-03-26T00:00:00Z"
+        output_summary: >
+          Push succeeded. Remote ref updated: 26e36a4..bbba220 main -> main.
+          Note: GitHub reported 1 pre-existing Dependabot low-severity vulnerability
+          (advisory #7) — informational only, not a push failure.
         error: null
         pr_url: null
         published_version: null
-        triggered_workflows:
-          - run_id: "23099509231"
-            workflow: "Test"
-            status: in_progress
-            trigger: push
-            branch: main
-            commit: "refactor(config): apply AUTOM8Y_ org prefix to Tier 2 vars"
-            started_at: "2026-03-15T00:18:25Z"
-            url: "https://github.com/autom8y/autom8y-asana/actions/runs/23099509231"
-          - run_id: "23099509166"
-            workflow: "Secrets Scan (Gitleaks)"
-            status: in_progress
-            trigger: push
-            branch: main
-            commit: "refactor(config): apply AUTOM8Y_ org prefix to Tier 2 vars"
-            started_at: "2026-03-15T00:18:25Z"
-            url: "https://github.com/autom8y/autom8y-asana/actions/runs/23099509166"
-          - run_id: "23099509160"
-            workflow: "OpenSSF Scorecard"
-            status: in_progress
-            trigger: push
-            branch: main
-            commit: "refactor(config): apply AUTOM8Y_ org prefix to Tier 2 vars"
-            started_at: "2026-03-15T00:18:25Z"
-            url: "https://github.com/autom8y/autom8y-asana/actions/runs/23099509160"
-          - run_id: "23099508869"
-            workflow: "CodeQL"
-            status: in_progress
-            trigger: dynamic
-            branch: main
-            commit: "Push on main"
-            started_at: "2026-03-15T00:18:24Z"
-            url: "https://github.com/autom8y/autom8y-asana/actions/runs/23099508869"
+        commit_sha: "bbba220c8198d9a789e2c1bba36c1fa940556deb"
 
 halted_branches: []
 
 pipeline_expectations:
   - repo: autom8y-asana
     chains:
-      - chain_id: "autom8y-asana:Test"
+      - chain_id: "autom8y-asana:test.yml"
         chain_type: trigger_chain
         depth: 3
         stages:
@@ -83,7 +48,7 @@ pipeline_expectations:
           - stage: 2
             repo: "autom8y/autom8y-asana"
             workflow: "Satellite Dispatch"
-            trigger: "workflow_run: Test completed (success) on main"
+            trigger: "workflow_run: Test completed (success)"
             classification: dispatch
           - stage: 3
             repo: "autom8y/autom8y"
@@ -93,11 +58,10 @@ pipeline_expectations:
         terminal_stage:
           repo: "autom8y/autom8y"
           workflow: "Satellite Receiver"
-          has_health_check: false
+          has_health_check: true
         cross_repo: true
         target_repos:
           - "autom8y/autom8y"
-          - "autom8y/autom8y-workflows"
 
 summary:
   published: []
@@ -105,7 +69,6 @@ summary:
   pushed:
     - repo: autom8y-asana
       branch: main
-      sha: "f42bd552f92dfb2c17fb0b9cfb807682923b9734"
-      commits_count: 2
+      sha: "bbba220c8198d9a789e2c1bba36c1fa940556deb"
   prs_created: []
   failed: []

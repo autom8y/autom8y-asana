@@ -136,6 +136,78 @@ class ProgressiveProjectBuilder:
         self._checkpoint_df: pl.DataFrame | None = None
         self._checkpoint_task_count: int = 0
 
+    def _check_cascade_provider_data(self) -> None:
+        """L3 pre-build assertion: verify cascade provider data is available.
+
+        For entities that consume cascade fields, checks that the store
+        contains data from the provider entity types. If the store does
+        not support this probe, logs a warning and returns (does not block).
+
+        This is L3 of the three-layer defense-in-depth for the cascade
+        warm-up ordering invariant (SCAR-005/006).
+        """
+        from autom8_asana.dataframes.cascade_utils import get_cascade_providers
+
+        providers = get_cascade_providers(self._entity_type)
+        if not providers:
+            return  # Not a cascade consumer — nothing to check
+
+        if self._store is None:
+            logger.warning(
+                "cascade_l3_check_skipped_no_store",
+                extra={
+                    "entity_type": self._entity_type,
+                    "project_gid": self._project_gid,
+                    "providers": sorted(providers),
+                    "reason": "no store available for cascade probe",
+                },
+            )
+            return
+
+        # Probe the store's hierarchy index for registered tasks.
+        # If the hierarchy is empty, cascade providers haven't populated
+        # the store yet — which means ordering was violated.
+        try:
+            hierarchy = self._store.get_hierarchy_index()
+            if hierarchy is not None:
+                hierarchy_len = len(hierarchy)
+                if hierarchy_len == 0:
+                    logger.warning(
+                        "cascade_l3_check_empty_hierarchy",
+                        extra={
+                            "entity_type": self._entity_type,
+                            "project_gid": self._project_gid,
+                            "providers": sorted(providers),
+                            "reason": (
+                                "hierarchy index is empty — cascade providers "
+                                "may not have warmed yet"
+                            ),
+                        },
+                    )
+                else:
+                    logger.debug(
+                        "cascade_l3_check_passed",
+                        extra={
+                            "entity_type": self._entity_type,
+                            "project_gid": self._project_gid,
+                            "providers": sorted(providers),
+                            "hierarchy_size": hierarchy_len,
+                        },
+                    )
+        except Exception as e:
+            # Probe failed — log but don't block the build.
+            # L1 and L2 are the hard guards; L3 is advisory.
+            logger.warning(
+                "cascade_l3_check_probe_failed",
+                extra={
+                    "entity_type": self._entity_type,
+                    "project_gid": self._project_gid,
+                    "providers": sorted(providers),
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+
     async def _check_resume_and_probe(
         self,
         section_gids: list[str],
@@ -377,6 +449,12 @@ class ProgressiveProjectBuilder:
             BuildResult with classified status and per-section detail.
         """
         start_time = time.perf_counter()
+
+        # L3 (WS-4a): Pre-build assertion — verify cascade provider data
+        # is available in the store before building a consumer entity.
+        # This is the innermost layer of defense-in-depth for the
+        # cascade warm-up ordering invariant (SCAR-005/006).
+        self._check_cascade_provider_data()
 
         await self._ensure_dataframe_view()
 

@@ -4,7 +4,7 @@
 Use the available agents and slash commands. Agents activate automatically when your prompt matches their description.
 <!-- KNOSSOS:END execution-mode -->
 
-<!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
+<!-- KNOSSOS:START quick-start source=ACTIVE_RITE+agents regenerate=true -->
 ## Quick Start
 
 5-agent workflow (10x-dev):
@@ -35,7 +35,7 @@ Agents activate automatically based on description matching. Write prompts that 
 | Skill | Loaded into context | `.gemini/skills/` |
 | Agent | Activates on description match | `.gemini/agents/` |
 | Hook | Auto-fires on lifecycle events | `.gemini/settings.local.json` |
-
+Agents cannot spawn other agents — only the main thread can dispatch sub-agents.
 <!-- KNOSSOS:END commands -->
 
 <!-- KNOSSOS:START agent-configurations regenerate=true source=agents/*.md -->
@@ -48,6 +48,16 @@ Prompts in `.gemini/agents/`:
 - `architect.md` - Creates technical design documents and architecture decisions
 - `principal-engineer.md` - Implements code according to design specifications
 - `qa-adversary.md` - Validates implementation through adversarial testing
+
+### Summonable Heroes
+Operational agents available on demand. Their commands handle the lifecycle:
+- **myron** - Feature discovery scout -> `/discover`
+- **theoros** - Domain auditor -> `/know`
+- **dionysus** - Knowledge synthesizer -> `/land`
+- **naxos** - Session hygiene -> `/naxos`
+
+Summon: `ari agent summon {name}` then restart CC.
+Dismiss: `ari agent dismiss {name}` then restart CC.
 <!-- KNOSSOS:END agent-configurations -->
 
 <!-- KNOSSOS:START platform-infrastructure -->

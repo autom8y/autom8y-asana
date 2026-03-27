@@ -66,3 +66,23 @@
 - Pydantic extra="ignore" audit: EntityWriteRequest, WorkflowInvokeRequest, CacheRefreshRequest all missing extra="forbid"
 - Frame: `.claude/wip/frames/principled-comprehensive-bottom-up-bugfix.md` (includes first-principles reframe)
 - 8 workstreams total (5 original + 3 new: Lambda ordering, parquet provenance, SWR/admin cross-entity cascade)
+
+## Cascade Warming API Path (2026-03-25)
+
+- [Cascade Warming Design](project_cascade_warming_api_path.md) -- TDD for warming cascade store on DataFrame API endpoint
+
+## Project Omniscience Sprint 4 (2026-03-27)
+
+- [Sprint 4 ADRs](project_omniscience_sprint4_adrs.md) -- Registry unification (TENSION-013) + descriptor-driven resolver (TENSION-016)
+
+## Project Omniscience Sprint 8 (2026-03-27)
+
+- [Sprint 8 Lifecycle Observation](project_omniscience_sprint8_lifecycle_observation.md) -- StageTransitionRecord, MetricExpr median/quantile, GAP-03 webhook dispatcher, LoopDetector
+
+## Project Omniscience Sprint 11 (2026-03-27)
+
+- [Sprint 11 Semantic Introspection](project_omniscience_sprint11_semantic_introspection.md) -- YAML-in-description enrichment, centralized annotation registry, endpoint enhancements, contract tests
+
+## Project Omniscience Sprint 12 (2026-03-27)
+
+- [Sprint 12 Composite Reasoning](project_omniscience_sprint12_composite_reasoning.md) -- Composition over monolith: agents orchestrate existing endpoints via GID-set passing, no new composite endpoints

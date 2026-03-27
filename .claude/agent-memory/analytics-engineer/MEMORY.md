@@ -1,0 +1,1 @@
+- [Omniscience Sprint 6 Designs](project_omniscience_sprint6.md) -- lifecycle observation data model, stages 5-10 parity assessment, webhook dispatcher design (2026-03-27)

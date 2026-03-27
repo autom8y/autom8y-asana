@@ -48,6 +48,8 @@ UNIT_COLUMNS: list[ColumnDef] = [
         source="cascade:Business Name",  # Per TDD-WS3: Cascades from Business ancestor's task name
         description="Office name (cascades from Business ancestor name via source_field)",
     ),
+    # CASCADE CONTRACT: sourced from Business.office_phone (warm_priority=1).
+    # Resolution key column -- null cascade = silent NOT_FOUND (FIND-005).
     ColumnDef(
         name="office_phone",
         dtype="Utf8",

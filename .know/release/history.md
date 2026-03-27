@@ -1,10 +1,10 @@
 ---
 domain: release/history
-generated_at: "2026-03-15T02:15:00Z"
+generated_at: "2026-03-26T03:23:00Z"
 source_scope:
   - "./.know/release/"
 generator: pipeline-monitor
-source_hash: "b7c4148"
+source_hash: "ab88d9e"
 confidence: 0.90
 format_version: "1.0"
 update_mode: "full"
@@ -15,6 +15,35 @@ max_incremental_cycles: 0
 # Release History
 
 ## Log
+
+### 2026-03-26 — autom8y-asana PATCH release (fail-forward, 6 rounds)
+
+- **Repos**: autom8y-asana (+ infra fix in autom8y/autom8y)
+- **Complexity**: PATCH (no dependents)
+- **Outcome**: PASS (after 6 rounds, 2 code fixes + 1 major infra fix)
+- **Duration**: ~2 hours (including 6 monitoring cycles + terraform infra repair)
+- **Commits released**:
+  - bbba220 — fix(offer): cascade source and phone normalization
+  - e528dc1 — style(cascade): apply ruff formatting to cascade and normalizer files
+  - ab88d9e — fix(cascade): resolve ruff lint violations in cascade_validator
+- **Pipeline chain**: test.yml → satellite-dispatch.yml → satellite-receiver.yml
+- **Chain timing (final round)**: dispatch 4s, receiver 7m 31s (ECS stabilized in ~3m 10s)
+- **ECS deploy**: ROLLING deployment with circuit breaker (switched from CANARY this release)
+- **Lambda deploy**: Deployed via Terraform
+- **Run IDs**: test=23573283784, dispatch=23575710247, receiver=23575713587
+- **Fail-forward rounds**:
+  - Round 1: Stage 1 failed — ruff format (5 files unformatted in cascade_validator, cascade_view, tests). Fixed.
+  - Round 2: Stage 1 failed — ruff check (I001 import sort, F401 unused import, F841 unused variable in cascade_validator). Fixed.
+  - Round 3: Stages 1-2 green, Stage 3 failed — ECS CANARY deployment controller missing ALB test listener rule (7th consecutive failure since 2026-03-24).
+  - Round 4: Terraform recreated canary production listener rule, but testListenerRule never existed in the module.
+  - Round 5: Switched to ROLLING deployment, but CI waiter timed out at 15 min (known transient).
+  - Round 6: PASS — ECS service fully recreated via terraform taint, clean ROLLING deployment stabilized in 3m 10s.
+- **Infra fixes (autom8y/autom8y)**:
+  - e76a71b — fix(terraform): switch asana ECS from CANARY to ROLLING deployment
+  - Terraform taint + recreate of ECS service to clear stale CANARY state
+  - Temporary IAM role recreation to unblock stale deployment drain
+- **Root cause (CANARY failure)**: The `service-stateless` module at v1.0.2 only provisioned `productionListenerRule` for CANARY, never `testListenerRule`. Additionally, the canary listener rule's `target_group_arn` was `null` (drift from stale local module copy). The CANARY config was structurally incomplete from the start.
+- **Notable**: First release after CANARY → ROLLING migration. ECS ServicesStable waiter now resolves in ~3 min when service is at steady state (vs 15+ min timeouts during stale deployment drain). Platform profile updated to reflect ROLLING strategy.
 
 ### 2026-03-15 — autom8y-asana PATCH release (fail-forward, 4 rounds)
 

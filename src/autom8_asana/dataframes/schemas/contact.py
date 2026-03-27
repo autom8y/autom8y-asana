@@ -71,6 +71,8 @@ CONTACT_COLUMNS: list[ColumnDef] = [
         description="City of the contact",
     ),
     # Cascade and derived fields (4 additional)
+    # CASCADE CONTRACT: sourced from Business.office_phone (warm_priority=1).
+    # Resolution key column -- null cascade = silent NOT_FOUND (FIND-005).
     ColumnDef(
         name="office_phone",
         dtype="Utf8",

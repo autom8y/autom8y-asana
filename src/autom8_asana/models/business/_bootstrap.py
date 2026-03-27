@@ -44,6 +44,7 @@ def register_all_models() -> None:
     # Import all entity model classes INSIDE the function
     # to avoid circular imports at module load time
     from autom8_asana.core.types import EntityType
+    from autom8_asana.models.business.asset_edit import AssetEdit
     from autom8_asana.models.business.business import (
         AssetEditHolder,
         Business,
@@ -72,7 +73,7 @@ def register_all_models() -> None:
         (EntityType.HOURS, Hours),
         (EntityType.PROCESS, Process),
         # Asset Edit (extends Process, has own project)
-        # Note: AssetEdit doesn't have a dedicated EntityType, it's detected via project
+        (EntityType.ASSET_EDIT, AssetEdit),
         # Holders - Business level
         (EntityType.CONTACT_HOLDER, ContactHolder),
         (EntityType.UNIT_HOLDER, UnitHolder),
