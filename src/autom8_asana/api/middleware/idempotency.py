@@ -129,9 +129,10 @@ class StoredResponse:
 class IdempotencyStore(Protocol):
     """Protocol for idempotency key storage backends.
 
-    Two concrete implementations exist:
+    Three concrete implementations exist:
     - InMemoryIdempotencyStore: for dev/test (this module)
-    - DynamoDBIdempotencyStore: for production (Sprint 8, separate module)
+    - DynamoDBIdempotencyStore: for production (this module)
+    - NoopIdempotencyStore: passthrough for graceful degradation (this module)
     """
 
     async def get(self, pk: str, sk: str) -> StoredResponse | None:
@@ -167,7 +168,7 @@ class InMemoryIdempotencyStore:
 
     Uses a dict keyed by (pk, sk) tuples. Supports TTL-based expiration
     checked on read. NOT suitable for production (not shared across
-    ECS tasks). DynamoDB backend is a Sprint 8 production concern.
+    ECS tasks). See DynamoDBIdempotencyStore for the production backend.
     """
 
     def __init__(self, ttl_seconds: int = DEFAULT_TTL_SECONDS) -> None:
@@ -356,7 +357,7 @@ class DynamoDBIdempotencyStore:
         """Finalize a claimed key with the actual response data.
 
         Overwrites the existing item with status "complete" and the response
-        payload. The TTL is preserved from the original claim.
+        payload. The TTL is recalculated from finalization time (not preserved from claim).
         """
         try:
             # Re-read to preserve created_at and ttl from the claim
