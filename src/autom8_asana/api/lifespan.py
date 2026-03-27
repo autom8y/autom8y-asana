@@ -130,11 +130,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
     logger.info("client_pool_initialized")
 
-    # Bootstrap business model registry (per TDD-bootstrap / ADR-0149)
-    from autom8_asana.models.business._bootstrap import bootstrap
-
-    bootstrap()
-
     # Entity resolver startup discovery (FR-004, FR-005)
     try:
         await _discover_entity_projects(app)
@@ -235,6 +230,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 "impact": "Workflow invoke endpoint will return 404 for all workflows",
             },
         )
+
+    # L1 (WS-4a): Validate cascade warm-up ordering before preload.
+    # Catches misconfiguration early — warm_priority must respect cascade
+    # dependency graph. Raises ValueError on conflict (fail-fast).
+    from autom8_asana.dataframes.cascade_utils import validate_cascade_ordering
+
+    try:
+        validate_cascade_ordering()
+        logger.info("cascade_ordering_validated")
+    except ValueError as e:
+        logger.error(
+            "cascade_ordering_validation_failed",
+            extra={"error": str(e)},
+        )
+        raise
 
     # DataFrame cache preload (FR-003 per sprint-materialization-002)
     # Runs after entity discovery so we know which projects exist

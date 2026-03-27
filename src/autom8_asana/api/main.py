@@ -27,6 +27,7 @@ Design Principles:
 - Structured JSON logging
 """
 
+import os
 from typing import Any
 
 from autom8y_log import get_logger
@@ -279,9 +280,10 @@ def create_app() -> FastAPI:
     # Starlette executes middleware in reverse order of addition.
     # Outer to inner execution order:
     # 1. CORSMiddleware - handle preflight (outermost)
-    # 2. SlowAPIMiddleware - rate limiting
-    # 3. RequestLoggingMiddleware - log all requests
-    # 4. RequestIDMiddleware - set request_id (innermost)
+    # 2. IdempotencyMiddleware - RFC 8791 store-and-replay (ADR-omniscience-idempotency)
+    # 3. SlowAPIMiddleware - rate limiting
+    # 4. RequestLoggingMiddleware - log all requests
+    # 5. RequestIDMiddleware - set request_id (innermost)
     # Note: MetricsMiddleware from instrument_app() is added above and
     # wraps the entire stack for accurate request duration measurement.
 
@@ -292,12 +294,65 @@ def create_app() -> FastAPI:
             allow_origins=settings.cors_origins_list,
             allow_credentials=True,
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+            allow_headers=[
+                "Authorization",
+                "Content-Type",
+                "X-Request-ID",
+                "Idempotency-Key",
+            ],
         )
         logger.info(
             "cors_enabled",
             extra={"allowed_origins": settings.cors_origins_list},
         )
+
+    # Idempotency middleware (per ADR-omniscience-idempotency, Section 3.1)
+    # Positioned after CORS, before rate limiting in execution order.
+    # Environment gate: IDEMPOTENCY_STORE_BACKEND selects store implementation.
+    from autom8_asana.api.middleware.idempotency import (
+        DynamoDBIdempotencyStore,
+        IdempotencyMiddleware,
+        InMemoryIdempotencyStore,
+        NoopIdempotencyStore,
+    )
+
+    idempotency_backend = os.environ.get("IDEMPOTENCY_STORE_BACKEND", "dynamodb")
+    if idempotency_backend == "dynamodb":
+        table_name = os.environ.get("IDEMPOTENCY_TABLE_NAME", "autom8-idempotency-keys")
+        table_region = os.environ.get("IDEMPOTENCY_TABLE_REGION", "us-east-1")
+        try:
+            idempotency_store = DynamoDBIdempotencyStore(
+                table_name=table_name,
+                region=table_region,
+            )
+            logger.info(
+                "idempotency_store_configured",
+                extra={
+                    "backend": "dynamodb",
+                    "table": table_name,
+                    "region": table_region,
+                },
+            )
+        except Exception as e:
+            logger.warning(
+                "idempotency_store_degraded",
+                extra={"backend": "dynamodb", "error": str(e), "fallback": "noop"},
+            )
+            idempotency_store = NoopIdempotencyStore()
+    elif idempotency_backend == "memory":
+        idempotency_store = InMemoryIdempotencyStore()
+        logger.info("idempotency_store_configured", extra={"backend": "memory"})
+    elif idempotency_backend == "noop":
+        idempotency_store = NoopIdempotencyStore()
+        logger.info("idempotency_store_configured", extra={"backend": "noop"})
+    else:
+        logger.warning(
+            "idempotency_store_unknown_backend",
+            extra={"backend": idempotency_backend, "fallback": "noop"},
+        )
+        idempotency_store = NoopIdempotencyStore()
+
+    app.add_middleware(IdempotencyMiddleware, store=idempotency_store)
 
     # Rate limiting
     app.state.limiter = limiter
