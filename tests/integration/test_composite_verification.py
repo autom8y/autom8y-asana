@@ -503,6 +503,10 @@ class TestCQ04EnvironmentGate:
         """
         with (
             patch.dict(os.environ, {"IDEMPOTENCY_STORE_BACKEND": "dynamodb"}),
+            # NOTE: Patches the source module, not main.py's import site.
+            # Works because create_app() uses a lazy import inside the function
+            # body. If the import is hoisted to module level, patch the import
+            # site instead: 'autom8_asana.api.main.DynamoDBIdempotencyStore'.
             patch(
                 "autom8_asana.api.middleware.idempotency.DynamoDBIdempotencyStore",
                 side_effect=Exception("No AWS credentials"),
