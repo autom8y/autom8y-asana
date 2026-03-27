@@ -15,7 +15,10 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 # Supported aggregation functions
-SUPPORTED_AGGS: frozenset[str] = frozenset({"sum", "count", "mean", "min", "max"})
+# Per ADR-omniscience-lifecycle-observation Decision 2: added "median" and "quantile"
+SUPPORTED_AGGS: frozenset[str] = frozenset(
+    {"sum", "count", "mean", "min", "max", "median", "quantile"}
+)
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,8 @@ class MetricExpr:
         agg: Aggregation function name. Must be one of SUPPORTED_AGGS.
         filter_expr: Optional Polars expression applied as row filter BEFORE
             aggregation. Rows where this evaluates to False are excluded.
+        quantile_value: Required when agg="quantile". Float in [0, 1] specifying
+            the quantile to compute (e.g., 0.95 for p95). Ignored for other aggs.
 
     Example:
         >>> expr = MetricExpr(
@@ -50,6 +55,7 @@ class MetricExpr:
     cast_dtype: type[pl.DataType] | pl.DataType | None = None
     agg: str = "sum"
     filter_expr: pl.Expr | None = None
+    quantile_value: float | None = None
 
     def __post_init__(self) -> None:
         """Validate agg is a supported aggregation."""
@@ -58,6 +64,8 @@ class MetricExpr:
                 f"Unsupported aggregation '{self.agg}'. "
                 f"Must be one of: {', '.join(sorted(SUPPORTED_AGGS))}"
             )
+        if self.agg == "quantile" and self.quantile_value is None:
+            raise ValueError("quantile agg requires quantile_value (e.g., 0.95)")
 
     def to_polars_expr(self) -> pl.Expr:
         """Build a Polars aggregation expression.
@@ -80,7 +88,10 @@ class MetricExpr:
             e = e.cast(self.cast_dtype, strict=False)
 
         # Apply aggregation
-        agg_fn: Callable[[], pl.Expr] = getattr(e, self.agg)
-        e = agg_fn()
+        if self.agg == "quantile" and self.quantile_value is not None:
+            e = e.quantile(self.quantile_value)
+        else:
+            agg_fn: Callable[[], pl.Expr] = getattr(e, self.agg)
+            e = agg_fn()
 
         return e.alias(self.name)

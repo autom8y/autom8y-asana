@@ -277,6 +277,56 @@ class CacheNotReadyError(ServiceError):
         return 503
 
 
+class CascadeNotReadyError(ServiceError):
+    """Cascade data quality below threshold for reliable resolution. Maps to HTTP 503.
+
+    Raised when cascade-sourced key columns have a null rate exceeding
+    CASCADE_NULL_ERROR_THRESHOLD (20%), indicating the DataFrame cannot
+    produce reliable resolution results.
+
+    Attributes:
+        entity_type: Entity type whose cascade is degraded.
+        project_gid: Project GID of the degraded DataFrame.
+        degraded_columns: Dict mapping column name to its null rate.
+        max_null_rate: Highest null rate observed across degraded columns.
+    """
+
+    def __init__(
+        self,
+        entity_type: str,
+        project_gid: str,
+        degraded_columns: dict[str, float],
+        max_null_rate: float,
+    ) -> None:
+        self.entity_type = entity_type
+        self.project_gid = project_gid
+        self.degraded_columns = degraded_columns
+        self.max_null_rate = max_null_rate
+        cols = ", ".join(
+            f"{col} ({rate:.1%})" for col, rate in degraded_columns.items()
+        )
+        super().__init__(
+            f"Cascade data not ready for {entity_type}: "
+            f"degraded columns [{cols}] exceed 20% null threshold"
+        )
+
+    @property
+    def error_code(self) -> str:
+        return "CASCADE_NOT_READY"
+
+    @property
+    def status_hint(self) -> int:
+        return 503
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "error": self.error_code,
+            "message": self.message,
+            "entity_type": self.entity_type,
+            "degraded_columns": self.degraded_columns,
+        }
+
+
 class ServiceNotConfiguredError(ServiceError):
     """Required service dependency not available. Maps to HTTP 503."""
 
@@ -304,6 +354,7 @@ SERVICE_ERROR_MAP: dict[type[ServiceError], int] = {
     EntityValidationError: 400,
     ServiceNotConfiguredError: 503,
     CacheNotReadyError: 503,
+    CascadeNotReadyError: 503,
     EntityNotFoundError: 404,
 }
 
@@ -327,6 +378,7 @@ def get_status_for_error(error: ServiceError) -> int:
 
 __all__ = [
     "CacheNotReadyError",
+    "CascadeNotReadyError",
     "EntityNotFoundError",
     "EntityTypeMismatchError",
     "EntityValidationError",

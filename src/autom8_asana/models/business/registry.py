@@ -181,6 +181,9 @@ class ProjectTypeRegistry:
         """Look up EntityType by project GID.
 
         Per FR-REG-001: O(1) dict lookup.
+        Per ADR-omniscience-registry-unification: Delegates to EntityRegistry
+        first, then falls back to local _gid_to_type for dynamically
+        registered entries (e.g., pipeline projects from workspace discovery).
 
         Args:
             project_gid: Asana project GID.
@@ -189,6 +192,15 @@ class ProjectTypeRegistry:
             EntityType if found, None otherwise.
         """
         self._ensure_bootstrapped()
+
+        # Delegate to EntityRegistry (single source of truth for static entries)
+        from autom8_asana.core.entity_registry import get_registry
+
+        desc = get_registry().get_by_gid(project_gid)
+        if desc is not None and desc.entity_type is not None:
+            return desc.entity_type
+
+        # Fall back to local registry (dynamic entries from workspace discovery)
         result = self._gid_to_type.get(project_gid)
         if result is None:
             logger.debug(

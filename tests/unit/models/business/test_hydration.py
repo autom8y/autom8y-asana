@@ -42,6 +42,7 @@ class TestEntityType:
             "LOCATION_HOLDER",
             "DNA_HOLDER",
             "RECONCILIATIONS_HOLDER",
+            "ASSET_EDIT",
             "ASSET_EDIT_HOLDER",
             "VIDEOGRAPHY_HOLDER",
             "UNIT",

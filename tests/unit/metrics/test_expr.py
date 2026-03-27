@@ -32,8 +32,8 @@ class TestMetricExprCreation:
         assert expr.filter_expr is not None
 
     def test_invalid_agg_raises_value_error(self) -> None:
-        with pytest.raises(ValueError, match="Unsupported aggregation 'median'"):
-            MetricExpr(name="bad", column="col", agg="median")
+        with pytest.raises(ValueError, match="Unsupported aggregation 'stddev'"):
+            MetricExpr(name="bad", column="col", agg="stddev")
 
     def test_frozen_cannot_mutate(self) -> None:
         expr = MetricExpr(name="sum_mrr", column="mrr", agg="sum")
@@ -42,7 +42,11 @@ class TestMetricExprCreation:
 
     def test_all_supported_aggs_accepted(self) -> None:
         for agg in SUPPORTED_AGGS:
-            expr = MetricExpr(name=f"test_{agg}", column="col", agg=agg)
+            # quantile requires quantile_value parameter
+            kwargs: dict = {"name": f"test_{agg}", "column": "col", "agg": agg}
+            if agg == "quantile":
+                kwargs["quantile_value"] = 0.95
+            expr = MetricExpr(**kwargs)
             assert expr.agg == agg
 
 

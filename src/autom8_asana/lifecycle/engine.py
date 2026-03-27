@@ -48,6 +48,7 @@ if TYPE_CHECKING:
         LifecycleConfig,
         StageConfig,
     )
+    from autom8_asana.lifecycle.observation import StageTransitionEmitter
     from autom8_asana.models.business.process import Process
 
 logger = get_logger(__name__)
@@ -221,6 +222,7 @@ class LifecycleEngine:
         init_action_registry: InitActionRegistryProtocol | None = None,
         wiring_service: WiringServiceProtocol | None = None,
         reopen_service: ReopenServiceProtocol | None = None,
+        transition_emitter: StageTransitionEmitter | None = None,
     ) -> None:
         self._client = client
         self._config = config
@@ -239,6 +241,9 @@ class LifecycleEngine:
         )
         self._wiring_service = wiring_service or _import_wiring_service(client, config)
         self._reopen_service = reopen_service or _import_reopen_service(client)
+
+        # Observation layer -- optional, fire-and-forget
+        self._transition_emitter = transition_emitter
 
     # ------------------------------------------------------------------
     # Main entry point
@@ -347,12 +352,24 @@ class LifecycleEngine:
                 duration_ms=elapsed_ms(start_time),
             )
 
-            return self._build_result(
+            automation_result = self._build_result(
                 f"lifecycle_{source_stage_name}_to_{target_stage.name}",
                 source_process,
                 start_time,
                 result,
             )
+
+            # --- Emit stage transition observation ---
+            await self._emit_transition(
+                source_process=source_process,
+                source_stage_name=source_stage_name,
+                target_stage_name=target_stage.name,
+                target_pipeline_stage=target_stage.pipeline_stage,
+                transition_type=outcome,
+                automation_result=automation_result,
+            )
+
+            return automation_result
 
         except Exception as e:  # BROAD-CATCH: boundary guard at orchestrator level
             logger.error(
@@ -541,12 +558,21 @@ class LifecycleEngine:
                 "lifecycle_dnc_deferred",
                 source_stage=source_stage.name,
             )
-            return self._build_result(
+            automation_result = self._build_result(
                 f"lifecycle_{source_stage.name}_dnc_deferred",
                 source_process,
                 start_time,
                 result,
             )
+            await self._emit_transition(
+                source_process=source_process,
+                source_stage_name=source_stage.name,
+                target_stage_name=source_stage.name,  # self-loop
+                target_pipeline_stage=source_stage.pipeline_stage,
+                transition_type="did_not_convert",
+                automation_result=automation_result,
+            )
+            return automation_result
 
         if dnc_action == "reopen":
             async with ResolutionContext(
@@ -574,12 +600,21 @@ class LifecycleEngine:
                 duration_ms=elapsed_ms(start_time),
             )
 
-            return self._build_result(
+            automation_result = self._build_result(
                 f"lifecycle_{source_stage.name}_dnc_reopen",
                 source_process,
                 start_time,
                 result,
             )
+            await self._emit_transition(
+                source_process=source_process,
+                source_stage_name=source_stage.name,
+                target_stage_name=target_stage.name,
+                target_pipeline_stage=target_stage.pipeline_stage,
+                transition_type="reopen",
+                automation_result=automation_result,
+            )
+            return automation_result
 
         # dnc_action == "create_new" -- same pipeline as CONVERTED
         async with ResolutionContext(
@@ -600,12 +635,21 @@ class LifecycleEngine:
             duration_ms=elapsed_ms(start_time),
         )
 
-        return self._build_result(
+        automation_result = self._build_result(
             f"lifecycle_{source_stage.name}_dnc_{target_stage.name}",
             source_process,
             start_time,
             result,
         )
+        await self._emit_transition(
+            source_process=source_process,
+            source_stage_name=source_stage.name,
+            target_stage_name=target_stage.name,
+            target_pipeline_stage=target_stage.pipeline_stage,
+            transition_type="did_not_convert",
+            automation_result=automation_result,
+        )
+        return automation_result
 
     # ------------------------------------------------------------------
     # Terminal handling
@@ -647,12 +691,71 @@ class LifecycleEngine:
             duration_ms=elapsed_ms(start_time),
         )
 
-        return self._build_result(
+        automation_result = self._build_result(
             f"lifecycle_{source_stage.name}_terminal",
             source_process,
             start_time,
             result,
         )
+        await self._emit_transition(
+            source_process=source_process,
+            source_stage_name=source_stage.name,
+            target_stage_name=source_stage.name,  # terminal: stays in same stage
+            target_pipeline_stage=source_stage.pipeline_stage,
+            transition_type="terminal",
+            automation_result=automation_result,
+        )
+        return automation_result
+
+    # ------------------------------------------------------------------
+    # Observation emission
+    # ------------------------------------------------------------------
+
+    async def _emit_transition(
+        self,
+        source_process: Process,
+        source_stage_name: str,
+        target_stage_name: str,
+        target_pipeline_stage: int,
+        transition_type: str,
+        automation_result: AutomationResult,
+    ) -> None:
+        """Emit a stage transition observation record (fire-and-forget).
+
+        Called after _build_result() for successful transitions. Swallows all
+        exceptions to preserve the fail-forward contract.
+        """
+        if self._transition_emitter is None:
+            return
+
+        if not automation_result.success:
+            return
+
+        try:
+            from datetime import UTC, datetime
+
+            from autom8_asana.lifecycle.observation import StageTransitionRecord
+
+            record = StageTransitionRecord(
+                entity_gid=source_process.gid,
+                entity_type="Process",
+                business_gid=getattr(source_process, "business_gid", None),
+                from_stage=source_stage_name,
+                to_stage=target_stage_name,
+                pipeline_stage_num=target_pipeline_stage,
+                transition_type=transition_type,
+                entered_at=datetime.now(UTC),
+                exited_at=None,
+                automation_result_id=automation_result.rule_id,
+                duration_ms=automation_result.execution_time_ms,
+            )
+            await self._transition_emitter.emit(record)
+        except Exception:  # BROAD-CATCH: fire-and-forget (fail-forward)
+            logger.warning(
+                "stage_transition_emission_failed",
+                source_gid=source_process.gid,
+                exc_info=True,
+            )
 
     # ------------------------------------------------------------------
     # Helpers

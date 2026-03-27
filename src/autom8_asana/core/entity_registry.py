@@ -114,6 +114,10 @@ class EntityDescriptor:
             "autom8_asana.dataframes.models.task_row.UnitRow").
         cascading_field_provider: True if model_class has a CascadingFields
             inner class used by _build_cascading_field_registry().
+        custom_field_resolver_class_path: Dotted path to custom field resolver
+            class (e.g., "autom8_asana.dataframes.resolver.DefaultCustomFieldResolver").
+            When set, _get_custom_field_resolver() dynamically imports and
+            instantiates this class instead of hardcoding entity type checks.
     """
 
     # --- Identity ---
@@ -157,6 +161,9 @@ class EntityDescriptor:
     extractor_class_path: str | None = None
     row_model_class_path: str | None = None
     cascading_field_provider: bool = False
+
+    # --- Resolution Layer ---
+    custom_field_resolver_class_path: str | None = None
 
     @property
     def effective_schema_key(self) -> str:
@@ -286,6 +293,23 @@ class EntityRegistry:
     def warmable_entities(self) -> list[EntityDescriptor]:
         """Entities included in cache warming, sorted by priority (ascending).
 
+        Warm ordering MUST respect the cascade dependency graph: cascade
+        source entities must warm before cascade consumers.  Specifically,
+        ``Business`` (priority 1) is the root cascade origin for
+        ``Office Phone``; ``Unit`` (priority 2) is the origin for
+        ``Vertical``.  Every entity that derives key columns via
+        ``cascade:*`` fields must have a *higher* warm_priority number
+        than its cascade source.
+
+        The current ordering is::
+
+            business (1) -> unit (2) -> offer (3) -> contact (4)
+                                                  -> asset_edit (5)
+                                                  -> asset_edit_holder (6)
+
+        Violating this invariant would cause cascade fields to be null at
+        extraction time, reproducing SCAR-005/006 conditions.
+
         Returns:
             List of warmable EntityDescriptors, lowest warm_priority first.
         """
@@ -396,7 +420,10 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         ),
         key_columns=("office_phone",),
         schema_module_path="autom8_asana.dataframes.schemas.business.BUSINESS_SCHEMA",
+        extractor_class_path="autom8_asana.dataframes.extractors.business.BusinessExtractor",
+        row_model_class_path="autom8_asana.dataframes.models.task_row.BusinessRow",
         cascading_field_provider=True,
+        custom_field_resolver_class_path="autom8_asana.dataframes.resolver.DefaultCustomFieldResolver",
     ),
     # =========================================================================
     # Composite Entity
@@ -422,6 +449,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         extractor_class_path="autom8_asana.dataframes.extractors.unit.UnitExtractor",
         row_model_class_path="autom8_asana.dataframes.models.task_row.UnitRow",
         cascading_field_provider=True,
+        custom_field_resolver_class_path="autom8_asana.dataframes.resolver.DefaultCustomFieldResolver",
     ),
     # =========================================================================
     # Leaf Entities
@@ -443,6 +471,7 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         schema_module_path="autom8_asana.dataframes.schemas.contact.CONTACT_SCHEMA",
         extractor_class_path="autom8_asana.dataframes.extractors.contact.ContactExtractor",
         row_model_class_path="autom8_asana.dataframes.models.task_row.ContactRow",
+        custom_field_resolver_class_path="autom8_asana.dataframes.resolver.DefaultCustomFieldResolver",
     ),
     EntityDescriptor(
         name="offer",
@@ -462,12 +491,17 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         ),
         key_columns=("office_phone", "vertical", "offer_id"),
         schema_module_path="autom8_asana.dataframes.schemas.offer.OFFER_SCHEMA",
+        extractor_class_path="autom8_asana.dataframes.extractors.offer.OfferExtractor",
+        row_model_class_path="autom8_asana.dataframes.models.task_row.OfferRow",
+        custom_field_resolver_class_path="autom8_asana.dataframes.resolver.DefaultCustomFieldResolver",
     ),
+    # key_columns: 4 columns for fine-grained leaf lookup.  Contrast with
+    # asset_edit_holder (1 column for holder-by-business lookup).
     EntityDescriptor(
         name="asset_edit",
         pascal_name="AssetEdit",
         display_name="Asset Edits",
-        entity_type=None,  # No dedicated EntityType enum member
+        entity_type=None,  # Bound via _bind_entity_types()
         category=EntityCategory.LEAF,
         primary_project_gid="1202204184560785",
         model_class_path="autom8_asana.models.business.asset_edit.AssetEdit",
@@ -478,6 +512,9 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         key_columns=("office_phone", "vertical", "asset_id", "offer_id"),
         explicit_name_mappings=(("paid content", "asset_edit"),),
         schema_module_path="autom8_asana.dataframes.schemas.asset_edit.ASSET_EDIT_SCHEMA",
+        extractor_class_path="autom8_asana.dataframes.extractors.asset_edit.AssetEditExtractor",
+        row_model_class_path="autom8_asana.dataframes.models.task_row.AssetEditRow",
+        custom_field_resolver_class_path="autom8_asana.dataframes.resolver.DefaultCustomFieldResolver",
     ),
     EntityDescriptor(
         name="process",
@@ -580,6 +617,9 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         name_pattern="reconciliations",
         emoji="abacus",
     ),
+    # warm_priority=6: depends on Business (priority=1) for cascade:Office Phone key column.
+    # key_columns: 1 column (office_phone).  Simplified lookup surface for
+    # holder-by-business resolution.  See asset_edit for fine-grained leaf lookup.
     EntityDescriptor(
         name="asset_edit_holder",
         pascal_name="AssetEditHolder",
@@ -598,6 +638,9 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         aliases=(),
         key_columns=("office_phone",),
         schema_module_path="autom8_asana.dataframes.schemas.asset_edit_holder.ASSET_EDIT_HOLDER_SCHEMA",
+        extractor_class_path="autom8_asana.dataframes.extractors.asset_edit_holder.AssetEditHolderExtractor",
+        row_model_class_path="autom8_asana.dataframes.models.task_row.AssetEditHolderRow",
+        custom_field_resolver_class_path="autom8_asana.dataframes.resolver.DefaultCustomFieldResolver",
     ),
     EntityDescriptor(
         name="videography_holder",
@@ -675,11 +718,11 @@ def _bind_entity_types() -> None:
         "location_holder": EntityType.LOCATION_HOLDER,
         "dna_holder": EntityType.DNA_HOLDER,
         "reconciliation_holder": EntityType.RECONCILIATIONS_HOLDER,
+        "asset_edit": EntityType.ASSET_EDIT,
         "asset_edit_holder": EntityType.ASSET_EDIT_HOLDER,
         "videography_holder": EntityType.VIDEOGRAPHY_HOLDER,
         "offer_holder": EntityType.OFFER_HOLDER,
         "process_holder": EntityType.PROCESS_HOLDER,
-        # Note: "asset_edit" intentionally has no EntityType member
     }
 
     for desc in ENTITY_DESCRIPTORS:
@@ -846,7 +889,7 @@ def _validate_registry_integrity(registry: EntityRegistry) -> None:
 
 # --- Build the singleton registry ---
 _bind_entity_types()
-_REGISTRY = EntityRegistry(ENTITY_DESCRIPTORS)
+_REGISTRY = EntityRegistry(ENTITY_DESCRIPTORS, strict_triad_validation=True)
 _validate_registry_integrity(_REGISTRY)
 
 
@@ -867,7 +910,7 @@ def _reset_entity_registry() -> None:
     """
     global _REGISTRY
     _bind_entity_types()
-    _REGISTRY = EntityRegistry(ENTITY_DESCRIPTORS)
+    _REGISTRY = EntityRegistry(ENTITY_DESCRIPTORS, strict_triad_validation=True)
 
 
 from autom8_asana.core.system_context import register_reset  # noqa: E402
