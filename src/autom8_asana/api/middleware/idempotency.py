@@ -21,6 +21,8 @@ Middleware stack position (outer to inner execution):
 
 from __future__ import annotations
 
+import asyncio
+import base64
 import hashlib
 import json
 import re
@@ -233,6 +235,214 @@ class InMemoryIdempotencyStore:
             self._timestamps.pop(key, None)
             return True
         return False
+
+
+class DynamoDBIdempotencyStore:
+    """DynamoDB-backed idempotency store for production use.
+
+    Uses boto3 synchronous client wrapped with ``asyncio.to_thread()`` for
+    non-blocking async operation. Stores response bodies as base64-encoded
+    strings (DynamoDB does not support raw bytes in standard attributes).
+
+    Key schema:
+        - pk (partition key): ``{service_name}#{idempotency_key}``
+        - sk (sort key): ``{method}#{path_template}``
+        - ttl (number): epoch seconds for DynamoDB TTL auto-expiry
+    """
+
+    def __init__(
+        self,
+        table_name: str,
+        region: str,
+        ttl_seconds: int = DEFAULT_TTL_SECONDS,
+    ) -> None:
+        import boto3
+
+        self._table_name = table_name
+        self._ttl_seconds = ttl_seconds
+        self._client = boto3.client("dynamodb", region_name=region)
+
+    async def get(self, pk: str, sk: str) -> StoredResponse | None:
+        """Read stored response for a key. Returns None if not found."""
+        try:
+            result = await asyncio.to_thread(
+                self._client.get_item,
+                TableName=self._table_name,
+                Key={
+                    "pk": {"S": pk},
+                    "sk": {"S": sk},
+                },
+            )
+        except Exception:
+            logger.warning(
+                "dynamodb_get_item_failed",
+                extra={"pk": pk, "sk": sk},
+                exc_info=True,
+            )
+            return None
+
+        item = result.get("Item")
+        if item is None:
+            return None
+
+        # Decode response_body from base64
+        response_body_b64 = item.get("response_body", {}).get("S", "")
+        response_body = (
+            base64.b64decode(response_body_b64) if response_body_b64 else b""
+        )
+
+        # Decode response_headers from JSON string
+        response_headers_json = item.get("response_headers", {}).get("S", "{}")
+        try:
+            response_headers = json.loads(response_headers_json)
+        except (json.JSONDecodeError, TypeError):
+            response_headers = {}
+
+        return StoredResponse(
+            status=item.get("status", {}).get("S", "processing"),
+            request_fingerprint=item.get("request_fingerprint", {}).get("S", ""),
+            response_status=int(item.get("response_status", {}).get("N", "0")),
+            response_body=response_body,
+            response_headers=response_headers,
+            created_at=item.get("created_at", {}).get("S", ""),
+        )
+
+    async def claim(self, pk: str, sk: str, fingerprint: str) -> bool:
+        """Atomically claim a key using conditional PutItem.
+
+        Uses ``attribute_not_exists(pk)`` condition to ensure only one caller
+        can claim a given key. Returns True if this call claimed the key,
+        False if the key was already claimed/finalized.
+        """
+        now = datetime.now(tz=UTC)
+        ttl_epoch = int(now.timestamp()) + self._ttl_seconds
+
+        try:
+            await asyncio.to_thread(
+                self._client.put_item,
+                TableName=self._table_name,
+                Item={
+                    "pk": {"S": pk},
+                    "sk": {"S": sk},
+                    "status": {"S": "processing"},
+                    "request_fingerprint": {"S": fingerprint},
+                    "response_status": {"N": "0"},
+                    "response_body": {"S": ""},
+                    "response_headers": {"S": "{}"},
+                    "created_at": {"S": now.isoformat()},
+                    "ttl": {"N": str(ttl_epoch)},
+                },
+                ConditionExpression="attribute_not_exists(pk)",
+            )
+            return True
+        except self._client.exceptions.ConditionalCheckFailedException:
+            return False
+        except Exception:
+            logger.warning(
+                "dynamodb_claim_failed",
+                extra={"pk": pk, "sk": sk},
+                exc_info=True,
+            )
+            return False
+
+    async def finalize(
+        self,
+        pk: str,
+        sk: str,
+        response_status: int,
+        response_body: bytes,
+        response_headers: dict[str, str],
+    ) -> bool:
+        """Finalize a claimed key with the actual response data.
+
+        Overwrites the existing item with status "complete" and the response
+        payload. The TTL is preserved from the original claim.
+        """
+        try:
+            # Re-read to preserve created_at and ttl from the claim
+            existing = await self.get(pk, sk)
+            created_at = (
+                existing.created_at if existing else datetime.now(tz=UTC).isoformat()
+            )
+
+            now_epoch = int(datetime.now(tz=UTC).timestamp())
+            ttl_epoch = now_epoch + self._ttl_seconds
+
+            await asyncio.to_thread(
+                self._client.put_item,
+                TableName=self._table_name,
+                Item={
+                    "pk": {"S": pk},
+                    "sk": {"S": sk},
+                    "status": {"S": "complete"},
+                    "request_fingerprint": {
+                        "S": existing.request_fingerprint if existing else ""
+                    },
+                    "response_status": {"N": str(response_status)},
+                    "response_body": {
+                        "S": base64.b64encode(response_body).decode("ascii")
+                    },
+                    "response_headers": {"S": json.dumps(response_headers)},
+                    "created_at": {"S": created_at},
+                    "ttl": {"N": str(ttl_epoch)},
+                },
+            )
+            return True
+        except Exception:
+            logger.warning(
+                "dynamodb_finalize_failed",
+                extra={"pk": pk, "sk": sk},
+                exc_info=True,
+            )
+            return False
+
+    async def delete(self, pk: str, sk: str) -> bool:
+        """Delete a stored key."""
+        try:
+            await asyncio.to_thread(
+                self._client.delete_item,
+                TableName=self._table_name,
+                Key={
+                    "pk": {"S": pk},
+                    "sk": {"S": sk},
+                },
+            )
+            return True
+        except Exception:
+            logger.warning(
+                "dynamodb_delete_failed",
+                extra={"pk": pk, "sk": sk},
+                exc_info=True,
+            )
+            return False
+
+
+class NoopIdempotencyStore:
+    """Passthrough store for graceful degradation when DynamoDB is unavailable.
+
+    All operations succeed immediately without storing anything. This allows
+    the middleware to function in passthrough mode -- requests execute normally
+    without store-and-replay, which is the safest degradation posture (HG-01).
+    """
+
+    async def get(self, pk: str, sk: str) -> StoredResponse | None:
+        return None
+
+    async def claim(self, pk: str, sk: str, fingerprint: str) -> bool:
+        return True
+
+    async def finalize(
+        self,
+        pk: str,
+        sk: str,
+        response_status: int,
+        response_body: bytes,
+        response_headers: dict[str, str],
+    ) -> bool:
+        return True
+
+    async def delete(self, pk: str, sk: str) -> bool:
+        return True
 
 
 # ---------------------------------------------------------------------------
