@@ -162,6 +162,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
     from autom8_asana.dataframes.builders.progressive import (
         ProgressiveProjectBuilder,
     )
+    from autom8_asana.dataframes.cascade_utils import WarmupOrderingError
     from autom8_asana.dataframes.models.registry import get_schema
     from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
     from autom8_asana.dataframes.section_persistence import SectionPersistence
@@ -643,16 +644,37 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
 
         # Process projects in cascade-safe phase order.
         # Providers (business, unit) warm before consumers (offer, contact, ...).
-        from autom8_asana.dataframes.cascade_utils import cascade_warm_phases
+        from autom8_asana.dataframes.cascade_utils import (
+            WarmupOrderingError,
+            cascade_warm_phases,
+            get_cascade_providers,
+        )
 
         phases = cascade_warm_phases()
         config_map = {etype: gid for gid, etype in project_configs}
+
+        # L2 (WS-4a): Track completed entity types for pre-phase gate.
+        # Before each phase, verify cascade providers are in completed set.
+        # WarmupOrderingError is NOT caught by BROAD-CATCH handlers.
+        completed_entities: set[str] = set()
 
         for phase_idx, phase_types in enumerate(phases):
             phase_configs = [
                 (config_map[et], et) for et in phase_types if et in config_map
             ]
             if phase_configs:
+                # L2 pre-phase gate: verify all cascade providers for
+                # entities in this phase have already completed.
+                for _gid, et in phase_configs:
+                    missing_providers = get_cascade_providers(et) - completed_entities
+                    if missing_providers:
+                        raise WarmupOrderingError(
+                            f"L2 pre-phase gate: entity '{et}' in phase "
+                            f"{phase_idx} requires cascade providers "
+                            f"{missing_providers} which have not completed. "
+                            f"Completed so far: {completed_entities}."
+                        )
+
                 logger.info(
                     "progressive_preload_phase",
                     extra={
@@ -670,6 +692,18 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                 for result in phase_results:
                     if isinstance(result, bool) and result:
                         loaded_count += 1
+                    elif isinstance(result, BaseException):
+                        logger.warning(
+                            "preload_phase_exception_discarded",
+                            extra={
+                                "phase": phase_idx,
+                                "exc_type": type(result).__name__,
+                                "exc_detail": str(result),
+                            },
+                        )
+
+                # Mark all entity types in this phase as completed
+                completed_entities.update(et for _gid, et in phase_configs)
 
         # Invoke Lambda once for all entities missing S3 manifests
         if projects_needing_lambda:
@@ -679,6 +713,10 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                     lambda_arn, projects_needing_lambda
                 )
 
+    except WarmupOrderingError:
+        # WarmupOrderingError is a safety-critical invariant violation
+        # (SCAR-005/006). It must NEVER be caught by BROAD-CATCH handlers.
+        raise
     except Exception as e:  # BROAD-CATCH: degrade
         logger.error(
             "progressive_preload_failed",

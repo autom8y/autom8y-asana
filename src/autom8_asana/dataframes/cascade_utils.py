@@ -14,6 +14,21 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from autom8y_log import get_logger
+
+logger = get_logger(__name__)
+
+
+class WarmupOrderingError(Exception):
+    """Raised when warm-up ordering invariant is violated.
+
+    This error is NEVER caught by BROAD-CATCH handlers. It indicates
+    a safety-critical invariant violation that would produce corrupted
+    cascade data (SCAR-005/006).
+    """
+
+    pass
+
 
 def is_cascade_provider(entity_type: str) -> bool:
     """Check if an entity type provides cascade fields to other entities.
@@ -179,6 +194,14 @@ def cascade_warm_phases() -> list[list[str]]:
         ready = {e for e in remaining if not (deps.get(e, set()) & remaining)}
         if not ready:
             # Break cycles — should not happen with current data
+            logger.warning(
+                "cascade_topological_cycle_detected",
+                extra={
+                    "remaining_count": len(remaining),
+                    "remaining_entities": sorted(remaining),
+                    "phase_count": len(phases),
+                },
+            )
             ready = remaining.copy()
 
         # Sort within phase by warm_priority for determinism
@@ -200,3 +223,105 @@ def cascade_warm_order() -> list[str]:
         Flat list of entity type names in cascade-safe order.
     """
     return [entity for phase in cascade_warm_phases() for entity in phase]
+
+
+def get_cascade_providers(entity_type: str) -> set[str]:
+    """Return entity types that provide cascade fields to this entity.
+
+    Builds the same dependency graph as :func:`cascade_warm_phases` but
+    returns only the providers for a single entity type. Used by L2/L3
+    warm-up ordering guards to verify that provider data is available
+    before a consumer entity is built.
+
+    All imports are deferred to avoid circular deps.
+
+    Args:
+        entity_type: Snake-case entity type name (e.g., "offer").
+
+    Returns:
+        Set of entity type names that provide cascade fields to
+        *entity_type*. Empty set if the entity has no cascade deps.
+    """
+    from autom8_asana.core.entity_registry import get_registry
+    from autom8_asana.dataframes.models.registry import SchemaRegistry
+    from autom8_asana.models.business.fields import get_cascading_field_registry
+
+    entity_registry = get_registry()
+    cascade_registry = get_cascading_field_registry()
+
+    # Build provider lookup: asana_field_name -> provider_entity_type
+    provider_for_field: dict[str, str] = {}
+    for _norm_name, (owner_class, field_def) in cascade_registry.items():
+        for desc in entity_registry.all_descriptors():
+            if desc.cascading_field_provider and desc.get_model_class() is owner_class:
+                provider_for_field[field_def.name] = desc.name
+                break
+
+    # Find this entity's schema and extract cascade deps
+    desc = entity_registry.get(entity_type)
+    if desc is None:
+        return set()
+
+    schema_registry = SchemaRegistry.get_instance()
+    try:
+        schema = schema_registry.get_schema(desc.effective_schema_key)
+    except Exception:
+        return set()
+
+    providers: set[str] = set()
+    for _col_name, asana_field_name in schema.get_cascade_columns():
+        provider = provider_for_field.get(asana_field_name)
+        if provider and provider != entity_type:
+            providers.add(provider)
+
+    return providers
+
+
+def validate_cascade_ordering() -> None:
+    """Validate that warm_priority ordering matches cascade dependency graph.
+
+    Called from lifespan.py during ECS startup and lambda_handlers during
+    cold start. Raises ValueError if warm_priority conflicts with cascade
+    dependencies.
+
+    This is L1 of the three-layer defense-in-depth for the cascade
+    warm-up ordering invariant (SCAR-005/006).
+
+    The check verifies that for every warmable entity, all of its cascade
+    providers appear EARLIER in the warm_priority ordering. A violation
+    means a misconfiguration that would cause null cascade fields.
+
+    Raises:
+        ValueError: If warm_priority ordering conflicts with cascade
+            dependencies. This is a misconfiguration error, not a
+            runtime failure (hence ValueError, not WarmupOrderingError).
+    """
+    from autom8_asana.core.entity_registry import get_registry
+
+    registry = get_registry()
+
+    # Build warm_priority ordering
+    warmable_order = [desc.name for desc in registry.warmable_entities()]
+    warmable_index = {name: idx for idx, name in enumerate(warmable_order)}
+
+    # Check each entity's cascade providers appear earlier in the order
+    violations: list[str] = []
+    for entity_name in warmable_order:
+        providers = get_cascade_providers(entity_name)
+        entity_idx = warmable_index[entity_name]
+        for provider in providers:
+            if provider not in warmable_index:
+                continue
+            provider_idx = warmable_index[provider]
+            if provider_idx >= entity_idx:
+                violations.append(
+                    f"{entity_name} (priority_idx={entity_idx}) warms BEFORE "
+                    f"its cascade provider {provider} (priority_idx={provider_idx})"
+                )
+
+    if violations:
+        raise ValueError(
+            "CASCADE ORDERING MISCONFIGURATION (L1 startup check).\n"
+            f"warm_priority order: {warmable_order}\n"
+            "Violations:\n" + "\n".join(f"  - {v}" for v in violations)
+        )

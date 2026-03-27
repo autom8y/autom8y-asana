@@ -182,6 +182,7 @@ def _schema_to_dict(
     *,
     include_semantic: bool = False,
     semantic_type: str | None = None,
+    include_enums: bool = False,
 ) -> dict[str, Any]:
     """Convert a DataFrameSchema to an API-friendly dict.
 
@@ -190,11 +191,15 @@ def _schema_to_dict(
     When ``semantic_type`` is set, filters columns to those matching the
     specified data_type_semantic value.
 
+    Per SI-11: When ``include_enums=True`` and ``include_semantic=True``,
+    enum-typed columns include their valid_values in the column dict.
+
     Args:
         name: Schema name key.
         schema: DataFrameSchema instance.
         include_semantic: Include YAML annotation in descriptions.
         semantic_type: Filter columns by semantic type.
+        include_enums: Include valid_values for enum fields.
 
     Returns:
         Dict with schema metadata and column definitions.
@@ -202,24 +207,35 @@ def _schema_to_dict(
     from autom8_asana.dataframes.annotations import (
         enrich_schema,
         get_semantic_type,
+        parse_semantic_metadata,
     )
 
     working_schema = enrich_schema(schema, include_semantic=include_semantic)
 
     columns = []
     for col in working_schema.columns:
-        if semantic_type is not None and include_semantic:
+        col_type: str | None = None
+        if include_semantic:
             col_type = get_semantic_type(col.description)
-            if col_type != semantic_type:
-                continue
-        columns.append(
-            {
-                "name": col.name,
-                "dtype": col.dtype,
-                "nullable": col.nullable,
-                "description": col.description,
-            }
-        )
+        if semantic_type is not None and include_semantic and col_type != semantic_type:
+            continue
+
+        col_dict: dict[str, Any] = {
+            "name": col.name,
+            "dtype": col.dtype,
+            "nullable": col.nullable,
+            "description": col.description,
+        }
+
+        # SI-11: Include enum values when requested
+        if include_enums and include_semantic and col_type in {"enum", "multi_enum"}:
+            metadata = parse_semantic_metadata(col.description)
+            if metadata is not None:
+                valid_values = metadata.get("valid_values")
+                if isinstance(valid_values, list):
+                    col_dict["enum_values"] = valid_values
+
+        columns.append(col_dict)
 
     return {
         "name": name,
@@ -267,6 +283,15 @@ async def list_schemas(
             ),
         ),
     ] = None,
+    include_enums: Annotated[
+        bool,
+        Query(
+            description=(
+                "When true, enum-typed columns include their valid_values "
+                "list. Requires include_semantic=true."
+            ),
+        ),
+    ] = False,
 ) -> Any:
     """List available dataframe schemas with their columns."""
     all_schemas = _load_all_schemas()
@@ -276,6 +301,7 @@ async def list_schemas(
             schema,
             include_semantic=include_semantic,
             semantic_type=semantic_type,
+            include_enums=include_enums,
         )
         for name, schema in all_schemas.items()
     ]
@@ -314,6 +340,15 @@ async def get_schema(
             ),
         ),
     ] = None,
+    include_enums: Annotated[
+        bool,
+        Query(
+            description=(
+                "When true, enum-typed columns include their valid_values "
+                "list. Requires include_semantic=true."
+            ),
+        ),
+    ] = False,
 ) -> Any:
     """Get detailed column definitions for a specific schema."""
     all_schemas = _load_all_schemas()
@@ -333,6 +368,7 @@ async def get_schema(
             schema,
             include_semantic=include_semantic,
             semantic_type=semantic_type,
+            include_enums=include_enums,
         ),
         request_id=request_id,
     )
