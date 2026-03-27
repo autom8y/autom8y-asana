@@ -33,28 +33,52 @@ class Portfolio(AsanaResource):
     resource_type: str | None = Field(default="portfolio")
 
     # Basic portfolio fields
-    name: str | None = None
+    name: str | None = Field(
+        default=None,
+        description="Display name of the portfolio.",
+    )
     color: str | None = Field(
         default=None,
         description="Portfolio color (dark-pink, dark-green, etc.)",
     )
 
     # Status
-    public: bool | None = None
+    public: bool | None = Field(
+        default=None,
+        description="True if the portfolio is visible to all workspace members.",
+    )
 
     # Relationships
-    owner: NameGid | None = None
-    workspace: NameGid | None = None
+    owner: NameGid | None = Field(
+        default=None,
+        description="User who owns the portfolio.",
+    )
+    workspace: NameGid | None = Field(
+        default=None,
+        description="Workspace the portfolio belongs to.",
+    )
 
     # Members
-    members: list[NameGid] | None = None
+    members: list[NameGid] | None = Field(
+        default=None,
+        description="Users who are members of the portfolio.",
+    )
 
     # Custom fields (complex structure)
-    custom_fields: list[dict[str, Any]] | None = None
-    custom_field_settings: list[dict[str, Any]] | None = None
+    custom_fields: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Custom field values set on the portfolio.",
+    )
+    custom_field_settings: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Configuration of custom fields enabled on the portfolio.",
+    )
 
     # Current status
-    current_status_update: NameGid | None = None
+    current_status_update: NameGid | None = Field(
+        default=None,
+        description="Most recent status update posted to the portfolio.",
+    )
 
     # Dates
     due_on: str | None = Field(default=None, description="Due date (YYYY-MM-DD)")
@@ -64,4 +88,7 @@ class Portfolio(AsanaResource):
     )
 
     # URLs
-    permalink_url: str | None = None
+    permalink_url: str | None = Field(
+        default=None,
+        description="Permanent URL to the portfolio in the Asana web app.",
+    )

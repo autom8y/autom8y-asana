@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 __all__ = [
     "ResolutionCriterion",
@@ -55,16 +55,34 @@ class ResolutionCriterion(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     # Unit/Business resolution
-    phone: str | None = None
-    vertical: str | None = None
+    phone: str | None = Field(
+        default=None,
+        description="E.164 formatted phone number for unit/business resolution.",
+    )
+    vertical: str | None = Field(
+        default=None,
+        description="Business vertical to narrow resolution scope.",
+    )
 
     # Offer resolution (Phase 2)
-    offer_id: str | None = None
-    offer_name: str | None = None
+    offer_id: str | None = Field(
+        default=None,
+        description="Offer identifier for offer entity resolution.",
+    )
+    offer_name: str | None = Field(
+        default=None,
+        description="Offer name used with phone/vertical as a discriminator.",
+    )
 
     # Contact resolution (Phase 2)
-    contact_email: str | None = None
-    contact_phone: str | None = None
+    contact_email: str | None = Field(
+        default=None,
+        description="Contact email address for contact resolution.",
+    )
+    contact_phone: str | None = Field(
+        default=None,
+        description="Contact phone number for contact resolution.",
+    )
 
     @field_validator("phone")
     @classmethod
@@ -112,12 +130,20 @@ class ResolutionRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    criteria: list[ResolutionCriterion]
-    fields: list[str] | None = None
+    criteria: list[ResolutionCriterion] = Field(
+        description="Lookup criteria to resolve (max 1000 per request).",
+    )
+    fields: list[str] | None = Field(
+        default=None,
+        description="Optional field names to return in enriched result data.",
+    )
 
     # Per TDD-STATUS-AWARE-RESOLUTION / FR-1, SD-1:
     # Intentional breaking change. See ADR-status-aware-resolution Decision 1.
-    active_only: bool = True
+    active_only: bool = Field(
+        default=True,
+        description="Filter results to active statuses only. True by default (FR-1).",
+    )
 
     @field_validator("criteria")
     @classmethod
@@ -167,19 +193,39 @@ class ResolutionResultModel(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    gid: str | None  # Backwards compatible - first match
-    gids: list[str] | None = None  # All matches
-    match_count: int = 0
-    error: str | None = None
-    data: list[dict[str, Any]] | None = None  # Field data per match
+    gid: str | None = Field(
+        description="First matching Asana GID, or null if not found. Backwards compatible.",
+    )
+    gids: list[str] | None = Field(
+        default=None,
+        description="All matching Asana GIDs for multi-match resolution.",
+    )
+    match_count: int = Field(
+        default=0,
+        description="Number of matches after active_only filtering.",
+    )
+    error: str | None = Field(
+        default=None,
+        description="Error code if resolution failed for this criterion.",
+    )
+    data: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Enriched field data per match (only when fields requested).",
+    )
 
     # Per TDD-STATUS-AWARE-RESOLUTION / FR-3:
     # Parallel list, same length as gids. None when no classifier (FR-7).
-    status: list[str | None] | None = None
+    status: list[str | None] | None = Field(
+        default=None,
+        description="Activity status per match (parallel to gids). Null when no classifier available.",
+    )
 
     # Per TDD-STATUS-AWARE-RESOLUTION / FR-11:
     # Pre-filter total for diagnostic visibility.
-    total_match_count: int | None = None
+    total_match_count: int | None = Field(
+        default=None,
+        description="Pre-filter total match count for diagnostic visibility.",
+    )
 
 
 class ResolutionMeta(BaseModel):
@@ -198,12 +244,21 @@ class ResolutionMeta(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    resolved_count: int
-    unresolved_count: int
-    entity_type: str
-    project_gid: str
-    available_fields: list[str] = []
-    criteria_schema: list[str] = []
+    resolved_count: int = Field(
+        description="Number of criteria that resolved to at least one match."
+    )
+    unresolved_count: int = Field(
+        description="Number of criteria that found no matches."
+    )
+    entity_type: str = Field(description="Entity type that was resolved.")
+    project_gid: str = Field(description="Asana project GID used for resolution.")
+    available_fields: list[str] = Field(
+        default_factory=list, description="Valid field names for this entity type."
+    )
+    criteria_schema: list[str] = Field(
+        default_factory=list,
+        description="Field names used in the resolution request criteria.",
+    )
 
 
 class ResolutionResponse(BaseModel):
@@ -218,5 +273,9 @@ class ResolutionResponse(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    results: list[ResolutionResultModel]
-    meta: ResolutionMeta
+    results: list[ResolutionResultModel] = Field(
+        description="Resolution results in the same order as input criteria."
+    )
+    meta: ResolutionMeta = Field(
+        description="Summary statistics for the resolution batch."
+    )

@@ -41,17 +41,38 @@ class Task(AsanaResource):
     """
 
     # Core identification
-    resource_type: str | None = Field(default="task")
+    resource_type: str | None = Field(
+        default="task",
+        description="Asana resource type name. Always 'task' for task resources.",
+    )
 
     # Basic task fields
-    name: str | None = None
-    notes: str | None = None
-    html_notes: str | None = None
+    name: str | None = Field(
+        default=None,
+        description="Display name of the task.",
+    )
+    notes: str | None = Field(
+        default=None,
+        description="Plain-text description body of the task.",
+    )
+    html_notes: str | None = Field(
+        default=None,
+        description="HTML-formatted description body of the task.",
+    )
 
     # Status fields
-    completed: bool | None = None
-    completed_at: str | None = None
-    completed_by: NameGid | None = None  # Changed from dict
+    completed: bool | None = Field(
+        default=None,
+        description="True if the task is marked complete.",
+    )
+    completed_at: str | None = Field(
+        default=None,
+        description="Datetime the task was completed (ISO 8601). Null if incomplete.",
+    )
+    completed_by: NameGid | None = Field(
+        default=None,
+        description="User who completed the task.",
+    )
 
     # Due dates
     due_on: str | None = Field(default=None, description="Due date (YYYY-MM-DD)")
@@ -60,26 +81,62 @@ class Task(AsanaResource):
     start_at: str | None = Field(default=None, description="Start datetime (ISO 8601)")
 
     # Relationships - typed with NameGid
-    assignee: NameGid | None = None  # Changed from dict
-    assignee_section: NameGid | None = None  # Changed from dict
+    assignee: NameGid | None = Field(
+        default=None,
+        description="User assigned to the task.",
+    )
+    assignee_section: NameGid | None = Field(
+        default=None,
+        description="Board column section in the assignee's My Tasks.",
+    )
     assignee_status: str | None = Field(
         default=None,
         description="Scheduling status (inbox, today, upcoming, later)",
     )
-    projects: list[NameGid] | None = None  # Changed from list[dict]
-    parent: NameGid | None = None  # Changed from dict
-    workspace: NameGid | None = None  # Changed from dict
-    memberships: list[dict[str, Any]] | None = None  # Keep as dict (complex structure)
-    followers: list[NameGid] | None = None  # Changed from list[dict]
-    tags: list[NameGid] | None = None  # Changed from list[dict]
+    projects: list[NameGid] | None = Field(
+        default=None,
+        description="Projects this task belongs to.",
+    )
+    parent: NameGid | None = Field(
+        default=None,
+        description="Parent task if this is a subtask.",
+    )
+    workspace: NameGid | None = Field(
+        default=None,
+        description="Workspace the task belongs to.",
+    )
+    memberships: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Project membership details including section placement.",
+    )
+    followers: list[NameGid] | None = Field(
+        default=None,
+        description="Users following this task for change notifications.",
+    )
+    tags: list[NameGid] | None = Field(
+        default=None,
+        description="Tags applied to the task for categorization.",
+    )
 
     # Hierarchy and dependencies
-    num_subtasks: int | None = None
-    num_likes: int | None = None
-    is_rendered_as_separator: bool | None = None
+    num_subtasks: int | None = Field(
+        default=None,
+        description="Number of subtasks under this task.",
+    )
+    num_likes: int | None = Field(
+        default=None,
+        description="Number of likes on the task.",
+    )
+    is_rendered_as_separator: bool | None = Field(
+        default=None,
+        description="True if the task renders as a section separator in list view.",
+    )
 
     # Custom fields - remain as dict (complex structure)
-    custom_fields: list[dict[str, Any]] | None = None
+    custom_fields: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Custom field values set on this task. Each entry is a custom field dict with gid, name, and type-specific value.",
+    )
 
     # Metadata
     created_at: str | None = Field(
@@ -88,7 +145,10 @@ class Task(AsanaResource):
     modified_at: str | None = Field(
         default=None, description="Modified datetime (ISO 8601)"
     )
-    created_by: NameGid | None = None  # Changed from dict
+    created_by: NameGid | None = Field(
+        default=None,
+        description="User who created the task.",
+    )
 
     # Approval fields
     approval_status: str | None = Field(
@@ -109,16 +169,26 @@ class Task(AsanaResource):
     )
 
     # Permalink
-    permalink_url: str | None = None
+    permalink_url: str | None = Field(
+        default=None,
+        description="Permanent URL to the task in the Asana web app.",
+    )
 
     # Liked status
-    liked: bool | None = None
-    likes: list[dict[str, Any]] | None = (
-        None  # Keep as dict (user refs with extra data)
+    liked: bool | None = Field(
+        default=None,
+        description="True if the authenticated user has liked the task.",
+    )
+    likes: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="Users who have liked the task, with like metadata.",
     )
 
     # Actual time tracking
-    actual_time_minutes: float | None = None
+    actual_time_minutes: float | None = Field(
+        default=None,
+        description="Total time tracked on the task in minutes.",
+    )
 
     # Private accessor instance (not serialized)
     _custom_fields_accessor: CustomFieldAccessor | None = PrivateAttr(default=None)

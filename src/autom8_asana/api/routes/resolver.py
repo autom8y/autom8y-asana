@@ -44,14 +44,16 @@ import time
 from typing import Annotated
 
 from autom8y_log import get_logger
+from autom8y_telemetry import get_tracer
 from fastapi import APIRouter, Depends
+from opentelemetry.trace import StatusCode
 
 from autom8_asana import AsanaClient
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
     AuthContextDep,
     RequestId,
 )
-from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.errors import raise_api_error, raise_service_error
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
@@ -64,6 +66,9 @@ from autom8_asana.api.routes.resolver_models import (
 )
 from autom8_asana.api.routes.resolver_schema import schema_router
 from autom8_asana.core.entity_types import ENTITY_TYPES
+from autom8_asana.core.string_utils import to_pascal_case
+from autom8_asana.exceptions import AsanaError
+from autom8_asana.services.errors import ServiceError
 from autom8_asana.services.resolver import (
     EntityProjectRegistry,
     filter_result_fields,
@@ -78,8 +83,9 @@ __all__ = [
 ]
 
 logger = get_logger(__name__)
+_tracer = get_tracer(__name__)
 
-router = APIRouter(prefix="/v1/resolve", tags=["resolver"], include_in_schema=False)
+router = APIRouter(prefix="/v1/resolve", tags=["resolver"], include_in_schema=True)
 
 # Include schema discovery sub-router
 router.include_router(schema_router)
@@ -143,7 +149,18 @@ def get_supported_entity_types() -> set[str]:
 # --- Endpoints ---
 
 
-@router.post("/{entity_type}", response_model=ResolutionResponse)
+@router.post(
+    "/{entity_type}",
+    response_model=ResolutionResponse,
+    summary="Resolve entity identifiers to task GIDs",
+    description=(
+        "Resolve business identifiers (phone/vertical, offer_id, etc.) to "
+        "Asana task GIDs using entity-type-specific resolution strategies. "
+        "Supports batch resolution of multiple criteria in a single request. "
+        "Use GET /v1/resolve/{entity_type}/schema to discover valid criterion "
+        "fields for each entity type."
+    ),
+)
 async def resolve_entities(
     entity_type: str,
     request_body: ResolutionRequest,
@@ -323,108 +340,157 @@ async def resolve_entities(
     # Resolve using strategy
     # Per TDD-STATUS-AWARE-RESOLUTION / FR-1:
     # Pass active_only from request to strategy
-    try:
-        async with AsanaClient(token=auth_context.asana_pat) as client:
-            resolution_results = await strategy.resolve(
-                criteria=criteria_dicts,
-                project_gid=project_gid,
-                client=client,
-                requested_fields=request_body.fields,
-                active_only=request_body.active_only,
+    with _tracer.start_as_current_span(
+        "resolver.entities.resolve",
+        record_exception=False,
+        set_status_on_exception=False,
+    ) as span:
+        span.set_attribute("resolver.entity_type", entity_type)
+        span.set_attribute("resolver.criteria_count", len(request_body.criteria))
+        span.set_attribute("resolver.project_gid", project_gid)
+        span.set_attribute("resolver.caller_service", claims.service_name)
+
+        try:
+            async with AsanaClient(token=auth_context.asana_pat) as client:
+                resolution_results = await strategy.resolve(
+                    criteria=criteria_dicts,
+                    project_gid=project_gid,
+                    client=client,
+                    requested_fields=request_body.fields,
+                    active_only=request_body.active_only,
+                )
+
+        except ServiceError as e:
+            # Per ADR-error-taxonomy-resolution: Tier 1 -- delegate to raise_service_error()
+            # which preserves error.error_code and error.to_dict() per ADR-I6-001.
+            logger.warning(
+                "entity_resolution_service_error",
+                extra={
+                    "request_id": request_id,
+                    "entity_type": entity_type,
+                    "error_code": e.error_code,
+                    "error": str(e),
+                },
+            )
+            span.set_attribute("resolver.error_code", e.error_code)
+            span.set_attribute("resolver.error_tier", "service_error")
+            span.set_attribute("error.type", type(e).__name__)
+            span.record_exception(e)
+            span.set_status(StatusCode.ERROR, description=e.error_code)
+            raise_service_error(request_id, e)
+
+        except AsanaError as e:
+            # Per ADR-error-taxonomy-resolution: Tier 2 -- re-raise to let FastAPI's
+            # registered global handlers (api/errors.py) produce the correct response.
+            # They already map NotFoundError->404, RateLimitError->429, etc.
+            span.set_attribute("resolver.error_tier", "asana_error")
+            span.set_attribute("error.type", type(e).__name__)
+            span.set_status(StatusCode.ERROR, description=type(e).__name__)
+            raise
+
+        except Exception as e:  # BROAD-CATCH: boundary (preserved)
+            # Per ADR-error-taxonomy-resolution: Tier 3 -- backward-compatible fallback
+            # for truly unexpected failures.
+            logger.exception(
+                "entity_resolution_error",
+                extra={
+                    "request_id": request_id,
+                    "entity_type": entity_type,
+                    "error": str(e),
+                },
+            )
+            span.record_exception(e)
+            span.set_attribute("resolver.error_code", "RESOLUTION_ERROR")
+            span.set_attribute("resolver.error_tier", "unexpected")
+            span.set_attribute("error.type", type(e).__name__)
+            span.set_status(StatusCode.ERROR, description="RESOLUTION_ERROR")
+            raise_api_error(
+                request_id,
+                500,
+                "RESOLUTION_ERROR",
+                "An unexpected error occurred during resolution.",
             )
 
-    except Exception as e:  # BROAD-CATCH: boundary
-        logger.exception(
-            "entity_resolution_error",
+        # Convert ResolutionResult to ResolutionResultModel
+        # Per TDD-STATUS-AWARE-RESOLUTION / FR-3, FR-11:
+        # Map status_annotations and total_match_count to response model
+        results = [
+            ResolutionResultModel(
+                gid=r.gid,  # Backwards compat: first match
+                gids=list(r.gids) if r.gids else None,
+                match_count=r.match_count,
+                error=r.error,
+                data=list(r.match_context) if r.match_context else None,
+                status=list(r.status_annotations) if r.status_annotations else None,
+                total_match_count=r.total_match_count,
+            )
+            for r in resolution_results
+        ]
+
+        # Calculate counts
+        resolved_count = sum(1 for r in results if r.gid is not None)
+        unresolved_count = len(results) - resolved_count
+
+        span.set_attribute("resolver.resolved_count", resolved_count)
+        span.set_attribute("resolver.unresolved_count", unresolved_count)
+
+        # Get available fields from schema registry
+        from autom8_asana.dataframes.models.registry import SchemaRegistry
+
+        available_fields: list[str] = []
+        try:
+            registry = SchemaRegistry.get_instance()
+            schema = registry.get_schema(to_pascal_case(entity_type))
+            if schema is not None:
+                # Include queryable fields (those with a source or core fields)
+                available_fields = [
+                    col.name
+                    for col in schema.columns
+                    if col.source is not None
+                    or col.name in {"gid", "name", "parent_gid"}
+                ]
+        except (KeyError, AttributeError, RuntimeError):  # non-critical metadata
+            # If schema lookup fails, leave available_fields empty
+            # This is metadata, not critical to resolution success
+            pass
+
+        # Extract criteria_schema from request
+        criteria_schema: list[str] = []
+        if criteria_dicts:
+            # Collect all unique keys used across all criteria
+            all_keys: set[str] = set()
+            for criterion in criteria_dicts:
+                all_keys.update(criterion.keys())
+            criteria_schema = sorted(all_keys)
+
+        # Build response
+        response = ResolutionResponse(
+            results=results,
+            meta=ResolutionMeta(
+                resolved_count=resolved_count,
+                unresolved_count=unresolved_count,
+                entity_type=entity_type,
+                project_gid=project_gid,
+                available_fields=available_fields,
+                criteria_schema=criteria_schema,
+            ),
+        )
+
+        # Log completion
+        elapsed_ms = (time.monotonic() - start_time) * 1000
+
+        logger.info(
+            "entity_resolution_complete",
             extra={
                 "request_id": request_id,
                 "entity_type": entity_type,
-                "error": str(e),
+                "criteria_count": len(request_body.criteria),
+                "resolved_count": resolved_count,
+                "unresolved_count": unresolved_count,
+                "duration_ms": round(elapsed_ms, 2),
+                "caller_service": claims.service_name,
+                "project_gid": project_gid,
             },
         )
-        raise_api_error(
-            request_id,
-            500,
-            "RESOLUTION_ERROR",
-            "An unexpected error occurred during resolution.",
-        )
 
-    # Convert ResolutionResult to ResolutionResultModel
-    # Per TDD-STATUS-AWARE-RESOLUTION / FR-3, FR-11:
-    # Map status_annotations and total_match_count to response model
-    results = [
-        ResolutionResultModel(
-            gid=r.gid,  # Backwards compat: first match
-            gids=list(r.gids) if r.gids else None,
-            match_count=r.match_count,
-            error=r.error,
-            data=list(r.match_context) if r.match_context else None,
-            status=list(r.status_annotations) if r.status_annotations else None,
-            total_match_count=r.total_match_count,
-        )
-        for r in resolution_results
-    ]
-
-    # Calculate counts
-    resolved_count = sum(1 for r in results if r.gid is not None)
-    unresolved_count = len(results) - resolved_count
-
-    # Get available fields from schema registry
-    from autom8_asana.dataframes.models.registry import SchemaRegistry
-
-    available_fields: list[str] = []
-    try:
-        registry = SchemaRegistry.get_instance()
-        schema = registry.get_schema(entity_type.capitalize())
-        if schema is not None:
-            # Include queryable fields (those with a source or core fields)
-            available_fields = [
-                col.name
-                for col in schema.columns
-                if col.source is not None or col.name in {"gid", "name", "parent_gid"}
-            ]
-    except (KeyError, AttributeError, RuntimeError):  # non-critical metadata
-        # If schema lookup fails, leave available_fields empty
-        # This is metadata, not critical to resolution success
-        pass
-
-    # Extract criteria_schema from request
-    criteria_schema: list[str] = []
-    if criteria_dicts:
-        # Collect all unique keys used across all criteria
-        all_keys: set[str] = set()
-        for criterion in criteria_dicts:
-            all_keys.update(criterion.keys())
-        criteria_schema = sorted(all_keys)
-
-    # Build response
-    response = ResolutionResponse(
-        results=results,
-        meta=ResolutionMeta(
-            resolved_count=resolved_count,
-            unresolved_count=unresolved_count,
-            entity_type=entity_type,
-            project_gid=project_gid,
-            available_fields=available_fields,
-            criteria_schema=criteria_schema,
-        ),
-    )
-
-    # Log completion
-    elapsed_ms = (time.monotonic() - start_time) * 1000
-
-    logger.info(
-        "entity_resolution_complete",
-        extra={
-            "request_id": request_id,
-            "entity_type": entity_type,
-            "criteria_count": len(request_body.criteria),
-            "resolved_count": resolved_count,
-            "unresolved_count": unresolved_count,
-            "duration_ms": round(elapsed_ms, 2),
-            "caller_service": claims.service_name,
-            "project_gid": project_gid,
-        },
-    )
-
-    return response
+        return response

@@ -4,6 +4,8 @@ This module provides REST endpoints for Asana DataFrame operations,
 returning task data as structured DataFrames in JSON or Polars format.
 
 Endpoints:
+- GET /api/v1/dataframes/schemas - List all dataframe schemas
+- GET /api/v1/dataframes/schemas/{name} - Get single schema details
 - GET /api/v1/dataframes/project/{gid} - Project tasks as dataframe
 - GET /api/v1/dataframes/section/{gid} - Section tasks as dataframe
 
@@ -33,7 +35,7 @@ Per TDD-SERVICE-LAYER-001 v2.0 Phase 4:
 from __future__ import annotations
 
 from io import StringIO
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import APIRouter, Header, Query
 from fastapi.responses import JSONResponse, Response
@@ -55,11 +57,24 @@ from autom8_asana.services.errors import EntityNotFoundError
 if TYPE_CHECKING:
     import polars as pl
 
+from autom8_asana.api.errors import raise_api_error
+
 router = APIRouter(prefix="/api/v1/dataframes", tags=["dataframes"])
 
 # Default pagination limit
 DEFAULT_LIMIT = 100
 MAX_LIMIT = 100
+
+# Schema name to module constant mapping for introspection endpoints
+_SCHEMA_NAMES = (
+    "base",
+    "unit",
+    "contact",
+    "business",
+    "offer",
+    "asset_edit",
+    "asset_edit_holder",
+)
 
 # MIME types for content negotiation
 MIME_JSON = "application/json"
@@ -132,6 +147,121 @@ def _format_dataframe_response(
             content=response.model_dump(mode="json"),
             media_type=MIME_JSON,
         )
+
+
+def _load_all_schemas() -> dict[str, Any]:
+    """Load all registered DataFrameSchema objects by name.
+
+    Returns:
+        Dict mapping schema name to DataFrameSchema instance.
+    """
+    from autom8_asana.dataframes.schemas import (
+        ASSET_EDIT_HOLDER_SCHEMA,
+        ASSET_EDIT_SCHEMA,
+        BASE_SCHEMA,
+        BUSINESS_SCHEMA,
+        CONTACT_SCHEMA,
+        OFFER_SCHEMA,
+        UNIT_SCHEMA,
+    )
+
+    return {
+        "base": BASE_SCHEMA,
+        "unit": UNIT_SCHEMA,
+        "contact": CONTACT_SCHEMA,
+        "business": BUSINESS_SCHEMA,
+        "offer": OFFER_SCHEMA,
+        "asset_edit": ASSET_EDIT_SCHEMA,
+        "asset_edit_holder": ASSET_EDIT_HOLDER_SCHEMA,
+    }
+
+
+def _schema_to_dict(name: str, schema: Any) -> dict[str, Any]:
+    """Convert a DataFrameSchema to an API-friendly dict.
+
+    Args:
+        name: Schema name key.
+        schema: DataFrameSchema instance.
+
+    Returns:
+        Dict with schema metadata and column definitions.
+    """
+    columns = [
+        {
+            "name": col.name,
+            "dtype": col.dtype,
+            "nullable": col.nullable,
+            "description": col.description,
+        }
+        for col in schema.columns
+    ]
+    return {
+        "name": name,
+        "version": schema.version,
+        "task_type": schema.task_type,
+        "column_count": len(schema.columns),
+        "columns": columns,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Schema introspection endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/schemas",
+    summary="List all dataframe schemas",
+    description=(
+        "Returns all available dataframe schemas with their column definitions. "
+        "Each schema maps Asana custom fields to typed DataFrame columns. "
+        "Use this to discover which schema to pass to the project or section "
+        "dataframe endpoints (GET /api/v1/dataframes/project/{gid}?schema=...)."
+    ),
+)
+async def list_schemas(
+    request_id: RequestId,
+) -> Any:
+    """List available dataframe schemas with their columns."""
+    all_schemas = _load_all_schemas()
+    result = [_schema_to_dict(name, schema) for name, schema in all_schemas.items()]
+    return build_success_response(data=result, request_id=request_id)
+
+
+@router.get(
+    "/schemas/{name}",
+    summary="Get a single dataframe schema",
+    description=(
+        "Returns detailed column definitions for a specific dataframe schema. "
+        "Each column includes name, dtype (Polars type), nullable flag, and "
+        "description. Use this to understand the exact columns returned when "
+        "requesting data with this schema."
+    ),
+)
+async def get_schema(
+    name: str,
+    request_id: RequestId,
+) -> Any:
+    """Get detailed column definitions for a specific schema."""
+    all_schemas = _load_all_schemas()
+    schema = all_schemas.get(name)
+    if schema is None:
+        raise_api_error(
+            request_id,
+            404,
+            "SCHEMA_NOT_FOUND",
+            f"Unknown schema: '{name}'. "
+            f"Available schemas: {', '.join(sorted(all_schemas.keys()))}",
+            details={"available_schemas": sorted(all_schemas.keys())},
+        )
+    return build_success_response(
+        data=_schema_to_dict(name, schema), request_id=request_id
+    )
+
+
+# ---------------------------------------------------------------------------
+# Data endpoints
+# ---------------------------------------------------------------------------
 
 
 @router.get(

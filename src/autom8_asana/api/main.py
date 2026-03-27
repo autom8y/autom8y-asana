@@ -55,6 +55,7 @@ from .routes import (
     intake_resolve_router,
     internal_router,
     projects_router,
+    query_introspection_router,
     query_router,
     resolver_router,
     section_timelines_router,
@@ -85,11 +86,13 @@ _PAT_TAGS: frozenset[str] = frozenset(
         "users",
         "workspaces",
         "dataframes",
-        "webhooks",
         "offers",
         "workflows",
     }
 )
+
+# Tags whose operations use URL token auth (query parameter)
+_TOKEN_TAGS: frozenset[str] = frozenset({"webhooks"})
 
 # Tags whose operations require S2S JWT auth
 _S2S_TAGS: frozenset[str] = frozenset(
@@ -155,8 +158,9 @@ _TAG_DESCRIPTIONS: dict[str, str] = {
         "Fetch Asana task data as structured DataFrames for analytical use. "
         "Schema-based extraction maps custom fields to typed columns "
         "(base, unit, contact, business, offer, asset_edit, asset_edit_holder). "
-        "Supports JSON records (default) or Polars-serialized output via "
-        "Accept header content negotiation. "
+        "Use GET /api/v1/dataframes/schemas to discover available schemas and "
+        "their column definitions. Supports JSON records (default) or "
+        "Polars-serialized output via Accept header content negotiation. "
         "Requires PAT Bearer authentication."
     ),
     "webhooks": (
@@ -176,11 +180,26 @@ _TAG_DESCRIPTIONS: dict[str, str] = {
     ),
     "workflows": (
         "Invoke registered automation workflows against specific Asana entities. "
-        "Supports dry-run mode for impact preview, per-workflow parameter "
-        "overrides, and a 120-second execution timeout. "
+        "Use GET /api/v1/workflows to discover available workflow IDs before "
+        "invoking. Supports dry-run mode for impact preview, per-workflow "
+        "parameter overrides, and a 120-second execution timeout. "
         "Rate limited to 10 requests per minute. "
         "Every invocation is audit logged with caller context. "
         "Requires PAT Bearer authentication."
+    ),
+    "query": (
+        "Schema introspection for the composable query engine. "
+        "Discover queryable entity types, their fields, relations, sections, "
+        "and data-source factories. Read-only introspection endpoints that "
+        "enable agents to understand the data model without executing queries. "
+        "Requires S2S JWT authentication."
+    ),
+    "resolver": (
+        "Entity resolution service. Resolve business identifiers (phone, "
+        "vertical, offer ID) to Asana task GIDs with metadata-rich responses "
+        "including match confidence and available fields. Supports batch "
+        "resolution and schema discovery for each entity type. "
+        "Requires S2S JWT authentication."
     ),
 }
 
@@ -303,7 +322,9 @@ def create_app() -> FastAPI:
     # wildcard /v1/resolve/{entity_type} pattern.
     app.include_router(intake_resolve_router)
     app.include_router(resolver_router)
-    # Single query router: /rows and /aggregate (active) + deprecated
+    # Query introspection: GET endpoints exposed in OpenAPI spec
+    app.include_router(query_introspection_router)
+    # Query execution: /rows and /aggregate (active) + deprecated
     # POST /{entity_type} (sunset 2026-06-01). Route order within the
     # router ensures /rows is matched before the wildcard /{entity_type}.
     app.include_router(query_router)
@@ -367,6 +388,17 @@ def create_app() -> FastAPI:
                     " internal service endpoints (/v1/*)."
                 ),
             },
+            "WebhookToken": {
+                "type": "apiKey",
+                "in": "query",
+                "name": "token",
+                "description": (
+                    "URL token for inbound webhook authentication."
+                    " Passed as ?token=<secret> query parameter."
+                    " Verified via timing-safe comparison against"
+                    " ASANA_WEBHOOK_INBOUND_TOKEN."
+                ),
+            },
         }
 
         # 2-3. Per-operation security annotation + parameter stripping
@@ -390,6 +422,8 @@ def create_app() -> FastAPI:
                 # Apply security annotation (ADR-SPRINT1-001)
                 if tags & _NO_AUTH_TAGS:
                     operation["security"] = []
+                elif tags & _TOKEN_TAGS:
+                    operation["security"] = [{"WebhookToken": []}]
                 elif tags & _S2S_TAGS:
                     operation["security"] = [{"ServiceJWT": []}]
                 elif tags & _PAT_TAGS:

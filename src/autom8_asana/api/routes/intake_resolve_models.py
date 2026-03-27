@@ -6,7 +6,7 @@ as the interop models in autom8y-interop/asana/models.py.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
 # Business Resolution (ADR section 2.1)
@@ -22,8 +22,12 @@ class BusinessResolveRequest(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    office_phone: str  # E.164 format
-    vertical: str | None = None  # Optional vertical filter
+    office_phone: str = Field(
+        description="Office phone number in E.164 format. Primary lookup key."
+    )
+    vertical: str | None = Field(
+        default=None, description="Optional vertical filter to narrow resolution."
+    )
 
 
 class BusinessResolveResponse(BaseModel):
@@ -36,14 +40,32 @@ class BusinessResolveResponse(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    found: bool
-    task_gid: str | None = None  # Asana task GID (null when not found)
-    name: str | None = None  # Business name
-    office_phone: str | None = None  # Echo back for correlation
-    vertical: str | None = None  # Resolved vertical
-    company_id: str | None = None  # Contente GUID (null if not onboarded)
-    has_unit: bool = False  # Whether a unit subtask exists
-    has_contact_holder: bool = False  # Whether contact_holder exists
+    found: bool = Field(
+        description="True if a business was resolved for the given phone."
+    )
+    task_gid: str | None = Field(
+        default=None,
+        description="Asana task GID of the resolved business. Null when not found.",
+    )
+    name: str | None = Field(
+        default=None, description="Resolved business display name."
+    )
+    office_phone: str | None = Field(
+        default=None, description="Office phone echoed back for request correlation."
+    )
+    vertical: str | None = Field(
+        default=None, description="Resolved business vertical."
+    )
+    company_id: str | None = Field(
+        default=None, description="External company GUID. Null if not onboarded."
+    )
+    has_unit: bool = Field(
+        default=False, description="True if a unit subtask exists under the business."
+    )
+    has_contact_holder: bool = Field(
+        default=False,
+        description="True if a contact_holder subtask exists under the business.",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -60,9 +82,17 @@ class ContactResolveRequest(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    business_gid: str  # Scope resolution to this business
-    email: str | None = None  # Exact match on contact_email
-    phone: str | None = None  # E.164, exact match on contact_phone
+    business_gid: str = Field(
+        description="Asana GID of the business to scope contact resolution to."
+    )
+    email: str | None = Field(
+        default=None,
+        description="Email address for exact match on contact_email field.",
+    )
+    phone: str | None = Field(
+        default=None,
+        description="Phone number in E.164 format for exact match on contact_phone field.",
+    )
 
 
 class ContactResolveResponse(BaseModel):
@@ -74,12 +104,24 @@ class ContactResolveResponse(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    found: bool
-    contact_gid: str | None = None  # Asana task GID
-    name: str | None = None  # Contact name
-    email: str | None = None  # Contact email
-    phone: str | None = None  # Contact phone
-    match_field: str | None = None  # "email" | "phone" | null
+    found: bool = Field(
+        description="True if a contact was resolved within the business scope."
+    )
+    contact_gid: str | None = Field(
+        default=None,
+        description="Asana task GID of the resolved contact. Null when not found.",
+    )
+    name: str | None = Field(default=None, description="Resolved contact display name.")
+    email: str | None = Field(
+        default=None, description="Resolved contact email address."
+    )
+    phone: str | None = Field(
+        default=None, description="Resolved contact phone number."
+    )
+    match_field: str | None = Field(
+        default=None,
+        description="Field that matched: 'email', 'phone', or null if not found.",
+    )
 
 
 __all__ = [

@@ -33,6 +33,7 @@ from .intake_custom_fields import router as intake_custom_fields_router
 from .intake_resolve import router as intake_resolve_router
 from .internal import router as internal_router
 from .projects import router as projects_router
+from .query import query_introspection_router
 from .query import router as query_router
 from .resolver import router as resolver_router
 from .section_timelines import router as section_timelines_router
@@ -53,6 +54,7 @@ __all__ = [
     "intake_resolve_router",
     "internal_router",
     "projects_router",
+    "query_introspection_router",
     "query_router",
     "resolver_router",
     "section_timelines_router",

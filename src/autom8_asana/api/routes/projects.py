@@ -176,6 +176,10 @@ async def create_project(
 
     Requires Bearer token authentication (JWT or PAT).
 
+    No duplicate checking is performed. Calling this endpoint multiple
+    times with the same parameters creates multiple distinct projects, each
+    with a unique GID.
+
     Args:
         body: Project creation parameters (``name``, ``workspace``, ``team``).
 
@@ -215,6 +219,10 @@ async def update_project(
     ``name``, ``notes``, or ``archived`` must be provided.
 
     Requires Bearer token authentication (JWT or PAT).
+
+    Setting archived=true hides the project from Asana UI but preserves all
+    data. Tasks, sections, and memberships remain accessible via API.
+    Archiving is reversible (set archived=false).
 
     Args:
         gid: Asana project GID.
@@ -265,6 +273,10 @@ async def delete_project(
     with ``archived: true``) if you want to preserve the data.
 
     Requires Bearer token authentication (JWT or PAT).
+
+    **IRREVERSIBLE**: Permanently deletes this project, all sections, and
+    removes all task memberships. Tasks are NOT deleted but lose their
+    project association. Consider archiving (PUT with archived=true) instead.
 
     Args:
         gid: Asana project GID.
@@ -365,6 +377,10 @@ async def add_members(
 
     Requires Bearer token authentication (JWT or PAT).
 
+    **IDEMPOTENT**: Adding a user who is already a project member is a
+    no-op. Added members gain immediate visibility and task assignment
+    access.
+
     Args:
         gid: Project GID.
         body: ``members`` — list of user GIDs to add.
@@ -400,6 +416,10 @@ async def remove_members(
     lose access to the project but their tasks within it are not deleted.
 
     Requires Bearer token authentication (JWT or PAT).
+
+    **IDEMPOTENT**: Removing a user who is not a project member is a no-op.
+    Removed users lose project access but their assigned tasks within the
+    project are preserved.
 
     Args:
         gid: Project GID.

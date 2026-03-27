@@ -19,7 +19,9 @@ class CustomFieldWriteRequest(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    fields: dict[str, str | int | float | bool | None]
+    fields: dict[str, str | int | float | bool | None] = Field(
+        description="Mapping of custom field names to values. Names are resolved to Asana GIDs internally.",
+    )
 
 
 class CustomFieldWriteResponse(BaseModel):
@@ -27,9 +29,13 @@ class CustomFieldWriteResponse(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    task_gid: str
-    fields_written: int
-    errors: list[str] = Field(default_factory=list)  # Field names that failed
+    task_gid: str = Field(description="Asana GID of the task that was written to.")
+    fields_written: int = Field(
+        description="Number of custom fields successfully written."
+    )
+    errors: list[str] = Field(
+        default_factory=list, description="Field names that failed to write."
+    )
 
 
 __all__ = [

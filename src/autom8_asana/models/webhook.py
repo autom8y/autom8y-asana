@@ -33,7 +33,10 @@ class WebhookFilter(AsanaResource):
     resource_type: str | None = Field(
         default=None, description="Resource type to filter (task, project, etc.)"
     )
-    resource_subtype: str | None = None
+    resource_subtype: str | None = Field(
+        default=None,
+        description="Resource subtype filter for webhook events.",
+    )
     action: str | None = Field(
         default=None, description="Action to filter (changed, added, removed, etc.)"
     )

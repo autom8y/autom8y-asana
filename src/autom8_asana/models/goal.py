@@ -36,12 +36,24 @@ class GoalMetric(AsanaResource):
     # Metric configuration
     unit: str | None = Field(default=None, description="Unit of measurement")
     precision: int | None = Field(default=None, description="Decimal precision")
-    currency_code: str | None = None
+    currency_code: str | None = Field(
+        default=None,
+        description="ISO 4217 currency code for currency-type metrics (e.g., USD, EUR).",
+    )
 
     # Values
-    current_number_value: float | None = None
-    target_number_value: float | None = None
-    initial_number_value: float | None = None
+    current_number_value: float | None = Field(
+        default=None,
+        description="Current metric value representing progress toward the goal.",
+    )
+    target_number_value: float | None = Field(
+        default=None,
+        description="Target value that indicates the goal is achieved.",
+    )
+    initial_number_value: float | None = Field(
+        default=None,
+        description="Starting baseline value when the goal was created.",
+    )
 
     # Progress
     progress_source: str | None = Field(
@@ -67,16 +79,28 @@ class Goal(AsanaResource):
     resource_type: str | None = Field(default="goal")
 
     # Basic goal fields
-    name: str | None = None
-    notes: str | None = None
-    html_notes: str | None = None
+    name: str | None = Field(
+        default=None,
+        description="Display name of the goal.",
+    )
+    notes: str | None = Field(
+        default=None,
+        description="Plain-text description body of the goal.",
+    )
+    html_notes: str | None = Field(
+        default=None,
+        description="HTML-formatted description body of the goal.",
+    )
 
     # Status
     status: str | None = Field(
         default=None,
         description="Goal status (on_track, at_risk, off_track, achieved, partial, missed, dropped)",
     )
-    is_workspace_level: bool | None = None
+    is_workspace_level: bool | None = Field(
+        default=None,
+        description="True if the goal is scoped to the entire workspace rather than a team.",
+    )
 
     # Time period
     due_on: str | None = Field(default=None, description="Due date (YYYY-MM-DD)")
@@ -86,22 +110,52 @@ class Goal(AsanaResource):
     )
 
     # Relationships
-    owner: NameGid | None = None
-    workspace: NameGid | None = None
-    team: NameGid | None = None
+    owner: NameGid | None = Field(
+        default=None,
+        description="User who owns the goal.",
+    )
+    workspace: NameGid | None = Field(
+        default=None,
+        description="Workspace the goal belongs to.",
+    )
+    team: NameGid | None = Field(
+        default=None,
+        description="Team the goal is scoped to, if team-level.",
+    )
 
     # Followers and likes
-    followers: list[NameGid] | None = None
-    liked: bool | None = None
-    likes: list[NameGid] | None = None
-    num_likes: int | None = None
+    followers: list[NameGid] | None = Field(
+        default=None,
+        description="Users following the goal for status update notifications.",
+    )
+    liked: bool | None = Field(
+        default=None,
+        description="True if the authenticated user has liked the goal.",
+    )
+    likes: list[NameGid] | None = Field(
+        default=None,
+        description="Users who have liked the goal.",
+    )
+    num_likes: int | None = Field(
+        default=None,
+        description="Number of likes on the goal.",
+    )
 
     # Metric tracking
-    metric: GoalMetric | None = None
-    current_status_update: NameGid | None = None
+    metric: GoalMetric | None = Field(
+        default=None,
+        description="Numeric metric tracking progress toward the goal.",
+    )
+    current_status_update: NameGid | None = Field(
+        default=None,
+        description="Most recent status update posted to the goal.",
+    )
 
     # URLs
-    permalink_url: str | None = None
+    permalink_url: str | None = Field(
+        default=None,
+        description="Permanent URL to the goal in the Asana web app.",
+    )
 
 
 class GoalMembership(AsanaResource):
@@ -114,8 +168,14 @@ class GoalMembership(AsanaResource):
 
     resource_type: str | None = Field(default="goal_membership")
 
-    member: NameGid | None = None
-    goal: NameGid | None = None
+    member: NameGid | None = Field(
+        default=None,
+        description="User or team that is a member of the goal.",
+    )
+    goal: NameGid | None = Field(
+        default=None,
+        description="Goal this membership belongs to.",
+    )
     role: str | None = Field(
         default=None, description="Member role (owner, editor, commenter)"
     )

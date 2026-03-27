@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -47,9 +47,17 @@ class NameGid(BaseModel):
         frozen=True,  # References are immutable
     )
 
-    gid: str
-    name: str | None = None
-    resource_type: str | None = None
+    gid: str = Field(
+        description="Globally unique identifier for the referenced Asana resource.",
+    )
+    name: str | None = Field(
+        default=None,
+        description="Display name of the referenced resource.",
+    )
+    resource_type: str | None = Field(
+        default=None,
+        description="Asana resource type of the reference (e.g., 'user', 'project').",
+    )
 
     def __hash__(self) -> int:
         """Enable use in sets and as dict keys."""

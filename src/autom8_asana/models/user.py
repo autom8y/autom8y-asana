@@ -33,8 +33,14 @@ class User(AsanaResource):
     resource_type: str | None = Field(default="user")
 
     # Basic user fields
-    name: str | None = None
-    email: str | None = None
+    name: str | None = Field(
+        default=None,
+        description="Display name of the user.",
+    )
+    email: str | None = Field(
+        default=None,
+        description="Email address of the user.",
+    )
 
     # Profile
     photo: dict[str, Any] | None = Field(
@@ -43,4 +49,7 @@ class User(AsanaResource):
     )
 
     # Workspace memberships
-    workspaces: list[NameGid] | None = None
+    workspaces: list[NameGid] | None = Field(
+        default=None,
+        description="Workspaces the user belongs to.",
+    )

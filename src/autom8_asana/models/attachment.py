@@ -33,7 +33,10 @@ class Attachment(AsanaResource):
     resource_type: str | None = Field(default="attachment")
 
     # Basic attachment fields
-    name: str | None = None
+    name: str | None = Field(
+        default=None,
+        description="File name of the attachment.",
+    )
 
     # File properties
     host: str | None = Field(
@@ -53,7 +56,10 @@ class Attachment(AsanaResource):
 
     # Relationships
     parent: NameGid | None = Field(default=None, description="Parent task")
-    created_by: NameGid | None = None
+    created_by: NameGid | None = Field(
+        default=None,
+        description="User who uploaded the attachment.",
+    )
 
     # Timestamps
     created_at: str | None = Field(
