@@ -27,7 +27,10 @@ class Workspace(AsanaResource):
     resource_type: str | None = Field(default="workspace")
 
     # Basic workspace fields
-    name: str | None = None
+    name: str | None = Field(
+        default=None,
+        description="Display name of the workspace.",
+    )
     is_organization: bool | None = Field(
         default=None,
         description="True if this workspace is an organization",

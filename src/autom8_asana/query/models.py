@@ -44,9 +44,9 @@ class Comparison(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    field: str
-    op: Op
-    value: Any
+    field: str = Field(description="Column name to compare against.")
+    op: Op = Field(description="Comparison operator to apply.")
+    value: Any = Field(description="Value to compare the field against.")
 
 
 class AndGroup(BaseModel):
@@ -54,7 +54,9 @@ class AndGroup(BaseModel):
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    and_: list[PredicateNode] = Field(alias="and")
+    and_: list[PredicateNode] = Field(
+        alias="and", description="Child predicates that must all match."
+    )
 
 
 class OrGroup(BaseModel):
@@ -62,7 +64,9 @@ class OrGroup(BaseModel):
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    or_: list[PredicateNode] = Field(alias="or")
+    or_: list[PredicateNode] = Field(
+        alias="or", description="Child predicates where at least one must match."
+    )
 
 
 class NotGroup(BaseModel):
@@ -70,7 +74,9 @@ class NotGroup(BaseModel):
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    not_: PredicateNode = Field(alias="not")
+    not_: PredicateNode = Field(
+        alias="not", description="Child predicate that must not match."
+    )
 
 
 def _predicate_discriminator(v: Any) -> str:
@@ -141,9 +147,13 @@ class AggSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    column: str
-    agg: AggFunction
-    alias: str | None = None
+    column: str = Field(
+        description="Column to aggregate (must exist in SchemaRegistry)."
+    )
+    agg: AggFunction = Field(description="Aggregation function to apply.")
+    alias: str | None = Field(
+        default=None, description="Output column name. Defaults to '{agg}_{column}'."
+    )
 
     @property
     def resolved_alias(self) -> str:
@@ -158,11 +168,28 @@ class AggregateRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    where: PredicateNode | None = None
-    section: str | None = None
-    group_by: list[str] = Field(min_length=1, max_length=5)
-    aggregations: list[AggSpec] = Field(min_length=1, max_length=10)
-    having: PredicateNode | None = None  # Post-aggregation filter
+    where: PredicateNode | None = Field(
+        default=None,
+        description="Pre-aggregation filter predicate to narrow rows before grouping.",
+    )
+    section: str | None = Field(
+        default=None,
+        description="Section name to scope the aggregation to.",
+    )
+    group_by: list[str] = Field(
+        min_length=1,
+        max_length=5,
+        description="Columns to group by (1-5 columns).",
+    )
+    aggregations: list[AggSpec] = Field(
+        min_length=1,
+        max_length=10,
+        description="Aggregation specifications to compute per group (1-10).",
+    )
+    having: PredicateNode | None = Field(
+        default=None,
+        description="Post-aggregation filter predicate applied to grouped results.",
+    )
 
     @field_validator("where", mode="before")
     @classmethod
@@ -182,16 +209,27 @@ class AggregateMeta(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    group_count: int
-    aggregation_count: int
-    group_by: list[str]
-    entity_type: str
-    project_gid: str
-    query_ms: float
+    group_count: int = Field(description="Number of groups in the result.")
+    aggregation_count: int = Field(
+        description="Number of aggregation columns computed."
+    )
+    group_by: list[str] = Field(description="Columns used for grouping.")
+    entity_type: str = Field(description="Entity type that was aggregated.")
+    project_gid: str = Field(description="Asana project GID the query ran against.")
+    query_ms: float = Field(description="Query execution time in milliseconds.")
     # LKG freshness metadata
-    freshness: str | None = None
-    data_age_seconds: float | None = None
-    staleness_ratio: float | None = None
+    freshness: str | None = Field(
+        default=None,
+        description="Cache freshness state (e.g., 'fresh', 'stale', 'lkg').",
+    )
+    data_age_seconds: float | None = Field(
+        default=None,
+        description="Age of the cached data in seconds since last refresh.",
+    )
+    staleness_ratio: float | None = Field(
+        default=None,
+        description="Ratio of data age to configured TTL (1.0 = at TTL boundary).",
+    )
 
 
 class AggregateResponse(BaseModel):
@@ -199,8 +237,10 @@ class AggregateResponse(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    data: list[dict[str, Any]]
-    meta: AggregateMeta
+    data: list[dict[str, Any]] = Field(
+        description="Aggregated result rows, one dict per group."
+    )
+    meta: AggregateMeta = Field(description="Query execution metadata.")
 
 
 class RowsRequest(BaseModel):
@@ -208,15 +248,45 @@ class RowsRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    where: PredicateNode | None = None
-    section: str | None = None
-    classification: str | None = None
-    select: list[str] | None = None
-    limit: int = Field(default=100, ge=1, le=1000)
-    offset: int = Field(default=0, ge=0)
-    order_by: str | None = None
-    order_dir: Literal["asc", "desc"] = "asc"
-    join: JoinSpec | None = None  # Cross-entity join specification
+    where: PredicateNode | None = Field(
+        default=None,
+        description="Filter predicate to narrow rows before returning.",
+    )
+    section: str | None = Field(
+        default=None,
+        description="Section name to scope the query to. Mutually exclusive with classification.",
+    )
+    classification: str | None = Field(
+        default=None,
+        description="Classification label to scope the query to. Mutually exclusive with section.",
+    )
+    select: list[str] | None = Field(
+        default=None,
+        description="Columns to return. Null returns all columns.",
+    )
+    limit: int = Field(
+        default=100,
+        ge=1,
+        le=1000,
+        description="Maximum number of rows to return (1-1000).",
+    )
+    offset: int = Field(
+        default=0,
+        ge=0,
+        description="Number of rows to skip for pagination.",
+    )
+    order_by: str | None = Field(
+        default=None,
+        description="Column name to sort results by.",
+    )
+    order_dir: Literal["asc", "desc"] = Field(
+        default="asc",
+        description="Sort direction: 'asc' for ascending, 'desc' for descending.",
+    )
+    join: JoinSpec | None = Field(
+        default=None,
+        description="Cross-entity join specification for enriching rows.",
+    )
 
     @field_validator("where", mode="before")
     @classmethod
@@ -237,21 +307,42 @@ class RowsMeta(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    total_count: int
-    returned_count: int
-    limit: int
-    offset: int
-    entity_type: str
-    project_gid: str
-    query_ms: float
-    join_entity: str | None = None
-    join_key: str | None = None
-    join_matched: int | None = None
-    join_unmatched: int | None = None
+    total_count: int = Field(description="Total number of rows matching the filter.")
+    returned_count: int = Field(description="Number of rows in this page of results.")
+    limit: int = Field(description="Maximum rows requested per page.")
+    offset: int = Field(description="Row offset used for this page.")
+    entity_type: str = Field(description="Entity type that was queried.")
+    project_gid: str = Field(description="Asana project GID the query ran against.")
+    query_ms: float = Field(description="Query execution time in milliseconds.")
+    join_entity: str | None = Field(
+        default=None,
+        description="Entity type that was joined, if a join was performed.",
+    )
+    join_key: str | None = Field(
+        default=None,
+        description="Column used as the join key.",
+    )
+    join_matched: int | None = Field(
+        default=None,
+        description="Number of rows that matched during the join.",
+    )
+    join_unmatched: int | None = Field(
+        default=None,
+        description="Number of rows that did not match during the join.",
+    )
     # LKG freshness metadata
-    freshness: str | None = None
-    data_age_seconds: float | None = None
-    staleness_ratio: float | None = None
+    freshness: str | None = Field(
+        default=None,
+        description="Cache freshness state (e.g., 'fresh', 'stale', 'lkg').",
+    )
+    data_age_seconds: float | None = Field(
+        default=None,
+        description="Age of the cached data in seconds since last refresh.",
+    )
+    staleness_ratio: float | None = Field(
+        default=None,
+        description="Ratio of data age to configured TTL (1.0 = at TTL boundary).",
+    )
 
 
 class RowsResponse(BaseModel):
@@ -259,5 +350,5 @@ class RowsResponse(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    data: list[dict[str, Any]]
-    meta: RowsMeta
+    data: list[dict[str, Any]] = Field(description="Result rows, one dict per entity.")
+    meta: RowsMeta = Field(description="Query execution and pagination metadata.")

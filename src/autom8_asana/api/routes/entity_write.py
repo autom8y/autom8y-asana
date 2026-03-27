@@ -17,7 +17,7 @@ from typing import Annotated, Any, Literal, Never, cast
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
     AuthContextDep,
@@ -74,8 +74,13 @@ class EntityWriteRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    fields: dict[str, Any]
-    list_mode: Literal["replace", "append"] = "replace"
+    fields: dict[str, Any] = Field(
+        description="Mapping of field names to values. Accepts Python descriptor names and Asana display names.",
+    )
+    list_mode: Literal["replace", "append"] = Field(
+        default="replace",
+        description="How to handle list-type fields: 'replace' replaces entire value, 'append' adds to existing.",
+    )
 
     @model_validator(mode="after")
     def validate_non_empty(self) -> EntityWriteRequest:
@@ -87,21 +92,36 @@ class EntityWriteRequest(BaseModel):
 class FieldWriteResult(BaseModel):
     """Per-field write result."""
 
-    name: str
-    status: Literal["written", "skipped", "error"]
-    error: str | None = None
-    suggestions: list[str] | None = None
+    name: str = Field(description="Input field name as provided in the request.")
+    status: Literal["written", "skipped", "error"] = Field(
+        description="Outcome of the write: 'written' if successful, 'skipped' if filtered, 'error' if failed.",
+    )
+    error: str | None = Field(
+        default=None,
+        description="Error message if the field write failed.",
+    )
+    suggestions: list[str] | None = Field(
+        default=None,
+        description="Suggested valid field names when the input name was not recognized.",
+    )
 
 
 class EntityWriteResponse(BaseModel):
     """Response for entity write endpoint."""
 
-    gid: str
-    entity_type: str
-    fields_written: int
-    fields_skipped: int
-    field_results: list[FieldWriteResult]
-    updated_fields: dict[str, Any] | None = None
+    gid: str = Field(description="Asana task GID that was written to.")
+    entity_type: str = Field(description="Entity type of the written task.")
+    fields_written: int = Field(description="Number of fields successfully written.")
+    fields_skipped: int = Field(
+        description="Number of fields skipped due to errors or filtering."
+    )
+    field_results: list[FieldWriteResult] = Field(
+        description="Per-field write outcomes."
+    )
+    updated_fields: dict[str, Any] | None = Field(
+        default=None,
+        description="Current field values after write (only when include_updated=true).",
+    )
 
 
 # ---------------------------------------------------------------------------

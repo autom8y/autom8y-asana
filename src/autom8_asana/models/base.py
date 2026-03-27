@@ -5,7 +5,7 @@ Per ADR-0005: Pydantic v2 with extra="ignore" for forward compatibility.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AsanaResource(BaseModel):
@@ -27,5 +27,10 @@ class AsanaResource(BaseModel):
         str_strip_whitespace=True,
     )
 
-    gid: str
-    resource_type: str | None = None
+    gid: str = Field(
+        description="Globally unique identifier for this Asana resource. A 16-digit numeric string.",
+    )
+    resource_type: str | None = Field(
+        default=None,
+        description="Asana resource type name (e.g., 'task', 'project', 'section').",
+    )

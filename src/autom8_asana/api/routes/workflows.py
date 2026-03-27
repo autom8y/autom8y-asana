@@ -185,7 +185,38 @@ def _get_workflow_factory(workflow_id: str) -> WorkflowHandlerConfig | None:
     return _WORKFLOW_CONFIGS.get(workflow_id)
 
 
-# --- Route Handler ---
+# --- Route Handlers ---
+
+
+@router.get(
+    "/",
+    summary="List registered workflows",
+    description=(
+        "Returns all registered workflow IDs with descriptions and configuration "
+        "metadata. Use this to discover available workflows before invoking them "
+        "via POST /api/v1/workflows/{workflow_id}/invoke. Each workflow entry "
+        "includes its ID, log prefix, whether it requires a data-service client, "
+        "and the set of response metadata keys it produces."
+    ),
+)
+async def list_workflows(
+    request_id: RequestId,
+) -> dict[str, Any]:
+    """List all registered workflows available for invocation."""
+    result = []
+    for workflow_id, config in _WORKFLOW_CONFIGS.items():
+        result.append(
+            {
+                "workflow_id": workflow_id,
+                "log_prefix": config.log_prefix,
+                "requires_data_client": config.requires_data_client,
+                "response_metadata_keys": list(config.response_metadata_keys),
+            }
+        )
+    return {
+        "data": result,
+        "meta": {"workflow_count": len(result)},
+    }
 
 
 @router.post(
@@ -228,6 +259,11 @@ async def invoke_workflow(
     entity IDs, caller service, and auth mode.
 
     Requires Bearer token authentication (JWT or PAT).
+
+    **CAUTION**: Executes workflow writes against the specified entities.
+    Use dry_run=true to validate without performing writes. Side effects
+    are workflow-specific and may be irreversible. Rate limited to 10
+    requests per minute. Hard timeout at 120 seconds.
 
     Args:
         workflow_id: Registered workflow identifier

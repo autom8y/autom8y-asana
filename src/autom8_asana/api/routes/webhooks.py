@@ -332,6 +332,10 @@ async def receive_inbound_webhook(
     - Payloads without a ``gid`` field return 400.
     - Dispatch errors do not affect the HTTP response.
 
+    Accepts empty bodies gracefully. Uses URL token auth (?token=), not
+    Bearer auth. Background dispatch is async -- the 200 response is sent
+    before cache invalidation or dispatch completes.
+
     Args:
         request: FastAPI request for raw body access.
         background_tasks: FastAPI BackgroundTasks for async processing.

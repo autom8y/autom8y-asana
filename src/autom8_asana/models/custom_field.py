@@ -28,9 +28,18 @@ class CustomFieldEnumOption(AsanaResource):
     """
 
     resource_type: str | None = Field(default="enum_option")
-    name: str | None = None
-    enabled: bool | None = None
-    color: str | None = None
+    name: str | None = Field(
+        default=None,
+        description="Display name of the enum option.",
+    )
+    enabled: bool | None = Field(
+        default=None,
+        description="True if this option is available for selection.",
+    )
+    color: str | None = Field(
+        default=None,
+        description="Color of the enum option (red, orange, yellow, green, blue, etc.).",
+    )
 
 
 class CustomField(AsanaResource):
@@ -56,11 +65,26 @@ class CustomField(AsanaResource):
     )
 
     # Basic fields
-    name: str | None = None
-    description: str | None = None
-    enabled: bool | None = None
-    is_global_to_workspace: bool | None = None
-    has_notifications_enabled: bool | None = None
+    name: str | None = Field(
+        default=None,
+        description="Display name of the custom field.",
+    )
+    description: str | None = Field(
+        default=None,
+        description="Help text describing the custom field's purpose.",
+    )
+    enabled: bool | None = Field(
+        default=None,
+        description="True if this custom field is active and visible.",
+    )
+    is_global_to_workspace: bool | None = Field(
+        default=None,
+        description="True if the field is available across all projects in the workspace.",
+    )
+    has_notifications_enabled: bool | None = Field(
+        default=None,
+        description="True if changes to this field trigger notifications.",
+    )
 
     # Type-specific configuration
     precision: int | None = Field(
@@ -75,14 +99,20 @@ class CustomField(AsanaResource):
         default=None,
         description="Currency code for currency fields (USD, EUR, etc.)",
     )
-    custom_label: str | None = None
+    custom_label: str | None = Field(
+        default=None,
+        description="Custom unit label for number fields (e.g., 'hrs', 'pts').",
+    )
     custom_label_position: str | None = Field(
         default=None,
         description="Position of custom label (prefix, suffix)",
     )
 
     # Enum options
-    enum_options: list[CustomFieldEnumOption] | None = None
+    enum_options: list[CustomFieldEnumOption] | None = Field(
+        default=None,
+        description="Available options for enum and multi_enum custom fields.",
+    )
     enum_value: CustomFieldEnumOption | None = Field(
         default=None,
         description="Selected enum value (when reading from task)",
@@ -93,8 +123,14 @@ class CustomField(AsanaResource):
     )
 
     # Value fields (present when custom field is on a task/project)
-    text_value: str | None = None
-    number_value: float | None = None
+    text_value: str | None = Field(
+        default=None,
+        description="Current text value for text-type custom fields.",
+    )
+    number_value: float | None = Field(
+        default=None,
+        description="Current numeric value for number-type custom fields.",
+    )
     display_value: str | None = Field(
         default=None,
         description="Human-readable display value",
@@ -103,11 +139,20 @@ class CustomField(AsanaResource):
         default=None,
         description="Date value with date and optional datetime",
     )
-    people_value: list[NameGid] | None = None
+    people_value: list[NameGid] | None = Field(
+        default=None,
+        description="Selected users for people-type custom fields.",
+    )
 
     # Relationships
-    workspace: NameGid | None = None
-    created_by: NameGid | None = None
+    workspace: NameGid | None = Field(
+        default=None,
+        description="Workspace this custom field belongs to.",
+    )
+    created_by: NameGid | None = Field(
+        default=None,
+        description="User who created this custom field.",
+    )
 
     # Metadata
     created_at: str | None = Field(
@@ -115,9 +160,18 @@ class CustomField(AsanaResource):
     )
 
     # ID representations
-    id_prefix: str | None = None
-    is_formula_field: bool | None = None
-    is_value_read_only: bool | None = None
+    id_prefix: str | None = Field(
+        default=None,
+        description="Prefix for the custom field's short ID (e.g., 'CF').",
+    )
+    is_formula_field: bool | None = Field(
+        default=None,
+        description="True if the field value is computed by a formula.",
+    )
+    is_value_read_only: bool | None = Field(
+        default=None,
+        description="True if the field value cannot be modified directly.",
+    )
 
 
 class CustomFieldSetting(AsanaResource):
@@ -134,11 +188,23 @@ class CustomFieldSetting(AsanaResource):
     resource_type: str | None = Field(default="custom_field_setting")
 
     # The custom field this setting applies to
-    custom_field: CustomField | None = None
+    custom_field: CustomField | None = Field(
+        default=None,
+        description="Custom field this setting configures.",
+    )
 
     # The project this setting is on
-    project: NameGid | None = None
-    parent: NameGid | None = None  # Alternative to project
+    project: NameGid | None = Field(
+        default=None,
+        description="Project this custom field setting belongs to.",
+    )
+    parent: NameGid | None = Field(
+        default=None,
+        description="Parent resource (alternative to project for portfolios).",
+    )
 
     # Configuration
-    is_important: bool | None = None
+    is_important: bool | None = Field(
+        default=None,
+        description="True if the field is pinned for prominence in the project.",
+    )

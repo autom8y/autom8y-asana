@@ -30,13 +30,22 @@ class Section(AsanaResource):
     """
 
     # Core identification
-    resource_type: str | None = Field(default="section")
+    resource_type: str | None = Field(
+        default="section",
+        description="Asana resource type name. Always 'section' for section resources.",
+    )
 
     # Basic section fields
-    name: str | None = None
+    name: str | None = Field(
+        default=None,
+        description="Display name of the section.",
+    )
 
     # Relationships - typed with NameGid
-    project: NameGid | None = None
+    project: NameGid | None = Field(
+        default=None,
+        description="Project this section belongs to.",
+    )
 
     # Metadata
     created_at: str | None = Field(
@@ -44,4 +53,8 @@ class Section(AsanaResource):
     )
 
     # Tasks attribute for DataFrame building (populated externally)
-    tasks: list[Any] | None = Field(default=None, exclude=True)
+    tasks: list[Any] | None = Field(
+        default=None,
+        exclude=True,
+        description="Task list populated externally for DataFrame building. Excluded from serialization.",
+    )

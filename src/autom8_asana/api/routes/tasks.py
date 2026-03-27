@@ -210,6 +210,10 @@ async def create_task(
 
     Requires Bearer token authentication (JWT or PAT).
 
+    No duplicate checking is performed. Calling this endpoint multiple
+    times with the same parameters creates multiple distinct tasks, each
+    with a unique GID.
+
     Args:
         body: Task creation parameters (name, projects, workspace, etc.).
 
@@ -259,6 +263,11 @@ async def update_task(
 
     Requires Bearer token authentication (JWT or PAT).
 
+    **CAUTION**: Setting completed=true may trigger Asana Rules automations
+    (notifications, section moves, workflow transitions). This is a partial
+    update -- only fields included in the request body are modified; omitted
+    fields are unchanged.
+
     Args:
         gid: Asana task GID.
         body: Fields to update (``name``, ``notes``, ``completed``, ``due_on``).
@@ -306,6 +315,10 @@ async def delete_task(
     from Asana. Consider completing or archiving instead.
 
     Requires Bearer token authentication (JWT or PAT).
+
+    **IRREVERSIBLE**: Permanently deletes this task and ALL subtasks.
+    Dependents are orphaned. No backup is created. Consider completing the
+    task (PUT with completed=true) instead of deleting.
 
     Args:
         gid: Asana task GID.
@@ -463,6 +476,10 @@ async def duplicate_task(
 
     Requires Bearer token authentication (JWT or PAT).
 
+    Creates a new task with a new GID in the same project and section.
+    Inherits description, assignee, and due date. Does NOT duplicate
+    subtasks, tags, or custom field values.
+
     Args:
         gid: GID of the source task to duplicate.
         body: ``name`` for the new duplicate task.
@@ -505,6 +522,10 @@ async def add_tag(
 
     Requires Bearer token authentication (JWT or PAT).
 
+    **IDEMPOTENT**: Adding a tag that is already on the task is a no-op
+    returning 200. The tag must already exist in Asana -- this endpoint
+    does not create tags.
+
     Args:
         gid: Task GID.
         body: ``tag_gid`` — GID of the tag to apply.
@@ -542,6 +563,10 @@ async def remove_tag(
     not deleted from Asana — only the association with this task is removed.
 
     Requires Bearer token authentication (JWT or PAT).
+
+    **IDEMPOTENT**: Removing a tag that is not on the task is a no-op
+    returning 200. The tag itself is not deleted from Asana -- only the
+    association with this task is removed.
 
     Args:
         gid: Task GID.
@@ -585,6 +610,11 @@ async def move_to_section(
 
     Requires Bearer token authentication (JWT or PAT).
 
+    **CAUTION**: Moving a task to a different section may trigger lifecycle
+    automations including workflow transitions and status changes. Requires
+    both section_gid and project_gid. The task must already be a member of
+    the specified project.
+
     Args:
         gid: Task GID.
         body: ``section_gid`` and ``project_gid`` for the destination.
@@ -625,6 +655,9 @@ async def set_assignee(
 
     Requires Bearer token authentication (JWT or PAT).
 
+    Assignee change triggers Asana notifications to the new assignee.
+    Pass null to unassign the task.
+
     Args:
         gid: Task GID.
         body: ``assignee_gid`` — user GID to assign, or ``null`` to unassign.
@@ -662,6 +695,10 @@ async def add_to_project(
     the specified project without removing it from existing projects.
 
     Requires Bearer token authentication (JWT or PAT).
+
+    **IDEMPOTENT**: Adding a task to a project it already belongs to is a
+    no-op. A task can belong to multiple projects simultaneously. This does
+    not change the task's section within the project.
 
     Args:
         gid: Task GID.
@@ -701,6 +738,10 @@ async def remove_from_project(
     from other projects it belongs to.
 
     Requires Bearer token authentication (JWT or PAT).
+
+    Removes the task from the specified project without deleting the task.
+    If this is the task's last project, it becomes uncategorized but remains
+    accessible in the workspace.
 
     Args:
         gid: Task GID.

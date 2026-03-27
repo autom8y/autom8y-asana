@@ -15,7 +15,7 @@ import uuid
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, BackgroundTasks, Depends, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
@@ -38,8 +38,14 @@ class CacheRefreshRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    entity_type: str | None = None
-    force_full_rebuild: bool = False
+    entity_type: str | None = Field(
+        default=None,
+        description="Specific entity type to refresh. Null refreshes all entity types.",
+    )
+    force_full_rebuild: bool = Field(
+        default=False,
+        description="If true, delete all cached data and rebuild from scratch.",
+    )
 
 
 class CacheRefreshResponse(BaseModel):
@@ -53,11 +59,13 @@ class CacheRefreshResponse(BaseModel):
         force_full_rebuild: Whether full rebuild was requested.
     """
 
-    status: str = "accepted"
-    message: str
-    entity_types: list[str]
-    refresh_id: str
-    force_full_rebuild: bool
+    status: str = Field(
+        default="accepted", description="Always 'accepted' for 202 responses."
+    )
+    message: str = Field(description="Human-readable description of the action taken.")
+    entity_types: list[str] = Field(description="Entity types being refreshed.")
+    refresh_id: str = Field(description="Unique identifier for this refresh operation.")
+    force_full_rebuild: bool = Field(description="Whether full rebuild was requested.")
 
 
 async def _perform_cache_refresh(

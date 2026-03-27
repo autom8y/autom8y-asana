@@ -33,18 +33,30 @@ class Tag(AsanaResource):
     resource_type: str | None = Field(default="tag")
 
     # Basic tag fields
-    name: str | None = None
+    name: str | None = Field(
+        default=None,
+        description="Display name of the tag.",
+    )
     color: str | None = Field(
         default=None,
         description="Tag color (dark-pink, dark-green, dark-blue, etc.)",
     )
-    notes: str | None = None
+    notes: str | None = Field(
+        default=None,
+        description="Plain-text description of the tag.",
+    )
 
     # Relationships
-    workspace: NameGid | None = None
+    workspace: NameGid | None = Field(
+        default=None,
+        description="Workspace the tag belongs to.",
+    )
 
     # Followers
-    followers: list[NameGid] | None = None
+    followers: list[NameGid] | None = Field(
+        default=None,
+        description="Users following this tag for notifications.",
+    )
 
     # Timestamps
     created_at: str | None = Field(
@@ -52,4 +64,7 @@ class Tag(AsanaResource):
     )
 
     # URL
-    permalink_url: str | None = None
+    permalink_url: str | None = Field(
+        default=None,
+        description="Permanent URL to the tag in the Asana web app.",
+    )

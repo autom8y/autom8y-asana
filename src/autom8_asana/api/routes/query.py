@@ -57,6 +57,7 @@ from autom8_asana.services.query_service import (
 
 __all__ = [
     "router",
+    "query_introspection_router",
     # Legacy models (backward compatibility for imports)
     "QueryRequest",
     "QueryMeta",
@@ -65,6 +66,12 @@ __all__ = [
 
 logger = get_logger(__name__)
 
+# Two routers share the same prefix. The introspection router is visible in the
+# OpenAPI spec (include_in_schema=True) while the query execution router stays
+# hidden (include_in_schema=False) to avoid exposing POST endpoints.
+query_introspection_router = APIRouter(
+    prefix="/v1/query", tags=["query"], include_in_schema=True
+)
 router = APIRouter(prefix="/v1/query", tags=["query"], include_in_schema=False)
 
 
@@ -150,7 +157,17 @@ class QueryResponse(BaseModel):
 # routes so FastAPI matches them before the path parameter catches "entities".
 
 
-@router.get("/entities")
+@query_introspection_router.get(
+    "/entities",
+    summary="List queryable entity types",
+    description=(
+        "Returns all registered entity types that can be queried through the "
+        "composable query engine. Each entry includes the entity type name, "
+        "display name, project GID, and category. Use this to discover which "
+        "entity types are available before calling /fields, /relations, or "
+        "/sections for a specific type."
+    ),
+)
 async def list_query_entities(
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> dict[str, Any]:
@@ -165,7 +182,17 @@ async def list_query_entities(
     return {"data": list_entities()}
 
 
-@router.get("/data-sources")
+@query_introspection_router.get(
+    "/data-sources",
+    summary="List data-service factories",
+    description=(
+        "Returns metadata for each registered data-service factory available "
+        "for cross-service joins. Each entry includes the factory name, frame "
+        "type, description, columns, and default period. Data-service "
+        "factories provide virtual entities sourced from autom8y-data that "
+        "can be joined with Asana-sourced entities in the query engine."
+    ),
+)
 async def list_data_sources(
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> dict[str, Any]:
@@ -179,7 +206,17 @@ async def list_data_sources(
     return {"data": list_data_service_entities()}
 
 
-@router.get("/data-sources/{factory}/fields")
+@query_introspection_router.get(
+    "/data-sources/{factory}/fields",
+    summary="List fields for a data-service factory",
+    description=(
+        "Returns column names from the virtual entity registry for a specific "
+        "data-service factory. These columns are available for use in query "
+        "predicates and select clauses when joining with this factory. Note "
+        "that actual columns returned by autom8y-data may differ — this is an "
+        "advisory list based on common factory configurations."
+    ),
+)
 async def list_data_source_fields(
     factory: str,
     request_id: RequestId,
@@ -211,7 +248,16 @@ async def list_data_source_fields(
     }
 
 
-@router.get("/{entity_type}/fields")
+@query_introspection_router.get(
+    "/{entity_type}/fields",
+    summary="List fields for an entity type",
+    description=(
+        "Returns column metadata for all fields available on the given entity "
+        "type, including name, dtype, nullable flag, and description. Use this "
+        "to discover which fields can be used in query predicates (where "
+        "clauses) and select clauses when querying this entity type."
+    ),
+)
 async def list_query_fields(
     entity_type: str,
     request_id: RequestId,
@@ -231,7 +277,16 @@ async def list_query_fields(
     return {"data": data}
 
 
-@router.get("/{entity_type}/relations")
+@query_introspection_router.get(
+    "/{entity_type}/relations",
+    summary="List relations for an entity type",
+    description=(
+        "Returns relationship metadata for all joinable entity types from the "
+        "given entity type. Each relation includes target entity, direction, "
+        "default join key, cardinality, and description. Use this to discover "
+        "how entity types can be joined in cross-entity queries."
+    ),
+)
 async def list_query_relations(
     entity_type: str,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
@@ -247,7 +302,17 @@ async def list_query_relations(
     return {"data": list_relations(entity_type)}
 
 
-@router.get("/{entity_type}/sections")
+@query_introspection_router.get(
+    "/{entity_type}/sections",
+    summary="List sections for an entity type",
+    description=(
+        "Returns section metadata for the given entity type, including section "
+        "name and classification (active, activating, inactive, ignored). Only "
+        "entity types with a registered SectionClassifier are supported. Use "
+        "this to discover valid section values for filtering queries by "
+        "section or classification."
+    ),
+)
 async def list_query_sections(
     entity_type: str,
     request_id: RequestId,

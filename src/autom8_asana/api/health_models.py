@@ -34,9 +34,17 @@ class HealthStatus(enum.StrEnum):
 class CheckResult(BaseModel):
     """Result of a single dependency check."""
 
-    status: HealthStatus
-    latency_ms: float | None = None
-    detail: dict[str, Any] | None = None
+    status: HealthStatus = Field(
+        description="Health status of this dependency check.",
+    )
+    latency_ms: float | None = Field(
+        default=None,
+        description="Round-trip latency of the check in milliseconds.",
+    )
+    detail: dict[str, Any] | None = Field(
+        default=None,
+        description="Additional diagnostic details for the check result.",
+    )
 
 
 class HealthResponse(BaseModel):
@@ -45,11 +53,23 @@ class HealthResponse(BaseModel):
     Used by all three tiers: /health, /ready, /health/deps.
     """
 
-    status: HealthStatus
-    service: str
-    version: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    checks: dict[str, CheckResult] | None = None
+    status: HealthStatus = Field(
+        description="Overall health status of the service.",
+    )
+    service: str = Field(
+        description="Name of the service being health-checked.",
+    )
+    version: str = Field(
+        description="Deployed version of the service.",
+    )
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        description="Timestamp when the health check was performed (UTC).",
+    )
+    checks: dict[str, CheckResult] | None = Field(
+        default=None,
+        description="Per-dependency check results keyed by dependency name.",
+    )
 
     def http_status_code(self) -> int:
         """Map status to HTTP status code."""

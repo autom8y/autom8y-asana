@@ -105,6 +105,10 @@ async def create_section(
 
     Requires Bearer token authentication (JWT or PAT).
 
+    New sections are appended at the end of the project. No duplicate name
+    checking is performed. To position the section, call
+    ``POST /api/v1/sections/{gid}/reorder`` after creation.
+
     Args:
         body: ``name`` and ``project`` GID for the new section.
 
@@ -146,6 +150,9 @@ async def update_section(
 
     Requires Bearer token authentication (JWT or PAT).
 
+    Name-only update. Does not reorder the section within the project.
+    Use ``POST /api/v1/sections/{gid}/reorder`` to change position.
+
     Args:
         gid: Asana section GID.
         body: ``name`` — new display name for the section.
@@ -183,6 +190,10 @@ async def delete_section(
     within the project. This action is irreversible.
 
     Requires Bearer token authentication (JWT or PAT).
+
+    **IRREVERSIBLE**: Permanently deletes this section. Tasks within the
+    section are NOT deleted but become uncategorized within the project.
+    The section GID becomes permanently invalid.
 
     Args:
         gid: Asana section GID.
@@ -224,6 +235,10 @@ async def add_task_to_section(
     ``POST /api/v1/tasks/{gid}/projects`` first.
 
     Requires Bearer token authentication (JWT or PAT).
+
+    The task must already be in the project that owns this section. To move
+    a task across projects, add it to the target project first via
+    ``POST /api/v1/tasks/{gid}/projects``.
 
     Args:
         gid: Section GID.
@@ -271,6 +286,10 @@ async def reorder_section(
     same project (identified by ``project_gid``).
 
     Requires Bearer token authentication (JWT or PAT).
+
+    Moves the section to a new position. Exactly one of before_section or
+    after_section must be provided. Both sections must be in the same
+    project.
 
     Args:
         gid: Section GID to reorder.

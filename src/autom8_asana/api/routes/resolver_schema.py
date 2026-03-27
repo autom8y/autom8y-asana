@@ -18,7 +18,7 @@ from typing import Annotated
 
 from autom8y_log import get_logger
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.api.dependencies import (
     RequestId,  # noqa: TC001 — FastAPI resolves these at runtime
@@ -49,9 +49,16 @@ class SchemaFieldInfo(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str
-    type: str
-    description: str | None = None
+    name: str = Field(
+        description="Column name used in query predicates and select clauses."
+    )
+    type: str = Field(
+        description="Data type of the column (e.g., 'Utf8', 'Float64', 'Boolean')."
+    )
+    description: str | None = Field(
+        default=None,
+        description="Human-readable explanation of the field's domain meaning.",
+    )
 
 
 class EntitySchemaResponse(BaseModel):
@@ -62,9 +69,13 @@ class EntitySchemaResponse(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    entity_type: str
-    version: str
-    queryable_fields: list[SchemaFieldInfo]
+    entity_type: str = Field(
+        description="Entity type this schema describes (e.g., 'unit', 'business')."
+    )
+    version: str = Field(description="Schema version string for the entity type.")
+    queryable_fields: list[SchemaFieldInfo] = Field(
+        description="Fields available for querying and resolution criteria."
+    )
 
 
 @schema_router.get(

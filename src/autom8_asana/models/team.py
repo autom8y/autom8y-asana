@@ -28,8 +28,14 @@ class TeamMembership(AsanaResource):
 
     resource_type: str | None = Field(default="team_membership")
 
-    user: NameGid | None = None
-    team: NameGid | None = None
+    user: NameGid | None = Field(
+        default=None,
+        description="User who is a member of the team.",
+    )
+    team: NameGid | None = Field(
+        default=None,
+        description="Team this membership belongs to.",
+    )
     is_guest: bool | None = Field(
         default=None, description="Whether the user is a guest in the team"
     )
@@ -55,9 +61,18 @@ class Team(AsanaResource):
     resource_type: str | None = Field(default="team")
 
     # Basic team fields
-    name: str | None = None
-    description: str | None = None
-    html_description: str | None = None
+    name: str | None = Field(
+        default=None,
+        description="Display name of the team.",
+    )
+    description: str | None = Field(
+        default=None,
+        description="Plain-text description of the team.",
+    )
+    html_description: str | None = Field(
+        default=None,
+        description="HTML-formatted description of the team.",
+    )
 
     # Relationships
     organization: NameGid | None = Field(
@@ -71,10 +86,31 @@ class Team(AsanaResource):
     )
 
     # Settings
-    permalink_url: str | None = None
-    edit_team_name_or_description_access_level: str | None = None
-    edit_team_visibility_or_trash_team_access_level: str | None = None
-    member_invite_management_access_level: str | None = None
-    guest_invite_management_access_level: str | None = None
-    join_request_management_access_level: str | None = None
-    team_member_removal_access_level: str | None = None
+    permalink_url: str | None = Field(
+        default=None,
+        description="Permanent URL to the team in the Asana web app.",
+    )
+    edit_team_name_or_description_access_level: str | None = Field(
+        default=None,
+        description="Access level required to edit the team name or description.",
+    )
+    edit_team_visibility_or_trash_team_access_level: str | None = Field(
+        default=None,
+        description="Access level required to change team visibility or delete the team.",
+    )
+    member_invite_management_access_level: str | None = Field(
+        default=None,
+        description="Access level required to invite members to the team.",
+    )
+    guest_invite_management_access_level: str | None = Field(
+        default=None,
+        description="Access level required to invite guests to the team.",
+    )
+    join_request_management_access_level: str | None = Field(
+        default=None,
+        description="Access level required to manage join requests for the team.",
+    )
+    team_member_removal_access_level: str | None = Field(
+        default=None,
+        description="Access level required to remove members from the team.",
+    )
