@@ -150,6 +150,7 @@ class TestEntityDescriptor:
         assert desc.join_keys == ()
         assert desc.key_columns == ()
         assert desc.explicit_name_mappings == ()
+        assert desc.custom_field_resolver_class_path is None
 
 
 # =============================================================================
@@ -397,12 +398,14 @@ class TestGlobalRegistry:
         assert unit is not None
         assert unit.entity_type == EntityType.UNIT
 
-    def test_asset_edit_has_no_entity_type(self) -> None:
-        """asset_edit intentionally has no EntityType member."""
+    def test_asset_edit_has_entity_type(self) -> None:
+        """asset_edit has EntityType.ASSET_EDIT after binding."""
+        from autom8_asana.core.types import EntityType
+
         registry = get_registry()
         desc = registry.get("asset_edit")
         assert desc is not None
-        assert desc.entity_type is None
+        assert desc.entity_type == EntityType.ASSET_EDIT
 
     def test_all_entity_types_have_descriptors(self) -> None:
         """Every EntityType enum member (except UNKNOWN) has a registry entry."""
@@ -652,6 +655,7 @@ class TestDataFrameLayerFields:
         assert desc.extractor_class_path is None
         assert desc.row_model_class_path is None
         assert desc.cascading_field_provider is False
+        assert desc.custom_field_resolver_class_path is None
 
     def test_new_fields_are_settable(self) -> None:
         """New fields accept explicit values at construction time."""
@@ -687,14 +691,21 @@ class TestDataFrameLayerPopulation:
     """Tests that schema-bearing entities have correct field values."""
 
     def test_business_descriptor_fields(self) -> None:
-        """Business has schema, no extractor/row, cascading=True."""
+        """Business has full triad (schema, extractor, row) and cascading=True."""
         desc = get_registry().require("business")
         assert desc.schema_module_path == (
             "autom8_asana.dataframes.schemas.business.BUSINESS_SCHEMA"
         )
-        assert desc.extractor_class_path is None
-        assert desc.row_model_class_path is None
+        assert desc.extractor_class_path == (
+            "autom8_asana.dataframes.extractors.business.BusinessExtractor"
+        )
+        assert desc.row_model_class_path == (
+            "autom8_asana.dataframes.models.task_row.BusinessRow"
+        )
         assert desc.cascading_field_provider is True
+        assert desc.custom_field_resolver_class_path == (
+            "autom8_asana.dataframes.resolver.DefaultCustomFieldResolver"
+        )
 
     def test_unit_descriptor_fields(self) -> None:
         """Unit has full triad (schema, extractor, row) and cascading=True."""
@@ -709,6 +720,9 @@ class TestDataFrameLayerPopulation:
             "autom8_asana.dataframes.models.task_row.UnitRow"
         )
         assert desc.cascading_field_provider is True
+        assert desc.custom_field_resolver_class_path == (
+            "autom8_asana.dataframes.resolver.DefaultCustomFieldResolver"
+        )
 
     def test_contact_descriptor_fields(self) -> None:
         """Contact has full triad, no cascading."""
@@ -725,32 +739,47 @@ class TestDataFrameLayerPopulation:
         assert desc.cascading_field_provider is False
 
     def test_offer_descriptor_fields(self) -> None:
-        """Offer has schema only (B1: no extractor/row yet)."""
+        """Offer has full triad (schema, extractor, row)."""
         desc = get_registry().require("offer")
         assert desc.schema_module_path == (
             "autom8_asana.dataframes.schemas.offer.OFFER_SCHEMA"
         )
-        assert desc.extractor_class_path is None
-        assert desc.row_model_class_path is None
+        assert desc.extractor_class_path == (
+            "autom8_asana.dataframes.extractors.offer.OfferExtractor"
+        )
+        assert desc.row_model_class_path == (
+            "autom8_asana.dataframes.models.task_row.OfferRow"
+        )
         assert desc.cascading_field_provider is False
+        assert desc.custom_field_resolver_class_path == (
+            "autom8_asana.dataframes.resolver.DefaultCustomFieldResolver"
+        )
 
     def test_asset_edit_descriptor_fields(self) -> None:
-        """AssetEdit has schema only."""
+        """AssetEdit has full triad (schema, extractor, row)."""
         desc = get_registry().require("asset_edit")
         assert desc.schema_module_path == (
             "autom8_asana.dataframes.schemas.asset_edit.ASSET_EDIT_SCHEMA"
         )
-        assert desc.extractor_class_path is None
-        assert desc.row_model_class_path is None
+        assert desc.extractor_class_path == (
+            "autom8_asana.dataframes.extractors.asset_edit.AssetEditExtractor"
+        )
+        assert desc.row_model_class_path == (
+            "autom8_asana.dataframes.models.task_row.AssetEditRow"
+        )
 
     def test_asset_edit_holder_descriptor_fields(self) -> None:
-        """AssetEditHolder has schema only."""
+        """AssetEditHolder has full triad (schema, extractor, row)."""
         desc = get_registry().require("asset_edit_holder")
         assert desc.schema_module_path == (
             "autom8_asana.dataframes.schemas.asset_edit_holder.ASSET_EDIT_HOLDER_SCHEMA"
         )
-        assert desc.extractor_class_path is None
-        assert desc.row_model_class_path is None
+        assert desc.extractor_class_path == (
+            "autom8_asana.dataframes.extractors.asset_edit_holder.AssetEditHolderExtractor"
+        )
+        assert desc.row_model_class_path == (
+            "autom8_asana.dataframes.models.task_row.AssetEditHolderRow"
+        )
 
     def test_non_schema_entities_have_none_defaults(self) -> None:
         """Entities without schemas keep None/False defaults."""
@@ -1116,10 +1145,10 @@ class TestStrictTriadValidation:
         with pytest.raises(ValueError, match="my_entity"):
             _validate_registry_integrity(registry)
 
-    def test_production_registry_uses_strict_false(self) -> None:
-        """The production registry uses strict=False (backward compat)."""
+    def test_production_registry_uses_strict_true(self) -> None:
+        """The production registry uses strict=True (all triads complete)."""
         registry = get_registry()
-        assert registry.strict_triad_validation is False
+        assert registry.strict_triad_validation is True
 
 
 # =============================================================================
@@ -1197,16 +1226,18 @@ class TestImportResolutionCoverage:
         # Known counts from current descriptors:
         # 6 entities with schema_module_path (business, unit, contact, offer,
         #   asset_edit, asset_edit_holder)
-        # 2 entities with extractor_class_path (unit, contact)
-        # 2 entities with row_model_class_path (unit, contact)
+        # 6 entities with extractor_class_path (business, unit, contact, offer,
+        #   asset_edit, asset_edit_holder)
+        # 6 entities with row_model_class_path (business, unit, contact, offer,
+        #   asset_edit, asset_edit_holder)
         assert len(schema_paths) >= 6, (
             f"Expected at least 6 schema paths, got {len(schema_paths)}"
         )
-        assert len(extractor_paths) >= 2, (
-            f"Expected at least 2 extractor paths, got {len(extractor_paths)}"
+        assert len(extractor_paths) >= 6, (
+            f"Expected at least 6 extractor paths, got {len(extractor_paths)}"
         )
-        assert len(row_model_paths) >= 2, (
-            f"Expected at least 2 row model paths, got {len(row_model_paths)}"
+        assert len(row_model_paths) >= 6, (
+            f"Expected at least 6 row model paths, got {len(row_model_paths)}"
         )
 
 
@@ -1268,3 +1299,133 @@ class TestSchemaColumnCountSmoke:
             f"Entities with schemas missing from EXPECTED_SCHEMA_COLUMN_COUNTS: {missing}. "
             f"Add baseline column counts for these entities."
         )
+
+
+# =============================================================================
+# Entity Type Binding Regression Tests (schema-topology-triage Sprint 2)
+# =============================================================================
+
+
+class TestEntityTypeBindingRegression:
+    """Regression tests ensuring all warmable+resolvable entities have entity_type bound.
+
+    Prevents recurrence of the gap where asset_edit was warmable and resolvable
+    but had no EntityType enum member, causing entity_type-dispatching code to
+    silently fall through.
+    """
+
+    def test_asset_edit_descriptor_has_entity_type_after_binding(self) -> None:
+        """After registry init, asset_edit descriptor has EntityType.ASSET_EDIT."""
+        from autom8_asana.core.types import EntityType
+
+        registry = get_registry()
+        desc = registry.get("asset_edit")
+        assert desc is not None, "asset_edit descriptor not found in registry"
+        assert desc.entity_type == EntityType.ASSET_EDIT, (
+            f"Expected asset_edit.entity_type == EntityType.ASSET_EDIT, "
+            f"got {desc.entity_type!r}"
+        )
+
+    def test_asset_edit_resolvable_via_get_by_type(self) -> None:
+        """EntityRegistry.get_by_type(EntityType.ASSET_EDIT) returns asset_edit descriptor."""
+        from autom8_asana.core.types import EntityType
+
+        registry = get_registry()
+        desc = registry.get_by_type(EntityType.ASSET_EDIT)
+        assert desc is not None, (
+            "get_by_type(EntityType.ASSET_EDIT) returned None -- "
+            "binding or _by_type index is broken"
+        )
+        assert desc.name == "asset_edit"
+
+    def test_all_warmable_entities_have_entity_type(self) -> None:
+        """Every warmable entity has a non-None entity_type after binding.
+
+        Guards against future entities being added as warmable without
+        a corresponding EntityType enum member and _TYPE_MAP entry.
+        """
+        registry = get_registry()
+        for desc in registry.warmable_entities():
+            assert desc.entity_type is not None, (
+                f"Warmable entity {desc.name!r} has entity_type=None. "
+                f"Add an EntityType enum member and _TYPE_MAP entry for it."
+            )
+
+    def test_all_resolvable_entities_have_entity_type(self) -> None:
+        """Every entity with a primary_project_gid has a non-None entity_type.
+
+        Entities with projects are resolvable via Tier 1 detection and should
+        participate in entity_type-dispatching code paths.
+        """
+        registry = get_registry()
+        for desc in registry.all_descriptors():
+            if desc.primary_project_gid is not None:
+                assert desc.entity_type is not None, (
+                    f"Entity {desc.name!r} has primary_project_gid "
+                    f"{desc.primary_project_gid!r} but entity_type=None. "
+                    f"Add an EntityType enum member and _TYPE_MAP entry for it."
+                )
+
+
+# =============================================================================
+# Warm-Priority Cascade Ordering Invariant (ADR-cascade-contract-policy)
+# =============================================================================
+
+
+class TestWarmPriorityCascadeInvariant:
+    """Validate that warm_priority ordering respects the cascade dependency graph.
+
+    Per ADR-cascade-contract-policy: cascade source entities must warm before
+    cascade consumers.  If this invariant is violated, cascade fields will be
+    null at extraction time, reproducing SCAR-005/006 conditions.
+    """
+
+    # Maps each cascade-dependent entity to {cascade_field_name: source_entity_name}.
+    # Derived from ADR-cascade-contract-policy "Affected Entities" table.
+    _CASCADE_DEPS: dict[str, dict[str, str]] = {
+        "unit": {"Office Phone": "business"},
+        "offer": {"Office Phone": "business", "Vertical": "unit"},
+        "contact": {"Office Phone": "business"},
+        "asset_edit": {"Office Phone": "business", "Vertical": "unit"},
+        "asset_edit_holder": {"Office Phone": "business"},
+    }
+
+    def test_cascade_source_has_lower_warm_priority(self) -> None:
+        """For every cascade-dependent key column, the source entity warms first.
+
+        Checks that the cascade source entity has a strictly lower
+        warm_priority number than the consumer entity.
+        """
+        registry = get_registry()
+
+        for consumer_name, deps in self._CASCADE_DEPS.items():
+            consumer = registry.get(consumer_name)
+            assert consumer is not None, f"Entity {consumer_name!r} not in registry"
+            assert consumer.warmable, (
+                f"Entity {consumer_name!r} has cascade deps but is not warmable"
+            )
+
+            for cascade_field, source_name in deps.items():
+                source = registry.get(source_name)
+                assert source is not None, (
+                    f"Cascade source {source_name!r} for "
+                    f"{consumer_name}.{cascade_field} not in registry"
+                )
+                assert source.warmable, (
+                    f"Cascade source {source_name!r} for "
+                    f"{consumer_name}.{cascade_field} is not warmable"
+                )
+                assert source.warm_priority < consumer.warm_priority, (
+                    f"Cascade ordering violated: {source_name!r} "
+                    f"(priority={source.warm_priority}) must warm before "
+                    f"{consumer_name!r} (priority={consumer.warm_priority}) "
+                    f"for cascade field {cascade_field!r}"
+                )
+
+    def test_business_is_first_warmable(self) -> None:
+        """Business (the root cascade origin) has the lowest warm_priority."""
+        registry = get_registry()
+        warmable = registry.warmable_entities()
+        assert len(warmable) > 0
+        assert warmable[0].name == "business"
+        assert warmable[0].warm_priority == 1

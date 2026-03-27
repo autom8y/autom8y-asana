@@ -22,6 +22,7 @@ Current routes:
 - Intake resolve router (/v1/resolve/business, /v1/resolve/contact) - S2S only (intake resolution)
 - Intake custom fields router (/v1/tasks/{gid}/custom-fields) - S2S only (custom field writes)
 - Intake create router (/v1/intake/business, /v1/intake/route) - S2S only (business creation + routing)
+- Matching router (/v1/matching/query) - S2S only (business matching, hidden from schema)
 """
 
 from .admin import router as admin_router
@@ -32,6 +33,7 @@ from .intake_create import router as intake_create_router
 from .intake_custom_fields import router as intake_custom_fields_router
 from .intake_resolve import router as intake_resolve_router
 from .internal import router as internal_router
+from .matching import router as matching_router
 from .projects import router as projects_router
 from .query import query_introspection_router
 from .query import router as query_router
@@ -52,6 +54,7 @@ __all__ = [
     "intake_create_router",
     "intake_custom_fields_router",
     "intake_resolve_router",
+    "matching_router",
     "internal_router",
     "projects_router",
     "query_introspection_router",

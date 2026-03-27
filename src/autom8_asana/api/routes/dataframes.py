@@ -176,30 +176,56 @@ def _load_all_schemas() -> dict[str, Any]:
     }
 
 
-def _schema_to_dict(name: str, schema: Any) -> dict[str, Any]:
+def _schema_to_dict(
+    name: str,
+    schema: Any,
+    *,
+    include_semantic: bool = False,
+    semantic_type: str | None = None,
+) -> dict[str, Any]:
     """Convert a DataFrameSchema to an API-friendly dict.
+
+    Per ADR-omniscience-semantic-introspection (D3): When
+    ``include_semantic=True``, enriches descriptions with YAML annotations.
+    When ``semantic_type`` is set, filters columns to those matching the
+    specified data_type_semantic value.
 
     Args:
         name: Schema name key.
         schema: DataFrameSchema instance.
+        include_semantic: Include YAML annotation in descriptions.
+        semantic_type: Filter columns by semantic type.
 
     Returns:
         Dict with schema metadata and column definitions.
     """
-    columns = [
-        {
-            "name": col.name,
-            "dtype": col.dtype,
-            "nullable": col.nullable,
-            "description": col.description,
-        }
-        for col in schema.columns
-    ]
+    from autom8_asana.dataframes.annotations import (
+        enrich_schema,
+        get_semantic_type,
+    )
+
+    working_schema = enrich_schema(schema, include_semantic=include_semantic)
+
+    columns = []
+    for col in working_schema.columns:
+        if semantic_type is not None and include_semantic:
+            col_type = get_semantic_type(col.description)
+            if col_type != semantic_type:
+                continue
+        columns.append(
+            {
+                "name": col.name,
+                "dtype": col.dtype,
+                "nullable": col.nullable,
+                "description": col.description,
+            }
+        )
+
     return {
         "name": name,
-        "version": schema.version,
-        "task_type": schema.task_type,
-        "column_count": len(schema.columns),
+        "version": working_schema.version,
+        "task_type": working_schema.task_type,
+        "column_count": len(columns),
         "columns": columns,
     }
 
@@ -216,15 +242,43 @@ def _schema_to_dict(name: str, schema: Any) -> dict[str, Any]:
         "Returns all available dataframe schemas with their column definitions. "
         "Each schema maps Asana custom fields to typed DataFrame columns. "
         "Use this to discover which schema to pass to the project or section "
-        "dataframe endpoints (GET /api/v1/dataframes/project/{gid}?schema=...)."
+        "dataframe endpoints (GET /api/v1/dataframes/project/{gid}?schema=...). "
+        "When include_semantic=true, descriptions include structured YAML "
+        "metadata with business meaning, data type semantics, and more."
     ),
 )
 async def list_schemas(
     request_id: RequestId,
+    include_semantic: Annotated[
+        bool,
+        Query(
+            description=(
+                "When true, descriptions include the full YAML semantic "
+                "annotation block after a --- delimiter."
+            ),
+        ),
+    ] = False,
+    semantic_type: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Filter columns to those matching a data_type_semantic value "
+                "(e.g., 'enum', 'currency'). Requires include_semantic=true."
+            ),
+        ),
+    ] = None,
 ) -> Any:
     """List available dataframe schemas with their columns."""
     all_schemas = _load_all_schemas()
-    result = [_schema_to_dict(name, schema) for name, schema in all_schemas.items()]
+    result = [
+        _schema_to_dict(
+            name,
+            schema,
+            include_semantic=include_semantic,
+            semantic_type=semantic_type,
+        )
+        for name, schema in all_schemas.items()
+    ]
     return build_success_response(data=result, request_id=request_id)
 
 
@@ -235,12 +289,31 @@ async def list_schemas(
         "Returns detailed column definitions for a specific dataframe schema. "
         "Each column includes name, dtype (Polars type), nullable flag, and "
         "description. Use this to understand the exact columns returned when "
-        "requesting data with this schema."
+        "requesting data with this schema. When include_semantic=true, "
+        "descriptions include structured YAML metadata."
     ),
 )
 async def get_schema(
     name: str,
     request_id: RequestId,
+    include_semantic: Annotated[
+        bool,
+        Query(
+            description=(
+                "When true, descriptions include the full YAML semantic "
+                "annotation block after a --- delimiter."
+            ),
+        ),
+    ] = False,
+    semantic_type: Annotated[
+        str | None,
+        Query(
+            description=(
+                "Filter columns to those matching a data_type_semantic value "
+                "(e.g., 'enum', 'currency'). Requires include_semantic=true."
+            ),
+        ),
+    ] = None,
 ) -> Any:
     """Get detailed column definitions for a specific schema."""
     all_schemas = _load_all_schemas()
@@ -255,7 +328,13 @@ async def get_schema(
             details={"available_schemas": sorted(all_schemas.keys())},
         )
     return build_success_response(
-        data=_schema_to_dict(name, schema), request_id=request_id
+        data=_schema_to_dict(
+            name,
+            schema,
+            include_semantic=include_semantic,
+            semantic_type=semantic_type,
+        ),
+        request_id=request_id,
     )
 
 

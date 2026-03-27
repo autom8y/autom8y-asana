@@ -168,12 +168,24 @@ class EntityProjectRegistry:
     def get_project_gid(self, entity_type: str) -> str | None:
         """Get project GID for entity type. O(1).
 
+        Per ADR-omniscience-registry-unification: Delegates to EntityRegistry
+        first, then falls back to local _configs for dynamically registered
+        entries from workspace discovery.
+
         Args:
             entity_type: Entity type identifier
 
         Returns:
             Project GID if registered, None otherwise.
         """
+        # Delegate to EntityRegistry (single source of truth for static entries)
+        from autom8_asana.core.entity_registry import get_registry
+
+        desc = get_registry().get(entity_type)
+        if desc is not None and desc.primary_project_gid is not None:
+            return desc.primary_project_gid
+
+        # Fall back to local registry (dynamic entries from workspace discovery)
         config = self._configs.get(entity_type)
         return config.project_gid if config else None
 

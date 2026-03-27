@@ -16,6 +16,8 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
+from autom8y_telemetry import get_tracer
+from opentelemetry.trace import StatusCode
 
 from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
 from autom8_asana.core.string_utils import to_pascal_case
@@ -29,6 +31,7 @@ from autom8_asana.services.resolution_result import ResolutionResult
 from autom8_asana.settings import get_settings
 
 logger = get_logger(__name__)
+_tracer = get_tracer(__name__)
 
 __all__ = [
     "UniversalResolutionStrategy",
@@ -173,80 +176,111 @@ class UniversalResolutionStrategy:
         if not criteria:
             return []
 
-        # --- Phase 1: Validate + Group ---
-        # Import here to avoid circular imports
-        from autom8_asana.services.resolver import validate_criterion_for_entity
+        with _tracer.start_as_current_span("strategy.resolution.resolve") as span:
+            span.set_attribute("strategy.entity_type", self.entity_type)
+            span.set_attribute("strategy.criteria_count", len(criteria))
+            span.set_attribute("strategy.project_gid", project_gid)
 
-        results: list[ResolutionResult | None] = [None] * len(criteria)
-        groups: dict[tuple[str, ...], list[tuple[int, dict[str, Any]]]] = defaultdict(
-            list
-        )
+            # --- Phase 1: Validate + Group ---
+            # Import here to avoid circular imports
+            from autom8_asana.services.resolver import validate_criterion_for_entity
 
-        for i, criterion in enumerate(criteria):
-            validation = validate_criterion_for_entity(self.entity_type, criterion)
+            results: list[ResolutionResult | None] = [None] * len(criteria)
+            groups: dict[tuple[str, ...], list[tuple[int, dict[str, Any]]]] = (
+                defaultdict(list)
+            )
 
-            if not validation.is_valid:
-                logger.warning(
-                    "criterion_validation_failed",
-                    extra={
-                        "entity_type": self.entity_type,
-                        "errors": validation.errors,
-                    },
-                )
-                results[i] = ResolutionResult.error_result("INVALID_CRITERIA")
-                continue
+            for i, criterion in enumerate(criteria):
+                validation = validate_criterion_for_entity(self.entity_type, criterion)
 
-            normalized = validation.normalized_criterion
-            key_columns = tuple(sorted(normalized.keys()))
-            groups[key_columns].append((i, normalized))
+                if not validation.is_valid:
+                    logger.warning(
+                        "criterion_validation_failed",
+                        extra={
+                            "entity_type": self.entity_type,
+                            "errors": validation.errors,
+                        },
+                    )
+                    results[i] = ResolutionResult.error_result("INVALID_CRITERIA")
+                    continue
 
-        # --- Phase 2: Parallel Index Build + Lookups ---
-        if groups:
-            from autom8_asana.dataframes.builders.base import gather_with_limit
+                normalized = validation.normalized_criterion
+                key_columns = tuple(sorted(normalized.keys()))
+                groups[key_columns].append((i, normalized))
 
-            coros = [
-                self._resolve_group(
-                    key_columns=list(kc),
-                    entries=entries,
-                    project_gid=project_gid,
-                    client=client,
-                    requested_fields=requested_fields,
-                    results=results,
-                    active_only=active_only,
-                )
-                for kc, entries in groups.items()
-            ]
+            # --- Phase 2: Parallel Index Build + Lookups ---
+            if groups:
+                from autom8_asana.dataframes.builders.base import gather_with_limit
 
-            await gather_with_limit(coros, max_concurrent=RESOLVE_MAX_CONCURRENT)
+                coros = [
+                    self._resolve_group(
+                        key_columns=list(kc),
+                        entries=entries,
+                        project_gid=project_gid,
+                        client=client,
+                        requested_fields=requested_fields,
+                        results=results,
+                        active_only=active_only,
+                    )
+                    for kc, entries in groups.items()
+                ]
 
-        # --- Phase 3: Convert to final list ---
-        # Any None slots are defensive (should not happen if logic is correct)
-        final_results: list[ResolutionResult] = [
-            r if r is not None else ResolutionResult.error_result("INTERNAL_ERROR")
-            for r in results
-        ]
+                await gather_with_limit(coros, max_concurrent=RESOLVE_MAX_CONCURRENT)
 
-        # Log batch completion
-        elapsed_ms = (time.monotonic() - start_time) * 1000
-        resolved_count = sum(
-            1 for r in final_results if r.gid is not None and r.error is None
-        )
-        multi_match_count = sum(1 for r in final_results if r.is_ambiguous)
+            # --- Phase 3: Convert to final list ---
+            # Any None slots are defensive (should not happen if logic is correct).
+            # Per ADR-error-taxonomy-resolution / FIND-002: log each null slot
+            # with criterion_index and entity_type for diagnostics.
+            null_slot_count = 0
+            final_results: list[ResolutionResult] = []
+            for i, r in enumerate(results):
+                if r is not None:
+                    final_results.append(r)
+                else:
+                    logger.error(
+                        "resolution_null_slot",
+                        extra={
+                            "criterion_index": i,
+                            "entity_type": self.entity_type,
+                        },
+                    )
+                    span.add_event(
+                        "resolution.null_slot",
+                        attributes={
+                            "strategy.criterion_index": i,
+                            "strategy.entity_type": self.entity_type,
+                        },
+                    )
+                    null_slot_count += 1
+                    final_results.append(
+                        ResolutionResult.error_result("RESOLUTION_NULL_SLOT")
+                    )
 
-        logger.info(
-            "universal_resolution_complete",
-            extra={
-                "entity_type": self.entity_type,
-                "criteria_count": len(criteria),
-                "resolved_count": resolved_count,
-                "multi_match_count": multi_match_count,
-                "duration_ms": round(elapsed_ms, 2),
-                "project_gid": project_gid,
-                "group_count": len(groups),
-            },
-        )
+            # Log batch completion
+            elapsed_ms = (time.monotonic() - start_time) * 1000
+            resolved_count = sum(
+                1 for r in final_results if r.gid is not None and r.error is None
+            )
+            multi_match_count = sum(1 for r in final_results if r.is_ambiguous)
 
-        return final_results
+            span.set_attribute("strategy.resolved_count", resolved_count)
+            span.set_attribute("strategy.group_count", len(groups))
+            span.set_attribute("strategy.null_slot_count", null_slot_count)
+
+            logger.info(
+                "universal_resolution_complete",
+                extra={
+                    "entity_type": self.entity_type,
+                    "criteria_count": len(criteria),
+                    "resolved_count": resolved_count,
+                    "multi_match_count": multi_match_count,
+                    "duration_ms": round(elapsed_ms, 2),
+                    "project_gid": project_gid,
+                    "group_count": len(groups),
+                },
+            )
+
+            return final_results
 
     async def _resolve_group(
         self,
@@ -277,112 +311,138 @@ class UniversalResolutionStrategy:
             results: Shared results list for direct slot writes.
             active_only: Per FR-1, SD-1. Filter to active statuses only.
         """
-        # Build index once for the group
-        try:
-            index = await self._get_or_build_index(
-                project_gid=project_gid,
-                key_columns=key_columns,
-                client=client,
-            )
-        except _INDEX_BUILD_ERRORS as e:
-            # Index build failure -> all criteria in this group get INDEX_UNAVAILABLE
-            logger.warning(
-                "group_index_build_failed",
-                extra={
-                    "entity_type": self.entity_type,
-                    "key_columns": key_columns,
-                    "error": str(e),
-                    "criteria_count": len(entries),
-                },
-            )
-            for original_idx, _normalized in entries:
-                results[original_idx] = ResolutionResult.error_result(
-                    "INDEX_UNAVAILABLE"
-                )
-            return
+        with _tracer.start_as_current_span("strategy.resolution.resolve_group") as span:
+            span.set_attribute("strategy.entity_type", self.entity_type)
+            span.set_attribute("strategy.key_columns", ",".join(key_columns))
+            span.set_attribute("strategy.group_criteria_count", len(entries))
+            span.set_attribute("strategy.project_gid", project_gid)
 
-        if index is None:
-            for original_idx, _normalized in entries:
-                results[original_idx] = ResolutionResult.error_result(
-                    "INDEX_UNAVAILABLE"
-                )
-            return
+            lookup_error_count = 0
 
-        # Per TDD-STATUS-AWARE-RESOLUTION / FR-2, FR-7:
-        # Obtain classifier once per group for efficiency.
-        classifier = get_classifier(self.entity_type)
-
-        # Get DataFrame for classification and enrichment
-        df = (
-            self._cached_dataframe
-            if self._cached_dataframe is not None
-            else await self._get_dataframe(project_gid, client)
-        )
-
-        # Process each criterion in the group (sync, O(1) each)
-        for original_idx, normalized in entries:
+            # Build index once for the group
             try:
-                gids = index.lookup(normalized)
-
-                # Per TDD-STATUS-AWARE-RESOLUTION / FR-2:
-                # Classification step -- only when classifier exists and GIDs found
-                if gids and classifier is not None and df is not None:
-                    classified = self._classify_gids(df, gids, self.entity_type)
-                    total_count = len(classified)
-
-                    # Per TDD-STATUS-AWARE-RESOLUTION / FR-1:
-                    # Filter to active statuses when active_only=True
-                    if active_only:
-                        classified = [
-                            (g, s) for g, s in classified if s in _ACTIVE_STATUSES
-                        ]
-
-                    # Per TDD-STATUS-AWARE-RESOLUTION / FR-8:
-                    # Sort by ACTIVITY_PRIORITY (stable sort)
-                    classified.sort(
-                        key=lambda pair: _PRIORITY_MAP.get(pair[1], _UNKNOWN_PRIORITY)
-                    )
-
-                    sorted_gids = [g for g, _s in classified]
-                    annotations = [s for _g, s in classified]
-
-                    # Enrich if fields requested (existing, unchanged)
-                    context: list[dict[str, Any]] | None = None
-                    if requested_fields and sorted_gids:
-                        context = self._enrich_from_dataframe(
-                            df, sorted_gids, requested_fields
-                        )
-
-                    # Per TDD-STATUS-AWARE-RESOLUTION / FR-9, EC-1:
-                    # Empty after filtering -> NOT_FOUND
-                    results[original_idx] = ResolutionResult.from_gids_with_status(
-                        sorted_gids,
-                        status_annotations=annotations,
-                        context=context,
-                        total_match_count=(total_count if active_only else None),
-                    )
-                else:
-                    # Per TDD-STATUS-AWARE-RESOLUTION / FR-7:
-                    # No classifier or no gids: existing behavior, no status
-                    context = None
-                    if requested_fields and gids and df is not None:
-                        context = self._enrich_from_dataframe(
-                            df, gids, requested_fields
-                        )
-                    results[original_idx] = ResolutionResult.from_gids(
-                        gids, context=context
-                    )
-
-            except _LOOKUP_ERRORS as e:  # NARROWED: per-criterion isolation
+                index = await self._get_or_build_index(
+                    project_gid=project_gid,
+                    key_columns=key_columns,
+                    client=client,
+                )
+            except _INDEX_BUILD_ERRORS as e:
+                # Index build failure -> all criteria in this group get INDEX_UNAVAILABLE
                 logger.warning(
-                    "resolution_lookup_failed",
+                    "group_index_build_failed",
                     extra={
                         "entity_type": self.entity_type,
-                        "criterion_index": original_idx,
+                        "key_columns": key_columns,
                         "error": str(e),
+                        "criteria_count": len(entries),
                     },
                 )
-                results[original_idx] = ResolutionResult.error_result("LOOKUP_ERROR")
+                span.set_attribute("strategy.error_code", "INDEX_UNAVAILABLE")
+                span.set_attribute("error.type", type(e).__name__)
+                span.record_exception(e)
+                span.set_status(StatusCode.ERROR, description="INDEX_UNAVAILABLE")
+                for original_idx, _normalized in entries:
+                    results[original_idx] = ResolutionResult.error_result(
+                        "INDEX_UNAVAILABLE"
+                    )
+                return
+
+            if index is None:
+                for original_idx, _normalized in entries:
+                    results[original_idx] = ResolutionResult.error_result(
+                        "INDEX_UNAVAILABLE"
+                    )
+                return
+
+            # Per TDD-STATUS-AWARE-RESOLUTION / FR-2, FR-7:
+            # Obtain classifier once per group for efficiency.
+            classifier = get_classifier(self.entity_type)
+
+            # Get DataFrame for classification and enrichment
+            df = (
+                self._cached_dataframe
+                if self._cached_dataframe is not None
+                else await self._get_dataframe(project_gid, client)
+            )
+
+            # Process each criterion in the group (sync, O(1) each)
+            for original_idx, normalized in entries:
+                try:
+                    gids = index.lookup(normalized)
+
+                    # Per TDD-STATUS-AWARE-RESOLUTION / FR-2:
+                    # Classification step -- only when classifier exists and GIDs found
+                    if gids and classifier is not None and df is not None:
+                        classified = self._classify_gids(df, gids, self.entity_type)
+                        total_count = len(classified)
+
+                        # Per TDD-STATUS-AWARE-RESOLUTION / FR-1:
+                        # Filter to active statuses when active_only=True
+                        if active_only:
+                            classified = [
+                                (g, s) for g, s in classified if s in _ACTIVE_STATUSES
+                            ]
+
+                        # Per TDD-STATUS-AWARE-RESOLUTION / FR-8:
+                        # Sort by ACTIVITY_PRIORITY (stable sort)
+                        classified.sort(
+                            key=lambda pair: _PRIORITY_MAP.get(
+                                pair[1], _UNKNOWN_PRIORITY
+                            )
+                        )
+
+                        sorted_gids = [g for g, _s in classified]
+                        annotations = [s for _g, s in classified]
+
+                        # Enrich if fields requested (existing, unchanged)
+                        context: list[dict[str, Any]] | None = None
+                        if requested_fields and sorted_gids:
+                            context = self._enrich_from_dataframe(
+                                df, sorted_gids, requested_fields
+                            )
+
+                        # Per TDD-STATUS-AWARE-RESOLUTION / FR-9, EC-1:
+                        # Empty after filtering -> NOT_FOUND
+                        results[original_idx] = ResolutionResult.from_gids_with_status(
+                            sorted_gids,
+                            status_annotations=annotations,
+                            context=context,
+                            total_match_count=(total_count if active_only else None),
+                        )
+                    else:
+                        # Per TDD-STATUS-AWARE-RESOLUTION / FR-7:
+                        # No classifier or no gids: existing behavior, no status
+                        context = None
+                        if requested_fields and gids and df is not None:
+                            context = self._enrich_from_dataframe(
+                                df, gids, requested_fields
+                            )
+                        results[original_idx] = ResolutionResult.from_gids(
+                            gids, context=context
+                        )
+
+                except _LOOKUP_ERRORS as e:  # NARROWED: per-criterion isolation
+                    logger.warning(
+                        "resolution_lookup_failed",
+                        extra={
+                            "entity_type": self.entity_type,
+                            "criterion_index": original_idx,
+                            "error": str(e),
+                        },
+                    )
+                    span.add_event(
+                        "resolution.lookup_failed",
+                        attributes={
+                            "strategy.criterion_index": original_idx,
+                            "error.type": type(e).__name__,
+                        },
+                    )
+                    lookup_error_count += 1
+                    results[original_idx] = ResolutionResult.error_result(
+                        "LOOKUP_ERROR"
+                    )
+
+            span.set_attribute("strategy.lookup_error_count", lookup_error_count)
 
     def _classify_gids(
         self,
@@ -504,6 +564,10 @@ class UniversalResolutionStrategy:
 
         Returns:
             DynamicIndex if available, None on failure.
+
+        Raises:
+            CascadeNotReadyError: If cascade-sourced key columns exceed the
+                null rate error threshold (20%).
         """
         # Try cache first
         index = self.index_cache.get(
@@ -520,6 +584,9 @@ class UniversalResolutionStrategy:
 
         if df is None:
             return None
+
+        # Cascade health gate: reject degraded DataFrames before index build
+        self._check_cascade_health(df, project_gid)
 
         # Build index
         try:
@@ -548,6 +615,59 @@ class UniversalResolutionStrategy:
                 },
             )
             return None
+
+    def _check_cascade_health(
+        self,
+        df: pl.DataFrame,
+        project_gid: str,
+    ) -> None:
+        """Gate resolution against degraded cascade data.
+
+        Raises CascadeNotReadyError if any cascade-sourced key column
+        exceeds the null rate error threshold.
+
+        Only runs when:
+        - Entity descriptor is available with key_columns
+        - Schema is available for this entity type
+        - Entity has cascade-sourced key columns
+        Silently passes otherwise (safe degradation).
+
+        Args:
+            df: Post-build DataFrame to check.
+            project_gid: Project GID for error context.
+
+        Raises:
+            CascadeNotReadyError: If cascade-sourced key columns are degraded.
+        """
+        from autom8_asana.core.entity_registry import get_registry
+        from autom8_asana.dataframes.builders.cascade_validator import (
+            check_cascade_health,
+        )
+
+        desc = get_registry().get(self.entity_type)
+        if desc is None or not desc.key_columns:
+            return
+
+        schema = self._get_entity_schema()
+        if schema is None:
+            return
+
+        result = check_cascade_health(
+            df=df,
+            entity_type=self.entity_type,
+            schema=schema,
+            key_columns=desc.key_columns,
+        )
+
+        if not result.healthy:
+            from autom8_asana.services.errors import CascadeNotReadyError
+
+            raise CascadeNotReadyError(
+                entity_type=self.entity_type,
+                project_gid=project_gid,
+                degraded_columns=result.degraded_columns,
+                max_null_rate=result.max_null_rate,
+            )
 
     def _enrich_from_dataframe(
         self,
@@ -813,13 +933,24 @@ class UniversalResolutionStrategy:
     def _get_custom_field_resolver(self) -> Any:
         """Get custom field resolver for entity type.
 
+        Per ADR-omniscience-descriptor-driven-resolver: Resolves the
+        custom field resolver class from EntityDescriptor.custom_field_resolver_class_path
+        instead of hardcoding entity type checks.
+
         Returns:
             CustomFieldResolver instance or None.
         """
-        if self.entity_type in ("unit", "business", "offer"):
-            from autom8_asana.dataframes.resolver import DefaultCustomFieldResolver
+        from autom8_asana.core.entity_registry import get_registry
 
-            return DefaultCustomFieldResolver()
+        descriptor = get_registry().get(self.entity_type)
+        if descriptor and descriptor.custom_field_resolver_class_path:
+            module_path, class_name = (
+                descriptor.custom_field_resolver_class_path.rsplit(".", 1)
+            )
+            import importlib
+
+            module = importlib.import_module(module_path)
+            return getattr(module, class_name)()
         return None
 
 

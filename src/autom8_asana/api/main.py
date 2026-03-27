@@ -54,6 +54,7 @@ from .routes import (
     intake_custom_fields_router,
     intake_resolve_router,
     internal_router,
+    matching_router,
     projects_router,
     query_introspection_router,
     query_router,
@@ -105,6 +106,7 @@ _S2S_TAGS: frozenset[str] = frozenset(
         "intake-resolve",
         "intake-custom-fields",
         "intake-create",
+        "matching",
     }
 )
 
@@ -337,6 +339,8 @@ def create_app() -> FastAPI:
     app.include_router(intake_custom_fields_router)
     # Intake business creation and process routing
     app.include_router(intake_create_router)
+    # Matching query (S2S only, hidden from schema)
+    app.include_router(matching_router)
 
     # --- Exception Handlers ---
     register_exception_handlers(app)

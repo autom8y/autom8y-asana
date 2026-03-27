@@ -26,6 +26,9 @@ class EntityType(Enum):
     # Root entity
     BUSINESS = "business"
 
+    # Leaf entities (asset_edit)
+    ASSET_EDIT = "asset_edit"
+
     # Business-level holders
     CONTACT_HOLDER = "contact_holder"
     UNIT_HOLDER = "unit_holder"

@@ -8,4 +8,7 @@ To add new metrics: create a new .py file in this directory that
 instantiates Metric objects and calls MetricRegistry().register().
 """
 
-from autom8_asana.metrics.definitions import offer  # noqa: F401
+from autom8_asana.metrics.definitions import (
+    lifecycle,  # noqa: F401
+    offer,  # noqa: F401
+)
