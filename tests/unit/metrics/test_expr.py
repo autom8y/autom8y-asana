@@ -101,3 +101,25 @@ class TestMetricExprToPolars:
         df = pl.DataFrame({"val": [1]})
         result = df.select(expr.to_polars_expr())
         assert "my_alias" in result.columns
+
+    def test_median(self) -> None:
+        """LO-09: MetricExpr accepts agg='median' without error."""
+        expr = MetricExpr(name="med_val", column="val", agg="median")
+        df = pl.DataFrame({"val": [1.0, 2.0, 3.0, 4.0, 5.0]})
+        result = df.select(expr.to_polars_expr())
+        assert result["med_val"][0] == pytest.approx(3.0)
+
+    def test_quantile_with_value(self) -> None:
+        """LO-10: MetricExpr agg='quantile' requires quantile_value parameter."""
+        expr = MetricExpr(
+            name="p95_val", column="val", agg="quantile", quantile_value=0.95
+        )
+        assert expr.quantile_value == 0.95
+        df = pl.DataFrame({"val": list(range(1, 101))})
+        result = df.select(expr.to_polars_expr())
+        assert result["p95_val"][0] is not None
+
+    def test_quantile_without_value_raises(self) -> None:
+        """LO-11: quantile_value=None with agg='quantile' raises ValueError."""
+        with pytest.raises(ValueError, match="quantile agg requires quantile_value"):
+            MetricExpr(name="bad", column="val", agg="quantile")

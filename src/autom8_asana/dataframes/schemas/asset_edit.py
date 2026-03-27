@@ -65,6 +65,8 @@ PROCESS_COLUMNS: list[ColumnDef] = [
         source="cf:Assigned To",
         description="Assigned user (people field)",
     ),
+    # CASCADE CONTRACT: sourced from Unit.vertical or Business.vertical (warm_priority=2/1).
+    # Resolution key column -- null cascade = silent NOT_FOUND (FIND-005).
     ColumnDef(
         name="vertical",
         dtype="Utf8",
@@ -72,6 +74,8 @@ PROCESS_COLUMNS: list[ColumnDef] = [
         source="cascade:Vertical",
         description="Business vertical (cascades from Unit or Business)",
     ),
+    # CASCADE CONTRACT: sourced from Business.office_phone (warm_priority=1).
+    # Resolution key column -- null cascade = silent NOT_FOUND (FIND-005).
     ColumnDef(
         name="office_phone",
         dtype="Utf8",

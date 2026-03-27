@@ -1,7 +1,7 @@
 ---
 name: know
 description: "Generate persistent codebase knowledge via theoros observation. Produces .know/{domain}.md and .know/feat/{slug}.md with schema-validated frontmatter and structured knowledge sections."
-argument-hint: "[domain|--all|--scope=feature] [--force] [--expires=DURATION] [--census] [--feature=SLUG] [--root=PATH]"
+argument-hint: "[domain|--all|--scope=feature] [--force] [--expires=DURATION] [--census] [--feature=SLUG] [--root=PATH] [--discover]"
 allowed-tools: Bash, Read, Write, Glob, Grep, Task, Skill
 model: opus
 ---
@@ -35,6 +35,16 @@ Some code paths already read the file for other reasons (Phase 0 time-only, Phas
 
 ## Codebase Domain Pipeline (Default)
 
+## Pre-flight: Theoros Availability
+
+Check if theoros is currently available:
+1. Run `ls ~/.claude/agents/theoros.md 2>/dev/null` via Bash
+2. If file exists: proceed to Pre-flight argument parsing
+3. If file missing:
+   a. Run `ari agent summon theoros` via Bash
+   b. Tell user: "Theoros summoned. Restart CC to activate, then re-run /know."
+   c. STOP — do not attempt Agent("theoros") until restart
+
 ## Pre-flight
 
 1. **Parse arguments**:
@@ -42,6 +52,7 @@ Some code paths already read the file for other reasons (Phase 0 time-only, Phas
    - `--all`: Generate ALL codebase-scoped domains. Overrides `domain` argument. Uses **Argus Pattern** (parallel theoros dispatch).
    - `--force`: Skip expiry check, regenerate even if current.
    - `--expires=DURATION`: Override default expiry (e.g., `--expires=14d`). Default: `"7d"`.
+   - `--discover`: Optional. Run Myron discovery scan as Phase 0 before the theoros pipeline. Glints feed scope selection. See [Phase 0: Discovery](#phase-0-discovery-optional---discover).
    - `--root=PATH`: Scoped generation target directory (monorepo support). When set:
      - Validate: path exists and is under project root. ERROR if not: "Root path '{path}' does not exist" or "Root path '{path}' is not under project root".
      - Output directory becomes `{root}/.know/` instead of project root `.know/`
@@ -117,6 +128,58 @@ Some code paths already read the file for other reasons (Phase 0 time-only, Phas
 5. **Ensure .know/ directory exists**:
    - If `--root` is set: Run: `mkdir -p {root}/.know`
    - Otherwise: Run: `mkdir -p .know`
+
+## Phase 0: Discovery (optional, via --discover flag)
+
+**Only execute this phase if `--discover` was specified.** If `--discover` is absent, skip directly to Phase 0: Time-Only Refresh.
+
+### Discovery Pre-flight
+
+Check if Myron is currently available:
+
+1. Run `ls ~/.claude/agents/myron.md 2>/dev/null` via Bash
+2. If file missing:
+   a. Run `ari agent summon myron` via Bash
+   b. Tell user: "Myron summoned. Restart CC to activate, then re-run /know --discover."
+   c. STOP -- do not proceed with the pipeline until Myron is available
+
+### Run Discovery
+
+Invoke Myron via the /discover dromenon:
+
+```
+/discover codebase
+```
+
+This produces a glint report at `.sos/wip/glints/glint-full-{date}.md`.
+
+### Use Glints to Inform Scope
+
+After /discover completes, read the latest glint report:
+
+```
+Bash("ls -t .sos/wip/glints/glint-*.md 2>/dev/null | head -1")
+Read(".sos/wip/glints/{latest-glint-file}")
+```
+
+Filter glints by recommendation:
+- **AUDIT glints** (`consumer: theoros`): Add these package/file locations as additional scope context when dispatching theoros in Phases 2a/2b. Inject the glint rationale into the theoros prompt alongside the domain criteria.
+- **DOCUMENT glints** (`consumer: know`): If `/know --scope=feature` is the current invocation, treat DOCUMENT glints as candidate features for the census phase.
+- **INVESTIGATE / DISMISS glints**: Note for user awareness; do not alter theoros scope.
+
+If no glints are found (empty report or file missing), proceed with standard scope selection as if `--discover` were not specified.
+
+Report to user:
+```
+## Discovery Complete
+Glint report: .sos/wip/glints/{filename}
+{glint_count} glints detected: {audit} AUDIT, {document} DOCUMENT, {investigate} INVESTIGATE, {dismiss} DISMISS
+AUDIT glints will inform theoros scope selection.
+```
+
+Proceed to Phase 0: Time-Only Refresh.
+
+---
 
 ## Phase 0: Time-Only Refresh
 
@@ -1053,3 +1116,10 @@ Regenerate all: `/know --scope=feature --force`
 - **Skipping the human gate in feature flow**: The census-to-generation gate is MANDATORY. Do NOT proceed to per-feature generation without explicit user confirmation. The census may contain incorrect feature boundaries that the user must review.
 - **Generating features marked SKIP**: Only features with GENERATE recommendation enter the generation queue. SKIP features are excluded unless the user edits INDEX.md to change the recommendation before confirming.
 - **Sequential feature dispatch**: When generating multiple features, ALL Task calls MUST be in one response block (Argus Pattern). Sequential dispatch wastes wall-clock time.
+
+## Closure: Theoros Dismissal
+
+After ALL knowledge generation is complete (all domains written, verified, and any feature flow finished):
+
+1. Run `ari agent dismiss theoros` via Bash
+2. Note: dismissal takes effect on next CC restart (or session end via autopark safety net)

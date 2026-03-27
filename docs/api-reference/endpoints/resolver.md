@@ -20,7 +20,9 @@ Resolve entity identifiers to Asana task GIDs in batch.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `entity_type` | string | Entity type to resolve (unit, business, offer, contact) |
+| `entity_type` | string | Entity type to resolve (`unit`, `business`, `offer`, `contact`, `asset_edit`, `asset_edit_holder`) |
+
+See [Resolvable Entity Types](#resolvable-entity-types) for full documentation on each type, required fields, and cascade dependencies.
 
 **Request Body:**
 
@@ -143,7 +145,7 @@ Phone numbers must conform to ITU-T E.164 format: `+[country][number]`
 | `match_count` | integer | Number of matches found (post-filter when `active_only=true`) |
 | `total_match_count` | integer \| null | Pre-filter total match count. Present when `active_only=true` and filtering removed matches; `null` when `active_only=false` or no filtering occurred. |
 | `status` | array \| null | Activity status for each match, parallel to `gids`. Each entry is an `AccountActivity` value (`active`, `activating`, `inactive`, `ignored`) or `null` (unknown section). The entire field is `null` when no classifier exists for the entity type. |
-| `error` | string \| null | Error code if resolution failed (`NOT_FOUND`, `MULTIPLE_MATCHES`) |
+| `error` | string \| null | Error code if resolution failed (`NOT_FOUND`, `MULTIPLE_MATCHES`, `RESOLUTION_NULL_SLOT`, `INDEX_UNAVAILABLE`, `INVALID_CRITERIA`). See [Result Error Codes](#result-error-codes). |
 | `data` | array \| null | Field data for each match (only when `fields` requested) |
 
 **Metadata Object:**
@@ -272,7 +274,10 @@ print(f"Resolved: {result['meta']['resolved_count']}/500")
 | 501 | `STRATEGY_NOT_IMPLEMENTED` | Resolution strategy not implemented for entity type |
 | 503 | `DISCOVERY_INCOMPLETE` | Entity resolver startup discovery not completed |
 | 503 | `PROJECT_NOT_CONFIGURED` | No project configured for entity type |
-| 503 | `BOT_PAT_UNAVAILABLE` | Bot PAT not configured for S2S Asana access |
+| 503 | `CASCADE_NOT_READY` | Cascade data quality below threshold for reliable resolution |
+
+
+See [HTTP Error Codes](#http-error-codes) for errors that originate from upstream Asana API failures and the catch-all fallback path.
 
 **Error Response Format:**
 
@@ -280,8 +285,9 @@ print(f"Resolved: {result['meta']['resolved_count']}/500")
 {
   "detail": {
     "error": "UNKNOWN_ENTITY_TYPE",
-    "message": "Unknown entity type: invalid_type. Supported types: unit, business, offer, contact",
-    "available_types": ["unit", "business", "offer", "contact"]
+    "message": "Unknown entity type: invalid_type. Supported types: unit, business, offer, contact, asset_edit, asset_edit_holder",
+    "available_types": ["unit", "business", "offer", "contact", "asset_edit", "asset_edit_holder"],
+    "request_id": "req_abc123"
   }
 }
 ```
@@ -292,7 +298,8 @@ print(f"Resolved: {result['meta']['resolved_count']}/500")
 {
   "detail": {
     "error": "MISSING_REQUIRED_FIELD",
-    "message": "Criterion 0: Missing required field: phone; Missing required field: vertical"
+    "message": "Criterion 0: Missing required field: phone; Missing required field: vertical",
+    "request_id": "req_abc123"
   }
 }
 ```
@@ -303,10 +310,54 @@ print(f"Resolved: {result['meta']['resolved_count']}/500")
 {
   "detail": {
     "error": "INVALID_FIELD",
-    "message": "Field 'invalid_field' not found in Unit schema. Available fields: gid, name, office_phone, vertical, mrr, weekly_ad_spend"
+    "message": "Field 'invalid_field' not found in Unit schema. Available fields: gid, name, office_phone, vertical, mrr, weekly_ad_spend",
+    "request_id": "req_abc123"
   }
 }
 ```
+
+## Resolvable Entity Types
+
+The set of valid `entity_type` values is determined at service startup via dynamic discovery. Six entity types are currently resolvable.
+
+| entity_type | category | key_columns | cascade_dependencies | holder_for | has_status_classifier |
+|---|---|---|---|---|---|
+| `business` | ROOT | `office_phone` | — | — | No |
+| `unit` | COMPOSITE | `office_phone`, `vertical` | `office_phone` (cascade-sourced) | — | Yes |
+| `contact` | LEAF | `office_phone`, `contact_phone`, `contact_email` | `office_phone` (cascade-sourced) | — | No |
+| `offer` | LEAF | `office_phone`, `vertical`, `offer_id` | `office_phone`, `vertical` (cascade-sourced) | — | Yes |
+| `asset_edit` | LEAF | `office_phone`, `vertical`, `asset_id`, `offer_id` | `office_phone`, `vertical` (cascade-sourced) | — | No |
+| `asset_edit_holder` | HOLDER | `office_phone` | `office_phone` (cascade-sourced — 100% of key columns) | `asset_edit` | No |
+
+**Column definitions:**
+
+- **key_columns** — Fields used to construct the resolution index. All must be present (directly or via cascade) for a successful resolution.
+- **cascade_dependencies** — Key columns populated from the cache warm cycle rather than from the resolution request. If the cache has not been warmed, these columns are null and resolution returns `NOT_FOUND` silently.
+- **holder_for** — For HOLDER entities, the LEAF entity type this holder contains. HOLDER entities resolve across all leaf records belonging to a business. See [Entity Selection Guide](#entity-selection-guide) for when to use a HOLDER vs LEAF type.
+- **has_status_classifier** — Whether this entity type participates in status filtering via `active_only`. Entities without a classifier return all matches regardless of `active_only`.
+
+**Cascade field warming precondition:** Entities with cascade dependencies require cache warmup to have completed before their cascade-sourced key columns are populated. If warmup has not finished for a target business, the resolution returns [`NOT_FOUND`](#result-error-codes) even when the entity exists. `asset_edit_holder` carries the highest risk: its only key column (`office_phone`) is cascade-sourced, so a missing warmup produces `NOT_FOUND` for every request against that business.
+
+---
+
+## Entity Selection Guide
+
+Entity types follow two structural patterns. LEAF entities represent individual records within a project. HOLDER entities represent the collection of all leaf records across projects for a given business. Most consumers want a LEAF type; use a HOLDER type only when you need to enumerate all records for a business without knowing the discriminating criteria.
+
+| When you want | Use |
+|---|---|
+| A specific asset edit record matching known criteria (vertical, asset_id, offer_id) | `asset_edit` |
+| All asset edit records for a business (resolved by phone only) | `asset_edit_holder` |
+
+`asset_edit` resolves within a single project using `office_phone` + `vertical` + `asset_id` + `offer_id` as discriminating keys. Because it uses specific criteria, a failure produces a precise error you can act on.
+
+`asset_edit_holder` resolves at the business level using only `office_phone`. It returns a GID representing the holder task that aggregates all asset edits for that business across projects. The `holder_for` relationship is documented in [Resolvable Entity Types](#resolvable-entity-types).
+
+**Important:** `asset_edit_holder` has 100% cascade dependency — resolution will silently return [`NOT_FOUND`](#result-error-codes) if cache warmup has not completed for the target business. Prefer `asset_edit` whenever you have discriminating criteria available, because `asset_edit` failures produce more diagnostic context than a bare `NOT_FOUND` from the holder path.
+
+Consumers can programmatically discover which entity types are holders (and which leaf type they hold) via the schema discovery endpoint `GET /v1/resolve/{entity_type}/schema`. The `category` field returns `"holder"` for holder entities, and the `holder_for` field returns the target leaf entity name. See [Schema Discovery](#schema-discovery) for details.
+
+---
 
 ## Resolution Metadata
 
@@ -332,9 +383,61 @@ Example: If criteria include `[{"phone": "...", "vertical": "..."}, {"phone": ".
 
 ### `GET /v1/resolve/{entity_type}/schema`
 
-Returns the schema definition for an entity type, including valid criterion fields and queryable fields.
+Returns the schema definition for an entity type, including valid criterion fields, queryable fields, and entity category metadata.
 
-See schema discovery endpoint documentation for details.
+**Response Body:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `entity_type` | string | Entity type name |
+| `version` | string | Schema version |
+| `category` | string | Entity category: `"root"`, `"composite"`, `"leaf"`, or `"holder"` |
+| `holder_for` | string \| null | Target leaf entity name (non-null only for HOLDER entities, e.g., `"asset_edit"` for `asset_edit_holder`) |
+| `parent_entity` | string \| null | Parent entity name (null for ROOT entities) |
+| `queryable_fields` | array | List of queryable field metadata objects |
+
+**Example: Holder entity (asset_edit_holder)**
+
+```json
+{
+  "entity_type": "asset_edit_holder",
+  "version": "1.2.0",
+  "category": "holder",
+  "holder_for": "asset_edit",
+  "parent_entity": "business",
+  "queryable_fields": [
+    {"name": "gid", "type": "Utf8", "description": "Asana task GID"},
+    {"name": "name", "type": "Utf8", "description": "Task name"},
+    {"name": "office_phone", "type": "Utf8", "description": "Office phone number"}
+  ]
+}
+```
+
+**Example: Root entity (business)**
+
+```json
+{
+  "entity_type": "business",
+  "version": "1.1.0",
+  "category": "root",
+  "holder_for": null,
+  "parent_entity": null,
+  "queryable_fields": [ "..." ]
+}
+```
+
+**Example: Composite entity (unit)**
+
+```json
+{
+  "entity_type": "unit",
+  "version": "2.0.0",
+  "category": "composite",
+  "holder_for": null,
+  "parent_entity": null,
+  "queryable_fields": [ "..." ]
+}
+```
 
 ## Multi-Match Behavior
 
@@ -378,7 +481,7 @@ The `active_only` parameter controls whether results are filtered by entity acti
 - GIDs are ordered by priority: `active` > `activating` > `inactive` > `ignored` > unknown
 - `total_match_count` is `null` (no filtering occurred)
 
-**Entity types without a classifier** (e.g., `contact`, `business`):
+**Entity types without a classifier** (e.g., `contact`, `business`, `asset_edit`):
 - `active_only` is ignored; all matches are returned
 - `status` is `null` in the response
 
@@ -482,7 +585,8 @@ async def resolve_large_batch(criteria: list[dict], entity_type: str, token: str
 
 Resolution behavior is entity-type-specific and determined by the resolution strategy:
 
-- **Unit/Business**: Resolves by `phone` + `vertical` (phone mapped to office_phone)
+- **Unit**: Resolves by `phone` + `vertical` (phone mapped to office_phone)
+- **Business**: Resolves by `phone` only (phone mapped to office_phone)
 - **Offer**: Resolves by `offer_id` (or phone/vertical + offer_name discriminator)
 - **Contact**: Resolves by `contact_email` or `contact_phone`
 - **Universal**: Fallback strategy for any entity with schema and registered project
@@ -499,6 +603,69 @@ When `fields` is provided in the request:
 4. Field data is fetched from Asana after GID resolution
 
 Field filtering adds latency (additional Asana API call per result). Use only when enriched data is needed.
+
+## Result Error Codes
+
+Result-level errors appear in `results[n].error` and indicate why a specific criterion failed. They are distinct from HTTP-level errors, which appear in the `detail` object and indicate why the entire request failed.
+
+| Error Code | When It Fires | Consumer Action |
+|---|---|---|
+| `NOT_FOUND` | No matching entity for the criterion | Verify criterion values. If the entity type has cascade dependencies (see [Resolvable Entity Types](#resolvable-entity-types)), confirm that cache warmup has completed for the target business. |
+| `MULTIPLE_MATCHES` | More than one entity matches the criterion | Narrow the criterion with additional discriminating fields, or pass `active_only=false` to inspect all matches. |
+| `RESOLUTION_NULL_SLOT` | Group coroutine completed without writing to result slot (criterion never processed) | Contact support with `request_id` — indicates a resolution pipeline fault. |
+| `INDEX_UNAVAILABLE` | The resolution index for the entity type failed to build | Retry after cache warmup completes. Check service health if the error persists. |
+| `INVALID_CRITERIA` | Criterion fields do not match the entity schema for this type | Verify field names against the schema via `GET /v1/resolve/{entity_type}/schema`. |
+| `LOOKUP_ERROR` | A per-criterion data operation failed during resolution (e.g., type conversion error, field access error, or transient cache failure) | Retry the specific criterion. If persistent, verify criterion field types match schema. |
+
+**`NOT_FOUND` is the most ambiguous code.** It can result from a genuine absence of the entity or from a silent cascade failure when warmup has not completed. Before escalating a `NOT_FOUND` result, confirm warmup status for the target business. See [Resolvable Entity Types](#resolvable-entity-types) to identify which entity types have cascade dependencies.
+
+See also: [HTTP Error Codes](#http-error-codes) for request-level failures that prevent results from being produced at all.
+
+---
+
+## HTTP Error Codes
+
+Some errors originate from the upstream Asana API during resolution and are proxied back to the caller. These are distinct from the service-originated errors listed in the endpoint Errors table above.
+
+**Upstream Asana errors**
+
+| HTTP Status | Error Code | Condition | Consumer Action |
+|---|---|---|---|
+| 429 | (from upstream) | Asana rate limit exceeded | Retry with exponential backoff; reduce request concurrency. |
+| 502 | `UPSTREAM_ERROR` | Asana returned a server error or the connection to Asana failed | Check Asana service status; retry after a delay. |
+| 504 | `UPSTREAM_TIMEOUT` | Request to Asana API timed out | Retry with a reduced batch size; check Asana service status. |
+
+**Catch-all fallback**
+
+| HTTP Status | Error Code | Condition | Consumer Action |
+|---|---|---|---|
+| 500 | `RESOLUTION_ERROR` | Unexpected exception not covered by other error codes | Include the `request_id` from the response headers when reporting. This code indicates an unhandled condition in the service. |
+
+**`RESOLUTION_ERROR` (HTTP 500) vs `RESOLUTION_NULL_SLOT` (in results):** `RESOLUTION_ERROR` means the entire request failed before any results were produced. [`RESOLUTION_NULL_SLOT`](#result-error-codes) in the results array means a specific criterion was not processed, but the request itself succeeded and other criteria in the same batch may have resolved normally.
+
+**Cascade Data Quality**
+
+| HTTP Status | Error Code | Condition | Consumer Action |
+|---|---|---|---|
+| 503 | `CASCADE_NOT_READY` | Cascade-sourced key columns have >20% null rate, indicating cache warmup is incomplete for this entity type | Retry after cache warmup completes. Response includes `entity_type` and `degraded_columns` for diagnosis. |
+
+**`CASCADE_NOT_READY` error response:**
+
+```json
+{
+  "detail": {
+    "error": "CASCADE_NOT_READY",
+    "message": "Cascade data not ready for unit: degraded columns [office_phone (25.3%)] exceed 20% null threshold",
+    "entity_type": "unit",
+    "degraded_columns": {"office_phone": 0.253},
+    "request_id": "req_abc123"
+  }
+}
+```
+
+`CASCADE_NOT_READY` is also request-level (HTTP 503) — it fires before resolution begins when the service detects that cascade data quality is insufficient to produce reliable results.
+
+---
 
 ## Notes
 

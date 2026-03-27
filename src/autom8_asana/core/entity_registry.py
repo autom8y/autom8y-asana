@@ -76,6 +76,7 @@ class EntityCategory(StrEnum):
     COMPOSITE = "composite"  # Unit (has nested holders)
     LEAF = "leaf"  # Contact, Offer, Process, Location, Hours, AssetEdit
     HOLDER = "holder"  # All *Holder types
+    OBSERVATION = "observation"  # Virtual entities for computed data (stage_transition)
 
 
 @dataclass(frozen=True, slots=True)
@@ -686,6 +687,18 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         name_pattern="processes",
         emoji="gear",
     ),
+    # --- Virtual Entities (Observation) ---
+    # Not backed by an Asana project. Computed from lifecycle engine events.
+    # No schema_module_path: stage_transition uses StageTransitionStore
+    # (parquet-based) rather than the standard DataFrame pipeline.
+    EntityDescriptor(
+        name="stage_transition",
+        pascal_name="StageTransition",
+        display_name="Stage Transitions",
+        entity_type=None,  # Not bound to EntityType enum
+        category=EntityCategory.OBSERVATION,
+        primary_project_gid=None,
+    ),
 )
 
 
@@ -885,6 +898,21 @@ def _validate_registry_integrity(registry: EntityRegistry) -> None:
                 f"Entity {desc.name!r}: cascading_field_provider=True but "
                 f"no model_class_path to resolve the model"
             )
+
+    # Check 8: custom_field_resolver_class_path syntax validation (DEF-02)
+    # Follows Check 6a-6c pattern: validate dotted path syntax at startup
+    # so typos surface as ValueError, not ImportError at DataFrame build time.
+    for desc in registry.all_descriptors():
+        if desc.custom_field_resolver_class_path:
+            _module, _, _attr = desc.custom_field_resolver_class_path.rpartition(
+                "."
+            )
+            if not _module or not _attr:
+                raise ValueError(
+                    f"Entity {desc.name!r}: custom_field_resolver_class_path "
+                    f"{desc.custom_field_resolver_class_path!r} is not a valid "
+                    f"dotted path"
+                )
 
 
 # --- Build the singleton registry ---

@@ -1,11 +1,11 @@
 ---
 domain: release/platform-profile
-generated_at: "2026-03-15T02:15:00Z"
+generated_at: "2026-03-26T03:23:00Z"
 expires_after: "30d"
 source_scope:
   - "./.know/release/"
 generator: cartographer
-source_hash: "b7c4148"
+source_hash: "ab88d9e"
 confidence: 0.85
 format_version: "1.0"
 update_mode: "full"
@@ -55,10 +55,11 @@ satellite-receiver.yml (autom8y/autom8y, on repository_dispatch)
 - **No manual dispatch** on test.yml (push-only trigger)
 - **Manual dispatch available** on satellite-dispatch.yml (escape hatch)
 - **Attestation**: Stored on GitHub API (push-to-registry removed 2026-03-15)
+- **ECS deployment strategy**: ROLLING with circuit breaker (switched from CANARY 2026-03-26)
 
 ## Known Flakiness
 
-- **ECS ServicesStable waiter**: Transient timeout on first attempt (~50% occurrence). Resolves on retry. Not a code issue — ECS rolling deployment stabilization timing.
+- **ECS ServicesStable waiter**: Transient timeout on first attempt when service has just been recreated or has stale deployments. Resolves on subsequent attempts when service is at steady state. Typical stabilization: ~3 min.
 - **Sigstore attestation**: Transient 401s reduced after switching to GitHub API storage (2026-03-15). Monitor for recurrence.
 
 ## Release Action

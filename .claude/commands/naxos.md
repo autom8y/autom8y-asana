@@ -16,6 +16,16 @@ The SessionStart hook has already injected session state as YAML frontmatter abo
 
 If `naxos_summary` is present in the frontmatter, reference it when presenting context to the user or the Naxos agent.
 
+## Pre-flight: Naxos Availability
+
+Check if naxos is currently available:
+1. Run `ls ~/.claude/agents/naxos.md 2>/dev/null` via Bash
+2. If file exists: proceed to Routing
+3. If file missing:
+   a. Run `ari agent summon naxos` via Bash
+   b. Tell user: "Naxos summoned. Restart CC to activate, then re-run /naxos."
+   c. STOP — do not attempt Agent("naxos") until restart
+
 ## Your Task
 
 $ARGUMENTS
@@ -51,19 +61,19 @@ All operations dispatch to the Naxos agent via Task.
 **Full triage** (no arguments):
 
 ```
-Task(naxos, "Full triage of all orphaned sessions. Current session: {session_id}.")
+Agent("naxos", "Full triage of all orphaned sessions. Current session: {session_id}.")
 ```
 
 **Severity-filtered triage**:
 
 ```
-Task(naxos, "Triage orphaned sessions. Current session: {session_id}. Filter: severity >= {LEVEL}.")
+Agent("naxos", "Triage orphaned sessions. Current session: {session_id}. Filter: severity >= {LEVEL}.")
 ```
 
 **Specific session assessment**:
 
 ```
-Task(naxos, "Assess session {target_session_id} for orphan status. Current session: {session_id}.")
+Agent("naxos", "Assess session {target_session_id} for orphan status. Current session: {session_id}.")
 ```
 
 ### Pre-flight Validation
@@ -87,6 +97,13 @@ After the Naxos agent returns its summary:
    - For WRAP recommendations: `/sos wrap --session {id}`
    - For RESUME recommendations: `/sos resume --session {id}`
    - For DELETE recommendations: confirm with user before executing
+
+## Closure: Naxos Dismissal
+
+After triage completes:
+
+1. Run `ari agent dismiss naxos` via Bash
+2. Note: dismissal takes effect on next CC restart (or session end via autopark safety net)
 
 ## Sigils
 

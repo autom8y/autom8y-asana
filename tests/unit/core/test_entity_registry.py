@@ -421,7 +421,7 @@ class TestGlobalRegistry:
     def test_descriptor_count(self) -> None:
         """Registry has expected number of descriptors."""
         registry = get_registry()
-        assert len(registry.all_descriptors()) == 17
+        assert len(registry.all_descriptors()) == 18
 
     def test_warmable_count_and_order(self) -> None:
         """Warmable entities match expected count and priority order."""

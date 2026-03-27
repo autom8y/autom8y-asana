@@ -1,0 +1,1 @@
+- [Project Omniscience Sprint 2](project_omniscience_sprint2.md) -- Cascade monitoring impl spec delivered; Sprint 10 implementation target

@@ -18,6 +18,16 @@ This command runs in the main thread (requires Task tool for Dionysus dispatch).
 
 Dionysus is a leaf agent. It reads `.sos/archive/` and writes `.sos/land/{domain}.md`. This dromenon is the orchestrator that prepares context and invokes the agent.
 
+## Pre-flight: Dionysus Availability
+
+Check if dionysus is currently available:
+1. Run `ls ~/.claude/agents/dionysus.md 2>/dev/null` via Bash
+2. If file exists: proceed to Stage 1
+3. If file missing:
+   a. Run `ari agent summon dionysus` via Bash
+   b. Tell user: "Dionysus summoned. Restart CC to activate, then re-run /land."
+   c. STOP — do not attempt Agent("dionysus") until restart
+
 ## Stage 1: Prerequisite Check
 
 ### 1. Parse Arguments
@@ -129,13 +139,13 @@ Extract from the inventory:
 Dispatch Dionysus via Task tool:
 
 ```
-Task("dionysus", "Synthesize {domain} domains from archives in .sos/archive/. Source hash: {source_hash}. Session count: {session_count}. Sessions: {session_ids}.")
+Agent("dionysus", "Synthesize {domain} domains from archives in .sos/archive/. Source hash: {source_hash}. Session count: {session_count}. Sessions: {session_ids}.")
 ```
 
 If `--domain` specifies a single domain (not `all`), include it:
 
 ```
-Task("dionysus", "Synthesize {domain} domain from archives in .sos/archive/. Source hash: {source_hash}. Session count: {session_count}. Sessions: {session_ids}.")
+Agent("dionysus", "Synthesize {domain} domain from archives in .sos/archive/. Source hash: {source_hash}. Session count: {session_count}. Sessions: {session_ids}.")
 ```
 
 Wait for Dionysus to return. Dionysus will provide a structured summary table with domains, file paths, session counts, confidence scores, and status.
@@ -232,3 +242,10 @@ If entry was `--know-only`, Stage 2 is listed as "skipped (--know-only)".
 - **Skipping post-synthesis verification**: Always verify land files exist after Dionysus returns. Synthesis can fail silently if archives have unexpected formats.
 - **Dispatching multiple Dionysus instances**: Unlike the /radar Argus Pattern, Dionysus handles multi-domain synthesis internally. Dispatch ONE Task, even for `all` domains.
 - **Proceeding to Stage 3 after Dionysus failure**: If synthesis fails, the land files are stale or missing. Always STOP after a Dionysus failure rather than proceeding to /know with outdated content.
+
+## Closure: Dionysus Dismissal
+
+After the full /land pipeline completes (all stages finished or stopped on error):
+
+1. Run `ari agent dismiss dionysus` via Bash
+2. Note: dismissal takes effect on next CC restart (or session end via autopark safety net)

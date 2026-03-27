@@ -56,15 +56,32 @@ This provides:
 
 Do NOT proceed until the skill content is loaded. The scoring rules are the authoritative reference for all subsequent steps.
 
-## Step 2: Read All Complaints
+## Step 2: Streaming Dedup Pre-Pass and Read
 
-Read every complaint file found in pre-flight:
+**Pre-pass**: Before reading file contents, group filenames to avoid reading duplicate complaints:
+
+1. **Glob filenames only** — do not read contents yet:
+   ```
+   Glob(".sos/wip/complaints/COMPLAINT-*.yaml")
+   ```
+
+2. **Group by filename pattern**: Drift-detector complaints share the pattern `COMPLAINT-*-drift-detector.yaml`. Group filenames by the agent suffix (e.g., `drift-detector`, `pythia`, `moirai`).
+
+3. **For large groups (>5 files from same filer)**: Read only the **first** (oldest by filename timestamp) and **last** (newest) file. These two representatives capture the pattern's range. Skip intermediate files.
+
+4. **For small groups (≤5 files)**: Read all files normally.
+
+This pre-pass reduces file reads from potentially 1,000+ to approximately 10-20, preventing context window saturation.
+
+**Read representative complaints**:
+
+For each file selected by the pre-pass, read and parse the YAML:
 
 ```
-Read(".sos/wip/complaints/COMPLAINT-{each-file}.yaml")
+Read(".sos/wip/complaints/COMPLAINT-{selected-file}.yaml")
 ```
 
-For each file, parse the YAML and extract:
+Extract:
 - `id`: complaint identifier
 - `filed_by`: agent name
 - `filed_at`: timestamp
@@ -80,7 +97,9 @@ For each file, parse the YAML and extract:
 
 **Skip already-triaged complaints**: If a complaint has `status: triaged` or `status: resolved`, skip it. Only process `status: filed` complaints.
 
-Record all parsed complaints for the next step.
+**Record group sizes**: For skipped intermediate files, record the group count so the recurrence scoring dimension is accurate (e.g., a group of 766 drift-detector tool-fallback complaints has recurrence=766 even though only 2 files were read).
+
+Record all parsed complaints and their group metadata for the next step.
 
 ## Step 3: Deduplicate
 
@@ -130,17 +149,37 @@ Read(".know/scar-tissue.md")
 
 Record `scar_ref: "SCAR-NNN (TYPE)"` for each matched group. This notation appears in the triage output.
 
-## Step 5: Score Each Group
+## Step 5: Classify and Score Each Group
 
-Apply the 6-dimension scoring model to each deduplicated complaint group. For each group:
+**Before scoring**, classify each complaint group as **quick-file** or **deep-file** per the triage-scoring skill's detection heuristic:
 
-### Dimension Scoring
+- **Quick-file**: `filed_by == "drift-detector"` AND `zone` is empty AND `evidence` is nil → use **noise-review track** (3 dimensions)
+- **Deep-file**: has `zone`, `effort_estimate`, `evidence`, or `related_scars` → use **standard track** (6 dimensions)
+- **Agent quick-file**: `filed_by != "drift-detector"` AND no deep-file fields → use **standard track** (6 dimensions, zone default = behavior)
+
+### Noise-Review Track (Quick-File Groups)
+
+Quick-file groups from `drift-detector` use simplified 3-dimension scoring. Zone Impact, Scar-Tissue Match, and Effort-to-Impact are **skipped** (these fields are absent). No zone override applies.
+
+| Dimension | Weight | Input | Scoring Rule |
+|-----------|--------|-------|--------------|
+| Severity | 40% | Group's severity | low=20, medium=45, high=70, critical=95 |
+| Recurrence | 40% | Group's recurrence count | 1=15, 2=40, 3-4=65, 5+=90 |
+| Source Diversity | 20% | Group's distinct filer count | 1=20, 2=50, 3+=80 |
+
+```
+noise_score = (severity * 0.40) + (recurrence * 0.40) + (source_diversity * 0.20)
+```
+
+Threshold bands are the same as standard. Scores 70+ escalate to the standard track for full 6-dimension re-scoring.
+
+### Standard Track (Deep-File and Agent Quick-File Groups)
 
 | Dimension | Weight | Input | Scoring Rule |
 |-----------|--------|-------|--------------|
 | Severity | 25% | Group's severity field | low=20, medium=45, high=70, critical=95 |
 | Recurrence | 20% | Group's recurrence count | 1=15, 2=40, 3-4=65, 5+=90 |
-| Zone Impact | 20% | Group's zone field | parameter=30, behavior=60, structure=90, missing=45 |
+| Zone Impact | 20% | Group's zone field | parameter=30, behavior=60, structure=90, missing(deep-file)=45, missing(agent-quick-file)=30 |
 | Scar-Tissue Match | 15% | From Step 4 | no-match=20, fixed=40, related=60, regression=95 |
 | Effort-to-Impact | 10% | Group's effort_estimate + severity | See triage-scoring skill rules; default 50 if absent |
 | Source Diversity | 10% | Group's distinct filer count | 1=20, 2=50, 3+=80 |
@@ -151,15 +190,17 @@ Apply the 6-dimension scoring model to each deduplicated complaint group. For ea
 score = (severity * 0.25) + (recurrence * 0.20) + (zone_impact * 0.20) + (scar_tissue * 0.15) + (effort_to_impact * 0.10) + (source_diversity * 0.10)
 ```
 
-### Apply Zone Overrides
+### Apply Zone Overrides (Standard Track Only)
 
 After computing the raw score, apply zone-based routing overrides per the triage-scoring model:
 
 - If zone is `behavior`: action is AT LEAST `human-review` regardless of score
 - If zone is `structure`: action is AT LEAST `adr-required` regardless of score
-- If zone is `parameter`: standard threshold routing applies
+- If zone is `parameter` or missing: standard threshold routing applies
 
 The zone override only **elevates** review level, never reduces it. A parameter-zone complaint scoring 85+ still requires an ADR per the threshold band.
+
+**Note**: Quick-file groups on the noise-review track have NO zone override. This is the key difference that prevents drift-detector noise from flooding human-review.
 
 ### Classify into Threshold Band
 
@@ -307,7 +348,7 @@ Full report: `.sos/wip/TRIAGE-complaints.md`
 
 - **Scoring without loading the skill first**: The triage-scoring skill is the authoritative rubric. Do NOT invent scoring rules or weights from memory. Always `Skill("triage-scoring")` before scoring.
 - **Dispatching subagents for scoring**: This is a single-agent pipeline. Do NOT use Task tool. You are the scoring engine.
-- **Modifying complaint files**: This command is READ-ONLY on complaint files. Never update `status`, add fields, or delete complaints. A separate command handles complaint lifecycle.
+- **Modifying complaint files directly**: This command does NOT manually edit complaint YAML. To mark processed complaints, use `ari complaint update --status=triaged --id=<complaint-id>` after triage completes. Only the `status` field may be changed; all other fields are immutable during triage.
 - **Exact-match dedup only**: Dedup is heuristic. Two complaints about the same friction with different wording should still be grouped. Use tag overlap AND semantic title similarity.
 - **Ignoring zone overrides**: A behavior-zone complaint scoring 45 is NOT auto-accept. Zone overrides are mandatory per the triage-scoring model. Always apply zone overrides after threshold classification.
 - **Writing output during --dry-run**: Dry run means display only. No file writes.

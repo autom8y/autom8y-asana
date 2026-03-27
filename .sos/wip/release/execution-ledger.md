@@ -1,90 +1,62 @@
 ---
 type: audit
 ---
-# Execution Ledger — autom8y-asana PATCH Release
+# Execution Ledger
 
-**Generated:** 2026-03-15T00:18:27Z
-**Started:** 2026-03-15T00:18:13Z
-**Completed:** 2026-03-15T00:18:27Z
-**Status:** completed
-**Duration:** ~14 seconds
+**Generated**: 2026-03-26T00:00:00Z
+**Status**: completed
+**Actions**: 1 total — 1 succeeded, 0 failed, 0 pending
+
+---
+
+## Phase 1
+
+| Repo | Action | Status | Commit |
+|------|--------|--------|--------|
+| autom8y-asana | push_only | success | bbba220c8198d9a789e2c1bba36c1fa940556deb |
+
+### autom8y-asana
+
+**Action**: push_only
+**Distribution type**: container
+**Command**: `git push origin main`
+**Status**: success
+
+**Output**:
+```
+remote: GitHub found 1 vulnerability on autom8y/autom8y-asana's default branch (1 low). [pre-existing, informational]
+To github.com:autom8y/autom8y-asana.git
+   26e36a4..bbba220  main -> main
+```
+
+Remote ref updated from `26e36a4` to `bbba220`. The Dependabot advisory is pre-existing and informational — not a push failure.
+
+---
+
+## Pipeline Expectations
+
+Pipeline-monitor should track the following chain triggered by this push:
+
+**Chain**: `autom8y-asana:test.yml` (trigger_chain, depth 3, cross-repo)
+
+| Stage | Repo | Workflow | Trigger | Classification |
+|-------|------|----------|---------|----------------|
+| 1 | autom8y/autom8y-asana | Test | push to main | ci |
+| 2 | autom8y/autom8y-asana | Satellite Dispatch | workflow_run: Test completed (success) | dispatch |
+| 3 | autom8y/autom8y | Satellite Receiver | repository_dispatch: satellite-deploy | deploy |
+
+**Terminal stage**: autom8y/autom8y — Satellite Receiver (has_health_check: true)
+**Target repo**: autom8y/autom8y
 
 ---
 
 ## Summary
 
-| Metric | Value |
-|--------|-------|
-| Total Actions | 1 |
-| Succeeded | 1 |
-| Failed | 0 |
-| Pending | 0 |
+**Pushed**:
+- `autom8y-asana` — branch: main — sha: bbba220c8198d9a789e2c1bba36c1fa940556deb
 
----
-
-## Phase 1 — Push
-
-### autom8y-asana: push_only (container distribution)
-
-**Command:**
-```
-git -C /Users/tomtenuta/Code/a8/repos/autom8y-asana push origin main
-```
-
-**Status:** success
-
-**Commits pushed (2):**
-
-| SHA | Message |
-|-----|---------|
-| `f42bd552` | refactor(config): apply AUTOM8Y_ org prefix to Tier 2 vars |
-| `c9273d85` | refactor(config): clean-break env var standardization |
-
-**Push output:**
-```
-To github.com:autom8y/autom8y-asana.git
-   7970916..f42bd55  main -> main
-```
-
-**Head SHA after push:** `f42bd552f92dfb2c17fb0b9cfb807682923b9734`
-
----
-
-## Triggered Workflow Runs
-
-| Run ID | Workflow | Status | Trigger | Started |
-|--------|----------|--------|---------|---------|
-| [23099509231](https://github.com/autom8y/autom8y-asana/actions/runs/23099509231) | Test | in_progress | push | 2026-03-15T00:18:25Z |
-| [23099509166](https://github.com/autom8y/autom8y-asana/actions/runs/23099509166) | Secrets Scan (Gitleaks) | in_progress | push | 2026-03-15T00:18:25Z |
-| [23099509160](https://github.com/autom8y/autom8y-asana/actions/runs/23099509160) | OpenSSF Scorecard | in_progress | push | 2026-03-15T00:18:25Z |
-| [23099508869](https://github.com/autom8y/autom8y-asana/actions/runs/23099508869) | CodeQL | in_progress | dynamic | 2026-03-15T00:18:24Z |
-
-**Primary chain trigger:** `Test` (run 23099509231) — this is Stage 1 of the `autom8y-asana:Test` trigger chain.
-
----
-
-## Pipeline Expectations (for pipeline-monitor)
-
-**Chain:** `autom8y-asana:Test` (trigger_chain, depth: 3, cross-repo)
-
-| Stage | Repo | Workflow | Trigger | Classification |
-|-------|------|----------|---------|----------------|
-| 1 | autom8y/autom8y-asana | Test | push to main | ci |
-| 2 | autom8y/autom8y-asana | Satellite Dispatch | workflow_run: Test completed (success) on main | dispatch |
-| 3 | autom8y/autom8y | Satellite Receiver | repository_dispatch: satellite-deploy | deploy |
-
-**Terminal stage:** `autom8y/autom8y` — Satellite Receiver (no health check configured)
-
-**Known flakiness:** `actions/attest-sbom` in satellite-receiver.yml — transient Sigstore 401s (~1 in 4 runs). Retry via `gh run rerun --failed` if encountered.
-
----
-
-## Halted Branches
-
-None.
-
----
-
-## Pushed
-
-- **autom8y-asana** — branch: `main`, head SHA: `f42bd552f92dfb2c17fb0b9cfb807682923b9734`, commits: 2
+**Published**: none
+**Version bumps**: none
+**PRs created**: none
+**Failed**: none
+**Halted branches**: none

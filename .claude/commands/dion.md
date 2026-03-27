@@ -17,6 +17,16 @@ Standalone postmortem synthesis command. Reads `.sos/archive/` and writes `.sos/
 
 This command runs in the main thread (requires Task tool for Dionysus dispatch).
 
+## Pre-flight: Dionysus Availability
+
+Check if dionysus is currently available:
+1. Run `ls ~/.claude/agents/dionysus.md 2>/dev/null` via Bash
+2. If file exists: proceed to Stage 1
+3. If file missing:
+   a. Run `ari agent summon dionysus` via Bash
+   b. Tell user: "Dionysus summoned. Restart CC to activate, then re-run /dion."
+   c. STOP — do not attempt Agent("dionysus") until restart
+
 ## Stage 1: Parse Arguments and Verify Archives
 
 ### 1. Parse Arguments
@@ -119,13 +129,13 @@ Extract from the inventory:
 Dispatch Dionysus via Task tool:
 
 ```
-Task("dionysus", "Synthesize {domain} domains from archives in .sos/archive/. Source hash: {source_hash}. Session count: {session_count}. Sessions: {session_ids}.")
+Agent("dionysus", "Synthesize {domain} domains from archives in .sos/archive/. Source hash: {source_hash}. Session count: {session_count}. Sessions: {session_ids}.")
 ```
 
 If `--domain` specifies a single domain (not `all`):
 
 ```
-Task("dionysus", "Synthesize {domain} domain from archives in .sos/archive/. Source hash: {source_hash}. Session count: {session_count}. Sessions: {session_ids}.")
+Agent("dionysus", "Synthesize {domain} domain from archives in .sos/archive/. Source hash: {source_hash}. Session count: {session_count}. Sessions: {session_ids}.")
 ```
 
 Wait for Dionysus to return.
@@ -167,3 +177,10 @@ To integrate land files into .know/, run:
 - **Passing raw JSON to Dionysus**: Dionysus expects a natural-language prompt with extracted parameters. Do NOT paste the full JSON inventory into the Task prompt.
 - **Skipping post-synthesis verification**: Always verify land files exist after Dionysus returns.
 - **Dispatching multiple Dionysus instances**: Dionysus handles multi-domain synthesis internally. Dispatch ONE Task, even for `all` domains.
+
+## Closure: Dionysus Dismissal
+
+After synthesis completes (or stops on error):
+
+1. Run `ari agent dismiss dionysus` via Bash
+2. Note: dismissal takes effect on next CC restart (or session end via autopark safety net)

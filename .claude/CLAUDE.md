@@ -48,6 +48,16 @@ Prompts in `.claude/agents/`:
 - `architect.md` - Creates technical design documents and architecture decisions
 - `principal-engineer.md` - Implements code according to design specifications
 - `qa-adversary.md` - Validates implementation through adversarial testing
+
+### Summonable Heroes
+Operational agents available on demand. Their commands handle the lifecycle:
+- **myron** - Feature discovery scout -> `/discover`
+- **theoros** - Domain auditor -> `/know`
+- **dionysus** - Knowledge synthesizer -> `/land`
+- **naxos** - Session hygiene -> `/naxos`
+
+Summon: `ari agent summon {name}` then restart CC.
+Dismiss: `ari agent dismiss {name}` then restart CC.
 <!-- KNOSSOS:END agent-configurations -->
 
 <!-- KNOSSOS:START platform-infrastructure -->
