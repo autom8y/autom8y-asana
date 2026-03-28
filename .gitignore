@@ -48,6 +48,11 @@ htmlcov/
 # Project-specific
 .profiling/
 
+# Smoke test outputs (contain production business data -- never commit)
+smoke_output/
+smoke_test_report.csv
+src/smoke_test_report.csv
+
 # Environment files
 .env/*
 !.env/defaults
