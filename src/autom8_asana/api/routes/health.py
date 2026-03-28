@@ -76,6 +76,36 @@ def is_cache_ready() -> bool:
     return _cache_ready
 
 
+# --- Workflow Config Readiness State (REMEDY-002) ---
+# Module-level flag for workflow config registration outcome at ECS startup.
+# Set by lifespan.py after the try/except import block.
+# None = startup not yet complete, True = registered OK, False = degraded.
+_workflow_configs_registered: bool | None = None
+
+
+def set_workflow_configs_registered(registered: bool) -> None:
+    """Record whether workflow configs were successfully registered at startup.
+
+    Per REMEDY-002: The lifespan try/except silently swallows import failures.
+    This flag surfaces the registration outcome in the readiness check so that
+    monitoring can detect ECS startup degradation.
+
+    Args:
+        registered: True if all configs registered; False if import failed.
+    """
+    global _workflow_configs_registered
+    _workflow_configs_registered = registered
+
+
+def is_workflow_configs_registered() -> bool | None:
+    """Return the workflow config registration outcome.
+
+    Returns:
+        True if registered OK, False if degraded, None if startup not complete.
+    """
+    return _workflow_configs_registered
+
+
 @router.get(
     "/health",
     summary="Check application liveness",
@@ -145,10 +175,26 @@ async def readiness_check() -> JSONResponse:
             detail={"message": "Cache preload in progress"},
         )
 
+    # Per REMEDY-002: Surface workflow config registration outcome so that
+    # ECS startup degradation (silent import failure) is observable.
+    if _workflow_configs_registered is True:
+        workflow_check = CheckResult(status=HealthStatus.OK)
+    elif _workflow_configs_registered is False:
+        workflow_check = CheckResult(
+            status=HealthStatus.UNAVAILABLE,
+            detail={"message": "Workflow config import failed at startup"},
+        )
+    else:
+        # None = startup not yet complete (ECS is still initializing)
+        workflow_check = CheckResult(
+            status=HealthStatus.UNAVAILABLE,
+            detail={"message": "Workflow config registration pending"},
+        )
+
     resp = readiness_response(
         SERVICE_NAME,
         API_VERSION,
-        checks={"cache": cache_check},
+        checks={"cache": cache_check, "workflow_configs": workflow_check},
     )
     return JSONResponse(
         content=resp.model_dump(mode="json"),
