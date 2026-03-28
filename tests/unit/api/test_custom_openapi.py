@@ -18,6 +18,10 @@ Sprint 8 (tests 9-20):
 - Endpoint coverage guards (query, resolver, dataframes, workflows)
 - Webhook auth regression guard (WebhookToken scheme exists)
 - Example presence guard (key response models in spec)
+
+Sprint-7 / Lexicon Ascension (tests 21-22):
+- Top-level webhooks object with asanaTaskChanged definition
+- Task schema injection into components/schemas for $ref resolution
 """
 
 from __future__ import annotations
@@ -215,14 +219,36 @@ def test_openapi_schema_cached(debug_app):
     assert first is second
 
 
-# --- Test 7: OpenAPI version 3.1 ---
+# --- Test 7: OpenAPI version 3.2.0 ---
 
 
-def test_openapi_version_3_1(spec):
-    """spec['openapi'] starts with '3.1'."""
-    assert spec["openapi"].startswith("3.1"), (
-        f"Expected OpenAPI 3.1.x, got {spec['openapi']}"
+def test_openapi_version_3_2(spec):
+    """spec['openapi'] must be exactly '3.2.0' after Sprint-5 migration."""
+    assert spec["openapi"] == "3.2.0", (
+        f"Expected OpenAPI 3.2.0, got {spec['openapi']}"
     )
+
+
+# --- Test 7b: jsonSchemaDialect present ---
+
+
+def test_json_schema_dialect_present(spec):
+    """spec['jsonSchemaDialect'] must reference Draft 2020-12."""
+    assert spec.get("jsonSchemaDialect") == "https://json-schema.org/draft/2020-12/schema", (
+        f"Expected jsonSchemaDialect for Draft 2020-12, got {spec.get('jsonSchemaDialect')}"
+    )
+
+
+# --- Test 7c: Dynamic servers array present ---
+
+
+def test_servers_array_present(spec):
+    """spec['servers'] must contain production and staging entries."""
+    servers = spec.get("servers", [])
+    assert len(servers) >= 2, f"Expected at least 2 servers, got {len(servers)}"
+    descriptions = {s.get("description") for s in servers}
+    assert "Production" in descriptions, "Missing Production server entry"
+    assert "Staging" in descriptions, "Missing Staging server entry"
 
 
 # --- Test 8: /docs endpoint returns 200 ---
@@ -511,3 +537,62 @@ def test_webhook_endpoints_use_webhook_token(spec):
                 f"{method.upper()} {path} uses BearerAuth instead of WebhookToken"
             )
     assert webhook_ops, "No webhook operations found in spec to verify"
+
+
+# --- Test 21: Top-level webhooks object exists (Sprint-7) ---
+
+
+def test_webhooks_top_level_object_exists(spec):
+    """Top-level ``webhooks`` object is present with asanaTaskChanged entry.
+
+    Guards against removal of the inbound webhook definition added in
+    Sprint-7 (Lexicon Ascension).  The webhook spec is how consumers
+    (Ace, external integrations) discover the async inbound contract.
+    """
+    assert "webhooks" in spec, "Top-level 'webhooks' key missing from spec"
+    webhooks = spec["webhooks"]
+    assert "asanaTaskChanged" in webhooks, (
+        "asanaTaskChanged webhook definition missing"
+    )
+    hook_op = webhooks["asanaTaskChanged"].get("post")
+    assert hook_op is not None, "asanaTaskChanged must define a 'post' operation"
+    assert hook_op.get("operationId") == "receiveAsanaTaskWebhook"
+    assert hook_op.get("security") == [{"WebhookToken": []}], (
+        "Webhook must use WebhookToken security scheme"
+    )
+    # Verify requestBody references the Task schema
+    rb_schema = (
+        hook_op.get("requestBody", {})
+        .get("content", {})
+        .get("application/json", {})
+        .get("schema", {})
+    )
+    assert rb_schema.get("$ref") == "#/components/schemas/Task", (
+        f"Webhook requestBody must reference Task schema, got {rb_schema}"
+    )
+
+
+# --- Test 22: Task schema injected into components/schemas (Sprint-7) ---
+
+
+def test_task_schema_injected(spec):
+    """Task schema is present in components/schemas for webhook $ref resolution.
+
+    The Task model is not used in any route's response_model, so it must
+    be explicitly injected by custom_openapi().  Without it, the webhook
+    definition's $ref would be a dangling pointer.
+    """
+    schemas = spec.get("components", {}).get("schemas", {})
+    assert "Task" in schemas, (
+        f"Task schema missing from components/schemas. "
+        f"Available: {sorted(schemas.keys())[:10]}..."
+    )
+    task = schemas["Task"]
+    # Task should have properties (it's a full Pydantic model, not empty)
+    assert "properties" in task, "Task schema must have properties"
+    # Verify key fields exist
+    assert "gid" in task["properties"] or any(
+        "gid" in (ref_schema.get("properties", {}))
+        for ref_schema in schemas.values()
+        if isinstance(ref_schema, dict)
+    ), "Task or its parent must define a 'gid' property"

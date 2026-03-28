@@ -421,7 +421,15 @@ def create_app() -> FastAPI:
             version=app.version,
             description=app.description,
             routes=app.routes,
+            openapi_version="3.2.0",
         )
+
+        # OAS 3.2.0 metadata
+        spec["jsonSchemaDialect"] = "https://json-schema.org/draft/2020-12/schema"
+        spec["servers"] = [
+            {"url": "https://asana.api.autom8y.io", "description": "Production"},
+            {"url": "https://asana.staging.api.autom8y.io", "description": "Staging"},
+        ]
 
         # 1. Inject security schemes
         components = spec.setdefault("components", {})
@@ -506,6 +514,128 @@ def create_app() -> FastAPI:
             {"name": tag, "description": desc}
             for tag, desc in _TAG_DESCRIPTIONS.items()
         ]
+
+        # Sprint-6 (Lexicon Ascension): Annotate QUERY method candidates.
+        # The following POST endpoints are semantically QUERY operations
+        # (safe, idempotent, carry request body for complex filter/aggregate
+        # expressions). They use POST due to httptools parser limitations,
+        # missing FastAPI @app.query() decorator, and zero tooling support.
+        #
+        # These POST routes have include_in_schema=False (internal S2S
+        # endpoints), so they do not appear in the generated spec paths.
+        # We document them via a top-level extension and annotate any
+        # visible query-related operations.
+        #
+        # RQ-1 verdict: HOLD.
+        # See .ledge/spikes/lexicon-ascension-rnd-rq-findings.md
+        _query_method_candidates = [
+            {
+                "path": "/v1/query/{entity_type}/rows",
+                "method": "POST",
+                "description": (
+                    "Filtered row retrieval with composable predicates. "
+                    "Zero side effects, idempotent."
+                ),
+                "in_schema": False,
+            },
+            {
+                "path": "/v1/query/{entity_type}/aggregate",
+                "method": "POST",
+                "description": (
+                    "Aggregate entity data with grouping and metric computation. "
+                    "Zero side effects, idempotent."
+                ),
+                "in_schema": False,
+            },
+            {
+                "path": "/v1/matching/query",
+                "method": "POST",
+                "description": (
+                    "Matching query for scored business candidates. "
+                    "Read-only against cached DataFrame, idempotent."
+                ),
+                "in_schema": False,
+            },
+        ]
+
+        spec["x-query-method-candidates"] = _query_method_candidates
+        spec["x-query-method-blocked-by"] = [
+            "httptools parser does not support QUERY method",
+            "IETF draft-ietf-httpbis-safe-method-w-body not yet RFC",
+            "FastAPI has no @app.query() decorator",
+            "Swagger UI and ReDoc cannot render QUERY operations",
+        ]
+        spec["x-query-method-ready-when"] = (
+            "FastAPI ships @app.query() with httptools support"
+        )
+
+        # Annotate visible query introspection GET endpoints as safe reads.
+        # These are already GET (inherently safe/idempotent) but the extension
+        # marks them as part of the query subsystem for tooling discovery.
+        for path_key, path_item in spec.get("paths", {}).items():
+            if path_key.startswith("/v1/query"):
+                for method_key in ("get", "post"):
+                    op = path_item.get(method_key)
+                    if op is not None:
+                        op["x-idempotent"] = True
+                        op["x-safe"] = True
+
+        # 6. Inject inbound webhook definition (Sprint-7: Lexicon Ascension)
+        #
+        # The Task model is not referenced by any route's response_model (the
+        # webhook endpoint parses raw JSON), so its schema is absent from the
+        # auto-generated spec.  We generate it from the Pydantic model and
+        # inject it into components/schemas, then reference it from the
+        # top-level ``webhooks`` object per OpenAPI 3.1+/3.2.0.
+        from autom8_asana.models.task import Task as _TaskModel
+
+        task_schema = _TaskModel.model_json_schema(
+            ref_template="#/components/schemas/{model}"
+        )
+
+        # Extract $defs (nested models like NameGid, AsanaResource) and merge
+        # into components/schemas so $ref pointers resolve correctly.
+        task_defs = task_schema.pop("$defs", {})
+        for def_name, def_schema in task_defs.items():
+            components.setdefault("schemas", {})[def_name] = def_schema
+
+        # Register the Task schema itself (without $defs, which are now
+        # top-level in components/schemas).
+        components.setdefault("schemas", {})["Task"] = task_schema
+
+        spec["webhooks"] = {
+            "asanaTaskChanged": {
+                "post": {
+                    "summary": "Asana task change notification",
+                    "description": (
+                        "Received when an Asana Rules action fires on task "
+                        "mutation. Payload is a complete Asana task JSON "
+                        "object. Authentication is via URL token query "
+                        "parameter."
+                    ),
+                    "operationId": "receiveAsanaTaskWebhook",
+                    "tags": ["webhooks"],
+                    "security": [{"WebhookToken": []}],
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Task"
+                                }
+                            }
+                        },
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Webhook received and acknowledged"
+                        },
+                        "401": {"description": "Invalid webhook token"},
+                        "422": {"description": "Invalid payload"},
+                    },
+                }
+            }
+        }
 
         app.openapi_schema = spec
         return spec
