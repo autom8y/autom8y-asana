@@ -493,6 +493,87 @@ async def _push_gid_mappings_for_completed_entities(
         )
 
 
+async def _push_account_status_for_completed_entities(
+    completed_entities: list[str],
+    get_project_gid: Any,
+    cache: Any,
+    invocation_id: str,
+) -> None:
+    """Push account status to autom8_data for each warmed entity type.
+
+    Extracts section classifications from warmed DataFrames and
+    aggregates all entries into a single snapshot push.
+
+    Non-blocking: all errors are caught and logged.
+
+    Args:
+        completed_entities: Entity types that were successfully warmed.
+        get_project_gid: Callable(entity_type) -> project_gid or None.
+        cache: DataFrameCache instance for retrieving warmed DataFrames.
+        invocation_id: Lambda invocation ID for log correlation.
+    """
+    from autom8_asana.services.gid_push import (
+        extract_status_from_dataframe,
+        push_status_to_data_service,
+    )
+
+    all_entries: list[dict] = []
+
+    for entity_type in completed_entities:
+        project_gid = get_project_gid(entity_type)
+        if not project_gid:
+            continue
+
+        try:
+            entry = await cache.get_async(project_gid, entity_type)
+            if entry is None or entry.dataframe is None:
+                continue
+
+            entries = extract_status_from_dataframe(
+                df=entry.dataframe,
+                project_gid=project_gid,
+                entity_type=entity_type,
+            )
+            all_entries.extend(entries)
+
+        except Exception as e:  # BROAD-CATCH: isolation
+            logger.warning(
+                "status_extract_entity_error",
+                extra={
+                    "entity_type": entity_type,
+                    "project_gid": project_gid,
+                    "error": str(e),
+                    "invocation_id": invocation_id,
+                },
+            )
+
+    if all_entries:
+        from datetime import UTC, datetime
+
+        success = await push_status_to_data_service(
+            entries=all_entries,
+            source_timestamp=datetime.now(UTC).isoformat(),
+        )
+
+        if success:
+            emit_metric(
+                "StatusPushSuccess",
+                1,
+                dimensions={"entry_count": str(len(all_entries))},
+            )
+        else:
+            emit_metric("StatusPushFailure", 1)
+
+        logger.info(
+            "status_push_complete",
+            extra={
+                "entry_count": len(all_entries),
+                "success": success,
+                "invocation_id": invocation_id,
+            },
+        )
+
+
 async def _warm_cache_async(
     entity_types: list[str] | None = None,
     strict: bool = True,
@@ -878,6 +959,29 @@ async def _warm_cache_async(
             cache=cache,
             invocation_id=invocation_id,
         )
+
+        # ----------------------------------------------------------------
+        # Account status push
+        # After GID push, extract account status classifications from
+        # warmed DataFrames and push to autom8_data. Non-blocking:
+        # failures are logged but do not affect the cache warmer result.
+        # ----------------------------------------------------------------
+        try:
+            await _push_account_status_for_completed_entities(
+                completed_entities=completed_entities,
+                get_project_gid=get_project_gid,
+                cache=cache,
+                invocation_id=invocation_id,
+            )
+        except Exception as e:  # BROAD-CATCH: isolation -- status push must never fail cache warmer
+            logger.error(
+                "status_push_fatal_error",
+                extra={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "invocation_id": invocation_id,
+                },
+            )
 
         # ----------------------------------------------------------------
         # Story cache warming (Strategy E: piggyback on DataFrame warmer)
