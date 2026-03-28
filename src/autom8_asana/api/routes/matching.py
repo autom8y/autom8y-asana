@@ -16,7 +16,8 @@ import time
 from typing import Annotated
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, Depends
+from fastapi import Depends
+from autom8_asana.api.routes._security import s2s_router
 
 from autom8_asana.api.dependencies import (
     RequestId,  # noqa: TC001 -- FastAPI resolves at runtime
@@ -38,7 +39,7 @@ __all__ = ["router"]
 
 logger = get_logger(__name__)
 
-router = APIRouter(
+router = s2s_router(
     prefix="/v1/matching",
     tags=["matching"],
     include_in_schema=False,

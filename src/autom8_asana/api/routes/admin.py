@@ -14,7 +14,8 @@ from __future__ import annotations
 import uuid
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, BackgroundTasks, Depends, Request
+from fastapi import BackgroundTasks, Depends, Request
+from autom8_asana.api.routes._security import s2s_router
 from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.api.errors import raise_api_error
@@ -23,7 +24,7 @@ from autom8_asana.core.entity_types import ENTITY_TYPES
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/v1/admin", tags=["admin"], include_in_schema=False)
+router = s2s_router(prefix="/v1/admin", tags=["admin"], include_in_schema=False)
 
 VALID_ENTITY_TYPES = set(ENTITY_TYPES)
 

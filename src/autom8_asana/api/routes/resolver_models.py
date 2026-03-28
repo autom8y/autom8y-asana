@@ -14,9 +14,9 @@ Models:
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
+from autom8y_api_schemas import E164PhoneField
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 __all__ = [
@@ -55,7 +55,7 @@ class ResolutionCriterion(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     # Unit/Business resolution
-    phone: str | None = Field(
+    phone: E164PhoneField | None = Field(
         default=None,
         description="E.164 formatted phone number for unit/business resolution.",
     )
@@ -79,39 +79,22 @@ class ResolutionCriterion(BaseModel):
         default=None,
         description="Contact email address for contact resolution.",
     )
-    contact_phone: str | None = Field(
+    contact_phone: E164PhoneField | None = Field(
         default=None,
         description="Contact phone number for contact resolution.",
     )
 
-    @field_validator("phone")
+    @field_validator("phone", "contact_phone", mode="before")
     @classmethod
-    def validate_e164(cls, v: str | None) -> str | None:
-        """Validate E.164 format: +[1-9][0-9]{1,14}.
+    def strip_phone_whitespace(cls, v: str | None) -> str | None:
+        """Strip whitespace from phone fields before E.164 pattern validation.
 
-        Per ITU-T E.164: + followed by 1-15 digits, where the first digit
-        after + must be non-zero (country code cannot start with 0).
-
-        Args:
-            v: Phone number string or None
-
-        Returns:
-            Validated phone number or None
-
-        Raises:
-            ValueError: If phone format is invalid.
+        Maintains backward compatibility with callers that send trailing
+        newlines or spaces. The fleet E164PhoneField pattern requires an
+        exact match, so whitespace must be stripped beforehand.
         """
-        if v is None:
-            return None
-
-        # Strip whitespace (including trailing newlines) before validation
-        v = v.strip()
-
-        if not re.match(r"^\+[1-9]\d{1,14}$", v):
-            raise ValueError(
-                f"Invalid E.164 format: {v}. "
-                f"Expected format: +[country][number] (e.g., +15551234567)"
-            )
+        if isinstance(v, str):
+            return v.strip()
         return v
 
 
