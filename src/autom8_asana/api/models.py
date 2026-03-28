@@ -1,7 +1,13 @@
 """API request and response models.
 
 This module provides Pydantic models for structured API responses,
-following the autom8y ecosystem patterns from autom8_data.
+following the autom8y ecosystem patterns.
+
+Fleet-standard envelope types (SuccessResponse, ErrorResponse, ErrorDetail,
+ResponseMeta, PaginationMeta) are imported from autom8y-api-schemas and
+re-exported here for backward compatibility.
+
+Migration: Lexicon Ascension Sprint-4 (ASANA-QW-04)
 
 Per TDD-ASANA-SATELLITE:
 - Standard response envelope with data + meta
@@ -13,12 +19,22 @@ Per PRD-ASANA-SATELLITE Appendix A:
 - Error response: {"error": {"code": ..., "message": ...}, "meta": {...}}
 """
 
-from datetime import UTC, datetime
-from typing import Any, Generic, TypeVar
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-T = TypeVar("T")
+# Fleet-standard envelope types from shared package.
+# Re-exported at this path for backward compatibility -- existing code
+# imports these from autom8_asana.api.models.
+from autom8y_api_schemas import (
+    ErrorDetail,
+    ErrorResponse,
+    PaginationMeta,
+    ResponseMeta,
+    SuccessResponse,
+    build_error_response,
+    build_success_response,
+)
 
 
 class AsanaResource(BaseModel):
@@ -63,251 +79,6 @@ class AsanaResource(BaseModel):
                 }
             ]
         },
-    )
-
-
-class PaginationMeta(BaseModel):
-    """Pagination metadata for list responses.
-
-    Per ADR-ASANA-008: Cursor-based pagination with opaque offset.
-
-    Attributes:
-        limit: Number of items requested per page.
-        has_more: Whether more items exist after this page.
-        next_offset: Opaque cursor for next page (None if no more pages).
-    """
-
-    limit: int = Field(
-        ...,
-        ge=1,
-        description="Number of items per page",
-        examples=[100],
-    )
-    has_more: bool = Field(
-        ...,
-        description="Whether more items exist",
-        examples=[True],
-    )
-    next_offset: str | None = Field(
-        default=None,
-        description="Opaque cursor for next page",
-        examples=["eyJvZmZzZXQiOjEwMH0"],
-    )
-
-    model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra={
-            "examples": [
-                {
-                    "limit": 100,
-                    "has_more": True,
-                    "next_offset": "eyJvZmZzZXQiOjEwMH0",
-                }
-            ]
-        },
-    )
-
-
-class ResponseMeta(BaseModel):
-    """Metadata included with all API responses.
-
-    Provides request correlation and timing information for
-    debugging and observability.
-
-    Attributes:
-        request_id: Unique 16-character hex identifier for this request.
-        timestamp: UTC timestamp when response was generated.
-        pagination: Pagination info for list responses (optional).
-    """
-
-    request_id: str = Field(
-        ...,
-        min_length=1,
-        description="Request correlation ID",
-        examples=["a1b2c3d4e5f67890"],
-    )
-    timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(UTC),
-        description="Response timestamp (UTC)",
-        examples=["2026-03-15T10:30:00Z"],
-    )
-    pagination: PaginationMeta | None = Field(
-        default=None,
-        description="Pagination metadata for list responses",
-    )
-
-    model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra={
-            "examples": [
-                {
-                    "request_id": "a1b2c3d4e5f67890",
-                    "timestamp": "2026-03-15T10:30:00Z",
-                    "pagination": None,
-                }
-            ]
-        },
-    )
-
-
-class SuccessResponse(BaseModel, Generic[T]):
-    """Standard success response envelope.
-
-    Wraps response data with metadata for consistent API responses.
-
-    Attributes:
-        data: The response payload (single item or list).
-        meta: Response metadata including request_id and timestamp.
-    """
-
-    data: T = Field(..., description="Response data payload")
-    meta: ResponseMeta = Field(..., description="Response metadata")
-
-    model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra={
-            "examples": [
-                {
-                    "data": {
-                        "gid": "1234567890123456",
-                        "resource_type": "task",
-                        "name": "Review Q3 marketing proposal",
-                    },
-                    "meta": {
-                        "request_id": "a1b2c3d4e5f67890",
-                        "timestamp": "2026-03-15T10:30:00Z",
-                        "pagination": None,
-                    },
-                }
-            ]
-        },
-    )
-
-
-class ErrorDetail(BaseModel):
-    """Structured error information.
-
-    Per ADR-ASANA-004: Error codes map to specific failure modes.
-
-    Attributes:
-        code: Machine-readable error code (e.g., RESOURCE_NOT_FOUND).
-        message: Human-readable error description.
-        details: Additional context about the error (optional).
-    """
-
-    code: str = Field(
-        ...,
-        description="Machine-readable error code",
-        examples=["RESOURCE_NOT_FOUND"],
-    )
-    message: str = Field(
-        ...,
-        description="Human-readable error message",
-        examples=["Task with GID 1234567890123456 not found"],
-    )
-    details: dict[str, Any] | None = Field(
-        default=None,
-        description="Additional error context",
-        examples=[None],
-    )
-
-    model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra={
-            "examples": [
-                {
-                    "code": "RESOURCE_NOT_FOUND",
-                    "message": "Task with GID 1234567890123456 not found",
-                    "details": None,
-                }
-            ]
-        },
-    )
-
-
-class ErrorResponse(BaseModel):
-    """Standard error response envelope.
-
-    Per PRD-ASANA-SATELLITE (FR-ERR-008): All error responses
-    include request_id for correlation.
-
-    Attributes:
-        error: Structured error details.
-        meta: Response metadata with request_id.
-    """
-
-    error: ErrorDetail = Field(..., description="Error details")
-    meta: ResponseMeta = Field(..., description="Response metadata")
-
-    model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra={
-            "examples": [
-                {
-                    "error": {
-                        "code": "RESOURCE_NOT_FOUND",
-                        "message": "Task with GID 1234567890123456 not found",
-                        "details": None,
-                    },
-                    "meta": {
-                        "request_id": "a1b2c3d4e5f67890",
-                        "timestamp": "2026-03-15T10:30:00Z",
-                        "pagination": None,
-                    },
-                }
-            ]
-        },
-    )
-
-
-def build_success_response(
-    data: Any,
-    request_id: str,
-    pagination: PaginationMeta | None = None,
-) -> SuccessResponse[Any]:
-    """Build a standard success response.
-
-    Args:
-        data: Response payload (AsanaResource, dict, or list).
-        request_id: Request correlation ID.
-        pagination: Pagination metadata for list responses.
-
-    Returns:
-        SuccessResponse with data and metadata.
-    """
-    return SuccessResponse(
-        data=data,
-        meta=ResponseMeta(
-            request_id=request_id,
-            pagination=pagination,
-        ),
-    )
-
-
-def build_error_response(
-    code: str,
-    message: str,
-    request_id: str,
-    details: dict[str, Any] | None = None,
-) -> ErrorResponse:
-    """Build a standard error response.
-
-    Args:
-        code: Machine-readable error code.
-        message: Human-readable error message.
-        request_id: Request correlation ID.
-        details: Additional error context.
-
-    Returns:
-        ErrorResponse with error details and metadata.
-    """
-    return ErrorResponse(
-        error=ErrorDetail(
-            code=code,
-            message=message,
-            details=details,
-        ),
-        meta=ResponseMeta(request_id=request_id),
     )
 
 
