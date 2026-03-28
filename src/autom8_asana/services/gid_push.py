@@ -398,7 +398,7 @@ def extract_status_from_dataframe(
             section_name = df["section_name"][row_idx]
         elif has_memberships:
             memberships = df["memberships"][row_idx]
-            if memberships:
+            if memberships is not None:
                 section_name = extract_section_name(
                     {"memberships": memberships},
                     project_gid=project_gid,
