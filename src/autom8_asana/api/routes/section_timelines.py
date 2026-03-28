@@ -18,7 +18,8 @@ from datetime import (
 from typing import Annotated
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, Query
+from fastapi import Query
+from autom8_asana.api.routes._security import pat_router
 from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
@@ -37,7 +38,7 @@ from autom8_asana.services.section_timeline_service import (
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/offers", tags=["offers"])
+router = pat_router(prefix="/api/v1/offers", tags=["offers"])
 
 
 class SectionTimelinesResponse(BaseModel):

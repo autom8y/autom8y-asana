@@ -37,8 +37,9 @@ from __future__ import annotations
 from io import StringIO
 from typing import TYPE_CHECKING, Annotated, Any
 
-from fastapi import APIRouter, Header, Query
+from fastapi import Header, Query
 from fastapi.responses import JSONResponse, Response
+from autom8_asana.api.routes._security import pat_router
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
     AsanaClientDualMode,
@@ -59,7 +60,7 @@ if TYPE_CHECKING:
 
 from autom8_asana.api.errors import raise_api_error
 
-router = APIRouter(prefix="/api/v1/dataframes", tags=["dataframes"])
+router = pat_router(prefix="/api/v1/dataframes", tags=["dataframes"])
 
 # Default pagination limit
 DEFAULT_LIMIT = 100

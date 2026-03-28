@@ -12,7 +12,8 @@ Authentication:
 from __future__ import annotations
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import HTTPException, Request
+from autom8_asana.api.routes._security import s2s_router
 from pydantic import BaseModel
 
 from autom8_asana.auth.dual_mode import AuthMode, detect_token_type
@@ -20,7 +21,7 @@ from autom8_asana.auth.jwt_validator import validate_service_token
 
 logger = get_logger("autom8_asana.api.internal")
 
-router = APIRouter(
+router = s2s_router(
     prefix="/api/v1/internal", tags=["internal"], include_in_schema=False
 )
 
