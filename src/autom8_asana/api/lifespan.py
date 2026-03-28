@@ -218,11 +218,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         register_workflow_config(insights_config)
         register_workflow_config(audit_config)
+        app.state.workflow_configs_registered = True
+        from autom8_asana.api.routes.health import set_workflow_configs_registered
+
+        set_workflow_configs_registered(True)
         logger.info(
             "workflow_configs_registered",
             extra={"workflow_ids": ["insights-export", "conversation-audit"]},
         )
     except Exception as e:  # BROAD-CATCH: degrade
+        app.state.workflow_configs_registered = False
+        from autom8_asana.api.routes.health import set_workflow_configs_registered
+
+        set_workflow_configs_registered(False)
         logger.warning(
             "workflow_configs_registration_failed",
             extra={
