@@ -1386,36 +1386,35 @@ class SaveSession:
 
             await session.commit_async()
         """
-        self._ensure_open()
+        with self._require_open():
+            # Validate that at least one text field is provided
+            if not text and not html_text:
+                raise ValueError(
+                    "add_comment requires either text or html_text to be non-empty"
+                )
 
-        # Validate that at least one text field is provided
-        if not text and not html_text:
-            raise ValueError(
-                "add_comment requires either text or html_text to be non-empty"
+            # Per ADR-0046: Store text in extra_params
+            extra_params: dict[str, str] = {"text": text}
+            if html_text:
+                extra_params["html_text"] = html_text
+
+            action = ActionOperation(
+                task=task,
+                action=ActionType.ADD_COMMENT,
+                target=None,  # Comments don't need a target
+                extra_params=extra_params,
             )
+            self._pending_actions.append(action)
 
-        # Per ADR-0046: Store text in extra_params
-        extra_params: dict[str, str] = {"text": text}
-        if html_text:
-            extra_params["html_text"] = html_text
+            if self._log:
+                self._log.debug(
+                    "session_add_comment",
+                    task_gid=task.gid,
+                    text_length=len(text),
+                    has_html=html_text is not None,
+                )
 
-        action = ActionOperation(
-            task=task,
-            action=ActionType.ADD_COMMENT,
-            target=None,  # Comments don't need a target
-            extra_params=extra_params,
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_add_comment",
-                task_gid=task.gid,
-                text_length=len(text),
-                has_html=html_text is not None,
-            )
-
-        return self
+            return self
 
     # -------------------------------------------------------------------------
     # Parent Operations (PRD-0008 / TDD-0013)
@@ -1464,52 +1463,51 @@ class SaveSession:
             # Reorder subtask
             session.set_parent(subtask, subtask.parent, insert_after=other_subtask)
         """
-        self._ensure_open()
+        with self._require_open():
+            # Per ADR-0047: Fail-fast validation for positioning conflict
+            if insert_before is not None and insert_after is not None:
+                before_gid = (
+                    insert_before if isinstance(insert_before, str) else insert_before.gid
+                )
+                after_gid = (
+                    insert_after if isinstance(insert_after, str) else insert_after.gid
+                )
+                raise PositioningConflictError(before_gid, after_gid)
 
-        # Per ADR-0047: Fail-fast validation for positioning conflict
-        if insert_before is not None and insert_after is not None:
-            before_gid = (
-                insert_before if isinstance(insert_before, str) else insert_before.gid
+            # Resolve parent GID (None means promote to top-level)
+            parent_gid: str | None = None
+            if parent is not None:
+                parent_gid = parent if isinstance(parent, str) else parent.gid
+
+            # Build extra_params (per ADR-0044)
+            extra_params: dict[str, Any] = {"parent": parent_gid}
+            if insert_before is not None:
+                extra_params["insert_before"] = (
+                    insert_before if isinstance(insert_before, str) else insert_before.gid
+                )
+            if insert_after is not None:
+                extra_params["insert_after"] = (
+                    insert_after if isinstance(insert_after, str) else insert_after.gid
+                )
+
+            action = ActionOperation(
+                task=task,
+                action=ActionType.SET_PARENT,
+                target=None,  # Per ADR-0045: Not used for SET_PARENT
+                extra_params=extra_params,
             )
-            after_gid = (
-                insert_after if isinstance(insert_after, str) else insert_after.gid
-            )
-            raise PositioningConflictError(before_gid, after_gid)
+            self._pending_actions.append(action)
 
-        # Resolve parent GID (None means promote to top-level)
-        parent_gid: str | None = None
-        if parent is not None:
-            parent_gid = parent if isinstance(parent, str) else parent.gid
+            if self._log:
+                self._log.debug(
+                    "session_set_parent",
+                    task_gid=task.gid,
+                    parent_gid=parent_gid,
+                    insert_before=extra_params.get("insert_before"),
+                    insert_after=extra_params.get("insert_after"),
+                )
 
-        # Build extra_params (per ADR-0044)
-        extra_params: dict[str, Any] = {"parent": parent_gid}
-        if insert_before is not None:
-            extra_params["insert_before"] = (
-                insert_before if isinstance(insert_before, str) else insert_before.gid
-            )
-        if insert_after is not None:
-            extra_params["insert_after"] = (
-                insert_after if isinstance(insert_after, str) else insert_after.gid
-            )
-
-        action = ActionOperation(
-            task=task,
-            action=ActionType.SET_PARENT,
-            target=None,  # Per ADR-0045: Not used for SET_PARENT
-            extra_params=extra_params,
-        )
-        self._pending_actions.append(action)
-
-        if self._log:
-            self._log.debug(
-                "session_set_parent",
-                task_gid=task.gid,
-                parent_gid=parent_gid,
-                insert_before=extra_params.get("insert_before"),
-                insert_after=extra_params.get("insert_after"),
-            )
-
-        return self
+            return self
 
     def reorder_subtask(
         self,
@@ -1585,38 +1583,37 @@ class SaveSession:
             ValueError: If current_order and desired_order contain different elements.
             SessionClosedError: If session is closed.
         """
-        from autom8_asana.persistence.reorder import compute_reorder_plan
+        with self._require_open():
+            from autom8_asana.persistence.reorder import compute_reorder_plan
 
-        self._ensure_open()
+            plan = compute_reorder_plan(current_order, desired_order)
 
-        plan = compute_reorder_plan(current_order, desired_order)
+            if plan.moves_required > 0:
+                parent_gid = parent if isinstance(parent, str) else parent.gid
+                if self._log:
+                    self._log.info(
+                        "reorder_plan_computed",
+                        parent_gid=parent_gid,
+                        total_children=plan.total_children,
+                        lis_length=plan.lis_length,
+                        moves_required=plan.moves_required,
+                    )
 
-        if plan.moves_required > 0:
-            parent_gid = parent if isinstance(parent, str) else parent.gid
-            if self._log:
-                self._log.info(
-                    "reorder_plan_computed",
-                    parent_gid=parent_gid,
-                    total_children=plan.total_children,
-                    lis_length=plan.lis_length,
-                    moves_required=plan.moves_required,
-                )
+            for move in plan.moves:
+                if move.direction == "insert_after":
+                    self.set_parent(move.item, parent, insert_after=move.reference)
+                else:
+                    self.set_parent(move.item, parent, insert_before=move.reference)
 
-        for move in plan.moves:
-            if move.direction == "insert_after":
-                self.set_parent(move.item, parent, insert_after=move.reference)
-            else:
-                self.set_parent(move.item, parent, insert_before=move.reference)
+                if self._log:
+                    self._log.debug(
+                        "move_planned",
+                        item=move.item.gid,
+                        reference=move.reference.gid,
+                        direction=move.direction,
+                    )
 
-            if self._log:
-                self._log.debug(
-                    "move_planned",
-                    item=move.item.gid,
-                    reference=move.reference.gid,
-                    direction=move.direction,
-                )
-
-        return plan
+            return plan
 
     def get_pending_actions(self) -> list[ActionOperation]:
         """Get list of pending action operations.
@@ -1673,31 +1670,30 @@ class SaveSession:
 
             await session.commit_async()
         """
-        self._ensure_open()
+        with self._require_open():
+            from autom8_asana.persistence.cascade import CascadeOperation
 
-        from autom8_asana.persistence.cascade import CascadeOperation
-
-        op = CascadeOperation(
-            source_entity=entity,  # type: ignore[arg-type]  # caller must pass BusinessEntity
-            field_name=field_name,
-            target_types=target_types,
-        )
-
-        # TDD-TRIAGE-FIXES: Use pre-initialized list (not hasattr check)
-        self._cascade_operations.append(op)
-
-        if self._log:
-            self._log.debug(
-                "session_cascade_field",
-                entity_type=type(entity).__name__,
-                entity_gid=entity.gid,
+            op = CascadeOperation(
+                source_entity=entity,  # type: ignore[arg-type]  # caller must pass BusinessEntity
                 field_name=field_name,
-                target_types=[t.__name__ for t in target_types]
-                if target_types
-                else None,
+                target_types=target_types,
             )
 
-        return self
+            # TDD-TRIAGE-FIXES: Use pre-initialized list (not hasattr check)
+            self._cascade_operations.append(op)
+
+            if self._log:
+                self._log.debug(
+                    "session_cascade_field",
+                    entity_type=type(entity).__name__,
+                    entity_gid=entity.gid,
+                    field_name=field_name,
+                    target_types=[t.__name__ for t in target_types]
+                    if target_types
+                    else None,
+                )
+
+            return self
 
     def get_pending_cascades(self) -> list[Any]:
         """Get list of pending cascade operations.
@@ -1753,18 +1749,6 @@ class SaveSession:
             if self._state == SessionState.CLOSED:
                 raise SessionClosedError()
             yield
-
-    def _ensure_open(self) -> None:
-        """Ensure session is still open for operations.
-
-        Note: This method is NOT thread-safe by itself. Use _require_open()
-        context manager for thread-safe check-and-operate patterns.
-
-        Raises:
-            SessionClosedError: If session has been closed.
-        """
-        if self._state == SessionState.CLOSED:
-            raise SessionClosedError()
 
     def _reset_custom_field_tracking(self, entity: AsanaResource) -> None:
         """Reset custom field tracking state after successful commit.
