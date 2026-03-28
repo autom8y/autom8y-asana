@@ -79,6 +79,7 @@ dev = [
     "autom8y-config[testing]>=1.2.0",
     "autom8y-core[testing]>=1.1.1",
     "autom8y-auth[testing]>=1.1.0",
+    "openapi-spec-validator>=0.7.1",       # OpenAPI 3.2.0 spec validation in CI
 ]
 
 [project.scripts]
