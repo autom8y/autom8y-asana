@@ -17,7 +17,6 @@ from typing import Annotated, Any, Literal, Never, cast
 
 from autom8y_log import get_logger
 from fastapi import Depends, HTTPException
-from autom8_asana.api.routes._security import s2s_router
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
@@ -27,6 +26,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
@@ -186,7 +186,16 @@ def _raise_write_error(
 # ---------------------------------------------------------------------------
 
 
-@router.patch("/{entity_type}/{gid}")
+@router.patch(
+    "/{entity_type}/{gid}",
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "entity_task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
+)
 async def write_entity_fields(
     entity_type: str,
     gid: str,

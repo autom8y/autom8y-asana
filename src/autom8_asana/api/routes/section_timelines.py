@@ -19,7 +19,6 @@ from typing import Annotated
 
 from autom8y_log import get_logger
 from fastapi import Query
-from autom8_asana.api.routes._security import pat_router
 from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
@@ -29,6 +28,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
 from autom8_asana.api.error_responses import authenticated_responses
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.models import SuccessResponse, build_success_response
+from autom8_asana.api.routes._security import pat_router
 from autom8_asana.models.business.activity import AccountActivity
 from autom8_asana.models.business.section_timeline import OfferTimelineEntry
 from autom8_asana.services.section_timeline_service import (

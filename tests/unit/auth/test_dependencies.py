@@ -12,13 +12,13 @@ from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import HTTPException
 
 from autom8_asana.api.dependencies import (
     AuthContext,
     _extract_bearer_token,
     get_auth_context,
 )
+from autom8_asana.api.exceptions import ApiAuthError, ApiServiceUnavailableError
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.dual_mode import AuthMode
 from autom8_asana.auth.jwt_validator import reset_auth_client
@@ -54,43 +54,43 @@ class TestExtractBearerToken:
 
     @pytest.mark.asyncio
     async def test_missing_header_raises_401(self) -> None:
-        """Raises 401 when Authorization header is missing."""
+        """Raises ApiAuthError when Authorization header is missing."""
         # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ApiAuthError) as exc_info:
             await _extract_bearer_token(authorization=None)
 
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"] == "MISSING_AUTH"
+        assert exc_info.value.code == "MISSING_AUTH"
 
     @pytest.mark.asyncio
     async def test_wrong_scheme_raises_401(self) -> None:
-        """Raises 401 when scheme is not Bearer."""
+        """Raises ApiAuthError when scheme is not Bearer."""
         # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ApiAuthError) as exc_info:
             await _extract_bearer_token(authorization="Basic dXNlcjpwYXNz")
 
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"] == "INVALID_SCHEME"
+        assert exc_info.value.code == "INVALID_SCHEME"
 
     @pytest.mark.asyncio
     async def test_empty_token_raises_401(self) -> None:
-        """Raises 401 when token is empty."""
+        """Raises ApiAuthError when token is empty."""
         # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ApiAuthError) as exc_info:
             await _extract_bearer_token(authorization="Bearer ")
 
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"] == "MISSING_TOKEN"
+        assert exc_info.value.code == "MISSING_TOKEN"
 
     @pytest.mark.asyncio
     async def test_short_token_raises_401(self) -> None:
-        """Raises 401 when token is too short."""
+        """Raises ApiAuthError when token is too short."""
         # Act & Assert
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ApiAuthError) as exc_info:
             await _extract_bearer_token(authorization="Bearer short")
 
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"] == "INVALID_TOKEN"
+        assert exc_info.value.code == "INVALID_TOKEN"
 
 
 class TestAuthContext:
@@ -198,7 +198,7 @@ class TestGetAuthContextJWTMode:
     async def test_jwt_validation_failure_returns_401(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Invalid JWT returns 401 error."""
+        """Invalid JWT returns 401 ApiAuthError."""
         # Arrange
         mock_request = MagicMock()
         mock_request.state.request_id = "test-request-fail"
@@ -215,17 +215,17 @@ class TestGetAuthContextJWTMode:
             side_effect=error,
         ):
             # Act & Assert
-            with pytest.raises(HTTPException) as exc_info:
+            with pytest.raises(ApiAuthError) as exc_info:
                 await get_auth_context(request=mock_request, token=jwt_token)
 
             assert exc_info.value.status_code == 401
-            assert exc_info.value.detail["error"] == "TOKEN_EXPIRED"
+            assert exc_info.value.code == "TOKEN_EXPIRED"
 
     @pytest.mark.asyncio
     async def test_missing_bot_pat_returns_503(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Missing bot PAT returns 503 error."""
+        """Missing bot PAT returns 503 ApiServiceUnavailableError."""
         # Arrange
         mock_request = MagicMock()
         mock_request.state.request_id = "test-request-nobot"
@@ -244,11 +244,11 @@ class TestGetAuthContextJWTMode:
             return_value=mock_claims,
         ):
             # Act & Assert
-            with pytest.raises(HTTPException) as exc_info:
+            with pytest.raises(ApiServiceUnavailableError) as exc_info:
                 await get_auth_context(request=mock_request, token=jwt_token)
 
             assert exc_info.value.status_code == 503
-            assert exc_info.value.detail["error"] == "S2S_NOT_CONFIGURED"
+            assert exc_info.value.code == "S2S_NOT_CONFIGURED"
 
 
 class TestGetAuthContextCircuitOpen:
@@ -258,7 +258,7 @@ class TestGetAuthContextCircuitOpen:
     async def test_circuit_open_returns_503(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """CircuitOpenError maps to HTTP 503."""
+        """CircuitOpenError maps to ApiServiceUnavailableError (503)."""
         mock_request = MagicMock()
         mock_request.state.request_id = "test-circuit-open"
         jwt_token = "header.payload.signature"
@@ -270,17 +270,17 @@ class TestGetAuthContextCircuitOpen:
             new_callable=AsyncMock,
             side_effect=CircuitOpenError("Circuit breaker is open (failed 5 times)"),
         ):
-            with pytest.raises(HTTPException) as exc_info:
+            with pytest.raises(ApiServiceUnavailableError) as exc_info:
                 await get_auth_context(request=mock_request, token=jwt_token)
 
             assert exc_info.value.status_code == 503
-            assert exc_info.value.detail["error"] == "CIRCUIT_OPEN"
+            assert exc_info.value.code == "CIRCUIT_OPEN"
 
     @pytest.mark.asyncio
     async def test_jwks_fetch_error_returns_503(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """JWKSFetchError (transient) maps to HTTP 503."""
+        """JWKSFetchError (transient) maps to ApiServiceUnavailableError (503)."""
         mock_request = MagicMock()
         mock_request.state.request_id = "test-jwks-fetch-error"
         jwt_token = "header.payload.signature"
@@ -292,17 +292,17 @@ class TestGetAuthContextCircuitOpen:
             new_callable=AsyncMock,
             side_effect=JWKSFetchError("JWKS endpoint unreachable"),
         ):
-            with pytest.raises(HTTPException) as exc_info:
+            with pytest.raises(ApiServiceUnavailableError) as exc_info:
                 await get_auth_context(request=mock_request, token=jwt_token)
 
             assert exc_info.value.status_code == 503
-            assert exc_info.value.detail["error"] == "JWKS_FETCH_ERROR"
+            assert exc_info.value.code == "JWKS_FETCH_ERROR"
 
     @pytest.mark.asyncio
     async def test_permanent_error_returns_401(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """PermanentAuthError subclasses map to HTTP 401."""
+        """PermanentAuthError subclasses map to ApiAuthError (401)."""
         mock_request = MagicMock()
         mock_request.state.request_id = "test-permanent-error"
         jwt_token = "header.payload.signature"
@@ -314,11 +314,11 @@ class TestGetAuthContextCircuitOpen:
             new_callable=AsyncMock,
             side_effect=InvalidSignatureError("Signature verification failed"),
         ):
-            with pytest.raises(HTTPException) as exc_info:
+            with pytest.raises(ApiAuthError) as exc_info:
                 await get_auth_context(request=mock_request, token=jwt_token)
 
             assert exc_info.value.status_code == 401
-            assert exc_info.value.detail["error"] == "INVALID_SIGNATURE"
+            assert exc_info.value.code == "INVALID_SIGNATURE"
 
 
 class TestBotPatNeverLogged:
@@ -350,11 +350,12 @@ class TestBotPatNeverLogged:
             # Act
             try:
                 await get_auth_context(request=mock_request, token=jwt_token)
-            except HTTPException as e:
-                error_detail = str(e.detail)
+            except ApiServiceUnavailableError as e:
+                error_code = e.code
+                error_message = e.message
 
         # Assert - error message should not contain PAT format
-        assert "0/" not in error_detail
-        assert "1/" not in error_detail
+        assert "0/" not in error_message
+        assert "1/" not in error_message
         # But should contain helpful error info
-        assert "S2S_NOT_CONFIGURED" in error_detail
+        assert error_code == "S2S_NOT_CONFIGURED"

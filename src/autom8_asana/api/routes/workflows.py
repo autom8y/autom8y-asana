@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 from fastapi import Request
-from autom8_asana.api.routes._security import pat_router
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
@@ -23,6 +22,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
 )
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.rate_limit import limiter
+from autom8_asana.api.routes._security import pat_router
 from autom8_asana.core.scope import EntityScope
 
 if TYPE_CHECKING:

@@ -17,7 +17,6 @@ from typing import Annotated
 
 from autom8y_log import get_logger
 from fastapi import Depends
-from autom8_asana.api.routes._security import s2s_router
 
 from autom8_asana import AsanaClient
 from autom8_asana.api.dependencies import (  # noqa: TC001 -- FastAPI resolves these at runtime
@@ -25,6 +24,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 -- FastAPI resolves t
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.intake_custom_fields_models import (
     CustomFieldWriteRequest,
     CustomFieldWriteResponse,
@@ -45,7 +45,17 @@ router = s2s_router(
 )
 
 
-@router.post("/{task_gid}/custom-fields", response_model=CustomFieldWriteResponse)
+@router.post(
+    "/{task_gid}/custom-fields",
+    response_model=CustomFieldWriteResponse,
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task_custom_fields"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
+)
 async def write_custom_fields(
     task_gid: str,
     body: CustomFieldWriteRequest,

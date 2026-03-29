@@ -19,9 +19,6 @@ Per PRD-ASANA-SATELLITE Appendix A:
 - Error response: {"error": {"code": ..., "message": ...}, "meta": {...}}
 """
 
-from typing import Any
-
-from pydantic import BaseModel, ConfigDict, Field
 
 # Fleet-standard envelope types from shared package.
 # Re-exported at this path for backward compatibility -- existing code
@@ -35,6 +32,7 @@ from autom8y_api_schemas import (
     build_error_response,
     build_success_response,
 )
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AsanaResource(BaseModel):

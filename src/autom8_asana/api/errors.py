@@ -46,6 +46,12 @@ from autom8_asana.exceptions import (
 )
 from autom8_asana.persistence.exceptions import GidValidationError
 
+from .exceptions import (
+    ApiAuthError,
+    ApiDataFrameBuildError,
+    ApiError,
+    ApiServiceUnavailableError,
+)
 from .models import ErrorDetail, ErrorResponse, ResponseMeta
 
 if TYPE_CHECKING:
@@ -463,6 +469,152 @@ async def generic_error_handler(
     )
 
 
+# ---------------------------------------------------------------------------
+# API-layer exception handlers (Domain III: Absolute Enforcement Mandate)
+# ---------------------------------------------------------------------------
+
+
+async def api_auth_error_handler(
+    request: Request,
+    exc: ApiAuthError,
+) -> JSONResponse:
+    """Handle ApiAuthError -> 401 with WWW-Authenticate header.
+
+    Replaces bare HTTPException(401) sites in auth dependencies.
+    Produces canonical ErrorResponse with request_id correlation.
+
+    Args:
+        request: FastAPI request object.
+        exc: ApiAuthError from auth dependency.
+
+    Returns:
+        401 JSONResponse with canonical error envelope and
+        WWW-Authenticate header (per RFC 7235).
+    """
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.info(
+        "api_auth_error",
+        extra={
+            "request_id": request_id,
+            "error_code": exc.code,
+        },
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=_build_error_response(
+            request,
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+        ),
+        headers=exc.headers,
+    )
+
+
+async def api_service_unavailable_handler(
+    request: Request,
+    exc: ApiServiceUnavailableError,
+) -> JSONResponse:
+    """Handle ApiServiceUnavailableError -> 503.
+
+    Replaces bare HTTPException(503) sites in auth and infrastructure code.
+
+    Args:
+        request: FastAPI request object.
+        exc: ApiServiceUnavailableError from infrastructure layer.
+
+    Returns:
+        503 JSONResponse with canonical error envelope.
+    """
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.warning(
+        "api_service_unavailable",
+        extra={
+            "request_id": request_id,
+            "error_code": exc.code,
+        },
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=_build_error_response(
+            request,
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+        ),
+    )
+
+
+async def api_dataframe_build_error_handler(
+    request: Request,
+    exc: ApiDataFrameBuildError,
+) -> JSONResponse:
+    """Handle ApiDataFrameBuildError -> 503.
+
+    Replaces bare HTTPException(503) sites in the dataframe_cache decorator.
+
+    Args:
+        request: FastAPI request object.
+        exc: ApiDataFrameBuildError from cache infrastructure.
+
+    Returns:
+        503 JSONResponse with canonical error envelope and retry guidance.
+    """
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.warning(
+        "api_dataframe_build_error",
+        extra={
+            "request_id": request_id,
+            "error_code": exc.code,
+        },
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=_build_error_response(
+            request,
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+        ),
+    )
+
+
+async def api_error_handler(
+    request: Request,
+    exc: ApiError,
+) -> JSONResponse:
+    """Handle generic ApiError (catch-all for API-layer exceptions).
+
+    Catches any ApiError subclass not handled by specific handlers above.
+
+    Args:
+        request: FastAPI request object.
+        exc: ApiError from API layer.
+
+    Returns:
+        JSONResponse with appropriate status code and canonical error envelope.
+    """
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.warning(
+        "api_error",
+        extra={
+            "request_id": request_id,
+            "error_code": exc.code,
+            "status_code": exc.status_code,
+        },
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=_build_error_response(
+            request,
+            code=exc.code,
+            message=exc.message,
+            details=exc.details,
+        ),
+        headers=exc.headers,
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all exception handlers with the FastAPI app.
 
@@ -487,6 +639,12 @@ def register_exception_handlers(app: FastAPI) -> None:
     # Generic AsanaError (catches unhandled SDK errors)
     app.exception_handler(AsanaError)(asana_error_handler)
 
+    # API-layer errors (Domain III: typed exceptions replace bare HTTPException)
+    app.exception_handler(ApiAuthError)(api_auth_error_handler)
+    app.exception_handler(ApiServiceUnavailableError)(api_service_unavailable_handler)
+    app.exception_handler(ApiDataFrameBuildError)(api_dataframe_build_error_handler)
+    app.exception_handler(ApiError)(api_error_handler)
+
     # Catch-all must be last
     app.exception_handler(Exception)(generic_error_handler)
 
@@ -506,4 +664,9 @@ __all__ = [
     "server_error_handler",
     "timeout_error_handler",
     "validation_error_handler",
+    # API-layer handlers (Domain III)
+    "api_auth_error_handler",
+    "api_service_unavailable_handler",
+    "api_dataframe_build_error_handler",
+    "api_error_handler",
 ]

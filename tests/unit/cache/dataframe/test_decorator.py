@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import polars as pl
 import pytest
-from fastapi import HTTPException
 
+from autom8_asana.api.exceptions import ApiDataFrameBuildError
 from autom8_asana.cache.dataframe.decorator import dataframe_cache
 from autom8_asana.cache.dataframe.factory import reset_dataframe_cache
 from autom8_asana.cache.integration.dataframe_cache import (
@@ -162,11 +162,11 @@ class TestDataframeCacheDecorator:
 
         strategy = TestStrategy()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ApiDataFrameBuildError) as exc_info:
             await strategy.resolve([], "proj-1", None)
 
         assert exc_info.value.status_code == 503
-        assert exc_info.value.detail["error"] == "CACHE_BUILD_IN_PROGRESS"
+        assert exc_info.value.code == "CACHE_BUILD_IN_PROGRESS"
 
     @pytest.mark.asyncio
     async def test_build_failure_returns_503(self) -> None:
@@ -190,11 +190,11 @@ class TestDataframeCacheDecorator:
 
         strategy = TestStrategy()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ApiDataFrameBuildError) as exc_info:
             await strategy.resolve([], "proj-1", None)
 
         assert exc_info.value.status_code == 503
-        assert exc_info.value.detail["error"] == "DATAFRAME_BUILD_FAILED"
+        assert exc_info.value.code == "DATAFRAME_BUILD_FAILED"
         mock_cache.release_build_lock_async.assert_called_once_with(
             "proj-1", "unit", success=False
         )
@@ -221,11 +221,11 @@ class TestDataframeCacheDecorator:
 
         strategy = TestStrategy()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ApiDataFrameBuildError) as exc_info:
             await strategy.resolve([], "proj-1", None)
 
         assert exc_info.value.status_code == 503
-        assert "DATAFRAME_BUILD_ERROR" in exc_info.value.detail["error"]
+        assert "DATAFRAME_BUILD_ERROR" in exc_info.value.code
 
     @pytest.mark.asyncio
     async def test_bypass_env_var(self, monkeypatch) -> None:

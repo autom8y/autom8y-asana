@@ -58,30 +58,36 @@ class ResolutionCriterion(BaseModel):
     phone: E164PhoneField | None = Field(
         default=None,
         description="E.164 formatted phone number for unit/business resolution.",
+        examples=["+19259998806"],
     )
     vertical: str | None = Field(
         default=None,
         description="Business vertical to narrow resolution scope.",
+        examples=["chiro"],
     )
 
     # Offer resolution (Phase 2)
     offer_id: str | None = Field(
         default=None,
         description="Offer identifier for offer entity resolution.",
+        examples=["OFF-0042"],
     )
     offer_name: str | None = Field(
         default=None,
         description="Offer name used with phone/vertical as a discriminator.",
+        examples=["Free Consultation"],
     )
 
     # Contact resolution (Phase 2)
     contact_email: str | None = Field(
         default=None,
         description="Contact email address for contact resolution.",
+        examples=["jane@acmechiro.com"],
     )
     contact_phone: E164PhoneField | None = Field(
         default=None,
         description="Contact phone number for contact resolution.",
+        examples=["+14155551234"],
     )
 
     @field_validator("phone", "contact_phone", mode="before")
@@ -119,6 +125,7 @@ class ResolutionRequest(BaseModel):
     fields: list[str] | None = Field(
         default=None,
         description="Optional field names to return in enriched result data.",
+        examples=[["mrr", "weekly_ad_spend"]],
     )
 
     # Per TDD-STATUS-AWARE-RESOLUTION / FR-1, SD-1:
@@ -126,6 +133,7 @@ class ResolutionRequest(BaseModel):
     active_only: bool = Field(
         default=True,
         description="Filter results to active statuses only. True by default (FR-1).",
+        examples=[True],
     )
 
     @field_validator("criteria")
@@ -178,18 +186,22 @@ class ResolutionResultModel(BaseModel):
 
     gid: str | None = Field(
         description="First matching Asana GID, or null if not found. Backwards compatible.",
+        examples=["1234567890123456"],
     )
     gids: list[str] | None = Field(
         default=None,
         description="All matching Asana GIDs for multi-match resolution.",
+        examples=[["1234567890123456"]],
     )
     match_count: int = Field(
         default=0,
         description="Number of matches after active_only filtering.",
+        examples=[1],
     )
     error: str | None = Field(
         default=None,
         description="Error code if resolution failed for this criterion.",
+        examples=[None],
     )
     data: list[dict[str, Any]] | None = Field(
         default=None,
@@ -201,6 +213,7 @@ class ResolutionResultModel(BaseModel):
     status: list[str | None] | None = Field(
         default=None,
         description="Activity status per match (parallel to gids). Null when no classifier available.",
+        examples=[["active"]],
     )
 
     # Per TDD-STATUS-AWARE-RESOLUTION / FR-11:
@@ -208,6 +221,7 @@ class ResolutionResultModel(BaseModel):
     total_match_count: int | None = Field(
         default=None,
         description="Pre-filter total match count for diagnostic visibility.",
+        examples=[1],
     )
 
 
@@ -228,13 +242,15 @@ class ResolutionMeta(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     resolved_count: int = Field(
-        description="Number of criteria that resolved to at least one match."
+        description="Number of criteria that resolved to at least one match.",
+        examples=[8],
     )
     unresolved_count: int = Field(
-        description="Number of criteria that found no matches."
+        description="Number of criteria that found no matches.",
+        examples=[2],
     )
-    entity_type: str = Field(description="Entity type that was resolved.")
-    project_gid: str = Field(description="Asana project GID used for resolution.")
+    entity_type: str = Field(description="Entity type that was resolved.", examples=["unit"])
+    project_gid: str = Field(description="Asana project GID used for resolution.", examples=["1111111111111111"])
     available_fields: list[str] = Field(
         default_factory=list, description="Valid field names for this entity type."
     )

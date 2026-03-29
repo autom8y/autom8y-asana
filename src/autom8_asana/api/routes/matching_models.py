@@ -38,24 +38,29 @@ class MatchingQueryRequest(BaseModel):
     name: str | None = Field(
         default=None,
         description="Business name for fuzzy matching.",
+        examples=["Acme Chiropractic"],
     )
     phone: str | None = Field(
         default=None,
         description="Business phone number (any format, normalized internally).",
+        examples=["+19259998806"],
     )
     email: str | None = Field(
         default=None,
         description="Business email address.",
+        examples=["contact@acmechiro.com"],
     )
     domain: str | None = Field(
         default=None,
         description="Website domain (e.g., 'acme.com').",
+        examples=["acmechiro.com"],
     )
     limit: int = Field(
         default=10,
         ge=1,
         le=100,
         description="Maximum number of match candidates to return.",
+        examples=[10],
     )
     threshold: float | None = Field(
         default=None,
@@ -65,6 +70,7 @@ class MatchingQueryRequest(BaseModel):
             "Minimum score to include in results. "
             "If omitted, uses the engine's configured match_threshold."
         ),
+        examples=[0.7],
     )
 
 
@@ -85,13 +91,16 @@ class MatchFieldComparison(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     field_name: str = Field(
-        description="Name of the compared field (e.g., 'email', 'name')."
+        description="Name of the compared field (e.g., 'email', 'name').",
+        examples=["name"],
     )
     similarity: float | None = Field(
-        description="Similarity score (0.0-1.0) for fuzzy fields; null for exact fields or missing data."
+        description="Similarity score (0.0-1.0) for fuzzy fields; null for exact fields or missing data.",
+        examples=[0.92],
     )
     contributed: bool = Field(
-        description="True if this field contributed to the match score."
+        description="True if this field contributed to the match score.",
+        examples=[True],
     )
 
 
@@ -107,9 +116,9 @@ class MatchCandidate(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    candidate_gid: str = Field(description="Asana GID of the matched business entity.")
-    score: float = Field(description="Normalized match probability (0.0-1.0).")
-    is_match: bool = Field(description="True if score exceeds the match threshold.")
+    candidate_gid: str = Field(description="Asana GID of the matched business entity.", examples=["1234567890123456"])
+    score: float = Field(description="Normalized match probability (0.0-1.0).", examples=[0.87])
+    is_match: bool = Field(description="True if score exceeds the match threshold.", examples=[True])
     field_comparisons: list[MatchFieldComparison] = Field(
         description="Per-field comparison results."
     )
@@ -130,10 +139,12 @@ class MatchingQueryResponse(BaseModel):
         description="Scored match candidates, ordered by score descending."
     )
     total_candidates_evaluated: int = Field(
-        description="Total candidates evaluated (before score filtering)."
+        description="Total candidates evaluated (before score filtering).",
+        examples=[150],
     )
     query_threshold: float = Field(
-        description="Effective threshold used for is_match decisions."
+        description="Effective threshold used for is_match decisions.",
+        examples=[0.7],
     )
 
 

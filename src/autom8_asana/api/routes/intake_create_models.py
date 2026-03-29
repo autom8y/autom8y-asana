@@ -28,23 +28,24 @@ class IntakeAddress(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     street_number: str | None = Field(
-        default=None, description="Street number portion of the address."
+        default=None, description="Street number portion of the address.", examples=["123"]
     )
     street_name: str | None = Field(
-        default=None, description="Street name portion of the address."
+        default=None, description="Street name portion of the address.", examples=["Main St"]
     )
     suite: str | None = Field(
-        default=None, description="Suite, unit, or apartment number."
+        default=None, description="Suite, unit, or apartment number.", examples=["Suite 200"]
     )
-    city: str | None = Field(default=None, description="City name.")
-    state: str | None = Field(default=None, description="State or province code.")
+    city: str | None = Field(default=None, description="City name.", examples=["Walnut Creek"])
+    state: str | None = Field(default=None, description="State or province code.", examples=["CA"])
     postal_code: str | None = Field(
         default=None,
         description="Postal or ZIP code. Canonical field name (never 'zip').",
+        examples=["94596"],
     )
-    country: str | None = Field(default=None, description="Country name or ISO code.")
+    country: str | None = Field(default=None, description="Country name or ISO code.", examples=["US"])
     timezone: str | None = Field(
-        default=None, description="IANA timezone identifier (e.g., 'America/New_York')."
+        default=None, description="IANA timezone identifier (e.g., 'America/New_York').", examples=["America/Los_Angeles"]
     )
 
 
@@ -54,9 +55,10 @@ class IntakeSocialProfile(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     platform: str = Field(
-        description="Social media platform name (facebook, instagram, youtube, linkedin)."
+        description="Social media platform name (facebook, instagram, youtube, linkedin).",
+        examples=["facebook"],
     )
-    url: str = Field(description="Full URL to the social media profile.")
+    url: str = Field(description="Full URL to the social media profile.", examples=["https://www.facebook.com/acme.chiro"])
 
 
 class IntakeContact(BaseModel):
@@ -64,11 +66,11 @@ class IntakeContact(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    name: str = Field(description="Full name of the primary contact.")
-    email: str | None = Field(default=None, description="Email address of the contact.")
-    phone: str | None = Field(default=None, description="Phone number in E.164 format.")
+    name: str = Field(description="Full name of the primary contact.", examples=["Dr. Jane Smith"])
+    email: str | None = Field(default=None, description="Email address of the contact.", examples=["jane@acmechiro.com"])
+    phone: str | None = Field(default=None, description="Phone number in E.164 format.", examples=["+19259998806"])
     timezone: str | None = Field(
-        default=None, description="IANA timezone identifier for the contact."
+        default=None, description="IANA timezone identifier for the contact.", examples=["America/Los_Angeles"]
     )
 
 
@@ -78,13 +80,14 @@ class IntakeProcessConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     process_type: str = Field(
-        description="Process type to route to (sales, consultation, retention, implementation)."
+        description="Process type to route to (sales, consultation, retention, implementation).",
+        examples=["consultation"],
     )
     due_at: str | None = Field(
-        default=None, description="Due datetime in ISO 8601 format."
+        default=None, description="Due datetime in ISO 8601 format.", examples=["2026-03-20T10:00:00Z"]
     )
     assignee_name: str | None = Field(
-        default=None, description="Host name for assignee fuzzy matching."
+        default=None, description="Host name for assignee fuzzy matching.", examples=["Alice Johnson"]
     )
 
 
@@ -102,16 +105,16 @@ class IntakeBusinessCreateRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     # Business identity
-    name: str = Field(description="Business display name.")
+    name: str = Field(description="Business display name.", examples=["Acme Chiropractic"])
     office_phone: str = Field(
-        description="Primary office phone number in E.164 format."
+        description="Primary office phone number in E.164 format.", examples=["+19259998806"]
     )
 
     # Enrichment data
     num_reviews: int | None = Field(
-        default=None, description="Number of online reviews for the business."
+        default=None, description="Number of online reviews for the business.", examples=[47]
     )
-    website: str | None = Field(default=None, description="Business website URL.")
+    website: str | None = Field(default=None, description="Business website URL.", examples=["https://acmechiro.com"])
     hours: dict[str, Any] | None = Field(
         default=None, description="Business operating hours by day of week."
     )
@@ -134,11 +137,12 @@ class IntakeBusinessCreateRequest(BaseModel):
 
     # Unit configuration
     vertical: str = Field(
-        description="Business vertical category (e.g., 'dental', 'medical')."
+        description="Business vertical category (e.g., 'dental', 'medical').", examples=["chiro"]
     )
     unit_name: str | None = Field(
         default=None,
         description="Unit display name. Defaults to '{name} -- {vertical_title}'.",
+        examples=["Acme Chiropractic -- Chiropractic"],
     )
 
     # Process routing (optional -- created if provided)
@@ -157,16 +161,17 @@ class IntakeBusinessCreateResponse(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    business_gid: str = Field(description="Asana GID of the created business task.")
-    contact_gid: str = Field(description="Asana GID of the created contact subtask.")
-    unit_gid: str = Field(description="Asana GID of the created unit subtask.")
+    business_gid: str = Field(description="Asana GID of the created business task.", examples=["1234567890123456"])
+    contact_gid: str = Field(description="Asana GID of the created contact subtask.", examples=["1234567890123457"])
+    unit_gid: str = Field(description="Asana GID of the created unit subtask.", examples=["1234567890123458"])
     contact_holder_gid: str = Field(
-        description="Asana GID of the contact holder subtask."
+        description="Asana GID of the contact holder subtask.", examples=["1234567890123459"]
     )
-    unit_holder_gid: str = Field(description="Asana GID of the unit holder subtask.")
+    unit_holder_gid: str = Field(description="Asana GID of the unit holder subtask.", examples=["1234567890123460"])
     process_gid: str | None = Field(
         default=None,
         description="Asana GID of the created process subtask. Null if process was not requested.",
+        examples=["1234567890123461"],
     )
 
     # Holder GIDs (all 7 holders created)
@@ -188,19 +193,21 @@ class IntakeRouteRequest(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    unit_gid: str = Field(description="Asana GID of the unit to route from.")
+    unit_gid: str = Field(description="Asana GID of the unit to route from.", examples=["1234567890123458"])
     process_type: str = Field(
-        description="Process type to route to (sales, consultation, retention, implementation)."
+        description="Process type to route to (sales, consultation, retention, implementation).",
+        examples=["consultation"],
     )
     due_at: str | None = Field(
-        default=None, description="Due datetime in ISO 8601 format."
+        default=None, description="Due datetime in ISO 8601 format.", examples=["2026-03-20T10:00:00Z"]
     )
     assignee_name: str | None = Field(
-        default=None, description="Host name for assignee fuzzy matching."
+        default=None, description="Host name for assignee fuzzy matching.", examples=["Alice Johnson"]
     )
     triggered_by: str = Field(
         default="automation",
         description="Actor that triggered this route (e.g., 'automation', 'manual').",
+        examples=["automation"],
     )
 
 
@@ -209,13 +216,14 @@ class IntakeRouteResponse(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    process_gid: str = Field(description="Asana GID of the routed process subtask.")
-    process_type: str = Field(description="Process type that was routed to.")
+    process_gid: str = Field(description="Asana GID of the routed process subtask.", examples=["1234567890123461"])
+    process_type: str = Field(description="Process type that was routed to.", examples=["consultation"])
     is_new: bool = Field(
-        description="True if a new process was created, false if an existing process was reused."
+        description="True if a new process was created, false if an existing process was reused.",
+        examples=[True],
     )
     assignee_name: str | None = Field(
-        default=None, description="Resolved assignee name after fuzzy matching."
+        default=None, description="Resolved assignee name after fuzzy matching.", examples=["Alice Johnson"]
     )
 
 

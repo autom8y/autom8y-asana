@@ -15,10 +15,10 @@ import uuid
 
 from autom8y_log import get_logger
 from fastapi import BackgroundTasks, Depends, Request
-from autom8_asana.api.routes._security import s2s_router
 from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.core.entity_types import ENTITY_TYPES
 

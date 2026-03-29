@@ -39,7 +39,6 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import Header, Query
 from fastapi.responses import JSONResponse, Response
-from autom8_asana.api.routes._security import pat_router
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
     AsanaClientDualMode,
@@ -52,6 +51,7 @@ from autom8_asana.api.models import (
     ResponseMeta,
     build_success_response,
 )
+from autom8_asana.api.routes._security import pat_router
 from autom8_asana.services.dataframe_service import InvalidSchemaError
 from autom8_asana.services.errors import EntityNotFoundError
 

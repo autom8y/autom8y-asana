@@ -17,7 +17,6 @@ Per TDD-ASANA-SATELLITE:
 """
 
 from fastapi import status
-from autom8_asana.api.routes._security import pat_router
 
 from autom8_asana.api.dependencies import (
     AsanaClientDualMode,
@@ -38,6 +37,7 @@ from autom8_asana.api.models import (
     UpdateSectionRequest,
     build_success_response,
 )
+from autom8_asana.api.routes._security import pat_router
 from autom8_asana.services.errors import ServiceError
 
 router = pat_router(prefix="/api/v1/sections", tags=["sections"])

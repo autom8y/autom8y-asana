@@ -31,9 +31,10 @@ from autom8y_auth import (
     TransientAuthError,
 )
 from autom8y_log import get_logger
-from fastapi import Depends, Header, HTTPException, Request
+from fastapi import Depends, Header, Request
 
 from autom8_asana import AsanaClient
+from autom8_asana.api.exceptions import ApiAuthError, ApiServiceUnavailableError
 from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
 from autom8_asana.auth.dual_mode import AuthMode, detect_token_type
 from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator
@@ -85,40 +86,21 @@ async def _extract_bearer_token(
         Extracted token string.
 
     Raises:
-        HTTPException: 401 if header missing, wrong scheme, or invalid format.
+        ApiAuthError: 401 if header missing, wrong scheme, or invalid format.
     """
     if authorization is None:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "MISSING_AUTH",
-                "message": "Authorization header required",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise ApiAuthError("MISSING_AUTH", "Authorization header required")
 
     if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "INVALID_SCHEME", "message": "Bearer scheme required"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise ApiAuthError("INVALID_SCHEME", "Bearer scheme required")
 
     token = authorization[7:]  # Remove "Bearer " prefix
 
     if not token:
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "MISSING_TOKEN", "message": "Token is required"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise ApiAuthError("MISSING_TOKEN", "Token is required")
 
     if len(token) < 10:
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "INVALID_TOKEN", "message": "Invalid token format"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise ApiAuthError("INVALID_TOKEN", "Invalid token format")
 
     return token
 
@@ -148,7 +130,8 @@ async def get_auth_context(
         AuthContext with mode, asana_pat, and optional caller info
 
     Raises:
-        HTTPException: 401 for invalid JWT, 503 for bot PAT misconfiguration
+        ApiAuthError: 401 for invalid JWT.
+        ApiServiceUnavailableError: 503 for bot PAT misconfiguration.
     """
     request_id = getattr(request.state, "request_id", "unknown")
     auth_mode = detect_token_type(token)
@@ -178,12 +161,9 @@ async def get_auth_context(
                 "error": str(e),
             },
         )
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "S2S_NOT_CONFIGURED",
-                "message": "Service-to-service authentication is not available",
-            },
+        raise ApiServiceUnavailableError(
+            "S2S_NOT_CONFIGURED",
+            "Service-to-service authentication is not available",
         )
     except CircuitOpenError as e:
         logger.warning(
@@ -194,12 +174,9 @@ async def get_auth_context(
                 "error_message": str(e),
             },
         )
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": e.code,
-                "message": "Authentication service temporarily unavailable",
-            },
+        raise ApiServiceUnavailableError(
+            e.code,
+            "Authentication service temporarily unavailable",
         )
     except TransientAuthError as e:
         logger.warning(
@@ -210,12 +187,9 @@ async def get_auth_context(
                 "error_message": str(e),
             },
         )
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": e.code,
-                "message": "Authentication service temporarily unavailable",
-            },
+        raise ApiServiceUnavailableError(
+            e.code,
+            "Authentication service temporarily unavailable",
         )
     except PermanentAuthError as e:
         logger.warning(
@@ -226,13 +200,7 @@ async def get_auth_context(
                 "error_message": str(e),
             },
         )
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": e.code,
-                "message": "JWT validation failed",
-            },
-        )
+        raise ApiAuthError(e.code, "JWT validation failed")
     except AuthError as e:
         logger.warning(
             "s2s_jwt_validation_failed",
@@ -242,13 +210,7 @@ async def get_auth_context(
                 "error_message": str(e),
             },
         )
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": e.code,
-                "message": "JWT validation failed",
-            },
-        )
+        raise ApiAuthError(e.code, "JWT validation failed")
 
     try:
         bot_pat = get_bot_pat()
@@ -260,12 +222,9 @@ async def get_auth_context(
                 "error": str(e),
             },
         )
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "S2S_NOT_CONFIGURED",
-                "message": "Service-to-service authentication is not available",
-            },
+        raise ApiServiceUnavailableError(
+            "S2S_NOT_CONFIGURED",
+            "Service-to-service authentication is not available",
         )
 
     logger.info(

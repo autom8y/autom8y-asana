@@ -11,7 +11,6 @@ from functools import wraps
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from autom8y_log import get_logger
-from fastapi import HTTPException
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -129,7 +128,7 @@ def dataframe_cache(
             """Wait for another request's in-progress build to complete.
 
             Returns resolved result if build succeeds within timeout.
-            Raises HTTPException(503) on timeout.
+            Raises ApiDataFrameBuildError(503) on timeout.
             """
             entry = await cache.wait_for_build_async(
                 project_gid,
@@ -151,13 +150,14 @@ def dataframe_cache(
                     "entity_type": entity_type,
                 },
             )
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "error": "CACHE_BUILD_IN_PROGRESS",
-                    "message": "DataFrame build in progress, retry shortly",
-                    "retry_after_seconds": 5,
-                },
+            from autom8_asana.api.exceptions import (
+                ApiDataFrameBuildError,  # noqa: E501 -- lazy import avoids circular dependency
+            )
+
+            raise ApiDataFrameBuildError(
+                "CACHE_BUILD_IN_PROGRESS",
+                "DataFrame build in progress, retry shortly",
+                retry_after_seconds=5,
             )
 
         async def _execute_build_and_cache(
@@ -170,7 +170,7 @@ def dataframe_cache(
             """Build DataFrame, cache it, and resolve.
 
             Handles lock release on both success and failure paths.
-            Raises HTTPException(503) if build method is missing, returns None,
+            Raises ApiDataFrameBuildError(503) if build method is missing, returns None,
             or raises an unexpected error.
             """
             try:
@@ -189,12 +189,13 @@ def dataframe_cache(
                     await cache.release_build_lock_async(
                         project_gid, entity_type, success=False
                     )
-                    raise HTTPException(
-                        status_code=503,
-                        detail={
-                            "error": "DATAFRAME_BUILD_UNAVAILABLE",
-                            "message": "No build method configured",
-                        },
+                    from autom8_asana.api.exceptions import (
+                        ApiDataFrameBuildError,  # noqa: E501 -- lazy import avoids circular dependency
+                    )
+
+                    raise ApiDataFrameBuildError(
+                        "DATAFRAME_BUILD_UNAVAILABLE",
+                        "No build method configured",
                     )
 
                 build_result = await build_func(project_gid, client)
@@ -210,13 +211,14 @@ def dataframe_cache(
                     await cache.release_build_lock_async(
                         project_gid, entity_type, success=False
                     )
-                    raise HTTPException(
-                        status_code=503,
-                        detail={
-                            "error": "DATAFRAME_BUILD_FAILED",
-                            "message": "Failed to build DataFrame",
-                            "retry_after_seconds": 30,
-                        },
+                    from autom8_asana.api.exceptions import (
+                        ApiDataFrameBuildError,  # noqa: E501 -- lazy import avoids circular dependency
+                    )
+
+                    raise ApiDataFrameBuildError(
+                        "DATAFRAME_BUILD_FAILED",
+                        "Failed to build DataFrame",
+                        retry_after_seconds=30,
                     )
 
                 await cache.put_async(project_gid, entity_type, df, watermark)
@@ -231,10 +233,14 @@ def dataframe_cache(
                 )
                 return result
 
-            except HTTPException:
-                raise
+            except Exception as e:  # BROAD-CATCH: boundary -- catch-all converts to typed exception at API boundary
+                from autom8_asana.api.exceptions import (
+                    ApiDataFrameBuildError,  # noqa: E501 -- lazy import avoids circular dependency
+                )
 
-            except Exception as e:  # BROAD-CATCH: boundary -- catch-all converts to HTTPException at API boundary
+                if isinstance(e, ApiDataFrameBuildError):
+                    raise
+
                 await cache.release_build_lock_async(
                     project_gid, entity_type, success=False
                 )
@@ -248,13 +254,10 @@ def dataframe_cache(
                         "error_type": type(e).__name__,
                     },
                 )
-                raise HTTPException(
-                    status_code=503,
-                    detail={
-                        "error": "DATAFRAME_BUILD_ERROR",
-                        "message": f"Build failed: {type(e).__name__}",
-                        "retry_after_seconds": 30,
-                    },
+                raise ApiDataFrameBuildError(
+                    "DATAFRAME_BUILD_ERROR",
+                    f"Build failed: {type(e).__name__}",
+                    retry_after_seconds=30,
                 )
 
         @wraps(original_resolve)

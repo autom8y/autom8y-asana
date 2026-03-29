@@ -14,9 +14,8 @@ by the existing auth dependencies (get_current_user, verify_service_jwt).
 
 from __future__ import annotations
 
-from fastapi.security import HTTPBearer
-
 from autom8y_api_schemas import SecureRouter
+from fastapi.security import HTTPBearer
 
 # PAT Bearer auth for standard resource endpoints (/api/v1/*)
 PAT_BEARER_SCHEME = HTTPBearer(

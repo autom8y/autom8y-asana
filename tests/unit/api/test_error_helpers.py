@@ -482,36 +482,36 @@ class TestFormatConsistencyAcrossRoutes:
 # ===========================================================================
 
 
-class TestKeepSitesUnchanged:
-    """Verify internal.py and webhooks.py auth raises are NOT migrated.
+class TestTypedExceptionSites:
+    """Verify internal.py and dependencies.py use typed exceptions.
 
-    Per TDD Section 3.5 and 3.14: KEEP sites should use raw HTTPException
-    without request_id (auth dependency pattern).
+    Per Domain III (Absolute Enforcement Mandate): All bare HTTPException
+    sites have been converted to typed API-layer exceptions.
     """
 
-    def test_internal_auth_raises_are_raw_http_exception(self) -> None:
-        """internal.py auth dependency raises should not have request_id in detail."""
+    def test_internal_auth_uses_typed_exceptions(self) -> None:
+        """internal.py auth dependency uses ApiAuthError typed exceptions."""
         import inspect
 
         from autom8_asana.api.routes import internal
 
         source = inspect.getsource(internal._extract_bearer_token)
-        # Should still use raise HTTPException directly
-        assert "raise HTTPException" in source
-        # Should NOT use raise_api_error
-        assert "raise_api_error" not in source
+        # Should use typed ApiAuthError
+        assert "ApiAuthError" in source
+        # Should NOT use raw raise HTTPException
+        assert "raise HTTPException" not in source
 
-    def test_internal_require_service_claims_is_raw(self) -> None:
-        """require_service_claims uses raw HTTPException."""
+    def test_internal_require_service_claims_uses_typed_exceptions(self) -> None:
+        """require_service_claims uses typed exceptions."""
         import inspect
 
         from autom8_asana.api.routes import internal
 
         source = inspect.getsource(internal.require_service_claims)
-        assert "raise HTTPException" in source
-        assert "raise_api_error" not in source
+        assert "raise HTTPException" not in source
+        assert "ApiAuthError" in source or "ApiServiceUnavailableError" in source
 
-    def test_webhook_verify_token_is_raw(self) -> None:
+    def test_webhook_verify_token_is_migrated(self) -> None:
         """verify_webhook_token uses raise_api_error helper (migrated from raw HTTPException)."""
         import inspect
 
@@ -634,30 +634,51 @@ class TestCentralizedHandlersIntact:
 
 
 class TestMigrationCompleteness:
-    """Verify ALL MIGRATE files use the helper, not raw HTTPException."""
+    """Verify ALL files use typed exceptions or helpers, not raw HTTPException."""
 
     @pytest.mark.parametrize(
         "module_path",
         [
+            # Route modules (I6 migration)
             "autom8_asana.api.routes.tasks",
             "autom8_asana.api.routes.sections",
             "autom8_asana.api.routes.admin",
             "autom8_asana.api.routes.dataframes",
             "autom8_asana.api.routes.projects",
             "autom8_asana.api.routes.resolver_schema",
+            # Auth dependencies (Domain III migration)
+            "autom8_asana.api.routes.internal",
+            "autom8_asana.auth.dual_mode",
         ],
     )
     def test_no_raw_http_exception_raise(self, module_path: str) -> None:
-        """MIGRATE files should not contain 'raise HTTPException(' calls."""
+        """All files should not contain 'raise HTTPException(' calls."""
         import importlib
         import inspect
 
         mod = importlib.import_module(module_path)
         source = inspect.getsource(mod)
-        # These files should have NO raise HTTPException -- only raise_api_error/raise_service_error
         assert "raise HTTPException(" not in source, (
             f"{module_path} still has 'raise HTTPException(' -- migration incomplete"
         )
+
+    def test_dependencies_no_raw_http_exception(self) -> None:
+        """api/dependencies.py should not have raw HTTPException raises."""
+        import importlib
+        import inspect
+
+        mod = importlib.import_module("autom8_asana.api.dependencies")
+        source = inspect.getsource(mod)
+        assert "raise HTTPException(" not in source
+
+    def test_dataframe_decorator_no_raw_http_exception(self) -> None:
+        """cache/dataframe/decorator.py should not have raw HTTPException raises."""
+        import importlib
+        import inspect
+
+        mod = importlib.import_module("autom8_asana.cache.dataframe.decorator")
+        source = inspect.getsource(mod)
+        assert "raise HTTPException(" not in source
 
     def test_resolver_only_passthrough_http_exception(self) -> None:
         """resolver.py should only have 'except HTTPException: raise' pattern."""
@@ -673,15 +694,6 @@ class TestMigrationCompleteness:
 
     def test_query_no_raw_http_exception(self) -> None:
         """query.py should not have raw HTTPException raises."""
-        import importlib
-        import inspect
-
-        mod = importlib.import_module("autom8_asana.api.routes.query")
-        source = inspect.getsource(mod)
-        assert "raise HTTPException(" not in source
-
-    def test_query_no_raw_http_exception_merged(self) -> None:
-        """Merged query.py should not have raw HTTPException raises."""
         import importlib
         import inspect
 

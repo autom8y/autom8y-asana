@@ -23,10 +23,11 @@ class BusinessResolveRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     office_phone: str = Field(
-        description="Office phone number in E.164 format. Primary lookup key."
+        description="Office phone number in E.164 format. Primary lookup key.",
+        examples=["+19259998806"],
     )
     vertical: str | None = Field(
-        default=None, description="Optional vertical filter to narrow resolution."
+        default=None, description="Optional vertical filter to narrow resolution.", examples=["chiro"]
     )
 
 
@@ -41,30 +42,32 @@ class BusinessResolveResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     found: bool = Field(
-        description="True if a business was resolved for the given phone."
+        description="True if a business was resolved for the given phone.", examples=[True]
     )
     task_gid: str | None = Field(
         default=None,
         description="Asana task GID of the resolved business. Null when not found.",
+        examples=["1234567890123456"],
     )
     name: str | None = Field(
-        default=None, description="Resolved business display name."
+        default=None, description="Resolved business display name.", examples=["Acme Chiropractic"]
     )
     office_phone: str | None = Field(
-        default=None, description="Office phone echoed back for request correlation."
+        default=None, description="Office phone echoed back for request correlation.", examples=["+19259998806"]
     )
     vertical: str | None = Field(
-        default=None, description="Resolved business vertical."
+        default=None, description="Resolved business vertical.", examples=["chiro"]
     )
     company_id: str | None = Field(
-        default=None, description="External company GUID. Null if not onboarded."
+        default=None, description="External company GUID. Null if not onboarded.", examples=["b1c2d3e4-f5a6-7890-bcde-f12345678901"]
     )
     has_unit: bool = Field(
-        default=False, description="True if a unit subtask exists under the business."
+        default=False, description="True if a unit subtask exists under the business.", examples=[True]
     )
     has_contact_holder: bool = Field(
         default=False,
         description="True if a contact_holder subtask exists under the business.",
+        examples=[True],
     )
 
 
@@ -83,15 +86,18 @@ class ContactResolveRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     business_gid: str = Field(
-        description="Asana GID of the business to scope contact resolution to."
+        description="Asana GID of the business to scope contact resolution to.",
+        examples=["1234567890123456"],
     )
     email: str | None = Field(
         default=None,
         description="Email address for exact match on contact_email field.",
+        examples=["jane@acmechiro.com"],
     )
     phone: str | None = Field(
         default=None,
         description="Phone number in E.164 format for exact match on contact_phone field.",
+        examples=["+14155551234"],
     )
 
 
@@ -105,22 +111,25 @@ class ContactResolveResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     found: bool = Field(
-        description="True if a contact was resolved within the business scope."
+        description="True if a contact was resolved within the business scope.",
+        examples=[True],
     )
     contact_gid: str | None = Field(
         default=None,
         description="Asana task GID of the resolved contact. Null when not found.",
+        examples=["1234567890123457"],
     )
-    name: str | None = Field(default=None, description="Resolved contact display name.")
+    name: str | None = Field(default=None, description="Resolved contact display name.", examples=["Dr. Jane Smith"])
     email: str | None = Field(
-        default=None, description="Resolved contact email address."
+        default=None, description="Resolved contact email address.", examples=["jane@acmechiro.com"]
     )
     phone: str | None = Field(
-        default=None, description="Resolved contact phone number."
+        default=None, description="Resolved contact phone number.", examples=["+14155551234"]
     )
     match_field: str | None = Field(
         default=None,
         description="Field that matched: 'email', 'phone', or null if not found.",
+        examples=["email"],
     )
 
 
