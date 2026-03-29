@@ -105,7 +105,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/users/{gid}:
     get:
       tags:
@@ -155,7 +155,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/users:
     get:
       tags:
@@ -226,7 +226,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/workspaces:
     get:
       tags:
@@ -289,7 +289,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/workspaces/{gid}:
     get:
       tags:
@@ -340,7 +340,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/dataframes/project/{gid}:
     get:
       tags:
@@ -444,7 +444,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/dataframes/section/{gid}:
     get:
       tags:
@@ -543,7 +543,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/tasks:
     get:
       tags:
@@ -629,7 +629,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
     post:
       tags:
       - tasks
@@ -671,7 +671,7 @@ paths:
         '422':
           description: Validation error -- invalid request parameters
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/tasks/{gid}:
     get:
       tags:
@@ -737,7 +737,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
     put:
       tags:
       - tasks
@@ -791,7 +791,7 @@ paths:
         '422':
           description: Validation error -- invalid request parameters
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
     delete:
       tags:
       - tasks
@@ -837,7 +837,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/tasks/{gid}/subtasks:
     get:
       tags:
@@ -911,7 +911,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/tasks/{gid}/dependents:
     get:
       tags:
@@ -985,7 +985,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/tasks/{gid}/duplicate:
     post:
       tags:
@@ -1040,7 +1040,7 @@ paths:
         '422':
           description: Validation error -- invalid request parameters
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/tasks/{gid}/tags:
     post:
       tags:
@@ -1094,7 +1094,7 @@ paths:
         '422':
           description: Validation error -- invalid request parameters
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/tasks/{gid}/tags/{tag_gid}:
     delete:
       tags:
@@ -1134,7 +1134,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/tasks/{gid}/section:
     post:
       tags:
@@ -1176,7 +1176,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/tasks/{gid}/assignee:
     put:
       tags:
@@ -1217,7 +1217,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/tasks/{gid}/projects:
     post:
       tags:
@@ -1258,7 +1258,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/tasks/{gid}/projects/{project_gid}:
     delete:
       tags:
@@ -1300,7 +1300,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/projects:
     get:
       tags:
@@ -1370,7 +1370,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
     post:
       tags:
       - projects
@@ -1409,7 +1409,7 @@ paths:
         '422':
           description: Validation error -- invalid request parameters
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/projects/{gid}:
     get:
       tags:
@@ -1474,7 +1474,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
     put:
       tags:
       - projects
@@ -1529,7 +1529,7 @@ paths:
         '422':
           description: Validation error -- invalid request parameters
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
     delete:
       tags:
       - projects
@@ -1576,7 +1576,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/projects/{gid}/sections:
     get:
       tags:
@@ -1650,7 +1650,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/projects/{gid}/members:
     post:
       tags:
@@ -1705,7 +1705,7 @@ paths:
         '422':
           description: Validation error -- invalid request parameters
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
     delete:
       tags:
       - projects
@@ -1758,7 +1758,7 @@ paths:
         '422':
           description: Validation error -- invalid request parameters
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/sections/{gid}:
     get:
       tags:
@@ -1810,7 +1810,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
     put:
       tags:
       - sections
@@ -1864,7 +1864,7 @@ paths:
         '422':
           description: Validation error -- invalid request parameters
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
     delete:
       tags:
       - sections
@@ -1910,7 +1910,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/sections:
     post:
       tags:
@@ -1952,7 +1952,7 @@ paths:
         '422':
           description: Validation error -- invalid request parameters
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/sections/{gid}/tasks:
     post:
       tags:
@@ -2003,7 +2003,7 @@ paths:
         '422':
           description: Validation error -- invalid request parameters
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/sections/{gid}/reorder:
     post:
       tags:
@@ -2058,7 +2058,7 @@ paths:
         '422':
           description: Validation error -- invalid request parameters
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/webhooks/inbound:
     post:
       tags:
@@ -2119,7 +2119,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/workflows/{workflow_id}/invoke:
     post:
       tags:
@@ -2177,7 +2177,7 @@ paths:
         '504':
           description: Workflow execution timed out (120s limit)
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
   /api/v1/offers/section-timelines:
     get:
       tags:
@@ -2258,7 +2258,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
-      - BearerAuth: []
+      - PersonalAccessToken: []
 components:
   schemas:
     AddTagRequest:
@@ -3170,7 +3170,7 @@ components:
           succeeded: 2
         workflow_id: update-offer-status
   securitySchemes:
-    BearerAuth:
+    PersonalAccessToken:
       type: http
       scheme: bearer
       description: Asana Personal Access Token (PAT). The token is passed directly

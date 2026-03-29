@@ -405,7 +405,7 @@ def create_app() -> FastAPI:
         """Post-process the auto-generated OpenAPI spec.
 
         Enrichment steps:
-        1. Inject ``BearerAuth`` and ``ServiceJWT`` security schemes.
+        1. Inject ``PersonalAccessToken`` and ``ServiceJWT`` security schemes.
         2. Annotate per-operation security based on tag classification.
         3. Strip leaked ``authorization`` header parameters.
         4. Seed tag descriptions for Sprint 3.
@@ -434,7 +434,7 @@ def create_app() -> FastAPI:
         # 1. Inject security schemes
         components = spec.setdefault("components", {})
         components["securitySchemes"] = {
-            "BearerAuth": {
+            "PersonalAccessToken": {
                 "type": "http",
                 "scheme": "bearer",
                 "description": (
@@ -494,7 +494,7 @@ def create_app() -> FastAPI:
                 elif tags & _S2S_TAGS:
                     operation["security"] = [{"ServiceJWT": []}]
                 elif tags & _PAT_TAGS:
-                    operation["security"] = [{"BearerAuth": []}]
+                    operation["security"] = [{"PersonalAccessToken": []}]
                 # else: unknown tag -- no security key (fail-open)
 
                 # Strip authorization header param (ADR-SPRINT1-002)
