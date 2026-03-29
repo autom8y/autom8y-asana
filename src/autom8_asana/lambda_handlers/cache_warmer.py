@@ -49,6 +49,9 @@ from autom8_asana.lambda_handlers.push_orchestrator import (
     _push_account_status_for_completed_entities,
     _push_gid_mappings_for_completed_entities,
 )
+from autom8_asana.lambda_handlers.reconciliation_runner import (
+    _run_reconciliation_shadow,
+)
 from autom8_asana.lambda_handlers.story_warmer import (
     _warm_story_caches_for_completed_entities,
 )
@@ -655,6 +658,21 @@ async def _warm_cache_async(
             get_project_gid=get_project_gid,
             cache=cache,
             client=client,
+            invocation_id=invocation_id,
+        )
+
+        # ----------------------------------------------------------------
+        # Phase 5: Reconciliation shadow mode (Project Ignition)
+        # Runs reconciliation pipeline in strict dry_run=True mode.
+        # Generates audit log showing planned section moves without
+        # mutating any Asana state.
+        # Guarded by ASANA_RECONCILIATION_SHADOW_ENABLED env var.
+        # Non-blocking: failures logged, do not affect WarmResponse.
+        # ----------------------------------------------------------------
+        await _run_reconciliation_shadow(
+            completed_entities=completed_entities,
+            get_project_gid=get_project_gid,
+            cache=cache,
             invocation_id=invocation_id,
         )
 
