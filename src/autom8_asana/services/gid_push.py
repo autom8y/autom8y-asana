@@ -331,6 +331,7 @@ PIPELINE_TYPE_BY_PROJECT_GID: dict[str, str] = {
     "1201265144487557": "expansion",      # Expansion
     "1201476141989746": "implementation", # Implementation
     "1201684018234520": "account_error",  # Account Error
+    "1209247943184021": "month1",          # Activation Consultation
 }
 
 # Environment variable to disable status push (emergency kill switch).

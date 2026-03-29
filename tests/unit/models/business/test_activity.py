@@ -544,8 +544,8 @@ class TestClassifiersRegistry:
         assert CLASSIFIERS["unit"] is UNIT_CLASSIFIER
 
     def test_registry_size(self) -> None:
-        # 2 original (offer, unit) + 8 process pipeline types
-        assert len(CLASSIFIERS) == 10
+        # 2 original (offer, unit) + 9 process pipeline types (including month1)
+        assert len(CLASSIFIERS) == 11
 
     def test_registry_contains_all_process_pipeline_types(self) -> None:
         for pipeline_type in PROCESS_PIPELINE_SECTIONS:
@@ -569,7 +569,7 @@ class TestClassifiersRegistry:
 # ---------------------------------------------------------------------------
 
 
-# All 8 process pipeline types that must have classifiers
+# All 9 process pipeline types that must have classifiers
 _PROCESS_PIPELINE_TYPES = (
     "sales",
     "onboarding",
@@ -579,6 +579,7 @@ _PROCESS_PIPELINE_TYPES = (
     "expansion",
     "implementation",
     "account_error",
+    "month1",  # Activation Consultation pipeline
 )
 
 
