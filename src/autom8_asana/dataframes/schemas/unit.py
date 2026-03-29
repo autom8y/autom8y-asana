@@ -65,25 +65,11 @@ UNIT_COLUMNS: list[ColumnDef] = [
         description="Business vertical",
     ),
     ColumnDef(
-        name="vertical_id",
-        dtype="Utf8",
-        nullable=True,
-        source=None,  # Derived from Vertical model
-        description="Vertical identifier (derived)",
-    ),
-    ColumnDef(
         name="specialty",
         dtype="Utf8",
         nullable=True,
         source="cf:Specialty",  # Text field
         description="Business specialty",
-    ),
-    ColumnDef(
-        name="max_pipeline_stage",
-        dtype="Utf8",
-        nullable=True,
-        source=None,  # Derived from UnitHolder
-        description="Maximum pipeline stage reached (derived)",
     ),
 ]
 

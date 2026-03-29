@@ -1,4 +1,4 @@
-"""Offer task extractor with base + 11 Offer-specific fields.
+"""Offer task extractor with base + 10 Offer-specific fields.
 
 Follows the ContactExtractor pattern: extends BaseExtractor with
 Offer-specific custom field extraction and row model construction.
@@ -23,9 +23,6 @@ class OfferExtractor(BaseExtractor):
 
     Custom fields (5):
         specialty, offer_id, platforms, language, cost
-
-    Derived fields (1):
-        vertical_id (stub -- pending Vertical model lookup)
     """
 
     def _create_row(self, data: dict[str, Any]) -> OfferRow:
@@ -39,17 +36,6 @@ class OfferExtractor(BaseExtractor):
         """
         data["type"] = "Offer"
         return OfferRow.model_validate(data)
-
-    def _extract_vertical_id(self, task: Task) -> str | None:
-        """Extract vertical identifier (derived field stub).
-
-        Args:
-            task: Task to extract from
-
-        Returns:
-            None (stub implementation pending Vertical model lookup)
-        """
-        return None
 
     def _extract_type(self, task: Task) -> str:
         """Override type extraction to always return 'Offer'.

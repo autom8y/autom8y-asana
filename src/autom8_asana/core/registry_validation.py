@@ -41,6 +41,7 @@ def validate_cross_registry_consistency(
     *,
     check_project_type_registry: bool = True,
     check_entity_project_registry: bool = True,
+    check_pipeline_type_registry: bool = True,
 ) -> RegistryValidationResult:
     """Validate consistency across EntityRegistry, ProjectTypeRegistry, and EntityProjectRegistry.
 
@@ -54,6 +55,10 @@ def validate_cross_registry_consistency(
         check_entity_project_registry: Whether to validate against
             EntityProjectRegistry. Set False for Lambda bootstrap where
             EntityProjectRegistry is not populated.
+        check_pipeline_type_registry: Whether to validate
+            PIPELINE_TYPE_BY_PROJECT_GID (gid_push.py) against
+            EntityRegistry. Logs warnings for GIDs present in both
+            registries with inconsistent mapping.
 
     Returns:
         RegistryValidationResult with any errors and warnings found.
@@ -69,6 +74,9 @@ def validate_cross_registry_consistency(
     if check_entity_project_registry:
         _check_entity_project_registry(entity_registry, result)
 
+    if check_pipeline_type_registry:
+        _check_pipeline_type_registry(entity_registry, result)
+
     # Log summary
     if result.ok and not result.warnings:
         logger.info(
@@ -76,6 +84,7 @@ def validate_cross_registry_consistency(
             extra={
                 "checked_project_type": check_project_type_registry,
                 "checked_entity_project": check_entity_project_registry,
+                "checked_pipeline_type": check_pipeline_type_registry,
             },
         )
     else:
@@ -167,4 +176,49 @@ def _check_entity_project_registry(
                 f"EntityDescriptor '{desc.name}' has primary_project_gid "
                 f"'{desc.primary_project_gid}' but EntityProjectRegistry "
                 f"maps it to project_gid '{config.project_gid}'"
+            )
+
+
+def _check_pipeline_type_registry(
+    entity_registry: object,
+    result: RegistryValidationResult,
+) -> None:
+    """Check PIPELINE_TYPE_BY_PROJECT_GID against EntityRegistry.
+
+    Per SIG-012 (REVIEW-reconciliation-deep-audit): PIPELINE_TYPE_BY_PROJECT_GID
+    in gid_push.py is an independent GID registry with no startup validation.
+    This check ensures that any GID present in both PIPELINE_TYPE_BY_PROJECT_GID
+    and EntityRegistry has a consistent entity-type mapping, and warns about
+    GIDs that exist in only one registry.
+
+    Most PIPELINE_TYPE_BY_PROJECT_GID entries are process pipeline projects
+    (sales, onboarding, etc.) that are not registered as entity descriptors.
+    Those produce informational warnings, not errors. Only GIDs that appear
+    in both registries with inconsistent naming produce errors.
+    """
+    from autom8_asana.services.gid_push import PIPELINE_TYPE_BY_PROJECT_GID
+
+    entity_gids = {
+        desc.primary_project_gid: desc
+        for desc in entity_registry.all_descriptors()  # type: ignore[attr-defined]
+        if desc.primary_project_gid is not None
+    }
+
+    for gid, pipeline_type in PIPELINE_TYPE_BY_PROJECT_GID.items():
+        desc = entity_gids.get(gid)
+        if desc is None:
+            # Process pipeline GID not in EntityRegistry — expected for
+            # sales, onboarding, etc. Log as informational warning.
+            result.warnings.append(
+                f"PIPELINE_TYPE_BY_PROJECT_GID has GID '{gid}' "
+                f"(pipeline_type={pipeline_type!r}) with no matching "
+                f"EntityDescriptor — verify GID is correct"
+            )
+        elif desc.name != pipeline_type:
+            # GID exists in both registries but with different names.
+            # This is a consistency error that could cause misrouted pushes.
+            result.errors.append(
+                f"PIPELINE_TYPE_BY_PROJECT_GID maps GID '{gid}' to "
+                f"pipeline_type={pipeline_type!r} but EntityRegistry maps "
+                f"it to entity '{desc.name}'"
             )
