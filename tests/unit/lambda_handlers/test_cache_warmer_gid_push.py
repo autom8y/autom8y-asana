@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
-from autom8_asana.lambda_handlers.cache_warmer import (
+from autom8_asana.lambda_handlers.push_orchestrator import (
     _push_gid_mappings_for_completed_entities,
 )
 
@@ -80,7 +80,7 @@ class TestPushGidMappingsForCompletedEntities:
                 return_value=True,
             ) as mock_push,
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+                "autom8_asana.lambda_handlers.push_orchestrator.emit_metric",
             ),
         ):
             await _push_gid_mappings_for_completed_entities(
@@ -113,7 +113,7 @@ class TestPushGidMappingsForCompletedEntities:
                 new_callable=AsyncMock,
             ) as mock_push,
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+                "autom8_asana.lambda_handlers.push_orchestrator.emit_metric",
             ),
         ):
             await _push_gid_mappings_for_completed_entities(
@@ -144,7 +144,7 @@ class TestPushGidMappingsForCompletedEntities:
                 return_value=False,
             ),
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+                "autom8_asana.lambda_handlers.push_orchestrator.emit_metric",
             ) as mock_emit,
         ):
             # Should NOT raise
@@ -181,7 +181,7 @@ class TestPushGidMappingsForCompletedEntities:
                 side_effect=RuntimeError("unexpected push error"),
             ),
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+                "autom8_asana.lambda_handlers.push_orchestrator.emit_metric",
             ),
         ):
             # Should NOT raise
@@ -204,7 +204,7 @@ class TestPushGidMappingsForCompletedEntities:
                 new_callable=AsyncMock,
             ) as mock_push,
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+                "autom8_asana.lambda_handlers.push_orchestrator.emit_metric",
             ),
         ):
             await _push_gid_mappings_for_completed_entities(
@@ -230,7 +230,7 @@ class TestPushGidMappingsForCompletedEntities:
                 new_callable=AsyncMock,
             ) as mock_push,
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+                "autom8_asana.lambda_handlers.push_orchestrator.emit_metric",
             ),
         ):
             await _push_gid_mappings_for_completed_entities(
@@ -279,7 +279,7 @@ class TestPushGidMappingsForCompletedEntities:
                 return_value=True,
             ) as mock_push,
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+                "autom8_asana.lambda_handlers.push_orchestrator.emit_metric",
             ),
         ):
             await _push_gid_mappings_for_completed_entities(
@@ -305,7 +305,7 @@ class TestPushGidMappingsForCompletedEntities:
                 new_callable=AsyncMock,
             ) as mock_push,
             patch(
-                "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+                "autom8_asana.lambda_handlers.push_orchestrator.emit_metric",
             ),
         ):
             await _push_gid_mappings_for_completed_entities(
