@@ -28,9 +28,9 @@ class TestContactSchemaStructure:
         assert len(parts) == 3
         assert all(part.isdigit() for part in parts)
 
-    def test_column_count_is_26(self) -> None:
-        """Verify CONTACT_SCHEMA has 26 columns (13 base + 13 contact-specific)."""
-        assert len(CONTACT_SCHEMA) == 26
+    def test_column_count_is_25(self) -> None:
+        """Verify CONTACT_SCHEMA has 25 columns (13 base + 12 contact-specific)."""
+        assert len(CONTACT_SCHEMA) == 25
         assert len(BASE_COLUMNS) == 13
 
     def test_includes_all_base_columns(self) -> None:
@@ -64,4 +64,4 @@ class TestContactSchemaToDict:
         assert result["name"] == "contact"
         assert result["task_type"] == "Contact"
         assert result["version"] == CONTACT_SCHEMA.version
-        assert len(result["columns"]) == 26
+        assert len(result["columns"]) == 25
