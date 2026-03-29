@@ -1,0 +1,67 @@
+{
+  "spec_path": "autom8y-asana/docs/api-reference/openapi.json",
+  "metrics": {
+    "M-01_field_description": {
+      "score": 0.9615,
+      "numerator": 150,
+      "denominator": 156,
+      "floor": 0.8,
+      "weight": 0.25,
+      "pass": true
+    },
+    "M-02_field_example": {
+      "score": 0.5128,
+      "numerator": 80,
+      "denominator": 156,
+      "floor": 0.5,
+      "weight": 0.15,
+      "pass": true
+    },
+    "M-03_endpoint_summary": {
+      "score": 1.0,
+      "numerator": 53,
+      "denominator": 53,
+      "floor": 0.9,
+      "weight": 0.15,
+      "pass": true
+    },
+    "M-04_error_coverage": {
+      "score": 0.8868,
+      "numerator": 47,
+      "denominator": 53,
+      "floor": 0.7,
+      "weight": 0.15,
+      "pass": true
+    },
+    "M-05_type_strictness": {
+      "score": 0.9936,
+      "numerator": 155,
+      "denominator": 156,
+      "floor": 0.9,
+      "weight": 0.15,
+      "pass": true
+    },
+    "M-06_extension_completeness": {
+      "score": 0.0435,
+      "numerator": 1,
+      "denominator": 23,
+      "floor": 0.3,
+      "weight": 0.1,
+      "pass": false
+    },
+    "M-07_constraint_coverage": {
+      "score": 0.5714,
+      "numerator": 4,
+      "denominator": 7,
+      "floor": 0.6,
+      "weight": 0.05,
+      "pass": false
+    }
+  },
+  "composite_score": 0.7823,
+  "floor_violations": [
+    "M-06_extension_completeness",
+    "M-07_constraint_coverage"
+  ],
+  "regression_safe": true
+}
