@@ -223,7 +223,7 @@ src = ["src"]
 extend-exclude = ["examples/", "prototypes/", "scripts/", "tmp/", "docs/"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "G", "LOG", "TCH", "TID", "SIM"]
+select = ["E", "F", "I", "UP", "B", "G", "LOG", "TCH", "TID", "SIM", "T201"]
 ignore = [
     "E501", # Line length handled by formatter
     "B904", # raise-without-from-inside-except - common pattern in HTTP handlers
@@ -272,7 +272,8 @@ ignore = [
 # CLI --live mode uses raw httpx as a thin HTTP client (not a service integration).
 # Autom8yHttpClient is async-only and requires full platform config, which is
 # inappropriate for a synchronous CLI development tool.
-"src/autom8_asana/query/__main__.py" = ["TID251"]
+# T201: print() is intentional in the CLI query tool (separately governed)
+"src/autom8_asana/query/__main__.py" = ["TID251", "T201"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = [
@@ -294,6 +295,8 @@ runtime-evaluated-decorators = [
 "httpx".msg = "Use autom8y_http.Autom8yHttpClient instead of raw httpx. See docs/guides/sdk-only-imports-migration.md"
 "httpx.AsyncClient".msg = "Use autom8y_http.Autom8yHttpClient instead of httpx.AsyncClient. See docs/guides/sdk-only-imports-migration.md"
 "httpx.Client".msg = "Use autom8y_http.Autom8yHttpClient.sync() instead of httpx.Client. See docs/guides/sdk-only-imports-migration.md"
+"requests".msg = "Use autom8y_http instead of requests"
+"urllib.request".msg = "Use autom8y_http instead of urllib.request"
 
 [tool.ruff.lint.isort]
 known-first-party = ["autom8_asana"]
