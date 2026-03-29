@@ -154,25 +154,23 @@ class TestExtractorFactoryAutoWire:
         extractor = builder._create_extractor("CompletelyUnknown")
         assert isinstance(extractor, DefaultExtractor)
 
-    def test_known_type_without_extractor_path_uses_schema_extractor(self) -> None:
-        """Offer has schema_module_path but no extractor_class_path.
-
-        Since OFFER_SCHEMA has columns beyond BASE_COLUMNS, the fallback
-        path should produce a SchemaExtractor, not a DefaultExtractor.
-        """
+    def test_offer_resolves_to_offer_extractor(self) -> None:
+        """Offer has both schema_module_path and extractor_class_path."""
+        from autom8_asana.dataframes.extractors.offer import OfferExtractor
         from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
 
         builder = _TestBuilder(OFFER_SCHEMA)
         extractor = builder._create_extractor("Offer")
-        assert isinstance(extractor, SchemaExtractor)
+        assert isinstance(extractor, OfferExtractor)
 
-    def test_business_without_extractor_path_uses_schema_extractor(self) -> None:
-        """Business has schema but no extractor_class_path -- SchemaExtractor fallback."""
+    def test_business_resolves_to_business_extractor(self) -> None:
+        """Business has both schema_module_path and extractor_class_path."""
+        from autom8_asana.dataframes.extractors.business import BusinessExtractor
         from autom8_asana.dataframes.schemas.business import BUSINESS_SCHEMA
 
         builder = _TestBuilder(BUSINESS_SCHEMA)
         extractor = builder._create_extractor("Business")
-        assert isinstance(extractor, SchemaExtractor)
+        assert isinstance(extractor, BusinessExtractor)
 
     def test_all_descriptor_extractors_are_base_extractor_subclasses(self) -> None:
         """Every extractor_class_path in the registry must resolve to a BaseExtractor subclass."""
