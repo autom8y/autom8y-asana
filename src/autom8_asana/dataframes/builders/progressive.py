@@ -572,93 +572,21 @@ class ProgressiveProjectBuilder:
                     },
                 )
 
-        # Step 5.5: Post-build cascade validation pass
-        # Per TDD-CASCADE-FAILURE-FIXES-001 Fix 3: Detect and correct stale
-        # cascade fields after section merge, before final artifact write.
+        # Steps 5.5 and 5.6: Post-build cascade validation and audit
+        # Per TDD-CASCADE-FAILURE-FIXES-001 Fix 3 and ADR-cascade-contract-policy.
         if total_rows > 0 and self._store is not None:
-            from autom8_asana.settings import get_settings
+            from autom8_asana.dataframes.builders.post_build_validation import (
+                post_build_validate_and_audit,
+            )
 
-            if get_settings().runtime.section_cascade_validation != "0":
-                from autom8_asana.dataframes.builders.cascade_validator import (
-                    validate_cascade_fields_async,
-                )
-
-                cascade_plugin = (
-                    self._dataframe_view.cascade_plugin
-                    if self._dataframe_view is not None
-                    else None
-                )
-                if cascade_plugin is not None:
-                    try:
-                        (
-                            merged_df,
-                            _cascade_result,
-                        ) = await validate_cascade_fields_async(
-                            merged_df=merged_df,
-                            store=self._store,
-                            cascade_plugin=cascade_plugin,
-                            project_gid=self._project_gid,
-                            entity_type=self._entity_type,
-                            schema=self._schema,
-                        )
-                        total_rows = len(merged_df)
-                    except Exception as e:  # BROAD-CATCH: validation is additive
-                        logger.warning(
-                            "cascade_validation_failed",
-                            extra={
-                                "project_gid": self._project_gid,
-                                "error": str(e),
-                                "error_type": type(e).__name__,
-                            },
-                        )
-
-        # Step 5.6: Post-correction cascade null rate audit
-        # Per ADR-cascade-contract-policy: log null rates for cascade-sourced
-        # key columns so that regressions analogous to SCAR-005/006 are
-        # observable via structured logging.
-        if total_rows > 0 and self._schema is not None:
-            try:
-                from autom8_asana.core.entity_registry import get_registry
-                from autom8_asana.dataframes.builders.cascade_validator import (
-                    audit_cascade_display_nulls,
-                    audit_cascade_key_nulls,
-                    audit_phone_e164_compliance,
-                )
-
-                desc = get_registry().get(self._entity_type)
-                if desc is not None and desc.key_columns:
-                    audit_cascade_key_nulls(
-                        df=merged_df,
-                        entity_type=self._entity_type,
-                        project_gid=self._project_gid,
-                        schema=self._schema,
-                        key_columns=desc.key_columns,
-                    )
-                    # Per GAP-A sprint-4: audit display-column null rates
-                    # (cascade-sourced but not key columns, e.g., office)
-                    audit_cascade_display_nulls(
-                        df=merged_df,
-                        entity_type=self._entity_type,
-                        project_gid=self._project_gid,
-                        schema=self._schema,
-                        key_columns=desc.key_columns,
-                    )
-                # Per GAP-B sprint-4: audit phone E.164 compliance
-                # (runs for any entity with office_phone column)
-                audit_phone_e164_compliance(
-                    df=merged_df,
-                    entity_type=self._entity_type,
-                    project_gid=self._project_gid,
-                )
-            except Exception as e:  # BROAD-CATCH: audit is diagnostic only
-                logger.warning(
-                    "cascade_key_null_audit_failed",
-                    extra={
-                        "project_gid": self._project_gid,
-                        "error": str(e),
-                        "error_type": type(e).__name__,
-                    },
-                )
+            merged_df, total_rows = await post_build_validate_and_audit(
+                merged_df=merged_df,
+                store=self._store,
+                dataframe_view=self._dataframe_view,
+                schema=self._schema,
+                entity_type=self._entity_type,
+                project_gid=self._project_gid,
+            )
 
         # Step 6: Write final artifacts
         if total_rows > 0:
