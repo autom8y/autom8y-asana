@@ -382,7 +382,7 @@ class TestOfferClassifier:
         assert "system error" in active
 
     def test_active_section_count(self) -> None:
-        assert len(OFFER_CLASSIFIER.active_sections()) == 21
+        assert len(OFFER_CLASSIFIER.active_sections()) == 22  # +1: ONE-OFF per truth audit
 
     def test_activating_sections(self) -> None:
         activating = OFFER_CLASSIFIER.sections_for(AccountActivity.ACTIVATING)
@@ -415,7 +415,7 @@ class TestOfferClassifier:
             + len(OFFER_CLASSIFIER.sections_for(AccountActivity.INACTIVE))
             + len(OFFER_CLASSIFIER.sections_for(AccountActivity.IGNORED))
         )
-        assert total == 33
+        assert total == 34  # +1 ONE-OFF (active) per truth audit; PLAYS/PERFORMANCE CONCERNS case variants collapse
 
     def test_classify_optimize_sections(self) -> None:
         assert (
@@ -454,7 +454,7 @@ class TestOfferClassifier:
         billable = OFFER_CLASSIFIER.billable_sections()
         assert "active" in billable
         assert "activating" in billable
-        assert len(billable) == 26  # 21 active + 5 activating
+        assert len(billable) == 27  # 22 active + 5 activating per truth audit
 
 
 # ---------------------------------------------------------------------------
@@ -484,17 +484,24 @@ class TestUnitClassifier:
         assert "implementing" in activating
         assert "delayed" in activating
         assert "preview" in activating
-        assert len(activating) == 4
+        # Per truth audit: "engaged" and "scheduled" moved from INACTIVE to ACTIVATING
+        assert "engaged" in activating
+        assert "scheduled" in activating
+        assert len(activating) == 6
 
     def test_inactive_sections(self) -> None:
         inactive = UNIT_CLASSIFIER.sections_for(AccountActivity.INACTIVE)
         assert "unengaged" in inactive
-        assert "engaged" in inactive
-        assert "scheduled" in inactive
+        # Per truth audit: "engaged" and "scheduled" moved to ACTIVATING
+        assert "engaged" not in inactive
+        assert "scheduled" not in inactive
         assert "paused" in inactive
         assert "cancelled" in inactive
         assert "no start" in inactive
-        assert len(inactive) == 6
+        # Per truth audit: "account review" and "account error" added as INACTIVE
+        assert "account review" in inactive
+        assert "account error" in inactive
+        assert len(inactive) == 6  # -2 (engaged, scheduled) +2 (account review, account error)
 
     def test_ignored_sections(self) -> None:
         ignored = UNIT_CLASSIFIER.sections_for(AccountActivity.IGNORED)
@@ -508,7 +515,7 @@ class TestUnitClassifier:
             + len(UNIT_CLASSIFIER.sections_for(AccountActivity.INACTIVE))
             + len(UNIT_CLASSIFIER.sections_for(AccountActivity.IGNORED))
         )
-        assert total == 14
+        assert total == 16  # +2: Account Review, Account Error per truth audit
 
     def test_classify_case_insensitive(self) -> None:
         assert UNIT_CLASSIFIER.classify("Month 1") == AccountActivity.ACTIVE
@@ -517,7 +524,7 @@ class TestUnitClassifier:
 
     def test_billable_sections(self) -> None:
         billable = UNIT_CLASSIFIER.billable_sections()
-        assert len(billable) == 7  # 3 active + 4 activating
+        assert len(billable) == 9  # 3 active + 6 activating per truth audit
 
 
 # ---------------------------------------------------------------------------

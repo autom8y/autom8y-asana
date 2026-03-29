@@ -206,6 +206,7 @@ OFFER_CLASSIFIER: SectionClassifier = SectionClassifier.from_groups(
             "REJECTIONS / REVIEW",
             "REVIEW OPTIMIZATION",
             "MANUAL",
+            "ONE-OFF",         # Per truth audit: active one-time campaigns
         },
         "activating": {
             "ACTIVATING",
@@ -223,7 +224,9 @@ OFFER_CLASSIFIER: SectionClassifier = SectionClassifier.from_groups(
             "Sales Process",
             "Complete",
             "Plays",
+            "PLAYS",           # Per truth audit: template/reference section
             "Performance Concerns",
+            "PERFORMANCE CONCERNS",
         },
     },
 )
@@ -242,14 +245,16 @@ UNIT_CLASSIFIER: SectionClassifier = SectionClassifier.from_groups(
             "Implementing",
             "Delayed",
             "Preview",
+            "Engaged",       # Per truth audit: forward momentum, not inactive
+            "Scheduled",     # Per truth audit: scheduled interaction = activating
         },
         "inactive": {
             "Unengaged",
-            "Engaged",
-            "Scheduled",
             "Paused",
             "Cancelled",
             "No Start",
+            "Account Review",  # Per truth audit: moved from EXCLUDED to INACTIVE
+            "Account Error",   # Per truth audit: moved from EXCLUDED to INACTIVE
         },
         "ignored": {
             "Templates",

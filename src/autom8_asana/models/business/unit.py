@@ -228,7 +228,10 @@ class Unit(
             name="Default Vertical",
             inherit_from=["Business"],
             allow_override=True,
-            default="General",
+            # Per truth audit: "General" does not exist as a Vertical enum option
+            # in Asana. Removed invalid default. None means no fallback — the field
+            # will be empty if Business has no Vertical set.
+            default=None,
         )
 
         @classmethod

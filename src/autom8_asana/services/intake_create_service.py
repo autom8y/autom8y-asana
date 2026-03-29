@@ -42,8 +42,10 @@ HOLDER_TYPES: list[str] = [
     "videography_holder",
 ]
 
-# Valid process types
-VALID_PROCESS_TYPES: set[str] = {"sales", "consultation", "retention", "implementation"}
+# Valid process types for intake creation.
+# Per truth audit: "consultation" removed — ProcessType model does not exist yet.
+# TODO(truth-audit): Add "consultation" when consultation ProcessType model lands.
+VALID_PROCESS_TYPES: set[str] = {"sales", "retention", "implementation"}
 
 # Social profile platform -> Asana custom field name mapping
 SOCIAL_FIELD_MAP: dict[str, str] = {
