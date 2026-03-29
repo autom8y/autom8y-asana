@@ -1,366 +1,458 @@
 ---
 domain: architecture
-generated_at: "2026-03-25T01:56:07Z"
+generated_at: "2026-03-29T18:30:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
   - "./app/**/*.py"
   - "./pyproject.toml"
 generator: theoros
-source_hash: "c6bcef6"
-confidence: 0.75
+source_hash: "905fe4b"
+confidence: 0.93
 format_version: "1.0"
 update_mode: "full"
 incremental_cycle: 0
 max_incremental_cycles: 3
+land_sources:
+  - ".sos/land/initiative-history.md"
+land_hash: "ccac1bdf21a076abac37f960cd0d2210bee78a023d780c7374cb6d5c087c9c5b"
 ---
 
 # Codebase Architecture
 
+**autom8y-asana** is an async-first Asana API client and satellite service. It is a Python 3.12 project using FastAPI, Pydantic v2, and Polars. The package is published as `autom8y-asana` from `src/autom8_asana/` using Hatchling. It runs as both an ECS service (uvicorn) and AWS Lambda (awslambdaric) from a single dual-mode Docker image.
+
+Total source: ~460 Python files across 24 top-level packages under `src/autom8_asana/`.
+
 ## Package Structure
 
-**Language**: Python 3.12. Package manager: `uv`. Build backend: `hatchling`. Main package: `src/autom8_asana/` (443 `.py` files across 55+ subdirectories). CLI entry point: `autom8-query` mapped to `autom8_query_cli:main`.
+### Top-Level Packages (sorted by file count, descending)
 
-The codebase is an async-first Asana API client and integration service. It runs as either an ECS/uvicorn HTTP API or Lambda handlers, both served from the same Docker image via a dual-mode entrypoint.
+| Package | Files | Purpose | Hub/Leaf |
+|---------|-------|---------|----------|
+| `models/` | 60 | Pydantic v2 models for Asana resources + business domain entities | Hub |
+| `dataframes/` | 54 | Schema-driven extraction of Asana tasks into typed Polars DataFrames | Hub |
+| `cache/` | 52 | Multi-tier caching (Memory, Redis, S3) with versioned entries and staleness detection | Hub |
+| `api/` | 47 | FastAPI service layer: routes, middleware, lifespan, dependencies | Hub |
+| `automation/` | 42 | Rule-based automation engine (events, workflows, pipeline conversion) | Hub |
+| `clients/` | 39 | Typed resource API clients (Tasks, Projects, Sections, etc.) + cross-service data client | Leaf |
+| `services/` | 21 | Service layer: resolution, query, dataframe, intake, matching, entity writes | Hub |
+| `persistence/` | 20 | Unit of Work pattern: SaveSession, cascade operations, self-healing | Hub |
+| `query/` | 19 | Composable predicate query engine over cached DataFrames | Hub |
+| `core/` | 19 | Foundational: concurrency, logging, entity registry, timing, string utils | Leaf |
+| `lifecycle/` | 16 | Data-driven lifecycle engine for pipeline automation (YAML config) | Hub |
+| `lambda_handlers/` | 12 | AWS Lambda entry points (cache warmer, insights export, conversation audit, etc.) | Leaf |
+| `metrics/` | 10 | Declarative metric computation layer over DataFrames | Leaf |
+| `protocols/` | 9 | Protocol definitions (AuthProvider, CacheProvider, LogProvider, etc.) | Leaf |
+| `resolution/` | 8 | Entity resolution primitives (strategies, budgets, selection predicates) | Leaf |
+| `transport/` | 6 | HTTP transport: AsanaHttpClient wrapper over autom8y-http SDK | Leaf |
+| `auth/` | 6 | Dual-mode auth: JWT (S2S) + PAT pass-through, bot PAT, audit logging | Leaf |
+| `_defaults/` | 5 | Default provider implementations: EnvAuthProvider, NullCacheProvider, etc. | Leaf |
+| `observability/` | 4 | Correlation IDs, error handling decorators, LogContext | Leaf |
+| `search/` | 3 | Field-based search over cached Polars DataFrames | Leaf |
+| `patterns/` | 3 | Reusable design patterns: async/sync method pairs, error classification | Leaf |
+| `batch/` | 3 | Asana Batch API client for bulk operations (chunks of 10) | Leaf |
+| `reconciliation/` | 0 | Payment reconciliation (empty -- logic lives in `automation/workflows/payment_reconciliation/`) | Leaf |
 
-### Top-Level Package Map
+### Key Sub-Package Structures
 
-| Directory | Files | Purpose |
-|-----------|-------|---------|
-| `src/autom8_asana/core/` | 19 | Entity registry, type definitions, shared utilities (leaf package — imports no siblings) |
-| `src/autom8_asana/models/` | ~40 | Pydantic v2 Asana resource models (Task, Project, Section, User, Webhook, etc.) |
-| `src/autom8_asana/models/business/` | ~25 | Domain business entity models (Business, Unit, Contact, Offer, AssetEdit) |
-| `src/autom8_asana/models/business/detection/` | 8 | Tiered entity type detection (Tiers 1-4 + facade) |
-| `src/autom8_asana/models/business/matching/` | 6 | Business entity fuzzy matching |
-| `src/autom8_asana/protocols/` | 8 | Protocol (interface) definitions for DI boundaries |
-| `src/autom8_asana/api/` | 42 | FastAPI application: app factory, middleware, dependency injection |
-| `src/autom8_asana/api/routes/` | 20 | HTTP route handlers (15 routers) |
-| `src/autom8_asana/api/preload/` | 4 | Cache preload strategies |
-| `src/autom8_asana/services/` | 20 | Business-logic services: resolver, entity service, dynamic index |
-| `src/autom8_asana/transport/` | 5 | HTTP transport: Asana HTTP wrapper, adaptive semaphore, sync wrapper |
-| `src/autom8_asana/cache/` | ~25 | Multi-tier caching: Memory, S3, Redis backends |
-| `src/autom8_asana/cache/dataframe/` | ~8 | DataFrame-specific cache: coalescer, circuit breaker, tiers |
-| `src/autom8_asana/dataframes/` | ~35 | Polars DataFrame layer: schemas, builders, extractors, views, resolver |
-| `src/autom8_asana/dataframes/schemas/` | 9 | Schema definitions per entity (base, unit, contact, offer, asset_edit, asset_edit_holder, business) |
-| `src/autom8_asana/dataframes/builders/` | ~8 | DataFrame build pipeline (progressive, section-level, cascade validator) |
-| `src/autom8_asana/dataframes/extractors/` | ~5 | Row extractors per entity type |
-| `src/autom8_asana/persistence/` | ~20 | Unit-of-Work save pipeline (SaveSession, SavePipeline, 5-phase execution) |
-| `src/autom8_asana/automation/` | ~15 | Automation rule engine, event emission, polling scheduler |
-| `src/autom8_asana/automation/workflows/` | ~5 | Workflow implementations (conversation audit, insights, payment reconciliation) |
-| `src/autom8_asana/lifecycle/` | 10 | Asana task lifecycle management (creation, completion, dispatch, seeding) |
-| `src/autom8_asana/resolution/` | 7 | Entity resolution strategies, budget, context |
-| `src/autom8_asana/metrics/` | 7 | Domain metrics registry, computation, expression engine |
-| `src/autom8_asana/observability/` | 4 | Correlation context, decorators, log-trace linking |
-| `src/autom8_asana/auth/` | 5 | JWT validation, PAT-based bot auth, dual-mode auth |
-| `src/autom8_asana/search/` | 3 | Workspace task search |
-| `src/autom8_asana/batch/` | ~3 | Asana Batch API client |
-| `src/autom8_asana/clients/` | ~8 | Typed Asana data endpoint clients, name resolver |
-| `src/autom8_asana/lambda_handlers/` | 8 | Lambda entry points: cache warmer, invalidator, workflow handler, CloudWatch, etc. |
-| `src/autom8_asana/_defaults/` | 4 | Default provider implementations (env auth, secrets manager auth) |
-| `src/autom8_asana/patterns/` | 3 | Shared patterns: async method wrapper, error classification |
-| `src/autom8_asana/query/` | ~15 | Query engine: compiler, aggregator, join, timeline |
+**`models/`** has three sub-packages:
+- `models/business/` (30+ files) -- Business domain entities: Business, Contact, Unit, Offer, Process, Location, Hours, DNA, AssetEdit, Videography, Reconciliation. Each with typed fields extracted from Asana custom fields. Detection, hydration, resolution, seeding, and activity classification logic.
+- `models/business/detection/` -- Entity type detection from task metadata.
+- `models/business/matching/` -- Scored business candidate matching.
+- `models/contracts/` -- Cross-service contracts (PhoneVerticalPair).
 
-**Hub packages** (import from many siblings):
-- `src/autom8_asana/api/main.py` — imports all 15 routers, middleware, lifespan
-- `src/autom8_asana/api/lifespan.py` — imports startup helpers, preload, client pool
-- `src/autom8_asana/persistence/session.py` — imports from tracker, pipeline, graph, actions, events, healing
+**`cache/`** has four tiers:
+- `cache/models/` -- Entry, Freshness, Metrics, Versioning, Staleness data models.
+- `cache/policies/` -- Staleness checking, hierarchy indexing, request coalescing, lightweight checks.
+- `cache/providers/` -- TieredCacheProvider (Redis hot + S3 cold), UnifiedTaskStore.
+- `cache/integration/` -- Factory, batch loading, dataframe caching, mutation invalidation, story loading, schema providers.
+- `cache/dataframe/` -- DataFrame-specific caching with S3 tier and coalescing.
+- `cache/backends/` -- Redis adapter implementation.
 
-**Leaf packages** (imported widely, import few siblings):
-- `src/autom8_asana/core/` — imported by models, services, api; imports only `autom8y_log`
-- `src/autom8_asana/protocols/` — imported by client, cache, services; defines Protocol classes only
-- `src/autom8_asana/models/` (Asana resource types) — imported by services, api; imports only pydantic and core
+**`dataframes/`** has six sub-packages:
+- `dataframes/models/` -- TaskRow, UnitRow, ContactRow, ColumnDef, DataFrameSchema, SchemaRegistry.
+- `dataframes/schemas/` -- Built-in schemas: base, unit, contact, offer, business, asset_edit, asset_edit_holder.
+- `dataframes/extractors/` -- BaseExtractor, UnitExtractor, ContactExtractor, etc.
+- `dataframes/builders/` -- DataFrameBuilder, ProgressiveProjectBuilder, SectionDataFrameBuilder.
+- `dataframes/resolver/` -- CustomFieldResolver, DefaultCustomFieldResolver for dynamic field GID mapping.
+- `dataframes/views/` -- CascadeViewPlugin, DataFrameViewPlugin for unified cache materialization.
 
----
+**`api/`** has four sub-packages:
+- `api/routes/` (20 route modules) -- health, tasks, projects, sections, users, workspaces, dataframes, resolver, query, admin, webhooks, workflows, entity_write, intake_resolve, intake_custom_fields, intake_create, matching, section_timelines, internal.
+- `api/middleware/` -- RequestIDMiddleware, RequestLoggingMiddleware, IdempotencyMiddleware.
+- `api/preload/` -- Progressive DataFrame cache warming on startup.
+- `api/` root -- main.py (app factory), lifespan.py (startup/shutdown), dependencies.py (DI), config.py (API settings), errors.py (exception handlers).
+
+**`automation/`** has three sub-packages:
+- `automation/events/` -- Event types and setup_event_emission for EventBridge.
+- `automation/polling/` -- Polling scheduler for development mode.
+- `automation/workflows/` -- Conversation audit, insights export, payment reconciliation workflow implementations.
+
+**`clients/`** has sub-packages:
+- `clients/data/` -- DataServiceClient for cross-service communication with autom8_data.
+- `clients/data/_endpoints/` -- Endpoint-specific client methods.
+- `clients/utils/` -- Client utilities.
+
+### Root-Level Source Files
+
+| File | Purpose |
+|------|---------|
+| `src/autom8_asana/__init__.py` | Public API surface: exports AsanaClient, all models, all exceptions, dataframes (lazy-loaded) |
+| `src/autom8_asana/client.py` | `AsanaClient` facade: central entry point, lazy-init resource clients with thread-safe double-checked locking |
+| `src/autom8_asana/config.py` | Frozen dataclass configs: RateLimitConfig, RetryConfig, ConcurrencyConfig, TimeoutConfig, CacheConfig, AsanaConfig |
+| `src/autom8_asana/settings.py` | Pydantic Settings for env var parsing (ASANA_*, REDIS_*, AUTOM8Y_DATA_*, etc.) |
+| `src/autom8_asana/exceptions.py` | Exception hierarchy: AsanaError -> AuthenticationError, NotFoundError, RateLimitError, etc. |
 
 ## Layer Boundaries
 
-The codebase follows a strict inward-import discipline. The layer model (from outermost to innermost):
+### Layer Model (outside-in)
 
 ```
-Layer 1: api/routes/         (HTTP surface — depends on services, models, core)
-Layer 2: api/                (app factory, middleware, DI — depends on services)
-Layer 3: lambda_handlers/    (Lambda surface — depends on services, cache, automation)
-Layer 4: services/           (business logic — depends on core, models, dataframes, cache)
-Layer 5: persistence/        (save pipeline — depends on models, transport, batch)
-Layer 6: automation/         (rule engine — depends on models, persistence, services)
-Layer 7: lifecycle/          (task lifecycle — depends on models, services, persistence)
-Layer 8: dataframes/         (Polars layer — depends on core, models, transport indirectly)
-Layer 9: cache/              (caching — depends on core, models, protocols)
-Layer 10: models/            (domain types — depends on core, protocols)
-Layer 11: transport/         (HTTP client — depends on protocols, exceptions)
-Layer 12: core/              (registry, types, utils — imports no siblings)
-Layer 13: protocols/         (interface definitions — imports nothing from autom8_asana)
+API Layer (api/)
+  |
+  v
+Service Layer (services/, lifecycle/)
+  |
+  v
+Domain Layer (models/, models/business/, automation/)
+  |
+  v
+Data Access Layer (clients/, cache/, dataframes/, persistence/)
+  |
+  v
+Infrastructure Layer (transport/, _defaults/, protocols/, core/)
 ```
 
-**Import direction evidence:**
+### Import Direction Rules
 
-- `src/autom8_asana/api/routes/resolver.py` imports from `core.entity_types`, `services.resolver`, `models.*` — never from `persistence/` or `automation/`
-- `src/autom8_asana/services/universal_strategy.py` imports from `core.exceptions`, `models.business.activity`, `services.dynamic_index`, `settings` — never from `api/`
-- `src/autom8_asana/persistence/session.py` imports from `persistence.*`, `transport.sync`, `clients.name_resolver`, `models.*` — never from `api/` or `automation/`
-- `src/autom8_asana/core/entity_registry.py` imports from `autom8y_log` only (true leaf)
-- `src/autom8_asana/protocols/__init__.py` imports only from sibling protocol files — no internal domain imports
+1. **API -> Services**: Route handlers inject services via FastAPI `Depends()`. Route files import from `services/`, `cache/`, `models/`, and `api/dependencies`.
+2. **Services -> Domain + Data Access**: Services import from `models/`, `clients/`, `cache/`, `dataframes/`, `core/`.
+3. **Domain -> Data Access**: Business models (`models/business/`) import from `cache/`, `clients/`, `core/`.
+4. **Data Access -> Infrastructure**: Clients import from `transport/`, `protocols/`, `config`.
+5. **Infrastructure -> nothing internal**: `transport/` depends only on `exceptions` and `config`. `protocols/` has zero internal dependencies.
 
-**Boundary enforcement patterns:**
+### Circular Import Avoidance Patterns
 
-1. **`TYPE_CHECKING` guards**: Used extensively (e.g., `from autom8_asana.client import AsanaClient` under `if TYPE_CHECKING:`) to break circular imports at runtime while preserving type hints.
-2. **Deferred imports**: `_bind_entity_types()` in `core/entity_registry.py` uses `from autom8_asana.core.types import EntityType` inside a function (not at module top) to avoid circular dependency between `core <-> models`.
-3. **Lazy dataframe exports**: `__init__.py` uses `__getattr__` to defer `import autom8_asana.dataframes` until first use, so Polars is not loaded for consumers that only need the HTTP client.
-4. **Protocol package**: `protocols/` defines abstract interfaces (`AuthProvider`, `CacheProvider`, `ItemLoader`, etc.) that both `services/` and `cache/` implement, avoiding direct coupling.
+The codebase uses several explicit patterns to break circular imports:
 
-**Circular import mitigation**: `core/entity_registry.py` explicitly notes that schema/extractor modules must NOT import from `core.entity_registry` to avoid circular load-time imports. Path resolution is deferred to test time.
+- **`__getattr__` lazy loading**: `automation/__init__.py` defers `PipelineConversionRule` import. `cache/__init__.py` defers `register_asana_schemas`. `__init__.py` root defers all DataFrame exports.
+- **TYPE_CHECKING guards**: `client.py` imports `AutomationEngine`, `CacheMetrics`, `UnifiedTaskStore`, `SearchService` under `TYPE_CHECKING` only.
+- **Explicit bootstrap**: `models/business/_bootstrap.py` provides `bootstrap()` called at app startup rather than import-time registration. Prevents `models.business.__init__ -> cache -> config -> automation -> pipeline -> models.business` cycle.
+- **Delayed imports in functions**: `config.py` uses `from autom8_asana.core.entity_registry import get_registry` at module level but `CacheConfig.from_env()` uses lazy imports of `TTLSettings`.
 
----
+### Key Import Graph Edges
+
+- `transport/asana_http.py` imports: `exceptions`, `transport.adaptive_semaphore`, `transport.config_translator`, `transport.response_handler`
+- `clients/base.py` imports: `core.exceptions`, `cache.models.entry`, `config`, `protocols.*`, `transport.asana_http` (all under TYPE_CHECKING)
+- `services/resolver.py` imports: `core.string_utils`, `core.entity_registry`, `dataframes.exceptions`, `dataframes.models.registry`
+- `lifecycle/engine.py` imports: `core.timing`, `lifecycle.*` submodules, `persistence.models`, `resolution.context`
+- `api/dependencies.py` imports: `autom8_asana` root, `auth.*`, `cache.integration.mutation_invalidator`, `services.*` (lazy)
 
 ## Entry Points and API Surface
 
-### Application Entry Points
+### 1. FastAPI Application (ECS mode)
 
-**ECS (uvicorn) mode:**
-```
-python -m autom8_asana.entrypoint
-  -> autom8_asana/entrypoint.py: main()
-      -> run_ecs_mode()
-          |-- models.business._bootstrap.bootstrap()   # model registration
-          +-- uvicorn.run("autom8_asana.api.main:create_app", factory=True)
-              +-- api/main.py: create_app()
-                  |-- instrument_app() (autom8y_telemetry)
-                  |-- Middleware stack (CORS, SlowAPI, RequestLogging, RequestID)
-                  |-- 15 routers included
-                  +-- register_exception_handlers()
-```
+**Entry point**: `src/autom8_asana/api/main.py` -- `create_app()` factory.
 
-**Lambda mode:**
-```
-python -m autom8_asana.entrypoint <handler_path>
-  -> run_lambda_mode(handler)
-      -> awslambdaric.main()
-          -> Dispatches to lambda_handlers/{handler}.py
-```
+**Startup sequence** (`api/lifespan.py`):
+1. Call `bootstrap()` to register business model types
+2. Configure structured logging with OTEL trace ID processors
+3. Instrument httpx for W3C traceparent propagation
+4. Create shared `CacheProvider` on `app.state.cache_provider`
+5. Initialize `ClientPool` on `app.state.client_pool` (token-keyed for S2S resilience)
+6. Discover entity projects from live workspace (`_discover_entity_projects`)
+7. Validate cross-registry consistency
+8. Initialize `DataFrameCache`, register schema providers, wire `MutationInvalidator`
+9. Build `EntityWriteRegistry` on `app.state.entity_write_registry`
+10. Register workflow configs (insights-export, conversation-audit)
+11. Validate cascade warm-up ordering
+12. Start background cache warming task (`_preload_dataframe_cache_progressive`)
 
-**CLI:**
-```
-autom8-query  ->  autom8_query_cli:main  ->  src/autom8_query_cli.py
-```
+**Router inventory** (20 routers, 3 auth modes):
 
-### FastAPI Route Surface (15 routers)
+| Router | Prefix | Auth Mode | In Schema |
+|--------|--------|-----------|-----------|
+| `health_router` | `/health`, `/ready`, `/health/deps` | None | Yes |
+| `tasks_router` | `/api/v1/tasks` | PAT Bearer | Yes |
+| `projects_router` | `/api/v1/projects` | PAT Bearer | Yes |
+| `sections_router` | `/api/v1/sections` | PAT Bearer | Yes |
+| `users_router` | `/api/v1/users` | PAT Bearer | Yes |
+| `workspaces_router` | `/api/v1/workspaces` | PAT Bearer | Yes |
+| `dataframes_router` | `/api/v1/dataframes` | PAT Bearer | Yes |
+| `webhooks_router` | `/api/v1/webhooks` | URL Token | Yes |
+| `workflows_router` | `/api/v1/workflows` | PAT Bearer | Yes |
+| `resolver_router` | `/v1/resolve/{entity_type}` | S2S JWT | Yes |
+| `intake_resolve_router` | `/v1/resolve/business`, `/v1/resolve/contact` | S2S JWT | Yes |
+| `query_introspection_router` | `/v1/query/{entity_type}/*` GET | S2S JWT | Yes |
+| `query_router` | `/v1/query/{entity_type}/rows`, `/aggregate` POST | S2S JWT | No |
+| `admin_router` | `/v1/admin/*` | S2S JWT | No |
+| `internal_router` | `/api/v1/internal/*` | S2S JWT | No |
+| `entity_write_router` | `/api/v1/entity/*` | S2S JWT | No |
+| `intake_custom_fields_router` | `/v1/tasks/{gid}/custom-fields` | S2S JWT | No |
+| `intake_create_router` | `/v1/intake/business`, `/v1/intake/route` | S2S JWT | No |
+| `matching_router` | `/v1/matching/query` | S2S JWT | No |
+| `section_timelines_router` | `/api/v1/section-timelines/*` | PAT Bearer | Yes |
 
-| Router | Prefix | Auth | Tag |
-|--------|--------|------|-----|
-| `health_router` | `/health`, `/ready`, `/health/deps` | None | health |
-| `users_router` | `/api/v1/users` | PAT Bearer | tasks |
-| `workspaces_router` | `/api/v1/workspaces` | PAT Bearer | workspaces |
-| `dataframes_router` | `/api/v1/dataframes` | PAT Bearer | dataframes |
-| `tasks_router` | `/api/v1/tasks` | PAT Bearer | tasks |
-| `projects_router` | `/api/v1/projects` | PAT Bearer | projects |
-| `sections_router` | `/api/v1/sections` | PAT Bearer | sections |
-| `internal_router` | `/v1/internal` | S2S JWT | internal |
-| `intake_resolve_router` | `/v1/resolve/business`, `/v1/resolve/contact` | S2S JWT | intake-resolve |
-| `resolver_router` | `/v1/resolve/{entity_type}` | S2S JWT | resolver |
-| `query_router` | `/v1/query/rows`, `/v1/query/aggregate` | S2S JWT | query |
-| `admin_router` | `/v1/admin` | S2S JWT | admin |
-| `webhooks_router` | `/api/v1/webhooks/inbound` | Token query param | webhooks |
-| `workflows_router` | `/api/v1/workflows` | PAT Bearer | workflows |
-| `entity_write_router` | `/v1/entity-write` | S2S JWT | entity-write |
-| `section_timelines_router` | `/api/v1/section-timelines` | PAT Bearer | offers |
-| `intake_custom_fields_router` | `/v1/intake/custom-fields` | S2S JWT | intake-custom-fields |
-| `intake_create_router` | `/v1/intake/create` | S2S JWT | intake-create |
+**Middleware stack** (outer to inner execution order):
+1. CORSMiddleware (if configured)
+2. IdempotencyMiddleware (DynamoDB / memory / noop)
+3. SlowAPIMiddleware (rate limiting)
+4. RequestLoggingMiddleware
+5. RequestIDMiddleware (innermost)
+Note: MetricsMiddleware from `instrument_app()` wraps the entire stack.
 
-**Auth model**: Two auth modes operate in parallel.
-- `PersonalAccessToken` (PAT): User-supplied Asana PAT; passed directly to Asana API. Used for resource endpoints (`/api/v1/*`).
-- `ServiceJWT` (S2S JWT): Service-to-service JWT; validated against JWKS. Service uses a bot PAT for Asana calls. Used for internal endpoints (`/v1/*`).
+**OpenAPI spec**: v3.2.0 with custom post-processing. Three security schemes: `PersonalAccessToken`, `ServiceJWT`, `WebhookToken`. Tag-based security classification. Webhook definition for `asanaTaskChanged`.
 
-### Lambda Handlers
+### 2. AWS Lambda Handlers
 
-Located in `src/autom8_asana/lambda_handlers/`:
-- `cache_warmer.py` — Warms entity DataFrame caches from S3
-- `cache_invalidate.py` — Invalidates cache entries
-- `checkpoint.py` — Progressive build checkpointing
-- `cloudwatch.py` — CloudWatch metric emission
-- `conversation_audit.py` — Conversation audit workflow
-- `insights_export.py` — Insights data export
-- `payment_reconciliation.py` — Payment reconciliation workflow
-- `workflow_handler.py` — Generic workflow dispatch
+**Entry points** in `src/autom8_asana/lambda_handlers/`:
 
-### Key Exported Interfaces (`__init__.py`)
+| Handler | File | Purpose |
+|---------|------|---------|
+| `cache_warmer_handler` | `cache_warmer.py` | Pre-deployment cache warming |
+| `cache_invalidate_handler` | `cache_invalidate.py` | Cache invalidation on demand |
+| `conversation_audit_handler` | `conversation_audit.py` | Conversation audit export workflow |
+| `insights_export_handler` | `insights_export.py` | Insights data export workflow |
+| `payment_reconciliation_handler` | `payment_reconciliation.py` | Payment reconciliation bridge |
+| `push_orchestrator` | `push_orchestrator.py` | GID push orchestration |
+| `story_warmer` | `story_warmer.py` | Story cache warming |
+| `workflow_handler` | `workflow_handler.py` | Generic workflow execution |
 
-The public SDK surface exported from `src/autom8_asana/__init__.py`:
-- `AsanaClient` — Main HTTP client
-- `AsanaConfig`, `RateLimitConfig`, `RetryConfig`, `ConcurrencyConfig`, `TimeoutConfig`, `ConnectionPoolConfig` — Configuration
-- `AuthProvider`, `CacheProvider`, `ItemLoader`, `LogProvider`, `ObservabilityHook` — Protocol interfaces
-- Full Asana resource model set: `Task`, `Project`, `Section`, `User`, `Workspace`, `CustomField`, `Webhook`, etc.
-- Dataframe layer (lazy-loaded): `DataFrameBuilder`, `ProgressiveProjectBuilder`, `SchemaRegistry`, etc.
+Supporting modules: `checkpoint.py` (S3 checkpointing), `cloudwatch.py` (metric emission), `timeout.py` (Lambda timeout handling).
 
----
+### 3. CLI Entry Point
+
+`src/autom8_query_cli.py` provides the `autom8-query` CLI command (registered in `pyproject.toml` under `[project.scripts]`).
+
+### 4. SDK Public API (`AsanaClient`)
+
+`src/autom8_asana/client.py` -- `AsanaClient` is the main SDK entry point.
+
+**Resource clients** (lazy-initialized with thread-safe double-checked locking):
+
+| Property | Client Type | Tier |
+|----------|-------------|------|
+| `client.tasks` | `TasksClient` | 1 |
+| `client.projects` | `ProjectsClient` | 1 |
+| `client.sections` | `SectionsClient` | 1 |
+| `client.custom_fields` | `CustomFieldsClient` | 1 |
+| `client.users` | `UsersClient` | 1 |
+| `client.workspaces` | `WorkspacesClient` | 1 |
+| `client.webhooks` | `WebhooksClient` | 2 |
+| `client.teams` | `TeamsClient` | 2 |
+| `client.attachments` | `AttachmentsClient` | 2 |
+| `client.tags` | `TagsClient` | 2 |
+| `client.goals` | `GoalsClient` | 2 |
+| `client.portfolios` | `PortfoliosClient` | 2 |
+| `client.stories` | `StoriesClient` | 2 |
+| `client.batch` | `BatchClient` | Specialized |
+| `client.search` | `SearchService` | Specialized |
+| `client.unified_store` | `UnifiedTaskStore` | Specialized |
+| `client.automation` | `AutomationEngine` | Specialized |
+
+**Key methods**: `save_session()` returns `SaveSession` (Unit of Work), `warm_cache_async()` / `warm_cache()` for cache pre-population.
+
+### 5. FastAPI Dependency Injection (api/dependencies.py)
+
+**Primary dependencies** (injected via `Depends()`):
+
+| Dependency | Type | Lifecycle |
+|------------|------|-----------|
+| `get_auth_context` | `AuthContext` | Per-request |
+| `get_asana_client_from_context` | `AsanaClient` | Pooled (token-keyed ClientPool) |
+| `get_mutation_invalidator` | `MutationInvalidator` | Singleton (app.state) |
+| `get_entity_service` | `EntityService` | Singleton (app.state) |
+| `get_task_service` | `TaskService` | Per-request |
+| `get_section_service` | `SectionService` | Per-request |
+| `get_dataframe_service` | `DataFrameService` | Per-request |
+| `get_dataframe_cache` | `DataFrameCache` | Singleton (app.state) |
+| `get_data_service_client` | `DataServiceClient` | Singleton (app.state) |
+| `get_entity_write_registry` | `EntityWriteRegistry` | Singleton (app.state) |
+
+**Type aliases**: `AsanaClientDualMode`, `AuthContextDep`, `MutationInvalidatorDep`, `RequestId`, `EntityServiceDep`, `TaskServiceDep`, `SectionServiceDep`, `DataFrameServiceDep`, `DataFrameCacheDep`, `DataServiceClientDep`.
 
 ## Key Abstractions
 
-### 1. `EntityDescriptor` and `EntityRegistry`
-**File**: `src/autom8_asana/core/entity_registry.py`
-**Purpose**: Single source of truth for all entity type metadata. `EntityDescriptor` is a frozen dataclass holding identity, project GID, model class path, cache TTL, join keys, DataFrame schema/extractor paths, and category (ROOT/COMPOSITE/LEAF/HOLDER). `EntityRegistry` provides O(1) lookup by name, project GID, or `EntityType` enum. The singleton `_REGISTRY` is built at module load with import-time integrity validation (7 validation checks).
-**Consuming packages**: `services/resolver.py`, `services/dynamic_index.py`, `api/startup.py`, `dataframes/builders/`, `cache/`
+### 1. `AsanaClient` (client.py)
+Facade that owns all resource clients, the HTTP transport, shared rate limiter, circuit breaker, retry policy, and cache provider. Thread-safe lazy initialization of 15+ sub-clients. Supports both sync and async context managers.
 
-### 2. `EntityType` enum
-**File**: `src/autom8_asana/core/types.py`
-**Purpose**: Complete enumeration of all business entity types: BUSINESS (root), UNIT (composite), CONTACT/OFFER/PROCESS/LOCATION/HOURS (leaf), and 9 holder variants. Extracted from `models.business.detection.types` to break circular dependencies.
-**Consuming packages**: `models/business/detection/`, `core/entity_registry.py`, `services/`, `dataframes/`
+### 2. `BaseClient` (clients/base.py)
+Abstract base for all 13 resource clients. Receives `AsanaHttpClient`, `AsanaConfig`, `AuthProvider`, `CacheProvider`, `LogProvider`. Provides cache check-before-HTTP / store-on-miss pattern.
 
-### 3. `AsanaHttpClient`
-**File**: `src/autom8_asana/transport/asana_http.py`
-**Purpose**: Thin wrapper over `autom8y_http.Autom8yHttpClient` (platform SDK). Handles Asana-specific response unwrapping (`data` envelope), error translation (`429 -> RateLimitError`, `5xx -> ServerError`), adaptive semaphore-based concurrency, and shared rate limiter/circuit breaker injection.
-**Consuming packages**: `client.py`, `batch/`
+### 3. `AsanaHttpClient` (transport/asana_http.py)
+Wraps `autom8y-http` platform SDK. Provides `get_async()`, `post_async()`, etc. with Asana-specific response handling. Uses `AsyncAdaptiveSemaphore` (AIMD concurrency control) and shared `TokenBucketRateLimiter`.
 
-### 4. `SaveSession` (Unit of Work)
-**File**: `src/autom8_asana/persistence/session.py`
-**Purpose**: Unit-of-Work pattern for batched Asana write operations. Wraps `ChangeTracker`, `DependencyGraph`, `SavePipeline`, `ActionExecutor`, `CacheInvalidator`, `EventSystem`, and `HealingManager`. Executes a 5-phase pipeline: VALIDATE -> PREPARE -> EXECUTE -> ACTIONS -> CONFIRM. Thread-safe via `RLock`.
-**Consuming packages**: `api/routes/entity_write.py`, `lifecycle/`, `automation/`
+### 4. `SaveSession` (persistence/session.py)
+Unit of Work pattern. Tracks entity changes, computes diffs, batches mutations via Asana Batch API. Supports dependency ordering (parent before child), partial failure handling, pre/post save hooks, and cascade operations.
 
-### 5. `UniversalResolutionStrategy`
-**File**: `src/autom8_asana/services/universal_strategy.py`
-**Purpose**: Schema-driven GID resolution for any entity type. Replaces per-entity strategy classes. Uses `DynamicIndex` for O(1) multi-column key lookups. Accepts batch criteria (`[{phone, vertical}, ...]`) and resolves each to Asana task GIDs. Emits OTel spans.
-**Consuming packages**: `api/routes/resolver.py`, `services/resolver.py`
+### 5. `BusinessEntity` / `HolderMixin` (models/business/base.py)
+Base class for all domain entities (Business, Contact, Unit, Offer, Process, Location, Hours). Descriptor-based navigation. ClassVar configuration for custom field mappings. `HolderMixin` provides typed children access for holder tasks.
 
-### 6. `DynamicIndex` / `DynamicIndexCache`
-**File**: `src/autom8_asana/services/dynamic_index.py`
-**Purpose**: Generic in-memory lookup index over arbitrary column combinations from Polars DataFrames. `DynamicIndexKey` uses versioned cache key format (`idx1:col1=val1:col2=val2`). `DynamicIndexCache` is an LRU cache for index instances (TTL: 1 hour configurable).
-**Consuming packages**: `services/universal_strategy.py`, `services/resolver.py`
+### 6. `EntityRegistry` (core/entity_registry.py)
+Singleton registry of `EntityDescriptor` frozen dataclasses. Single source of truth for entity metadata (name, project GID, TTL, schema path, extractor path, join keys). O(1) lookup by name, GID, or EntityType enum. Import-time validation checks.
 
-### 7. `DataFrameSchema` / `ColumnDef` / `SchemaRegistry`
-**File**: `src/autom8_asana/dataframes/models/schema.py`
-**Purpose**: Type-safe column definitions for Polars DataFrames. `ColumnDef` describes a column name, dtype, nullable flag, and source (`cf:FieldName` for custom fields). `DataFrameSchema` is a registry key and column collection. `SchemaRegistry` auto-discovers schemas via `EntityDescriptor.schema_module_path` (dotted paths — no hardcoded imports).
-**Consuming packages**: `dataframes/builders/`, `dataframes/extractors/`, `api/routes/dataframes.py`
+### 7. `SchemaRegistry` (dataframes/models/registry.py)
+Maps entity types to `DataFrameSchema` definitions. Auto-discovers schemas from `EntityDescriptor.schema_module_path`. Drives the entire DataFrame extraction pipeline.
 
-### 8. `Business` / `BusinessEntity` hierarchy
-**File**: `src/autom8_asana/models/business/business.py` (and `base.py`)
-**Purpose**: Root domain model. `Business` (ROOT) has 7 holder types as lazy-loaded private attributes (`_contact_holder`, `_unit_holder`, etc.), 19 custom fields, and cascading field definitions. Holder classes (`DNAHolder`, `AssetEditHolder`, etc.) use the `HolderFactory` pattern.
-**Consuming packages**: `models/business/hydration.py`, `services/`, `lifecycle/`, `automation/`
+### 8. `AutomationEngine` (automation/engine.py)
+Orchestrates rule evaluation and execution after SaveSession commits. Registers `AutomationRule` implementations. Manages cascade depth to prevent loops. Connected to EventBridge via `setup_event_emission()`.
 
-### 9. Detection Tier Chain
-**Files**: `src/autom8_asana/models/business/detection/` (facade, tier1-4, config, types)
-**Purpose**: 4-tier entity type detection from Asana task data.
-- Tier 1: Project GID membership lookup (O(1), no API)
-- Tier 2: Task name pattern matching
-- Tier 3: Parent task inference
-- Tier 4: Structure inspection (async, optional API call)
-**Consuming packages**: `services/entity_service.py`, `models/business/hydration.py`, `api/routes/`
+### 9. `LifecycleEngine` (lifecycle/engine.py)
+Data-driven pipeline automation. Reads YAML config (`config/lifecycle_stages.yaml`). Handles transitions, entity creation, cascading section moves, dependency wiring, reopening, and auto-cascade seeding.
 
-### 10. `AuthProvider` protocol and implementations
-**Files**: `src/autom8_asana/protocols/auth.py`, `src/autom8_asana/_defaults/auth.py`, `src/autom8_asana/auth/`
-**Purpose**: Protocol for PAT token resolution. Implementations: `EnvAuthProvider` (reads `ASANA_PAT`), `SecretsManagerAuthProvider` (reads from AWS Secrets Manager per ADR-VAULT-001), `JWTValidator` (S2S service JWT), `BotPAT` (bot user PAT for service endpoints).
+### 10. `QueryEngine` (query/engine.py)
+Composable predicate filtering over cached DataFrames. Supports `RowsRequest` / `AggregateRequest` with compiled Polars expressions. Join support across entity types via `ENTITY_RELATIONSHIPS`.
 
-### Design Patterns
+### Design Patterns in Use
 
-**Registry pattern**: `EntityRegistry` (entity metadata), `SchemaRegistry` (DataFrame schemas), `ProjectRegistry` (project GID lookup), `MetricsRegistry` (metrics definitions).
-
-**Protocol-based DI**: `protocols/` defines `AuthProvider`, `CacheProvider`, `ItemLoader`, `LogProvider`, `ObservabilityHook`, `DataFrameProvider`, `InsightsProvider`, `MetricsEmitter`. Consumers depend on protocols, not concrete implementations.
-
-**Descriptor-driven layer**: `EntityDescriptor` drives four separate subsystems (SchemaRegistry, extractor creation, join key resolution, cascading field registry) through dotted-path references — no hardcoded match/case branches.
-
-**HolderFactory pattern**: `src/autom8_asana/models/business/holder_factory.py` — holder types declared via class `HolderFactory[child_type="DNA"]` rather than hand-wiring each holder class.
-
-**Cascade fields**: Business-level fields propagated down to leaf entities (Unit -> Offer, Business -> Contact) via `CascadingFields` inner class on models. Cascade validation runs post-build in `dataframes/builders/cascade_validator.py`.
-
-**`if TYPE_CHECKING` guard**: Used in 50+ files to break runtime circular imports while preserving static typing.
-
----
+- **Facade**: `AsanaClient` wraps 15+ clients behind a single interface
+- **Unit of Work**: `SaveSession` collects changes and commits in batches
+- **Strategy**: `ResolutionStrategy` chain for entity resolution, `DataFrameSchema` for extraction
+- **Protocol (structural typing)**: `AuthProvider`, `CacheProvider`, `LogProvider`, `ObservabilityHook`, `WebhookDispatcher`
+- **Registry**: `EntityRegistry`, `SchemaRegistry`, `ProjectTypeRegistry`, `WorkspaceProjectRegistry`
+- **Factory**: `CacheProviderFactory`, `create_app()`, `create_cache_provider()`
+- **Lazy initialization**: Thread-safe double-checked locking on all client properties
+- **Tiered caching**: Memory -> Redis -> S3 with freshness modes (Strict, Eventual, SWR)
+- **AIMD**: Adaptive Increase / Multiplicative Decrease concurrency control on HTTP semaphores
 
 ## Data Flow
 
-### 1. HTTP API Request Pipeline (PAT auth path)
+### 1. HTTP Request Flow (PAT mode)
 
 ```
-Client request (Authorization: Bearer <PAT>)
-  -> RequestIDMiddleware     (sets X-Request-ID)
-  -> RequestLoggingMiddleware (structured log)
-  -> SlowAPIMiddleware        (rate limit check)
-  -> CORSMiddleware
-  -> FastAPI route handler
-      +-- dependencies.py: get_asana_client()
-          +-- Creates AsanaClient(config=<from settings>) per-request (ADR-ASANA-007)
-              +-- transport/asana_http.py: AsanaHttpClient
-                  +-- autom8y_http.Autom8yHttpClient (W3C traceparent propagation)
-                      -> Asana API
+HTTP Request
+  -> RequestIDMiddleware (set X-Request-ID)
+  -> RequestLoggingMiddleware (log request/response)
+  -> SlowAPIMiddleware (rate limit check)
+  -> IdempotencyMiddleware (check/store idempotency key)
+  -> CORSMiddleware (preflight handling)
+  -> Route handler
+    -> get_auth_context() extracts Bearer token, detects PAT vs JWT
+    -> get_asana_client_from_context() gets/creates pooled AsanaClient
+    -> Service layer (TaskService, DataFrameService, etc.)
+    -> Resource client (TasksClient.get_async())
+      -> Cache check (CacheProvider.get_versioned())
+      -> If miss: AsanaHttpClient.get_async() -> Asana API
+      -> Cache store (CacheProvider.set_versioned())
+    -> Pydantic model response
 ```
 
-### 2. DataFrame Preload Pipeline (startup)
+### 2. DataFrame Pipeline
 
 ```
-lifespan() startup
-  -> _discover_entity_projects(app)      # Discover project GIDs from workspace
-  -> _initialize_dataframe_cache(app)    # Create Memory+S3 DataFrameCache -> app.state
-  -> _register_schema_providers()        # Register schemas with SDK autom8y_cache
-  -> _preload_dataframe_cache_progressive()  # Background: warm cache from S3
-      +-- api/preload/progressive.py
-          +-- ProgressiveProjectBuilder (dataframes/builders/progressive.py)
-              -> Asana API: fetch tasks section-by-section
-              -> SectionPersistence: write each section to S3 as it completes
-              -> cascade_validator: validate cascade-critical fields post-merge
-              -> MemoryTier: load completed DataFrame into memory
+API request: GET /api/v1/dataframes/{project_gid}?schema_type=unit
+  -> DataFrameService.get_dataframe()
+    -> SchemaRegistry.get_schema("unit") -> DataFrameSchema
+    -> DataFrameCache check (S3-backed)
+      -> If miss: ProgressiveProjectBuilder
+        -> Fetch sections (parallel, max_concurrent_sections=8)
+        -> For each section: paginated task fetch with AIMD pacing
+        -> UnitExtractor.extract(task, schema) -> UnitRow
+        -> CustomFieldResolver maps field names -> GIDs
+        -> Build Polars DataFrame
+      -> Cache store (DataFrameCache -> S3 Parquet)
+    -> Return as JSON records or Polars serialized
 ```
 
-### 3. Entity Resolution Pipeline (S2S path)
-
-```
-POST /v1/resolve/{entity_type}
-  -> resolver.py route handler
-      -> require_service_claims()        # Validate S2S JWT
-      -> get_strategy(entity_type)       # Factory -> UniversalResolutionStrategy
-      -> strategy.resolve_batch(criteria)
-          +-- DynamicIndex.lookup(key)  # O(1) from in-memory DataFrame
-              |-- Cache HIT: return immediately
-              +-- Cache MISS:
-                  -> DataFrameCache.get(entity_type)
-                      |-- MemoryTier HIT: return DataFrame
-                      +-- S3 (ProgressiveTier) HIT: deserialize, warm memory tier
-                          +-- MISS: ProgressiveProjectBuilder.build() -> Asana API
-```
-
-### 4. Webhook Inbound Pipeline
+### 3. Webhook Inbound Pipeline
 
 ```
 POST /api/v1/webhooks/inbound?token=<secret>
-  -> Token timing-safe comparison (hmac.compare_digest)
-  -> Parse task JSON -> Task model
-  -> BackgroundTasks.add_task():
-      -> CacheInvalidator.invalidate([TASK, SUBTASKS, DETECTION] entry types)
-      -> WebhookDispatcher.dispatch(task)   # V1: no-op log; GAP-03 scope
+  -> Timing-safe token verification
+  -> Parse raw JSON -> Task model (Pydantic validation)
+  -> Background task:
+    -> Cache invalidation (TASK, SUBTASKS, DETECTION entry types)
+    -> WebhookDispatcher.dispatch(task) (extensible via Protocol)
   -> Return 200 immediately (prevent Asana retries)
 ```
 
-### 5. Save (Write) Pipeline
+### 4. Save Pipeline (Unit of Work)
 
 ```
-SaveSession context manager
-  -> session.add(entity)      # ChangeTracker records diff
-  -> session.commit()
-      -> SavePipeline.execute()
-          Phase 1: VALIDATE   - DependencyGraph cycle detection + field validation
-          Phase 2: PREPARE    - Build PlannedOperations, assign temp GIDs
-          Phase 3: EXECUTE    - BatchExecutor (CRUD via Asana Batch API)
-          Phase 4: ACTIONS    - ActionExecutor (tags, projects, dependencies)
-          Phase 5: CONFIRM    - Resolve temp GIDs -> real GIDs
-      -> CacheInvalidator.invalidate(affected GIDs)
-      -> EventSystem.emit() -> AutomationEngine.evaluate_async()
+async with client.save_session() as session:
+    session.track(entity)
+    entity.name = "Updated"
+    result = await session.commit_async()
+      -> Compute diffs (EntityState tracking)
+      -> Topological sort (parent dependencies first)
+      -> Batch mutations (chunks of 10 via Asana Batch API)
+      -> Resolve temporary GIDs -> real GIDs
+      -> Execute automation rules (AutomationEngine)
+      -> Return SaveResult (succeeded, failed, skipped)
 ```
 
-### 6. Configuration Merge Flow
+### 5. Entity Resolution (S2S)
 
 ```
-Environment variables (ASANA_PAT, ASANA_CACHE_*, REDIS_*, API_HOST, etc.)
-  -> settings.py: get_settings() -> pydantic-settings: Settings (cached singleton)
-      |-- AsanaSettings (PAT, workspace GID, base URL)
-      |-- CacheSettings (enabled, provider, TTL per entity type, circuit breaker thresholds)
-      |-- RuntimeSettings (dataframe_cache_bypass, container_memory_mb, section_freshness_probe)
-      +-- ... (12+ sub-settings groups)
+POST /v1/resolve/business  (S2S JWT auth)
+  -> IntakeResolveService
+    -> Build search criteria from phone + vertical
+    -> SearchService.find_async() over cached DataFrame
+    -> Score candidates using matching algorithms
+    -> ResolutionResult with match confidence
 ```
 
----
+### 6. Cache Warming (Startup)
+
+```
+lifespan startup:
+  -> _preload_dataframe_cache_progressive(app)
+    -> For each warmable entity (by warm_priority):
+      -> ProgressiveProjectBuilder fetches all sections
+      -> Builds Polars DataFrames
+      -> Stores to DataFrameCache (S3)
+    -> Sets app.state.cache_ready = True
+    -> /ready endpoint returns 200 (was 503 during warming)
+```
+
+### 7. Lambda Execution
+
+```
+Lambda invocation (via AWS event):
+  -> handler(event, context)
+    -> bootstrap() business models
+    -> Create AsanaClient with bot PAT
+    -> Execute workflow (e.g., insights export)
+    -> Emit CloudWatch metrics
+    -> Return result
+```
+
+### 8. Configuration Flow
+
+```
+Environment variables (ASANA_*, REDIS_*, etc.)
+  -> settings.py (Pydantic Settings with validation)
+  -> config.py (frozen dataclasses: AsanaConfig, CacheConfig, etc.)
+  -> AsanaClient.__init__() (composes all configs)
+  -> ConfigTranslator (maps domain configs -> platform SDK configs)
+  -> autom8y-http, autom8y-cache, autom8y-auth SDK calls
+```
 
 ## Knowledge Gaps
 
-1. **`src/autom8_asana/query/` package** (15 files): The query engine (compiler, aggregator, join, temporal, hierarchy) was not read in detail. It appears to implement a structured query language over DataFrames for the `/v1/query/rows` and `/v1/query/aggregate` endpoints.
-2. **`src/autom8_asana/metrics/` package**: Domain metrics computation (expr engine, metric registry, definitions/offer.py) not deeply read. Appears to compute business metrics from DataFrames.
-3. **`src/autom8_asana/lifecycle/` package**: The 10-file task lifecycle orchestration (creation, completion, dispatch, seeding, sections, webhook wiring) was not fully traced.
-4. **`src/autom8_asana/clients/data/`**: Data service client (for `autom8_data` external service, insights integration) not read.
-5. **`src/autom8_asana/cache/backends/`**: Redis and in-memory backend implementations not examined.
-6. **`src/autom8_asana/automation/polling/`**: Polling scheduler and YAML config schema not read.
-7. **`src/autom8_query_cli.py`**: CLI entry point not read.
+1. **`reconciliation/` package**: Directory exists with only `__pycache__`, but payment reconciliation logic lives in `automation/workflows/payment_reconciliation/`. The package may be vestigial or planned for migration.
+
+2. **`clients/utils/` contents**: Not deeply examined. Contains client helper utilities referenced by resource clients.
+
+3. **Full automation rule inventory**: The exact set of registered `AutomationRule` implementations beyond `PipelineConversionRule` was not exhaustively enumerated. The rule registration happens at `AsanaClient.__init__` time via `setup_event_emission()`.
+
+4. **Redis cache provider implementation details**: The `cache/backends/` Redis adapter was not fully examined. Its configuration and connection management specifics are known only through the settings layer.
+
+5. **`clients/data/_endpoints/` specifics**: The individual endpoint modules for the `DataServiceClient` were not read. They implement specific HTTP calls to the autom8_data service.
+
+6. **Full Pydantic Settings model**: `settings.py` was read partially (first 60 lines of ~300+). The complete set of environment variables and their Pydantic models is extensive; the module header documents ~60+ variables.
+
+7. **Test structure**: Tests live in `tests/` (not in scope) but are configured with `pytest-asyncio` in auto mode, 60s timeout, and markers for slow/integration/benchmark.
+
+```metadata
+overall_grade: A
+overall_percentage: 91.0%
+confidence: 0.93
+criteria_grades:
+  package_structure: A
+  layer_boundaries: A
+  entry_points_and_api_surface: A
+  key_abstractions: A
+  data_flow: A
+```

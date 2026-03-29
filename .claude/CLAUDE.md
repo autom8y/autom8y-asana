@@ -4,17 +4,18 @@
 Use the available agents and slash commands. Delegate complex work to specialists via Task tool.
 <!-- KNOSSOS:END execution-mode -->
 
-<!-- KNOSSOS:START quick-start source=ACTIVE_RITE+agents regenerate=true -->
+<!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-4-agent workflow (review):
+5-agent workflow (10x-dev):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates code review phases, gates complexity, manages back-routes |
-| **signal-sifter** | Reads codebase and sifts signal from noise using structural heuristics |
-| **pattern-profiler** | Connects dots across signals, builds severity profile and health grades |
-| **case-reporter** | Writes the definitive case file with health report card |
+| **potnia** | Coordinates development lifecycle phases and routes work to specialists |
+| **requirements-analyst** | Gathers requirements and produces PRD artifacts |
+| **architect** | Creates technical design documents and architecture decisions |
+| **principal-engineer** | Implements code according to design specifications |
+| **qa-adversary** | Validates implementation through adversarial testing |
 
 Delegate to specialists via Task tool.
 <!-- KNOSSOS:END quick-start -->
@@ -42,10 +43,11 @@ Agents cannot spawn other agents — only the main thread has Task tool access.
 
 Prompts in `.claude/agents/`:
 
-- `potnia.md` - Coordinates code review phases, gates complexity, manages back-routes
-- `signal-sifter.md` - Reads codebase and sifts signal from noise using structural heuristics
-- `pattern-profiler.md` - Connects dots across signals, builds severity profile and health grades
-- `case-reporter.md` - Writes the definitive case file with health report card
+- `potnia.md` - Coordinates development lifecycle phases and routes work to specialists
+- `requirements-analyst.md` - Gathers requirements and produces PRD artifacts
+- `architect.md` - Creates technical design documents and architecture decisions
+- `principal-engineer.md` - Implements code according to design specifications
+- `qa-adversary.md` - Validates implementation through adversarial testing
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:
