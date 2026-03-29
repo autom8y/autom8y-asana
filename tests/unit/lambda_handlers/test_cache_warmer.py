@@ -14,12 +14,14 @@ import polars as pl
 import pytest
 
 from autom8_asana.lambda_handlers.cache_warmer import (
-    TIMEOUT_BUFFER_MS,
     WarmResponse,
-    _should_exit_early,
     _warm_cache_async,
     handler,
     handler_async,
+)
+from autom8_asana.lambda_handlers.timeout import (
+    TIMEOUT_BUFFER_MS,
+    _should_exit_early,
 )
 from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 

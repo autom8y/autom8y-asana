@@ -9,14 +9,14 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-from autom8_asana.lambda_handlers.cache_warmer import _self_invoke_continuation
+from autom8_asana.lambda_handlers.timeout import _self_invoke_continuation
 
 
 class TestSelfInvokeContinuation:
     """Tests for _self_invoke_continuation helper."""
 
     @patch("boto3.client")
-    @patch("autom8_asana.lambda_handlers.cache_warmer.emit_metric")
+    @patch("autom8_asana.lambda_handlers.timeout.emit_metric")
     def test_invokes_with_pending_entities(
         self, mock_metric: MagicMock, mock_boto3_client: MagicMock
     ) -> None:
@@ -47,7 +47,7 @@ class TestSelfInvokeContinuation:
         assert payload["resume_from_checkpoint"] is True
 
     @patch("boto3.client")
-    @patch("autom8_asana.lambda_handlers.cache_warmer.emit_metric")
+    @patch("autom8_asana.lambda_handlers.timeout.emit_metric")
     def test_emits_metric_on_success(
         self, mock_metric: MagicMock, mock_boto3_client: MagicMock
     ) -> None:
@@ -77,7 +77,7 @@ class TestSelfInvokeContinuation:
         _self_invoke_continuation(context, ["contact"], "inv-001")
 
     @patch("boto3.client")
-    @patch("autom8_asana.lambda_handlers.cache_warmer.emit_metric")
+    @patch("autom8_asana.lambda_handlers.timeout.emit_metric")
     def test_handles_invoke_error_gracefully(
         self, mock_metric: MagicMock, mock_boto3_client: MagicMock
     ) -> None:
@@ -96,7 +96,7 @@ class TestSelfInvokeContinuation:
         mock_metric.assert_not_called()
 
     @patch("boto3.client")
-    @patch("autom8_asana.lambda_handlers.cache_warmer.emit_metric")
+    @patch("autom8_asana.lambda_handlers.timeout.emit_metric")
     def test_uses_context_arn(
         self, mock_metric: MagicMock, mock_boto3_client: MagicMock
     ) -> None:
