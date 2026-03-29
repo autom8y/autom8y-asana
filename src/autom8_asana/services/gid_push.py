@@ -128,6 +128,101 @@ def _get_auth_token() -> str | None:
         return None
 
 
+async def _push_to_data_service(
+    *,
+    endpoint_path: str,
+    payload: dict[str, Any],
+    response_model: type[BaseModel],
+    metric_dimensions: dict[str, str],
+    log_prefix: str,
+    base_url: str,
+    token: str,
+) -> bool:
+    """Shared HTTP push helper for data-service endpoints.
+
+    Handles the HTTP POST, response parsing, timeout, and broad-catch
+    boilerplate shared by push_gid_mappings_to_data_service and
+    push_status_to_data_service.
+
+    Args:
+        endpoint_path: Path appended to base_url (e.g. '/api/v1/gid-mappings/sync').
+        payload: Request body dict to POST as JSON.
+        response_model: Pydantic model class to parse the 2xx response body.
+        metric_dimensions: Key/value pairs logged with success/failure events.
+        log_prefix: Prefix for log event names ('gid_push' or 'status_push').
+        base_url: Resolved autom8_data base URL (trailing slash stripped internally).
+        token: Bearer token for Authorization header.
+
+    Returns:
+        True if the push succeeded (HTTP 2xx), False otherwise.
+    """
+    url = f"{base_url.rstrip('/')}{endpoint_path}"
+    headers: dict[str, str] = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    logger.info(
+        f"{log_prefix}_starting",
+        extra={**metric_dimensions, "url": url},
+    )
+
+    try:
+        async with (
+            Autom8yHttpClient(_PUSH_CONFIG) as client,
+            client.raw() as raw_client,
+        ):
+            response = await raw_client.post(url, json=payload, headers=headers)
+
+        if response.status_code < 300:
+            try:
+                parsed = response_model.model_validate(response.json())
+            except Exception:
+                parsed = response_model()
+
+            logger.info(
+                f"{log_prefix}_success",
+                extra={
+                    **metric_dimensions,
+                    "status_code": response.status_code,
+                    **{
+                        k: v
+                        for k, v in parsed.model_dump().items()
+                        if v is not None
+                    },
+                },
+            )
+            return True
+
+        logger.warning(
+            f"{log_prefix}_failed",
+            extra={
+                **metric_dimensions,
+                "status_code": response.status_code,
+                "response_text": mask_pii_in_string(response.text[:500]),
+            },
+        )
+        return False
+
+    except TimeoutException as e:
+        logger.warning(
+            f"{log_prefix}_timeout",
+            extra={**metric_dimensions, "error": mask_pii_in_string(str(e))},
+        )
+        return False
+
+    except Exception as e:  # BROAD-CATCH: isolation -- push failure must never fail cache warmer
+        logger.error(
+            f"{log_prefix}_error",
+            extra={
+                **metric_dimensions,
+                "error": mask_pii_in_string(str(e)),
+                "error_type": type(e).__name__,
+            },
+        )
+        return False
+
+
 async def push_gid_mappings_to_data_service(
     project_gid: str,
     index: GidLookupIndex,
@@ -210,80 +305,15 @@ async def push_gid_mappings_to_data_service(
         "entry_count": len(mappings),
     }
 
-    url = f"{base_url.rstrip('/')}/api/v1/gid-mappings/sync"
-
-    headers: dict[str, str] = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-
-    logger.info(
-        "gid_push_starting",
-        extra={
-            "project_gid": project_gid,
-            "entry_count": len(mappings),
-            "url": url,
-        },
+    return await _push_to_data_service(
+        endpoint_path="/api/v1/gid-mappings/sync",
+        payload=payload,
+        response_model=GidPushResponse,
+        metric_dimensions={"project_gid": project_gid, "entry_count": str(len(mappings))},
+        log_prefix="gid_push",
+        base_url=base_url,
+        token=token,
     )
-
-    try:
-        async with (
-            Autom8yHttpClient(_PUSH_CONFIG) as client,
-            client.raw() as raw_client,
-        ):
-            response = await raw_client.post(url, json=payload, headers=headers)
-
-        if response.status_code < 300:
-            try:
-                parsed = GidPushResponse.model_validate(response.json())
-            except (ValueError, Exception):
-                parsed = GidPushResponse()
-
-            logger.info(
-                "gid_push_success",
-                extra={
-                    "project_gid": project_gid,
-                    "entry_count": len(mappings),
-                    "status_code": response.status_code,
-                    "accepted": parsed.accepted,
-                    "replaced": parsed.replaced,
-                },
-            )
-            return True
-
-        # Non-success HTTP status
-        logger.warning(
-            "gid_push_failed",
-            extra={
-                "project_gid": project_gid,
-                "status_code": response.status_code,
-                "response_text": mask_pii_in_string(response.text[:500]),
-            },
-        )
-        return False
-
-    except TimeoutException as e:
-        logger.warning(
-            "gid_push_timeout",
-            extra={
-                "project_gid": project_gid,
-                "error": mask_pii_in_string(str(e)),
-            },
-        )
-        return False
-
-    except (
-        Exception
-    ) as e:  # BROAD-CATCH: isolation -- push failure must never fail cache warmer
-        logger.error(
-            "gid_push_error",
-            extra={
-                "project_gid": project_gid,
-                "error": mask_pii_in_string(str(e)),
-                "error_type": type(e).__name__,
-            },
-        )
-        return False
 
 
 # ============================================================================
@@ -345,8 +375,8 @@ def extract_status_from_dataframe(
         account_activity, pipeline_section, stage_entered_at.
     """
     from autom8_asana.models.business.activity import (
-        AccountActivity,
         UNIT_CLASSIFIER,
+        AccountActivity,
         extract_section_name,
         get_classifier,
     )
@@ -487,66 +517,12 @@ async def push_status_to_data_service(
         "entry_count": len(entries),
     }
 
-    url = f"{base_url.rstrip('/')}/api/v1/account-status/sync"
-    headers: dict[str, str] = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-
-    logger.info(
-        "status_push_starting",
-        extra={
-            "entry_count": len(entries),
-            "url": url,
-        },
+    return await _push_to_data_service(
+        endpoint_path="/api/v1/account-status/sync",
+        payload=payload,
+        response_model=AccountStatusPushResponse,
+        metric_dimensions={"entry_count": str(len(entries))},
+        log_prefix="status_push",
+        base_url=base_url,
+        token=token,
     )
-
-    try:
-        async with (
-            Autom8yHttpClient(_PUSH_CONFIG) as client,
-            client.raw() as raw_client,
-        ):
-            response = await raw_client.post(url, json=payload, headers=headers)
-
-        if response.status_code < 300:
-            try:
-                parsed = AccountStatusPushResponse.model_validate(response.json())
-            except (ValueError, Exception):
-                parsed = AccountStatusPushResponse()
-
-            logger.info(
-                "status_push_success",
-                extra={
-                    "entry_count": len(entries),
-                    "status_code": response.status_code,
-                    "deleted": parsed.deleted,
-                    "inserted": parsed.inserted,
-                },
-            )
-            return True
-
-        logger.warning(
-            "status_push_failed",
-            extra={
-                "status_code": response.status_code,
-                "response_text": mask_pii_in_string(response.text[:500]),
-            },
-        )
-        return False
-
-    except TimeoutException as e:
-        logger.warning(
-            "status_push_timeout",
-            extra={"error": mask_pii_in_string(str(e))},
-        )
-        return False
-
-    except Exception as e:  # BROAD-CATCH: isolation -- push failure must never fail cache warmer
-        logger.error(
-            "status_push_error",
-            extra={
-                "error": mask_pii_in_string(str(e)),
-                "error_type": type(e).__name__,
-            },
-        )
-        return False
