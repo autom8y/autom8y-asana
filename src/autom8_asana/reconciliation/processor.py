@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
+from autom8_asana.clients.utils.pii import mask_phone_number
 from autom8_asana.reconciliation.section_registry import (
     EXCLUDED_SECTION_GIDS,
     EXCLUDED_SECTION_NAMES,
@@ -394,6 +395,27 @@ class ReconciliationBatchProcessor:
                         },
                     )
 
-            result.no_op_count += 1
+            # Three-way action decision based on offer lookup outcome.
+            if offer_section is None:
+                # No offer data found for this unit -- nothing to compare.
+                result.no_op_count += 1
+            elif offer_section == section_name:
+                # Unit is already in the correct section.
+                result.no_op_count += 1
+            else:
+                # Section mismatch -- unit needs to move.
+                result.actions.append(
+                    ReconciliationAction(
+                        unit_gid=unit_gid,
+                        phone=mask_phone_number(phone),
+                        vertical=vertical,
+                        current_section=section_name,
+                        target_section=offer_section,
+                        reason=(
+                            f"Unit in '{section_name}' but offer indicates "
+                            f"'{offer_section}'"
+                        ),
+                    )
+                )
 
         return result

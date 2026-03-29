@@ -16,6 +16,7 @@ import polars as pl
 import pytest
 
 from autom8_asana.reconciliation.processor import (
+    ReconciliationAction,
     ReconciliationBatchProcessor,
 )
 from autom8_asana.reconciliation.section_registry import (
@@ -100,7 +101,7 @@ class TestGidExclusion:
         """Units with non-excluded GIDs are processed normally."""
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["Active"],
+            "section": ["ACTIVE"],
             "section_gid": ["9999999999999999"],  # Not in excluded set
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
@@ -148,7 +149,7 @@ class TestNameExclusion:
             "gid": ["unit_1"],
             "section": ["Templates"],
             "section_gid": ["9999999999999999"],  # Present but not in excluded GIDs
-            "office_phone": ["+15551234567"],
+            "office_phone": ["+15559876543"],  # Different phone so no offer match
             "vertical": ["dental"],
         })
         offer_df = make_offer_df(gids=["offer_1"])
@@ -164,7 +165,7 @@ class TestNameExclusion:
         """Valid section names that are NOT in EXCLUDED_SECTION_NAMES pass through."""
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["Active"],
+            "section": ["ACTIVE"],
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
         })
@@ -195,7 +196,11 @@ class TestNoSectionExclusion:
         assert result.skipped_no_section == 1
 
     def test_mixed_sections_partial_exclusion(self, make_unit_df, make_offer_df) -> None:
-        """Mix of valid and null sections produces correct counts."""
+        """Mix of valid and null sections produces correct counts.
+
+        Both non-null units match the offer phone+vertical but differ in
+        section name, so they generate actions (not no_ops).
+        """
         unit_df = make_unit_df(
             gids=["unit_1", "unit_2", "unit_3"],
             sections=["Active", None, "Onboarding"],
@@ -207,7 +212,9 @@ class TestNoSectionExclusion:
 
         assert result.total_scanned == 3
         assert result.excluded_count == 1  # Only the None section
-        assert result.no_op_count == 2  # Active + Onboarding
+        # Both Active and Onboarding differ from offer's ACTIVE section
+        assert len(result.actions) == 2
+        assert result.no_op_count == 0
 
 
 class TestSchemaEntryGuard:
@@ -283,7 +290,7 @@ class TestPhoneOnlyFallback:
         """When composite (phone, vertical) matches, phone-only fallback is NOT used."""
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["Active"],
+            "section": ["ACTIVE"],
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
         })
@@ -297,7 +304,7 @@ class TestPhoneOnlyFallback:
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
 
-        # Exact match found -- unit is processed (no-op in current logic)
+        # Exact match found, sections match -- no action needed
         assert result.no_op_count == 1
         assert result.total_scanned == 1
 
@@ -331,7 +338,8 @@ class TestPhoneOnlyFallback:
         with caplog.at_level(logging.WARNING):
             result = processor.process()
 
-        assert result.no_op_count == 1
+        # Fallback finds ACTIVE, unit is in Active -- sections differ, so action
+        assert len(result.actions) == 1
         assert result.total_scanned == 1
 
         # Verify composite key misses
@@ -435,3 +443,187 @@ class TestPhoneOnlyFallback:
 
         # First occurrence wins for phone-only index
         assert processor._offer_phone_index["+15551234567"] == ("ACTIVE", "dental")
+
+
+class TestActionGeneration:
+    """Gap 3: Verify three-way action decision after offer lookup.
+
+    When a unit's phone matches an offer:
+    - Same section -> no_op (unit is already where it belongs)
+    - Different section -> ReconciliationAction generated
+    When no offer match -> no_op (nothing to compare)
+    """
+
+    def test_matching_section_is_no_op(self) -> None:
+        """When unit section == offer section, no action is generated."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["ACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert result.no_op_count == 1
+        assert len(result.actions) == 0
+
+    def test_mismatching_section_generates_action(self) -> None:
+        """When unit section != offer section, a ReconciliationAction is generated."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Onboarding"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert result.no_op_count == 0
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert isinstance(action, ReconciliationAction)
+
+    def test_action_has_correct_fields(self) -> None:
+        """ReconciliationAction is populated with gid, masked phone, sections, reason."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_42"],
+            "section": ["Onboarding"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.unit_gid == "unit_42"
+        assert action.vertical == "dental"
+        assert action.current_section == "Onboarding"
+        assert action.target_section == "ACTIVE"
+        assert "Onboarding" in action.reason
+        assert "ACTIVE" in action.reason
+
+    def test_action_phone_is_masked(self) -> None:
+        """Raw phone number must NOT appear in action.phone (PII masking)."""
+        raw_phone = "+15551234567"
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Onboarding"],
+            "office_phone": [raw_phone],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVE"],
+            "office_phone": [raw_phone],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        # Raw phone must not be present
+        assert action.phone != raw_phone
+        # Masked format: first 5 + *** + last 4 = "+1555***4567"
+        assert action.phone == "+1555***4567"
+        # Double-check: the unmasked middle digits are gone
+        assert "123" not in action.phone
+
+    def test_no_offer_match_is_no_op(self) -> None:
+        """When phone has no offer match at all, result is no_op."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Onboarding"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVE"],
+            "office_phone": ["+15559999999"],  # Different phone
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert result.no_op_count == 1
+        assert len(result.actions) == 0
+
+    def test_multiple_units_mixed_outcomes(self) -> None:
+        """Batch with match-same, match-different, and no-match produces correct counts."""
+        unit_df = pl.DataFrame({
+            "gid": ["u1", "u2", "u3"],
+            "section": ["ACTIVE", "Onboarding", "Staging"],
+            "office_phone": ["+15551111111", "+15552222222", "+15553333333"],
+            "vertical": ["dental", "dental", "dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["o1", "o2"],
+            "section": ["ACTIVE", "ACTIVE"],
+            "office_phone": ["+15551111111", "+15552222222"],
+            "vertical": ["dental", "dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert result.total_scanned == 3
+        # u1: ACTIVE == ACTIVE -> no_op
+        # u2: Onboarding != ACTIVE -> action
+        # u3: no match -> no_op
+        assert result.no_op_count == 2
+        assert len(result.actions) == 1
+        assert result.actions[0].unit_gid == "u2"
+        assert result.actions[0].current_section == "Onboarding"
+        assert result.actions[0].target_section == "ACTIVE"
+
+    def test_phone_only_fallback_mismatch_generates_action(self) -> None:
+        """Phone-only fallback with section mismatch generates an action."""
+        # Unit vertical "" won't match offer vertical "dental" via composite key
+        # Phone-only fallback finds the offer, and sections differ
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Onboarding"],
+            "office_phone": ["+15551234567"],
+            "vertical": [""],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.current_section == "Onboarding"
+        assert action.target_section == "ACTIVE"
+        assert action.phone != "+15551234567"  # Masked

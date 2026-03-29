@@ -7,6 +7,7 @@ CloudWatch metric emission.
 
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -19,11 +20,11 @@ from autom8_asana.lambda_handlers.cache_warmer import (
     handler,
     handler_async,
 )
+from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 from autom8_asana.lambda_handlers.timeout import (
     TIMEOUT_BUFFER_MS,
     _should_exit_early,
 )
-from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 
 
 class TestWarmResponse:
@@ -912,3 +913,214 @@ class TestWarmResponseExtended:
 
         assert response.checkpoint_cleared is False
         assert response.invocation_id is None
+
+
+# ============================================================================
+# Tests for Reconciliation Shadow Mode (Phase 5 - Project Ignition)
+# ============================================================================
+
+
+class TestReconciliationShadowIntegration:
+    """Tests for reconciliation shadow mode integration in cache warmer.
+
+    Verifies that _run_reconciliation_shadow is called as Phase 5 of the
+    post-warm sequence with the correct arguments, and that failures in
+    shadow mode do not affect the cache warmer's WarmResponse.
+    """
+
+    def _build_warm_stack(
+        self,
+        shadow_mock: AsyncMock,
+    ) -> contextlib.ExitStack:
+        """Build an ExitStack with all patches for a successful single-entity warm.
+
+        Returns an un-entered ExitStack. Caller must use it as a context
+        manager. Sets self._warm_status for WarmResult comparison setup.
+        """
+        mock_checkpoint_mgr = MagicMock()
+        mock_checkpoint_mgr.load_async = AsyncMock(return_value=None)
+        mock_checkpoint_mgr.save_async = AsyncMock(return_value=True)
+        mock_checkpoint_mgr.clear_async = AsyncMock(return_value=True)
+
+        mock_cache = MagicMock()
+        mock_cache.put_async = AsyncMock()
+
+        mock_registry = MagicMock()
+        mock_registry.is_ready.return_value = True
+        mock_registry.get_project_gid.return_value = "project-123"
+
+        mock_warm_status = MagicMock()
+        mock_warm_status.result.name = "SUCCESS"
+        mock_warm_status.row_count = 100
+        mock_warm_status.error = None
+        mock_warm_status.to_dict.return_value = {
+            "entity_type": "unit",
+            "result": "success",
+            "row_count": 100,
+        }
+        self._warm_status = mock_warm_status
+
+        mock_warmer = MagicMock()
+        mock_warmer.warm_entity_async = AsyncMock(return_value=mock_warm_status)
+
+        stack = contextlib.ExitStack()
+        stack.enter_context(
+            patch.dict(
+                "os.environ",
+                {
+                    "ASANA_WORKSPACE_GID": "workspace-123",
+                    "ASANA_CACHE_S3_BUCKET": "test-bucket",
+                },
+            )
+        )
+        stack.enter_context(
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
+                return_value=mock_registry,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
+                return_value=mock_checkpoint_mgr,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test-pat",
+            )
+        )
+        stack.enter_context(
+            patch(
+                "autom8_asana.cache.dataframe.warmer.CacheWarmer",
+                return_value=mock_warmer,
+            )
+        )
+        stack.enter_context(
+            patch("autom8_asana.cache.dataframe.warmer.WarmResult")
+        )
+        stack.enter_context(patch("autom8_asana.AsanaClient"))
+        stack.enter_context(
+            patch("autom8_asana.lambda_handlers.cache_warmer.emit_metric")
+        )
+        stack.enter_context(
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._push_gid_mappings_for_completed_entities",
+                new_callable=AsyncMock,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._push_account_status_for_completed_entities",
+                new_callable=AsyncMock,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._warm_story_caches_for_completed_entities",
+                new_callable=AsyncMock,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._run_vertical_backfill",
+                new_callable=AsyncMock,
+            )
+        )
+        stack.enter_context(
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._run_reconciliation_shadow",
+                new=shadow_mock,
+            )
+        )
+        return stack
+
+    @pytest.mark.asyncio
+    async def test_shadow_called_with_correct_args(self) -> None:
+        """_run_reconciliation_shadow is called with the right arguments after warming."""
+        shadow_mock = AsyncMock()
+        stack = self._build_warm_stack(shadow_mock)
+
+        with stack:
+            from autom8_asana.cache.dataframe import warmer as warmer_mod
+
+            warmer_mod.WarmResult.SUCCESS = self._warm_status.result
+
+            context = MockLambdaContext(remaining_time_ms=600_000)
+            response = await _warm_cache_async(
+                entity_types=["unit"],
+                resume_from_checkpoint=False,
+                context=context,
+            )
+
+        assert response.success is True
+        shadow_mock.assert_called_once()
+        call_kwargs = shadow_mock.call_args.kwargs
+        assert "unit" in call_kwargs["completed_entities"]
+        assert call_kwargs["cache"] is not None
+        assert call_kwargs["get_project_gid"] is not None
+        assert call_kwargs["invocation_id"] is not None
+
+    @pytest.mark.asyncio
+    async def test_shadow_exception_does_not_propagate(self) -> None:
+        """An exception in _run_reconciliation_shadow does not propagate as unhandled.
+
+        The runner's internal try/except handles errors in production. This
+        test verifies that even if the mock bypasses that guard and raises
+        directly, the cache warmer's top-level try/except still returns a
+        WarmResponse (no raw exception escapes _warm_cache_async).
+        """
+        shadow_mock = AsyncMock(
+            side_effect=RuntimeError("Reconciliation engine exploded"),
+        )
+        stack = self._build_warm_stack(shadow_mock)
+
+        with stack:
+            from autom8_asana.cache.dataframe import warmer as warmer_mod
+
+            warmer_mod.WarmResult.SUCCESS = self._warm_status.result
+
+            context = MockLambdaContext(remaining_time_ms=600_000)
+            response = await _warm_cache_async(
+                entity_types=["unit"],
+                resume_from_checkpoint=False,
+                context=context,
+            )
+
+        shadow_mock.assert_called_once()
+        # Top-level except returns a WarmResponse -- no unhandled crash
+        assert isinstance(response, WarmResponse)
+
+    @pytest.mark.asyncio
+    async def test_shadow_called_even_when_flag_not_set(self) -> None:
+        """The cache warmer always calls _run_reconciliation_shadow.
+
+        The feature flag check is inside the runner itself, not in the
+        cache warmer. The warmer simply calls it; the runner returns early
+        when the flag is not set.
+        """
+        shadow_mock = AsyncMock()
+        stack = self._build_warm_stack(shadow_mock)
+
+        with stack:
+            from autom8_asana.cache.dataframe import warmer as warmer_mod
+
+            warmer_mod.WarmResult.SUCCESS = self._warm_status.result
+
+            context = MockLambdaContext(remaining_time_ms=600_000)
+            response = await _warm_cache_async(
+                entity_types=["unit"],
+                resume_from_checkpoint=False,
+                context=context,
+            )
+
+        assert response.success is True
+        # Shadow is called regardless -- the env var guard is inside the runner
+        shadow_mock.assert_called_once()
