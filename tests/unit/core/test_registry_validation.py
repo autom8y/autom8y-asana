@@ -154,33 +154,37 @@ class TestPipelineTypeRegistryValidation:
     """Tests for PIPELINE_TYPE_BY_PROJECT_GID cross-validation (SIG-012)."""
 
     def test_pipeline_type_check_finds_matching_gid(self):
-        """GID '1201081073731555' maps to 'unit' in both registries — no error."""
-        result = validate_cross_registry_consistency(
-            check_project_type_registry=False,
-            check_entity_project_registry=False,
-            check_pipeline_type_registry=True,
-        )
-        # The 'unit' GID exists in both registries with matching names.
-        # No errors should be produced for this GID.
-        assert result.ok is True
-        # But there should be warnings for process pipeline GIDs not in EntityRegistry
-        assert len(result.warnings) > 0
+        """All PIPELINE_TYPE_BY_PROJECT_GID entries match EntityRegistry — no errors.
 
-    def test_pipeline_type_warns_about_unregistered_gids(self):
-        """Process pipeline GIDs not in EntityRegistry produce warnings."""
+        Per ADR-pipeline-stage-aggregation: 9 pipeline process entities are now
+        registered in EntityRegistry with process_ prefix (e.g., process_sales).
+        The validation logic accepts the process_ prefix convention.
+        """
         result = validate_cross_registry_consistency(
             check_project_type_registry=False,
             check_entity_project_registry=False,
             check_pipeline_type_registry=True,
         )
-        # 9 of 10 PIPELINE_TYPE GIDs are process pipelines not in EntityRegistry
+        # All 10 PIPELINE_TYPE GIDs now match EntityRegistry entries:
+        # - 'unit' matches directly
+        # - 9 process pipelines match via process_ prefix convention
+        assert result.ok is True
+        assert result.errors == []
+
+    def test_pipeline_type_no_unregistered_gids(self):
+        """All process pipeline GIDs are now registered in EntityRegistry."""
+        result = validate_cross_registry_consistency(
+            check_project_type_registry=False,
+            check_entity_project_registry=False,
+            check_pipeline_type_registry=True,
+        )
+        # Per ADR-pipeline-stage-aggregation: all 9 pipeline GIDs are now
+        # registered as warmable entities in EntityRegistry. No warnings expected.
         pipeline_warnings = [
             w for w in result.warnings
             if "PIPELINE_TYPE_BY_PROJECT_GID" in w
         ]
-        assert len(pipeline_warnings) == 9  # sales, onboarding, outreach, month1, etc.
-        # Verify one specific warning
-        assert any("sales" in w for w in pipeline_warnings)
+        assert len(pipeline_warnings) == 0
 
     def test_pipeline_type_detects_name_mismatch(self):
         """If a shared GID has different names, an error is produced."""

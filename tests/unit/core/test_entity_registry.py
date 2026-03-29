@@ -421,7 +421,7 @@ class TestGlobalRegistry:
     def test_descriptor_count(self) -> None:
         """Registry has expected number of descriptors."""
         registry = get_registry()
-        assert len(registry.all_descriptors()) == 18
+        assert len(registry.all_descriptors()) == 27
 
     def test_warmable_count_and_order(self) -> None:
         """Warmable entities match expected count and priority order."""
@@ -435,6 +435,15 @@ class TestGlobalRegistry:
             "contact",
             "asset_edit",
             "asset_edit_holder",
+            "process_sales",
+            "process_outreach",
+            "process_onboarding",
+            "process_implementation",
+            "process_month1",
+            "process_retention",
+            "process_reactivation",
+            "process_account_error",
+            "process_expansion",
         ]
 
 
@@ -450,7 +459,22 @@ class TestFacadeBackwardCompatibility:
         """ENTITY_TYPES facade produces same values as old hardcoded list."""
         from autom8_asana.core.entity_types import ENTITY_TYPES
 
-        expected = ["business", "unit", "offer", "contact", "asset_edit"]
+        expected = [
+            "business",
+            "unit",
+            "offer",
+            "contact",
+            "asset_edit",
+            "process_sales",
+            "process_outreach",
+            "process_onboarding",
+            "process_implementation",
+            "process_month1",
+            "process_retention",
+            "process_reactivation",
+            "process_account_error",
+            "process_expansion",
+        ]
         assert expected == ENTITY_TYPES
 
     def test_entity_types_with_derivatives_matches(self) -> None:
@@ -464,6 +488,15 @@ class TestFacadeBackwardCompatibility:
             "contact",
             "asset_edit",
             "asset_edit_holder",
+            "process_sales",
+            "process_outreach",
+            "process_onboarding",
+            "process_implementation",
+            "process_month1",
+            "process_retention",
+            "process_reactivation",
+            "process_account_error",
+            "process_expansion",
         ]
         assert expected == ENTITY_TYPES_WITH_DERIVATIVES
 
@@ -493,6 +526,15 @@ class TestFacadeBackwardCompatibility:
             "contact": [],
             "asset_edit": ["process"],
             "asset_edit_holder": [],
+            "process_sales": [],
+            "process_outreach": [],
+            "process_onboarding": [],
+            "process_implementation": [],
+            "process_month1": [],
+            "process_retention": [],
+            "process_reactivation": [],
+            "process_account_error": [],
+            "process_expansion": [],
         }
         assert expected == ENTITY_ALIASES
 
@@ -512,6 +554,15 @@ class TestFacadeBackwardCompatibility:
                 "offer_id",
             ],
             "asset_edit_holder": ["office_phone"],
+            "process_sales": ["office_phone", "vertical"],
+            "process_outreach": ["office_phone", "vertical"],
+            "process_onboarding": ["office_phone", "vertical"],
+            "process_implementation": ["office_phone", "vertical"],
+            "process_month1": ["office_phone", "vertical"],
+            "process_retention": ["office_phone", "vertical"],
+            "process_reactivation": ["office_phone", "vertical"],
+            "process_account_error": ["office_phone", "vertical"],
+            "process_expansion": ["office_phone", "vertical"],
         }
         assert expected == DEFAULT_KEY_COLUMNS
 
@@ -1256,6 +1307,15 @@ EXPECTED_SCHEMA_COLUMN_COUNTS: list[tuple[str, int]] = [
     ("offer", 24),  # 13 base + 11 offer-specific
     ("asset_edit", 34),  # 13 base + 21 asset_edit-specific
     ("asset_edit_holder", 14),  # 13 base + 1 asset_edit_holder-specific
+    ("process_sales", 16),  # 13 base + 3 process-specific
+    ("process_outreach", 16),  # 13 base + 3 process-specific
+    ("process_onboarding", 16),  # 13 base + 3 process-specific
+    ("process_implementation", 16),  # 13 base + 3 process-specific
+    ("process_month1", 16),  # 13 base + 3 process-specific
+    ("process_retention", 16),  # 13 base + 3 process-specific
+    ("process_reactivation", 16),  # 13 base + 3 process-specific
+    ("process_account_error", 16),  # 13 base + 3 process-specific
+    ("process_expansion", 16),  # 13 base + 3 process-specific
 ]
 
 
@@ -1338,14 +1398,34 @@ class TestEntityTypeBindingRegression:
         )
         assert desc.name == "asset_edit"
 
+    # Pipeline process entities (process_sales, process_outreach, etc.) are
+    # intentionally warmable without individual EntityType enum members.
+    # They share the conceptual "Process" entity type but are registered as
+    # 9 separate entities to work within the 1-entity-1-project warming
+    # infrastructure. See ADR-pipeline-stage-aggregation.
+    _PIPELINE_PROCESS_NAMES = frozenset({
+        "process_sales",
+        "process_outreach",
+        "process_onboarding",
+        "process_implementation",
+        "process_month1",
+        "process_retention",
+        "process_reactivation",
+        "process_account_error",
+        "process_expansion",
+    })
+
     def test_all_warmable_entities_have_entity_type(self) -> None:
         """Every warmable entity has a non-None entity_type after binding.
 
         Guards against future entities being added as warmable without
         a corresponding EntityType enum member and _TYPE_MAP entry.
+        Pipeline process entities are excluded (see ADR-pipeline-stage-aggregation).
         """
         registry = get_registry()
         for desc in registry.warmable_entities():
+            if desc.name in self._PIPELINE_PROCESS_NAMES:
+                continue
             assert desc.entity_type is not None, (
                 f"Warmable entity {desc.name!r} has entity_type=None. "
                 f"Add an EntityType enum member and _TYPE_MAP entry for it."
@@ -1356,9 +1436,12 @@ class TestEntityTypeBindingRegression:
 
         Entities with projects are resolvable via Tier 1 detection and should
         participate in entity_type-dispatching code paths.
+        Pipeline process entities are excluded (see ADR-pipeline-stage-aggregation).
         """
         registry = get_registry()
         for desc in registry.all_descriptors():
+            if desc.name in self._PIPELINE_PROCESS_NAMES:
+                continue
             if desc.primary_project_gid is not None:
                 assert desc.entity_type is not None, (
                     f"Entity {desc.name!r} has primary_project_gid "

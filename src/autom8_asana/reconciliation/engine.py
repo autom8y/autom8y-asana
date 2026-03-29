@@ -69,16 +69,25 @@ def run_reconciliation(
     offer_df: Any,
     *,
     config: ReconciliationConfig | None = None,
+    pipeline_summary: Any | None = None,
 ) -> ReconciliationResult:
     """Run the reconciliation pipeline.
 
     Orchestrates the full pipeline: processor instantiation, batch
     processing, optional execution, and result reporting.
 
+    Per ADR-pipeline-stage-aggregation Phase 3: pipeline_summary is the
+    PRIMARY signal for target section derivation. When present, the
+    processor checks pipeline activity before falling back to offer
+    comparison.
+
     Args:
         unit_df: Polars DataFrame of unit tasks.
         offer_df: Polars DataFrame of offer tasks.
         config: Pipeline configuration. Defaults to dry_run=True.
+        pipeline_summary: Optional pipeline summary DataFrame from
+            pipeline_stage_aggregator. When None, existing offer-only
+            logic runs unchanged (backward compatible).
 
     Returns:
         ReconciliationResult with processor output and execution status.
@@ -95,6 +104,7 @@ def run_reconciliation(
             "max_actions": config.max_actions,
             "unit_df_rows": len(unit_df) if hasattr(unit_df, "__len__") else "unknown",
             "offer_df_rows": len(offer_df) if hasattr(offer_df, "__len__") else "unknown",
+            "has_pipeline_summary": pipeline_summary is not None,
         },
     )
 
@@ -103,6 +113,7 @@ def run_reconciliation(
             unit_df,
             offer_df,
             dry_run=config.dry_run,
+            pipeline_summary=pipeline_summary,
         )
         result.processor_result = processor.process()
     except Exception:

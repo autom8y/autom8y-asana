@@ -10,6 +10,10 @@ EXCLUDED_SECTION_NAMES from section_registry.py (4 entries), NOT
 UNIT_CLASSIFIER.ignored (1 entry). GID-based exclusion fires first;
 name-based fallback fires only when GID is unavailable.
 
+Per ADR-pipeline-stage-aggregation Phase 3: Pipeline summary is the
+PRIMARY signal for target section derivation. Offer comparison is the
+SECONDARY fallback when no pipeline entry exists for a (phone, vertical).
+
 Module: src/autom8_asana/reconciliation/processor.py
 """
 
@@ -30,6 +34,35 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 logger = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Pipeline derivation table (ADR-pipeline-stage-aggregation)
+# ---------------------------------------------------------------------------
+# Maps process pipeline type -> expected unit section name.
+# Values MUST match UNIT_CLASSIFIER section names exactly (title-case).
+# Stakeholder-confirmed 2026-03-29.
+DERIVATION_TABLE: dict[str, str] = {
+    "outreach": "Engaged",
+    "sales": "Next Steps",
+    "onboarding": "Onboarding",
+    "implementation": "Implementing",
+    "month1": "Month 1",
+    "retention": "Account Review",
+    "reactivation": "Paused",
+    "account_error": "Account Error",
+    "expansion": "Active",
+}
+
+# Process pipeline section names that classify as IGNORED (terminal states).
+# When the latest process section falls into this set, the process has
+# completed and the unit has "graduated" past that pipeline stage.
+# In that case, we fall through to the offer-based fallback rather than
+# using the derivation table.
+_IGNORED_PROCESS_SECTIONS: frozenset[str] = frozenset({
+    "TEMPLATE", "TEMPLATES", "COMPLETED", "CONVERTED", "TASKS",
+    "FREE MONTH", "VIDEO ONLY", "Untitled section",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -84,12 +117,20 @@ class ReconciliationBatchProcessor:
     - P1-B: Schema entry guard warns when neither "section" nor
       "section_name" is present in the DataFrame
 
+    Per ADR-pipeline-stage-aggregation Phase 3:
+    - Pipeline summary is PRIMARY signal for target section derivation
+    - Offer comparison is SECONDARY fallback
+    - When pipeline_summary is None, existing offer logic runs unchanged
+
     Args:
         unit_df: Polars DataFrame of unit tasks.
         offer_df: Polars DataFrame of offer tasks.
         excluded_section_gids: Section GIDs to exclude from processing.
             Defaults to EXCLUDED_SECTION_GIDS from section_registry.
         dry_run: If True, compute actions but do not execute them.
+        pipeline_summary: Optional pipeline summary DataFrame from
+            pipeline_stage_aggregator. Columns: office_phone, vertical,
+            latest_process_type, latest_process_section, latest_created.
     """
 
     def __init__(
@@ -99,9 +140,11 @@ class ReconciliationBatchProcessor:
         *,
         excluded_section_gids: frozenset[str] | None = None,
         dry_run: bool = True,
+        pipeline_summary: Any | None = None,
     ) -> None:
         self._unit_df = unit_df
         self._offer_df = offer_df
+        self._pipeline_summary = pipeline_summary
         self._excluded_section_gids = (
             excluded_section_gids
             if excluded_section_gids is not None
@@ -113,6 +156,8 @@ class ReconciliationBatchProcessor:
         self._offer_composite_index: dict[tuple[str, str], str] = {}
         # Phone-only index: phone -> (section, vertical) for fallback
         self._offer_phone_index: dict[str, tuple[str, str]] = {}
+        # Pipeline activity index: (phone, vertical) -> (process_type, section)
+        self._pipeline_index: dict[tuple[str, str], tuple[str, str]] = {}
 
         # P1-B: Schema entry guard -- warn if DataFrame lacks section column
         self._validate_schema_entry(unit_df, "unit_df")
@@ -234,6 +279,54 @@ class ReconciliationBatchProcessor:
 
         return composite, phone_only
 
+    def _build_pipeline_index(
+        self,
+        pipeline_summary: Any,
+    ) -> dict[tuple[str, str], tuple[str, str]]:
+        """Build pipeline activity index from pipeline_summary DataFrame.
+
+        Maps (phone, vertical) -> (latest_process_type, latest_process_section)
+        for use as the PRIMARY signal in reconciliation.
+
+        Args:
+            pipeline_summary: Polars DataFrame with columns:
+                office_phone, vertical, latest_process_type,
+                latest_process_section.
+
+        Returns:
+            Dict mapping (phone, vertical) -> (process_type, process_section).
+        """
+        index: dict[tuple[str, str], tuple[str, str]] = {}
+
+        if not hasattr(pipeline_summary, "columns"):
+            return index
+
+        columns = set(pipeline_summary.columns)
+        required = {"office_phone", "vertical", "latest_process_type", "latest_process_section"}
+        if not required.issubset(columns):
+            logger.warning(
+                "reconciliation_pipeline_summary_missing_columns",
+                extra={
+                    "available_columns": sorted(columns),
+                    "required": sorted(required),
+                },
+            )
+            return index
+
+        for row_idx in range(len(pipeline_summary)):
+            phone = pipeline_summary["office_phone"][row_idx]
+            vertical = pipeline_summary["vertical"][row_idx]
+            if phone and vertical:
+                process_type = pipeline_summary["latest_process_type"][row_idx]
+                process_section = pipeline_summary["latest_process_section"][row_idx]
+                if process_type is not None and process_section is not None:
+                    index[(str(phone), str(vertical))] = (
+                        str(process_type),
+                        str(process_section),
+                    )
+
+        return index
+
     def _iter_unit_rows(self) -> Iterator[dict[str, Any]]:
         """Iterate unit DataFrame rows as dicts with safe column access.
 
@@ -279,12 +372,22 @@ class ReconciliationBatchProcessor:
         """
         result = ProcessorResult()
 
+        # Build pipeline activity index (PRIMARY signal, Phase 3)
+        if self._pipeline_summary is not None:
+            self._pipeline_index = self._build_pipeline_index(
+                self._pipeline_summary,
+            )
+            logger.info(
+                "reconciliation_pipeline_index_built",
+                extra={"pipeline_index_size": len(self._pipeline_index)},
+            )
+
         # Build offer activity index (GID-based, existing)
         self._offer_activity_index = self._build_offer_activity_index(
             self._offer_df,
         )
 
-        # Build phone-based indexes for offer matching (Option C)
+        # Build phone-based indexes for offer matching (Option C -- SECONDARY)
         self._offer_composite_index, self._offer_phone_index = (
             self._build_offer_phone_indexes(self._offer_df)
         )
@@ -347,15 +450,66 @@ class ReconciliationBatchProcessor:
                 continue
 
             # Reconciliation matching logic: compare unit section against
-            # offer activity index to determine if a move is needed.
+            # pipeline activity (PRIMARY) then offer activity (SECONDARY).
             if not phone:
                 result.no_op_count += 1
                 continue
 
+            composite_key = (phone, vertical)
+
+            # =============================================================
+            # PRIMARY: Pipeline-driven derivation (Phase 3)
+            # =============================================================
+            pipeline_entry = self._pipeline_index.get(composite_key)
+            if pipeline_entry is not None:
+                process_type, process_section = pipeline_entry
+
+                # Check if the process section is an IGNORED terminal state
+                # (CONVERTED, COMPLETED, etc.). When IGNORED, the process
+                # has finished and the unit has "graduated" -- fall through
+                # to offer-based comparison rather than using DERIVATION_TABLE.
+                if process_section.upper() in _IGNORED_PROCESS_SECTIONS:
+                    logger.debug(
+                        "reconciliation_pipeline_ignored",
+                        extra={
+                            "unit_gid": unit_gid,
+                            "process_type": process_type,
+                            "process_section": process_section,
+                            "match_type": "pipeline_ignored_fallthrough",
+                        },
+                    )
+                    # Fall through to offer-based comparison below.
+                else:
+                    target_section = DERIVATION_TABLE.get(process_type)
+                    if target_section is not None and target_section != section_name:
+                        # Pipeline says unit should be in a different section.
+                        result.actions.append(
+                            ReconciliationAction(
+                                unit_gid=unit_gid,
+                                phone=mask_phone_number(phone),
+                                vertical=vertical,
+                                current_section=section_name,
+                                target_section=target_section,
+                                reason=(
+                                    f"Unit in '{section_name}' but pipeline "
+                                    f"'{process_type}' indicates '{target_section}'"
+                                ),
+                            )
+                        )
+                        continue
+                    elif target_section == section_name:
+                        # Pipeline confirms unit is in the correct section.
+                        result.no_op_count += 1
+                        continue
+                    # target_section is None (unknown process_type) -- fall
+                    # through to offer-based comparison.
+
+            # =============================================================
+            # SECONDARY: Offer-based comparison (existing logic)
+            # =============================================================
             # Option C: Composite key lookup with phone-only fallback.
             # Try exact (phone, vertical) match first; fall back to
             # phone-only when composite key misses.
-            composite_key = (phone, vertical)
             offer_section = self._offer_composite_index.get(composite_key)
 
             if offer_section is not None:

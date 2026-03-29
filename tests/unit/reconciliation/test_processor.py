@@ -16,6 +16,8 @@ import polars as pl
 import pytest
 
 from autom8_asana.reconciliation.processor import (
+    _IGNORED_PROCESS_SECTIONS,
+    DERIVATION_TABLE,
     ReconciliationAction,
     ReconciliationBatchProcessor,
 )
@@ -627,3 +629,342 @@ class TestActionGeneration:
         assert action.current_section == "Onboarding"
         assert action.target_section == "ACTIVE"
         assert action.phone != "+15551234567"  # Masked
+
+
+class TestPipelinePrimary:
+    """Phase 3: Pipeline summary is PRIMARY signal for target section derivation.
+
+    Per ADR-pipeline-stage-aggregation:
+    - Pipeline check runs BEFORE offer comparison.
+    - When pipeline entry exists and process is ACTIVE, DERIVATION_TABLE
+      determines the target section.
+    - When pipeline entry exists but process is IGNORED (CONVERTED,
+      COMPLETED), fall through to offer comparison.
+    - When no pipeline entry exists, offer comparison runs as before.
+    - When pipeline_summary is None, existing offer-only logic runs
+      unchanged (backward compatibility).
+    """
+
+    def test_pipeline_mismatch_generates_action(
+        self, make_offer_df, make_pipeline_summary_df,
+    ) -> None:
+        """Unit in 'Active', pipeline says 'retention' -> action to 'Account Review'."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = make_offer_df(gids=["offer_1"])
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15551234567"],
+            verticals=["dental"],
+            process_types=["retention"],
+            process_sections=["ACTIVE"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        result = processor.process()
+
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.current_section == "Active"
+        assert action.target_section == "Account Review"
+        assert "pipeline" in action.reason
+        assert "retention" in action.reason
+
+    def test_pipeline_match_is_no_op(
+        self, make_offer_df, make_pipeline_summary_df,
+    ) -> None:
+        """Unit in 'Onboarding', pipeline says 'onboarding' -> no-op."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Onboarding"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = make_offer_df(gids=["offer_1"])
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15551234567"],
+            verticals=["dental"],
+            process_types=["onboarding"],
+            process_sections=["ACTIVE"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        result = processor.process()
+
+        assert result.no_op_count == 1
+        assert len(result.actions) == 0
+
+    def test_offer_fallback_when_no_pipeline_entry(
+        self, make_pipeline_summary_df,
+    ) -> None:
+        """No pipeline entry for this unit -> falls through to offer comparison."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Onboarding"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        # Offer says ACTIVE, which differs from Onboarding -> action
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        # Pipeline summary has a DIFFERENT phone -- no match for this unit
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15559999999"],
+            verticals=["dental"],
+            process_types=["sales"],
+            process_sections=["ACTIVE"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        result = processor.process()
+
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.target_section == "ACTIVE"
+        assert "offer" in action.reason
+
+    def test_implementation_converted_with_offer_active(
+        self, make_pipeline_summary_df,
+    ) -> None:
+        """Key case: implementation CONVERTED + offer ACTIVE -> unit should be 'Active'.
+
+        When the latest process is 'implementation' and its section is
+        'CONVERTED' (IGNORED terminal state), the unit has graduated.
+        The processor falls through to offer comparison, and the offer's
+        ACTIVE section drives the action.
+        """
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Implementing"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        # Offer says ACTIVE -- the unit should move to Active
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        # Pipeline: implementation process is CONVERTED (terminal/IGNORED)
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15551234567"],
+            verticals=["dental"],
+            process_types=["implementation"],
+            process_sections=["CONVERTED"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        result = processor.process()
+
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.current_section == "Implementing"
+        assert action.target_section == "Active"
+        # The reason should reference offer (not pipeline), since pipeline
+        # was IGNORED and fell through to offer comparison.
+        assert "offer" in action.reason
+
+    def test_no_pipeline_summary_backward_compat(self) -> None:
+        """When pipeline_summary is None, existing offer-only logic works unchanged."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Onboarding"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        # No pipeline_summary (default None)
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.current_section == "Onboarding"
+        assert action.target_section == "ACTIVE"
+        assert "offer" in action.reason
+
+    def test_pipeline_takes_priority_over_offer(
+        self, make_pipeline_summary_df,
+    ) -> None:
+        """Pipeline and offer disagree -- pipeline wins (PRIMARY)."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        # Offer says unit is correct in Active
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        # Pipeline says unit should be in Onboarding
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15551234567"],
+            verticals=["dental"],
+            process_types=["onboarding"],
+            process_sections=["ACTIVE"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        result = processor.process()
+
+        # Pipeline says Onboarding, unit is in Active -> action generated
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.current_section == "Active"
+        assert action.target_section == "Onboarding"
+        assert "pipeline" in action.reason
+
+    def test_pipeline_completed_falls_through_to_offer(
+        self, make_pipeline_summary_df,
+    ) -> None:
+        """Process section COMPLETED (IGNORED) -> falls through to offer comparison."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Month 1"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15551234567"],
+            verticals=["dental"],
+            process_types=["month1"],
+            process_sections=["COMPLETED"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        result = processor.process()
+
+        # Pipeline is COMPLETED (IGNORED), falls to offer which says Active
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.current_section == "Month 1"
+        assert action.target_section == "Active"
+        assert "offer" in action.reason
+
+    def test_all_derivation_table_entries_generate_correct_actions(
+        self, make_offer_df, make_pipeline_summary_df,
+    ) -> None:
+        """Every DERIVATION_TABLE entry produces the correct target section."""
+        for process_type, expected_section in DERIVATION_TABLE.items():
+            # Unit is in a section that differs from expected
+            current_section = "Preview" if expected_section != "Preview" else "Active"
+            unit_df = pl.DataFrame({
+                "gid": [f"unit_{process_type}"],
+                "section": [current_section],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            })
+            offer_df = make_offer_df(gids=["offer_1"])
+            pipeline_summary = make_pipeline_summary_df(
+                phones=["+15551234567"],
+                verticals=["dental"],
+                process_types=[process_type],
+                process_sections=["ACTIVE"],
+            )
+
+            processor = ReconciliationBatchProcessor(
+                unit_df, offer_df, pipeline_summary=pipeline_summary,
+            )
+            result = processor.process()
+
+            assert len(result.actions) == 1, (
+                f"DERIVATION_TABLE['{process_type}'] -> '{expected_section}' "
+                f"should generate an action from '{current_section}'"
+            )
+            assert result.actions[0].target_section == expected_section
+
+    def test_pipeline_index_built_correctly(
+        self, make_offer_df, make_pipeline_summary_df,
+    ) -> None:
+        """Pipeline index maps (phone, vertical) -> (process_type, section)."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = make_offer_df(gids=["offer_1"])
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15551234567", "+15559999999"],
+            verticals=["dental", "chiropractic"],
+            process_types=["onboarding", "sales"],
+            process_sections=["ACTIVE", "SCHEDULED"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        processor.process()
+
+        assert processor._pipeline_index[("+15551234567", "dental")] == ("onboarding", "ACTIVE")
+        assert processor._pipeline_index[("+15559999999", "chiropractic")] == ("sales", "SCHEDULED")
+
+    def test_unknown_process_type_falls_through_to_offer(
+        self, make_pipeline_summary_df,
+    ) -> None:
+        """Unknown process_type not in DERIVATION_TABLE -> falls through to offer."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["Onboarding"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15551234567"],
+            verticals=["dental"],
+            process_types=["unknown_type"],
+            process_sections=["ACTIVE"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        result = processor.process()
+
+        # Unknown type -> falls through to offer comparison
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.target_section == "Onboarding"
+        assert "offer" in action.reason
