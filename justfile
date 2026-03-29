@@ -128,6 +128,18 @@ test-bench *args:
 [group('quality')]
 check: fmt lint typecheck test
 
+# === OpenAPI ===
+
+# Regenerate committed OpenAPI spec
+[group('docs')]
+spec-gen:
+    uv run python scripts/generate_openapi.py
+
+# Verify OpenAPI spec matches source (CI drift check)
+[group('docs')]
+spec-check:
+    uv run python scripts/generate_openapi.py --check
+
 # === Development Server ===
 
 # Start API development server with hot reload
