@@ -45,6 +45,9 @@ from autom8y_log import get_logger
 from autom8y_telemetry.aws import emit_success_timestamp, instrument_lambda
 
 from autom8_asana.lambda_handlers.cloudwatch import emit_metric
+from autom8_asana.lambda_handlers.pipeline_stage_aggregator import (
+    _aggregate_pipeline_stages,
+)
 from autom8_asana.lambda_handlers.push_orchestrator import (
     _push_account_status_for_completed_entities,
     _push_gid_mappings_for_completed_entities,
@@ -662,18 +665,35 @@ async def _warm_cache_async(
         )
 
         # ----------------------------------------------------------------
-        # Phase 5: Reconciliation shadow mode (Project Ignition)
+        # Phase 5b: Pipeline stage aggregation (for reconciliation 3D model)
+        # Scans all 9 pipeline DataFrames from cache, concatenates with
+        # pipeline_type discriminator, filters to active tasks, and
+        # produces a per-(phone, vertical) summary of the latest active
+        # process. Ephemeral -- not cached. Phase 3 will wire this into
+        # the reconciliation runner.
+        # Non-blocking: failures logged, do not affect WarmResponse.
+        # ----------------------------------------------------------------
+        pipeline_summary = await _aggregate_pipeline_stages(
+            completed_entities=completed_entities,
+            cache=cache,
+            invocation_id=invocation_id,
+        )
+
+        # ----------------------------------------------------------------
+        # Phase 5c: Reconciliation shadow mode (Project Ignition)
         # Runs reconciliation pipeline in strict dry_run=True mode.
         # Generates audit log showing planned section moves without
         # mutating any Asana state.
         # Guarded by ASANA_RECONCILIATION_SHADOW_ENABLED env var.
         # Non-blocking: failures logged, do not affect WarmResponse.
+        # Phase 3: pipeline_summary is wired in as PRIMARY signal.
         # ----------------------------------------------------------------
         await _run_reconciliation_shadow(
             completed_entities=completed_entities,
             get_project_gid=get_project_gid,
             cache=cache,
             invocation_id=invocation_id,
+            pipeline_summary=pipeline_summary,
         )
 
         total_rows = sum(r.get("row_count", 0) for r in entity_results)

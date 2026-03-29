@@ -114,7 +114,21 @@ class TestImportTimeValidation:
             if w["event"] == "schema_using_generic_extractor"
         ]
         warned_entities = {w["extra"]["entity"] for w in generic_warnings}
-        expected_warned = {"Offer", "Business", "AssetEdit", "AssetEditHolder"}
+        expected_warned = {
+            "Offer",
+            "Business",
+            "AssetEdit",
+            "AssetEditHolder",
+            "ProcessSales",
+            "ProcessOutreach",
+            "ProcessOnboarding",
+            "ProcessImplementation",
+            "ProcessMonth1",
+            "ProcessRetention",
+            "ProcessReactivation",
+            "ProcessAccountError",
+            "ProcessExpansion",
+        }
         assert warned_entities == expected_warned, (
             f"Expected warnings for {expected_warned}, got {warned_entities}"
         )
@@ -187,6 +201,15 @@ class TestSchemaAudit:
             "Business",
             "AssetEdit",
             "AssetEditHolder",
+            "ProcessSales",
+            "ProcessOutreach",
+            "ProcessOnboarding",
+            "ProcessImplementation",
+            "ProcessMonth1",
+            "ProcessRetention",
+            "ProcessReactivation",
+            "ProcessAccountError",
+            "ProcessExpansion",
         }
         assert task_types == expected, (
             f"Schema inventory mismatch. "

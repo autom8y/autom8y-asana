@@ -208,17 +208,27 @@ def _check_pipeline_type_registry(
         desc = entity_gids.get(gid)
         if desc is None:
             # Process pipeline GID not in EntityRegistry — expected for
-            # sales, onboarding, etc. Log as informational warning.
+            # pipeline projects not yet registered as warmable entities.
             result.warnings.append(
                 f"PIPELINE_TYPE_BY_PROJECT_GID has GID '{gid}' "
                 f"(pipeline_type={pipeline_type!r}) with no matching "
                 f"EntityDescriptor — verify GID is correct"
             )
-        elif desc.name != pipeline_type:
-            # GID exists in both registries but with different names.
-            # This is a consistency error that could cause misrouted pushes.
-            result.errors.append(
-                f"PIPELINE_TYPE_BY_PROJECT_GID maps GID '{gid}' to "
-                f"pipeline_type={pipeline_type!r} but EntityRegistry maps "
-                f"it to entity '{desc.name}'"
+        else:
+            # Per ADR-pipeline-stage-aggregation: pipeline process entities
+            # are registered with a "process_" prefix (e.g., "process_sales")
+            # while PIPELINE_TYPE_BY_PROJECT_GID uses bare names (e.g., "sales").
+            # Accept the match if entity name == pipeline_type OR
+            # entity name == f"process_{pipeline_type}".
+            entity_name = desc.name
+            names_match = (
+                entity_name == pipeline_type
+                or entity_name == f"process_{pipeline_type}"
             )
+            if not names_match:
+                # GID exists in both registries but with inconsistent names.
+                result.errors.append(
+                    f"PIPELINE_TYPE_BY_PROJECT_GID maps GID '{gid}' to "
+                    f"pipeline_type={pipeline_type!r} but EntityRegistry maps "
+                    f"it to entity '{desc.name}'"
+                )

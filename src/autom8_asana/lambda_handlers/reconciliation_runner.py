@@ -32,12 +32,17 @@ async def _run_reconciliation_shadow(
     get_project_gid: Any,  # Callable that resolves entity_type -> project GID
     cache: Any,  # DataFrameCache instance
     invocation_id: str | None,
+    pipeline_summary: Any | None = None,
 ) -> None:
     """Run reconciliation in shadow mode after cache warming.
 
     Retrieves unit and offer DataFrames from cache, runs the
     reconciliation engine in dry_run mode, executes actions (also
     dry_run), and emits a structured report.
+
+    Per ADR-pipeline-stage-aggregation Phase 3: when pipeline_summary is
+    provided, it is passed to the reconciliation engine as the PRIMARY
+    signal for target section derivation.
 
     This function is non-blocking: all errors are caught and logged so
     that reconciliation failures never affect the cache warmer result.
@@ -47,6 +52,9 @@ async def _run_reconciliation_shadow(
         get_project_gid: Callable(entity_type) -> project_gid or None.
         cache: DataFrameCache instance for retrieving warmed DataFrames.
         invocation_id: Lambda invocation ID for log correlation.
+        pipeline_summary: Optional pipeline summary DataFrame from
+            pipeline_stage_aggregator. When None, existing offer-only
+            logic runs unchanged.
     """
     import os
 
@@ -115,7 +123,12 @@ async def _run_reconciliation_shadow(
         )
 
         config = ReconciliationConfig(dry_run=True)  # SHADOW MODE: always dry_run
-        result = run_reconciliation(unit_df, offer_df, config=config)
+        result = run_reconciliation(
+            unit_df,
+            offer_df,
+            config=config,
+            pipeline_summary=pipeline_summary,
+        )
 
         # ---------------------------------------------------------------
         # Execute actions (async, also dry_run)

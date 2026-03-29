@@ -48,6 +48,15 @@ class TestSchemaRegistryAutoWire:
             "Offer",
             "AssetEdit",
             "AssetEditHolder",
+            "ProcessSales",
+            "ProcessOutreach",
+            "ProcessOnboarding",
+            "ProcessImplementation",
+            "ProcessMonth1",
+            "ProcessRetention",
+            "ProcessReactivation",
+            "ProcessAccountError",
+            "ProcessExpansion",
         ]
     )
 

@@ -602,19 +602,18 @@ class ActionBuilder:
         """
 
         def method(task: AsanaResource) -> SaveSession:
-            session._ensure_open()
+            with session._require_open():
+                action = ActionOperation(
+                    task=task,
+                    action=config.action_type,
+                    target=None,
+                )
+                session._pending_actions.append(action)
 
-            action = ActionOperation(
-                task=task,
-                action=config.action_type,
-                target=None,
-            )
-            session._pending_actions.append(action)
+                if session._log:
+                    session._log.debug(config.log_event, task_gid=task.gid)
 
-            if session._log:
-                session._log.debug(config.log_event, task_gid=task.gid)
-
-            return session
+                return session
 
         method.__doc__ = config.docstring
         method.__name__ = self._attr_name
@@ -634,33 +633,32 @@ class ActionBuilder:
         """
 
         def method(task: AsanaResource, target: Any) -> SaveSession:
-            session._ensure_open()
+            with session._require_open():
+                # Per ADR-0107: Build NameGid preserving name when available
+                if isinstance(target, str):
+                    target_gid = NameGid(gid=target)
+                else:
+                    target_gid = NameGid(gid=target.gid, name=getattr(target, "name", None))
 
-            # Per ADR-0107: Build NameGid preserving name when available
-            if isinstance(target, str):
-                target_gid = NameGid(gid=target)
-            else:
-                target_gid = NameGid(gid=target.gid, name=getattr(target, "name", None))
+                # Validate GID if required by config
+                if config.requires_validation:
+                    validate_gid(target_gid.gid, config.validation_field)
 
-            # Validate GID if required by config
-            if config.requires_validation:
-                validate_gid(target_gid.gid, config.validation_field)
-
-            action = ActionOperation(
-                task=task,
-                action=config.action_type,
-                target=target_gid,
-            )
-            session._pending_actions.append(action)
-
-            if session._log:
-                session._log.debug(
-                    config.log_event,
-                    task_gid=task.gid,
-                    target_gid=target_gid.gid,
+                action = ActionOperation(
+                    task=task,
+                    action=config.action_type,
+                    target=target_gid,
                 )
+                session._pending_actions.append(action)
 
-            return session
+                if session._log:
+                    session._log.debug(
+                        config.log_event,
+                        task_gid=task.gid,
+                        target_gid=target_gid.gid,
+                    )
+
+                return session
 
         method.__doc__ = config.docstring
         method.__name__ = self._attr_name
@@ -687,47 +685,46 @@ class ActionBuilder:
             insert_before: str | None = None,
             insert_after: str | None = None,
         ) -> SaveSession:
-            session._ensure_open()
+            with session._require_open():
+                # Per ADR-0047: Fail-fast validation
+                if insert_before is not None and insert_after is not None:
+                    raise PositioningConflictError(insert_before, insert_after)
 
-            # Per ADR-0047: Fail-fast validation
-            if insert_before is not None and insert_after is not None:
-                raise PositioningConflictError(insert_before, insert_after)
+                # Per ADR-0107: Build NameGid preserving name when available
+                if isinstance(target, str):
+                    target_gid = NameGid(gid=target)
+                else:
+                    target_gid = NameGid(gid=target.gid, name=getattr(target, "name", None))
 
-            # Per ADR-0107: Build NameGid preserving name when available
-            if isinstance(target, str):
-                target_gid = NameGid(gid=target)
-            else:
-                target_gid = NameGid(gid=target.gid, name=getattr(target, "name", None))
+                # Validate GID if required by config
+                if config.requires_validation:
+                    validate_gid(target_gid.gid, config.validation_field)
 
-            # Validate GID if required by config
-            if config.requires_validation:
-                validate_gid(target_gid.gid, config.validation_field)
+                # Build extra_params for positioning
+                extra_params: dict[str, str] = {}
+                if insert_before is not None:
+                    extra_params["insert_before"] = insert_before
+                if insert_after is not None:
+                    extra_params["insert_after"] = insert_after
 
-            # Build extra_params for positioning
-            extra_params: dict[str, str] = {}
-            if insert_before is not None:
-                extra_params["insert_before"] = insert_before
-            if insert_after is not None:
-                extra_params["insert_after"] = insert_after
-
-            action = ActionOperation(
-                task=task,
-                action=config.action_type,
-                target=target_gid,
-                extra_params=extra_params,
-            )
-            session._pending_actions.append(action)
-
-            if session._log:
-                session._log.debug(
-                    config.log_event,
-                    task_gid=task.gid,
-                    target_gid=target_gid.gid,
-                    insert_before=insert_before,
-                    insert_after=insert_after,
+                action = ActionOperation(
+                    task=task,
+                    action=config.action_type,
+                    target=target_gid,
+                    extra_params=extra_params,
                 )
+                session._pending_actions.append(action)
 
-            return session
+                if session._log:
+                    session._log.debug(
+                        config.log_event,
+                        task_gid=task.gid,
+                        target_gid=target_gid.gid,
+                        insert_before=insert_before,
+                        insert_after=insert_after,
+                    )
+
+                return session
 
         method.__doc__ = config.docstring
         method.__name__ = self._attr_name

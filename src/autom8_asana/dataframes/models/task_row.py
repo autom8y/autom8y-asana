@@ -181,6 +181,30 @@ class OfferRow(TaskRow):
     cost: str | None = None
 
 
+class ProcessRow(TaskRow):
+    """Process-specific row with 3 additional fields.
+
+    Per ADR-pipeline-stage-aggregation: Process entities span 9 pipeline
+    projects. Each shares this row model. pipeline_type is a derived
+    discriminator set by the Phase 2 aggregator, not by the extractor.
+
+    Cascade fields (2):
+        office_phone, vertical
+
+    Derived fields (1):
+        pipeline_type (set by aggregator, not extractor)
+    """
+
+    type: str = "Process"
+
+    # Cascade fields
+    office_phone: str | None = None
+    vertical: str | None = None
+
+    # Derived field (set by Phase 2 aggregator)
+    pipeline_type: str | None = None
+
+
 class AssetEditRow(TaskRow):
     """AssetEdit-specific row with 21 additional fields.
 

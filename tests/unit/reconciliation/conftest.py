@@ -74,6 +74,32 @@ def make_offer_df():
 
 
 @pytest.fixture
+def make_pipeline_summary_df():
+    """Factory fixture for pipeline summary DataFrames.
+
+    Returns a callable that creates pipeline summary DataFrames matching
+    the output shape of pipeline_stage_aggregator._aggregate_pipeline_stages.
+    """
+
+    def _make_pipeline_summary_df(
+        *,
+        phones: list[str] | None = None,
+        verticals: list[str] | None = None,
+        process_types: list[str] | None = None,
+        process_sections: list[str] | None = None,
+    ) -> pl.DataFrame:
+        n = len(phones) if phones else 1
+        return pl.DataFrame({
+            "office_phone": phones or ["+15551234567"] * n,
+            "vertical": verticals or ["dental"] * n,
+            "latest_process_type": process_types or ["onboarding"] * n,
+            "latest_process_section": process_sections or ["ACTIVE"] * n,
+        })
+
+    return _make_pipeline_summary_df
+
+
+@pytest.fixture
 def sample_unit_df(make_unit_df):
     """Pre-built unit DataFrame with 3 rows for basic tests."""
     return make_unit_df(
