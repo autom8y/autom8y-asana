@@ -70,7 +70,7 @@ CONTACT_COLUMNS: list[ColumnDef] = [
         source="cf:City",
         description="City of the contact",
     ),
-    # Cascade and derived fields (4 additional)
+    # Cascade fields (3 additional)
     # CASCADE CONTRACT: sourced from Business.office_phone (warm_priority=1).
     # Resolution key column -- null cascade = silent NOT_FOUND (FIND-005).
     ColumnDef(
@@ -86,13 +86,6 @@ CONTACT_COLUMNS: list[ColumnDef] = [
         nullable=True,
         source="cascade:Vertical",
         description="Business vertical (cascades from Unit or Business)",
-    ),
-    ColumnDef(
-        name="vertical_id",
-        dtype="Utf8",
-        nullable=True,
-        source=None,  # Derived from Vertical model
-        description="Vertical identifier (derived)",
     ),
     ColumnDef(
         name="dashboard_uuid",

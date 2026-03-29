@@ -34,10 +34,11 @@ class TestValidateCrossRegistryConsistency:
     """Tests for the cross-registry validation function."""
 
     def test_skips_all_checks_when_disabled(self):
-        """When both checks disabled, should return ok with no issues."""
+        """When all checks disabled, should return ok with no issues."""
         result = validate_cross_registry_consistency(
             check_project_type_registry=False,
             check_entity_project_registry=False,
+            check_pipeline_type_registry=False,
         )
         assert result.ok is True
         assert result.errors == []
@@ -68,6 +69,7 @@ class TestValidateCrossRegistryConsistency:
             result = validate_cross_registry_consistency(
                 check_project_type_registry=True,
                 check_entity_project_registry=False,
+                check_pipeline_type_registry=False,
             )
         # EntityRegistry has descriptors with GIDs and entity_types, but
         # ProjectTypeRegistry is empty (reset by autouse fixture).
@@ -143,5 +145,75 @@ class TestValidateCrossRegistryConsistency:
         result = validate_cross_registry_consistency(
             check_project_type_registry=True,
             check_entity_project_registry=False,
+            check_pipeline_type_registry=False,
         )
         assert result.ok is True
+
+
+class TestPipelineTypeRegistryValidation:
+    """Tests for PIPELINE_TYPE_BY_PROJECT_GID cross-validation (SIG-012)."""
+
+    def test_pipeline_type_check_finds_matching_gid(self):
+        """GID '1201081073731555' maps to 'unit' in both registries — no error."""
+        result = validate_cross_registry_consistency(
+            check_project_type_registry=False,
+            check_entity_project_registry=False,
+            check_pipeline_type_registry=True,
+        )
+        # The 'unit' GID exists in both registries with matching names.
+        # No errors should be produced for this GID.
+        assert result.ok is True
+        # But there should be warnings for process pipeline GIDs not in EntityRegistry
+        assert len(result.warnings) > 0
+
+    def test_pipeline_type_warns_about_unregistered_gids(self):
+        """Process pipeline GIDs not in EntityRegistry produce warnings."""
+        result = validate_cross_registry_consistency(
+            check_project_type_registry=False,
+            check_entity_project_registry=False,
+            check_pipeline_type_registry=True,
+        )
+        # 8 of 9 PIPELINE_TYPE GIDs are process pipelines not in EntityRegistry
+        pipeline_warnings = [
+            w for w in result.warnings
+            if "PIPELINE_TYPE_BY_PROJECT_GID" in w
+        ]
+        assert len(pipeline_warnings) == 8  # sales, onboarding, outreach, etc.
+        # Verify one specific warning
+        assert any("sales" in w for w in pipeline_warnings)
+
+    def test_pipeline_type_detects_name_mismatch(self):
+        """If a shared GID has different names, an error is produced."""
+        from unittest.mock import patch
+
+        # Patch PIPELINE_TYPE_BY_PROJECT_GID to have a name mismatch
+        # GID 1201081073731555 is 'unit' in EntityRegistry
+        tampered = {"1201081073731555": "wrong_name"}
+
+        with patch(
+            "autom8_asana.services.gid_push.PIPELINE_TYPE_BY_PROJECT_GID",
+            tampered,
+        ):
+            result = validate_cross_registry_consistency(
+                check_project_type_registry=False,
+                check_entity_project_registry=False,
+                check_pipeline_type_registry=True,
+            )
+        assert not result.ok
+        assert any(
+            "wrong_name" in e and "unit" in e
+            for e in result.errors
+        )
+
+    def test_pipeline_type_check_disabled(self):
+        """When check_pipeline_type_registry=False, no pipeline warnings."""
+        result = validate_cross_registry_consistency(
+            check_project_type_registry=False,
+            check_entity_project_registry=False,
+            check_pipeline_type_registry=False,
+        )
+        pipeline_warnings = [
+            w for w in result.warnings
+            if "PIPELINE_TYPE_BY_PROJECT_GID" in w
+        ]
+        assert pipeline_warnings == []

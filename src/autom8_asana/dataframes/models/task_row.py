@@ -96,16 +96,16 @@ class BusinessRow(TaskRow):
 
 
 class UnitRow(TaskRow):
-    """Unit-specific row with 11 additional fields (FR-SUBCLASS-001).
+    """Unit-specific row with 9 additional fields (FR-SUBCLASS-001).
 
     Per TDD-0009: Extends base with Unit-specific fields including
-    direct custom fields and derived fields.
+    direct custom fields and cascade/derived fields.
 
     Direct custom fields (5):
         mrr, weekly_ad_spend, products, languages, discount
 
-    Derived fields (6):
-        office, office_phone, vertical, vertical_id, specialty, max_pipeline_stage
+    Cascade/derived fields (4):
+        office, office_phone, vertical, specialty
     """
 
     type: str = "Unit"
@@ -117,24 +117,22 @@ class UnitRow(TaskRow):
     languages: list[str] = Field(default_factory=list)
     discount: Decimal | None = None
 
-    # Derived fields (6)
+    # Cascade/derived fields (4)
     office: str | None = None
     office_phone: str | None = None
     vertical: str | None = None
-    vertical_id: str | None = None
     specialty: str | None = None
-    max_pipeline_stage: str | None = None
 
 
 class ContactRow(TaskRow):
-    """Contact-specific row with 13 additional fields (FR-SUBCLASS-002).
+    """Contact-specific row with 12 additional fields (FR-SUBCLASS-002).
 
     Per TDD-0009: Extends base with Contact-specific fields.
 
-    Contact fields (13):
+    Contact fields (12):
         full_name, nickname, contact_phone, contact_email, position,
         employee_id, contact_url, time_zone, city,
-        office_phone, vertical, vertical_id, dashboard_uuid
+        office_phone, vertical, dashboard_uuid
     """
 
     type: str = "Contact"
@@ -150,24 +148,20 @@ class ContactRow(TaskRow):
     time_zone: str | None = None
     city: str | None = None
 
-    # Cascade and derived fields (4)
+    # Cascade fields (3)
     office_phone: str | None = None
     vertical: str | None = None
-    vertical_id: str | None = None
     dashboard_uuid: str | None = None
 
 
 class OfferRow(TaskRow):
-    """Offer-specific row with 11 additional fields.
+    """Offer-specific row with 10 additional fields.
 
-    Cascade fields (4):
+    Cascade fields (5):
         office, office_phone, vertical, mrr, weekly_ad_spend
 
     Custom fields (5):
         specialty, offer_id, platforms, language, cost
-
-    Derived fields (1):
-        vertical_id
     """
 
     type: str = "Offer"
@@ -185,9 +179,6 @@ class OfferRow(TaskRow):
     platforms: list[str] = Field(default_factory=list)
     language: str | None = None
     cost: str | None = None
-
-    # Derived fields
-    vertical_id: str | None = None
 
 
 class AssetEditRow(TaskRow):
