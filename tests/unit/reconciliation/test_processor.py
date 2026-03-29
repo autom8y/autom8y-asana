@@ -968,3 +968,53 @@ class TestPipelinePrimary:
         action = result.actions[0]
         assert action.target_section == "Onboarding"
         assert "offer" in action.reason
+
+
+# ---------------------------------------------------------------------------
+# DERIVATION_TABLE drift detection (ADR-derivation-table-hardcoded-dict step 4)
+# ---------------------------------------------------------------------------
+
+
+class TestDerivationTableDrift:
+    """Verify DERIVATION_TABLE matches lifecycle_stages.yaml.
+
+    Per ADR-derivation-table-hardcoded-dict: build_derivation_table() is the
+    single source of truth. This test catches drift if the YAML is edited
+    without regenerating the table.
+    """
+
+    def test_derivation_table_matches_yaml(self) -> None:
+        """DERIVATION_TABLE matches build_derivation_table() output exactly."""
+        from autom8_asana.lifecycle.config import load_config
+
+        yaml_table = load_config().build_derivation_table()
+        assert DERIVATION_TABLE == yaml_table
+
+    def test_derivation_table_has_all_9_pipelines(self) -> None:
+        """All 9 pipeline types are present in the derivation table."""
+        expected = {
+            "outreach", "sales", "onboarding", "implementation",
+            "month1", "retention", "reactivation", "account_error", "expansion",
+        }
+        assert set(DERIVATION_TABLE.keys()) == expected
+
+    def test_derivation_table_values_are_real_unit_sections(self) -> None:
+        """Every derivation target is a real Business Units section name.
+
+        Note: Not all targets are in UNIT_CLASSIFIER -- some (e.g., "Next Steps")
+        are in EXCLUDED_SECTION_NAMES. The derivation table covers ALL unit
+        sections, not just classified ones.
+        """
+        from autom8_asana.models.business.activity import AccountActivity, UNIT_CLASSIFIER
+        from autom8_asana.reconciliation.section_registry import EXCLUDED_SECTION_NAMES
+
+        all_known: set[str] = set()
+        for activity in AccountActivity:
+            all_known |= UNIT_CLASSIFIER.sections_for(activity)
+        all_known |= {n.lower() for n in EXCLUDED_SECTION_NAMES}
+
+        for process_type, unit_section in DERIVATION_TABLE.items():
+            assert unit_section.lower() in all_known, (
+                f"DERIVATION_TABLE[{process_type!r}] = {unit_section!r} "
+                f"not in UNIT_CLASSIFIER or EXCLUDED_SECTION_NAMES"
+            )
