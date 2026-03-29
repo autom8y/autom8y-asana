@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
-from autom8_asana.lambda_handlers.cache_warmer import (
+from autom8_asana.lambda_handlers.story_warmer import (
     _warm_story_caches_for_completed_entities,
 )
 
@@ -79,7 +79,7 @@ class TestWarmStoryCachesForCompletedEntities:
         mock_dataframe_cache.get_async.return_value = mock_entry
 
         with patch(
-            "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+            "autom8_asana.lambda_handlers.story_warmer.emit_metric",
         ):
             stats = await _warm_story_caches_for_completed_entities(
                 completed_entities=["offer"],
@@ -132,7 +132,7 @@ class TestWarmStoryCachesForCompletedEntities:
         context.get_remaining_time_in_millis = get_remaining
 
         with patch(
-            "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+            "autom8_asana.lambda_handlers.story_warmer.emit_metric",
         ):
             stats = await _warm_story_caches_for_completed_entities(
                 completed_entities=["offer"],
@@ -165,7 +165,7 @@ class TestWarmStoryCachesForCompletedEntities:
         )
 
         with patch(
-            "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+            "autom8_asana.lambda_handlers.story_warmer.emit_metric",
         ):
             # Should NOT raise
             stats = await _warm_story_caches_for_completed_entities(
@@ -191,7 +191,7 @@ class TestWarmStoryCachesForCompletedEntities:
         mock_dataframe_cache.get_async.return_value = None
 
         with patch(
-            "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+            "autom8_asana.lambda_handlers.story_warmer.emit_metric",
         ):
             stats = await _warm_story_caches_for_completed_entities(
                 completed_entities=["offer"],
@@ -219,7 +219,7 @@ class TestWarmStoryCachesForCompletedEntities:
         mock_dataframe_cache.get_async.return_value = mock_entry
 
         with patch(
-            "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+            "autom8_asana.lambda_handlers.story_warmer.emit_metric",
         ):
             stats = await _warm_story_caches_for_completed_entities(
                 completed_entities=["offer"],
@@ -241,7 +241,7 @@ class TestWarmStoryCachesForCompletedEntities:
     ) -> None:
         """Entities without a project GID are skipped."""
         with patch(
-            "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+            "autom8_asana.lambda_handlers.story_warmer.emit_metric",
         ):
             stats = await _warm_story_caches_for_completed_entities(
                 completed_entities=["offer"],
@@ -268,7 +268,7 @@ class TestWarmStoryCachesForCompletedEntities:
         mock_dataframe_cache.get_async.return_value = mock_entry
 
         with patch(
-            "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+            "autom8_asana.lambda_handlers.story_warmer.emit_metric",
         ) as mock_emit:
             await _warm_story_caches_for_completed_entities(
                 completed_entities=["offer"],
@@ -293,7 +293,7 @@ class TestWarmStoryCachesForCompletedEntities:
     ) -> None:
         """No work done when completed_entities is empty."""
         with patch(
-            "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+            "autom8_asana.lambda_handlers.story_warmer.emit_metric",
         ):
             stats = await _warm_story_caches_for_completed_entities(
                 completed_entities=[],
@@ -321,7 +321,7 @@ class TestWarmStoryCachesForCompletedEntities:
         )
 
         with patch(
-            "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+            "autom8_asana.lambda_handlers.story_warmer.emit_metric",
         ):
             # Should NOT raise
             stats = await _warm_story_caches_for_completed_entities(
@@ -361,7 +361,7 @@ class TestWarmStoryCachesForCompletedEntities:
         mock_dataframe_cache.get_async = mock_get_async
 
         with patch(
-            "autom8_asana.lambda_handlers.cache_warmer.emit_metric",
+            "autom8_asana.lambda_handlers.story_warmer.emit_metric",
         ):
             stats = await _warm_story_caches_for_completed_entities(
                 completed_entities=["offer", "unit"],
