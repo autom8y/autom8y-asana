@@ -270,55 +270,31 @@ UNIT_CLASSIFIER: SectionClassifier = SectionClassifier.from_groups(
 # UNIT_CLASSIFIER / OFFER_CLASSIFIER patterns. These MUST be verified
 # against live Asana project data (e.g. df["section_name"].value_counts()
 # per project GID) before shipping to production.
+# Verified against live Asana API (2026-03-29). Section names are ALL CAPS
+# and highly standardized across process pipeline projects. Stakeholder
+# classification decisions:
+#   - OPPORTUNITY and CONTACTED are ACTIVE (not activating) in our business context
+#   - VIDEO ONLY is IGNORED (not inactive)
+#   - CONVERTED and COMPLETED are terminal end-states -> IGNORED
+_DEFAULT_PROCESS_SECTIONS: dict[str, set[str]] = {
+    "active": {"ACTIVE", "EXECUTING", "BUILDING", "PROCESSING", "OPPORTUNITY", "CONTACTED"},
+    "activating": {"SCHEDULED", "REQUESTED", "DELAYED"},
+    "inactive": {"INACTIVE", "DID NOT CONVERT", "MAYBE", "UNPROCESSED"},
+    "ignored": {
+        "TEMPLATE", "TEMPLATES", "COMPLETED", "CONVERTED", "TASKS",
+        "FREE MONTH", "VIDEO ONLY", "Untitled section",
+    },
+}
+
 PROCESS_PIPELINE_SECTIONS: dict[str, dict[str, set[str]]] = {
-    "sales": {
-        "active": {"Active", "In Progress", "Discovery", "Proposal"},
-        "activating": {"New Lead", "Qualification", "Outreach"},
-        "inactive": {"Closed Lost", "Unresponsive", "On Hold"},
-        "ignored": {"Templates", "Complete"},
-    },
-    "onboarding": {
-        "active": {"Onboarding", "Setup", "Training"},
-        "activating": {"Pending Start", "Kickoff Scheduled"},
-        "inactive": {"Stalled", "Cancelled", "Complete"},
-        "ignored": {"Templates"},
-    },
-    "outreach": {
-        "active": {"Active Outreach", "Follow Up"},
-        "activating": {"New", "Queued"},
-        "inactive": {"No Response", "Opted Out", "Complete"},
-        "ignored": {"Templates"},
-    },
-    "retention": {
-        "active": {"At Risk", "Engaged", "In Review"},
-        "activating": {"New Concern", "Escalated"},
-        "inactive": {"Resolved", "Churned", "Complete"},
-        "ignored": {"Templates"},
-    },
-    "reactivation": {
-        "active": {"Active Campaign", "In Conversation"},
-        "activating": {"New Target", "Initial Contact"},
-        "inactive": {"No Interest", "Unresponsive", "Complete"},
-        "ignored": {"Templates"},
-    },
-    "expansion": {
-        "active": {"Expansion Active", "Proposal Sent"},
-        "activating": {"Opportunity Identified", "Discovery"},
-        "inactive": {"Declined", "On Hold", "Complete"},
-        "ignored": {"Templates"},
-    },
-    "implementation": {
-        "active": {"In Progress", "Active Build", "Testing"},
-        "activating": {"Kickoff", "Scoping"},
-        "inactive": {"Blocked", "Cancelled", "Complete"},
-        "ignored": {"Templates"},
-    },
-    "account_error": {
-        "active": set(),  # No active states for error pipeline
-        "activating": {"Under Review", "Escalated"},
-        "inactive": {"Resolved", "Monitoring", "Closed"},
-        "ignored": {"Templates"},
-    },
+    "sales": _DEFAULT_PROCESS_SECTIONS,
+    "onboarding": _DEFAULT_PROCESS_SECTIONS,
+    "outreach": _DEFAULT_PROCESS_SECTIONS,
+    "retention": _DEFAULT_PROCESS_SECTIONS,
+    "reactivation": _DEFAULT_PROCESS_SECTIONS,
+    "expansion": _DEFAULT_PROCESS_SECTIONS,
+    "implementation": _DEFAULT_PROCESS_SECTIONS,
+    "account_error": _DEFAULT_PROCESS_SECTIONS,
 }
 
 CLASSIFIERS: dict[str, SectionClassifier] = {

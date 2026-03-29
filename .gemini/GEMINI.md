@@ -4,17 +4,18 @@
 Use the available agents and slash commands. Agents activate automatically when your prompt matches their description.
 <!-- KNOSSOS:END execution-mode -->
 
-<!-- KNOSSOS:START quick-start source=ACTIVE_RITE+agents regenerate=true -->
+<!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-4-agent workflow (debt-triage):
+5-agent workflow (10x-dev):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates debt assessment and planning phases |
-| **debt-collector** | Collects and inventories technical debt across the codebase |
-| **risk-assessor** | Assesses risk and impact of debt items for prioritization |
-| **sprint-planner** | Plans debt paydown sprints with timelines and resources |
+| **potnia** | Coordinates development lifecycle phases and routes work to specialists |
+| **requirements-analyst** | Gathers requirements and produces PRD artifacts |
+| **architect** | Creates technical design documents and architecture decisions |
+| **principal-engineer** | Implements code according to design specifications |
+| **qa-adversary** | Validates implementation through adversarial testing |
 
 Agents activate when your prompt matches their description.
 <!-- KNOSSOS:END quick-start -->
@@ -42,10 +43,11 @@ Agents cannot spawn other agents — only the main thread can dispatch sub-agent
 
 Prompts in `.gemini/agents/`:
 
-- `potnia.md` - Coordinates debt assessment and planning phases
-- `debt-collector.md` - Collects and inventories technical debt across the codebase
-- `risk-assessor.md` - Assesses risk and impact of debt items for prioritization
-- `sprint-planner.md` - Plans debt paydown sprints with timelines and resources
+- `potnia.md` - Coordinates development lifecycle phases and routes work to specialists
+- `requirements-analyst.md` - Gathers requirements and produces PRD artifacts
+- `architect.md` - Creates technical design documents and architecture decisions
+- `principal-engineer.md` - Implements code according to design specifications
+- `qa-adversary.md` - Validates implementation through adversarial testing
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:

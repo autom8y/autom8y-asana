@@ -605,50 +605,55 @@ class TestProcessPipelineClassifiers:
         assert classifier is not None
         assert classifier.project_gid == ""
 
-    # --- Representative section classification: sales pipeline ---
+    # --- Representative section classification (verified against live Asana) ---
 
-    def test_sales_active_sections(self) -> None:
+    def test_active_sections(self) -> None:
+        """ACTIVE, EXECUTING, BUILDING, PROCESSING, OPPORTUNITY, CONTACTED are all active."""
         classifier = get_classifier("sales")
         assert classifier is not None
-        assert classifier.classify("Active") == AccountActivity.ACTIVE
-        assert classifier.classify("In Progress") == AccountActivity.ACTIVE
-        assert classifier.classify("Discovery") == AccountActivity.ACTIVE
-        assert classifier.classify("Proposal") == AccountActivity.ACTIVE
+        assert classifier.classify("ACTIVE") == AccountActivity.ACTIVE
+        assert classifier.classify("EXECUTING") == AccountActivity.ACTIVE
+        assert classifier.classify("BUILDING") == AccountActivity.ACTIVE
+        assert classifier.classify("PROCESSING") == AccountActivity.ACTIVE
+        assert classifier.classify("OPPORTUNITY") == AccountActivity.ACTIVE
+        assert classifier.classify("CONTACTED") == AccountActivity.ACTIVE
 
-    def test_sales_activating_sections(self) -> None:
+    def test_activating_sections(self) -> None:
+        """SCHEDULED, REQUESTED, DELAYED are activating."""
         classifier = get_classifier("sales")
         assert classifier is not None
-        assert classifier.classify("New Lead") == AccountActivity.ACTIVATING
-        assert classifier.classify("Qualification") == AccountActivity.ACTIVATING
-        assert classifier.classify("Outreach") == AccountActivity.ACTIVATING
+        assert classifier.classify("SCHEDULED") == AccountActivity.ACTIVATING
+        assert classifier.classify("REQUESTED") == AccountActivity.ACTIVATING
+        assert classifier.classify("DELAYED") == AccountActivity.ACTIVATING
 
-    def test_sales_inactive_sections(self) -> None:
+    def test_inactive_sections(self) -> None:
+        """INACTIVE, DID NOT CONVERT, MAYBE, UNPROCESSED are inactive."""
         classifier = get_classifier("sales")
         assert classifier is not None
-        assert classifier.classify("Closed Lost") == AccountActivity.INACTIVE
-        assert classifier.classify("Unresponsive") == AccountActivity.INACTIVE
-        assert classifier.classify("On Hold") == AccountActivity.INACTIVE
+        assert classifier.classify("INACTIVE") == AccountActivity.INACTIVE
+        assert classifier.classify("DID NOT CONVERT") == AccountActivity.INACTIVE
+        assert classifier.classify("MAYBE") == AccountActivity.INACTIVE
+        assert classifier.classify("UNPROCESSED") == AccountActivity.INACTIVE
 
-    def test_sales_ignored_sections(self) -> None:
+    def test_ignored_sections(self) -> None:
+        """TEMPLATE, COMPLETED, CONVERTED, VIDEO ONLY, etc. are ignored."""
         classifier = get_classifier("sales")
         assert classifier is not None
-        assert classifier.classify("Templates") == AccountActivity.IGNORED
-        assert classifier.classify("Complete") == AccountActivity.IGNORED
+        assert classifier.classify("TEMPLATE") == AccountActivity.IGNORED
+        assert classifier.classify("TEMPLATES") == AccountActivity.IGNORED
+        assert classifier.classify("COMPLETED") == AccountActivity.IGNORED
+        assert classifier.classify("CONVERTED") == AccountActivity.IGNORED
+        assert classifier.classify("VIDEO ONLY") == AccountActivity.IGNORED
+        assert classifier.classify("TASKS") == AccountActivity.IGNORED
 
-    # --- Representative section classification: onboarding pipeline ---
+    # --- Cross-pipeline consistency (all pipelines share default config) ---
 
-    def test_onboarding_active_sections(self) -> None:
+    def test_onboarding_uses_same_sections(self) -> None:
         classifier = get_classifier("onboarding")
         assert classifier is not None
-        assert classifier.classify("Onboarding") == AccountActivity.ACTIVE
-        assert classifier.classify("Setup") == AccountActivity.ACTIVE
-        assert classifier.classify("Training") == AccountActivity.ACTIVE
-
-    def test_onboarding_activating_sections(self) -> None:
-        classifier = get_classifier("onboarding")
-        assert classifier is not None
-        assert classifier.classify("Pending Start") == AccountActivity.ACTIVATING
-        assert classifier.classify("Kickoff Scheduled") == AccountActivity.ACTIVATING
+        assert classifier.classify("ACTIVE") == AccountActivity.ACTIVE
+        assert classifier.classify("EXECUTING") == AccountActivity.ACTIVE
+        assert classifier.classify("SCHEDULED") == AccountActivity.ACTIVATING
 
     # --- Case insensitivity ---
 
@@ -658,8 +663,8 @@ class TestProcessPipelineClassifiers:
         assert classifier.classify("active") == AccountActivity.ACTIVE
         assert classifier.classify("ACTIVE") == AccountActivity.ACTIVE
         assert classifier.classify("Active") == AccountActivity.ACTIVE
-        assert classifier.classify("new lead") == AccountActivity.ACTIVATING
-        assert classifier.classify("NEW LEAD") == AccountActivity.ACTIVATING
+        assert classifier.classify("opportunity") == AccountActivity.ACTIVE
+        assert classifier.classify("OPPORTUNITY") == AccountActivity.ACTIVE
 
     # --- Unknown sections return None ---
 
@@ -671,26 +676,17 @@ class TestProcessPipelineClassifiers:
         assert classifier.classify("DEFINITELY_NOT_A_SECTION") is None
         assert classifier.classify("") is None
 
-    # --- account_error has no active states ---
+    # --- account_error uses default config (same sections as all pipelines) ---
 
-    def test_account_error_has_no_active_sections(self) -> None:
-        """account_error pipeline has no ACTIVE sections (empty set)."""
+    def test_account_error_uses_default_sections(self) -> None:
+        """account_error shares the default process pipeline classification."""
         classifier = get_classifier("account_error")
         assert classifier is not None
-        assert classifier.active_sections() == frozenset()
-
-    def test_account_error_has_activating_sections(self) -> None:
-        classifier = get_classifier("account_error")
-        assert classifier is not None
-        assert classifier.classify("Under Review") == AccountActivity.ACTIVATING
-        assert classifier.classify("Escalated") == AccountActivity.ACTIVATING
-
-    def test_account_error_has_inactive_sections(self) -> None:
-        classifier = get_classifier("account_error")
-        assert classifier is not None
-        assert classifier.classify("Resolved") == AccountActivity.INACTIVE
-        assert classifier.classify("Monitoring") == AccountActivity.INACTIVE
-        assert classifier.classify("Closed") == AccountActivity.INACTIVE
+        assert classifier.classify("OPPORTUNITY") == AccountActivity.ACTIVE
+        assert classifier.classify("CONTACTED") == AccountActivity.ACTIVE
+        assert classifier.classify("SCHEDULED") == AccountActivity.ACTIVATING
+        assert classifier.classify("DID NOT CONVERT") == AccountActivity.INACTIVE
+        assert classifier.classify("COMPLETED") == AccountActivity.IGNORED
 
     # --- Section count sanity checks ---
 
