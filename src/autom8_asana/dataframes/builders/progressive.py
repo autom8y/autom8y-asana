@@ -41,6 +41,7 @@ from autom8_asana.dataframes.section_persistence import (
     SectionPersistence,
     SectionStatus,
 )
+from autom8_asana.models.business.activity import get_classifier
 from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:
@@ -476,6 +477,9 @@ class ProgressiveProjectBuilder:
         sections = await self._list_sections()
         section_gids = [s.gid for s in sections]
 
+        # Step 1.5: Warn about section names the classifier cannot map (N4)
+        self._warn_unclassified_sections(sections)
+
         if not sections:
             logger.warning(
                 "progressive_build_no_sections",
@@ -680,6 +684,38 @@ class ProgressiveProjectBuilder:
             store=self._store,
             resolver=self._resolver,
         )
+
+    def _warn_unclassified_sections(self, sections: list[Section]) -> None:
+        """Log warnings for section names not recognized by the entity classifier.
+
+        Iterates over sections and checks each name against the classifier
+        registered for ``self._entity_type``.  If no classifier is registered
+        (e.g. for entity types without an activity model), the method returns
+        immediately without warnings.
+
+        This is purely observational -- it never modifies state or raises.
+
+        Args:
+            sections: Section objects returned from the Asana API.
+        """
+        classifier = get_classifier(self._entity_type)
+        if classifier is None:
+            return
+
+        for section in sections:
+            if section.name is None:
+                continue
+            if classifier.classify(section.name) is None:
+                logger.warning(
+                    "unclassified_section_name",
+                    extra={
+                        "project_gid": self._project_gid,
+                        "entity_type": self._entity_type,
+                        "section_gid": section.gid,
+                        "section_name": section.name,
+                        "unclassified_section": section.name,
+                    },
+                )
 
     async def _list_sections(self) -> list[Section]:
         """List sections for the project."""
