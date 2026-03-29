@@ -392,10 +392,10 @@ class TestConvenienceFunction:
 
 @pytest.mark.asyncio
 class TestPopulateStoreWithTasks:
-    """Tests for _populate_store_with_tasks cascade warming."""
+    """Tests for HierarchyWarmer.populate_store_with_tasks cascade warming."""
 
     async def test_populate_store_uses_batch_with_warming(self) -> None:
-        """Progressive builder should use put_batch_async with warm_hierarchy=True.
+        """HierarchyWarmer should use put_batch_async with warm_hierarchy=True.
 
         Per ADR-cascade-field-resolution: Hierarchy warming ensures parent tasks
         (Business, UnitHolder) are fetched and cached so cascade fields like
@@ -427,7 +427,7 @@ class TestPopulateStoreWithTasks:
             "custom_fields": [],
         }
 
-        await builder._populate_store_with_tasks([mock_task])
+        await builder._hierarchy_warmer.populate_store_with_tasks([mock_task])
 
         # Verify put_batch_async was called with warm_hierarchy=True
         mock_store.put_batch_async.assert_called_once()
@@ -451,13 +451,13 @@ class TestPopulateStoreWithTasks:
             store=mock_store,
         )
 
-        await builder._populate_store_with_tasks([])
+        await builder._hierarchy_warmer.populate_store_with_tasks([])
 
         # Should not call put_batch_async for empty list
         mock_store.put_batch_async.assert_not_called()
 
     async def test_populate_store_no_store(self) -> None:
-        """No store skips population gracefully."""
+        """No store means _hierarchy_warmer is None, skips population gracefully."""
         mock_client = MagicMock()
         mock_schema = MagicMock()
         mock_persistence = MagicMock(spec=SectionPersistence)
@@ -471,11 +471,8 @@ class TestPopulateStoreWithTasks:
             store=None,  # No store
         )
 
-        mock_task = MagicMock()
-        mock_task.gid = "task_1"
-
-        # Should not raise, just return
-        await builder._populate_store_with_tasks([mock_task])
+        # With no store, _hierarchy_warmer is None — verify that
+        assert builder._hierarchy_warmer is None
 
     async def test_populate_store_handles_exception(self) -> None:
         """Store population failure doesn't crash build."""
@@ -500,4 +497,4 @@ class TestPopulateStoreWithTasks:
         mock_task.model_dump.return_value = {"gid": "task_1", "name": "Test"}
 
         # Should not raise, just log warning
-        await builder._populate_store_with_tasks([mock_task])
+        await builder._hierarchy_warmer.populate_store_with_tasks([mock_task])

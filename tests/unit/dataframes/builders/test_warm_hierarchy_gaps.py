@@ -173,7 +173,7 @@ class TestWarmHierarchyGapsFetchesFullData:
             )
 
         df = _make_merged_df_with_parent_gids()
-        result = await builder._warm_hierarchy_gaps_async(df)
+        result = await builder._hierarchy_warmer.warm_hierarchy_gaps_async(df)
 
         # Verify: API was called to fetch the full task
         mock_client.tasks.get_async.assert_called_once_with(
@@ -233,7 +233,7 @@ class TestWarmHierarchyGapsFetchesFullData:
             )
 
         df = _make_merged_df_with_parent_gids()
-        result = await builder._warm_hierarchy_gaps_async(df)
+        result = await builder._hierarchy_warmer.warm_hierarchy_gaps_async(df)
 
         # Verify: API was NOT called (parent already cached)
         mock_client.tasks.get_async.assert_not_called()
@@ -280,7 +280,7 @@ class TestWarmHierarchyGapsFetchesFullData:
             )
 
         df = _make_merged_df_with_parent_gids()
-        result = await builder._warm_hierarchy_gaps_async(df)
+        result = await builder._hierarchy_warmer.warm_hierarchy_gaps_async(df)
 
         # API was called but returned None
         mock_client.tasks.get_async.assert_called_once()
@@ -293,34 +293,20 @@ class TestWarmHierarchyGapsFetchesFullData:
 
     @pytest.mark.asyncio
     async def test_no_store_returns_zero(self) -> None:
-        """Without a store, _warm_hierarchy_gaps_async returns 0."""
-        from autom8_asana.dataframes.builders.progressive import (
-            ProgressiveProjectBuilder,
+        """Without a store, warm_hierarchy_gaps_async returns 0."""
+        from autom8_asana.dataframes.builders.hierarchy_warmer import HierarchyWarmer
+
+        warmer = HierarchyWarmer(
+            store=None,
+            client=MagicMock(),
+            project_gid="test-project",
+            entity_type="unit",
+            max_concurrent=8,
+            task_to_dict=lambda task: task.model_dump(),
         )
 
-        mock_client = MagicMock()
-        mock_schema = MagicMock()
-        mock_schema.columns = []
-        mock_schema.to_polars_schema.return_value = {}
-        mock_schema.version = "1.0.0"
-        mock_persistence = MagicMock()
-
-        with patch(
-            "autom8_asana.dataframes.builders.progressive.get_settings"
-        ) as mock_settings:
-            mock_settings.return_value.runtime.section_cascade_validation = "1"
-
-            builder = ProgressiveProjectBuilder(
-                client=mock_client,
-                project_gid="test-project",
-                entity_type="unit",
-                schema=mock_schema,
-                persistence=mock_persistence,
-                store=None,  # No store
-            )
-
         df = _make_merged_df_with_parent_gids()
-        result = await builder._warm_hierarchy_gaps_async(df)
+        result = await warmer.warm_hierarchy_gaps_async(df)
         assert result == 0
 
     @pytest.mark.asyncio
@@ -386,7 +372,7 @@ class TestWarmHierarchyGapsFetchesFullData:
             schema={"gid": pl.Utf8, "parent_gid": pl.Utf8, "name": pl.Utf8},
         )
 
-        result = await builder._warm_hierarchy_gaps_async(df)
+        result = await builder._hierarchy_warmer.warm_hierarchy_gaps_async(df)
 
         # Both unit holders should have been fetched
         assert mock_client.tasks.get_async.call_count == 2

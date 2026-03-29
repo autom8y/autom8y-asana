@@ -14,6 +14,7 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 
+from autom8_asana.dataframes.builders.hierarchy_warmer import HierarchyWarmer
 from autom8_asana.dataframes.builders.progressive import (
     ProgressiveProjectBuilder,
 )
@@ -24,6 +25,27 @@ from autom8_asana.dataframes.section_persistence import (
     SectionStatus,
 )
 from autom8_asana.settings import reset_settings
+
+
+def _make_hierarchy_warmer(
+    store: object | None = None,
+    client: object | None = None,
+    project_gid: str = "proj_123",
+    entity_type: str = "contact",
+    max_concurrent: int = 8,
+    task_to_dict: object | None = None,
+) -> HierarchyWarmer:
+    """Create a HierarchyWarmer for testing."""
+    if task_to_dict is None:
+        task_to_dict = lambda task: task.model_dump()  # noqa: E731
+    return HierarchyWarmer(
+        store=store,
+        client=client or MagicMock(),
+        project_gid=project_gid,
+        entity_type=entity_type,
+        max_concurrent=max_concurrent,
+        task_to_dict=task_to_dict,
+    )
 
 
 def _make_mock_task(gid: str) -> MagicMock:
@@ -381,26 +403,20 @@ class TestDeltaCheckpointEndToEnd:
 
 @pytest.mark.asyncio
 class TestPopulateStoreDoesNotUseCheckpointState:
-    """Verify _populate_store_with_tasks is independent of delta state."""
+    """Verify populate_store_with_tasks is independent of delta state."""
 
     async def test_populate_store_calls_task_to_dict_independently(self) -> None:
-        """_populate_store_with_tasks calls _task_to_dict on its own,
+        """populate_store_with_tasks calls task_to_dict on its own,
         separate from the DataFrame extraction pipeline."""
-        builder = _make_builder()
         mock_store = MagicMock()
         mock_store.put_batch_async = AsyncMock()
-        builder._store = mock_store
+
+        warmer = _make_hierarchy_warmer(store=mock_store)
 
         tasks = [_make_mock_task(str(i)) for i in range(5)]
 
-        # Set up checkpoint state as if we already processed some tasks
-        builder._checkpoint_task_count = 3
-        builder._checkpoint_df = pl.DataFrame(
-            {"gid": ["0", "1", "2"], "name": ["Task 0", "Task 1", "Task 2"]}
-        )
-
-        # _populate_store_with_tasks should process ALL tasks regardless
-        await builder._populate_store_with_tasks(tasks)
+        # populate_store_with_tasks should process ALL tasks regardless
+        await warmer.populate_store_with_tasks(tasks)
 
         # Verify put_batch_async was called with all 5 tasks
         mock_store.put_batch_async.assert_called_once()
@@ -414,18 +430,17 @@ class TestPopulateStoreDoesNotUseCheckpointState:
 
 
 class TestReconstructHierarchyFromDataframe:
-    """Verify _reconstruct_hierarchy_from_dataframe populates HierarchyIndex."""
+    """Verify HierarchyWarmer.reconstruct_hierarchy_from_dataframe populates HierarchyIndex."""
 
     def test_registers_gid_parent_pairs(self) -> None:
         """Hierarchy populated from DataFrame gid/parent_gid columns."""
-        builder = _make_builder()
-
         mock_hierarchy = MagicMock()
         mock_hierarchy.contains.return_value = False
 
         mock_store = MagicMock()
         mock_store.get_hierarchy_index.return_value = mock_hierarchy
-        builder._store = mock_store
+
+        warmer = _make_hierarchy_warmer(store=mock_store)
 
         df = pl.DataFrame(
             {
@@ -435,7 +450,7 @@ class TestReconstructHierarchyFromDataframe:
             }
         )
 
-        registered = builder._reconstruct_hierarchy_from_dataframe(df)
+        registered = warmer.reconstruct_hierarchy_from_dataframe(df)
 
         assert registered == 3
         assert mock_hierarchy.register.call_count == 3
@@ -452,14 +467,13 @@ class TestReconstructHierarchyFromDataframe:
 
     def test_skips_already_registered(self) -> None:
         """Tasks already in hierarchy are not re-registered."""
-        builder = _make_builder()
-
         mock_hierarchy = MagicMock()
         mock_hierarchy.contains.side_effect = lambda gid: gid == "unit_1"
 
         mock_store = MagicMock()
         mock_store.get_hierarchy_index.return_value = mock_hierarchy
-        builder._store = mock_store
+
+        warmer = _make_hierarchy_warmer(store=mock_store)
 
         df = pl.DataFrame(
             {
@@ -468,7 +482,7 @@ class TestReconstructHierarchyFromDataframe:
             }
         )
 
-        registered = builder._reconstruct_hierarchy_from_dataframe(df)
+        registered = warmer.reconstruct_hierarchy_from_dataframe(df)
 
         assert registered == 1  # Only unit_2 registered
         assert mock_hierarchy.register.call_count == 1
@@ -476,26 +490,24 @@ class TestReconstructHierarchyFromDataframe:
 
     def test_no_store_returns_zero(self) -> None:
         """Returns 0 when store is None."""
-        builder = _make_builder()
-        builder._store = None
+        warmer = _make_hierarchy_warmer(store=None)
 
         df = pl.DataFrame({"gid": ["1"], "parent_gid": ["2"]})
-        assert builder._reconstruct_hierarchy_from_dataframe(df) == 0
+        assert warmer.reconstruct_hierarchy_from_dataframe(df) == 0
 
     def test_missing_columns_returns_zero(self) -> None:
         """Returns 0 when DataFrame lacks gid or parent_gid columns."""
-        builder = _make_builder()
-        builder._store = MagicMock()
+        warmer = _make_hierarchy_warmer(store=MagicMock())
 
         df_no_parent = pl.DataFrame({"gid": ["1"], "name": ["Test"]})
-        assert builder._reconstruct_hierarchy_from_dataframe(df_no_parent) == 0
+        assert warmer.reconstruct_hierarchy_from_dataframe(df_no_parent) == 0
 
         df_no_gid = pl.DataFrame({"parent_gid": ["2"], "name": ["Test"]})
-        assert builder._reconstruct_hierarchy_from_dataframe(df_no_gid) == 0
+        assert warmer.reconstruct_hierarchy_from_dataframe(df_no_gid) == 0
 
 
 class TestWarmHierarchyGapsAsync:
-    """Verify _warm_hierarchy_gaps_async warms missing ancestor links."""
+    """Verify HierarchyWarmer.warm_hierarchy_gaps_async warms missing ancestor links."""
 
     async def test_fetches_uncached_parents_via_put_batch(self) -> None:
         """Fetches uncached parent GIDs from API, then passes to put_batch_async.
@@ -504,8 +516,6 @@ class TestWarmHierarchyGapsAsync:
         instead of passing GID-only stubs, so that put_batch_async's hierarchy
         warming can discover the complete parent chain.
         """
-        builder = _make_builder()
-
         mock_cache = MagicMock()
         # h1 is cached, h2 is not
         mock_cache.get_versioned.side_effect = lambda gid, _: (
@@ -515,7 +525,6 @@ class TestWarmHierarchyGapsAsync:
         mock_store = MagicMock()
         mock_store.cache = mock_cache
         mock_store.put_batch_async = AsyncMock()
-        builder._store = mock_store
 
         # Mock the API to return a task with parent info
         mock_task = MagicMock()
@@ -538,8 +547,10 @@ class TestWarmHierarchyGapsAsync:
             return_value={"gid": "h2", "parent": {"gid": "business-1"}}
         )
 
-        builder._client = MagicMock()
-        builder._client.tasks.get_async = AsyncMock(return_value=mock_task)
+        mock_client = MagicMock()
+        mock_client.tasks.get_async = AsyncMock(return_value=mock_task)
+
+        warmer = _make_hierarchy_warmer(store=mock_store, client=mock_client)
 
         df = pl.DataFrame(
             {
@@ -548,11 +559,11 @@ class TestWarmHierarchyGapsAsync:
             }
         )
 
-        result = await builder._warm_hierarchy_gaps_async(df)
+        result = await warmer.warm_hierarchy_gaps_async(df)
 
         assert result == 1  # only h2 was uncached
         # API was called to fetch h2
-        builder._client.tasks.get_async.assert_called_once()
+        mock_client.tasks.get_async.assert_called_once()
         mock_store.put_batch_async.assert_called_once()
         call_args = mock_store.put_batch_async.call_args
         task_dicts = call_args[0][0]
@@ -564,24 +575,21 @@ class TestWarmHierarchyGapsAsync:
 
     async def test_no_store_returns_zero(self) -> None:
         """Returns 0 when store is None."""
-        builder = _make_builder()
-        builder._store = None
+        warmer = _make_hierarchy_warmer(store=None)
 
         df = pl.DataFrame({"gid": ["1"], "parent_gid": ["2"]})
-        assert await builder._warm_hierarchy_gaps_async(df) == 0
+        assert await warmer.warm_hierarchy_gaps_async(df) == 0
 
     async def test_no_parent_gid_column_returns_zero(self) -> None:
         """Returns 0 when parent_gid column missing."""
-        builder = _make_builder()
-        builder._store = MagicMock()
+        warmer = _make_hierarchy_warmer(store=MagicMock())
 
         df = pl.DataFrame({"gid": ["1"], "name": ["Test"]})
-        assert await builder._warm_hierarchy_gaps_async(df) == 0
+        assert await warmer.warm_hierarchy_gaps_async(df) == 0
 
     async def test_all_null_parent_gids_returns_zero(self) -> None:
         """Returns 0 when all parent_gids are null."""
-        builder = _make_builder()
-        builder._store = MagicMock()
+        warmer = _make_hierarchy_warmer(store=MagicMock())
 
         df = pl.DataFrame(
             {
@@ -589,4 +597,4 @@ class TestWarmHierarchyGapsAsync:
                 "parent_gid": [None, None],
             }
         )
-        assert await builder._warm_hierarchy_gaps_async(df) == 0
+        assert await warmer.warm_hierarchy_gaps_async(df) == 0
