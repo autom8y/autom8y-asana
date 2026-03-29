@@ -790,8 +790,12 @@ class TestExtractStatusFromDataframe:
     # Classifier fallback
     # ------------------------------------------------------------------
 
-    def test_unknown_entity_type_uses_unit_classifier(self) -> None:
-        """Entity type not recognized by get_classifier falls back to UNIT_CLASSIFIER."""
+    def test_unknown_entity_type_warns_and_skips(self) -> None:
+        """Entity type not recognized by get_classifier logs warning and returns empty.
+
+        Per TC-5: silent UNIT_CLASSIFIER fallback replaced with warn+skip
+        to eliminate incorrect classification of process pipeline rows.
+        """
         df = pl.DataFrame({
             "office_phone": ["+15551234567"],
             "section_name": ["Active"],
@@ -801,13 +805,19 @@ class TestExtractStatusFromDataframe:
             "autom8_asana.models.business.activity.get_classifier",
             return_value=None,  # Unknown entity type
         ) as mock_get, patch(
-            "autom8_asana.models.business.activity.UNIT_CLASSIFIER",
-        ) as mock_unit_cls:
-            mock_unit_cls.classify.return_value = AccountActivity.ACTIVE
+            "autom8_asana.services.gid_push.logger",
+        ) as mock_logger:
             result = extract_status_from_dataframe(df, _UNIT_GID, "unknown_entity")
 
         # get_classifier was called with the entity type
         mock_get.assert_called_once_with("unknown_entity")
-        # UNIT_CLASSIFIER was used as fallback
-        mock_unit_cls.classify.assert_called_once_with("Active")
-        assert len(result) == 1
+        # Warning was logged
+        mock_logger.warning.assert_called_once_with(
+            "process_pipeline_no_classifier",
+            extra={
+                "entity_type": "unknown_entity",
+                "project_gid": _UNIT_GID,
+            },
+        )
+        # No entries returned (warn+skip, not fallback)
+        assert result == []

@@ -297,7 +297,94 @@ class IntakeCreateService:
                 "notes": f"Vertical: {vertical}",
             },
         )
-        return self._extract_gid(result)
+        unit_gid = self._extract_gid(result)
+
+        # Write Vertical enum custom field on the newly created unit task
+        await self._write_vertical_custom_field(unit_gid, vertical)
+
+        return unit_gid
+
+    async def _write_vertical_custom_field(
+        self,
+        task_gid: str,
+        vertical: str,
+    ) -> None:
+        """Resolve and write the Vertical enum custom field on a unit task.
+
+        Fetches the task's custom fields, locates the field named "Vertical"
+        (case-insensitive), matches the vertical parameter to an enum option
+        by name (case-insensitive), and writes via tasks.update_async.
+
+        Non-fatal: logs warning and returns if field or enum option not found.
+        """
+        task_data = await self._client.tasks.get_async(
+            task_gid,
+            opt_fields=[
+                "custom_fields.gid",
+                "custom_fields.name",
+                "custom_fields.enum_options.gid",
+                "custom_fields.enum_options.name",
+            ],
+        )
+        custom_fields = (
+            task_data.get("custom_fields", [])
+            if isinstance(task_data, dict)
+            else getattr(task_data, "custom_fields", []) or []
+        )
+
+        # Find the "Vertical" custom field entry
+        vertical_cf = None
+        for cf in custom_fields:
+            cf_name = (
+                cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
+            )
+            if cf_name and cf_name.lower() == "vertical":
+                vertical_cf = cf
+                break
+
+        if vertical_cf is None:
+            logger.warning(
+                "vertical_cf_not_found",
+                extra={"task_gid": task_gid},
+            )
+            return
+
+        cf_gid = (
+            vertical_cf.get("gid", "")
+            if isinstance(vertical_cf, dict)
+            else getattr(vertical_cf, "gid", "")
+        )
+        enum_options = (
+            vertical_cf.get("enum_options", [])
+            if isinstance(vertical_cf, dict)
+            else getattr(vertical_cf, "enum_options", []) or []
+        )
+
+        # Match enum option by name (case-insensitive)
+        enum_option_gid = None
+        for opt in enum_options:
+            opt_name = (
+                opt.get("name", "") if isinstance(opt, dict) else getattr(opt, "name", "")
+            )
+            if opt_name and opt_name.lower() == vertical.lower():
+                enum_option_gid = (
+                    opt.get("gid", "")
+                    if isinstance(opt, dict)
+                    else getattr(opt, "gid", "")
+                )
+                break
+
+        if not enum_option_gid:
+            logger.warning(
+                "vertical_enum_option_not_found",
+                extra={"task_gid": task_gid, "vertical": vertical},
+            )
+            return
+
+        await self._client.tasks.update_async(
+            task_gid,
+            data={"custom_fields": {cf_gid: {"gid": enum_option_gid}}},
+        )
 
     async def _phase4_create_contact(
         self,
