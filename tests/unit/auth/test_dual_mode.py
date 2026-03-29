@@ -9,8 +9,8 @@ Per TDD-S2S-001 Section 12.1:
 from __future__ import annotations
 
 import pytest
-from fastapi import HTTPException
 
+from autom8_asana.api.exceptions import ApiAuthError
 from autom8_asana.auth.dual_mode import AuthMode, detect_token_type, get_auth_mode
 
 
@@ -130,33 +130,33 @@ class TestGetAuthMode:
 
     @pytest.mark.asyncio
     async def test_missing_authorization_header_raises_401(self) -> None:
-        """Missing Authorization header should raise 401 MISSING_AUTH."""
-        with pytest.raises(HTTPException) as exc_info:
+        """Missing Authorization header should raise ApiAuthError MISSING_AUTH."""
+        with pytest.raises(ApiAuthError) as exc_info:
             await get_auth_mode(authorization=None)
 
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"] == "MISSING_AUTH"
+        assert exc_info.value.code == "MISSING_AUTH"
         assert exc_info.value.headers["WWW-Authenticate"] == "Bearer"
 
     @pytest.mark.asyncio
     async def test_invalid_scheme_raises_401(self) -> None:
-        """Non-Bearer scheme should raise 401 INVALID_SCHEME."""
-        with pytest.raises(HTTPException) as exc_info:
+        """Non-Bearer scheme should raise ApiAuthError INVALID_SCHEME."""
+        with pytest.raises(ApiAuthError) as exc_info:
             await get_auth_mode(authorization="Basic dXNlcjpwYXNz")
 
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"] == "INVALID_SCHEME"
-        assert "Bearer scheme required" in exc_info.value.detail["message"]
+        assert exc_info.value.code == "INVALID_SCHEME"
+        assert "Bearer scheme required" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_token_too_short_raises_401(self) -> None:
-        """Token shorter than 10 characters should raise 401 INVALID_TOKEN."""
-        with pytest.raises(HTTPException) as exc_info:
+        """Token shorter than 10 characters should raise ApiAuthError INVALID_TOKEN."""
+        with pytest.raises(ApiAuthError) as exc_info:
             await get_auth_mode(authorization="Bearer abc")
 
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"] == "INVALID_TOKEN"
-        assert "too short" in exc_info.value.detail["message"]
+        assert exc_info.value.code == "INVALID_TOKEN"
+        assert "too short" in exc_info.value.message
 
     @pytest.mark.asyncio
     async def test_valid_jwt_returns_jwt_mode(self) -> None:
@@ -181,11 +181,11 @@ class TestGetAuthMode:
     @pytest.mark.asyncio
     async def test_bearer_case_sensitive(self) -> None:
         """Bearer prefix must be exact case (Bearer, not bearer)."""
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ApiAuthError) as exc_info:
             await get_auth_mode(authorization="bearer 0/1234567890abcdef")
 
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"] == "INVALID_SCHEME"
+        assert exc_info.value.code == "INVALID_SCHEME"
 
     @pytest.mark.asyncio
     async def test_token_extraction_removes_bearer_prefix(self) -> None:

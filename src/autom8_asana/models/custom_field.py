@@ -89,6 +89,7 @@ class CustomField(AsanaResource):
     # Type-specific configuration
     precision: int | None = Field(
         default=None,
+        ge=0,
         description="Decimal precision for number fields",
     )
     format: str | None = Field(

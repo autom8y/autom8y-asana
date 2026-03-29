@@ -19,7 +19,9 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated
 
-from fastapi import Header, HTTPException
+from fastapi import Header
+
+from autom8_asana.api.exceptions import ApiAuthError
 
 
 class AuthMode(StrEnum):
@@ -68,33 +70,18 @@ async def get_auth_mode(
         Tuple of (AuthMode, token_string)
 
     Raises:
-        HTTPException: 401 if header is missing or invalid
+        ApiAuthError: 401 if header is missing or invalid
     """
     if authorization is None:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "MISSING_AUTH",
-                "message": "Authorization header required",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise ApiAuthError("MISSING_AUTH", "Authorization header required")
 
     if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "INVALID_SCHEME", "message": "Bearer scheme required"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise ApiAuthError("INVALID_SCHEME", "Bearer scheme required")
 
     token = authorization[7:]  # Remove "Bearer " prefix
 
     if len(token) < 10:
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "INVALID_TOKEN", "message": "Token too short"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise ApiAuthError("INVALID_TOKEN", "Token too short")
 
     auth_mode = detect_token_type(token)
     return auth_mode, token

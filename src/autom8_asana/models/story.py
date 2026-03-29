@@ -78,6 +78,7 @@ class Story(AsanaResource):
     )
     num_likes: int | None = Field(
         default=None,
+        ge=0,
         description="Number of likes on this story.",
     )
 

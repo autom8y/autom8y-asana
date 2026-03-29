@@ -12,10 +12,11 @@ Authentication:
 from __future__ import annotations
 
 from autom8y_log import get_logger
-from fastapi import HTTPException, Request
-from autom8_asana.api.routes._security import s2s_router
+from fastapi import Request
 from pydantic import BaseModel
 
+from autom8_asana.api.exceptions import ApiAuthError, ApiServiceUnavailableError
+from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.auth.dual_mode import AuthMode, detect_token_type
 from autom8_asana.auth.jwt_validator import validate_service_token
 
@@ -56,35 +57,20 @@ async def _extract_bearer_token(request: Request) -> str:
         Token string (without Bearer prefix).
 
     Raises:
-        HTTPException: 401 if header missing or invalid.
+        ApiAuthError: 401 if header missing or invalid.
     """
     auth_header = request.headers.get("Authorization")
 
     if auth_header is None:
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "MISSING_AUTH",
-                "message": "Authorization header required",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise ApiAuthError("MISSING_AUTH", "Authorization header required")
 
     if not auth_header.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "INVALID_SCHEME", "message": "Bearer scheme required"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise ApiAuthError("INVALID_SCHEME", "Bearer scheme required")
 
     token = auth_header[7:]  # Remove "Bearer " prefix
 
     if not token:
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "MISSING_TOKEN", "message": "Token is required"},
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise ApiAuthError("MISSING_TOKEN", "Token is required")
 
     return token
 
@@ -102,7 +88,8 @@ async def require_service_claims(request: Request) -> ServiceClaims:
         ServiceClaims with validated service information.
 
     Raises:
-        HTTPException: 401 if token is missing, invalid, or not a JWT.
+        ApiAuthError: 401 if token is missing, invalid, or not a JWT.
+        ApiServiceUnavailableError: 503 if S2S auth is not configured.
     """
     token = await _extract_bearer_token(request)
     request_id = getattr(request.state, "request_id", "unknown")
@@ -119,14 +106,10 @@ async def require_service_claims(request: Request) -> ServiceClaims:
                 "reason": "PAT tokens not allowed for internal routes",
             },
         )
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": "SERVICE_TOKEN_REQUIRED",
-                "message": "This endpoint requires service-to-service authentication. "
-                "PAT tokens are not supported.",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
+        raise ApiAuthError(
+            "SERVICE_TOKEN_REQUIRED",
+            "This endpoint requires service-to-service authentication. "
+            "PAT tokens are not supported.",
         )
 
     # Validate JWT and extract claims
@@ -140,12 +123,9 @@ async def require_service_claims(request: Request) -> ServiceClaims:
                 "error": str(e),
             },
         )
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "S2S_NOT_CONFIGURED",
-                "message": "Service-to-service authentication is not available",
-            },
+        raise ApiServiceUnavailableError(
+            "S2S_NOT_CONFIGURED",
+            "Service-to-service authentication is not available",
         )
     except Exception as e:  # BROAD-CATCH: boundary
         # Try to get error code from autom8y_auth exceptions
@@ -158,14 +138,7 @@ async def require_service_claims(request: Request) -> ServiceClaims:
                 "error_message": str(e),
             },
         )
-        raise HTTPException(
-            status_code=401,
-            detail={
-                "error": error_code,
-                "message": "JWT validation failed",
-            },
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise ApiAuthError(error_code, "JWT validation failed")
 
     logger.info(
         "internal_route_authenticated",

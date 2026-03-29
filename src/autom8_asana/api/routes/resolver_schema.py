@@ -29,13 +29,13 @@ from typing import Annotated
 
 from autom8y_log import get_logger
 from fastapi import Depends, Query
-from autom8_asana.api.routes._security import s2s_router
 from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.api.dependencies import (
     RequestId,  # noqa: TC001 — FastAPI resolves these at runtime
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,

@@ -121,10 +121,12 @@ class Task(AsanaResource):
     # Hierarchy and dependencies
     num_subtasks: int | None = Field(
         default=None,
+        ge=0,
         description="Number of subtasks under this task.",
     )
     num_likes: int | None = Field(
         default=None,
+        ge=0,
         description="Number of likes on the task.",
     )
     is_rendered_as_separator: bool | None = Field(
@@ -187,6 +189,7 @@ class Task(AsanaResource):
     # Actual time tracking
     actual_time_minutes: float | None = Field(
         default=None,
+        ge=0.0,
         description="Total time tracked on the task in minutes.",
     )
 

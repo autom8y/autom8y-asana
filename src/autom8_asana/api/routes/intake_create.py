@@ -21,7 +21,6 @@ from typing import Annotated
 
 from autom8y_log import get_logger
 from fastapi import Depends
-from autom8_asana.api.routes._security import s2s_router
 
 from autom8_asana import AsanaClient
 from autom8_asana.api.dependencies import (  # noqa: TC001 -- FastAPI resolves these at runtime
@@ -29,6 +28,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 -- FastAPI resolves t
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.intake_create_models import (
     IntakeBusinessCreateRequest,
     IntakeBusinessCreateResponse,
@@ -57,7 +57,18 @@ router = s2s_router(prefix="/v1/intake", tags=["intake-create"], include_in_sche
 # ---------------------------------------------------------------------------
 
 
-@router.post("/business", response_model=IntakeBusinessCreateResponse, status_code=201)
+@router.post(
+    "/business",
+    response_model=IntakeBusinessCreateResponse,
+    status_code=201,
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "business_task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-references": {"service": "autom8y-data", "entity": "business"},
+    },
+)
 async def create_intake_business(
     body: IntakeBusinessCreateRequest,
     request_id: RequestId,
@@ -186,7 +197,17 @@ async def create_intake_business(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/route", response_model=IntakeRouteResponse)
+@router.post(
+    "/route",
+    response_model=IntakeRouteResponse,
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "process_task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-references": {"service": "autom8y-asana", "entity": "unit"},
+    },
+)
 async def route_intake_process(
     body: IntakeRouteRequest,
     request_id: RequestId,

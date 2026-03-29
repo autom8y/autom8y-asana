@@ -35,7 +35,7 @@ class GoalMetric(AsanaResource):
 
     # Metric configuration
     unit: str | None = Field(default=None, description="Unit of measurement")
-    precision: int | None = Field(default=None, description="Decimal precision")
+    precision: int | None = Field(default=None, ge=0, description="Decimal precision")
     currency_code: str | None = Field(
         default=None,
         description="ISO 4217 currency code for currency-type metrics (e.g., USD, EUR).",
@@ -138,6 +138,7 @@ class Goal(AsanaResource):
     )
     num_likes: int | None = Field(
         default=None,
+        ge=0,
         description="Number of likes on the goal.",
     )
 

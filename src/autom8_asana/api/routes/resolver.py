@@ -46,7 +46,6 @@ from typing import Annotated
 from autom8y_log import get_logger
 from autom8y_telemetry import get_tracer
 from fastapi import Depends
-from autom8_asana.api.routes._security import s2s_router
 from opentelemetry.trace import StatusCode
 
 from autom8_asana import AsanaClient
@@ -55,6 +54,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error, raise_service_error
+from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,

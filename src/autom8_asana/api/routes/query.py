@@ -22,7 +22,6 @@ from typing import Annotated, Any, Never
 from autom8y_log import get_logger
 from fastapi import Depends
 from fastapi.responses import JSONResponse
-from autom8_asana.api.routes._security import s2s_router
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
@@ -31,6 +30,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error, raise_service_error
+from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.client import AsanaClient
 from autom8_asana.query.engine import QueryEngine

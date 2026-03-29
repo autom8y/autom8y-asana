@@ -30,7 +30,6 @@ Per TDD-ASANA-SATELLITE:
 from typing import Annotated
 
 from fastapi import Query, status
-from autom8_asana.api.routes._security import pat_router
 
 from autom8_asana.api.dependencies import (
     AsanaClientDualMode,
@@ -56,6 +55,7 @@ from autom8_asana.api.models import (
     UpdateTaskRequest,
     build_success_response,
 )
+from autom8_asana.api.routes._security import pat_router
 from autom8_asana.services.errors import ServiceError
 from autom8_asana.services.task_service import CreateTaskParams, UpdateTaskParams
 
@@ -195,6 +195,13 @@ async def get_task(
     response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
     responses=mutation_responses(),
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def create_task(
     body: CreateTaskRequest,

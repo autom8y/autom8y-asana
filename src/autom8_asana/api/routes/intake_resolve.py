@@ -18,7 +18,6 @@ from typing import Annotated
 
 from autom8y_log import get_logger
 from fastapi import Depends
-from autom8_asana.api.routes._security import s2s_router
 
 from autom8_asana import AsanaClient
 from autom8_asana.api.dependencies import (  # noqa: TC001 -- FastAPI resolves these at runtime
@@ -26,6 +25,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 -- FastAPI resolves t
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.intake_resolve_models import (
     BusinessResolveRequest,
     BusinessResolveResponse,
@@ -53,7 +53,15 @@ router = s2s_router(prefix="/v1", tags=["intake-resolve"], include_in_schema=Fal
 # ---------------------------------------------------------------------------
 
 
-@router.post("/resolve/business", response_model=BusinessResolveResponse)
+@router.post(
+    "/resolve/business",
+    response_model=BusinessResolveResponse,
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-references": {"service": "autom8y-asana", "entity": "business"},
+    },
+)
 async def resolve_business(
     body: BusinessResolveRequest,
     request_id: RequestId,
@@ -150,7 +158,15 @@ async def resolve_business(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/resolve/contact", response_model=ContactResolveResponse)
+@router.post(
+    "/resolve/contact",
+    response_model=ContactResolveResponse,
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-references": {"service": "autom8y-asana", "entity": "contact"},
+    },
+)
 async def resolve_contact(
     body: ContactResolveRequest,
     request_id: RequestId,
