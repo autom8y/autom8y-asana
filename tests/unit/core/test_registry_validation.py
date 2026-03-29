@@ -173,12 +173,12 @@ class TestPipelineTypeRegistryValidation:
             check_entity_project_registry=False,
             check_pipeline_type_registry=True,
         )
-        # 8 of 9 PIPELINE_TYPE GIDs are process pipelines not in EntityRegistry
+        # 9 of 10 PIPELINE_TYPE GIDs are process pipelines not in EntityRegistry
         pipeline_warnings = [
             w for w in result.warnings
             if "PIPELINE_TYPE_BY_PROJECT_GID" in w
         ]
-        assert len(pipeline_warnings) == 8  # sales, onboarding, outreach, etc.
+        assert len(pipeline_warnings) == 9  # sales, onboarding, outreach, month1, etc.
         # Verify one specific warning
         assert any("sales" in w for w in pipeline_warnings)
 

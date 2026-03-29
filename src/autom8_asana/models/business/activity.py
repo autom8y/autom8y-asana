@@ -300,6 +300,7 @@ PROCESS_PIPELINE_SECTIONS: dict[str, dict[str, set[str]]] = {
     "expansion": _DEFAULT_PROCESS_SECTIONS,
     "implementation": _DEFAULT_PROCESS_SECTIONS,
     "account_error": _DEFAULT_PROCESS_SECTIONS,
+    "month1": _DEFAULT_PROCESS_SECTIONS,  # Activation Consultation pipeline
 }
 
 CLASSIFIERS: dict[str, SectionClassifier] = {

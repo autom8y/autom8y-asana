@@ -147,7 +147,7 @@ stages:
   # --- Stages 5-10: Deferred (defined for DAG integrity) ---
 
   month1:
-    project_gid: null
+    project_gid: "1209247943184021"  # Activation Consultation
     pipeline_stage: 5
     template_section: "TEMPLATE"
     target_section: "OPPORTUNITY"
