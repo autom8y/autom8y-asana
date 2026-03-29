@@ -309,3 +309,20 @@ class LifecycleConfig:
         if self._model is None:
             return {}
         return self._model.stages
+
+    def build_derivation_table(self) -> dict[str, str]:
+        """Build process-type -> unit-section derivation table from YAML config.
+
+        Returns a mapping of stage name to unit section for all stages that
+        define a ``cascading_sections.unit`` value.  Used by the reconciliation
+        processor to derive the expected unit section from the latest active
+        process pipeline type.
+
+        Per ADR-derivation-table-hardcoded-dict: this is the single source of
+        truth once all stages define their ``unit`` cascading section.
+        """
+        table: dict[str, str] = {}
+        for name, stage in self.stages.items():
+            if stage.cascading_sections and stage.cascading_sections.unit:
+                table[name] = stage.cascading_sections.unit
+        return table

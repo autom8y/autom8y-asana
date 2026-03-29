@@ -237,7 +237,8 @@ stages:
       converted: null
       did_not_convert: null
 
-    cascading_sections: {}
+    cascading_sections:
+      unit: "Active"  # Per ADR-derivation-table-hardcoded-dict step 1
     init_actions: []
 
 # Dependency wiring rules

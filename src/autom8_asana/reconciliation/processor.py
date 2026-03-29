@@ -39,20 +39,14 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Pipeline derivation table (ADR-pipeline-stage-aggregation)
 # ---------------------------------------------------------------------------
-# Maps process pipeline type -> expected unit section name.
-# Values MUST match UNIT_CLASSIFIER section names exactly (title-case).
-# Stakeholder-confirmed 2026-03-29.
-DERIVATION_TABLE: dict[str, str] = {
-    "outreach": "Engaged",
-    "sales": "Next Steps",
-    "onboarding": "Onboarding",
-    "implementation": "Implementing",
-    "month1": "Month 1",
-    "retention": "Account Review",
-    "reactivation": "Paused",
-    "account_error": "Account Error",
-    "expansion": "Active",
-}
+# Built dynamically from lifecycle_stages.yaml cascading_sections.unit values.
+# Per ADR-derivation-table-hardcoded-dict: YAML is the single source of truth
+# now that the expansion gap is closed (unit: "Active" added to YAML).
+# load_config() handles project root detection; LifecycleConfig() alone is a
+# no-op (returns _model=None by design for optional-config consumers).
+from autom8_asana.lifecycle.config import load_config as _load_lifecycle_config
+
+DERIVATION_TABLE: dict[str, str] = _load_lifecycle_config().build_derivation_table()
 
 # Process pipeline section names that classify as IGNORED (terminal states).
 # When the latest process section falls into this set, the process has
