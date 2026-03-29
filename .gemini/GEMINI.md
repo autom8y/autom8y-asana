@@ -7,14 +7,15 @@ Use the available agents and slash commands. Agents activate automatically when 
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-4-agent workflow (review):
+5-agent workflow (10x-dev):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates code review phases, gates complexity, manages back-routes |
-| **signal-sifter** | Reads codebase and sifts signal from noise using structural heuristics |
-| **pattern-profiler** | Connects dots across signals, builds severity profile and health grades |
-| **case-reporter** | Writes the definitive case file with health report card |
+| **potnia** | Coordinates development lifecycle phases and routes work to specialists |
+| **requirements-analyst** | Gathers requirements and produces PRD artifacts |
+| **architect** | Creates technical design documents and architecture decisions |
+| **principal-engineer** | Implements code according to design specifications |
+| **qa-adversary** | Validates implementation through adversarial testing |
 
 Agents activate when your prompt matches their description.
 <!-- KNOSSOS:END quick-start -->
@@ -37,15 +38,16 @@ Agents activate automatically based on description matching. Write prompts that 
 Agents cannot spawn other agents — only the main thread can dispatch sub-agents.
 <!-- KNOSSOS:END commands -->
 
-<!-- KNOSSOS:START agent-configurations source=agents/*.md regenerate=true -->
+<!-- KNOSSOS:START agent-configurations regenerate=true source=agents/*.md -->
 ## Agents
 
 Prompts in `.gemini/agents/`:
 
-- `potnia.md` - Coordinates code review phases, gates complexity, manages back-routes
-- `signal-sifter.md` - Reads codebase and sifts signal from noise using structural heuristics
-- `pattern-profiler.md` - Connects dots across signals, builds severity profile and health grades
-- `case-reporter.md` - Writes the definitive case file with health report card
+- `potnia.md` - Coordinates development lifecycle phases and routes work to specialists
+- `requirements-analyst.md` - Gathers requirements and produces PRD artifacts
+- `architect.md` - Creates technical design documents and architecture decisions
+- `principal-engineer.md` - Implements code according to design specifications
+- `qa-adversary.md` - Validates implementation through adversarial testing
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:
