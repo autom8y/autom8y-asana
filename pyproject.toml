@@ -40,7 +40,7 @@ aws = [
 ]
 api = [
     "fastapi>=0.115.0",
-    "autom8y-api-schemas~=1.0",
+    "autom8y-api-schemas>=1.1.0",
     "uvicorn[standard]>=0.27.0",
     "slowapi>=0.1.9",
 ]

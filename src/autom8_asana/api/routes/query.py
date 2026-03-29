@@ -20,8 +20,9 @@ import time
 from typing import Annotated, Any, Never
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, Depends
+from fastapi import Depends
 from fastapi.responses import JSONResponse
+from autom8_asana.api.routes._security import s2s_router
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
@@ -69,10 +70,10 @@ logger = get_logger(__name__)
 # Two routers share the same prefix. The introspection router is visible in the
 # OpenAPI spec (include_in_schema=True) while the query execution router stays
 # hidden (include_in_schema=False) to avoid exposing POST endpoints.
-query_introspection_router = APIRouter(
+query_introspection_router = s2s_router(
     prefix="/v1/query", tags=["query"], include_in_schema=True
 )
-router = APIRouter(prefix="/v1/query", tags=["query"], include_in_schema=False)
+router = s2s_router(prefix="/v1/query", tags=["query"], include_in_schema=False)
 
 
 # ---------------------------------------------------------------------------
