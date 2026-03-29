@@ -1,13 +1,13 @@
 schema_version: "1.0"
-inscription_version: "132"
-last_sync: 2026-03-27T21:34:41.22383Z
-active_rite: 10x-dev
+inscription_version: "134"
+last_sync: 2026-03-29T01:08:24.248334Z
+active_rite: debt-triage
 template_path: knossos/templates/CLAUDE.md.tpl
 regions:
     agent-configurations:
         owner: regenerate
         source: agents/*.md
-        hash: sha256:c32361344649f819f51be83b03ba0d938ccf1a2d81dfa684dbe7fed4c6b5f302
+        hash: sha256:ceefd7c072fc76bcda1d27209d4481bca35eb03542e0ae6eff7546dda500fa72
     agent-routing:
         owner: knossos
         hash: sha256:41e26d347a524baf7bd9f3510b107c0d3c8e175963e2acc0979392a403284812
@@ -28,7 +28,7 @@ regions:
     quick-start:
         owner: regenerate
         source: ACTIVE_RITE+agents
-        hash: sha256:c6cd23af10295cc54367a0747e621c0d3e3612b26d8c494e79845c29cf71ce0c
+        hash: sha256:7ab7b49fcc1ad20fcd56a5e0a4dcf915f007a4a01a696611c4b6b586729973e3
     user-content:
         owner: satellite
 section_order:
