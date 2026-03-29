@@ -1,199 +1,56 @@
-name: 10x-dev
+name: review
 workflow_type: sequential
-description: Full development lifecycle (PRD → TDD → Code → QA)
+description: Language-agnostic code review lifecycle (Scan -> Assess -> Report)
 
 # entry_point: The first specialist in the domain workflow (not the CC routing agent).
 # The CC routing agent is manifest.yaml:entry_agent (always potnia for orchestrated rites).
 entry_point:
-  agent: requirements-analyst
-  # Default entry point - can be overridden based on work type
-
-  # Dynamic entry selection based on work type
-  # Use --entry flag or specify work_type in session init
-  by_work_type:
-    new_feature: requirements-analyst
-    enhancement: requirements-analyst
-    technical_refactoring: architect
-    performance_optimization: architect
-    bug_fix: principal-engineer
-    security_fix: principal-engineer
-    hotfix: principal-engineer
-
-  # Entry point artifacts by agent
-  artifact_templates:
-    requirements-analyst:
-      type: prd
-      path_template: .ledge/specs/PRD-{slug}.md
-    architect:
-      type: tdd
-      path_template: .ledge/specs/TDD-{slug}.md
-    principal-engineer:
-      type: code
-      path_template: null  # Implementation path determined by scope
+  agent: signal-sifter
+  artifact:
+    type: scan-findings
+    path_template: .sos/wip/review/SCAN-{slug}.md
 
 phases:
-  - name: requirements
-    agent: requirements-analyst
-    produces: prd
-    next: design
+  - name: scan
+    agent: signal-sifter
+    produces: scan-findings
+    next: assess
 
-  - name: design
-    agent: architect
-    produces: tdd
-    next: implementation
-    condition: "complexity >= MODULE"
+  - name: assess
+    agent: pattern-profiler
+    produces: assessment
+    next: report
+    condition: "complexity == FULL"
 
-  - name: implementation
-    agent: principal-engineer
-    produces: code
-    next: validation
-
-  - name: validation
-    agent: qa-adversary
-    produces: test-plan
+  - name: report
+    agent: case-reporter
+    produces: review-report
     next: null
 
 complexity_levels:
-  - name: SCRIPT
-    scope: "Single file, <200 LOC"
-    phases: [requirements, implementation, validation]
-    # High-impact SCRIPT work routes to Architect despite low complexity
-    conditional_phases:
-      - phase: design
-        condition: "impact == 'high'"
-        insert_after: requirements
-  - name: MODULE
-    scope: "Multiple files, <2000 LOC"
-    phases: [requirements, design, implementation, validation]
-  - name: SERVICE
-    scope: "APIs, persistence"
-    phases: [requirements, design, implementation, validation]
-  - name: PLATFORM
-    scope: "Multi-service"
-    phases: [requirements, design, implementation, validation]
+  - name: QUICK
+    scope: "Focused triage of specific files or module, scan + report only"
+    phases: [scan, report]
 
-# Security consultation routing
-# Proactive gates for security-sensitive work
-security_consultation:
-  # Triggers that indicate security consultation is recommended
-  triggers:
-    - pattern: "auth|authentication|authorization"
-      domain: authentication
-      severity: high
-    - pattern: "oauth|saml|sso|openid"
-      domain: authentication
-      severity: high
-    - pattern: "crypto|encryption|hashing|bcrypt|argon"
-      domain: cryptography
-      severity: critical
-    - pattern: "key management|secrets|certificates"
-      domain: cryptography
-      severity: critical
-    - pattern: "pii|personal data|user data|gdpr|ccpa|hipaa"
-      domain: data_privacy
-      severity: high
-    - pattern: "external integration|third-party api|webhook"
-      domain: integration
-      severity: medium
-    - pattern: "payment|billing|financial|transaction|credit card|pci"
-      domain: financial
-      severity: critical
-    - pattern: "session management|token|jwt|refresh token"
-      domain: session
-      severity: high
-
-  # Consultation target
-  target:
-    rite: security
-    agent: threat-modeler
-    phase: pre-implementation
-
-  # When consultation is required vs recommended
-  policy:
-    required:
-      - complexity: SYSTEM
-        domains: [authentication, cryptography, data_privacy, financial]
-      - complexity: SERVICE
-        domains: [cryptography, financial]
-    recommended:
-      - complexity: SYSTEM
-        domains: [integration, session]
-      - complexity: MODULE
-        domains: [authentication, data_privacy]
-
-  # Invocation pattern for architect
-  invocation: |
-    Task(threat-modeler, "Review design for {feature}
-    Security domains: {matched_domains}
-    Complexity: {complexity}
-    TDD draft: {tdd_path}")
-
-# Impact-based routing rules
-impact_routing:
-  # High-impact work requires architectural review regardless of complexity
-  high_impact:
-    requires_phases: [design]
-    rationale: "Architecturally significant changes need design review"
-  # Low-impact work follows standard complexity-based routing
-  low_impact:
-    requires_phases: []
-    rationale: "Standard complexity routing applies"
+  - name: FULL
+    scope: "Complete repository review with health grading and cross-rite routing"
+    phases: [scan, assess, report]
 
 # Agent roles for command mapping:
-# /architect  → architect
-# /build      → principal-engineer
-# /qa         → qa-adversary
-# /hotfix     → principal-engineer (fast path)
-# /code-review → qa-adversary (review mode)
+# /review          -> potnia (orchestrated, determines QUICK vs FULL)
+# Direct Task      -> signal-sifter (scan-only, no orchestration)
 
 back_routes:
-  - source_phase: validation
-    trigger: "fail(acceptance_criteria)"
-    target_phase: requirements
-    target_agent: requirements-analyst
-    requires_user_confirmation: true
-    condition: "Failure is requirement gap, not implementation bug"
-
-  - source_phase: validation
-    trigger: "fail(implementation)"
-    target_phase: implementation
-    target_agent: principal-engineer
+  - source_phase: assess
+    trigger: "coverage_gap"
+    target_phase: scan
+    target_agent: signal-sifter
     requires_user_confirmation: false
-    condition: "Failure is implementation bug"
+    condition: "Assessment reveals areas not scanned or insufficiently covered"
 
-  - source_phase: implementation
-    trigger: "design_conflict"
-    target_phase: design
-    target_agent: architect
+  - source_phase: report
+    trigger: "assessment_gap"
+    target_phase: assess
+    target_agent: pattern-profiler
     requires_user_confirmation: false
-    condition: "Implementation reveals design flaw"
-
-# Entry Point Override Documentation
-#
-# The default workflow starts with requirements-analyst, but entry can be
-# overridden for work types that don't need full PRD cycle.
-#
-# Usage Patterns:
-#
-# 1. Via work_type in /task or /sos start:
-#    /task --work-type=bug_fix "Fix login timeout issue"
-#    /sos start --work-type=technical_refactoring "Migrate to new auth library"
-#
-# 2. Via explicit --entry flag:
-#    /task --entry=architect "Redesign caching layer"
-#    /task --entry=principal-engineer "Fix null pointer in user service"
-#
-# 3. Via Potnia consultation:
-#    Potnia's Entry Point Selection guidance (see potnia.md)
-#    determines entry based on work type analysis during session init.
-#
-# Entry Point Implications:
-# - requirements-analyst: Full PRD -> TDD -> Code -> QA
-# - architect: TDD -> Code -> QA (skip PRD)
-# - principal-engineer: Code -> QA (skip PRD and TDD)
-#
-# When to override default:
-# - Bug fixes: Known issue, enter at principal-engineer
-# - Refactoring: No new features, enter at architect
-# - Hotfixes: Time-critical, enter at principal-engineer
-# - Security fixes: Immediate remediation, enter at principal-engineer
+    condition: "Report synthesis reveals findings without severity or ungrouped themes"
