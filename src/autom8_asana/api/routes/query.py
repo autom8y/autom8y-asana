@@ -23,7 +23,7 @@ from autom8y_log import get_logger
 from fastapi import Depends
 from fastapi.responses import JSONResponse
 from autom8_asana.api.routes._security import s2s_router
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
     DataServiceClientDep,
@@ -112,10 +112,26 @@ class QueryRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    where: dict[str, Any] = {}
-    select: list[str] | None = None
-    limit: int = 100
-    offset: int = 0
+    where: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Flat equality predicates with AND semantics. Keys are column names, values are match targets.",
+        examples=[{"vertical": "chiro", "status": "active"}],
+    )
+    select: list[str] | None = Field(
+        default=None,
+        description="Column names to include in results. Null returns default fields (gid, name, section).",
+        examples=[["gid", "name", "office_phone"]],
+    )
+    limit: int = Field(
+        default=100,
+        description="Maximum number of rows to return. Values above 1000 are silently clamped.",
+        examples=[100],
+    )
+    offset: int = Field(
+        default=0,
+        description="Number of rows to skip for pagination.",
+        examples=[0],
+    )
 
     @field_validator("limit")
     @classmethod
@@ -136,19 +152,35 @@ class QueryMeta(BaseModel):
     """Response metadata for pagination and context."""
 
     model_config = ConfigDict(extra="forbid")
-    total_count: int
-    limit: int
-    offset: int
-    entity_type: str
-    project_gid: str
+
+    total_count: int = Field(
+        description="Total number of matching rows before pagination.",
+    )
+    limit: int = Field(
+        description="Maximum rows per page as applied.",
+    )
+    offset: int = Field(
+        description="Number of rows skipped.",
+    )
+    entity_type: str = Field(
+        description="Entity type that was queried (e.g., 'unit', 'offer').",
+    )
+    project_gid: str = Field(
+        description="Asana project GID backing this entity type.",
+    )
 
 
 class QueryResponse(BaseModel):
     """Response body for entity query."""
 
     model_config = ConfigDict(extra="forbid")
-    data: list[dict[str, Any]]
-    meta: QueryMeta
+
+    data: list[dict[str, Any]] = Field(
+        description="Query result rows. Each dict contains the requested select fields.",
+    )
+    meta: QueryMeta = Field(
+        description="Pagination metadata and query context.",
+    )
 
 
 # ---------------------------------------------------------------------------
