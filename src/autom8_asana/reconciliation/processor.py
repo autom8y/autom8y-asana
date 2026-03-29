@@ -108,6 +108,10 @@ class ReconciliationBatchProcessor:
         )
         self._dry_run = dry_run
         self._offer_activity_index: dict[str, str] = {}
+        # Composite index: (phone, vertical) -> section for exact match
+        self._offer_composite_index: dict[tuple[str, str], str] = {}
+        # Phone-only index: phone -> (section, vertical) for fallback
+        self._offer_phone_index: dict[str, tuple[str, str]] = {}
 
         # P1-B: Schema entry guard -- warn if DataFrame lacks section column
         self._validate_schema_entry(unit_df, "unit_df")
@@ -176,6 +180,59 @@ class ReconciliationBatchProcessor:
 
         return index
 
+    def _build_offer_phone_indexes(
+        self,
+        offer_df: Any,
+    ) -> tuple[dict[tuple[str, str], str], dict[str, tuple[str, str]]]:
+        """Build phone-based lookup indexes from offer DataFrame.
+
+        Per remediation-vertical-investigation-spike Option C: builds a
+        composite (phone, vertical) -> section index for exact match AND a
+        phone-only phone -> (section, vertical) fallback index.
+
+        Returns:
+            Tuple of (composite_index, phone_only_index) where:
+            - composite_index maps (phone, vertical) -> section
+            - phone_only_index maps phone -> (section, vertical)
+              (first occurrence wins for phone-only; used only as fallback)
+        """
+        composite: dict[tuple[str, str], str] = {}
+        phone_only: dict[str, tuple[str, str]] = {}
+
+        if not hasattr(offer_df, "columns"):
+            return composite, phone_only
+
+        columns = set(offer_df.columns)
+        has_section = "section" in columns
+        has_phone = "office_phone" in columns
+        has_vertical = "vertical" in columns
+
+        if not (has_section and has_phone):
+            return composite, phone_only
+
+        for row_idx in range(len(offer_df)):
+            section = offer_df["section"][row_idx]
+            phone = offer_df["office_phone"][row_idx]
+
+            if not section or not phone:
+                continue
+
+            phone_str = str(phone)
+            section_str = str(section)
+            vertical_str = (
+                str(offer_df["vertical"][row_idx])
+                if has_vertical and offer_df["vertical"][row_idx] is not None
+                else ""
+            )
+
+            composite[(phone_str, vertical_str)] = section_str
+
+            # Phone-only: first occurrence wins
+            if phone_str not in phone_only:
+                phone_only[phone_str] = (section_str, vertical_str)
+
+        return composite, phone_only
+
     def _iter_unit_rows(self) -> Iterator[dict[str, Any]]:
         """Iterate unit DataFrame rows as dicts with safe column access.
 
@@ -211,14 +268,24 @@ class ReconciliationBatchProcessor:
         - P0-B: GID exclusion fires first; name fallback uses
           EXCLUDED_SECTION_NAMES (4 entries)
 
+        Per remediation-vertical-investigation-spike Option C:
+        - Composite (phone, vertical) index for exact offer matching
+        - Phone-only fallback when composite key misses
+        - Mismatch warning logged when fallback activates
+
         Returns:
             ProcessorResult with actions, exclusion counts, and diagnostics.
         """
         result = ProcessorResult()
 
-        # Build offer activity index
+        # Build offer activity index (GID-based, existing)
         self._offer_activity_index = self._build_offer_activity_index(
             self._offer_df,
+        )
+
+        # Build phone-based indexes for offer matching (Option C)
+        self._offer_composite_index, self._offer_phone_index = (
+            self._build_offer_phone_indexes(self._offer_df)
         )
 
         # P0-A: Check for canonical "section" column in unit DataFrame
@@ -280,25 +347,53 @@ class ReconciliationBatchProcessor:
 
             # Reconciliation matching logic: compare unit section against
             # offer activity index to determine if a move is needed.
-            # For now, units with valid sections that are not excluded
-            # are no-ops unless the offer activity index indicates a mismatch.
             if not phone:
                 result.no_op_count += 1
                 continue
 
-            # Build the lookup key for offer matching (phone + vertical).
-            # The full logic would look up the unit's phone+vertical in the
-            # offer activity index and determine if the current section
-            # matches the expected state.
-            _lookup_key = f"{phone}:{vertical}"
-            logger.debug(
-                "reconciliation_unit_processed",
-                extra={
-                    "unit_gid": unit_gid,
-                    "section": section_name,
-                    "lookup_key": _lookup_key,
-                },
-            )
+            # Option C: Composite key lookup with phone-only fallback.
+            # Try exact (phone, vertical) match first; fall back to
+            # phone-only when composite key misses.
+            composite_key = (phone, vertical)
+            offer_section = self._offer_composite_index.get(composite_key)
+
+            if offer_section is not None:
+                # Exact match found
+                logger.debug(
+                    "reconciliation_unit_processed",
+                    extra={
+                        "unit_gid": unit_gid,
+                        "section": section_name,
+                        "lookup_key": f"{phone}:{vertical}",
+                        "match_type": "exact",
+                    },
+                )
+            else:
+                # Fallback: phone-only lookup
+                phone_match = self._offer_phone_index.get(phone)
+                if phone_match is not None:
+                    offer_section, offer_vertical = phone_match
+                    logger.warning(
+                        "reconciliation_vertical_mismatch",
+                        extra={
+                            "unit_gid": unit_gid,
+                            "phone": phone,
+                            "unit_vertical": vertical,
+                            "offer_vertical": offer_vertical,
+                            "match_type": "phone_only_fallback",
+                        },
+                    )
+                else:
+                    logger.debug(
+                        "reconciliation_unit_processed",
+                        extra={
+                            "unit_gid": unit_gid,
+                            "section": section_name,
+                            "lookup_key": f"{phone}:{vertical}",
+                            "match_type": "no_match",
+                        },
+                    )
+
             result.no_op_count += 1
 
         return result
