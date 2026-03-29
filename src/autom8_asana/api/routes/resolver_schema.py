@@ -28,7 +28,8 @@ from __future__ import annotations
 from typing import Annotated
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, Depends, Query
+from fastapi import Depends, Query
+from autom8_asana.api.routes._security import s2s_router
 from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.api.dependencies import (
@@ -50,7 +51,7 @@ __all__ = [
 
 logger = get_logger(__name__)
 
-schema_router = APIRouter()
+schema_router = s2s_router()
 
 
 class SchemaFieldInfo(BaseModel):

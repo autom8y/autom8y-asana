@@ -29,7 +29,8 @@ Per TDD-ASANA-SATELLITE:
 
 from typing import Annotated
 
-from fastapi import APIRouter, Query, status
+from fastapi import Query, status
+from autom8_asana.api.routes._security import pat_router
 
 from autom8_asana.api.dependencies import (
     AsanaClientDualMode,
@@ -58,7 +59,7 @@ from autom8_asana.api.models import (
 from autom8_asana.services.errors import ServiceError
 from autom8_asana.services.task_service import CreateTaskParams, UpdateTaskParams
 
-router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
+router = pat_router(prefix="/api/v1/tasks", tags=["tasks"])
 
 # Default pagination limit
 DEFAULT_LIMIT = 100

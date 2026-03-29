@@ -16,7 +16,8 @@ import time
 from typing import Annotated, Any, Literal, Never, cast
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Depends, HTTPException
+from autom8_asana.api.routes._security import s2s_router
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
@@ -49,7 +50,7 @@ from autom8_asana.services.field_write_service import (
 
 logger = get_logger(__name__)
 
-router = APIRouter(
+router = s2s_router(
     prefix="/api/v1/entity", tags=["entity-write"], include_in_schema=False
 )
 

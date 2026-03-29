@@ -13,7 +13,8 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
-from fastapi import APIRouter, Request
+from fastapi import Request
+from autom8_asana.api.routes._security import pat_router
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/v1/workflows", tags=["workflows"])
+router = pat_router(prefix="/api/v1/workflows", tags=["workflows"])
 
 # Default timeout for workflow execution (seconds)
 WORKFLOW_EXECUTION_TIMEOUT = 120
