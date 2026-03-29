@@ -121,7 +121,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -199,7 +199,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -301,7 +301,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -392,7 +392,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -470,7 +470,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -604,7 +604,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -733,7 +733,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -860,7 +860,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       },
@@ -918,7 +918,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -1017,7 +1017,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       },
@@ -1096,7 +1096,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       },
@@ -1165,7 +1165,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -1275,7 +1275,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -1385,7 +1385,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -1466,7 +1466,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -1547,7 +1547,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -1604,7 +1604,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -1662,7 +1662,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -1720,7 +1720,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -1778,7 +1778,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -1835,7 +1835,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -1937,7 +1937,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       },
@@ -1995,7 +1995,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -2094,7 +2094,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       },
@@ -2173,7 +2173,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       },
@@ -2242,7 +2242,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -2352,7 +2352,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -2433,7 +2433,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       },
@@ -2512,7 +2512,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -2590,7 +2590,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       },
@@ -2669,7 +2669,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       },
@@ -2738,7 +2738,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -2798,7 +2798,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -2872,7 +2872,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -2946,7 +2946,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -3019,7 +3019,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -3085,7 +3085,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -3186,7 +3186,7 @@
         },
         "security": [
           {
-            "BearerAuth": []
+            "PersonalAccessToken": []
           }
         ]
       }
@@ -4479,7 +4479,7 @@
       }
     },
     "securitySchemes": {
-      "BearerAuth": {
+      "PersonalAccessToken": {
         "type": "http",
         "scheme": "bearer",
         "description": "Asana Personal Access Token (PAT). The token is passed directly to the Asana API. Use for standard resource endpoints (/api/v1/*)."
