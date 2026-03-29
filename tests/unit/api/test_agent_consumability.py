@@ -148,7 +148,7 @@ class TestTier1Discovery:
 
         Security can be:
         - [] (no auth required, e.g., health)
-        - [{"BearerAuth": []}] (PAT required)
+        - [{"PersonalAccessToken": []}] (PAT required)
         - [{"ServiceJWT": []}] (S2S JWT required)
         - [{"WebhookToken": []}] (URL token required)
         """
@@ -196,7 +196,7 @@ class TestTier1Discovery:
         agent understands the authentication model before choosing one.
         """
         schemes = spec.get("components", {}).get("securitySchemes", {})
-        expected = {"BearerAuth", "ServiceJWT", "WebhookToken"}
+        expected = {"PersonalAccessToken", "ServiceJWT", "WebhookToken"}
         assert expected.issubset(set(schemes.keys())), (
             f"Agent cannot understand auth model — missing schemes: "
             f"{expected - set(schemes.keys())}"
@@ -430,7 +430,7 @@ class TestTier3Safety:
 
     def test_webhook_uses_correct_auth_scheme(self, spec):
         """Webhook endpoints use WebhookToken (apiKey in query param),
-        not BearerAuth, so an agent does not send a PAT to webhook
+        not PersonalAccessToken, so an agent does not send a PAT to webhook
         receivers.
         """
         for path, methods in spec["paths"].items():
@@ -442,9 +442,9 @@ class TestTier3Safety:
                     continue
                 security = op.get("security", [])
                 auth_schemes = [list(s.keys())[0] for s in security if s]
-                assert "BearerAuth" not in auth_schemes, (
+                assert "PersonalAccessToken" not in auth_schemes, (
                     f"Agent would leak PAT — "
-                    f"{method.upper()} {path} incorrectly uses BearerAuth "
+                    f"{method.upper()} {path} incorrectly uses PersonalAccessToken "
                     f"instead of WebhookToken"
                 )
 

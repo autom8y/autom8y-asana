@@ -2,7 +2,7 @@
 
 Provides pre-configured SecureRouter factories for the asana service's
 dual-mode authentication:
-- PAT (Personal Access Token) via BearerAuth for standard resource endpoints
+- PAT (Personal Access Token) via PersonalAccessToken for standard resource endpoints
 - S2S (Service-to-service) via ServiceJWT for internal service endpoints
 
 Health routers should continue using plain APIRouter.
@@ -20,7 +20,7 @@ from autom8y_api_schemas import SecureRouter
 
 # PAT Bearer auth for standard resource endpoints (/api/v1/*)
 PAT_BEARER_SCHEME = HTTPBearer(
-    scheme_name="BearerAuth",
+    scheme_name="PersonalAccessToken",
     description="Asana Personal Access Token (PAT)",
     auto_error=False,
 )
@@ -34,7 +34,7 @@ SERVICE_JWT_SCHEME = HTTPBearer(
 
 
 def pat_router(**kwargs) -> SecureRouter:
-    """Create a SecureRouter with PAT BearerAuth scheme.
+    """Create a SecureRouter with PAT PersonalAccessToken scheme.
 
     Use for standard resource endpoints (tasks, projects, sections, etc.).
     """

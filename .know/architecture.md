@@ -166,7 +166,7 @@ autom8-query  ->  autom8_query_cli:main  ->  src/autom8_query_cli.py
 | `intake_create_router` | `/v1/intake/create` | S2S JWT | intake-create |
 
 **Auth model**: Two auth modes operate in parallel.
-- `BearerAuth` (PAT): User-supplied Asana PAT; passed directly to Asana API. Used for resource endpoints (`/api/v1/*`).
+- `PersonalAccessToken` (PAT): User-supplied Asana PAT; passed directly to Asana API. Used for resource endpoints (`/api/v1/*`).
 - `ServiceJWT` (S2S JWT): Service-to-service JWT; validated against JWKS. Service uses a bot PAT for Asana calls. Used for internal endpoints (`/v1/*`).
 
 ### Lambda Handlers

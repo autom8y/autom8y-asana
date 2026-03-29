@@ -1,7 +1,7 @@
 """Tests for custom_openapi() spec enrichment and contract regression guards.
 
 Sprint 1 (tests 1-8):
-- Injects BearerAuth and ServiceJWT security schemes
+- Injects PersonalAccessToken and ServiceJWT security schemes
 - Annotates per-operation security based on tag classification
 - Strips leaked authorization header parameters
 - Seeds tag descriptions for visible routers
@@ -102,11 +102,11 @@ def debug_client(debug_app):
 
 
 def test_security_schemes_present(spec):
-    """BearerAuth and ServiceJWT exist with correct structure."""
+    """PersonalAccessToken and ServiceJWT exist with correct structure."""
     schemes = spec["components"]["securitySchemes"]
 
-    assert "BearerAuth" in schemes
-    bearer = schemes["BearerAuth"]
+    assert "PersonalAccessToken" in schemes
+    bearer = schemes["PersonalAccessToken"]
     assert bearer["type"] == "http"
     assert bearer["scheme"] == "bearer"
     assert "description" in bearer
@@ -135,11 +135,11 @@ def test_health_endpoints_no_security(spec):
                 )
 
 
-# --- Test 3: PAT endpoints have BearerAuth ---
+# --- Test 3: PAT endpoints have PersonalAccessToken ---
 
 
-def test_pat_endpoints_bearer_auth(spec):
-    """Operations tagged with PAT tags have BearerAuth security."""
+def test_pat_endpoints_personal_access_token(spec):
+    """Operations tagged with PAT tags have PersonalAccessToken security."""
     pat_prefixes = ("/api/v1/tasks", "/api/v1/projects")
     found_any = False
     for path, path_item in spec["paths"].items():
@@ -155,8 +155,8 @@ def test_pat_endpoints_bearer_auth(spec):
                 if operation is None:
                     continue
                 found_any = True
-                assert operation.get("security") == [{"BearerAuth": []}], (
-                    f"{method.upper()} {path} should have BearerAuth security"
+                assert operation.get("security") == [{"PersonalAccessToken": []}], (
+                    f"{method.upper()} {path} should have PersonalAccessToken security"
                 )
     assert found_any, "No PAT-tagged operations found in spec"
 
@@ -357,7 +357,7 @@ def test_all_endpoints_have_security(spec):
     """Every endpoint has a security declaration.
 
     Health endpoints use security: [] (explicitly unauthenticated).
-    All other endpoints must declare a scheme (BearerAuth, ServiceJWT,
+    All other endpoints must declare a scheme (PersonalAccessToken, ServiceJWT,
     or WebhookToken). Catches endpoints added without auth annotation.
     """
     missing = []
@@ -513,11 +513,11 @@ def test_top_level_response_models_have_schemas(spec):
         )
 
 
-# --- Test 20: Webhook endpoints use WebhookToken (not BearerAuth) ---
+# --- Test 20: Webhook endpoints use WebhookToken (not PersonalAccessToken) ---
 
 
 def test_webhook_endpoints_use_webhook_token(spec):
-    """Webhook endpoints use WebhookToken security, not BearerAuth.
+    """Webhook endpoints use WebhookToken security, not PersonalAccessToken.
 
     Guards against accidentally changing webhook auth to PAT-based,
     which would require webhook receivers to handle bearer tokens.
@@ -533,8 +533,8 @@ def test_webhook_endpoints_use_webhook_token(spec):
             webhook_ops.append((method, path, op))
             security = op.get("security", [])
             scheme_names = [list(s.keys())[0] for s in security if s]
-            assert "BearerAuth" not in scheme_names, (
-                f"{method.upper()} {path} uses BearerAuth instead of WebhookToken"
+            assert "PersonalAccessToken" not in scheme_names, (
+                f"{method.upper()} {path} uses PersonalAccessToken instead of WebhookToken"
             )
     assert webhook_ops, "No webhook operations found in spec to verify"
 
