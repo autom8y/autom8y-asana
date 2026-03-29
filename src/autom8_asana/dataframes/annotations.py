@@ -221,17 +221,16 @@ SEMANTIC_ANNOTATIONS: dict[str, dict] = {
             "and optimization strategy."
         ),
         "data_type_semantic": "enum",
-        "valid_values": [
-            {
-                "value": "Medical",
-                "meaning": "Client operates in medical/healthcare vertical",
-            },
-            {"value": "Dental", "meaning": "Client operates in dental vertical"},
-            {
-                "value": "General",
-                "meaning": "Fallback when no vertical specified (Unit default)",
-            },
-        ],
+        "valid_values": "dynamic",
+        "valid_values_note": (
+            "50+ enabled enum options on the Asana Vertical custom field "
+            "(GID 1182735041547604). Values are snake_case healthcare verticals "
+            "(e.g. chiropractic, dentistry, weight_loss, aesthetics, neuropathy). "
+            "Canonical source: Asana workspace custom field enum_options. "
+            "Per truth audit 2026-03-29: previous annotation of only "
+            "'Medical/Dental/General' was incorrect — 'General' does not exist "
+            "as an enum option."
+        ),
         "values_source": "asana_configured",
         "resolution_impact": (
             "CRITICAL. Key column for offer (office_phone, vertical, offer_id) "
@@ -252,17 +251,16 @@ SEMANTIC_ANNOTATIONS: dict[str, dict] = {
             "from the Unit ancestor to Contact."
         ),
         "data_type_semantic": "enum",
-        "valid_values": [
-            {
-                "value": "Medical",
-                "meaning": "Client operates in medical/healthcare vertical",
-            },
-            {"value": "Dental", "meaning": "Client operates in dental vertical"},
-            {
-                "value": "General",
-                "meaning": "Fallback when no vertical specified (Unit default)",
-            },
-        ],
+        "valid_values": "dynamic",
+        "valid_values_note": (
+            "50+ enabled enum options on the Asana Vertical custom field "
+            "(GID 1182735041547604). Values are snake_case healthcare verticals "
+            "(e.g. chiropractic, dentistry, weight_loss, aesthetics, neuropathy). "
+            "Canonical source: Asana workspace custom field enum_options. "
+            "Per truth audit 2026-03-29: previous annotation of only "
+            "'Medical/Dental/General' was incorrect — 'General' does not exist "
+            "as an enum option."
+        ),
         "values_source": "asana_configured",
         "resolution_impact": (
             "Not a resolution key column for contact. Contact uses "
@@ -282,17 +280,16 @@ SEMANTIC_ANNOTATIONS: dict[str, dict] = {
             "from the Unit ancestor to AssetEdit."
         ),
         "data_type_semantic": "enum",
-        "valid_values": [
-            {
-                "value": "Medical",
-                "meaning": "Client operates in medical/healthcare vertical",
-            },
-            {"value": "Dental", "meaning": "Client operates in dental vertical"},
-            {
-                "value": "General",
-                "meaning": "Fallback when no vertical specified (Unit default)",
-            },
-        ],
+        "valid_values": "dynamic",
+        "valid_values_note": (
+            "50+ enabled enum options on the Asana Vertical custom field "
+            "(GID 1182735041547604). Values are snake_case healthcare verticals "
+            "(e.g. chiropractic, dentistry, weight_loss, aesthetics, neuropathy). "
+            "Canonical source: Asana workspace custom field enum_options. "
+            "Per truth audit 2026-03-29: previous annotation of only "
+            "'Medical/Dental/General' was incorrect — 'General' does not exist "
+            "as an enum option."
+        ),
         "values_source": "asana_configured",
         "resolution_impact": (
             "CRITICAL. Key column for asset_edit (office_phone, vertical, "
@@ -462,17 +459,16 @@ SEMANTIC_ANNOTATIONS: dict[str, dict] = {
             "this field and cascades it to Offer, Process, and Contact."
         ),
         "data_type_semantic": "enum",
-        "valid_values": [
-            {
-                "value": "Medical",
-                "meaning": "Client operates in medical/healthcare vertical",
-            },
-            {"value": "Dental", "meaning": "Client operates in dental vertical"},
-            {
-                "value": "General",
-                "meaning": "Fallback when no vertical specified (Unit default)",
-            },
-        ],
+        "valid_values": "dynamic",
+        "valid_values_note": (
+            "50+ enabled enum options on the Asana Vertical custom field "
+            "(GID 1182735041547604). Values are snake_case healthcare verticals "
+            "(e.g. chiropractic, dentistry, weight_loss, aesthetics, neuropathy). "
+            "Canonical source: Asana workspace custom field enum_options. "
+            "Per truth audit 2026-03-29: previous annotation of only "
+            "'Medical/Dental/General' was incorrect — 'General' does not exist "
+            "as an enum option."
+        ),
         "values_source": "asana_configured",
         "resolution_impact": (
             "CRITICAL. Key column for unit (office_phone, vertical). "
