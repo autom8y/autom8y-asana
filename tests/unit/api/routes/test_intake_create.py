@@ -546,3 +546,190 @@ class TestCreateIntakeBusinessEndpoint:
         assert resp.status_code == 422
         data = resp.json()
         assert data["detail"]["error"] == "UNKNOWN_PROCESS_TYPE"
+
+
+# ---------------------------------------------------------------------------
+# Unit-level tests for _write_vertical_custom_field (Phase 3)
+# ---------------------------------------------------------------------------
+
+
+class TestPhase3VerticalCustomField:
+    """Tests for the Vertical enum custom field write in Phase 3."""
+
+    @pytest.mark.asyncio()
+    async def test_phase3_writes_vertical_custom_field(self) -> None:
+        """Verifies update_async is called with correct custom_fields payload.
+
+        When the Vertical enum custom field exists and the vertical parameter
+        matches an enum option, the service writes the enum option GID.
+        """
+        mock_client = MagicMock()
+        mock_client.tasks.create_subtask_async = AsyncMock(
+            return_value={"gid": UNIT_GID},
+        )
+        # get_async returns task with Vertical enum custom field
+        mock_client.tasks.get_async = AsyncMock(
+            return_value={
+                "gid": UNIT_GID,
+                "custom_fields": [
+                    {
+                        "gid": "cf_vertical",
+                        "name": "Vertical",
+                        "enum_options": [
+                            {"gid": "enum_dental", "name": "Dental"},
+                            {"gid": "enum_medical", "name": "Medical"},
+                            {"gid": "enum_legal", "name": "Legal"},
+                        ],
+                    },
+                ],
+            },
+        )
+        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        service = IntakeCreateService(mock_client)
+        result_gid = await service._phase3_create_unit(
+            unit_holder_gid="holder_unit",
+            unit_name="Test Practice -- Dental",
+            vertical="dental",
+        )
+
+        assert result_gid == UNIT_GID
+
+        # Verify get_async was called to fetch custom fields
+        mock_client.tasks.get_async.assert_called_once_with(
+            UNIT_GID,
+            opt_fields=[
+                "custom_fields.gid",
+                "custom_fields.name",
+                "custom_fields.enum_options.gid",
+                "custom_fields.enum_options.name",
+            ],
+        )
+
+        # Verify update_async was called with correct enum custom field payload
+        mock_client.tasks.update_async.assert_called_once_with(
+            UNIT_GID,
+            data={"custom_fields": {"cf_vertical": {"gid": "enum_dental"}}},
+        )
+
+    @pytest.mark.asyncio()
+    async def test_phase3_vertical_cf_not_found_no_raise(self) -> None:
+        """Verifies graceful degradation when Vertical custom field is absent.
+
+        The service logs a warning but does not raise. The unit task is still
+        created and its GID returned.
+        """
+        mock_client = MagicMock()
+        mock_client.tasks.create_subtask_async = AsyncMock(
+            return_value={"gid": UNIT_GID},
+        )
+        # get_async returns task WITHOUT a Vertical custom field
+        mock_client.tasks.get_async = AsyncMock(
+            return_value={
+                "gid": UNIT_GID,
+                "custom_fields": [
+                    {"gid": "cf_other", "name": "Some Other Field"},
+                ],
+            },
+        )
+        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        service = IntakeCreateService(mock_client)
+        result_gid = await service._phase3_create_unit(
+            unit_holder_gid="holder_unit",
+            unit_name="Test Practice -- Dental",
+            vertical="dental",
+        )
+
+        # Unit is still created successfully
+        assert result_gid == UNIT_GID
+
+        # update_async should NOT have been called (no field to write)
+        mock_client.tasks.update_async.assert_not_called()
+
+    @pytest.mark.asyncio()
+    async def test_phase3_vertical_enum_option_not_found_no_raise(self) -> None:
+        """Verifies graceful degradation when enum option does not match.
+
+        The Vertical custom field exists but the vertical parameter does not
+        match any of its enum options. The service logs a warning and returns
+        without writing.
+        """
+        mock_client = MagicMock()
+        mock_client.tasks.create_subtask_async = AsyncMock(
+            return_value={"gid": UNIT_GID},
+        )
+        # get_async returns Vertical field but with no matching enum option
+        mock_client.tasks.get_async = AsyncMock(
+            return_value={
+                "gid": UNIT_GID,
+                "custom_fields": [
+                    {
+                        "gid": "cf_vertical",
+                        "name": "Vertical",
+                        "enum_options": [
+                            {"gid": "enum_medical", "name": "Medical"},
+                            {"gid": "enum_legal", "name": "Legal"},
+                        ],
+                    },
+                ],
+            },
+        )
+        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        service = IntakeCreateService(mock_client)
+        result_gid = await service._phase3_create_unit(
+            unit_holder_gid="holder_unit",
+            unit_name="Test Practice -- Dental",
+            vertical="dental",  # Not in enum_options
+        )
+
+        # Unit is still created successfully
+        assert result_gid == UNIT_GID
+
+        # update_async should NOT have been called (no matching enum option)
+        mock_client.tasks.update_async.assert_not_called()
+
+    @pytest.mark.asyncio()
+    async def test_phase3_vertical_case_insensitive_match(self) -> None:
+        """Verifies case-insensitive matching of vertical to enum option."""
+        mock_client = MagicMock()
+        mock_client.tasks.create_subtask_async = AsyncMock(
+            return_value={"gid": UNIT_GID},
+        )
+        mock_client.tasks.get_async = AsyncMock(
+            return_value={
+                "gid": UNIT_GID,
+                "custom_fields": [
+                    {
+                        "gid": "cf_vertical",
+                        "name": "VERTICAL",  # uppercase field name
+                        "enum_options": [
+                            {"gid": "enum_dental", "name": "Dental"},  # title case
+                        ],
+                    },
+                ],
+            },
+        )
+        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        service = IntakeCreateService(mock_client)
+        result_gid = await service._phase3_create_unit(
+            unit_holder_gid="holder_unit",
+            unit_name="Test Practice -- Dental",
+            vertical="dental",  # lowercase vs "Dental" enum option
+        )
+
+        assert result_gid == UNIT_GID
+        mock_client.tasks.update_async.assert_called_once_with(
+            UNIT_GID,
+            data={"custom_fields": {"cf_vertical": {"gid": "enum_dental"}}},
+        )

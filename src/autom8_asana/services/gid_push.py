@@ -375,7 +375,6 @@ def extract_status_from_dataframe(
         account_activity, pipeline_section, stage_entered_at.
     """
     from autom8_asana.models.business.activity import (
-        UNIT_CLASSIFIER,
         AccountActivity,
         extract_section_name,
         get_classifier,
@@ -395,11 +394,14 @@ def extract_status_from_dataframe(
     # Get the appropriate classifier
     classifier = get_classifier(entity_type)
     if classifier is None:
-        # For process pipelines without a dedicated classifier,
-        # default to UNIT_CLASSIFIER classification rules.
-        # Process pipeline sections that don't match any rule
-        # will return None (classified as inactive, no row persisted).
-        classifier = UNIT_CLASSIFIER
+        logger.warning(
+            "process_pipeline_no_classifier",
+            extra={
+                "entity_type": entity_type,
+                "project_gid": project_gid,
+            },
+        )
+        return []
 
     entries: list[dict[str, Any]] = []
     now = datetime.now(UTC).isoformat()

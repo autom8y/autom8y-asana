@@ -257,10 +257,85 @@ UNIT_CLASSIFIER: SectionClassifier = SectionClassifier.from_groups(
     },
 )
 
+# ---------------------------------------------------------------------------
+# Process Pipeline Classifiers (TC-5)
+# ---------------------------------------------------------------------------
+
+# Per-pipeline-type section name -> AccountActivity mappings for process
+# pipelines. Keyed by pipeline_type (matches PIPELINE_TYPE_BY_PROJECT_GID
+# values in gid_push.py). Each value maps AccountActivity category name
+# -> set of section names (case-insensitive at classify time).
+#
+# PROVISIONAL: Section names are educated guesses based on existing
+# UNIT_CLASSIFIER / OFFER_CLASSIFIER patterns. These MUST be verified
+# against live Asana project data (e.g. df["section_name"].value_counts()
+# per project GID) before shipping to production.
+PROCESS_PIPELINE_SECTIONS: dict[str, dict[str, set[str]]] = {
+    "sales": {
+        "active": {"Active", "In Progress", "Discovery", "Proposal"},
+        "activating": {"New Lead", "Qualification", "Outreach"},
+        "inactive": {"Closed Lost", "Unresponsive", "On Hold"},
+        "ignored": {"Templates", "Complete"},
+    },
+    "onboarding": {
+        "active": {"Onboarding", "Setup", "Training"},
+        "activating": {"Pending Start", "Kickoff Scheduled"},
+        "inactive": {"Stalled", "Cancelled", "Complete"},
+        "ignored": {"Templates"},
+    },
+    "outreach": {
+        "active": {"Active Outreach", "Follow Up"},
+        "activating": {"New", "Queued"},
+        "inactive": {"No Response", "Opted Out", "Complete"},
+        "ignored": {"Templates"},
+    },
+    "retention": {
+        "active": {"At Risk", "Engaged", "In Review"},
+        "activating": {"New Concern", "Escalated"},
+        "inactive": {"Resolved", "Churned", "Complete"},
+        "ignored": {"Templates"},
+    },
+    "reactivation": {
+        "active": {"Active Campaign", "In Conversation"},
+        "activating": {"New Target", "Initial Contact"},
+        "inactive": {"No Interest", "Unresponsive", "Complete"},
+        "ignored": {"Templates"},
+    },
+    "expansion": {
+        "active": {"Expansion Active", "Proposal Sent"},
+        "activating": {"Opportunity Identified", "Discovery"},
+        "inactive": {"Declined", "On Hold", "Complete"},
+        "ignored": {"Templates"},
+    },
+    "implementation": {
+        "active": {"In Progress", "Active Build", "Testing"},
+        "activating": {"Kickoff", "Scoping"},
+        "inactive": {"Blocked", "Cancelled", "Complete"},
+        "ignored": {"Templates"},
+    },
+    "account_error": {
+        "active": set(),  # No active states for error pipeline
+        "activating": {"Under Review", "Escalated"},
+        "inactive": {"Resolved", "Monitoring", "Closed"},
+        "ignored": {"Templates"},
+    },
+}
+
 CLASSIFIERS: dict[str, SectionClassifier] = {
     "offer": OFFER_CLASSIFIER,
     "unit": UNIT_CLASSIFIER,
 }
+
+# Build process pipeline classifiers from config.
+# project_gid is left empty to avoid circular imports with gid_push.py
+# (PIPELINE_TYPE_BY_PROJECT_GID lives there). SectionClassifier.project_gid
+# is informational only -- not used by classify().
+for _pipeline_type, _groups in PROCESS_PIPELINE_SECTIONS.items():
+    CLASSIFIERS[_pipeline_type] = SectionClassifier.from_groups(
+        entity_type=_pipeline_type,
+        project_gid="",
+        groups=_groups,
+    )
 
 
 def get_classifier(entity_type: str) -> SectionClassifier | None:

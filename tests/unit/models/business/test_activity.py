@@ -17,6 +17,7 @@ from autom8_asana.models.business.activity import (
     ACTIVITY_PRIORITY,
     CLASSIFIERS,
     OFFER_CLASSIFIER,
+    PROCESS_PIPELINE_SECTIONS,
     UNIT_CLASSIFIER,
     AccountActivity,
     SectionClassifier,
@@ -536,7 +537,14 @@ class TestClassifiersRegistry:
         assert CLASSIFIERS["unit"] is UNIT_CLASSIFIER
 
     def test_registry_size(self) -> None:
-        assert len(CLASSIFIERS) == 2
+        # 2 original (offer, unit) + 8 process pipeline types
+        assert len(CLASSIFIERS) == 10
+
+    def test_registry_contains_all_process_pipeline_types(self) -> None:
+        for pipeline_type in PROCESS_PIPELINE_SECTIONS:
+            assert pipeline_type in CLASSIFIERS, (
+                f"Missing classifier for pipeline type: {pipeline_type}"
+            )
 
     def test_get_classifier_offer(self) -> None:
         assert get_classifier("offer") is OFFER_CLASSIFIER
@@ -546,5 +554,165 @@ class TestClassifiersRegistry:
 
     def test_get_classifier_unknown_returns_none(self) -> None:
         assert get_classifier("business") is None
-        assert get_classifier("process") is None
         assert get_classifier("") is None
+
+
+# ---------------------------------------------------------------------------
+# Process Pipeline Classifiers (TC-5)
+# ---------------------------------------------------------------------------
+
+
+# All 8 process pipeline types that must have classifiers
+_PROCESS_PIPELINE_TYPES = (
+    "sales",
+    "onboarding",
+    "outreach",
+    "retention",
+    "reactivation",
+    "expansion",
+    "implementation",
+    "account_error",
+)
+
+
+class TestProcessPipelineClassifiers:
+    """Tests for process pipeline classifiers registered via PROCESS_PIPELINE_SECTIONS.
+
+    Covers: classifier lookup, entity_type, project_gid, representative
+    section classification, and unknown section handling.
+    """
+
+    # --- Lookup returns non-None for every pipeline type ---
+
+    @pytest.mark.parametrize("pipeline_type", _PROCESS_PIPELINE_TYPES)
+    def test_get_classifier_returns_non_none(self, pipeline_type: str) -> None:
+        """get_classifier() returns a SectionClassifier for each process pipeline type."""
+        classifier = get_classifier(pipeline_type)
+        assert classifier is not None
+        assert isinstance(classifier, SectionClassifier)
+
+    @pytest.mark.parametrize("pipeline_type", _PROCESS_PIPELINE_TYPES)
+    def test_entity_type_matches_pipeline_type(self, pipeline_type: str) -> None:
+        """Each process classifier has entity_type matching its pipeline type."""
+        classifier = get_classifier(pipeline_type)
+        assert classifier is not None
+        assert classifier.entity_type == pipeline_type
+
+    @pytest.mark.parametrize("pipeline_type", _PROCESS_PIPELINE_TYPES)
+    def test_project_gid_is_empty(self, pipeline_type: str) -> None:
+        """Process classifiers use empty project_gid to avoid circular imports."""
+        classifier = get_classifier(pipeline_type)
+        assert classifier is not None
+        assert classifier.project_gid == ""
+
+    # --- Representative section classification: sales pipeline ---
+
+    def test_sales_active_sections(self) -> None:
+        classifier = get_classifier("sales")
+        assert classifier is not None
+        assert classifier.classify("Active") == AccountActivity.ACTIVE
+        assert classifier.classify("In Progress") == AccountActivity.ACTIVE
+        assert classifier.classify("Discovery") == AccountActivity.ACTIVE
+        assert classifier.classify("Proposal") == AccountActivity.ACTIVE
+
+    def test_sales_activating_sections(self) -> None:
+        classifier = get_classifier("sales")
+        assert classifier is not None
+        assert classifier.classify("New Lead") == AccountActivity.ACTIVATING
+        assert classifier.classify("Qualification") == AccountActivity.ACTIVATING
+        assert classifier.classify("Outreach") == AccountActivity.ACTIVATING
+
+    def test_sales_inactive_sections(self) -> None:
+        classifier = get_classifier("sales")
+        assert classifier is not None
+        assert classifier.classify("Closed Lost") == AccountActivity.INACTIVE
+        assert classifier.classify("Unresponsive") == AccountActivity.INACTIVE
+        assert classifier.classify("On Hold") == AccountActivity.INACTIVE
+
+    def test_sales_ignored_sections(self) -> None:
+        classifier = get_classifier("sales")
+        assert classifier is not None
+        assert classifier.classify("Templates") == AccountActivity.IGNORED
+        assert classifier.classify("Complete") == AccountActivity.IGNORED
+
+    # --- Representative section classification: onboarding pipeline ---
+
+    def test_onboarding_active_sections(self) -> None:
+        classifier = get_classifier("onboarding")
+        assert classifier is not None
+        assert classifier.classify("Onboarding") == AccountActivity.ACTIVE
+        assert classifier.classify("Setup") == AccountActivity.ACTIVE
+        assert classifier.classify("Training") == AccountActivity.ACTIVE
+
+    def test_onboarding_activating_sections(self) -> None:
+        classifier = get_classifier("onboarding")
+        assert classifier is not None
+        assert classifier.classify("Pending Start") == AccountActivity.ACTIVATING
+        assert classifier.classify("Kickoff Scheduled") == AccountActivity.ACTIVATING
+
+    # --- Case insensitivity ---
+
+    def test_classification_is_case_insensitive(self) -> None:
+        classifier = get_classifier("sales")
+        assert classifier is not None
+        assert classifier.classify("active") == AccountActivity.ACTIVE
+        assert classifier.classify("ACTIVE") == AccountActivity.ACTIVE
+        assert classifier.classify("Active") == AccountActivity.ACTIVE
+        assert classifier.classify("new lead") == AccountActivity.ACTIVATING
+        assert classifier.classify("NEW LEAD") == AccountActivity.ACTIVATING
+
+    # --- Unknown sections return None ---
+
+    @pytest.mark.parametrize("pipeline_type", _PROCESS_PIPELINE_TYPES)
+    def test_unknown_section_returns_none(self, pipeline_type: str) -> None:
+        """Unknown section names return None for all process classifiers."""
+        classifier = get_classifier(pipeline_type)
+        assert classifier is not None
+        assert classifier.classify("DEFINITELY_NOT_A_SECTION") is None
+        assert classifier.classify("") is None
+
+    # --- account_error has no active states ---
+
+    def test_account_error_has_no_active_sections(self) -> None:
+        """account_error pipeline has no ACTIVE sections (empty set)."""
+        classifier = get_classifier("account_error")
+        assert classifier is not None
+        assert classifier.active_sections() == frozenset()
+
+    def test_account_error_has_activating_sections(self) -> None:
+        classifier = get_classifier("account_error")
+        assert classifier is not None
+        assert classifier.classify("Under Review") == AccountActivity.ACTIVATING
+        assert classifier.classify("Escalated") == AccountActivity.ACTIVATING
+
+    def test_account_error_has_inactive_sections(self) -> None:
+        classifier = get_classifier("account_error")
+        assert classifier is not None
+        assert classifier.classify("Resolved") == AccountActivity.INACTIVE
+        assert classifier.classify("Monitoring") == AccountActivity.INACTIVE
+        assert classifier.classify("Closed") == AccountActivity.INACTIVE
+
+    # --- Section count sanity checks ---
+
+    @pytest.mark.parametrize("pipeline_type", _PROCESS_PIPELINE_TYPES)
+    def test_classifier_has_sections(self, pipeline_type: str) -> None:
+        """Each process classifier has at least one mapped section."""
+        classifier = get_classifier(pipeline_type)
+        assert classifier is not None
+        # Sum all categories
+        total = sum(
+            len(classifier.sections_for(cat))
+            for cat in AccountActivity
+        )
+        assert total > 0, f"Classifier for {pipeline_type} has no mapped sections"
+
+    # --- Config completeness: every category in PROCESS_PIPELINE_SECTIONS
+    #     is a valid AccountActivity value ---
+
+    @pytest.mark.parametrize("pipeline_type", _PROCESS_PIPELINE_TYPES)
+    def test_config_categories_are_valid(self, pipeline_type: str) -> None:
+        """All category keys in PROCESS_PIPELINE_SECTIONS are valid AccountActivity values."""
+        groups = PROCESS_PIPELINE_SECTIONS[pipeline_type]
+        for category_name in groups:
+            # This will raise ValueError if invalid
+            AccountActivity(category_name)
