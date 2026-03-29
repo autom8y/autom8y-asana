@@ -412,7 +412,9 @@ def extract_status_from_dataframe(
         return []
 
     has_vertical = "vertical" in df.columns
-    has_section = "section_name" in df.columns
+    # Per REVIEW-reconciliation-deep-audit TC-1 / P0-A:
+    # Use canonical "section" column from schemas/base.py:84, NOT "section_name"
+    has_section = "section" in df.columns
     has_memberships = "memberships" in df.columns
 
     for row_idx in range(len(df)):
@@ -427,7 +429,7 @@ def extract_status_from_dataframe(
         # Extract section name from row
         section_name = None
         if has_section:
-            section_name = df["section_name"][row_idx]
+            section_name = df["section"][row_idx]
         elif has_memberships:
             memberships = df["memberships"][row_idx]
             if memberships is not None:

@@ -544,7 +544,7 @@ class TestExtractStatusFromDataframe:
 
     def test_unknown_project_gid_returns_empty(self) -> None:
         """GID not in PIPELINE_TYPE_BY_PROJECT_GID returns empty list."""
-        df = pl.DataFrame({"office_phone": ["+15551234567"], "section_name": ["Active"]})
+        df = pl.DataFrame({"office_phone": ["+15551234567"], "section": ["Active"]})
         result = extract_status_from_dataframe(df, _UNKNOWN_GID, "unit")
         assert result == []
 
@@ -554,7 +554,7 @@ class TestExtractStatusFromDataframe:
 
     def test_missing_office_phone_column_returns_empty(self) -> None:
         """DataFrame without office_phone column returns empty list."""
-        df = pl.DataFrame({"name": ["Test Business"], "section_name": ["Active"]})
+        df = pl.DataFrame({"name": ["Test Business"], "section": ["Active"]})
 
         with patch(
             "autom8_asana.models.business.activity.get_classifier",
@@ -572,7 +572,7 @@ class TestExtractStatusFromDataframe:
         """Rows with empty or None phone values are skipped."""
         df = pl.DataFrame({
             "office_phone": ["", None, "+15551234567"],
-            "section_name": ["Active", "Active", "Active"],
+            "section": ["Active", "Active", "Active"],
         })
 
         with patch(
@@ -606,7 +606,7 @@ class TestExtractStatusFromDataframe:
         df = pl.DataFrame({
             "office_phone": ["+15551234567"],
             "vertical": ["chiropractic"],
-            "section_name": ["Month 1"],
+            "section": ["Month 1"],
         })
 
         with patch(
@@ -653,7 +653,7 @@ class TestExtractStatusFromDataframe:
         """Section name that classifier doesn't recognize is skipped."""
         df = pl.DataFrame({
             "office_phone": ["+15551234567"],
-            "section_name": ["UNKNOWN_SECTION"],
+            "section": ["UNKNOWN_SECTION"],
         })
 
         with patch(
@@ -672,7 +672,7 @@ class TestExtractStatusFromDataframe:
         """Section classified as INACTIVE is not persisted (SD-02)."""
         df = pl.DataFrame({
             "office_phone": ["+15551234567"],
-            "section_name": ["Paused"],
+            "section": ["Paused"],
         })
 
         with patch(
@@ -687,7 +687,7 @@ class TestExtractStatusFromDataframe:
         """Section classified as IGNORED is not persisted (SD-02)."""
         df = pl.DataFrame({
             "office_phone": ["+15551234567"],
-            "section_name": ["Templates"],
+            "section": ["Templates"],
         })
 
         with patch(
@@ -702,7 +702,7 @@ class TestExtractStatusFromDataframe:
         """Section classified as ACTIVE is persisted (SD-02)."""
         df = pl.DataFrame({
             "office_phone": ["+15551234567"],
-            "section_name": ["Active"],
+            "section": ["Active"],
         })
 
         with patch(
@@ -718,7 +718,7 @@ class TestExtractStatusFromDataframe:
         """Section classified as ACTIVATING is persisted (SD-02)."""
         df = pl.DataFrame({
             "office_phone": ["+15551234567"],
-            "section_name": ["Implementing"],
+            "section": ["Implementing"],
         })
 
         with patch(
@@ -739,7 +739,7 @@ class TestExtractStatusFromDataframe:
         df = pl.DataFrame({
             "office_phone": ["+15551234567"],
             "vertical": ["chiropractic"],
-            "section_name": ["Active"],
+            "section": ["Active"],
         })
 
         with patch(
@@ -774,7 +774,7 @@ class TestExtractStatusFromDataframe:
         # No vertical column at all
         df = pl.DataFrame({
             "office_phone": ["+15551234567"],
-            "section_name": ["Active"],
+            "section": ["Active"],
         })
 
         with patch(
@@ -798,7 +798,7 @@ class TestExtractStatusFromDataframe:
         """
         df = pl.DataFrame({
             "office_phone": ["+15551234567"],
-            "section_name": ["Active"],
+            "section": ["Active"],
         })
 
         with patch(
