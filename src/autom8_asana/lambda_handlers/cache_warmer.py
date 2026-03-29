@@ -99,6 +99,79 @@ def _ensure_bootstrap() -> None:
             )
 
 
+async def _run_vertical_backfill(
+    *,
+    completed_entities: list[str],
+    get_project_gid: Any,
+    cache: Any,
+    client: Any,
+    invocation_id: str | None,
+) -> None:
+    """Run vertical backfill for unit tasks if feature flag is enabled.
+
+    Per remediation-vertical-investigation-spike Option A: backfill
+    cf:Vertical for unit tasks with empty vertical values. Guarded by
+    ASANA_VERTICAL_BACKFILL_ENABLED environment variable (default: disabled).
+
+    Non-blocking: all exceptions are caught and logged so that backfill
+    failures never affect the cache warmer's success status.
+
+    Args:
+        completed_entities: Entity types that were successfully warmed.
+        get_project_gid: Callable(entity_type) -> project_gid or None.
+        cache: DataFrameCache instance for retrieving warmed DataFrames.
+        client: Asana client for API calls.
+        invocation_id: Lambda invocation ID for log correlation.
+    """
+    import os
+
+    enabled = os.environ.get("ASANA_VERTICAL_BACKFILL_ENABLED", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    if not enabled:
+        return
+
+    if "unit" not in completed_entities:
+        return
+
+    project_gid = get_project_gid("unit")
+    if not project_gid:
+        return
+
+    try:
+        entry = await cache.get_async(project_gid, "unit")
+        if entry is None or entry.dataframe is None:
+            return
+
+        from autom8_asana.services.vertical_backfill import VerticalBackfillService
+
+        service = VerticalBackfillService(client=client)
+        result = await service.backfill_from_dataframe(entry.dataframe)
+
+        logger.info(
+            "vertical_backfill_result",
+            extra={
+                "attempted": result.attempted,
+                "succeeded": result.succeeded,
+                "skipped": result.skipped,
+                "failed": result.failed,
+                "invocation_id": invocation_id,
+            },
+        )
+
+    except Exception as e:  # BROAD-CATCH: isolation -- backfill must never fail cache warmer
+        logger.warning(
+            "vertical_backfill_error",
+            extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "invocation_id": invocation_id,
+            },
+        )
+
+
 @dataclass
 class WarmResponse:
     """Response from cache warming Lambda.
@@ -567,6 +640,22 @@ async def _warm_cache_async(
             client=client,
             invocation_id=invocation_id,
             context=context,
+        )
+
+        # ----------------------------------------------------------------
+        # Vertical custom field backfill (Option A from P1-E spike)
+        # After warming completes, backfill cf:Vertical for unit tasks
+        # that have empty vertical values. Feature-flagged via
+        # ASANA_VERTICAL_BACKFILL_ENABLED env var (default: disabled).
+        # Non-blocking: failures are logged but do not affect the cache
+        # warmer's success status.
+        # ----------------------------------------------------------------
+        await _run_vertical_backfill(
+            completed_entities=completed_entities,
+            get_project_gid=get_project_gid,
+            cache=cache,
+            client=client,
+            invocation_id=invocation_id,
         )
 
         total_rows = sum(r.get("row_count", 0) for r in entity_results)
