@@ -10,6 +10,7 @@ import pytest
 
 from autom8_asana.core.project_registry import (
     ACCOUNT_ERROR_PIPELINE_PROJECT,
+    ACTIVATION_CONSULTATION_PROJECT,
     ASSET_EDIT_HOLDER_PROJECT,
     ASSET_EDIT_PROJECT,
     BUSINESS_PROJECT,
@@ -68,6 +69,7 @@ ALL_PIPELINE_CONSTANTS = {
     "REACTIVATION_PIPELINE_PROJECT": REACTIVATION_PIPELINE_PROJECT,
     "ACCOUNT_ERROR_PIPELINE_PROJECT": ACCOUNT_ERROR_PIPELINE_PROJECT,
     "EXPANSION_PIPELINE_PROJECT": EXPANSION_PIPELINE_PROJECT,
+    "ACTIVATION_CONSULTATION_PROJECT": ACTIVATION_CONSULTATION_PROJECT,
 }
 
 ALL_CONSTANTS = {**ALL_ENTITY_CONSTANTS, **ALL_PIPELINE_CONSTANTS}
@@ -100,8 +102,8 @@ class TestGidValues:
         )
 
     def test_total_registered_count(self) -> None:
-        """Registry should contain exactly 22 projects (14 entity + 8 pipeline)."""
-        assert len(ALL_CONSTANTS) == 22
+        """Registry should contain exactly 23 projects (14 entity + 9 pipeline)."""
+        assert len(ALL_CONSTANTS) == 23
 
 
 # =============================================================================
@@ -178,19 +180,19 @@ class TestCollectionHelpers:
         assert isinstance(result, frozenset)
 
     def test_all_project_gids_count(self) -> None:
-        """all_project_gids contains all 22 unique GIDs."""
-        assert len(all_project_gids()) == 22
+        """all_project_gids contains all 23 unique GIDs."""
+        assert len(all_project_gids()) == 23
 
     def test_all_pipeline_project_gids_count(self) -> None:
-        """all_pipeline_project_gids returns 8 pipeline GIDs."""
+        """all_pipeline_project_gids returns 9 pipeline GIDs."""
         result = all_pipeline_project_gids()
-        assert len(result) == 8
+        assert len(result) == 9
 
     def test_all_pipeline_project_gids_order(self) -> None:
         """Pipeline GIDs are in declaration order (sales first)."""
         result = all_pipeline_project_gids()
         assert result[0] == SALES_PIPELINE_PROJECT
-        assert result[-1] == EXPANSION_PIPELINE_PROJECT
+        assert result[-1] == ACTIVATION_CONSULTATION_PROJECT
 
     def test_all_pipeline_project_gids_content(self) -> None:
         """Pipeline list matches the pipeline constants."""

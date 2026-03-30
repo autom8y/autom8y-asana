@@ -23,8 +23,17 @@ from autom8_asana.api.routes.internal import ServiceClaims, require_service_clai
 @pytest.fixture
 def app() -> FastAPI:
     """Create a test FastAPI app with admin router."""
+    from autom8_asana.api.errors import register_exception_handlers
+
     test_app = FastAPI()
     test_app.include_router(router)
+
+    @test_app.middleware("http")
+    async def add_request_id(request, call_next):
+        request.state.request_id = "test-request-id"
+        return await call_next(request)
+
+    register_exception_handlers(test_app)
     return test_app
 
 

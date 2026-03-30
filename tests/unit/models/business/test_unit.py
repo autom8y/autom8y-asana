@@ -185,7 +185,7 @@ class TestUnitInheritedFields:
         default_vertical = Unit.InheritedFields.DEFAULT_VERTICAL
         assert "Business" in default_vertical.inherit_from
         assert default_vertical.allow_override is True
-        assert default_vertical.default == "General"
+        assert default_vertical.default is None
 
 
 class TestUnitCustomFields:

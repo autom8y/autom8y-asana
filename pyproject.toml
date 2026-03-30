@@ -261,6 +261,8 @@ ignore = [
     "B023",
     "TID251",
     "SIM117",  # nested `with` using patch.object + pytest.raises is intentional in tests
+    "SIM102",  # nested `if` in tests is intentional for readable assertion guards
+    "T201",    # print() in integration/benchmark tests is intentional for progress output
 ]
 "**/conftest.py" = ["F841", "E402"]
 # Intentional delayed imports (circular import avoidance, logger-before-imports)
@@ -269,11 +271,21 @@ ignore = [
 "src/autom8_asana/api/dependencies.py" = ["E402"]
 "src/autom8_asana/services/resolver.py" = ["E402"]
 "src/autom8_asana/services/universal_strategy.py" = ["E402"]
+# Config must be loaded at module level for DERIVATION_TABLE (not circular — import after guard code)
+"src/autom8_asana/reconciliation/processor.py" = ["E402"]
 # CLI --live mode uses raw httpx as a thin HTTP client (not a service integration).
 # Autom8yHttpClient is async-only and requires full platform config, which is
 # inappropriate for a synchronous CLI development tool.
 # T201: print() is intentional in the CLI query tool (separately governed)
 "src/autom8_asana/query/__main__.py" = ["TID251", "T201"]
+# T201: print() is intentional in CLI/script entrypoints (structured output to stdout/stderr)
+"src/autom8_asana/automation/polling/cli.py" = ["T201"]
+"src/autom8_asana/metrics/__main__.py" = ["T201"]
+"src/autom8_asana/metrics/compute.py" = ["T201"]
+"src/autom8_asana/entrypoint.py" = ["T201"]
+# T201: print() is intentional in smoke test and CI scripts (terminal progress/results)
+"run_smoke_test.py" = ["T201"]
+".ci/**/*.py" = ["T201"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = [

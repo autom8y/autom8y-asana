@@ -59,12 +59,15 @@ class TestValidateCrossRegistryConsistency:
 
     def test_project_type_registry_empty_reports_errors(self):
         """Without bootstrap, ProjectTypeRegistry is empty -> errors."""
-        from unittest.mock import patch
+        from unittest.mock import MagicMock, patch
 
-        # Prevent lazy bootstrap from auto-populating the registry
+        # Create a mock registry that returns None for all lookups
+        mock_pt_registry = MagicMock()
+        mock_pt_registry.lookup.return_value = None
+
         with patch(
-            "autom8_asana.models.business._bootstrap.is_bootstrap_complete",
-            return_value=True,
+            "autom8_asana.models.business.registry.get_registry",
+            return_value=mock_pt_registry,
         ):
             result = validate_cross_registry_consistency(
                 check_project_type_registry=True,
@@ -72,8 +75,7 @@ class TestValidateCrossRegistryConsistency:
                 check_pipeline_type_registry=False,
             )
         # EntityRegistry has descriptors with GIDs and entity_types, but
-        # ProjectTypeRegistry is empty (reset by autouse fixture).
-        # Only descriptors with both GID AND entity_type produce errors.
+        # ProjectTypeRegistry lookup returns None for all GIDs.
         assert not result.ok
         assert len(result.errors) > 0
 

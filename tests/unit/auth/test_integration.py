@@ -38,6 +38,8 @@ def reset_singletons() -> Generator[None, None, None]:
 @pytest.fixture
 def app() -> FastAPI:
     """Create a test FastAPI app with auth dependency."""
+    from autom8_asana.api.errors import register_exception_handlers
+
     app = FastAPI()
 
     @app.get("/test")
@@ -55,6 +57,8 @@ def app() -> FastAPI:
     async def add_request_id(request, call_next):
         request.state.request_id = "test-request-id"
         return await call_next(request)
+
+    register_exception_handlers(app)
 
     return app
 
@@ -152,7 +156,7 @@ class TestJWTMode:
         # Assert
         assert response.status_code == 401
         data = response.json()
-        assert data["detail"]["error"] == "TOKEN_EXPIRED"
+        assert data["error"]["code"] == "TOKEN_EXPIRED"
 
     def test_invalid_signature_returns_401(
         self, app: FastAPI, monkeypatch: pytest.MonkeyPatch
@@ -177,7 +181,7 @@ class TestJWTMode:
         # Assert
         assert response.status_code == 401
         data = response.json()
-        assert data["detail"]["error"] == "INVALID_SIGNATURE"
+        assert data["error"]["code"] == "INVALID_SIGNATURE"
 
     def test_missing_bot_pat_returns_503(
         self, app: FastAPI, monkeypatch: pytest.MonkeyPatch
@@ -207,7 +211,7 @@ class TestJWTMode:
         # Assert
         assert response.status_code == 503
         data = response.json()
-        assert data["detail"]["error"] == "S2S_NOT_CONFIGURED"
+        assert data["error"]["code"] == "S2S_NOT_CONFIGURED"
 
 
 class TestMissingAuth:
@@ -224,7 +228,7 @@ class TestMissingAuth:
         # Assert
         assert response.status_code == 401
         data = response.json()
-        assert data["detail"]["error"] == "MISSING_AUTH"
+        assert data["error"]["code"] == "MISSING_AUTH"
 
     def test_wrong_scheme_returns_401(self, app: FastAPI) -> None:
         """Non-Bearer scheme returns 401."""
@@ -237,7 +241,7 @@ class TestMissingAuth:
         # Assert
         assert response.status_code == 401
         data = response.json()
-        assert data["detail"]["error"] == "INVALID_SCHEME"
+        assert data["error"]["code"] == "INVALID_SCHEME"
 
     def test_empty_token_returns_401(self, app: FastAPI) -> None:
         """Empty Bearer token returns 401."""
@@ -250,7 +254,7 @@ class TestMissingAuth:
         # Assert
         assert response.status_code == 401
         data = response.json()
-        assert data["detail"]["error"] == "MISSING_TOKEN"
+        assert data["error"]["code"] == "MISSING_TOKEN"
 
     def test_short_token_returns_401(self, app: FastAPI) -> None:
         """Token shorter than 10 chars returns 401."""
@@ -263,7 +267,7 @@ class TestMissingAuth:
         # Assert
         assert response.status_code == 401
         data = response.json()
-        assert data["detail"]["error"] == "INVALID_TOKEN"
+        assert data["error"]["code"] == "INVALID_TOKEN"
 
 
 class TestCircuitOpenError:
@@ -289,7 +293,7 @@ class TestCircuitOpenError:
 
         assert response.status_code == 503
         data = response.json()
-        assert data["detail"]["error"] == "CIRCUIT_OPEN"
+        assert data["error"]["code"] == "CIRCUIT_OPEN"
 
     def test_pat_unaffected_by_circuit_state(self, app: FastAPI) -> None:
         """PAT tokens work regardless of circuit breaker state.
@@ -332,7 +336,7 @@ class TestTransientVsPermanentErrors:
 
         assert response.status_code == 503
         data = response.json()
-        assert data["detail"]["error"] == "JWKS_FETCH_ERROR"
+        assert data["error"]["code"] == "JWKS_FETCH_ERROR"
 
     def test_expired_token_returns_401(
         self, app: FastAPI, monkeypatch: pytest.MonkeyPatch
@@ -354,7 +358,7 @@ class TestTransientVsPermanentErrors:
 
         assert response.status_code == 401
         data = response.json()
-        assert data["detail"]["error"] == "TOKEN_EXPIRED"
+        assert data["error"]["code"] == "TOKEN_EXPIRED"
 
 
 class TestBotPatSecurity:

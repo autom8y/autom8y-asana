@@ -306,7 +306,7 @@ class TestLO06EmitterEmission:
         emitter = StageTransitionEmitter(store=mock_store)
         record = _make_record()
 
-        asyncio.get_event_loop().run_until_complete(emitter.emit(record))
+        asyncio.run(emitter.emit(record))
         mock_store.append.assert_called_once_with(record)
 
 
@@ -321,12 +321,12 @@ class TestLO07EmitterFailForward:
     def test_store_exception_swallowed(self) -> None:
         """LO-07: store.append raises -> emit() does NOT propagate."""
         mock_store = MagicMock()
-        mock_store.append.side_effect = IOError("disk full")
+        mock_store.append.side_effect = OSError("disk full")
         emitter = StageTransitionEmitter(store=mock_store)
         record = _make_record()
 
         # Must not raise
-        asyncio.get_event_loop().run_until_complete(emitter.emit(record))
+        asyncio.run(emitter.emit(record))
         mock_store.append.assert_called_once()
 
     def test_store_runtime_error_swallowed(self) -> None:
@@ -336,7 +336,7 @@ class TestLO07EmitterFailForward:
         emitter = StageTransitionEmitter(store=mock_store)
         record = _make_record()
 
-        asyncio.get_event_loop().run_until_complete(emitter.emit(record))
+        asyncio.run(emitter.emit(record))
         mock_store.append.assert_called_once()
 
 
@@ -655,7 +655,7 @@ class TestLO18DryRunMode:
     def test_dry_run_does_not_dispatch(self) -> None:
         """LO-18: dry_run=True -> dispatch_async NOT called."""
         dispatcher, mock_dispatch = self._make_dispatcher(dry_run=True)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             dispatcher.handle_event("section_changed", "Process", "gid-dry", {})
         )
         assert result["dispatched"] is False
@@ -665,7 +665,7 @@ class TestLO18DryRunMode:
     def test_non_dry_run_does_dispatch(self) -> None:
         """LO-18: dry_run=False -> dispatch_async IS called."""
         dispatcher, mock_dispatch = self._make_dispatcher(dry_run=False)
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             dispatcher.handle_event("section_changed", "Process", "gid-live", {})
         )
         assert result["dispatched"] is True
@@ -699,7 +699,7 @@ class TestLO19EntityTypeNotInAllowlist:
             loop_detector=loop_detector,
         )
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             dispatcher.handle_event("section_changed", "Offer", "gid-offer", {})
         )
         assert result["dispatched"] is False
@@ -724,7 +724,7 @@ class TestLO19EntityTypeNotInAllowlist:
             loop_detector=loop_detector,
         )
 
-        result = asyncio.get_event_loop().run_until_complete(
+        result = asyncio.run(
             dispatcher.handle_event("section_changed", "Business", "gid-biz", {})
         )
         assert result["dispatched"] is True
@@ -762,7 +762,7 @@ class TestLO20CompositeScenario:
         )
 
         # emit uses asyncio.to_thread -> runs store.append in thread
-        asyncio.get_event_loop().run_until_complete(emitter.emit(record))
+        asyncio.run(emitter.emit(record))
 
         # verify stored
         df = store.load("Business")
@@ -785,8 +785,8 @@ class TestLO20CompositeScenario:
         r_process = _make_record(entity_gid="gid-p", entity_type="Process")
         r_offer = _make_record(entity_gid="gid-o", entity_type="Offer")
 
-        asyncio.get_event_loop().run_until_complete(emitter.emit(r_process))
-        asyncio.get_event_loop().run_until_complete(emitter.emit(r_offer))
+        asyncio.run(emitter.emit(r_process))
+        asyncio.run(emitter.emit(r_offer))
 
         df_process = store.load("Process")
         df_offer = store.load("Offer")

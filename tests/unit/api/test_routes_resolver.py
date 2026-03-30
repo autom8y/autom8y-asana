@@ -241,7 +241,7 @@ class TestResolveUnitEndpoint:
 
         assert response.status_code == 422
         data = response.json()
-        assert "detail" in data
+        assert "error" in data or "detail" in data
 
     def test_empty_criteria_returns_empty_results(self, client: TestClient) -> None:
         """TC-013: Empty criteria returns 200 with empty results."""
@@ -299,8 +299,8 @@ class TestResolveValidation:
 
         assert response.status_code == 422
         data = response.json()
-        assert "detail" in data
-        error_msg = str(data["detail"]).lower()
+        assert "error" in data or "detail" in data
+        error_msg = str(data).lower()
         assert "batch" in error_msg or "1000" in error_msg
 
     def test_extra_fields_rejected(self, client: TestClient) -> None:
@@ -341,7 +341,7 @@ class TestResolveAuthentication:
 
         assert response.status_code == 401
         data = response.json()
-        assert data["detail"]["error"] == "MISSING_AUTH"
+        assert data["error"]["code"] == "MISSING_AUTH"
 
     def test_pat_token_returns_401(self, client: TestClient) -> None:
         """TC-012: PAT token returns 401 with SERVICE_TOKEN_REQUIRED."""
@@ -359,8 +359,8 @@ class TestResolveAuthentication:
 
         assert response.status_code == 401
         data = response.json()
-        assert data["detail"]["error"] == "SERVICE_TOKEN_REQUIRED"
-        assert "service-to-service" in data["detail"]["message"].lower()
+        assert data["error"]["code"] == "SERVICE_TOKEN_REQUIRED"
+        assert "service-to-service" in data["error"]["message"].lower()
 
     def test_invalid_jwt_returns_401(self, client: TestClient) -> None:
         """Invalid JWT returns 401 with validation error."""
@@ -385,7 +385,7 @@ class TestResolveAuthentication:
 
         assert response.status_code == 401
         data = response.json()
-        assert data["detail"]["error"] == "TOKEN_EXPIRED"
+        assert data["error"]["code"] == "TOKEN_EXPIRED"
 
 
 class TestResolveEntityType:
@@ -584,13 +584,15 @@ class TestEntityProjectRegistry:
         EntityProjectRegistry.reset()
         registry = EntityProjectRegistry.get_instance()
 
+        # Use a custom entity type not in the static EntityRegistry
+        # so get_project_gid falls through to the local registry.
         registry.register(
-            entity_type="unit",
+            entity_type="custom_test_entity",
             project_gid="1234567890",
-            project_name="Units",
+            project_name="Custom Test",
         )
 
-        assert registry.get_project_gid("unit") == "1234567890"
+        assert registry.get_project_gid("custom_test_entity") == "1234567890"
         assert registry.is_ready()
 
     def test_reset_clears_instance(self) -> None:

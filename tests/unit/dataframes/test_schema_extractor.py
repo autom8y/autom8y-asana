@@ -86,9 +86,8 @@ class TestSchemaExtractor:
         task = make_mock_task()
         row = extractor.extract(task)
         d = row.to_dict()
-        # office and vertical_id have source=None with no _extract method
+        # office has source=None with no _extract method
         assert d["office"] is None
-        assert d["vertical_id"] is None
 
     def test_dtype_map_covers_all_used_types(self) -> None:
         """FR-11: All dtypes in existing schemas are mapped."""

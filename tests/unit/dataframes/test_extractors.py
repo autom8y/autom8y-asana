@@ -877,53 +877,16 @@ class TestUnitExtractor:
 
             assert row.office_phone is None
 
-    def test_extract_vertical_id_returns_none_stub(
-        self,
-        minimal_task: Task,
-    ) -> None:
-        """Test that vertical_id returns None (stub pending Vertical model).
-
-        The vertical_id column is intended for the Vertical model's database
-        identifier, not the raw custom field value. The `vertical` column
-        already captures the custom field key (e.g., "dental").
-        """
-        resolver = MockCustomFieldResolver({"vertical": "dental"})
-        extractor = UnitExtractor(UNIT_SCHEMA, resolver)
-        vertical_id = extractor._extract_vertical_id(minimal_task)
-
-        assert vertical_id is None
-
-    def test_extract_vertical_id_returns_none_without_resolver(
-        self,
-        minimal_task: Task,
-    ) -> None:
-        """Test that vertical_id returns None when resolver is not available."""
-        extractor = UnitExtractor(UNIT_SCHEMA, resolver=None)
-        vertical_id = extractor._extract_vertical_id(minimal_task)
-
-        assert vertical_id is None
-
-    def test_derived_field_max_pipeline_stage_returns_none(
-        self,
-        minimal_task: Task,
-        unit_resolver: MockCustomFieldResolver,
-    ) -> None:
-        """Test that max_pipeline_stage derived field returns None (stub)."""
-        extractor = UnitExtractor(UNIT_SCHEMA, unit_resolver)
-        max_pipeline_stage = extractor._extract_max_pipeline_stage(minimal_task)
-
-        assert max_pipeline_stage is None
-
-    def test_unit_row_has_23_fields(
+    def test_unit_row_has_22_fields(
         self,
         full_task: Task,
         unit_resolver: MockCustomFieldResolver,
     ) -> None:
-        """Test that UnitRow has all 23 fields."""
+        """Test that UnitRow has all 22 fields (13 base + 9 unit)."""
         extractor = UnitExtractor(UNIT_SCHEMA, unit_resolver)
         row = extractor.extract(full_task)
 
-        # Base fields (12)
+        # Base fields (13)
         assert hasattr(row, "gid")
         assert hasattr(row, "name")
         assert hasattr(row, "type")
@@ -936,8 +899,9 @@ class TestUnitExtractor:
         assert hasattr(row, "last_modified")
         assert hasattr(row, "section")
         assert hasattr(row, "tags")
+        assert hasattr(row, "parent_gid")
 
-        # Unit fields (11)
+        # Unit fields (9)
         assert hasattr(row, "mrr")
         assert hasattr(row, "weekly_ad_spend")
         assert hasattr(row, "products")
@@ -946,9 +910,7 @@ class TestUnitExtractor:
         assert hasattr(row, "office")
         assert hasattr(row, "office_phone")
         assert hasattr(row, "vertical")
-        assert hasattr(row, "vertical_id")
         assert hasattr(row, "specialty")
-        assert hasattr(row, "max_pipeline_stage")
 
     def test_empty_list_fields_default(
         self,
@@ -1202,11 +1164,11 @@ class TestExtractorIntegration:
         contact_resolver: MockCustomFieldResolver,
     ) -> None:
         """Test that schema column counts match expected values."""
-        # UNIT_SCHEMA should have 24 columns (13 base + 11 unit)
-        assert len(UNIT_SCHEMA.columns) == 24
+        # UNIT_SCHEMA should have 22 columns (13 base + 9 unit)
+        assert len(UNIT_SCHEMA.columns) == 22
 
-        # CONTACT_SCHEMA should have 26 columns (13 base + 13 contact)
-        assert len(CONTACT_SCHEMA.columns) == 26
+        # CONTACT_SCHEMA should have 25 columns (13 base + 12 contact)
+        assert len(CONTACT_SCHEMA.columns) == 25
 
         # BASE_SCHEMA should have 13 columns
         assert len(BASE_SCHEMA.columns) == 13

@@ -13,7 +13,9 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
-from fastapi import Request
+from fastapi import (
+    Request,  # noqa: TC002 — FastAPI resolves Request annotation via get_type_hints() at route registration; moving behind TYPE_CHECKING would raise NameError
+)
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime

@@ -178,6 +178,15 @@ def _build_patch_stack(  # noqa: PLR0913
             ],
         )
     )
+    # Patch get_cascade_providers to return empty set so the L2 pre-phase
+    # gate passes. These tests focus on fast-path/cascade validation behavior,
+    # not on warmup phase ordering which is tested elsewhere.
+    stack.enter_context(
+        patch(
+            "autom8_asana.dataframes.cascade_utils.get_cascade_providers",
+            return_value=set(),
+        )
+    )
 
     stack.enter_context(
         patch("autom8_asana.auth.bot_pat.get_bot_pat", return_value="test-pat")
