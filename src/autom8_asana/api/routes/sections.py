@@ -80,7 +80,7 @@ async def get_section(
         section = await section_service.get_section(client, gid)
     except ServiceError as e:
         raise_service_error(request_id, e)
-    return build_success_response(data=section, request_id=request_id)
+    return build_success_response(data=section, request_id=request_id)  # type: ignore[arg-type]
 
 
 # S1: POST /sections - Create section
@@ -125,7 +125,7 @@ async def create_section(
         )
     except ServiceError as e:
         raise_service_error(request_id, e)
-    return build_success_response(data=section, request_id=request_id)
+    return build_success_response(data=section, request_id=request_id)  # type: ignore[arg-type]
 
 
 # S2: PUT /sections/{gid} - Update section
@@ -168,7 +168,7 @@ async def update_section(
         section = await section_service.update_section(client, gid, body.name)
     except ServiceError as e:
         raise_service_error(request_id, e)
-    return build_success_response(data=section, request_id=request_id)
+    return build_success_response(data=section, request_id=request_id)  # type: ignore[arg-type]
 
 
 # S3: DELETE /sections/{gid} - Delete section

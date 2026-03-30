@@ -150,7 +150,7 @@ async def _push_account_status_for_completed_entities(
         push_status_to_data_service,
     )
 
-    all_entries: list[dict] = []
+    all_entries: list[dict[str, Any]] = []
 
     for entity_type in completed_entities:
         project_gid = get_project_gid(entity_type)

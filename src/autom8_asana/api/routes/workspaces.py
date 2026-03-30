@@ -91,7 +91,7 @@ async def list_workspaces(
     )
 
     return build_success_response(
-        data=data,
+        data=data,  # type: ignore[arg-type]
         request_id=request_id,
         pagination=pagination,
     )
@@ -124,7 +124,7 @@ async def get_workspace(
         404: Workspace not found or not accessible with the provided token.
     """
     workspace = await client.workspaces.get_async(gid, raw=True)
-    return build_success_response(data=workspace, request_id=request_id)
+    return build_success_response(data=workspace, request_id=request_id)  # type: ignore[arg-type]
 
 
 __all__ = ["router"]

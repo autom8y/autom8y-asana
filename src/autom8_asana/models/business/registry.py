@@ -198,7 +198,8 @@ class ProjectTypeRegistry:
 
         desc = get_registry().get_by_gid(project_gid)
         if desc is not None and desc.entity_type is not None:
-            return desc.entity_type
+            entity_type: EntityType = desc.entity_type
+            return entity_type
 
         # Fall back to local registry (dynamic entries from workspace discovery)
         result = self._gid_to_type.get(project_gid)

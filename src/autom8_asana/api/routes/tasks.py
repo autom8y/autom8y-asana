@@ -134,7 +134,9 @@ async def list_tasks(
     )
 
     return build_success_response(
-        data=result.data, request_id=request_id, pagination=pagination
+        data=result.data,  # type: ignore[arg-type]
+        request_id=request_id,
+        pagination=pagination,
     )
 
 
@@ -184,7 +186,7 @@ async def get_task(
         task = await task_service.get_task(client, gid, opt_fields=fields_list)
     except ServiceError as e:
         raise_service_error(request_id, e)
-    return build_success_response(data=task, request_id=request_id)
+    return build_success_response(data=task, request_id=request_id)  # type: ignore[arg-type]
 
 
 # T1: POST /tasks - Create task
@@ -246,7 +248,7 @@ async def create_task(
     except ServiceError as e:
         raise_service_error(request_id, e)
 
-    return build_success_response(data=task, request_id=request_id)
+    return build_success_response(data=task, request_id=request_id)  # type: ignore[arg-type]
 
 
 # T2: PUT /tasks/{gid} - Update task
@@ -300,7 +302,7 @@ async def update_task(
     except ServiceError as e:
         raise_service_error(request_id, e)
 
-    return build_success_response(data=task, request_id=request_id)
+    return build_success_response(data=task, request_id=request_id)  # type: ignore[arg-type]
 
 
 # T3: DELETE /tasks/{gid} - Delete task
@@ -399,7 +401,9 @@ async def list_subtasks(
     )
 
     return build_success_response(
-        data=result.data, request_id=request_id, pagination=pagination
+        data=result.data,  # type: ignore[arg-type]
+        request_id=request_id,
+        pagination=pagination,
     )
 
 
@@ -456,7 +460,9 @@ async def list_dependents(
     )
 
     return build_success_response(
-        data=result.data, request_id=request_id, pagination=pagination
+        data=result.data,  # type: ignore[arg-type]
+        request_id=request_id,
+        pagination=pagination,
     )
 
 
@@ -502,7 +508,7 @@ async def duplicate_task(
         task = await task_service.duplicate_task(client, gid, body.name)
     except ServiceError as e:
         raise_service_error(request_id, e)
-    return build_success_response(data=task, request_id=request_id)
+    return build_success_response(data=task, request_id=request_id)  # type: ignore[arg-type]
 
 
 # --- Tags ---
@@ -548,7 +554,7 @@ async def add_tag(
         task_data = await task_service.add_tag(client, gid, body.tag_gid)
     except ServiceError as e:
         raise_service_error(request_id, e)
-    return build_success_response(data=task_data, request_id=request_id)
+    return build_success_response(data=task_data, request_id=request_id)  # type: ignore[arg-type]
 
 
 # T6: DELETE /tasks/{gid}/tags/{tag_gid} - Remove tag
@@ -590,7 +596,7 @@ async def remove_tag(
         task_data = await task_service.remove_tag(client, gid, tag_gid)
     except ServiceError as e:
         raise_service_error(request_id, e)
-    return build_success_response(data=task_data, request_id=request_id)
+    return build_success_response(data=task_data, request_id=request_id)  # type: ignore[arg-type]
 
 
 # --- Membership ---
@@ -639,7 +645,7 @@ async def move_to_section(
         )
     except ServiceError as e:
         raise_service_error(request_id, e)
-    return build_success_response(data=task_data, request_id=request_id)
+    return build_success_response(data=task_data, request_id=request_id)  # type: ignore[arg-type]
 
 
 # T8: PUT /tasks/{gid}/assignee - Set assignee
@@ -680,7 +686,7 @@ async def set_assignee(
         task = await task_service.set_assignee(client, gid, body.assignee_gid)
     except ServiceError as e:
         raise_service_error(request_id, e)
-    return build_success_response(data=task, request_id=request_id)
+    return build_success_response(data=task, request_id=request_id)  # type: ignore[arg-type]
 
 
 # T9: POST /tasks/{gid}/projects - Add to project
@@ -722,7 +728,7 @@ async def add_to_project(
         task_data = await task_service.add_to_project(client, gid, body.project_gid)
     except ServiceError as e:
         raise_service_error(request_id, e)
-    return build_success_response(data=task_data, request_id=request_id)
+    return build_success_response(data=task_data, request_id=request_id)  # type: ignore[arg-type]
 
 
 # T10: DELETE /tasks/{gid}/projects/{project_gid} - Remove from project
@@ -765,7 +771,7 @@ async def remove_from_project(
         task_data = await task_service.remove_from_project(client, gid, project_gid)
     except ServiceError as e:
         raise_service_error(request_id, e)
-    return build_success_response(data=task_data, request_id=request_id)
+    return build_success_response(data=task_data, request_id=request_id)  # type: ignore[arg-type]
 
 
 __all__ = ["router"]
