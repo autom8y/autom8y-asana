@@ -16,8 +16,9 @@ import polars as pl
 import pytest
 
 from autom8_asana.reconciliation.processor import (
-    _IGNORED_PROCESS_SECTIONS,
     DERIVATION_TABLE,
+    OFFER_ACTIVITY_DEFAULT_UNIT_SECTION,
+    OFFER_ACTIVITY_VALID_UNIT_SECTIONS,
     ReconciliationAction,
     ReconciliationBatchProcessor,
 )
@@ -103,7 +104,7 @@ class TestGidExclusion:
         """Units with non-excluded GIDs are processed normally."""
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["ACTIVE"],
+            "section": ["Active"],
             "section_gid": ["9999999999999999"],  # Not in excluded set
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
@@ -167,7 +168,7 @@ class TestNameExclusion:
         """Valid section names that are NOT in EXCLUDED_SECTION_NAMES pass through."""
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["ACTIVE"],
+            "section": ["Active"],
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
         })
@@ -200,8 +201,11 @@ class TestNoSectionExclusion:
     def test_mixed_sections_partial_exclusion(self, make_unit_df, make_offer_df) -> None:
         """Mix of valid and null sections produces correct counts.
 
-        Both non-null units match the offer phone+vertical but differ in
-        section name, so they generate actions (not no_ops).
+        unit_1 "Active" matches offer "ACTIVE" (classified ACTIVE) and
+        "Active" is in OFFER_ACTIVITY_VALID_UNIT_SECTIONS[ACTIVE] -> no-op.
+        unit_2 is None -> excluded.
+        unit_3 "Onboarding" with offer "ACTIVE" -> "Onboarding" is NOT in
+        ACTIVE valid set -> action to "Active".
         """
         unit_df = make_unit_df(
             gids=["unit_1", "unit_2", "unit_3"],
@@ -214,9 +218,10 @@ class TestNoSectionExclusion:
 
         assert result.total_scanned == 3
         assert result.excluded_count == 1  # Only the None section
-        # Both Active and Onboarding differ from offer's ACTIVE section
-        assert len(result.actions) == 2
-        assert result.no_op_count == 0
+        # "Active" is valid for ACTIVE offer -> no-op; "Onboarding" is not -> action
+        assert result.no_op_count == 1
+        assert len(result.actions) == 1
+        assert result.actions[0].target_section == "Active"
 
 
 class TestSchemaEntryGuard:
@@ -290,9 +295,10 @@ class TestPhoneOnlyFallback:
 
     def test_exact_match_takes_priority_over_fallback(self, make_offer_df) -> None:
         """When composite (phone, vertical) matches, phone-only fallback is NOT used."""
+        # Unit "Active" is in OFFER_ACTIVITY_VALID_UNIT_SECTIONS[ACTIVE] -> no-op
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["ACTIVE"],
+            "section": ["Active"],
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
         })
@@ -306,7 +312,7 @@ class TestPhoneOnlyFallback:
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
 
-        # Exact match found, sections match -- no action needed
+        # Exact match found, "Active" is valid for ACTIVE offer -> no-op
         assert result.no_op_count == 1
         assert result.total_scanned == 1
 
@@ -319,10 +325,12 @@ class TestPhoneOnlyFallback:
         """Phone-only fallback activates when (phone, vertical) lookup returns None."""
         # Unit has vertical="" (empty), offer has vertical="dental"
         # Composite key ("phone", "") won't match ("phone", "dental")
-        # But phone-only fallback should find the offer
+        # But phone-only fallback should find the offer.
+        # Offer "ACTIVE" classifies as ACTIVE; unit "Paused" is NOT in the
+        # ACTIVE valid set -> action to move to "Active".
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["Active"],
+            "section": ["Paused"],
             "office_phone": ["+15551234567"],
             "vertical": [""],
         })
@@ -340,8 +348,9 @@ class TestPhoneOnlyFallback:
         with caplog.at_level(logging.WARNING):
             result = processor.process()
 
-        # Fallback finds ACTIVE, unit is in Active -- sections differ, so action
+        # Fallback finds ACTIVE, unit is in Paused (not in ACTIVE valid set)
         assert len(result.actions) == 1
+        assert result.actions[0].target_section == "Active"
         assert result.total_scanned == 1
 
         # Verify composite key misses
@@ -351,9 +360,11 @@ class TestPhoneOnlyFallback:
 
     def test_mismatch_logged_when_fallback_activates(self, caplog) -> None:
         """Mismatch warning is logged when phone-only fallback activates."""
+        # Use "Paused" so the offer ACTIVE classification produces an action
+        # (not a no-op), confirming the fallback path was actually taken.
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["Active"],
+            "section": ["Paused"],
             "office_phone": ["+15551234567"],
             "vertical": [""],
         })
@@ -457,10 +468,12 @@ class TestActionGeneration:
     """
 
     def test_matching_section_is_no_op(self) -> None:
-        """When unit section == offer section, no action is generated."""
+        """When unit section is valid for the offer's activity state, no action."""
+        # Offer "ACTIVE" classifies as ACTIVE; unit "Active" is in the
+        # OFFER_ACTIVITY_VALID_UNIT_SECTIONS[ACTIVE] set -> no-op.
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["ACTIVE"],
+            "section": ["Active"],
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
         })
@@ -523,16 +536,17 @@ class TestActionGeneration:
         assert action.unit_gid == "unit_42"
         assert action.vertical == "dental"
         assert action.current_section == "Onboarding"
-        assert action.target_section == "ACTIVE"
-        assert "Onboarding" in action.reason
-        assert "ACTIVE" in action.reason
+        # Target is now the mapped unit section, not the raw offer section
+        assert action.target_section == "Active"
+        assert "ACTIVE" in action.reason  # offer section name in reason
+        assert "classified: ACTIVE" in action.reason
 
     def test_action_phone_is_masked(self) -> None:
         """Raw phone number must NOT appear in action.phone (PII masking)."""
         raw_phone = "+15551234567"
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["Onboarding"],
+            "section": ["Paused"],
             "office_phone": [raw_phone],
             "vertical": ["dental"],
         })
@@ -577,10 +591,10 @@ class TestActionGeneration:
         assert len(result.actions) == 0
 
     def test_multiple_units_mixed_outcomes(self) -> None:
-        """Batch with match-same, match-different, and no-match produces correct counts."""
+        """Batch with match-valid, match-different, and no-match produces correct counts."""
         unit_df = pl.DataFrame({
             "gid": ["u1", "u2", "u3"],
-            "section": ["ACTIVE", "Onboarding", "Staging"],
+            "section": ["Active", "Paused", "Staging"],
             "office_phone": ["+15551111111", "+15552222222", "+15553333333"],
             "vertical": ["dental", "dental", "dental"],
         })
@@ -595,22 +609,22 @@ class TestActionGeneration:
         result = processor.process()
 
         assert result.total_scanned == 3
-        # u1: ACTIVE == ACTIVE -> no_op
-        # u2: Onboarding != ACTIVE -> action
+        # u1: "Active" is in ACTIVE valid set -> no_op
+        # u2: "Paused" is NOT in ACTIVE valid set -> action to "Active"
         # u3: no match -> no_op
         assert result.no_op_count == 2
         assert len(result.actions) == 1
         assert result.actions[0].unit_gid == "u2"
-        assert result.actions[0].current_section == "Onboarding"
-        assert result.actions[0].target_section == "ACTIVE"
+        assert result.actions[0].current_section == "Paused"
+        assert result.actions[0].target_section == "Active"
 
     def test_phone_only_fallback_mismatch_generates_action(self) -> None:
-        """Phone-only fallback with section mismatch generates an action."""
+        """Phone-only fallback with activity mismatch generates an action."""
         # Unit vertical "" won't match offer vertical "dental" via composite key
-        # Phone-only fallback finds the offer, and sections differ
+        # Phone-only fallback finds the offer; "Paused" is not in ACTIVE valid set
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["Onboarding"],
+            "section": ["Paused"],
             "office_phone": ["+15551234567"],
             "vertical": [""],
         })
@@ -626,8 +640,8 @@ class TestActionGeneration:
 
         assert len(result.actions) == 1
         action = result.actions[0]
-        assert action.current_section == "Onboarding"
-        assert action.target_section == "ACTIVE"
+        assert action.current_section == "Paused"
+        assert action.target_section == "Active"
         assert action.phone != "+15551234567"  # Masked
 
 
@@ -707,11 +721,11 @@ class TestPipelinePrimary:
         """No pipeline entry for this unit -> falls through to offer comparison."""
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["Onboarding"],
+            "section": ["Paused"],
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
         })
-        # Offer says ACTIVE, which differs from Onboarding -> action
+        # Offer says ACTIVE; "Paused" not in ACTIVE valid set -> action to "Active"
         offer_df = pl.DataFrame({
             "gid": ["offer_1"],
             "section": ["ACTIVE"],
@@ -733,8 +747,9 @@ class TestPipelinePrimary:
 
         assert len(result.actions) == 1
         action = result.actions[0]
-        assert action.target_section == "ACTIVE"
+        assert action.target_section == "Active"
         assert "offer" in action.reason
+        assert "classified: ACTIVE" in action.reason
 
     def test_implementation_converted_with_offer_active(
         self, make_pipeline_summary_df,
@@ -781,10 +796,10 @@ class TestPipelinePrimary:
         assert "offer" in action.reason
 
     def test_no_pipeline_summary_backward_compat(self) -> None:
-        """When pipeline_summary is None, existing offer-only logic works unchanged."""
+        """When pipeline_summary is None, offer-only logic works with activity mapping."""
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["Onboarding"],
+            "section": ["Paused"],
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
         })
@@ -801,8 +816,8 @@ class TestPipelinePrimary:
 
         assert len(result.actions) == 1
         action = result.actions[0]
-        assert action.current_section == "Onboarding"
-        assert action.target_section == "ACTIVE"
+        assert action.current_section == "Paused"
+        assert action.target_section == "Active"
         assert "offer" in action.reason
 
     def test_pipeline_takes_priority_over_offer(
@@ -848,13 +863,13 @@ class TestPipelinePrimary:
         """Process section COMPLETED (IGNORED) -> falls through to offer comparison."""
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["Month 1"],
+            "section": ["Paused"],
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
         })
         offer_df = pl.DataFrame({
             "gid": ["offer_1"],
-            "section": ["Active"],
+            "section": ["ACTIVE"],
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
         })
@@ -870,10 +885,11 @@ class TestPipelinePrimary:
         )
         result = processor.process()
 
-        # Pipeline is COMPLETED (IGNORED), falls to offer which says Active
+        # Pipeline is COMPLETED (IGNORED), falls to offer which says ACTIVE
+        # "Paused" is not in ACTIVE valid set -> action to "Active"
         assert len(result.actions) == 1
         action = result.actions[0]
-        assert action.current_section == "Month 1"
+        assert action.current_section == "Paused"
         assert action.target_section == "Active"
         assert "offer" in action.reason
 
@@ -938,16 +954,21 @@ class TestPipelinePrimary:
     def test_unknown_process_type_falls_through_to_offer(
         self, make_pipeline_summary_df,
     ) -> None:
-        """Unknown process_type not in DERIVATION_TABLE -> falls through to offer."""
+        """Unknown process_type not in DERIVATION_TABLE -> falls through to offer.
+
+        Note: unknown_type has no classifier registered, so
+        get_classifier("unknown_type") returns None. With no classifier,
+        process_activity is None -> falls through to offer comparison.
+        """
         unit_df = pl.DataFrame({
             "gid": ["unit_1"],
-            "section": ["Active"],
+            "section": ["Paused"],
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
         })
         offer_df = pl.DataFrame({
             "gid": ["offer_1"],
-            "section": ["Onboarding"],
+            "section": ["ACTIVE"],
             "office_phone": ["+15551234567"],
             "vertical": ["dental"],
         })
@@ -963,10 +984,11 @@ class TestPipelinePrimary:
         )
         result = processor.process()
 
-        # Unknown type -> falls through to offer comparison
+        # Unknown type -> no classifier -> falls through to offer comparison
+        # Offer ACTIVE classified as ACTIVE; "Paused" not in ACTIVE valid set
         assert len(result.actions) == 1
         action = result.actions[0]
-        assert action.target_section == "Onboarding"
+        assert action.target_section == "Active"
         assert "offer" in action.reason
 
 
@@ -988,7 +1010,7 @@ class TestDerivationTableDrift:
         from autom8_asana.lifecycle.config import load_config
 
         yaml_table = load_config().build_derivation_table()
-        assert DERIVATION_TABLE == yaml_table
+        assert yaml_table == DERIVATION_TABLE
 
     def test_derivation_table_has_all_9_pipelines(self) -> None:
         """All 9 pipeline types are present in the derivation table."""
@@ -1005,7 +1027,10 @@ class TestDerivationTableDrift:
         are in EXCLUDED_SECTION_NAMES. The derivation table covers ALL unit
         sections, not just classified ones.
         """
-        from autom8_asana.models.business.activity import AccountActivity, UNIT_CLASSIFIER
+        from autom8_asana.models.business.activity import (
+            UNIT_CLASSIFIER,
+            AccountActivity,
+        )
         from autom8_asana.reconciliation.section_registry import EXCLUDED_SECTION_NAMES
 
         all_known: set[str] = set()
@@ -1018,3 +1043,395 @@ class TestDerivationTableDrift:
                 f"DERIVATION_TABLE[{process_type!r}] = {unit_section!r} "
                 f"not in UNIT_CLASSIFIER or EXCLUDED_SECTION_NAMES"
             )
+
+
+# ---------------------------------------------------------------------------
+# Fix 1: Inactive process fallthrough (dynamic classifier)
+# ---------------------------------------------------------------------------
+
+
+class TestInactiveProcessFallthrough:
+    """Fix 1: When process section classifies as INACTIVE or IGNORED,
+    fall through to offer-based comparison instead of using DERIVATION_TABLE.
+
+    Previously, only hardcoded _IGNORED_PROCESS_SECTIONS (terminal states
+    like CONVERTED, COMPLETED) triggered fallthrough. Now the classifier
+    is the source of truth: INACTIVE (DID NOT CONVERT, MAYBE) also falls
+    through.
+    """
+
+    def test_inactive_process_falls_through_to_offer(
+        self, make_pipeline_summary_df,
+    ) -> None:
+        """Reactivation DID NOT CONVERT -> fall through to offer.
+
+        Unit in 'Active', reactivation process failed (DID NOT CONVERT
+        classifies as INACTIVE). Should fall through to offer comparison
+        rather than using DERIVATION_TABLE for reactivation.
+        """
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        # Offer says INACTIVE -- unit should move to Paused
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["INACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        # Pipeline: reactivation DID NOT CONVERT (classified INACTIVE)
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15551234567"],
+            verticals=["dental"],
+            process_types=["reactivation"],
+            process_sections=["DID NOT CONVERT"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        result = processor.process()
+
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.current_section == "Active"
+        assert action.target_section == "Paused"
+        assert "offer" in action.reason
+        assert "classified: INACTIVE" in action.reason
+
+    def test_dnc_plus_offer_inactive_equals_paused(
+        self, make_pipeline_summary_df,
+    ) -> None:
+        """DNC + offer INACTIVE -> unit moves to Paused.
+
+        Full scenario: reactivation DNC (process INACTIVE) + offer INACTIVE
+        -> unit should be in Paused for reactivation/retention hold.
+        """
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Onboarding"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["INACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15551234567"],
+            verticals=["dental"],
+            process_types=["reactivation"],
+            process_sections=["DID NOT CONVERT"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        result = processor.process()
+
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.target_section == "Paused"
+
+    def test_maybe_process_falls_through(
+        self, make_pipeline_summary_df,
+    ) -> None:
+        """Process section MAYBE (classified INACTIVE) -> falls through."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Paused"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15551234567"],
+            verticals=["dental"],
+            process_types=["sales"],
+            process_sections=["MAYBE"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        result = processor.process()
+
+        # MAYBE is INACTIVE -> falls through to offer
+        # Offer ACTIVE; "Paused" not in ACTIVE valid set -> move to Active
+        assert len(result.actions) == 1
+        assert result.actions[0].target_section == "Active"
+
+    def test_active_process_does_not_fall_through(
+        self, make_pipeline_summary_df, make_offer_df,
+    ) -> None:
+        """Process section ACTIVE (classified ACTIVE) -> uses DERIVATION_TABLE."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = make_offer_df(gids=["offer_1"])
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15551234567"],
+            verticals=["dental"],
+            process_types=["retention"],
+            process_sections=["ACTIVE"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        result = processor.process()
+
+        # ACTIVE process -> DERIVATION_TABLE says "Account Review"
+        assert len(result.actions) == 1
+        assert result.actions[0].target_section == "Account Review"
+        assert "pipeline" in result.actions[0].reason
+
+    def test_activating_process_does_not_fall_through(
+        self, make_pipeline_summary_df, make_offer_df,
+    ) -> None:
+        """Process section SCHEDULED (classified ACTIVATING) -> uses DERIVATION_TABLE."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = make_offer_df(gids=["offer_1"])
+        pipeline_summary = make_pipeline_summary_df(
+            phones=["+15551234567"],
+            verticals=["dental"],
+            process_types=["retention"],
+            process_sections=["SCHEDULED"],
+        )
+
+        processor = ReconciliationBatchProcessor(
+            unit_df, offer_df, pipeline_summary=pipeline_summary,
+        )
+        result = processor.process()
+
+        # SCHEDULED is ACTIVATING -> uses derivation table, not fallthrough
+        assert len(result.actions) == 1
+        assert result.actions[0].target_section == "Account Review"
+        assert "pipeline" in result.actions[0].reason
+
+
+# ---------------------------------------------------------------------------
+# Fix 2: Offer activity-aware unit section mapping
+# ---------------------------------------------------------------------------
+
+
+class TestOfferActivityMapping:
+    """Fix 2: Offer fallback uses activity classification to determine
+    target unit section instead of raw offer section names.
+
+    Maps offer activity -> set of valid unit sections. If unit is already
+    in a valid section -> no-op. If not -> move to default target.
+    """
+
+    def test_offer_active_unit_in_consulting_is_no_op(self) -> None:
+        """Unit in 'Consulting' (valid ACTIVE section), offer ACTIVE -> no-op."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Consulting"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert result.no_op_count == 1
+        assert len(result.actions) == 0
+
+    def test_offer_active_unit_in_month1_is_no_op(self) -> None:
+        """Unit in 'Month 1' (valid ACTIVE section), offer ACTIVE -> no-op."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Month 1"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert result.no_op_count == 1
+        assert len(result.actions) == 0
+
+    def test_offer_active_unit_in_paused_generates_action(self) -> None:
+        """Unit in 'Paused' (INACTIVE), offer ACTIVE -> move to 'Active'."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Paused"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.target_section == "Active"
+        assert "classified: ACTIVE" in action.reason
+
+    def test_offer_activating_unit_in_implementing_is_no_op(self) -> None:
+        """Unit in 'Implementing' (valid ACTIVATING section), offer ACTIVATING -> no-op."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Implementing"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["ACTIVATING"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert result.no_op_count == 1
+        assert len(result.actions) == 0
+
+    def test_offer_inactive_unit_in_active_generates_action(self) -> None:
+        """Unit in 'Active', offer INACTIVE -> move to 'Paused'."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["INACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert len(result.actions) == 1
+        action = result.actions[0]
+        assert action.current_section == "Active"
+        assert action.target_section == "Paused"
+        assert "classified: INACTIVE" in action.reason
+
+    def test_offer_inactive_unit_already_paused_is_no_op(self) -> None:
+        """Unit in 'Paused' (valid INACTIVE section), offer INACTIVE -> no-op."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Paused"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["INACTIVE"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert result.no_op_count == 1
+        assert len(result.actions) == 0
+
+    def test_offer_ignored_no_action(self) -> None:
+        """Offer in IGNORED state (e.g., 'Complete') -> no action."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["Complete"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        assert result.no_op_count == 1
+        assert len(result.actions) == 0
+
+    def test_offer_unknown_section_no_action(self) -> None:
+        """Offer section not in OFFER_CLASSIFIER -> no action (unknown)."""
+        unit_df = pl.DataFrame({
+            "gid": ["unit_1"],
+            "section": ["Active"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+        offer_df = pl.DataFrame({
+            "gid": ["offer_1"],
+            "section": ["SOME_UNKNOWN_SECTION"],
+            "office_phone": ["+15551234567"],
+            "vertical": ["dental"],
+        })
+
+        processor = ReconciliationBatchProcessor(unit_df, offer_df)
+        result = processor.process()
+
+        # Unknown offer section -> classify returns None -> no action
+        assert result.no_op_count == 1
+        assert len(result.actions) == 0
+
+    def test_valid_unit_sections_mapping_consistency(self) -> None:
+        """OFFER_ACTIVITY_VALID_UNIT_SECTIONS covers all four activity states."""
+        from autom8_asana.models.business.activity import AccountActivity
+
+        for activity in AccountActivity:
+            assert activity in OFFER_ACTIVITY_VALID_UNIT_SECTIONS, (
+                f"Missing OFFER_ACTIVITY_VALID_UNIT_SECTIONS entry for {activity}"
+            )
+            assert activity in OFFER_ACTIVITY_DEFAULT_UNIT_SECTION, (
+                f"Missing OFFER_ACTIVITY_DEFAULT_UNIT_SECTION entry for {activity}"
+            )
+
+    def test_default_section_is_in_valid_set(self) -> None:
+        """Each non-None default target section is in its valid set."""
+        for activity, default in OFFER_ACTIVITY_DEFAULT_UNIT_SECTION.items():
+            if default is not None:
+                valid = OFFER_ACTIVITY_VALID_UNIT_SECTIONS[activity]
+                assert default in valid, (
+                    f"Default '{default}' for {activity} not in valid set {valid}"
+                )

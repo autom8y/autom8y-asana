@@ -25,6 +25,11 @@ from typing import TYPE_CHECKING, Any
 from autom8y_log import get_logger
 
 from autom8_asana.clients.utils.pii import mask_phone_number
+from autom8_asana.models.business.activity import (
+    OFFER_CLASSIFIER,
+    AccountActivity,
+    get_classifier,
+)
 from autom8_asana.reconciliation.section_registry import (
     EXCLUDED_SECTION_GIDS,
     EXCLUDED_SECTION_NAMES,
@@ -48,15 +53,27 @@ from autom8_asana.lifecycle.config import load_config as _load_lifecycle_config
 
 DERIVATION_TABLE: dict[str, str] = _load_lifecycle_config().build_derivation_table()
 
-# Process pipeline section names that classify as IGNORED (terminal states).
-# When the latest process section falls into this set, the process has
-# completed and the unit has "graduated" past that pipeline stage.
-# In that case, we fall through to the offer-based fallback rather than
-# using the derivation table.
-_IGNORED_PROCESS_SECTIONS: frozenset[str] = frozenset({
-    "TEMPLATE", "TEMPLATES", "COMPLETED", "CONVERTED", "TASKS",
-    "FREE MONTH", "VIDEO ONLY", "Untitled section",
-})
+# ---------------------------------------------------------------------------
+# Offer activity -> valid unit sections mapping (Fix 2)
+# ---------------------------------------------------------------------------
+# When the offer fallback fires, classify the offer section via
+# OFFER_CLASSIFIER, then check whether the unit's current section is
+# already valid for that activity state. If valid -> no-op. If not ->
+# recommend move to the default target section for the activity.
+
+OFFER_ACTIVITY_VALID_UNIT_SECTIONS: dict[AccountActivity, frozenset[str]] = {
+    AccountActivity.ACTIVE: frozenset({"Active", "Month 1", "Consulting"}),
+    AccountActivity.ACTIVATING: frozenset({"Onboarding", "Implementing", "Preview", "Engaged", "Scheduled"}),
+    AccountActivity.INACTIVE: frozenset({"Paused", "Unengaged", "Cancelled", "No Start"}),
+    AccountActivity.IGNORED: frozenset(),  # No action for terminal offer states
+}
+
+OFFER_ACTIVITY_DEFAULT_UNIT_SECTION: dict[AccountActivity, str | None] = {
+    AccountActivity.ACTIVE: "Active",
+    AccountActivity.ACTIVATING: "Onboarding",
+    AccountActivity.INACTIVE: "Paused",
+    AccountActivity.IGNORED: None,  # No action
+}
 
 
 # ---------------------------------------------------------------------------
@@ -458,18 +475,33 @@ class ReconciliationBatchProcessor:
             if pipeline_entry is not None:
                 process_type, process_section = pipeline_entry
 
-                # Check if the process section is an IGNORED terminal state
-                # (CONVERTED, COMPLETED, etc.). When IGNORED, the process
-                # has finished and the unit has "graduated" -- fall through
-                # to offer-based comparison rather than using DERIVATION_TABLE.
-                if process_section.upper() in _IGNORED_PROCESS_SECTIONS:
+                # Classify the process section dynamically via the
+                # pipeline-type classifier. When the activity is INACTIVE,
+                # IGNORED, or unknown (None), the process has either
+                # completed or failed -- fall through to the offer-based
+                # comparison rather than using DERIVATION_TABLE.
+                process_classifier = get_classifier(process_type)
+                process_activity: AccountActivity | None = None
+                if process_classifier is not None:
+                    process_activity = process_classifier.classify(
+                        process_section,
+                    )
+
+                if process_activity in (
+                    AccountActivity.IGNORED,
+                    AccountActivity.INACTIVE,
+                    None,
+                ):
                     logger.debug(
-                        "reconciliation_pipeline_ignored",
+                        "reconciliation_pipeline_fallthrough",
                         extra={
                             "unit_gid": unit_gid,
                             "process_type": process_type,
                             "process_section": process_section,
-                            "match_type": "pipeline_ignored_fallthrough",
+                            "process_activity": (
+                                str(process_activity) if process_activity else "unknown"
+                            ),
+                            "match_type": "pipeline_fallthrough",
                         },
                     )
                     # Fall through to offer-based comparison below.
@@ -543,27 +575,50 @@ class ReconciliationBatchProcessor:
                         },
                     )
 
-            # Three-way action decision based on offer lookup outcome.
+            # Activity-aware action decision based on offer lookup outcome.
+            # Instead of comparing raw offer section names against unit
+            # section names (cross-project name mismatch), classify the
+            # offer section and map to valid unit sections.
             if offer_section is None:
                 # No offer data found for this unit -- nothing to compare.
                 result.no_op_count += 1
-            elif offer_section == section_name:
-                # Unit is already in the correct section.
-                result.no_op_count += 1
             else:
-                # Section mismatch -- unit needs to move.
-                result.actions.append(
-                    ReconciliationAction(
-                        unit_gid=unit_gid,
-                        phone=mask_phone_number(phone),
-                        vertical=vertical,
-                        current_section=section_name,
-                        target_section=offer_section,
-                        reason=(
-                            f"Unit in '{section_name}' but offer indicates "
-                            f"'{offer_section}'"
-                        ),
+                offer_activity = OFFER_CLASSIFIER.classify(offer_section)
+                if offer_activity is None or offer_activity == AccountActivity.IGNORED:
+                    # Terminal/unknown offer state -- no action.
+                    result.no_op_count += 1
+                else:
+                    valid_unit_sections = OFFER_ACTIVITY_VALID_UNIT_SECTIONS.get(
+                        offer_activity, frozenset(),
                     )
-                )
+                    if section_name in valid_unit_sections:
+                        # Unit is already in a valid section for this
+                        # offer activity state -- no action needed.
+                        result.no_op_count += 1
+                    else:
+                        target = OFFER_ACTIVITY_DEFAULT_UNIT_SECTION.get(
+                            offer_activity,
+                        )
+                        if target is None:
+                            # No default target (e.g., IGNORED) -- no action.
+                            result.no_op_count += 1
+                        elif target == section_name:
+                            # Unit is already in the default target section.
+                            result.no_op_count += 1
+                        else:
+                            result.actions.append(
+                                ReconciliationAction(
+                                    unit_gid=unit_gid,
+                                    phone=mask_phone_number(phone),
+                                    vertical=vertical,
+                                    current_section=section_name,
+                                    target_section=target,
+                                    reason=(
+                                        f"offer in '{offer_section}' "
+                                        f"(classified: {offer_activity.name}) "
+                                        f"-> unit should be '{target}'"
+                                    ),
+                                )
+                            )
 
         return result
