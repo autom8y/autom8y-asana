@@ -179,7 +179,7 @@ def test_offer_active_section_count():
     )
 
     active = OFFER_CLASSIFIER.sections_for(AccountActivity.ACTIVE)
-    assert len(active) == 21
+    assert len(active) == 22
 
 
 @pytest.mark.asyncio

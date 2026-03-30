@@ -117,7 +117,7 @@ def _build_offer_df(
     n_rows: int = N_ROWS,
     null_office_phone_count: int = 0,
 ) -> pl.DataFrame:
-    """Build a realistic Offer DataFrame with all 24 schema columns."""
+    """Build a realistic Offer DataFrame with all 23 schema columns."""
     verticals = ["dental", "medical"] * 5
 
     office_phones: list[str | None] = [
@@ -150,7 +150,6 @@ def _build_offer_df(
             "office": [f"Acme Dental Office {i}" for i in range(n_rows)],
             "office_phone": office_phones,
             "vertical": [verticals[i % len(verticals)] for i in range(n_rows)],
-            "vertical_id": [f"VRT-{(i % 2) + 1:03d}" for i in range(n_rows)],
             "specialty": ["general"] * n_rows,
             "offer_id": [f"OID-{i:04d}" for i in range(n_rows)],
             "platforms": [["google", "facebook"]] * n_rows,

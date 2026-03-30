@@ -48,9 +48,7 @@ def unit_task_data(base_task_data: dict[str, Any]) -> dict[str, Any]:
         "office": "New York",
         "office_phone": "+1-555-0123",
         "vertical": "Healthcare",
-        "vertical_id": "v123",
         "specialty": "Dental",
-        "max_pipeline_stage": "Closed Won",
     }
 
 
@@ -232,9 +230,7 @@ class TestUnitRowCreation:
         assert row.office == "New York"
         assert row.office_phone == "+1-555-0123"
         assert row.vertical == "Healthcare"
-        assert row.vertical_id == "v123"
         assert row.specialty == "Dental"
-        assert row.max_pipeline_stage == "Closed Won"
 
     def test_default_type_is_unit(self, base_task_data: dict[str, Any]) -> None:
         """Test that UnitRow has default type='Unit'."""
@@ -257,9 +253,9 @@ class TestUnitRowCreation:
         assert row.office is None
 
     def test_field_count(self) -> None:
-        """Verify UnitRow has 24 fields (13 base + 11 Unit)."""
+        """Verify UnitRow has 22 fields (13 base + 9 Unit)."""
         fields = UnitRow.model_fields
-        assert len(fields) == 24
+        assert len(fields) == 22
 
     def test_inherits_from_task_row(self) -> None:
         """Test that UnitRow inherits from TaskRow."""
@@ -352,9 +348,9 @@ class TestContactRowCreation:
         assert row.position is None
 
     def test_field_count(self) -> None:
-        """Verify ContactRow has 26 fields (13 base + 13 Contact)."""
+        """Verify ContactRow has 25 fields (13 base + 12 Contact)."""
         fields = ContactRow.model_fields
-        assert len(fields) == 26
+        assert len(fields) == 25
 
     def test_inherits_from_task_row(self) -> None:
         """Test that ContactRow inherits from TaskRow."""

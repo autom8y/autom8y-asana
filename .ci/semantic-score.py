@@ -55,7 +55,7 @@ FLEET_SPECS: dict[str, str] = {
 
 def load_spec(path: str) -> dict:
     """Load and return an OpenAPI spec from a JSON file."""
-    with open(path, "r", encoding="utf-8") as fh:
+    with open(path, encoding="utf-8") as fh:
         return json.load(fh)
 
 
@@ -308,7 +308,7 @@ def score_fleet(base_dir: str, save_baselines: bool = False) -> dict:
         # Check for existing baseline
         baseline_path = os.path.join(baselines_dir, f"{service}.baseline.json")
         if os.path.isfile(baseline_path):
-            with open(baseline_path, "r", encoding="utf-8") as fh:
+            with open(baseline_path, encoding="utf-8") as fh:
                 baseline = json.load(fh)
             result = compare_baseline(result, baseline)
 
@@ -445,7 +445,7 @@ def main() -> int:
     result = score_spec(spec, args.spec_path)
 
     if args.baseline:
-        with open(args.baseline, "r", encoding="utf-8") as fh:
+        with open(args.baseline, encoding="utf-8") as fh:
             baseline = json.load(fh)
         result = compare_baseline(result, baseline)
 

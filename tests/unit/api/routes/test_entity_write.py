@@ -309,7 +309,7 @@ class TestEntityWriteRoute:
             json={"fields": {"name": "Updated"}},
         )
         assert resp.status_code == 401
-        assert resp.json()["detail"]["error"] == "MISSING_AUTH"
+        assert resp.json()["error"]["code"] == "MISSING_AUTH"
 
     def test_pat_token_rejected_401(self, client: TestClient) -> None:
         """PAT token -> 401 SERVICE_TOKEN_REQUIRED."""
@@ -330,7 +330,7 @@ class TestEntityWriteRoute:
             )
 
         assert resp.status_code == 401
-        assert resp.json()["detail"]["error"] == "SERVICE_TOKEN_REQUIRED"
+        assert resp.json()["error"]["code"] == "SERVICE_TOKEN_REQUIRED"
 
     def test_unknown_entity_type_404(self, client: TestClient) -> None:
         """Unknown type -> 404 with available types."""

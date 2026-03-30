@@ -37,7 +37,6 @@ from autom8_asana.dataframes.annotations import (
 )
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -81,7 +80,7 @@ def _make_annotated_col(schema_name: str, col_name: str) -> ColumnDef:
     """
     annotation = SEMANTIC_ANNOTATIONS[f"{schema_name}.{col_name}"]
     has_cascade = "cascade_behavior" in annotation
-    source = f"cascade:FakeField" if has_cascade else f"cf:{col_name}"
+    source = "cascade:FakeField" if has_cascade else f"cf:{col_name}"
     return ColumnDef(
         name=col_name,
         dtype="Utf8",

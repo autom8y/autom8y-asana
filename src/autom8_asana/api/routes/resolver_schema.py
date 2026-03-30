@@ -103,6 +103,9 @@ class EntitySchemaResponse(BaseModel):
     """Response for schema discovery endpoint.
 
     Returns metadata about queryable fields for an entity type.
+
+    Per Sprint 4 TDD: Extended with category, holder_for, and
+    parent_entity fields derived from EntityDescriptor.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -111,6 +114,27 @@ class EntitySchemaResponse(BaseModel):
         description="Entity type this schema describes (e.g., 'unit', 'business')."
     )
     version: str = Field(description="Schema version string for the entity type.")
+    category: str | None = Field(
+        default=None,
+        description=(
+            "Entity category classification (e.g., 'root', 'composite', "
+            "'leaf', 'holder'). Derived from EntityDescriptor."
+        ),
+    )
+    holder_for: str | None = Field(
+        default=None,
+        description=(
+            "For holder entities, the entity type this holds "
+            "(e.g., 'asset_edit' for asset_edit_holder). None for non-holders."
+        ),
+    )
+    parent_entity: str | None = Field(
+        default=None,
+        description=(
+            "Parent entity type in the hierarchy (e.g., 'business'). "
+            "None when no parent relationship exists."
+        ),
+    )
     queryable_fields: list[SchemaFieldInfo] = Field(
         description="Fields available for querying and resolution criteria."
     )
@@ -207,7 +231,9 @@ async def get_entity_schema(
 
     # Get schema from registry
     registry = SchemaRegistry.get_instance()
-    schema = registry.get_schema(entity_type.capitalize())
+    from autom8_asana.core.string_utils import to_pascal_case
+
+    schema = registry.get_schema(to_pascal_case(entity_type))
 
     if schema is None:
         raise_api_error(
@@ -277,9 +303,29 @@ async def get_entity_schema(
         },
     )
 
+    # Resolve category metadata from EntityRegistry descriptor
+    category: str | None = None
+    holder_for: str | None = None
+    parent_entity: str | None = None
+    try:
+        from autom8_asana.core.entity_registry import (
+            get_registry as get_entity_registry,
+        )
+
+        entity_desc = get_entity_registry().get(entity_type)
+        if entity_desc is not None:
+            category = getattr(entity_desc, "category", None)
+            holder_for = getattr(entity_desc, "holder_for", None)
+            parent_entity = getattr(entity_desc, "parent_entity", None)
+    except Exception:
+        logger.debug("entity_descriptor_lookup_failed", extra={"entity_type": entity_type})
+
     return EntitySchemaResponse(
         entity_type=entity_type,
         version=schema.version,
+        category=category,
+        holder_for=holder_for,
+        parent_entity=parent_entity,
         queryable_fields=queryable_fields,
     )
 

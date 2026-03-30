@@ -413,8 +413,8 @@ class TestGidLookupAuth:
         )
 
         assert response.status_code == 401
-        detail = response.json()["detail"]
-        assert detail["error"] == "MISSING_AUTH"
+        data = response.json()
+        assert data["error"]["code"] == "MISSING_AUTH"
 
     def test_ct008_pat_token_returns_401(self, client: TestClient) -> None:
         """CT-008: PAT token (0/xxx format) returns 401 SERVICE_TOKEN_REQUIRED."""
@@ -431,8 +431,8 @@ class TestGidLookupAuth:
         )
 
         assert response.status_code == 401
-        detail = response.json()["detail"]
-        assert detail["error"] == "SERVICE_TOKEN_REQUIRED"
+        data = response.json()
+        assert data["error"]["code"] == "SERVICE_TOKEN_REQUIRED"
 
     def test_ct009_expired_jwt_returns_401(self, client: TestClient) -> None:
         """CT-009: Expired JWT returns 401 with TOKEN_EXPIRED error code."""
@@ -462,8 +462,8 @@ class TestGidLookupAuth:
             )
 
         assert response.status_code == 401
-        detail = response.json()["detail"]
-        assert detail["error"] == "TOKEN_EXPIRED"
+        data = response.json()
+        assert data["error"]["code"] == "TOKEN_EXPIRED"
 
 
 class TestGidLookupValidation:

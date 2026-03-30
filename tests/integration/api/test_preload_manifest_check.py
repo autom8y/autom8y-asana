@@ -146,9 +146,27 @@ _PATCHES_COMMON = {
     "resolver": "autom8_asana.dataframes.resolver.DefaultCustomFieldResolver",
     "cpf": "autom8_asana.cache.integration.factory.CacheProviderFactory",
     "cache_config": "autom8_asana.config.CacheConfig",
+    "cascade_warm_phases": "autom8_asana.dataframes.cascade_utils.cascade_warm_phases",
+    "get_cascade_providers": "autom8_asana.dataframes.cascade_utils.get_cascade_providers",
 }
 
 _PROGRESSIVE_MODULE = "autom8_asana.api.preload.progressive"
+
+
+@pytest.fixture(autouse=True)
+def _patch_cascade_ordering():
+    """Patch cascade warmup ordering so tests don't require business entity."""
+    with (
+        patch(
+            _PATCHES_COMMON["cascade_warm_phases"],
+            return_value=[["unit"]],
+        ),
+        patch(
+            _PATCHES_COMMON["get_cascade_providers"],
+            return_value=set(),
+        ),
+    ):
+        yield
 
 
 # ---------------------------------------------------------------------------

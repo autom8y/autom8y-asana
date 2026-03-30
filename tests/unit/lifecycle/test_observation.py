@@ -240,7 +240,7 @@ class TestStageTransitionEmitter:
         emitter = StageTransitionEmitter(store=store)
         record = _make_record()
 
-        asyncio.get_event_loop().run_until_complete(emitter.emit(record))
+        asyncio.run(emitter.emit(record))
         store.append.assert_called_once_with(record)
 
     def test_emit_swallows_store_exception(self) -> None:
@@ -251,5 +251,5 @@ class TestStageTransitionEmitter:
         record = _make_record()
 
         # Should not raise
-        asyncio.get_event_loop().run_until_complete(emitter.emit(record))
+        asyncio.run(emitter.emit(record))
         store.append.assert_called_once()

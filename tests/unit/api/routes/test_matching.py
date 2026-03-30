@@ -166,7 +166,7 @@ class TestMatchingAuth:
                 headers={"Authorization": "Bearer pat_token_1234567890"},
             )
             assert resp.status_code == 401
-            assert resp.json()["detail"]["error"] == "SERVICE_TOKEN_REQUIRED"
+            assert resp.json()["error"]["code"] == "SERVICE_TOKEN_REQUIRED"
 
 
 # ---------------------------------------------------------------------------
