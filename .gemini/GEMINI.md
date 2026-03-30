@@ -7,15 +7,15 @@ Use the available agents and slash commands. Agents activate automatically when 
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-5-agent workflow (10x-dev):
+5-agent workflow (intelligence):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates development lifecycle phases and routes work to specialists |
-| **requirements-analyst** | Gathers requirements and produces PRD artifacts |
-| **architect** | Creates technical design documents and architecture decisions |
-| **principal-engineer** | Implements code according to design specifications |
-| **qa-adversary** | Validates implementation through adversarial testing |
+| **potnia** | Coordinates analytics and research initiative phases |
+| **analytics-engineer** | Designs tracking plans and implements event instrumentation |
+| **user-researcher** | Conducts user research and extracts qualitative insights |
+| **experimentation-lead** | Designs experiments with proper statistical methodology |
+| **insights-analyst** | Synthesizes quantitative and qualitative data into insights |
 
 Agents activate when your prompt matches their description.
 <!-- KNOSSOS:END quick-start -->
@@ -43,11 +43,11 @@ Agents cannot spawn other agents — only the main thread can dispatch sub-agent
 
 Prompts in `.gemini/agents/`:
 
-- `potnia.md` - Coordinates development lifecycle phases and routes work to specialists
-- `requirements-analyst.md` - Gathers requirements and produces PRD artifacts
-- `architect.md` - Creates technical design documents and architecture decisions
-- `principal-engineer.md` - Implements code according to design specifications
-- `qa-adversary.md` - Validates implementation through adversarial testing
+- `potnia.md` - Coordinates analytics and research initiative phases
+- `analytics-engineer.md` - Designs tracking plans and implements event instrumentation
+- `user-researcher.md` - Conducts user research and extracts qualitative insights
+- `experimentation-lead.md` - Designs experiments with proper statistical methodology
+- `insights-analyst.md` - Synthesizes quantitative and qualitative data into insights
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:
