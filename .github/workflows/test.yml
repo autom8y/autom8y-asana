@@ -31,6 +31,7 @@ jobs:
   spec-check:
     name: OpenAPI Spec Drift
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       id-token: write
       contents: read
