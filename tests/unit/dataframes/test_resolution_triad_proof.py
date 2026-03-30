@@ -74,9 +74,7 @@ def _build_business_df(
     ]
     booking_types = ["Online", "Phone"] * 5
 
-    office_phones: list[str | None] = [
-        f"+1555010{i:04d}" for i in range(n_rows)
-    ]
+    office_phones: list[str | None] = [f"+1555010{i:04d}" for i in range(n_rows)]
     # Null out the last null_office_phone_count entries
     for idx in range(n_rows - null_office_phone_count, n_rows):
         office_phones[idx] = None
@@ -92,8 +90,7 @@ def _build_business_df(
             "is_completed": [False] * n_rows,
             "completed_at": [None] * n_rows,
             "url": [
-                f"https://app.asana.com/0/0/120065301256{i:04d}"
-                for i in range(n_rows)
+                f"https://app.asana.com/0/0/120065301256{i:04d}" for i in range(n_rows)
             ],
             "last_modified": [TS_MODIFIED] * n_rows,
             "section": ["Active"] * n_rows,
@@ -102,7 +99,9 @@ def _build_business_df(
             "company_id": [f"COMP-{i:04d}" for i in range(n_rows)],
             "office_phone": office_phones,
             "stripe_id": [f"cus_test{i:08d}" for i in range(n_rows)],
-            "booking_type": [booking_types[i % len(booking_types)] for i in range(n_rows)],
+            "booking_type": [
+                booking_types[i % len(booking_types)] for i in range(n_rows)
+            ],
             "facebook_page_id": [f"fb_{i:012d}" for i in range(n_rows)],
         },
         schema_overrides={
@@ -120,9 +119,7 @@ def _build_offer_df(
     """Build a realistic Offer DataFrame with all 23 schema columns."""
     verticals = ["dental", "medical"] * 5
 
-    office_phones: list[str | None] = [
-        f"+1555010{i:04d}" for i in range(n_rows)
-    ]
+    office_phones: list[str | None] = [f"+1555010{i:04d}" for i in range(n_rows)]
     for idx in range(n_rows - null_office_phone_count, n_rows):
         office_phones[idx] = None
 
@@ -140,8 +137,7 @@ def _build_offer_df(
             "is_completed": [False] * n_rows,
             "completed_at": [None] * n_rows,
             "url": [
-                f"https://app.asana.com/0/0/114384366209{i:04d}"
-                for i in range(n_rows)
+                f"https://app.asana.com/0/0/114384366209{i:04d}" for i in range(n_rows)
             ],
             "last_modified": [TS_MODIFIED] * n_rows,
             "section": ["Active"] * n_rows,
@@ -175,9 +171,7 @@ def _build_asset_edit_df(
     priorities = ["High", "Normal"] * 5
     approvals = ["Approved", "Pending"] * 5
 
-    office_phones: list[str | None] = [
-        f"+1555010{i:04d}" for i in range(n_rows)
-    ]
+    office_phones: list[str | None] = [f"+1555010{i:04d}" for i in range(n_rows)]
     for idx in range(n_rows - null_office_phone_count, n_rows):
         office_phones[idx] = None
 
@@ -192,8 +186,7 @@ def _build_asset_edit_df(
             "is_completed": [False] * n_rows,
             "completed_at": [None] * n_rows,
             "url": [
-                f"https://app.asana.com/0/0/120220418456{i:04d}"
-                for i in range(n_rows)
+                f"https://app.asana.com/0/0/120220418456{i:04d}" for i in range(n_rows)
             ],
             "last_modified": [TS_MODIFIED] * n_rows,
             "section": ["In Progress"] * n_rows,
@@ -216,9 +209,7 @@ def _build_asset_edit_df(
             "editor": [f"editor_{i:02d}" for i in range(n_rows)],
             "reviewer": [f"reviewer_{i:02d}" for i in range(n_rows)],
             "offer_id": [100 + i for i in range(n_rows)],
-            "raw_assets": [
-                f"https://drive.google.com/file/{i}" for i in range(n_rows)
-            ],
+            "raw_assets": [f"https://drive.google.com/file/{i}" for i in range(n_rows)],
             "review_all_ads": [i % 2 == 0 for i in range(n_rows)],
             "score": [85.5 + i for i in range(n_rows)],
             "asset_edit_specialty": [["video", "static"]] * n_rows,
@@ -241,9 +232,7 @@ def _build_asset_edit_holder_df(
     null_office_phone_count: int = 0,
 ) -> pl.DataFrame:
     """Build a realistic AssetEditHolder DataFrame with all 14 schema columns."""
-    office_phones: list[str | None] = [
-        f"+1555010{i:04d}" for i in range(n_rows)
-    ]
+    office_phones: list[str | None] = [f"+1555010{i:04d}" for i in range(n_rows)]
     for idx in range(n_rows - null_office_phone_count, n_rows):
         office_phones[idx] = None
 
@@ -258,8 +247,7 @@ def _build_asset_edit_holder_df(
             "is_completed": [False] * n_rows,
             "completed_at": [None] * n_rows,
             "url": [
-                f"https://app.asana.com/0/0/120399266440{i:04d}"
-                for i in range(n_rows)
+                f"https://app.asana.com/0/0/120399266440{i:04d}" for i in range(n_rows)
             ],
             "last_modified": [TS_MODIFIED] * n_rows,
             "section": ["Active"] * n_rows,
@@ -446,7 +434,12 @@ class TestCascadeChainHealthy:
         """
         entities_and_key_columns = [
             ("business", _build_business_df, BUSINESS_SCHEMA, ("office_phone",)),
-            ("offer", _build_offer_df, OFFER_SCHEMA, ("office_phone", "vertical", "offer_id")),
+            (
+                "offer",
+                _build_offer_df,
+                OFFER_SCHEMA,
+                ("office_phone", "vertical", "offer_id"),
+            ),
             (
                 "asset_edit",
                 _build_asset_edit_df,
@@ -680,12 +673,14 @@ class TestDynamicIndexMultiKey:
         )
         # Row i=5: office_phone="+15550100005", vertical="dental",
         #          asset_id="AST-000005", offer_id=105 (Int64 -> "105")
-        gids = index.lookup({
-            "office_phone": "+15550100005",
-            "vertical": "dental",
-            "asset_id": "AST-000005",
-            "offer_id": "105",
-        })
+        gids = index.lookup(
+            {
+                "office_phone": "+15550100005",
+                "vertical": "dental",
+                "asset_id": "AST-000005",
+                "offer_id": "105",
+            }
+        )
         assert gids == ["1202204184560005"]
 
     def test_partial_key_mismatch_returns_empty(self) -> None:
@@ -696,12 +691,14 @@ class TestDynamicIndexMultiKey:
             key_columns=["office_phone", "vertical", "asset_id", "offer_id"],
             value_column="gid",
         )
-        gids = index.lookup({
-            "office_phone": "+15550100005",
-            "vertical": "dental",
-            "asset_id": "AST-000005",
-            "offer_id": "999",  # Wrong offer_id
-        })
+        gids = index.lookup(
+            {
+                "office_phone": "+15550100005",
+                "vertical": "dental",
+                "asset_id": "AST-000005",
+                "offer_id": "999",  # Wrong offer_id
+            }
+        )
         assert gids == []
 
     def test_offer_triple_key_lookup(self) -> None:
@@ -713,11 +710,13 @@ class TestDynamicIndexMultiKey:
             value_column="gid",
         )
         # Row i=6: vertical = verticals[6 % 2] = "dental", offer_id = "OID-0006"
-        gids = index.lookup({
-            "office_phone": "+15550100006",
-            "vertical": "dental",
-            "offer_id": "OID-0006",
-        })
+        gids = index.lookup(
+            {
+                "office_phone": "+15550100006",
+                "vertical": "dental",
+                "offer_id": "OID-0006",
+            }
+        )
         assert gids == ["1143843662090006"]
 
     def test_contains_check_works_for_compound_key(self) -> None:
@@ -728,18 +727,22 @@ class TestDynamicIndexMultiKey:
             key_columns=["office_phone", "vertical", "asset_id", "offer_id"],
             value_column="gid",
         )
-        assert index.contains({
-            "office_phone": "+15550100002",
-            "vertical": "dental",
-            "asset_id": "AST-000002",
-            "offer_id": "102",
-        })
-        assert not index.contains({
-            "office_phone": "+15550100002",
-            "vertical": "dental",
-            "asset_id": "AST-000002",
-            "offer_id": "999",
-        })
+        assert index.contains(
+            {
+                "office_phone": "+15550100002",
+                "vertical": "dental",
+                "asset_id": "AST-000002",
+                "offer_id": "102",
+            }
+        )
+        assert not index.contains(
+            {
+                "office_phone": "+15550100002",
+                "vertical": "dental",
+                "asset_id": "AST-000002",
+                "offer_id": "999",
+            }
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -761,9 +764,7 @@ class TestCascadeHealthEdgeCases:
 
     def test_all_nulls_is_degraded(self) -> None:
         """100% null cascade key columns = degraded."""
-        df = _build_asset_edit_holder_df(
-            n_rows=N_ROWS, null_office_phone_count=N_ROWS
-        )
+        df = _build_asset_edit_holder_df(n_rows=N_ROWS, null_office_phone_count=N_ROWS)
         result = check_cascade_health(
             df, "asset_edit_holder", ASSET_EDIT_HOLDER_SCHEMA, ("office_phone",)
         )

@@ -178,7 +178,9 @@ class TestCheckCascadeHealthHealthy:
         """Exactly 20% null rate should pass (threshold is > not >=)."""
         total = 100
         null_count = 20  # exactly 20%
-        phones = [None] * null_count + ["+1555" + str(i).zfill(7) for i in range(total - null_count)]
+        phones = [None] * null_count + [
+            "+1555" + str(i).zfill(7) for i in range(total - null_count)
+        ]
         df = pl.DataFrame(
             {
                 "gid": [f"g{i}" for i in range(total)],
@@ -208,7 +210,9 @@ class TestCheckCascadeHealthSingleDegraded:
     def test_single_column_above_threshold(self) -> None:
         total = 100
         null_count = 25  # 25% > 20%
-        phones = [None] * null_count + ["+1555" + str(i).zfill(7) for i in range(total - null_count)]
+        phones = [None] * null_count + [
+            "+1555" + str(i).zfill(7) for i in range(total - null_count)
+        ]
         df = pl.DataFrame(
             {
                 "gid": [f"g{i}" for i in range(total)],
@@ -249,10 +253,12 @@ class TestCheckCascadeHealthMultipleDegraded:
                 "vertical": verticals,
             }
         )
-        schema = _make_schema([
-            ("office_phone", "Office Phone"),
-            ("vertical", "Vertical"),
-        ])
+        schema = _make_schema(
+            [
+                ("office_phone", "Office Phone"),
+                ("vertical", "Vertical"),
+            ]
+        )
         result = check_cascade_health(
             df=df,
             entity_type="offer",
@@ -422,7 +428,9 @@ class TestResolveGroupCascadeNotReady:
 
         total = 100
         null_count = 30  # 30% > 20%
-        phones = [None] * null_count + ["+1555" + str(i).zfill(7) for i in range(total - null_count)]
+        phones = [None] * null_count + [
+            "+1555" + str(i).zfill(7) for i in range(total - null_count)
+        ]
         degraded_df = pl.DataFrame(
             {
                 "gid": [f"g{i}" for i in range(total)],

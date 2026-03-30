@@ -183,8 +183,7 @@ class TestPipelineTypeRegistryValidation:
         # Per ADR-pipeline-stage-aggregation: all 9 pipeline GIDs are now
         # registered as warmable entities in EntityRegistry. No warnings expected.
         pipeline_warnings = [
-            w for w in result.warnings
-            if "PIPELINE_TYPE_BY_PROJECT_GID" in w
+            w for w in result.warnings if "PIPELINE_TYPE_BY_PROJECT_GID" in w
         ]
         assert len(pipeline_warnings) == 0
 
@@ -206,10 +205,7 @@ class TestPipelineTypeRegistryValidation:
                 check_pipeline_type_registry=True,
             )
         assert not result.ok
-        assert any(
-            "wrong_name" in e and "unit" in e
-            for e in result.errors
-        )
+        assert any("wrong_name" in e and "unit" in e for e in result.errors)
 
     def test_pipeline_type_check_disabled(self):
         """When check_pipeline_type_registry=False, no pipeline warnings."""
@@ -219,7 +215,6 @@ class TestPipelineTypeRegistryValidation:
             check_pipeline_type_registry=False,
         )
         pipeline_warnings = [
-            w for w in result.warnings
-            if "PIPELINE_TYPE_BY_PROJECT_GID" in w
+            w for w in result.warnings if "PIPELINE_TYPE_BY_PROJECT_GID" in w
         ]
         assert pipeline_warnings == []

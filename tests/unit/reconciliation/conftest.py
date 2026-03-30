@@ -89,12 +89,14 @@ def make_pipeline_summary_df():
         process_sections: list[str] | None = None,
     ) -> pl.DataFrame:
         n = len(phones) if phones else 1
-        return pl.DataFrame({
-            "office_phone": phones or ["+15551234567"] * n,
-            "vertical": verticals or ["dental"] * n,
-            "latest_process_type": process_types or ["onboarding"] * n,
-            "latest_process_section": process_sections or ["ACTIVE"] * n,
-        })
+        return pl.DataFrame(
+            {
+                "office_phone": phones or ["+15551234567"] * n,
+                "vertical": verticals or ["dental"] * n,
+                "latest_process_type": process_types or ["onboarding"] * n,
+                "latest_process_section": process_sections or ["ACTIVE"] * n,
+            }
+        )
 
     return _make_pipeline_summary_df
 

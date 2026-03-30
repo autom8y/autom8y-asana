@@ -57,13 +57,17 @@ def _make_schema_with_cascade(col_name: str, field_name: str) -> MagicMock:
     return schema
 
 
-def _make_df_with_null_rate(col_name: str, null_rate: float, total_rows: int = 100) -> pl.DataFrame:
+def _make_df_with_null_rate(
+    col_name: str, null_rate: float, total_rows: int = 100
+) -> pl.DataFrame:
     """Build a DataFrame where ``col_name`` has the given null rate.
 
     Produces ``total_rows`` rows: ``null_count`` nulls followed by non-null values.
     """
     null_count = int(null_rate * total_rows)
-    values: list[str | None] = [None] * null_count + ["value"] * (total_rows - null_count)
+    values: list[str | None] = [None] * null_count + ["value"] * (
+        total_rows - null_count
+    )
     return pl.DataFrame({"gid": [str(i) for i in range(total_rows)], col_name: values})
 
 

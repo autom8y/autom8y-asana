@@ -625,16 +625,12 @@ def create_app() -> FastAPI:
                         "required": True,
                         "content": {
                             "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Task"
-                                }
+                                "schema": {"$ref": "#/components/schemas/Task"}
                             }
                         },
                     },
                     "responses": {
-                        "200": {
-                            "description": "Webhook received and acknowledged"
-                        },
+                        "200": {"description": "Webhook received and acknowledged"},
                         "401": {"description": "Invalid webhook token"},
                         "422": {"description": "Invalid payload"},
                     },

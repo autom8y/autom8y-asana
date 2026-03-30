@@ -206,7 +206,7 @@ OFFER_CLASSIFIER: SectionClassifier = SectionClassifier.from_groups(
             "REJECTIONS / REVIEW",
             "REVIEW OPTIMIZATION",
             "MANUAL",
-            "ONE-OFF",         # Per truth audit: active one-time campaigns
+            "ONE-OFF",  # Per truth audit: active one-time campaigns
         },
         "activating": {
             "ACTIVATING",
@@ -224,7 +224,7 @@ OFFER_CLASSIFIER: SectionClassifier = SectionClassifier.from_groups(
             "Sales Process",
             "Complete",
             "Plays",
-            "PLAYS",           # Per truth audit: template/reference section
+            "PLAYS",  # Per truth audit: template/reference section
             "Performance Concerns",
             "PERFORMANCE CONCERNS",
         },
@@ -245,8 +245,8 @@ UNIT_CLASSIFIER: SectionClassifier = SectionClassifier.from_groups(
             "Implementing",
             "Delayed",
             "Preview",
-            "Engaged",       # Per truth audit: forward momentum, not inactive
-            "Scheduled",     # Per truth audit: scheduled interaction = activating
+            "Engaged",  # Per truth audit: forward momentum, not inactive
+            "Scheduled",  # Per truth audit: scheduled interaction = activating
         },
         "inactive": {
             "Unengaged",
@@ -254,7 +254,7 @@ UNIT_CLASSIFIER: SectionClassifier = SectionClassifier.from_groups(
             "Cancelled",
             "No Start",
             "Account Review",  # Per truth audit: moved from EXCLUDED to INACTIVE
-            "Account Error",   # Per truth audit: moved from EXCLUDED to INACTIVE
+            "Account Error",  # Per truth audit: moved from EXCLUDED to INACTIVE
         },
         "ignored": {
             "Templates",
@@ -282,12 +282,25 @@ UNIT_CLASSIFIER: SectionClassifier = SectionClassifier.from_groups(
 #   - VIDEO ONLY is IGNORED (not inactive)
 #   - CONVERTED and COMPLETED are terminal end-states -> IGNORED
 _DEFAULT_PROCESS_SECTIONS: dict[str, set[str]] = {
-    "active": {"ACTIVE", "EXECUTING", "BUILDING", "PROCESSING", "OPPORTUNITY", "CONTACTED"},
+    "active": {
+        "ACTIVE",
+        "EXECUTING",
+        "BUILDING",
+        "PROCESSING",
+        "OPPORTUNITY",
+        "CONTACTED",
+    },
     "activating": {"SCHEDULED", "REQUESTED", "DELAYED"},
     "inactive": {"INACTIVE", "DID NOT CONVERT", "MAYBE", "UNPROCESSED"},
     "ignored": {
-        "TEMPLATE", "TEMPLATES", "COMPLETED", "CONVERTED", "TASKS",
-        "FREE MONTH", "VIDEO ONLY", "Untitled section",
+        "TEMPLATE",
+        "TEMPLATES",
+        "COMPLETED",
+        "CONVERTED",
+        "TASKS",
+        "FREE MONTH",
+        "VIDEO ONLY",
+        "Untitled section",
     },
 }
 

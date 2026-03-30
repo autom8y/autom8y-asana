@@ -185,11 +185,7 @@ async def _push_to_data_service(
                 extra={
                     **metric_dimensions,
                     "status_code": response.status_code,
-                    **{
-                        k: v
-                        for k, v in parsed.model_dump().items()
-                        if v is not None
-                    },
+                    **{k: v for k, v in parsed.model_dump().items() if v is not None},
                 },
             )
             return True
@@ -211,7 +207,9 @@ async def _push_to_data_service(
         )
         return False
 
-    except Exception as e:  # BROAD-CATCH: isolation -- push failure must never fail cache warmer
+    except (
+        Exception
+    ) as e:  # BROAD-CATCH: isolation -- push failure must never fail cache warmer
         logger.error(
             f"{log_prefix}_error",
             extra={
@@ -309,7 +307,10 @@ async def push_gid_mappings_to_data_service(
         endpoint_path="/api/v1/gid-mappings/sync",
         payload=payload,
         response_model=GidPushResponse,
-        metric_dimensions={"project_gid": project_gid, "entry_count": str(len(mappings))},
+        metric_dimensions={
+            "project_gid": project_gid,
+            "entry_count": str(len(mappings)),
+        },
         log_prefix="gid_push",
         base_url=base_url,
         token=token,
@@ -322,16 +323,16 @@ async def push_gid_mappings_to_data_service(
 
 # Pipeline type mapping: Asana project GID -> pipeline_type string
 PIPELINE_TYPE_BY_PROJECT_GID: dict[str, str] = {
-    "1201081073731555": "unit",           # Business Units
-    "1200944186565610": "sales",          # Sales
-    "1201319387632570": "onboarding",     # Onboarding
-    "1201753128450029": "outreach",       # Outreach
-    "1201346565918814": "retention",      # Retention
-    "1201265144487549": "reactivation",   # Reactivation
-    "1201265144487557": "expansion",      # Expansion
-    "1201476141989746": "implementation", # Implementation
+    "1201081073731555": "unit",  # Business Units
+    "1200944186565610": "sales",  # Sales
+    "1201319387632570": "onboarding",  # Onboarding
+    "1201753128450029": "outreach",  # Outreach
+    "1201346565918814": "retention",  # Retention
+    "1201265144487549": "reactivation",  # Reactivation
+    "1201265144487557": "expansion",  # Expansion
+    "1201476141989746": "implementation",  # Implementation
     "1201684018234520": "account_error",  # Account Error
-    "1209247943184021": "month1",          # Activation Consultation
+    "1209247943184021": "month1",  # Activation Consultation
 }
 
 # Environment variable to disable status push (emergency kill switch).
@@ -451,14 +452,16 @@ def extract_status_from_dataframe(
         if activity not in (AccountActivity.ACTIVE, AccountActivity.ACTIVATING):
             continue
 
-        entries.append({
-            "phone": phone,
-            "vertical": str(vertical),
-            "pipeline_type": pipeline_type,
-            "account_activity": activity.value,
-            "pipeline_section": section_name,
-            "stage_entered_at": now,  # Overridden by store carry-forward logic
-        })
+        entries.append(
+            {
+                "phone": phone,
+                "vertical": str(vertical),
+                "pipeline_type": pipeline_type,
+                "account_activity": activity.value,
+                "pipeline_section": section_name,
+                "stage_entered_at": now,  # Overridden by store carry-forward logic
+            }
+        )
 
     return entries
 

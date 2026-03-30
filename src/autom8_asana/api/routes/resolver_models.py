@@ -249,8 +249,13 @@ class ResolutionMeta(BaseModel):
         description="Number of criteria that found no matches.",
         examples=[2],
     )
-    entity_type: str = Field(description="Entity type that was resolved.", examples=["unit"])
-    project_gid: str = Field(description="Asana project GID used for resolution.", examples=["1111111111111111"])
+    entity_type: str = Field(
+        description="Entity type that was resolved.", examples=["unit"]
+    )
+    project_gid: str = Field(
+        description="Asana project GID used for resolution.",
+        examples=["1111111111111111"],
+    )
     available_fields: list[str] = Field(
         default_factory=list, description="Valid field names for this entity type."
     )

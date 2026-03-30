@@ -201,10 +201,20 @@ class TestAdminRefreshValidEntityTypes:
     def test_valid_entity_types_set(self) -> None:
         """VALID_ENTITY_TYPES should contain the expected entity types."""
         expected = {
-            "unit", "business", "offer", "contact", "asset_edit",
-            "process_sales", "process_outreach", "process_onboarding",
-            "process_implementation", "process_month1", "process_retention",
-            "process_reactivation", "process_account_error", "process_expansion",
+            "unit",
+            "business",
+            "offer",
+            "contact",
+            "asset_edit",
+            "process_sales",
+            "process_outreach",
+            "process_onboarding",
+            "process_implementation",
+            "process_month1",
+            "process_retention",
+            "process_reactivation",
+            "process_account_error",
+            "process_expansion",
         }
         assert expected == VALID_ENTITY_TYPES
 

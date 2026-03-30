@@ -224,9 +224,7 @@ def test_openapi_schema_cached(debug_app):
 
 def test_openapi_version_3_2(spec):
     """spec['openapi'] must be exactly '3.2.0' after Sprint-5 migration."""
-    assert spec["openapi"] == "3.2.0", (
-        f"Expected OpenAPI 3.2.0, got {spec['openapi']}"
-    )
+    assert spec["openapi"] == "3.2.0", f"Expected OpenAPI 3.2.0, got {spec['openapi']}"
 
 
 # --- Test 7b: jsonSchemaDialect present ---
@@ -234,7 +232,9 @@ def test_openapi_version_3_2(spec):
 
 def test_json_schema_dialect_present(spec):
     """spec['jsonSchemaDialect'] must reference Draft 2020-12."""
-    assert spec.get("jsonSchemaDialect") == "https://json-schema.org/draft/2020-12/schema", (
+    assert (
+        spec.get("jsonSchemaDialect") == "https://json-schema.org/draft/2020-12/schema"
+    ), (
         f"Expected jsonSchemaDialect for Draft 2020-12, got {spec.get('jsonSchemaDialect')}"
     )
 
@@ -551,9 +551,7 @@ def test_webhooks_top_level_object_exists(spec):
     """
     assert "webhooks" in spec, "Top-level 'webhooks' key missing from spec"
     webhooks = spec["webhooks"]
-    assert "asanaTaskChanged" in webhooks, (
-        "asanaTaskChanged webhook definition missing"
-    )
+    assert "asanaTaskChanged" in webhooks, "asanaTaskChanged webhook definition missing"
     hook_op = webhooks["asanaTaskChanged"].get("post")
     assert hook_op is not None, "asanaTaskChanged must define a 'post' operation"
     assert hook_op.get("operationId") == "receiveAsanaTaskWebhook"

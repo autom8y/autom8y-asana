@@ -206,9 +206,7 @@ class TestCQ01FullRoundTrip:
         # Asana-configured enums that are fetched at runtime.
         # The presence of semantic_type == "enum" confirms correct detection.
 
-    def test_idempotency_middleware_present_in_app(
-        self, app_with_memory_store
-    ) -> None:
+    def test_idempotency_middleware_present_in_app(self, app_with_memory_store) -> None:
         """Verify IdempotencyMiddleware is installed in the real app middleware stack.
 
         Exercises Domain B: The middleware stack built by create_app() includes
@@ -568,7 +566,10 @@ class TestCQ05CascadeExceptionLogging:
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                 if node.func.id == "isinstance" and len(node.args) >= 2:
                     type_arg = node.args[1]
-                    if isinstance(type_arg, ast.Name) and type_arg.id == "BaseException":
+                    if (
+                        isinstance(type_arg, ast.Name)
+                        and type_arg.id == "BaseException"
+                    ):
                         found_base_exception_check = True
 
         assert found_base_exception_check, (
@@ -675,8 +676,7 @@ class TestCQ06CascadeCycleDetection:
             warning_calls = [
                 c
                 for c in mock_logger.warning.call_args_list
-                if len(c[0]) > 0
-                and c[0][0] == "cascade_topological_cycle_detected"
+                if len(c[0]) > 0 and c[0][0] == "cascade_topological_cycle_detected"
             ]
             assert len(warning_calls) == 1, (
                 f"Expected exactly 1 cycle detection warning, "
@@ -724,8 +724,7 @@ class TestCQ07MiddlewareReExport:
 
         assert hasattr(mw_pkg, "__all__"), "middleware package must define __all__"
         assert "IdempotencyMiddleware" in mw_pkg.__all__, (
-            f"'IdempotencyMiddleware' not in __all__. "
-            f"Current __all__: {mw_pkg.__all__}"
+            f"'IdempotencyMiddleware' not in __all__. Current __all__: {mw_pkg.__all__}"
         )
 
     def test_all_core_middleware_re_exported(self) -> None:

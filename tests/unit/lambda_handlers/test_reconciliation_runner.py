@@ -277,9 +277,7 @@ class TestDataFrameAvailability:
         mock_cache = MagicMock()
         mock_cache.get_async = AsyncMock(
             side_effect=lambda gid, et: (
-                _make_cache_entry(dataframe=MagicMock())
-                if et == "unit"
-                else None
+                _make_cache_entry(dataframe=MagicMock()) if et == "unit" else None
             )
         )
 
@@ -397,9 +395,7 @@ class TestHappyPath:
                 assert config.dry_run is True
 
                 # Executor called with actions, dry_run=True
-                mock_executor.assert_called_once_with(
-                    mock_actions, dry_run=True
-                )
+                mock_executor.assert_called_once_with(mock_actions, dry_run=True)
 
                 # Report built and emitted
                 mock_build.assert_called_once_with(mock_processor_result)
