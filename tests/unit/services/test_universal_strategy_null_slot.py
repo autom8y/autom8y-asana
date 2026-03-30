@@ -70,9 +70,7 @@ class TestNullSlotLogging:
                 "autom8_asana.dataframes.builders.base.gather_with_limit",
                 side_effect=noop_gather,
             ),
-            patch(
-                "autom8_asana.services.universal_strategy.logger"
-            ) as mock_logger,
+            patch("autom8_asana.services.universal_strategy.logger") as mock_logger,
         ):
             results = await strategy.resolve(
                 criteria=[{"phone": "+15551234567"}],
@@ -123,9 +121,7 @@ class TestNullSlotLogging:
                 "autom8_asana.dataframes.builders.base.gather_with_limit",
                 side_effect=noop_gather,
             ),
-            patch(
-                "autom8_asana.services.universal_strategy.logger"
-            ) as mock_logger,
+            patch("autom8_asana.services.universal_strategy.logger") as mock_logger,
         ):
             results = await strategy.resolve(
                 criteria=[
@@ -155,11 +151,7 @@ class TestNullSlotLogging:
 
         # All should reference "offer" entity type
         for call in error_calls:
-            extra = (
-                call.kwargs["extra"]
-                if "extra" in call.kwargs
-                else call[1]["extra"]
-            )
+            extra = call.kwargs["extra"] if "extra" in call.kwargs else call[1]["extra"]
             assert extra["entity_type"] == "offer"
 
     @pytest.mark.asyncio()
@@ -189,9 +181,7 @@ class TestNullSlotLogging:
                 "autom8_asana.services.resolver.validate_criterion_for_entity",
                 return_value=mock_validation,
             ),
-            patch(
-                "autom8_asana.services.universal_strategy.logger"
-            ) as mock_logger,
+            patch("autom8_asana.services.universal_strategy.logger") as mock_logger,
         ):
             results = await strategy.resolve(
                 criteria=[{"phone": "+15551234567"}],

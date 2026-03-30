@@ -46,7 +46,11 @@ PROCESS_SCHEMA = DataFrameSchema(
     task_type="Process",
     columns=[
         *BASE_COLUMNS,
-        *[c for c in PROCESS_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
+        *[
+            c
+            for c in PROCESS_COLUMNS
+            if c.name not in {col.name for col in BASE_COLUMNS}
+        ],
     ],
     version="1.0.0",
 )

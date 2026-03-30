@@ -47,9 +47,7 @@ def otel_provider():
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     trace.set_tracer_provider(provider)
 
-    fresh_tracer = provider.get_tracer(
-        "autom8_asana.services.universal_strategy"
-    )
+    fresh_tracer = provider.get_tracer("autom8_asana.services.universal_strategy")
     original_tracer = _strategy_module._tracer
     _strategy_module._tracer = fresh_tracer
 
@@ -131,7 +129,9 @@ class TestStrategyResolveSpan:
                 "autom8_asana.services.resolver.validate_criterion_for_entity",
                 return_value=mock_validation,
             ),
-            patch.object(strategy, "_get_or_build_index", AsyncMock(return_value=index)),
+            patch.object(
+                strategy, "_get_or_build_index", AsyncMock(return_value=index)
+            ),
             patch.object(strategy, "_get_dataframe", AsyncMock(return_value=None)),
         ):
             results = await strategy.resolve(
@@ -143,9 +143,7 @@ class TestStrategyResolveSpan:
         assert len(results) == 1
 
         spans = exporter.get_finished_spans()
-        resolve_spans = [
-            s for s in spans if s.name == "strategy.resolution.resolve"
-        ]
+        resolve_spans = [s for s in spans if s.name == "strategy.resolution.resolve"]
         assert len(resolve_spans) == 1, (
             f"Expected 1 'strategy.resolution.resolve' span, got "
             f"{[s.name for s in spans]}"
@@ -195,20 +193,18 @@ class TestStrategyResolveSpan:
         assert results[0].error == "RESOLUTION_NULL_SLOT"
 
         spans = exporter.get_finished_spans()
-        resolve_spans = [
-            s for s in spans if s.name == "strategy.resolution.resolve"
-        ]
+        resolve_spans = [s for s in spans if s.name == "strategy.resolution.resolve"]
         assert len(resolve_spans) == 1
 
         span = resolve_spans[0]
         attrs = dict(span.attributes)
 
         assert attrs["strategy.null_slot_count"] == 1
-        assert span.status.status_code == StatusCode.UNSET  # diagnostic, not a hard fail
+        assert (
+            span.status.status_code == StatusCode.UNSET
+        )  # diagnostic, not a hard fail
 
-        null_slot_events = [
-            e for e in span.events if e.name == "resolution.null_slot"
-        ]
+        null_slot_events = [e for e in span.events if e.name == "resolution.null_slot"]
         assert len(null_slot_events) == 1
 
         event_attrs = dict(null_slot_events[0].attributes)
@@ -239,7 +235,9 @@ class TestStrategyResolveGroupSpan:
                 "autom8_asana.services.resolver.validate_criterion_for_entity",
                 return_value=mock_validation,
             ),
-            patch.object(strategy, "_get_or_build_index", AsyncMock(return_value=index)),
+            patch.object(
+                strategy, "_get_or_build_index", AsyncMock(return_value=index)
+            ),
             patch.object(strategy, "_get_dataframe", AsyncMock(return_value=None)),
         ):
             await strategy.resolve(
@@ -356,7 +354,9 @@ class TestStrategyResolveGroupSpan:
                 "autom8_asana.services.resolver.validate_criterion_for_entity",
                 side_effect=validation_side_effect,
             ),
-            patch.object(strategy, "_get_or_build_index", AsyncMock(return_value=index)),
+            patch.object(
+                strategy, "_get_or_build_index", AsyncMock(return_value=index)
+            ),
             patch.object(strategy, "_get_dataframe", AsyncMock(return_value=None)),
         ):
             results = await strategy.resolve(

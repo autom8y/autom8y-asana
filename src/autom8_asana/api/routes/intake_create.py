@@ -49,7 +49,9 @@ __all__ = ["router"]
 
 logger = get_logger(__name__)
 
-router = s2s_router(prefix="/v1/intake", tags=["intake-create"], include_in_schema=False)
+router = s2s_router(
+    prefix="/v1/intake", tags=["intake-create"], include_in_schema=False
+)
 
 
 # ---------------------------------------------------------------------------

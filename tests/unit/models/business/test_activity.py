@@ -382,7 +382,9 @@ class TestOfferClassifier:
         assert "system error" in active
 
     def test_active_section_count(self) -> None:
-        assert len(OFFER_CLASSIFIER.active_sections()) == 22  # +1: ONE-OFF per truth audit
+        assert (
+            len(OFFER_CLASSIFIER.active_sections()) == 22
+        )  # +1: ONE-OFF per truth audit
 
     def test_activating_sections(self) -> None:
         activating = OFFER_CLASSIFIER.sections_for(AccountActivity.ACTIVATING)
@@ -415,7 +417,9 @@ class TestOfferClassifier:
             + len(OFFER_CLASSIFIER.sections_for(AccountActivity.INACTIVE))
             + len(OFFER_CLASSIFIER.sections_for(AccountActivity.IGNORED))
         )
-        assert total == 34  # +1 ONE-OFF (active) per truth audit; PLAYS/PERFORMANCE CONCERNS case variants collapse
+        assert (
+            total == 34
+        )  # +1 ONE-OFF (active) per truth audit; PLAYS/PERFORMANCE CONCERNS case variants collapse
 
     def test_classify_optimize_sections(self) -> None:
         assert (
@@ -501,7 +505,9 @@ class TestUnitClassifier:
         # Per truth audit: "account review" and "account error" added as INACTIVE
         assert "account review" in inactive
         assert "account error" in inactive
-        assert len(inactive) == 6  # -2 (engaged, scheduled) +2 (account review, account error)
+        assert (
+            len(inactive) == 6
+        )  # -2 (engaged, scheduled) +2 (account review, account error)
 
     def test_ignored_sections(self) -> None:
         ignored = UNIT_CLASSIFIER.sections_for(AccountActivity.IGNORED)
@@ -704,10 +710,7 @@ class TestProcessPipelineClassifiers:
         classifier = get_classifier(pipeline_type)
         assert classifier is not None
         # Sum all categories
-        total = sum(
-            len(classifier.sections_for(cat))
-            for cat in AccountActivity
-        )
+        total = sum(len(classifier.sections_for(cat)) for cat in AccountActivity)
         assert total > 0, f"Classifier for {pipeline_type} has no mapped sections"
 
     # --- Config completeness: every category in PROCESS_PIPELINE_SECTIONS

@@ -1403,17 +1403,19 @@ class TestEntityTypeBindingRegression:
     # They share the conceptual "Process" entity type but are registered as
     # 9 separate entities to work within the 1-entity-1-project warming
     # infrastructure. See ADR-pipeline-stage-aggregation.
-    _PIPELINE_PROCESS_NAMES = frozenset({
-        "process_sales",
-        "process_outreach",
-        "process_onboarding",
-        "process_implementation",
-        "process_month1",
-        "process_retention",
-        "process_reactivation",
-        "process_account_error",
-        "process_expansion",
-    })
+    _PIPELINE_PROCESS_NAMES = frozenset(
+        {
+            "process_sales",
+            "process_outreach",
+            "process_onboarding",
+            "process_implementation",
+            "process_month1",
+            "process_retention",
+            "process_reactivation",
+            "process_account_error",
+            "process_expansion",
+        }
+    )
 
     def test_all_warmable_entities_have_entity_type(self) -> None:
         """Every warmable entity has a non-None entity_type after binding.

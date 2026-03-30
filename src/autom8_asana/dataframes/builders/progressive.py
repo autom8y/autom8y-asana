@@ -562,10 +562,14 @@ class ProgressiveProjectBuilder:
         # don't register in HierarchyIndex. Reconstruct from parent_gid column
         # so Step 5.5 cascade validation can resolve parent chains.
         if total_rows > 0 and self._hierarchy_warmer is not None:
-            reconstructed = self._hierarchy_warmer.reconstruct_hierarchy_from_dataframe(merged_df)
+            reconstructed = self._hierarchy_warmer.reconstruct_hierarchy_from_dataframe(
+                merged_df
+            )
             if reconstructed > 0:
                 # Step 5.3: Warm hierarchy gaps (e.g. unit_holder → business links)
-                warmed = await self._hierarchy_warmer.warm_hierarchy_gaps_async(merged_df)
+                warmed = await self._hierarchy_warmer.warm_hierarchy_gaps_async(
+                    merged_df
+                )
                 logger.info(
                     "hierarchy_gaps_warmed",
                     extra={

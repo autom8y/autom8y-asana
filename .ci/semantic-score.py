@@ -27,12 +27,12 @@ from typing import Any
 
 METRIC_DEFS: dict[str, dict[str, Any]] = {
     "M-01_field_description": {"floor": 0.80, "weight": 0.25},
-    "M-02_field_example":     {"floor": 0.50, "weight": 0.15},
-    "M-03_endpoint_summary":  {"floor": 0.90, "weight": 0.15},
-    "M-04_error_coverage":    {"floor": 0.70, "weight": 0.15},
-    "M-05_type_strictness":   {"floor": 0.90, "weight": 0.15},
+    "M-02_field_example": {"floor": 0.50, "weight": 0.15},
+    "M-03_endpoint_summary": {"floor": 0.90, "weight": 0.15},
+    "M-04_error_coverage": {"floor": 0.70, "weight": 0.15},
+    "M-05_type_strictness": {"floor": 0.90, "weight": 0.15},
     "M-06_extension_completeness": {"floor": 0.30, "weight": 0.10},
-    "M-07_constraint_coverage":    {"floor": 0.60, "weight": 0.05},
+    "M-07_constraint_coverage": {"floor": 0.60, "weight": 0.05},
 }
 
 HTTP_METHODS = frozenset(
@@ -41,11 +41,11 @@ HTTP_METHODS = frozenset(
 MUTATING_METHODS = frozenset(("post", "put", "patch", "delete"))
 
 FLEET_SPECS: dict[str, str] = {
-    "autom8y-data":       "autom8y-data/docs/api-reference/openapi.json",
-    "autom8y-sms":        "autom8y-sms/docs/api-reference/openapi.json",
-    "autom8y-ads":        "autom8y-ads/docs/api-reference/openapi.json",
+    "autom8y-data": "autom8y-data/docs/api-reference/openapi.json",
+    "autom8y-sms": "autom8y-sms/docs/api-reference/openapi.json",
+    "autom8y-ads": "autom8y-ads/docs/api-reference/openapi.json",
     "autom8y-scheduling": "autom8y-scheduling/docs/api-reference/openapi.json",
-    "autom8y-asana":      "autom8y-asana/docs/api-reference/openapi.json",
+    "autom8y-asana": "autom8y-asana/docs/api-reference/openapi.json",
 }
 
 # ---------------------------------------------------------------------------
@@ -108,9 +108,7 @@ def _safe_ratio(numerator: int, denominator: int) -> float:
 def compute_m01(properties: list[dict]) -> dict:
     """M-01: Field description coverage."""
     total = len(properties)
-    with_desc = sum(
-        1 for p in properties if p.get("description", "").strip()
-    )
+    with_desc = sum(1 for p in properties if p.get("description", "").strip())
     score = _safe_ratio(with_desc, total)
     return {"score": round(score, 4), "numerator": with_desc, "denominator": total}
 
@@ -118,9 +116,7 @@ def compute_m01(properties: list[dict]) -> dict:
 def compute_m02(properties: list[dict]) -> dict:
     """M-02: Field example coverage."""
     total = len(properties)
-    with_example = sum(
-        1 for p in properties if "example" in p or "examples" in p
-    )
+    with_example = sum(1 for p in properties if "example" in p or "examples" in p)
     score = _safe_ratio(with_example, total)
     return {"score": round(score, 4), "numerator": with_example, "denominator": total}
 
@@ -128,9 +124,7 @@ def compute_m02(properties: list[dict]) -> dict:
 def compute_m03(operations: list[tuple[str, dict]]) -> dict:
     """M-03: Endpoint summary coverage."""
     total = len(operations)
-    with_summary = sum(
-        1 for (_m, op) in operations if op.get("summary", "").strip()
-    )
+    with_summary = sum(1 for (_m, op) in operations if op.get("summary", "").strip())
     score = _safe_ratio(with_summary, total)
     return {"score": round(score, 4), "numerator": with_summary, "denominator": total}
 
@@ -142,8 +136,7 @@ def compute_m04(operations: list[tuple[str, dict]]) -> dict:
     for _m, op in operations:
         responses = op.get("responses", {})
         has_error = any(
-            str(code).startswith("4") or str(code).startswith("5")
-            for code in responses
+            str(code).startswith("4") or str(code).startswith("5") for code in responses
         )
         if has_error:
             with_error += 1
@@ -181,16 +174,20 @@ def compute_m06(operations: list[tuple[str, dict]]) -> dict:
 
 def compute_m07(properties: list[dict]) -> dict:
     """M-07: Constraint coverage on numeric properties."""
-    constraint_keys = {"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "enum"}
+    constraint_keys = {
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "enum",
+    }
     numeric: list[dict] = []
     for p in properties:
         ptype = p.get("type", "")
         if ptype in ("integer", "number"):
             numeric.append(p)
     total = len(numeric)
-    constrained = sum(
-        1 for p in numeric if any(k in p for k in constraint_keys)
-    )
+    constrained = sum(1 for p in numeric if any(k in p for k in constraint_keys))
     score = _safe_ratio(constrained, total)
     return {"score": round(score, 4), "numerator": constrained, "denominator": total}
 
@@ -206,13 +203,13 @@ def score_spec(spec: dict, spec_path: str) -> dict:
     operations = collect_operations(spec)
 
     raw_metrics = {
-        "M-01_field_description":      compute_m01(properties),
-        "M-02_field_example":          compute_m02(properties),
-        "M-03_endpoint_summary":       compute_m03(operations),
-        "M-04_error_coverage":         compute_m04(operations),
-        "M-05_type_strictness":        compute_m05(properties),
+        "M-01_field_description": compute_m01(properties),
+        "M-02_field_example": compute_m02(properties),
+        "M-03_endpoint_summary": compute_m03(operations),
+        "M-04_error_coverage": compute_m04(operations),
+        "M-05_type_strictness": compute_m05(properties),
         "M-06_extension_completeness": compute_m06(operations),
-        "M-07_constraint_coverage":    compute_m07(properties),
+        "M-07_constraint_coverage": compute_m07(properties),
     }
 
     # Attach floor/weight and pass/fail to each metric
@@ -257,12 +254,14 @@ def compare_baseline(current: dict, baseline: dict) -> dict:
             continue
         delta = round(cur["score"] - base["score"], 4)
         if delta < 0:
-            regressions.append({
-                "metric": metric_id,
-                "baseline": base["score"],
-                "current": cur["score"],
-                "delta": delta,
-            })
+            regressions.append(
+                {
+                    "metric": metric_id,
+                    "baseline": base["score"],
+                    "current": cur["score"],
+                    "delta": delta,
+                }
+            )
 
     current["regressions"] = regressions
     current["regression_safe"] = len(regressions) == 0

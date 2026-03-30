@@ -182,8 +182,13 @@ class TestSI03HumanReadablePrefix:
 
     def test_prefix_contains_no_yaml_syntax(self) -> None:
         """Human-readable prefix must not contain YAML structural markers."""
-        yaml_markers = ("semantic:", "business_meaning:", "cascade_behavior:",
-                        "data_type_semantic:", "resolution_impact:")
+        yaml_markers = (
+            "semantic:",
+            "business_meaning:",
+            "cascade_behavior:",
+            "data_type_semantic:",
+            "resolution_impact:",
+        )
         violations = []
         for schema_name, schema in _all_schemas().items():
             enriched = enrich_schema(schema, include_semantic=True)
@@ -197,8 +202,7 @@ class TestSI03HumanReadablePrefix:
                             )
 
         assert not violations, (
-            "Human-readable prefix contains YAML markers:\n"
-            + "\n".join(violations)
+            "Human-readable prefix contains YAML markers:\n" + "\n".join(violations)
         )
 
 
@@ -232,9 +236,7 @@ class TestSI04YAMLParses:
                             f"{type(parsed).__name__}, expected dict"
                         )
 
-        assert not failures, (
-            "YAML parse failures:\n" + "\n".join(failures)
-        )
+        assert not failures, "YAML parse failures:\n" + "\n".join(failures)
 
 
 # ---------------------------------------------------------------------------
@@ -257,9 +259,7 @@ class TestSI05SemanticTopLevelKey:
                     if not isinstance(parsed, dict) or "semantic" not in parsed:
                         missing.append(f"{schema_name}.{col.name}")
 
-        assert not missing, (
-            f"YAML blocks missing 'semantic' top-level key: {missing}"
-        )
+        assert not missing, f"YAML blocks missing 'semantic' top-level key: {missing}"
 
     def test_semantic_key_is_a_dict(self) -> None:
         """The 'semantic' value is itself a dict (not a scalar or list)."""
@@ -278,9 +278,7 @@ class TestSI05SemanticTopLevelKey:
                                 f"semantic value is {type(sem_val).__name__}"
                             )
 
-        assert not non_dict, (
-            "'semantic' value is not a dict:\n" + "\n".join(non_dict)
-        )
+        assert not non_dict, "'semantic' value is not a dict:\n" + "\n".join(non_dict)
 
 
 # ---------------------------------------------------------------------------
@@ -302,8 +300,8 @@ class TestSI06CascadeBehaviorPresence:
             elif "cascade_behavior" not in annotation:
                 missing.append(f"{key}: annotation exists but no cascade_behavior")
 
-        assert not missing, (
-            "Cascade columns missing cascade_behavior:\n" + "\n".join(missing)
+        assert not missing, "Cascade columns missing cascade_behavior:\n" + "\n".join(
+            missing
         )
 
 
@@ -425,8 +423,7 @@ class TestSI09CriticalResolutionImpact:
         assert annotation is not None, f"Annotation {key} does not exist"
         impact = annotation.get("resolution_impact", "")
         assert "CRITICAL" in impact, (
-            f"{key}: resolution_impact does not contain 'CRITICAL'. "
-            f"Got: {impact!r}"
+            f"{key}: resolution_impact does not contain 'CRITICAL'. Got: {impact!r}"
         )
 
 
@@ -594,8 +591,7 @@ class TestSI14UnannotatedColumnsPlain:
                         )
 
         assert not violations, (
-            "Unannotated columns were modified by enrichment:\n"
-            + "\n".join(violations)
+            "Unannotated columns were modified by enrichment:\n" + "\n".join(violations)
         )
 
     def test_unannotated_column_has_no_yaml_delimiter(self) -> None:
@@ -609,9 +605,7 @@ class TestSI14UnannotatedColumnsPlain:
                     if col.description and YAML_DELIMITER in col.description:
                         violations.append(key)
 
-        assert not violations, (
-            f"Unannotated columns have YAML delimiter: {violations}"
-        )
+        assert not violations, f"Unannotated columns have YAML delimiter: {violations}"
 
 
 # ---------------------------------------------------------------------------

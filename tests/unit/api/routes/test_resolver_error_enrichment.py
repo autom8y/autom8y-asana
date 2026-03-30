@@ -107,8 +107,12 @@ def _build_patches(
     supported_patch = patch(
         "autom8_asana.api.routes.resolver.get_supported_entity_types",
         return_value={
-            "unit", "business", "offer", "contact",
-            "asset_edit", "asset_edit_holder",
+            "unit",
+            "business",
+            "offer",
+            "contact",
+            "asset_edit",
+            "asset_edit_holder",
         },
     )
     return (
@@ -257,7 +261,10 @@ class TestPascalCaseSchemaLookup:
             ("asset_edit", "AssetEdit"),
             ("asset_edit_holder", "AssetEditHolder"),
         ],
-        ids=["EE-001-schema-endpoint-asset_edit", "EE-002-schema-endpoint-asset_edit_holder"],
+        ids=[
+            "EE-001-schema-endpoint-asset_edit",
+            "EE-002-schema-endpoint-asset_edit_holder",
+        ],
     )
     def test_schema_endpoint_uses_pascal_case(
         self,
@@ -271,9 +278,7 @@ class TestPascalCaseSchemaLookup:
         """
         mock_schema = MagicMock()
         mock_schema.columns = [
-            MagicMock(
-                name="gid", source=None, dtype="Utf8", description="Task GID"
-            ),
+            MagicMock(name="gid", source=None, dtype="Utf8", description="Task GID"),
         ]
         mock_schema.version = "2.0"
 
@@ -290,8 +295,12 @@ class TestPascalCaseSchemaLookup:
         supported_patch = patch(
             "autom8_asana.api.routes.resolver.get_supported_entity_types",
             return_value={
-                "unit", "business", "offer", "contact",
-                "asset_edit", "asset_edit_holder",
+                "unit",
+                "business",
+                "offer",
+                "contact",
+                "asset_edit",
+                "asset_edit_holder",
             },
         )
 

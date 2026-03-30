@@ -27,7 +27,9 @@ class BusinessResolveRequest(BaseModel):
         examples=["+19259998806"],
     )
     vertical: str | None = Field(
-        default=None, description="Optional vertical filter to narrow resolution.", examples=["chiro"]
+        default=None,
+        description="Optional vertical filter to narrow resolution.",
+        examples=["chiro"],
     )
 
 
@@ -42,7 +44,8 @@ class BusinessResolveResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     found: bool = Field(
-        description="True if a business was resolved for the given phone.", examples=[True]
+        description="True if a business was resolved for the given phone.",
+        examples=[True],
     )
     task_gid: str | None = Field(
         default=None,
@@ -50,19 +53,27 @@ class BusinessResolveResponse(BaseModel):
         examples=["1234567890123456"],
     )
     name: str | None = Field(
-        default=None, description="Resolved business display name.", examples=["Acme Chiropractic"]
+        default=None,
+        description="Resolved business display name.",
+        examples=["Acme Chiropractic"],
     )
     office_phone: str | None = Field(
-        default=None, description="Office phone echoed back for request correlation.", examples=["+19259998806"]
+        default=None,
+        description="Office phone echoed back for request correlation.",
+        examples=["+19259998806"],
     )
     vertical: str | None = Field(
         default=None, description="Resolved business vertical.", examples=["chiro"]
     )
     company_id: str | None = Field(
-        default=None, description="External company GUID. Null if not onboarded.", examples=["b1c2d3e4-f5a6-7890-bcde-f12345678901"]
+        default=None,
+        description="External company GUID. Null if not onboarded.",
+        examples=["b1c2d3e4-f5a6-7890-bcde-f12345678901"],
     )
     has_unit: bool = Field(
-        default=False, description="True if a unit subtask exists under the business.", examples=[True]
+        default=False,
+        description="True if a unit subtask exists under the business.",
+        examples=[True],
     )
     has_contact_holder: bool = Field(
         default=False,
@@ -119,12 +130,20 @@ class ContactResolveResponse(BaseModel):
         description="Asana task GID of the resolved contact. Null when not found.",
         examples=["1234567890123457"],
     )
-    name: str | None = Field(default=None, description="Resolved contact display name.", examples=["Dr. Jane Smith"])
+    name: str | None = Field(
+        default=None,
+        description="Resolved contact display name.",
+        examples=["Dr. Jane Smith"],
+    )
     email: str | None = Field(
-        default=None, description="Resolved contact email address.", examples=["jane@acmechiro.com"]
+        default=None,
+        description="Resolved contact email address.",
+        examples=["jane@acmechiro.com"],
     )
     phone: str | None = Field(
-        default=None, description="Resolved contact phone number.", examples=["+14155551234"]
+        default=None,
+        description="Resolved contact phone number.",
+        examples=["+14155551234"],
     )
     match_field: str | None = Field(
         default=None,

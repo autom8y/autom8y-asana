@@ -1467,7 +1467,9 @@ class SaveSession:
             # Per ADR-0047: Fail-fast validation for positioning conflict
             if insert_before is not None and insert_after is not None:
                 before_gid = (
-                    insert_before if isinstance(insert_before, str) else insert_before.gid
+                    insert_before
+                    if isinstance(insert_before, str)
+                    else insert_before.gid
                 )
                 after_gid = (
                     insert_after if isinstance(insert_after, str) else insert_after.gid
@@ -1483,7 +1485,9 @@ class SaveSession:
             extra_params: dict[str, Any] = {"parent": parent_gid}
             if insert_before is not None:
                 extra_params["insert_before"] = (
-                    insert_before if isinstance(insert_before, str) else insert_before.gid
+                    insert_before
+                    if isinstance(insert_before, str)
+                    else insert_before.gid
                 )
             if insert_after is not None:
                 extra_params["insert_after"] = (

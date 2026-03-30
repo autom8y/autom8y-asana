@@ -116,9 +116,16 @@ class MatchCandidate(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    candidate_gid: str = Field(description="Asana GID of the matched business entity.", examples=["1234567890123456"])
-    score: float = Field(description="Normalized match probability (0.0-1.0).", examples=[0.87])
-    is_match: bool = Field(description="True if score exceeds the match threshold.", examples=[True])
+    candidate_gid: str = Field(
+        description="Asana GID of the matched business entity.",
+        examples=["1234567890123456"],
+    )
+    score: float = Field(
+        description="Normalized match probability (0.0-1.0).", examples=[0.87]
+    )
+    is_match: bool = Field(
+        description="True if score exceeds the match threshold.", examples=[True]
+    )
     field_comparisons: list[MatchFieldComparison] = Field(
         description="Per-field comparison results."
     )

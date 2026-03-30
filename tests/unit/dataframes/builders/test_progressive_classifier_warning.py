@@ -159,7 +159,9 @@ class TestWarnUnclassifiedSections:
         """Mix of classified and unclassified sections: warning only for unclassified ones."""
         classifier = MagicMock()
         # Map: "ACTIVE" -> "active", "UNKNOWN" -> None
-        classifier.classify.side_effect = lambda name: "active" if name == "ACTIVE" else None
+        classifier.classify.side_effect = lambda name: (
+            "active" if name == "ACTIVE" else None
+        )
         mock_get_classifier.return_value = classifier
 
         builder = _make_builder(entity_type="offer", project_gid="proj_456")

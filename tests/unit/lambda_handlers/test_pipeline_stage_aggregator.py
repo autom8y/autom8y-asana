@@ -252,9 +252,7 @@ class TestMultiplePipelineDFs:
             "process_onboarding": df_onboard,
         }
         cache = _make_mock_cache(entity_dfs)
-        mock_registry = _mock_entity_registry(
-            ["process_sales", "process_onboarding"]
-        )
+        mock_registry = _mock_entity_registry(["process_sales", "process_onboarding"])
 
         with stdlib_patch(_REGISTRY_PATCH_TARGET, return_value=mock_registry):
             result = await _aggregate_pipeline_stages(
@@ -582,7 +580,9 @@ class TestErrorIsolation:
     @pytest.mark.asyncio
     async def test_registry_exception_returns_none(self) -> None:
         """Exception in entity registry -> returns None, no crash."""
-        with stdlib_patch(_REGISTRY_PATCH_TARGET, side_effect=RuntimeError("registry boom")):
+        with stdlib_patch(
+            _REGISTRY_PATCH_TARGET, side_effect=RuntimeError("registry boom")
+        ):
             result = await _aggregate_pipeline_stages(
                 completed_entities=["process_sales"],
                 cache=MagicMock(),
@@ -613,9 +613,7 @@ class TestCacheEdgeCases:
         # process_outreach -> None in cache, process_sales -> has data
         entity_dfs = {"process_sales": df_sales}
         cache = _make_mock_cache(entity_dfs)
-        mock_registry = _mock_entity_registry(
-            ["process_sales", "process_outreach"]
-        )
+        mock_registry = _mock_entity_registry(["process_sales", "process_outreach"])
 
         with stdlib_patch(_REGISTRY_PATCH_TARGET, return_value=mock_registry):
             result = await _aggregate_pipeline_stages(
@@ -633,9 +631,7 @@ class TestCacheEdgeCases:
         """All pipeline cache entries are None -> returns None."""
         entity_dfs: dict[str, pl.DataFrame] = {}  # Nothing in cache
         cache = _make_mock_cache(entity_dfs)
-        mock_registry = _mock_entity_registry(
-            ["process_sales", "process_outreach"]
-        )
+        mock_registry = _mock_entity_registry(["process_sales", "process_outreach"])
 
         with stdlib_patch(_REGISTRY_PATCH_TARGET, return_value=mock_registry):
             result = await _aggregate_pipeline_stages(

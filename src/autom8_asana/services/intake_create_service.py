@@ -366,7 +366,9 @@ class IntakeCreateService:
         enum_option_gid = None
         for opt in enum_options:
             opt_name = (
-                opt.get("name", "") if isinstance(opt, dict) else getattr(opt, "name", "")
+                opt.get("name", "")
+                if isinstance(opt, dict)
+                else getattr(opt, "name", "")
             )
             if opt_name and opt_name.lower() == vertical.lower():
                 enum_option_gid = (

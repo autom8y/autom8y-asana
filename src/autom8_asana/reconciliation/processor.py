@@ -63,8 +63,12 @@ DERIVATION_TABLE: dict[str, str] = _load_lifecycle_config().build_derivation_tab
 
 OFFER_ACTIVITY_VALID_UNIT_SECTIONS: dict[AccountActivity, frozenset[str]] = {
     AccountActivity.ACTIVE: frozenset({"Active", "Month 1", "Consulting"}),
-    AccountActivity.ACTIVATING: frozenset({"Onboarding", "Implementing", "Preview", "Engaged", "Scheduled"}),
-    AccountActivity.INACTIVE: frozenset({"Paused", "Unengaged", "Cancelled", "No Start"}),
+    AccountActivity.ACTIVATING: frozenset(
+        {"Onboarding", "Implementing", "Preview", "Engaged", "Scheduled"}
+    ),
+    AccountActivity.INACTIVE: frozenset(
+        {"Paused", "Unengaged", "Cancelled", "No Start"}
+    ),
     AccountActivity.IGNORED: frozenset(),  # No action for terminal offer states
 }
 
@@ -313,7 +317,12 @@ class ReconciliationBatchProcessor:
             return index
 
         columns = set(pipeline_summary.columns)
-        required = {"office_phone", "vertical", "latest_process_type", "latest_process_section"}
+        required = {
+            "office_phone",
+            "vertical",
+            "latest_process_type",
+            "latest_process_section",
+        }
         if not required.issubset(columns):
             logger.warning(
                 "reconciliation_pipeline_summary_missing_columns",
@@ -359,10 +368,18 @@ class ReconciliationBatchProcessor:
         for row_idx in range(len(df)):
             yield {
                 "gid": str(df["gid"][row_idx]) if has_gid else None,
-                "section": str(df["section"][row_idx]) if has_section and df["section"][row_idx] is not None else None,
-                "section_gid": str(df["section_gid"][row_idx]) if has_section_gid and df["section_gid"][row_idx] is not None else None,
-                "phone": str(df["office_phone"][row_idx]) if has_phone and df["office_phone"][row_idx] is not None else None,
-                "vertical": str(df["vertical"][row_idx]) if has_vertical and df["vertical"][row_idx] is not None else "",
+                "section": str(df["section"][row_idx])
+                if has_section and df["section"][row_idx] is not None
+                else None,
+                "section_gid": str(df["section_gid"][row_idx])
+                if has_section_gid and df["section_gid"][row_idx] is not None
+                else None,
+                "phone": str(df["office_phone"][row_idx])
+                if has_phone and df["office_phone"][row_idx] is not None
+                else None,
+                "vertical": str(df["vertical"][row_idx])
+                if has_vertical and df["vertical"][row_idx] is not None
+                else "",
             }
 
     def process(self) -> ProcessorResult:
@@ -443,7 +460,11 @@ class ReconciliationBatchProcessor:
                 continue
 
             # Step 2: Name fallback fires ONLY when GID unavailable
-            if not section_gid and section_name and section_name in EXCLUDED_SECTION_NAMES:
+            if (
+                not section_gid
+                and section_name
+                and section_name in EXCLUDED_SECTION_NAMES
+            ):
                 result.excluded_count += 1
                 logger.debug(
                     "reconciliation_excluded_by_name",
@@ -589,7 +610,8 @@ class ReconciliationBatchProcessor:
                     result.no_op_count += 1
                 else:
                     valid_unit_sections = OFFER_ACTIVITY_VALID_UNIT_SECTIONS.get(
-                        offer_activity, frozenset(),
+                        offer_activity,
+                        frozenset(),
                     )
                     if section_name in valid_unit_sections:
                         # Unit is already in a valid section for this

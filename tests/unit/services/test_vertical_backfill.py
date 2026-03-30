@@ -59,17 +59,21 @@ def _make_task_response(
 
     custom_fields = []
     if has_vertical_cf:
-        custom_fields.append({
-            "gid": vertical_cf_gid,
-            "name": "Vertical",
-            "enum_options": enum_options,
-        })
+        custom_fields.append(
+            {
+                "gid": vertical_cf_gid,
+                "name": "Vertical",
+                "enum_options": enum_options,
+            }
+        )
     # Add a non-Vertical custom field to ensure we filter correctly
-    custom_fields.append({
-        "gid": "cf_222",
-        "name": "Status",
-        "enum_options": [{"gid": "opt_active", "name": "Active"}],
-    })
+    custom_fields.append(
+        {
+            "gid": "cf_222",
+            "name": "Status",
+            "enum_options": [{"gid": "opt_active", "name": "Active"}],
+        }
+    )
 
     return {
         "notes": notes,
@@ -142,18 +146,18 @@ class TestBackfillFromDataframe:
     """Test the main entry point for backfill."""
 
     @pytest.mark.asyncio
-    async def test_identifies_empty_vertical_rows(
-        self, service, mock_client
-    ) -> None:
+    async def test_identifies_empty_vertical_rows(self, service, mock_client) -> None:
         """Rows with null/empty vertical are identified for backfill."""
         mock_client.tasks.get_async.return_value = _make_task_response(
             notes="Vertical: Dental",
         )
 
-        unit_df = pl.DataFrame({
-            "gid": ["task_1", "task_2", "task_3"],
-            "vertical": [None, "", "Dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["task_1", "task_2", "task_3"],
+                "vertical": [None, "", "Dental"],
+            }
+        )
 
         result = await service.backfill_from_dataframe(unit_df)
 
@@ -166,10 +170,12 @@ class TestBackfillFromDataframe:
         self, service, mock_client
     ) -> None:
         """Rows with non-empty vertical are skipped entirely."""
-        unit_df = pl.DataFrame({
-            "gid": ["task_1", "task_2"],
-            "vertical": ["Dental", "Chiropractic"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["task_1", "task_2"],
+                "vertical": ["Dental", "Chiropractic"],
+            }
+        )
 
         result = await service.backfill_from_dataframe(unit_df)
 
@@ -177,14 +183,14 @@ class TestBackfillFromDataframe:
         mock_client.tasks.get_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_skips_rows_without_gid(
-        self, service, mock_client
-    ) -> None:
+    async def test_skips_rows_without_gid(self, service, mock_client) -> None:
         """Rows with missing GID are silently skipped."""
-        unit_df = pl.DataFrame({
-            "gid": [None, "task_2"],
-            "vertical": [None, None],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": [None, "task_2"],
+                "vertical": [None, None],
+            }
+        )
 
         mock_client.tasks.get_async.return_value = _make_task_response(
             notes="Vertical: Dental",
@@ -196,18 +202,18 @@ class TestBackfillFromDataframe:
         assert result.attempted == 1
 
     @pytest.mark.asyncio
-    async def test_vertical_parsed_from_notes(
-        self, service, mock_client
-    ) -> None:
+    async def test_vertical_parsed_from_notes(self, service, mock_client) -> None:
         """Vertical value is extracted from notes and written to custom field."""
         mock_client.tasks.get_async.return_value = _make_task_response(
             notes="Vertical: Dental",
         )
 
-        unit_df = pl.DataFrame({
-            "gid": ["task_1"],
-            "vertical": [None],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["task_1"],
+                "vertical": [None],
+            }
+        )
 
         result = await service.backfill_from_dataframe(unit_df)
 
@@ -228,10 +234,12 @@ class TestBackfillFromDataframe:
             notes="This task has no vertical info",
         )
 
-        unit_df = pl.DataFrame({
-            "gid": ["task_1"],
-            "vertical": [None],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["task_1"],
+                "vertical": [None],
+            }
+        )
 
         result = await service.backfill_from_dataframe(unit_df)
 
@@ -241,9 +249,7 @@ class TestBackfillFromDataframe:
         mock_client.tasks.update_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_result_counts_correct(
-        self, service, mock_client
-    ) -> None:
+    async def test_result_counts_correct(self, service, mock_client) -> None:
         """Result counts reflect attempted, succeeded, skipped, and failed."""
         # task_1: success (Dental in notes)
         # task_2: skip (no vertical in notes)
@@ -267,10 +273,12 @@ class TestBackfillFromDataframe:
 
         mock_client.tasks.get_async.side_effect = side_effect
 
-        unit_df = pl.DataFrame({
-            "gid": ["task_1", "task_2", "task_3", "task_4"],
-            "vertical": [None, None, None, "Dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["task_1", "task_2", "task_3", "task_4"],
+                "vertical": [None, None, None, "Dental"],
+            }
+        )
 
         result = await service.backfill_from_dataframe(unit_df)
 
@@ -303,10 +311,12 @@ class TestBackfillFromDataframe:
 
         mock_client.tasks.get_async.side_effect = side_effect
 
-        unit_df = pl.DataFrame({
-            "gid": ["task_1", "task_2"],
-            "vertical": [None, None],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["task_1", "task_2"],
+                "vertical": [None, None],
+            }
+        )
 
         result = await service.backfill_from_dataframe(unit_df)
 
@@ -316,26 +326,26 @@ class TestBackfillFromDataframe:
         assert result.succeeded == 1
 
     @pytest.mark.asyncio
-    async def test_missing_gid_column_returns_empty_result(
-        self, service
-    ) -> None:
+    async def test_missing_gid_column_returns_empty_result(self, service) -> None:
         """DataFrame without 'gid' column returns empty result."""
-        unit_df = pl.DataFrame({
-            "vertical": [None, None],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "vertical": [None, None],
+            }
+        )
 
         result = await service.backfill_from_dataframe(unit_df)
 
         assert result.attempted == 0
 
     @pytest.mark.asyncio
-    async def test_missing_vertical_column_returns_empty_result(
-        self, service
-    ) -> None:
+    async def test_missing_vertical_column_returns_empty_result(self, service) -> None:
         """DataFrame without 'vertical' column returns empty result."""
-        unit_df = pl.DataFrame({
-            "gid": ["task_1", "task_2"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["task_1", "task_2"],
+            }
+        )
 
         result = await service.backfill_from_dataframe(unit_df)
 
@@ -351,10 +361,12 @@ class TestBackfillFromDataframe:
             has_vertical_cf=False,
         )
 
-        unit_df = pl.DataFrame({
-            "gid": ["task_1"],
-            "vertical": [None],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["task_1"],
+                "vertical": [None],
+            }
+        )
 
         result = await service.backfill_from_dataframe(unit_df)
 
@@ -362,18 +374,18 @@ class TestBackfillFromDataframe:
         mock_client.tasks.update_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_no_matching_enum_option_skipped(
-        self, service, mock_client
-    ) -> None:
+    async def test_no_matching_enum_option_skipped(self, service, mock_client) -> None:
         """Task where vertical value doesn't match any enum option is skipped."""
         mock_client.tasks.get_async.return_value = _make_task_response(
             notes="Vertical: Podiatry",  # Not in enum options
         )
 
-        unit_df = pl.DataFrame({
-            "gid": ["task_1"],
-            "vertical": [None],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["task_1"],
+                "vertical": [None],
+            }
+        )
 
         result = await service.backfill_from_dataframe(unit_df)
 
@@ -381,18 +393,18 @@ class TestBackfillFromDataframe:
         mock_client.tasks.update_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_case_insensitive_enum_matching(
-        self, service, mock_client
-    ) -> None:
+    async def test_case_insensitive_enum_matching(self, service, mock_client) -> None:
         """Enum option matching is case-insensitive."""
         mock_client.tasks.get_async.return_value = _make_task_response(
             notes="Vertical: dental",  # lowercase
         )
 
-        unit_df = pl.DataFrame({
-            "gid": ["task_1"],
-            "vertical": [None],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["task_1"],
+                "vertical": [None],
+            }
+        )
 
         result = await service.backfill_from_dataframe(unit_df)
 

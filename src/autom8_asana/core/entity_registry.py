@@ -1050,9 +1050,7 @@ def _validate_registry_integrity(registry: EntityRegistry) -> None:
     # so typos surface as ValueError, not ImportError at DataFrame build time.
     for desc in registry.all_descriptors():
         if desc.custom_field_resolver_class_path:
-            _module, _, _attr = desc.custom_field_resolver_class_path.rpartition(
-                "."
-            )
+            _module, _, _attr = desc.custom_field_resolver_class_path.rpartition(".")
             if not _module or not _attr:
                 raise ValueError(
                     f"Entity {desc.name!r}: custom_field_resolver_class_path "

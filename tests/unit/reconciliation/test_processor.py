@@ -31,7 +31,9 @@ from autom8_asana.reconciliation.section_registry import (
 class TestProcessorColumnContract:
     """P0-A: Verify processor uses "section" column, not "section_name"."""
 
-    def test_process_with_section_column_succeeds(self, make_unit_df, make_offer_df) -> None:
+    def test_process_with_section_column_succeeds(
+        self, make_unit_df, make_offer_df
+    ) -> None:
         """Processor works correctly with canonical "section" column."""
         unit_df = make_unit_df(
             gids=["unit_1"],
@@ -48,10 +50,12 @@ class TestProcessorColumnContract:
     def test_process_without_section_column_excludes_all(self, make_offer_df) -> None:
         """Units without "section" column are all excluded via no-section path."""
         # DataFrame with NO section column at all
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1", "unit_2"],
-            "office_phone": ["+15551234567", "+15559876543"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1", "unit_2"],
+                "office_phone": ["+15551234567", "+15559876543"],
+            }
+        )
         offer_df = make_offer_df(gids=["offer_1"])
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
@@ -85,13 +89,15 @@ class TestGidExclusion:
     def test_excluded_by_gid(self, make_offer_df) -> None:
         """Units with excluded section GIDs are excluded regardless of name."""
         excluded_gid = next(iter(EXCLUDED_SECTION_GIDS))
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["SomeValidSection"],
-            "section_gid": [excluded_gid],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["SomeValidSection"],
+                "section_gid": [excluded_gid],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         offer_df = make_offer_df(gids=["offer_1"])
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
@@ -102,13 +108,15 @@ class TestGidExclusion:
 
     def test_non_excluded_gid_passes_through(self, make_offer_df) -> None:
         """Units with non-excluded GIDs are processed normally."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "section_gid": ["9999999999999999"],  # Not in excluded set
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "section_gid": ["9999999999999999"],  # Not in excluded set
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         offer_df = make_offer_df(gids=["offer_1"])
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
@@ -130,13 +138,15 @@ class TestNameExclusion:
         This test covers the TC-2 fix-path trap: UNIT_CLASSIFIER.ignored
         has only {"Templates"}, but EXCLUDED_SECTION_NAMES has all 4.
         """
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": [section_name],
-            # No section_gid column -- forces name-based fallback
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": [section_name],
+                # No section_gid column -- forces name-based fallback
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         offer_df = make_offer_df(gids=["offer_1"])
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
@@ -148,13 +158,15 @@ class TestNameExclusion:
 
     def test_name_exclusion_only_fires_when_gid_absent(self, make_offer_df) -> None:
         """Name fallback does NOT fire when section_gid is present."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Templates"],
-            "section_gid": ["9999999999999999"],  # Present but not in excluded GIDs
-            "office_phone": ["+15559876543"],  # Different phone so no offer match
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Templates"],
+                "section_gid": ["9999999999999999"],  # Present but not in excluded GIDs
+                "office_phone": ["+15559876543"],  # Different phone so no offer match
+                "vertical": ["dental"],
+            }
+        )
         offer_df = make_offer_df(gids=["offer_1"])
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
@@ -166,12 +178,14 @@ class TestNameExclusion:
 
     def test_non_excluded_name_passes_through(self, make_offer_df) -> None:
         """Valid section names that are NOT in EXCLUDED_SECTION_NAMES pass through."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         offer_df = make_offer_df(gids=["offer_1"])
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
@@ -198,7 +212,9 @@ class TestNoSectionExclusion:
         assert result.excluded_count == 1
         assert result.skipped_no_section == 1
 
-    def test_mixed_sections_partial_exclusion(self, make_unit_df, make_offer_df) -> None:
+    def test_mixed_sections_partial_exclusion(
+        self, make_unit_df, make_offer_df
+    ) -> None:
         """Mix of valid and null sections produces correct counts.
 
         unit_1 "Active" matches offer "ACTIVE" (classified ACTIVE) and
@@ -256,7 +272,9 @@ class TestEdgeCases:
 
     def test_empty_dataframes(self, make_unit_df, make_offer_df) -> None:
         """Empty DataFrames produce zero-count result."""
-        unit_df = pl.DataFrame({"gid": [], "section": [], "office_phone": [], "vertical": []})
+        unit_df = pl.DataFrame(
+            {"gid": [], "section": [], "office_phone": [], "vertical": []}
+        )
         offer_df = pl.DataFrame({"gid": [], "section": []})
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
@@ -268,12 +286,14 @@ class TestEdgeCases:
 
     def test_no_phone_is_no_op(self, make_offer_df) -> None:
         """Units without phone number are no-ops (cannot match to offers)."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": [None],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": [None],
+                "vertical": ["dental"],
+            }
+        )
         offer_df = make_offer_df(gids=["offer_1"])
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
@@ -296,12 +316,14 @@ class TestPhoneOnlyFallback:
     def test_exact_match_takes_priority_over_fallback(self, make_offer_df) -> None:
         """When composite (phone, vertical) matches, phone-only fallback is NOT used."""
         # Unit "Active" is in OFFER_ACTIVITY_VALID_UNIT_SECTIONS[ACTIVE] -> no-op
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         offer_df = make_offer_df(
             gids=["offer_1"],
             phones=["+15551234567"],
@@ -320,7 +342,8 @@ class TestPhoneOnlyFallback:
         assert ("+15551234567", "dental") in processor._offer_composite_index
 
     def test_phone_only_fallback_activates_when_composite_misses(
-        self, caplog,
+        self,
+        caplog,
     ) -> None:
         """Phone-only fallback activates when (phone, vertical) lookup returns None."""
         # Unit has vertical="" (empty), offer has vertical="dental"
@@ -328,18 +351,22 @@ class TestPhoneOnlyFallback:
         # But phone-only fallback should find the offer.
         # Offer "ACTIVE" classifies as ACTIVE; unit "Paused" is NOT in the
         # ACTIVE valid set -> action to move to "Active".
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Paused"],
-            "office_phone": ["+15551234567"],
-            "vertical": [""],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Paused"],
+                "office_phone": ["+15551234567"],
+                "vertical": [""],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
 
@@ -362,18 +389,22 @@ class TestPhoneOnlyFallback:
         """Mismatch warning is logged when phone-only fallback activates."""
         # Use "Paused" so the offer ACTIVE classification produces an action
         # (not a no-op), confirming the fallback path was actually taken.
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Paused"],
-            "office_phone": ["+15551234567"],
-            "vertical": [""],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Paused"],
+                "office_phone": ["+15551234567"],
+                "vertical": [""],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
 
@@ -384,7 +415,8 @@ class TestPhoneOnlyFallback:
 
         # Check that the mismatch warning was logged
         mismatch_records = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if "reconciliation_vertical_mismatch" in r.getMessage()
             or (hasattr(r, "msg") and "reconciliation_vertical_mismatch" in str(r.msg))
         ]
@@ -396,18 +428,22 @@ class TestPhoneOnlyFallback:
 
     def test_no_match_when_neither_composite_nor_phone_matches(self) -> None:
         """No match is found when phone is not in offer DataFrame at all."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15559999999"],  # Different phone
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15559999999"],  # Different phone
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -423,33 +459,42 @@ class TestPhoneOnlyFallback:
             verticals=["dental", "chiropractic"],
             sections=["ACTIVE", "STAGING"],
         )
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551111111"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551111111"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         processor.process()
 
         assert processor._offer_composite_index[("+15551111111", "dental")] == "ACTIVE"
-        assert processor._offer_composite_index[("+15552222222", "chiropractic")] == "STAGING"
+        assert (
+            processor._offer_composite_index[("+15552222222", "chiropractic")]
+            == "STAGING"
+        )
 
     def test_phone_only_index_first_occurrence_wins(self) -> None:
         """Phone-only index keeps first occurrence when multiple offers share phone."""
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1", "offer_2"],
-            "section": ["ACTIVE", "STAGING"],
-            "office_phone": ["+15551234567", "+15551234567"],
-            "vertical": ["dental", "chiropractic"],
-        })
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["vision"],
-        })
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1", "offer_2"],
+                "section": ["ACTIVE", "STAGING"],
+                "office_phone": ["+15551234567", "+15551234567"],
+                "vertical": ["dental", "chiropractic"],
+            }
+        )
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["vision"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         processor.process()
@@ -471,18 +516,22 @@ class TestActionGeneration:
         """When unit section is valid for the offer's activity state, no action."""
         # Offer "ACTIVE" classifies as ACTIVE; unit "Active" is in the
         # OFFER_ACTIVITY_VALID_UNIT_SECTIONS[ACTIVE] set -> no-op.
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -492,18 +541,22 @@ class TestActionGeneration:
 
     def test_mismatching_section_generates_action(self) -> None:
         """When unit section != offer section, a ReconciliationAction is generated."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Onboarding"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Onboarding"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -515,18 +568,22 @@ class TestActionGeneration:
 
     def test_action_has_correct_fields(self) -> None:
         """ReconciliationAction is populated with gid, masked phone, sections, reason."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_42"],
-            "section": ["Onboarding"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_42"],
+                "section": ["Onboarding"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -544,18 +601,22 @@ class TestActionGeneration:
     def test_action_phone_is_masked(self) -> None:
         """Raw phone number must NOT appear in action.phone (PII masking)."""
         raw_phone = "+15551234567"
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Paused"],
-            "office_phone": [raw_phone],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": [raw_phone],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Paused"],
+                "office_phone": [raw_phone],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": [raw_phone],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -571,18 +632,22 @@ class TestActionGeneration:
 
     def test_no_offer_match_is_no_op(self) -> None:
         """When phone has no offer match at all, result is no_op."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Onboarding"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15559999999"],  # Different phone
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Onboarding"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15559999999"],  # Different phone
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -592,18 +657,22 @@ class TestActionGeneration:
 
     def test_multiple_units_mixed_outcomes(self) -> None:
         """Batch with match-valid, match-different, and no-match produces correct counts."""
-        unit_df = pl.DataFrame({
-            "gid": ["u1", "u2", "u3"],
-            "section": ["Active", "Paused", "Staging"],
-            "office_phone": ["+15551111111", "+15552222222", "+15553333333"],
-            "vertical": ["dental", "dental", "dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["o1", "o2"],
-            "section": ["ACTIVE", "ACTIVE"],
-            "office_phone": ["+15551111111", "+15552222222"],
-            "vertical": ["dental", "dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["u1", "u2", "u3"],
+                "section": ["Active", "Paused", "Staging"],
+                "office_phone": ["+15551111111", "+15552222222", "+15553333333"],
+                "vertical": ["dental", "dental", "dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["o1", "o2"],
+                "section": ["ACTIVE", "ACTIVE"],
+                "office_phone": ["+15551111111", "+15552222222"],
+                "vertical": ["dental", "dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -622,18 +691,22 @@ class TestActionGeneration:
         """Phone-only fallback with activity mismatch generates an action."""
         # Unit vertical "" won't match offer vertical "dental" via composite key
         # Phone-only fallback finds the offer; "Paused" is not in ACTIVE valid set
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Paused"],
-            "office_phone": ["+15551234567"],
-            "vertical": [""],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Paused"],
+                "office_phone": ["+15551234567"],
+                "vertical": [""],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -660,15 +733,19 @@ class TestPipelinePrimary:
     """
 
     def test_pipeline_mismatch_generates_action(
-        self, make_offer_df, make_pipeline_summary_df,
+        self,
+        make_offer_df,
+        make_pipeline_summary_df,
     ) -> None:
         """Unit in 'Active', pipeline says 'retention' -> action to 'Account Review'."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         offer_df = make_offer_df(gids=["offer_1"])
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15551234567"],
@@ -678,7 +755,9 @@ class TestPipelinePrimary:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         result = processor.process()
 
@@ -690,15 +769,19 @@ class TestPipelinePrimary:
         assert "retention" in action.reason
 
     def test_pipeline_match_is_no_op(
-        self, make_offer_df, make_pipeline_summary_df,
+        self,
+        make_offer_df,
+        make_pipeline_summary_df,
     ) -> None:
         """Unit in 'Onboarding', pipeline says 'onboarding' -> no-op."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Onboarding"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Onboarding"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         offer_df = make_offer_df(gids=["offer_1"])
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15551234567"],
@@ -708,7 +791,9 @@ class TestPipelinePrimary:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         result = processor.process()
 
@@ -716,22 +801,27 @@ class TestPipelinePrimary:
         assert len(result.actions) == 0
 
     def test_offer_fallback_when_no_pipeline_entry(
-        self, make_pipeline_summary_df,
+        self,
+        make_pipeline_summary_df,
     ) -> None:
         """No pipeline entry for this unit -> falls through to offer comparison."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Paused"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Paused"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         # Offer says ACTIVE; "Paused" not in ACTIVE valid set -> action to "Active"
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         # Pipeline summary has a DIFFERENT phone -- no match for this unit
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15559999999"],
@@ -741,7 +831,9 @@ class TestPipelinePrimary:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         result = processor.process()
 
@@ -752,7 +844,8 @@ class TestPipelinePrimary:
         assert "classified: ACTIVE" in action.reason
 
     def test_implementation_converted_with_offer_active(
-        self, make_pipeline_summary_df,
+        self,
+        make_pipeline_summary_df,
     ) -> None:
         """Key case: implementation CONVERTED + offer ACTIVE -> unit should be 'Active'.
 
@@ -761,19 +854,23 @@ class TestPipelinePrimary:
         The processor falls through to offer comparison, and the offer's
         ACTIVE section drives the action.
         """
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Implementing"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Implementing"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         # Offer says ACTIVE -- the unit should move to Active
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         # Pipeline: implementation process is CONVERTED (terminal/IGNORED)
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15551234567"],
@@ -783,7 +880,9 @@ class TestPipelinePrimary:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         result = processor.process()
 
@@ -797,18 +896,22 @@ class TestPipelinePrimary:
 
     def test_no_pipeline_summary_backward_compat(self) -> None:
         """When pipeline_summary is None, offer-only logic works with activity mapping."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Paused"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Paused"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         # No pipeline_summary (default None)
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
@@ -821,22 +924,27 @@ class TestPipelinePrimary:
         assert "offer" in action.reason
 
     def test_pipeline_takes_priority_over_offer(
-        self, make_pipeline_summary_df,
+        self,
+        make_pipeline_summary_df,
     ) -> None:
         """Pipeline and offer disagree -- pipeline wins (PRIMARY)."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         # Offer says unit is correct in Active
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         # Pipeline says unit should be in Onboarding
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15551234567"],
@@ -846,7 +954,9 @@ class TestPipelinePrimary:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         result = processor.process()
 
@@ -858,21 +968,26 @@ class TestPipelinePrimary:
         assert "pipeline" in action.reason
 
     def test_pipeline_completed_falls_through_to_offer(
-        self, make_pipeline_summary_df,
+        self,
+        make_pipeline_summary_df,
     ) -> None:
         """Process section COMPLETED (IGNORED) -> falls through to offer comparison."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Paused"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Paused"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15551234567"],
             verticals=["dental"],
@@ -881,7 +996,9 @@ class TestPipelinePrimary:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         result = processor.process()
 
@@ -894,18 +1011,22 @@ class TestPipelinePrimary:
         assert "offer" in action.reason
 
     def test_all_derivation_table_entries_generate_correct_actions(
-        self, make_offer_df, make_pipeline_summary_df,
+        self,
+        make_offer_df,
+        make_pipeline_summary_df,
     ) -> None:
         """Every DERIVATION_TABLE entry produces the correct target section."""
         for process_type, expected_section in DERIVATION_TABLE.items():
             # Unit is in a section that differs from expected
             current_section = "Preview" if expected_section != "Preview" else "Active"
-            unit_df = pl.DataFrame({
-                "gid": [f"unit_{process_type}"],
-                "section": [current_section],
-                "office_phone": ["+15551234567"],
-                "vertical": ["dental"],
-            })
+            unit_df = pl.DataFrame(
+                {
+                    "gid": [f"unit_{process_type}"],
+                    "section": [current_section],
+                    "office_phone": ["+15551234567"],
+                    "vertical": ["dental"],
+                }
+            )
             offer_df = make_offer_df(gids=["offer_1"])
             pipeline_summary = make_pipeline_summary_df(
                 phones=["+15551234567"],
@@ -915,7 +1036,9 @@ class TestPipelinePrimary:
             )
 
             processor = ReconciliationBatchProcessor(
-                unit_df, offer_df, pipeline_summary=pipeline_summary,
+                unit_df,
+                offer_df,
+                pipeline_summary=pipeline_summary,
             )
             result = processor.process()
 
@@ -926,15 +1049,19 @@ class TestPipelinePrimary:
             assert result.actions[0].target_section == expected_section
 
     def test_pipeline_index_built_correctly(
-        self, make_offer_df, make_pipeline_summary_df,
+        self,
+        make_offer_df,
+        make_pipeline_summary_df,
     ) -> None:
         """Pipeline index maps (phone, vertical) -> (process_type, section)."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         offer_df = make_offer_df(gids=["offer_1"])
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15551234567", "+15559999999"],
@@ -944,15 +1071,24 @@ class TestPipelinePrimary:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         processor.process()
 
-        assert processor._pipeline_index[("+15551234567", "dental")] == ("onboarding", "ACTIVE")
-        assert processor._pipeline_index[("+15559999999", "chiropractic")] == ("sales", "SCHEDULED")
+        assert processor._pipeline_index[("+15551234567", "dental")] == (
+            "onboarding",
+            "ACTIVE",
+        )
+        assert processor._pipeline_index[("+15559999999", "chiropractic")] == (
+            "sales",
+            "SCHEDULED",
+        )
 
     def test_unknown_process_type_falls_through_to_offer(
-        self, make_pipeline_summary_df,
+        self,
+        make_pipeline_summary_df,
     ) -> None:
         """Unknown process_type not in DERIVATION_TABLE -> falls through to offer.
 
@@ -960,18 +1096,22 @@ class TestPipelinePrimary:
         get_classifier("unknown_type") returns None. With no classifier,
         process_activity is None -> falls through to offer comparison.
         """
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Paused"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Paused"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15551234567"],
             verticals=["dental"],
@@ -980,7 +1120,9 @@ class TestPipelinePrimary:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         result = processor.process()
 
@@ -1015,8 +1157,15 @@ class TestDerivationTableDrift:
     def test_derivation_table_has_all_9_pipelines(self) -> None:
         """All 9 pipeline types are present in the derivation table."""
         expected = {
-            "outreach", "sales", "onboarding", "implementation",
-            "month1", "retention", "reactivation", "account_error", "expansion",
+            "outreach",
+            "sales",
+            "onboarding",
+            "implementation",
+            "month1",
+            "retention",
+            "reactivation",
+            "account_error",
+            "expansion",
         }
         assert set(DERIVATION_TABLE.keys()) == expected
 
@@ -1061,7 +1210,8 @@ class TestInactiveProcessFallthrough:
     """
 
     def test_inactive_process_falls_through_to_offer(
-        self, make_pipeline_summary_df,
+        self,
+        make_pipeline_summary_df,
     ) -> None:
         """Reactivation DID NOT CONVERT -> fall through to offer.
 
@@ -1069,19 +1219,23 @@ class TestInactiveProcessFallthrough:
         classifies as INACTIVE). Should fall through to offer comparison
         rather than using DERIVATION_TABLE for reactivation.
         """
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         # Offer says INACTIVE -- unit should move to Paused
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["INACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["INACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         # Pipeline: reactivation DID NOT CONVERT (classified INACTIVE)
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15551234567"],
@@ -1091,7 +1245,9 @@ class TestInactiveProcessFallthrough:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         result = processor.process()
 
@@ -1103,25 +1259,30 @@ class TestInactiveProcessFallthrough:
         assert "classified: INACTIVE" in action.reason
 
     def test_dnc_plus_offer_inactive_equals_paused(
-        self, make_pipeline_summary_df,
+        self,
+        make_pipeline_summary_df,
     ) -> None:
         """DNC + offer INACTIVE -> unit moves to Paused.
 
         Full scenario: reactivation DNC (process INACTIVE) + offer INACTIVE
         -> unit should be in Paused for reactivation/retention hold.
         """
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Onboarding"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["INACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Onboarding"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["INACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15551234567"],
             verticals=["dental"],
@@ -1130,7 +1291,9 @@ class TestInactiveProcessFallthrough:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         result = processor.process()
 
@@ -1139,21 +1302,26 @@ class TestInactiveProcessFallthrough:
         assert action.target_section == "Paused"
 
     def test_maybe_process_falls_through(
-        self, make_pipeline_summary_df,
+        self,
+        make_pipeline_summary_df,
     ) -> None:
         """Process section MAYBE (classified INACTIVE) -> falls through."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Paused"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Paused"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15551234567"],
             verticals=["dental"],
@@ -1162,7 +1330,9 @@ class TestInactiveProcessFallthrough:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         result = processor.process()
 
@@ -1172,15 +1342,19 @@ class TestInactiveProcessFallthrough:
         assert result.actions[0].target_section == "Active"
 
     def test_active_process_does_not_fall_through(
-        self, make_pipeline_summary_df, make_offer_df,
+        self,
+        make_pipeline_summary_df,
+        make_offer_df,
     ) -> None:
         """Process section ACTIVE (classified ACTIVE) -> uses DERIVATION_TABLE."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         offer_df = make_offer_df(gids=["offer_1"])
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15551234567"],
@@ -1190,7 +1364,9 @@ class TestInactiveProcessFallthrough:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         result = processor.process()
 
@@ -1200,15 +1376,19 @@ class TestInactiveProcessFallthrough:
         assert "pipeline" in result.actions[0].reason
 
     def test_activating_process_does_not_fall_through(
-        self, make_pipeline_summary_df, make_offer_df,
+        self,
+        make_pipeline_summary_df,
+        make_offer_df,
     ) -> None:
         """Process section SCHEDULED (classified ACTIVATING) -> uses DERIVATION_TABLE."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
         offer_df = make_offer_df(gids=["offer_1"])
         pipeline_summary = make_pipeline_summary_df(
             phones=["+15551234567"],
@@ -1218,7 +1398,9 @@ class TestInactiveProcessFallthrough:
         )
 
         processor = ReconciliationBatchProcessor(
-            unit_df, offer_df, pipeline_summary=pipeline_summary,
+            unit_df,
+            offer_df,
+            pipeline_summary=pipeline_summary,
         )
         result = processor.process()
 
@@ -1243,18 +1425,22 @@ class TestOfferActivityMapping:
 
     def test_offer_active_unit_in_consulting_is_no_op(self) -> None:
         """Unit in 'Consulting' (valid ACTIVE section), offer ACTIVE -> no-op."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Consulting"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Consulting"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -1264,18 +1450,22 @@ class TestOfferActivityMapping:
 
     def test_offer_active_unit_in_month1_is_no_op(self) -> None:
         """Unit in 'Month 1' (valid ACTIVE section), offer ACTIVE -> no-op."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Month 1"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Month 1"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -1285,18 +1475,22 @@ class TestOfferActivityMapping:
 
     def test_offer_active_unit_in_paused_generates_action(self) -> None:
         """Unit in 'Paused' (INACTIVE), offer ACTIVE -> move to 'Active'."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Paused"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Paused"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -1308,18 +1502,22 @@ class TestOfferActivityMapping:
 
     def test_offer_activating_unit_in_implementing_is_no_op(self) -> None:
         """Unit in 'Implementing' (valid ACTIVATING section), offer ACTIVATING -> no-op."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Implementing"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVATING"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Implementing"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVATING"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -1329,18 +1527,22 @@ class TestOfferActivityMapping:
 
     def test_offer_inactive_unit_in_active_generates_action(self) -> None:
         """Unit in 'Active', offer INACTIVE -> move to 'Paused'."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["INACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["INACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -1353,18 +1555,22 @@ class TestOfferActivityMapping:
 
     def test_offer_inactive_unit_already_paused_is_no_op(self) -> None:
         """Unit in 'Paused' (valid INACTIVE section), offer INACTIVE -> no-op."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Paused"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["INACTIVE"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Paused"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["INACTIVE"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -1374,18 +1580,22 @@ class TestOfferActivityMapping:
 
     def test_offer_ignored_no_action(self) -> None:
         """Offer in IGNORED state (e.g., 'Complete') -> no action."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["Complete"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["Complete"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -1395,18 +1605,22 @@ class TestOfferActivityMapping:
 
     def test_offer_unknown_section_no_action(self) -> None:
         """Offer section not in OFFER_CLASSIFIER -> no action (unknown)."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": ["Active"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["SOME_UNKNOWN_SECTION"],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": ["Active"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["SOME_UNKNOWN_SECTION"],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()

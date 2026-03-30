@@ -79,12 +79,14 @@ class TestExclusionParityAssertion:
         that must be excluded, regardless of how UNIT_CLASSIFIER.ignored
         is configured.
         """
-        expected = frozenset({
-            "Templates",
-            "Next Steps",
-            "Account Review",
-            "Account Error",
-        })
+        expected = frozenset(
+            {
+                "Templates",
+                "Next Steps",
+                "Account Review",
+                "Account Error",
+            }
+        )
         assert expected == EXCLUDED_SECTION_NAMES, (
             f"Expected {expected}, got {EXCLUDED_SECTION_NAMES}. "
             "Per REVIEW-reconciliation-deep-audit TC-2: Do NOT use "
@@ -108,24 +110,26 @@ class TestNameExclusionCoverage:
     """Verify all 4 excluded section names are actually excluded at runtime."""
 
     @pytest.mark.parametrize("section_name", sorted(EXCLUDED_SECTION_NAMES))
-    def test_each_excluded_name_triggers_exclusion(
-        self, section_name: str
-    ) -> None:
+    def test_each_excluded_name_triggers_exclusion(self, section_name: str) -> None:
         """Each EXCLUDED_SECTION_NAMES entry causes exclusion in processor.
 
         This is the runtime verification of the TC-2 fix: all 4 sections
         must actually be excluded, not just Templates.
         """
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": [section_name],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": [section_name],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -140,16 +144,20 @@ class TestNameExclusionCoverage:
         valid_sections = ["Active", "Onboarding", "Month 1", "Unengaged", "Paused"]
 
         for section_name in valid_sections:
-            unit_df = pl.DataFrame({
-                "gid": ["unit_1"],
-                "section": [section_name],
-                "office_phone": ["+15551234567"],
-                "vertical": ["dental"],
-            })
-            offer_df = pl.DataFrame({
-                "gid": ["offer_1"],
-                "section": ["ACTIVE"],
-            })
+            unit_df = pl.DataFrame(
+                {
+                    "gid": ["unit_1"],
+                    "section": [section_name],
+                    "office_phone": ["+15551234567"],
+                    "vertical": ["dental"],
+                }
+            )
+            offer_df = pl.DataFrame(
+                {
+                    "gid": ["offer_1"],
+                    "section": ["ACTIVE"],
+                }
+            )
 
             processor = ReconciliationBatchProcessor(unit_df, offer_df)
             result = processor.process()
@@ -164,16 +172,20 @@ class TestNoneSectionEdgeCase:
 
     def test_none_section_excluded_via_no_section_path(self) -> None:
         """Unit with None section is excluded via skipped_no_section counter."""
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": [None],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": [None],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -187,16 +199,20 @@ class TestNoneSectionEdgeCase:
         Empty string is falsy, so it falls through the name check and
         hits the no-section exclusion.
         """
-        unit_df = pl.DataFrame({
-            "gid": ["unit_1"],
-            "section": [""],
-            "office_phone": ["+15551234567"],
-            "vertical": ["dental"],
-        })
-        offer_df = pl.DataFrame({
-            "gid": ["offer_1"],
-            "section": ["ACTIVE"],
-        })
+        unit_df = pl.DataFrame(
+            {
+                "gid": ["unit_1"],
+                "section": [""],
+                "office_phone": ["+15551234567"],
+                "vertical": ["dental"],
+            }
+        )
+        offer_df = pl.DataFrame(
+            {
+                "gid": ["offer_1"],
+                "section": ["ACTIVE"],
+            }
+        )
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
         result = processor.process()
@@ -217,7 +233,9 @@ class TestUnitClassifierIgnoredNotUsed:
         from autom8_asana.models.business.activity import UNIT_CLASSIFIER
 
         ignored = UNIT_CLASSIFIER.sections_for(
-            __import__("autom8_asana.models.business.activity", fromlist=["AccountActivity"]).AccountActivity.IGNORED,
+            __import__(
+                "autom8_asana.models.business.activity", fromlist=["AccountActivity"]
+            ).AccountActivity.IGNORED,
         )
         # UNIT_CLASSIFIER.ignored sections mapped via classify -> IGNORED
         assert "templates" in ignored, (

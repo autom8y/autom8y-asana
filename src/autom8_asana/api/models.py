@@ -19,7 +19,6 @@ Per PRD-ASANA-SATELLITE Appendix A:
 - Error response: {"error": {"code": ..., "message": ...}, "meta": {...}}
 """
 
-
 # Fleet-standard envelope types from shared package.
 # Re-exported at this path for backward compatibility -- existing code
 # imports these from autom8_asana.api.models.

@@ -167,7 +167,9 @@ async def _run_vertical_backfill(
             },
         )
 
-    except Exception as e:  # BROAD-CATCH: isolation -- backfill must never fail cache warmer
+    except (
+        Exception
+    ) as e:  # BROAD-CATCH: isolation -- backfill must never fail cache warmer
         logger.warning(
             "vertical_backfill_error",
             extra={
@@ -623,7 +625,9 @@ async def _warm_cache_async(
                 cache=cache,
                 invocation_id=invocation_id,
             )
-        except Exception as e:  # BROAD-CATCH: isolation -- status push must never fail cache warmer
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: isolation -- status push must never fail cache warmer
             logger.error(
                 "status_push_fatal_error",
                 extra={
