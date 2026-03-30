@@ -106,7 +106,7 @@ async def list_projects(
     )
 
     return build_success_response(
-        data=data,
+        data=data,  # type: ignore[arg-type]
         request_id=request_id,
         pagination=pagination,
     )
@@ -154,7 +154,7 @@ async def get_project(
         fields_list = [f.strip() for f in opt_fields.split(",")]
 
     project = await client.projects.get_async(gid, opt_fields=fields_list, raw=True)
-    return build_success_response(data=project, request_id=request_id)
+    return build_success_response(data=project, request_id=request_id)  # type: ignore[arg-type]
 
 
 @router.post(
@@ -197,7 +197,7 @@ async def create_project(
         raw=True,
         **kwargs,
     )
-    return build_success_response(data=project, request_id=request_id)
+    return build_success_response(data=project, request_id=request_id)  # type: ignore[arg-type]
 
 
 @router.put(
@@ -253,7 +253,7 @@ async def update_project(
         )
 
     project = await client.projects.update_async(gid, raw=True, **kwargs)
-    return build_success_response(data=project, request_id=request_id)
+    return build_success_response(data=project, request_id=request_id)  # type: ignore[arg-type]
 
 
 @router.delete(
@@ -348,7 +348,7 @@ async def list_sections(
     )
 
     return build_success_response(
-        data=data,
+        data=data,  # type: ignore[arg-type]
         request_id=request_id,
         pagination=pagination,
     )
@@ -395,7 +395,7 @@ async def add_members(
     project = await client.projects.add_members_async(
         gid, members=body.members, raw=True
     )
-    return build_success_response(data=project, request_id=request_id)
+    return build_success_response(data=project, request_id=request_id)  # type: ignore[arg-type]
 
 
 @router.delete(
@@ -435,7 +435,7 @@ async def remove_members(
     project = await client.projects.remove_members_async(
         gid, members=body.members, raw=True
     )
-    return build_success_response(data=project, request_id=request_id)
+    return build_success_response(data=project, request_id=request_id)  # type: ignore[arg-type]
 
 
 __all__ = ["router"]

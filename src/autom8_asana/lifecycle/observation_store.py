@@ -118,9 +118,9 @@ class StageTransitionStore:
     def _record_to_dataframe(self, record: StageTransitionRecord) -> pl.DataFrame:
         """Convert a single record to a 1-row DataFrame with correct schema."""
         row = asdict(record)
-        return pl.DataFrame([row], schema=_PARQUET_SCHEMA)
+        return pl.DataFrame([row], schema=_PARQUET_SCHEMA)  # type: ignore[arg-type]
 
     def _empty_dataframe(self) -> pl.DataFrame:
         """Return an empty DataFrame with the correct schema plus duration_days."""
         schema = {**_PARQUET_SCHEMA, "duration_days": pl.Float64}
-        return pl.DataFrame(schema=schema)
+        return pl.DataFrame(schema=schema)  # type: ignore[arg-type]

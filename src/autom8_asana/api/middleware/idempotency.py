@@ -487,7 +487,7 @@ def _get_service_name(request: Request) -> str:
     # Check request state for auth context (set by auth middleware)
     auth_ctx = getattr(request.state, "auth_context", None)
     if auth_ctx is not None:
-        svc = getattr(auth_ctx, "caller_service", None)
+        svc: str | None = getattr(auth_ctx, "caller_service", None)
         if svc:
             return svc
     return _DEFAULT_SERVICE
@@ -699,7 +699,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         # BaseHTTPMiddleware wraps the response as a StreamingResponse.
         # We need to consume the body to store it.
         response_body = b""
-        async for chunk in response.body_iterator:  # type: ignore[union-attr]
+        async for chunk in response.body_iterator:  # type: ignore[attr-defined]
             if isinstance(chunk, str):
                 response_body += chunk.encode("utf-8")
             else:

@@ -25,7 +25,7 @@ Models:
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from autom8y_log import get_logger
 from fastapi import Depends, Query
@@ -90,7 +90,7 @@ class SchemaFieldInfo(BaseModel):
             "Populated when field has cascade_behavior annotation."
         ),
     )
-    enum_values: list[dict] | None = Field(
+    enum_values: list[dict[str, Any]] | None = Field(
         default=None,
         description=(
             "Valid enum values with business meaning. Populated when "
@@ -256,7 +256,7 @@ async def get_entity_schema(
         # Extract semantic metadata for the enriched fields
         col_semantic_type: str | None = None
         col_cascade_source: str | None = None
-        col_enum_values: list[dict] | None = None
+        col_enum_values: list[dict[str, Any]] | None = None
 
         if include_semantic:
             col_semantic_type = get_semantic_type(col.description)

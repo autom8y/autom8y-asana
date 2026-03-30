@@ -258,9 +258,10 @@ def get_cascade_providers(entity_type: str) -> set[str]:
                 break
 
     # Find this entity's schema and extract cascade deps
-    desc = entity_registry.get(entity_type)
-    if desc is None:
+    entity_desc = entity_registry.get(entity_type)
+    if entity_desc is None:
         return set()
+    desc = entity_desc
 
     schema_registry = SchemaRegistry.get_instance()
     try:

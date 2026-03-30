@@ -62,7 +62,7 @@ async def get_current_user(
         and ``workspaces``.
     """
     user = await client.users.me_async(raw=True)
-    return build_success_response(data=user, request_id=request_id)
+    return build_success_response(data=user, request_id=request_id)  # type: ignore[arg-type]
 
 
 @router.get(
@@ -91,7 +91,7 @@ async def get_user(
         404: User not found or not accessible with the provided token.
     """
     user = await client.users.get_async(gid, raw=True)
-    return build_success_response(data=user, request_id=request_id)
+    return build_success_response(data=user, request_id=request_id)  # type: ignore[arg-type]
 
 
 @router.get(
@@ -153,7 +153,7 @@ async def list_users(
     )
 
     return build_success_response(
-        data=data,
+        data=data,  # type: ignore[arg-type]
         request_id=request_id,
         pagination=pagination,
     )

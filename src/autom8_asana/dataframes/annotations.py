@@ -15,7 +15,7 @@ Annotation data sourced from:
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -70,7 +70,7 @@ YAML_DELIMITER = "\n---\n"
 # - 7 HD-02 priority non-cascade field entries (from Sprint 7 research)
 # ---------------------------------------------------------------------------
 
-SEMANTIC_ANNOTATIONS: dict[str, dict] = {
+SEMANTIC_ANNOTATIONS: dict[str, dict[str, Any]] = {
     # =======================================================================
     # CASCADE COLUMNS (12 entries)
     # =======================================================================
@@ -621,7 +621,7 @@ def enrich_schema(
     )
 
 
-def parse_semantic_metadata(description: str | None) -> dict | None:
+def parse_semantic_metadata(description: str | None) -> dict[str, Any] | None:
     """Parse structured metadata from an enriched description.
 
     Args:
@@ -645,7 +645,8 @@ def parse_semantic_metadata(description: str | None) -> dict | None:
         return None
 
     if isinstance(parsed, dict) and "semantic" in parsed:
-        return parsed["semantic"]
+        result: dict[str, Any] = parsed["semantic"]
+        return result
     return None
 
 

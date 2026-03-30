@@ -317,6 +317,9 @@ def create_app() -> FastAPI:
     )
 
     idempotency_backend = os.environ.get("IDEMPOTENCY_STORE_BACKEND", "dynamodb")
+    idempotency_store: (
+        DynamoDBIdempotencyStore | InMemoryIdempotencyStore | NoopIdempotencyStore
+    )
     if idempotency_backend == "dynamodb":
         table_name = os.environ.get("IDEMPOTENCY_TABLE_NAME", "autom8-idempotency-keys")
         table_region = os.environ.get("IDEMPOTENCY_TABLE_REGION", "us-east-1")

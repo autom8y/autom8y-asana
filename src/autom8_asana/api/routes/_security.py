@@ -14,6 +14,8 @@ by the existing auth dependencies (get_current_user, verify_service_jwt).
 
 from __future__ import annotations
 
+from typing import Any
+
 from autom8y_api_schemas import SecureRouter
 from fastapi.security import HTTPBearer
 
@@ -32,7 +34,7 @@ SERVICE_JWT_SCHEME = HTTPBearer(
 )
 
 
-def pat_router(**kwargs) -> SecureRouter:
+def pat_router(**kwargs: Any) -> SecureRouter:
     """Create a SecureRouter with PAT PersonalAccessToken scheme.
 
     Use for standard resource endpoints (tasks, projects, sections, etc.).
@@ -40,7 +42,7 @@ def pat_router(**kwargs) -> SecureRouter:
     return SecureRouter(security_scheme=PAT_BEARER_SCHEME, **kwargs)
 
 
-def s2s_router(**kwargs) -> SecureRouter:
+def s2s_router(**kwargs: Any) -> SecureRouter:
     """Create a SecureRouter with ServiceJWT scheme.
 
     Use for internal S2S endpoints (resolver, query, admin, intake, etc.).
