@@ -318,7 +318,10 @@ class TestCreateIntakeBusinessEndpoint:
             )
 
         assert resp.status_code == 201
-        data = resp.json()
+        body = resp.json()
+        assert "data" in body
+        assert "meta" in body
+        data = body["data"]
         assert data["business_gid"] == BUSINESS_GID
         assert data["unit_gid"] == UNIT_GID
         assert data["contact_gid"] == CONTACT_GID
@@ -340,8 +343,7 @@ class TestCreateIntakeBusinessEndpoint:
             )
 
         assert resp.status_code == 201
-        data = resp.json()
-        assert data["process_gid"] is not None
+        assert resp.json()["data"]["process_gid"] is not None
 
     def test_without_process(self, client: TestClient) -> None:
         """process_gid is None when no process config."""
@@ -356,7 +358,7 @@ class TestCreateIntakeBusinessEndpoint:
             )
 
         assert resp.status_code == 201
-        assert resp.json()["process_gid"] is None
+        assert resp.json()["data"]["process_gid"] is None
 
     def test_social_profiles_written(self, client: TestClient) -> None:
         """Social profiles written as custom fields on business task.
@@ -382,6 +384,7 @@ class TestCreateIntakeBusinessEndpoint:
             )
 
         assert resp.status_code == 201
+        assert "data" in resp.json()
 
         # Verify update_async was called with social profile custom fields
         update_calls = mock_asana.tasks.update_async.call_args_list
@@ -523,7 +526,7 @@ class TestCreateIntakeBusinessEndpoint:
             )
 
         assert resp.status_code == 201
-        holders = resp.json()["holders"]
+        holders = resp.json()["data"]["holders"]
         for holder_name in HOLDER_TYPES:
             assert holder_name in holders, f"Missing holder: {holder_name}"
         assert len(holders) == 7
