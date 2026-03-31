@@ -30,6 +30,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error, raise_service_error
+from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.client import AsanaClient
@@ -381,7 +382,7 @@ async def list_query_sections(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{entity_type}/rows", response_model=RowsResponse)
+@router.post("/{entity_type}/rows", response_model=SuccessResponse[RowsResponse])
 async def query_rows(
     entity_type: str,
     request_body: RowsRequest,
@@ -389,7 +390,7 @@ async def query_rows(
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     entity_service: EntityServiceDep,
     data_service_client: DataServiceClientDep = None,
-) -> RowsResponse:
+) -> SuccessResponse[RowsResponse]:
     """Query entity rows with composable predicate filtering.
 
     See PRD-dynamic-query-service FR-004.
@@ -446,10 +447,10 @@ async def query_rows(
         },
     )
 
-    return result
+    return build_success_response(data=result, request_id=request_id)
 
 
-@router.post("/{entity_type}/aggregate", response_model=AggregateResponse)
+@router.post("/{entity_type}/aggregate", response_model=SuccessResponse[AggregateResponse])
 async def query_aggregate(
     entity_type: str,
     request_body: AggregateRequest,
@@ -457,7 +458,7 @@ async def query_aggregate(
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     entity_service: EntityServiceDep,
     data_service_client: DataServiceClientDep = None,
-) -> AggregateResponse:
+) -> SuccessResponse[AggregateResponse]:
     """Aggregate entity data with grouping and optional HAVING filter.
 
     See PRD-dynamic-query-service FR-005.
@@ -516,7 +517,7 @@ async def query_aggregate(
         },
     )
 
-    return result
+    return build_success_response(data=result, request_id=request_id)
 
 
 # ---------------------------------------------------------------------------
@@ -524,7 +525,7 @@ async def query_aggregate(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{entity_type}", response_model=QueryResponse)
+@router.post("/{entity_type}", response_model=SuccessResponse[QueryResponse])
 async def query_entities(
     entity_type: str,
     request_body: QueryRequest,
@@ -632,7 +633,9 @@ async def query_entities(
     )
 
     # Add deprecation headers (per TDD Section 8.2)
-    response_obj = JSONResponse(content=response.model_dump())
+    # Wrap in fleet SuccessResponse envelope; JSONResponse preserves headers
+    envelope = build_success_response(data=response, request_id=request_id)
+    response_obj = JSONResponse(content=envelope.model_dump(mode="json"))
     response_obj.headers["Deprecation"] = "true"
     response_obj.headers["Sunset"] = "2026-06-01"
     response_obj.headers["Link"] = (

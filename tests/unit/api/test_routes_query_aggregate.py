@@ -113,7 +113,7 @@ class TestAggregateEndpointBasic:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert "data" in data
         assert "meta" in data
         assert data["meta"]["group_count"] == 2
@@ -303,7 +303,7 @@ class TestAggregateEndpointBasic:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["data"] == []
         assert data["meta"]["group_count"] == 0
 
@@ -358,7 +358,7 @@ class TestAggregateEndpointBasic:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["meta"]["group_count"] >= 0
 
     def test_tc_ra011_count_distinct(self, client: TestClient) -> None:
@@ -388,7 +388,7 @@ class TestAggregateEndpointBasic:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         for row in data["data"]:
             assert "uniq_verts" in row
             assert isinstance(row["uniq_verts"], int)

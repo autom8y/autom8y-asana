@@ -135,7 +135,7 @@ class TestQueryEndpoint:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert "data" in data
         assert "meta" in data
         assert len(data["data"]) == 3  # 3 ACTIVE offers
@@ -179,7 +179,7 @@ class TestQueryEndpoint:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert len(data["data"]) == 4  # All 4 records
         assert data["meta"]["total_count"] == 4
 
@@ -219,7 +219,7 @@ class TestQueryEndpoint:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert len(data["data"]) > 0
         # gid is always included
         assert "gid" in data["data"][0]
@@ -263,7 +263,7 @@ class TestQueryEndpoint:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert len(data["data"]) == 2
         assert data["meta"]["total_count"] == 4  # Total is still 4
         assert data["meta"]["limit"] == 2
@@ -301,7 +301,7 @@ class TestQueryEndpoint:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert len(data["data"]) == 2
         assert data["meta"]["total_count"] == 4
         assert data["meta"]["offset"] == 2
@@ -418,7 +418,7 @@ class TestQueryEndpoint:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         # Should only return "Acme Dental - Facebook" (ACTIVE + dental)
         assert data["meta"]["total_count"] == 1
         assert len(data["data"]) == 1
@@ -456,7 +456,7 @@ class TestQueryEndpoint:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["meta"]["limit"] == 1000  # Clamped
 
     def test_negative_offset_returns_422(self, client: TestClient) -> None:
@@ -508,7 +508,7 @@ class TestQueryEndpoint:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert len(data["data"]) == 0
         assert data["meta"]["total_count"] == 4  # Total still accurate
 
@@ -780,9 +780,12 @@ class TestQueryResponseStructure:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        outer = response.json()
+        assert "data" in outer
+        assert "meta" in outer
+        data = outer["data"]
 
-        # Top-level structure
+        # Domain response structure
         assert "data" in data
         assert "meta" in data
         assert isinstance(data["data"], list)
@@ -838,7 +841,7 @@ class TestQueryResponseStructure:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         # gid should still be present
         for record in data["data"]:
             assert "gid" in record

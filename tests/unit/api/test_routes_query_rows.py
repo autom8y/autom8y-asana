@@ -113,7 +113,7 @@ class TestRowsEndpointBasic:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert "data" in data
         assert "meta" in data
         assert data["meta"]["total_count"] == 2
@@ -160,7 +160,7 @@ class TestRowsEndpointBasic:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["meta"]["total_count"] == 3
         for record in data["data"]:
             assert record["section"] == "ACTIVE"
@@ -217,7 +217,7 @@ class TestRowsEndpointBasic:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["meta"]["total_count"] == 3
 
     def test_tc_i009_no_predicate_all_rows(self, client: TestClient) -> None:
@@ -252,7 +252,7 @@ class TestRowsEndpointBasic:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["meta"]["total_count"] == 4
 
     def test_tc_i010_empty_array_predicate(self, client: TestClient) -> None:
@@ -287,7 +287,7 @@ class TestRowsEndpointBasic:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["meta"]["total_count"] == 4
 
     def test_tc_i019_flat_array_sugar(self, client: TestClient) -> None:
@@ -327,7 +327,7 @@ class TestRowsEndpointBasic:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["meta"]["total_count"] == 1
 
     def test_tc_i020_in_operator(self, client: TestClient) -> None:
@@ -368,7 +368,7 @@ class TestRowsEndpointBasic:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["meta"]["total_count"] == 4
 
 
@@ -407,7 +407,7 @@ class TestRowsPagination:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert len(data["data"]) == 2
         assert data["meta"]["total_count"] == 4
         assert data["meta"]["limit"] == 2
@@ -447,7 +447,7 @@ class TestRowsPagination:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         for record in data["data"]:
             assert "gid" in record  # Always included
             assert "name" in record
@@ -489,7 +489,7 @@ class TestRowsResponseMeta:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert "query_ms" in data["meta"]
         assert data["meta"]["query_ms"] >= 0
         assert data["meta"]["entity_type"] == "offer"
@@ -809,7 +809,7 @@ class TestDeprecationHeaders:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert len(data["data"]) == 3
 
     def test_tc_i018_deprecation_headers_present(self, client: TestClient) -> None:
