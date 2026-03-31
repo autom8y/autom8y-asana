@@ -25,6 +25,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 -- FastAPI resolves t
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.intake_resolve_models import (
     BusinessResolveRequest,
@@ -55,7 +56,7 @@ router = s2s_router(prefix="/v1", tags=["intake-resolve"], include_in_schema=Fal
 
 @router.post(
     "/resolve/business",
-    response_model=BusinessResolveResponse,
+    response_model=SuccessResponse[BusinessResolveResponse],
     openapi_extra={
         "x-fleet-side-effects": [],
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
@@ -67,7 +68,7 @@ async def resolve_business(
     request_id: RequestId,
     auth_context: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
-) -> BusinessResolveResponse:
+) -> SuccessResponse[BusinessResolveResponse]:
     """Resolve business by phone via GidLookupIndex O(1).
 
     Authentication: S2S JWT only (require_service_claims dependency).
@@ -150,7 +151,7 @@ async def resolve_business(
         },
     )
 
-    return result
+    return build_success_response(data=result, request_id=request_id)
 
 
 # ---------------------------------------------------------------------------
@@ -160,7 +161,7 @@ async def resolve_business(
 
 @router.post(
     "/resolve/contact",
-    response_model=ContactResolveResponse,
+    response_model=SuccessResponse[ContactResolveResponse],
     openapi_extra={
         "x-fleet-side-effects": [],
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
@@ -172,7 +173,7 @@ async def resolve_contact(
     request_id: RequestId,
     auth_context: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
-) -> ContactResolveResponse:
+) -> SuccessResponse[ContactResolveResponse]:
     """Resolve contact within a business scope.
 
     Single algorithm: email (exact) -> phone (exact) -> no match.
@@ -260,4 +261,4 @@ async def resolve_contact(
         },
     )
 
-    return result
+    return build_success_response(data=result, request_id=request_id)

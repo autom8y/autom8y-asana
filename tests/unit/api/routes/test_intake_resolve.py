@@ -209,7 +209,10 @@ class TestResolveBusinessEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        body = resp.json()
+        assert "data" in body
+        assert "meta" in body
+        data = body["data"]
         assert data["found"] is True
         assert data["task_gid"] == BUSINESS_GID
         assert data["name"] == "Test Dental"
@@ -230,7 +233,7 @@ class TestResolveBusinessEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["found"] is False
         assert data["task_gid"] is None
         assert data["office_phone"] == "+19999999999"
@@ -256,7 +259,7 @@ class TestResolveBusinessEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["found"] is True
         assert data["vertical"] == "dental"
 
@@ -323,8 +326,8 @@ class TestResolveBusinessEndpoint:
             )
 
         assert resp.status_code == 200
-        assert resp.json()["has_unit"] is True
-        assert resp.json()["has_contact_holder"] is False
+        assert resp.json()["data"]["has_unit"] is True
+        assert resp.json()["data"]["has_contact_holder"] is False
 
     def test_has_contact_holder_flag(self, client: TestClient) -> None:
         """has_contact_holder=True when contact_holder subtask exists."""
@@ -349,8 +352,8 @@ class TestResolveBusinessEndpoint:
             )
 
         assert resp.status_code == 200
-        assert resp.json()["has_contact_holder"] is True
-        assert resp.json()["has_unit"] is False
+        assert resp.json()["data"]["has_contact_holder"] is True
+        assert resp.json()["data"]["has_unit"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -399,7 +402,10 @@ class TestResolveContactEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        body = resp.json()
+        assert "data" in body
+        assert "meta" in body
+        data = body["data"]
         assert data["found"] is True
         assert data["contact_gid"] == CONTACT_GID
         assert data["name"] == "Jane Doe"
@@ -444,7 +450,7 @@ class TestResolveContactEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["found"] is True
         assert data["match_field"] == "phone"
 
@@ -503,7 +509,7 @@ class TestResolveContactEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["found"] is True
         assert data["contact_gid"] == "contact_a"
         assert data["match_field"] == "email"
@@ -546,7 +552,7 @@ class TestResolveContactEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["found"] is False
         assert data["contact_gid"] is None
         assert data["match_field"] is None
@@ -587,7 +593,7 @@ class TestResolveContactEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["found"] is False
 
     def test_requires_s2s_jwt(self, client: TestClient) -> None:
@@ -634,5 +640,5 @@ class TestResolveContactEndpoint:
             )
 
         assert resp.status_code == 200
-        assert resp.json()["found"] is True
-        assert resp.json()["match_field"] == "email"
+        assert resp.json()["data"]["found"] is True
+        assert resp.json()["data"]["match_field"] == "email"
