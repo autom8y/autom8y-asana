@@ -23,6 +23,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.rate_limit import limiter
 from autom8_asana.api.routes._security import pat_router
 from autom8_asana.core.scope import EntityScope
@@ -226,7 +227,7 @@ async def list_workflows(
     "/{workflow_id}/invoke",
     summary="Invoke a workflow against specific entities",
     response_description="Workflow invocation result with counts and metadata",
-    response_model=WorkflowInvokeResponse,
+    response_model=SuccessResponse[WorkflowInvokeResponse],
     responses={
         400: {"description": "Validation error (empty entity_ids, non-numeric GID)"},
         401: {"description": "Missing or invalid authentication"},
@@ -243,7 +244,7 @@ async def invoke_workflow(
     request: Request,
     auth_context: AuthContextDep,
     request_id: RequestId,
-) -> WorkflowInvokeResponse:
+) -> SuccessResponse[WorkflowInvokeResponse]:
     """Invoke a registered workflow against a list of Asana entity GIDs.
 
     Workflows are identified by ``workflow_id`` and must be registered
@@ -373,15 +374,18 @@ async def invoke_workflow(
         duration_seconds=round(result.duration_seconds, 2),
     )
 
-    return WorkflowInvokeResponse(
-        request_id=request_id,
-        invocation_source="api",
-        workflow_id=workflow_id,
-        dry_run=body.dry_run,
-        entity_count=result.total,
-        result=result.to_response_dict(
-            extra_metadata_keys=list(factory_config.response_metadata_keys),
+    return build_success_response(
+        data=WorkflowInvokeResponse(
+            request_id=request_id,
+            invocation_source="api",
+            workflow_id=workflow_id,
+            dry_run=body.dry_run,
+            entity_count=result.total,
+            result=result.to_response_dict(
+                extra_metadata_keys=list(factory_config.response_metadata_keys),
+            ),
         ),
+        request_id=request_id,
     )
 
 

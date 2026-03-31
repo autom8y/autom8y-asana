@@ -194,7 +194,7 @@ class TestInvokeSuccess:
             )
 
         assert resp.status_code == 200
-        body = resp.json()
+        body = resp.json()["data"]
         assert body["workflow_id"] == "test-workflow"
         assert body["entity_count"] == 1
         assert body["dry_run"] is False
@@ -324,7 +324,7 @@ class TestInvokeDryRun:
             )
 
         assert resp.status_code == 200
-        body = resp.json()
+        body = resp.json()["data"]
         assert body["dry_run"] is True
 
         # Verify dry_run was passed in params to execute_async
@@ -399,9 +399,12 @@ class TestInvokeResponseShape:
             )
 
         assert resp.status_code == 200
-        body = resp.json()
+        outer = resp.json()
+        assert "data" in outer
+        assert "meta" in outer
+        body = outer["data"]
 
-        # Verify envelope fields
+        # Verify domain response fields
         assert "request_id" in body
         assert body["invocation_source"] == "api"
         assert body["workflow_id"] == "test-workflow"
