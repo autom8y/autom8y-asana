@@ -293,7 +293,7 @@ class TestEntityWriteRoute:
             _stop_patches(*patches)
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["gid"] == "9999999999"
         assert data["entity_type"] == "offer"
         assert data["fields_written"] == 1
@@ -447,7 +447,7 @@ class TestEntityWriteRoute:
             _stop_patches(*patches)
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["fields_written"] == 1
         assert data["fields_skipped"] == 1
 
@@ -473,7 +473,7 @@ class TestEntityWriteRoute:
             _stop_patches(*patches)
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["fields_written"] == 1
 
         # Verify the update call included the appended text value

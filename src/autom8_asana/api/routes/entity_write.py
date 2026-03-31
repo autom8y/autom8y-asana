@@ -26,6 +26,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
@@ -188,6 +189,7 @@ def _raise_write_error(
 
 @router.patch(
     "/{entity_type}/{gid}",
+    response_model=SuccessResponse[EntityWriteResponse],
     openapi_extra={
         "x-fleet-side-effects": [
             {"type": "asana_api", "target": "entity_task"},
@@ -206,7 +208,7 @@ async def write_entity_fields(
     mutation_invalidator: MutationInvalidatorDep,
     write_registry: EntityWriteRegistryDep,
     include_updated: bool = False,
-) -> EntityWriteResponse:
+) -> SuccessResponse[EntityWriteResponse]:
     """Write fields to an Asana entity.
 
     Authentication: S2S JWT only (require_service_claims dependency).
@@ -367,4 +369,4 @@ async def write_entity_fields(
         },
     )
 
-    return response
+    return build_success_response(data=response, request_id=request_id)
