@@ -1,0 +1,66 @@
+name: Aegis Synthetic Coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: aegis-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  aegis:
+    name: Aegis Memory & Coverage Gate
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: astral-sh/setup-uv@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::696318035277:role/github-actions-deploy
+          aws-region: us-east-1
+
+      - name: Get CodeArtifact token
+        run: |
+          TOKEN=$(aws codeartifact get-authorization-token \
+            --domain autom8y \
+            --query authorizationToken \
+            --output text)
+          echo "CODEARTIFACT_AUTH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        run: uv sync --extra dev
+        env:
+          UV_INDEX_AUTOM8Y_USERNAME: aws
+          UV_INDEX_AUTOM8Y_PASSWORD: ${{ env.CODEARTIFACT_AUTH_TOKEN }}
+
+      - name: Run Aegis synthetic coverage tests
+        run: uv run pytest tests/synthetic/ -q -s --tb=short
+        env:
+          AUTOM8Y_ENV: test
+          AUTH_DEV_MODE: 'true'
+          IDEMPOTENCY_STORE_BACKEND: noop
+
+      - name: Upload aegis report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aegis-report
+          path: aegis-report.json
+          if-no-files-found: warn
+
+      - name: Aegis threshold enforcement
+        if: always()
+        run: uv run python scripts/aegis-check.py aegis-report.json
