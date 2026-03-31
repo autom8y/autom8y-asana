@@ -237,7 +237,7 @@ class TestGidLookupHappyPath:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert len(data["results"]) == 1
 
         result = data["results"][0]
@@ -266,7 +266,7 @@ class TestGidLookupHappyPath:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert len(data["results"]) == 3
 
         assert data["results"][0]["gid"] is not None  # found
@@ -297,7 +297,7 @@ class TestGidLookupHappyPath:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         result = data["results"][0]
 
         assert result["gid"] is None
@@ -324,7 +324,7 @@ class TestGidLookupHappyPath:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
 
         assert data["meta"]["resolved_count"] == 2
         assert data["meta"]["unresolved_count"] == 1
@@ -353,7 +353,7 @@ class TestGidLookupResponseShape:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         result = data["results"][0]
 
         # All fields specified in the contract must be present
@@ -381,7 +381,7 @@ class TestGidLookupResponseShape:
             )
 
         assert response.status_code == 200
-        meta = response.json()["meta"]
+        meta = response.json()["data"]["meta"]
 
         assert "resolved_count" in meta
         assert "unresolved_count" in meta
@@ -551,7 +551,7 @@ class TestGidLookupEdgeCases:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["results"] == []
         assert data["meta"]["resolved_count"] == 0
         assert data["meta"]["unresolved_count"] == 0
@@ -589,7 +589,7 @@ class TestGidLookupEdgeCases:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert len(data["results"]) == 1000
 
 
@@ -713,7 +713,7 @@ class TestGidLookupInvariants:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         meta = data["meta"]
 
         criteria_count = len(criteria)
