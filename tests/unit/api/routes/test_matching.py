@@ -310,7 +310,10 @@ class TestMatchingQuerySuccess:
             )
 
         assert resp.status_code == 200
-        body = resp.json()
+        outer = resp.json()
+        assert "data" in outer
+        assert "meta" in outer
+        body = outer["data"]
         assert "candidates" in body
         assert "total_candidates_evaluated" in body
         assert "query_threshold" in body
@@ -328,7 +331,7 @@ class TestMatchingQuerySuccess:
             )
 
         assert resp.status_code == 200
-        body = resp.json()
+        body = resp.json()["data"]
         assert len(body["candidates"]) <= FULL_QUERY_BODY["limit"]
 
     def test_response_does_not_leak_internals(self, client: TestClient) -> None:
@@ -343,9 +346,9 @@ class TestMatchingQuerySuccess:
             )
 
         assert resp.status_code == 200
-        body = resp.json()
+        body = resp.json()["data"]
 
-        # Check top-level response
+        # Check response data
         resp_str = str(body)
         assert "raw_score" not in resp_str
         assert "left_value" not in resp_str
@@ -363,7 +366,7 @@ class TestMatchingQuerySuccess:
                 headers=AUTH_HEADER,
             )
 
-        body = resp.json()
+        body = resp.json()["data"]
         for candidate in body["candidates"]:
             assert "candidate_gid" in candidate
             assert "score" in candidate
@@ -388,7 +391,7 @@ class TestMatchingQuerySuccess:
                 headers=AUTH_HEADER,
             )
 
-        body = resp.json()
+        body = resp.json()["data"]
         scores = [c["score"] for c in body["candidates"]]
         assert scores == sorted(scores, reverse=True)
 

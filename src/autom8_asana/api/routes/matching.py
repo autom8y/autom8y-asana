@@ -22,6 +22,7 @@ from autom8_asana.api.dependencies import (
     RequestId,  # noqa: TC001 -- FastAPI resolves at runtime
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
@@ -51,12 +52,12 @@ router = s2s_router(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/query", response_model=MatchingQueryResponse)
+@router.post("/query", response_model=SuccessResponse[MatchingQueryResponse])
 async def matching_query(
     body: MatchingQueryRequest,
     request_id: RequestId,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
-) -> MatchingQueryResponse:
+) -> SuccessResponse[MatchingQueryResponse]:
     """Query for matching business candidates.
 
     Accepts business identity fields (name, phone, email, domain) and
@@ -196,4 +197,4 @@ async def matching_query(
         },
     )
 
-    return response
+    return build_success_response(data=response, request_id=request_id)
