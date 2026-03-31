@@ -15,7 +15,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@89f04237771a777636e5387bf99e2da088ea35af
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@807b3d0b8c739cbac039391534c8f22987dd88f5
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
@@ -26,40 +26,10 @@ jobs:
       test_env: 'ASANA_WORKSPACE_GID=${{ vars.ASANA_WORKSPACE_GID }}'
       spectral_enabled: true
       openapi_spec_path: 'docs/api-reference/openapi.json'
+      spec_check_enabled: true
+      spec_check_extras: '--extra dev'
+      spec_check_env: |-
+        AUTOM8Y_ENV=local
+        AUTH_DEV_MODE=true
+      semantic_score_enabled: true
     secrets: inherit
-
-  spec-check:
-    name: OpenAPI Spec Drift
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      id-token: write
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - uses: astral-sh/setup-uv@v4
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::696318035277:role/github-actions-deploy
-          aws-region: us-east-1
-      - name: Get CodeArtifact token
-        run: |
-          TOKEN=$(aws codeartifact get-authorization-token \
-            --domain autom8y \
-            --query authorizationToken \
-            --output text)
-          echo "CODEARTIFACT_AUTH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
-      - name: Install dependencies
-        run: uv sync --extra dev
-        env:
-          UV_INDEX_AUTOM8Y_USERNAME: aws
-          UV_INDEX_AUTOM8Y_PASSWORD: ${{ env.CODEARTIFACT_AUTH_TOKEN }}
-      - name: Check OpenAPI spec drift
-        run: uv run python scripts/generate_openapi.py --check
-        env:
-          AUTOM8Y_ENV: local
-          AUTH_DEV_MODE: 'true'
