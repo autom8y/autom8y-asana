@@ -156,7 +156,10 @@ class TestResolveUnitEndpoint:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        outer = response.json()
+        assert "data" in outer
+        assert "meta" in outer
+        data = outer["data"]
         assert "results" in data
         assert "meta" in data
         assert len(data["results"]) == 1
@@ -215,7 +218,7 @@ class TestResolveUnitEndpoint:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["results"][0]["gid"] is None
         assert data["results"][0]["error"] == "NOT_FOUND"
         assert data["meta"]["resolved_count"] == 0
@@ -270,7 +273,7 @@ class TestResolveUnitEndpoint:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         assert data["results"] == []
         assert data["meta"]["resolved_count"] == 0
         assert data["meta"]["unresolved_count"] == 0
@@ -522,7 +525,7 @@ class TestResolveInputOrder:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
 
         assert len(data["results"]) == 4
         assert data["results"][0]["gid"] == "1111111111111111"

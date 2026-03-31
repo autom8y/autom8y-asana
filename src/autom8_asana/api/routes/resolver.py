@@ -54,6 +54,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error, raise_service_error
+from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import (
     ServiceClaims,
@@ -152,7 +153,7 @@ def get_supported_entity_types() -> set[str]:
 
 @router.post(
     "/{entity_type}",
-    response_model=ResolutionResponse,
+    response_model=SuccessResponse[ResolutionResponse],
     summary="Resolve entity identifiers to task GIDs",
     description=(
         "Resolve business identifiers (phone/vertical, offer_id, etc.) to "
@@ -168,7 +169,7 @@ async def resolve_entities(
     request_id: RequestId,
     auth_context: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
-) -> ResolutionResponse:
+) -> SuccessResponse[ResolutionResponse]:
     """Resolve entity identifiers to task GIDs.
 
     This endpoint resolves business identifiers (phone/vertical, offer_id, etc.)
@@ -494,4 +495,4 @@ async def resolve_entities(
             },
         )
 
-        return response
+        return build_success_response(data=response, request_id=request_id)

@@ -178,7 +178,7 @@ class TestResolverStatusRoutes:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         r = data["results"][0]
         assert r["status"] == ["active"]
         assert r["total_match_count"] == 3
@@ -217,7 +217,7 @@ class TestResolverStatusRoutes:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         r = data["results"][0]
         assert r["match_count"] == 2
         assert r["status"] == ["active", "inactive"]
@@ -248,7 +248,7 @@ class TestResolverStatusRoutes:
             )
 
         assert response.status_code == 200
-        data = response.json()
+        data = response.json()["data"]
         r = data["results"][0]
         assert r["status"] == ["active", "activating", None]
         assert len(r["status"]) == 3
@@ -279,7 +279,7 @@ class TestResolverStatusRoutes:
             )
 
         assert response.status_code == 200
-        r = response.json()["results"][0]
+        r = response.json()["data"]["results"][0]
         assert r["total_match_count"] == 5
 
     def test_resolve_null_status_when_no_classifier(self, client: TestClient) -> None:
@@ -307,7 +307,7 @@ class TestResolverStatusRoutes:
             )
 
         assert response.status_code == 200
-        r = response.json()["results"][0]
+        r = response.json()["data"]["results"][0]
         assert r["status"] is None
         assert r["total_match_count"] is None
 
@@ -336,7 +336,7 @@ class TestResolverStatusRoutes:
                 headers=AUTH_HEADER,
             )
 
-        r = response.json()["results"][0]
+        r = response.json()["data"]["results"][0]
         assert r["match_count"] == 1  # Post-filter count
         assert r["total_match_count"] == 4  # Pre-filter count
 
@@ -367,7 +367,7 @@ class TestResolverStatusRoutes:
                 headers=AUTH_HEADER,
             )
 
-        r = response.json()["results"][0]
+        r = response.json()["data"]["results"][0]
         assert r["match_count"] == 1
         assert r["gid"] == "g-active"
         assert "inactive" not in (r["status"] or [])
@@ -393,6 +393,6 @@ class TestResolverStatusRoutes:
                 headers=AUTH_HEADER,
             )
 
-        r = response.json()["results"][0]
+        r = response.json()["data"]["results"][0]
         assert r["gid"] is None
         assert r["error"] == "NOT_FOUND"
