@@ -28,6 +28,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 -- FastAPI resolves t
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.intake_create_models import (
     IntakeBusinessCreateRequest,
@@ -61,7 +62,7 @@ router = s2s_router(
 
 @router.post(
     "/business",
-    response_model=IntakeBusinessCreateResponse,
+    response_model=SuccessResponse[IntakeBusinessCreateResponse],
     status_code=201,
     openapi_extra={
         "x-fleet-side-effects": [
@@ -76,7 +77,7 @@ async def create_intake_business(
     request_id: RequestId,
     auth_context: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
-) -> IntakeBusinessCreateResponse:
+) -> SuccessResponse[IntakeBusinessCreateResponse]:
     """Create full Asana entity hierarchy for a new business.
 
     Executes 7-phase SaveSession creation chain:
@@ -191,7 +192,7 @@ async def create_intake_business(
         },
     )
 
-    return result
+    return build_success_response(data=result, request_id=request_id)
 
 
 # ---------------------------------------------------------------------------
@@ -201,7 +202,7 @@ async def create_intake_business(
 
 @router.post(
     "/route",
-    response_model=IntakeRouteResponse,
+    response_model=SuccessResponse[IntakeRouteResponse],
     openapi_extra={
         "x-fleet-side-effects": [
             {"type": "asana_api", "target": "process_task"},
@@ -215,7 +216,7 @@ async def route_intake_process(
     request_id: RequestId,
     auth_context: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
-) -> IntakeRouteResponse:
+) -> SuccessResponse[IntakeRouteResponse]:
     """Route a unit to a specific process type.
 
     Idempotent: if an open process of the same type exists under the unit,
@@ -315,4 +316,4 @@ async def route_intake_process(
         },
     )
 
-    return result
+    return build_success_response(data=result, request_id=request_id)

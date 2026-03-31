@@ -217,7 +217,10 @@ class TestRouteIntakeProcessEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        body = resp.json()
+        assert "data" in body
+        assert "meta" in body
+        data = body["data"]
         assert data["process_gid"] == PROCESS_GID
         assert data["process_type"] == "sales"
         assert data["is_new"] is True
@@ -243,7 +246,7 @@ class TestRouteIntakeProcessEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["process_gid"] == EXISTING_PROCESS_GID
         assert data["is_new"] is False
 
@@ -271,7 +274,7 @@ class TestRouteIntakeProcessEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["process_gid"] == PROCESS_GID  # New one
         assert data["is_new"] is True
 
@@ -293,7 +296,7 @@ class TestRouteIntakeProcessEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["is_new"] is True
         # Assignee should be resolved to Alice's name
         assert data["assignee_name"] is not None
@@ -316,7 +319,7 @@ class TestRouteIntakeProcessEndpoint:
             )
 
         assert resp.status_code == 200
-        data = resp.json()
+        data = resp.json()["data"]
         assert data["is_new"] is True
         assert data["process_gid"] == PROCESS_GID
         # Assignee name echoed back even though resolution failed
