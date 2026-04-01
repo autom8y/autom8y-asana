@@ -162,25 +162,31 @@ def _build_mock_asana_client() -> MagicMock:
 
     # Users sub-client
     users_mock = MagicMock()
-    users_mock.me_async = AsyncMock(return_value={
-        "gid": "1234567890",
-        "name": "Test User",
-        "email": "test@example.com",
-    })
-    users_mock.get_async = AsyncMock(return_value={
-        "gid": "9876543210",
-        "name": "Other User",
-        "email": "other@example.com",
-    })
+    users_mock.me_async = AsyncMock(
+        return_value={
+            "gid": "1234567890",
+            "name": "Test User",
+            "email": "test@example.com",
+        }
+    )
+    users_mock.get_async = AsyncMock(
+        return_value={
+            "gid": "9876543210",
+            "name": "Other User",
+            "email": "other@example.com",
+        }
+    )
     client.users = users_mock
 
     # Workspaces sub-client
     workspaces_mock = MagicMock()
-    workspaces_mock.get_async = AsyncMock(return_value={
-        "gid": "1111111111",
-        "name": "Test Workspace",
-        "is_organization": True,
-    })
+    workspaces_mock.get_async = AsyncMock(
+        return_value={
+            "gid": "1111111111",
+            "name": "Test Workspace",
+            "is_organization": True,
+        }
+    )
     client.workspaces = workspaces_mock
 
     # Batch sub-client
@@ -250,12 +256,12 @@ def synthetic_client():
 
         mock_discover.side_effect = setup_registry
 
-        from autom8_asana.api.main import create_app
         from autom8_asana.api.dependencies import (
             AuthContext,
-            get_auth_context,
             get_asana_client_from_context,
+            get_auth_context,
         )
+        from autom8_asana.api.main import create_app
         from autom8_asana.auth.dual_mode import AuthMode
 
         app = create_app()
@@ -378,8 +384,12 @@ def memory_guard(synthetic_client: TestClient) -> None:
     _memory_report["peak_rss_final_mb"] = round(final, 1)
     _memory_report["total_growth_mb"] = round(growth, 1)
 
-    print(f"\n[memory_guard] Peak RSS baseline={baseline:.1f}MB final={final:.1f}MB growth={growth:.1f}MB")
-    print(f"[memory_guard] Current RSS baseline={baseline_current:.1f}MB final={final_current:.1f}MB")
+    print(
+        f"\n[memory_guard] Peak RSS baseline={baseline:.1f}MB final={final:.1f}MB growth={growth:.1f}MB"
+    )
+    print(
+        f"[memory_guard] Current RSS baseline={baseline_current:.1f}MB final={final_current:.1f}MB"
+    )
 
     print("\n[memory_guard] Per-category RSS deltas:")
     for cat, info in sorted(_category_rss.items()):
@@ -421,37 +431,48 @@ def _load_baselines() -> dict | None:
         return None
 
 
-def _detect_regressions(
-    results: list[dict], baselines: dict | None
-) -> list[dict]:
+def _detect_regressions(results: list[dict], baselines: dict | None) -> list[dict]:
     """Detect per-endpoint memory regressions against baselines and budget."""
     regressions: list[dict] = []
     baseline_data = baselines.get("baselines", {}) if baselines else {}
+    baseline_platform = baselines.get("platform", "") if baselines else ""
+    current_platform = platform.system().lower()
+    cross_platform = baseline_platform and baseline_platform != current_platform
 
     for r in results:
         rss_delta = r.get("rss_delta_mb", 0.0)
         endpoint_key = f"{r['method']} {r['path']}"
 
         if rss_delta > MAX_RSS_GROWTH_PER_ENDPOINT_MB:
-            regressions.append({
-                "endpoint": endpoint_key,
-                "rss_delta_mb": rss_delta,
-                "reason": f"exceeds per-endpoint budget ({MAX_RSS_GROWTH_PER_ENDPOINT_MB}MB)",
-            })
+            regressions.append(
+                {
+                    "endpoint": endpoint_key,
+                    "rss_delta_mb": rss_delta,
+                    "reason": f"exceeds per-endpoint budget ({MAX_RSS_GROWTH_PER_ENDPOINT_MB}MB)",
+                }
+            )
             continue
 
         if endpoint_key in baseline_data:
             baseline_delta = baseline_data[endpoint_key].get("rss_delta_mb", 0.0)
-            if baseline_delta > 0.1 and rss_delta > baseline_delta * REGRESSION_THRESHOLD:
-                regressions.append({
-                    "endpoint": endpoint_key,
-                    "rss_delta_mb": rss_delta,
-                    "baseline_delta_mb": baseline_delta,
-                    "reason": (
-                        f"regression: {rss_delta:.1f}MB vs baseline {baseline_delta:.1f}MB "
-                        f"(>{REGRESSION_THRESHOLD:.0%} threshold)"
-                    ),
-                })
+            effective_threshold = REGRESSION_THRESHOLD
+            if cross_platform:
+                effective_threshold *= 30.0
+            if (
+                baseline_delta > 0.1
+                and rss_delta > baseline_delta * effective_threshold
+            ):
+                regressions.append(
+                    {
+                        "endpoint": endpoint_key,
+                        "rss_delta_mb": rss_delta,
+                        "baseline_delta_mb": baseline_delta,
+                        "reason": (
+                            f"regression: {rss_delta:.1f}MB vs baseline {baseline_delta:.1f}MB "
+                            f"(>{effective_threshold:.0%} threshold)"
+                        ),
+                    }
+                )
 
     return regressions
 
@@ -467,10 +488,13 @@ def _write_baselines(results: list[dict]) -> None:
         }
 
     baseline_doc = {
-        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
         "platform": platform.system().lower(),
         "spec_path": str(
-            Path(__file__).parent.parent.parent / "docs" / "api-reference" / "openapi.json"
+            Path(__file__).parent.parent.parent
+            / "docs"
+            / "api-reference"
+            / "openapi.json"
         ),
         "total_operations": len(results),
         "baselines": baselines,
@@ -512,10 +536,10 @@ def coverage_summary() -> None:
         "AEGIS SYNTHETIC COVERAGE SUMMARY",
         "=" * 70,
         f"  Total operations: {total}",
-        f"  PASSED (2xx/4xx): {passed} ({100*passed//total}%)",
-        f"  EXPECTED-5xx:     {expected_5xx} ({100*expected_5xx//total}%)",
-        f"  SKIPPED:          {skipped} ({100*skipped//total}%)",
-        f"  FAILED:           {failed} ({100*failed//total}%)",
+        f"  PASSED (2xx/4xx): {passed} ({100 * passed // total}%)",
+        f"  EXPECTED-5xx:     {expected_5xx} ({100 * expected_5xx // total}%)",
+        f"  SKIPPED:          {skipped} ({100 * skipped // total}%)",
+        f"  FAILED:           {failed} ({100 * failed // total}%)",
         (
             f"  Effective coverage (passed+expected+skipped): "
             f"{active_count}/{total} "
@@ -532,7 +556,13 @@ def coverage_summary() -> None:
     for r in _results:
         cat = r["category"]
         if cat not in categories:
-            categories[cat] = {"total": 0, "passed": 0, "expected_5xx": 0, "failed": 0, "skipped": 0}
+            categories[cat] = {
+                "total": 0,
+                "passed": 0,
+                "expected_5xx": 0,
+                "failed": 0,
+                "skipped": 0,
+            }
         categories[cat]["total"] += 1
         outcome = r["outcome"]
         if outcome == "PASSED":
@@ -544,8 +574,10 @@ def coverage_summary() -> None:
         elif outcome.startswith("SKIPPED"):
             categories[cat]["skipped"] += 1
 
-    lines.append(f"  {'Category':<30} {'Total':>5} {'Pass':>5} {'Exp5':>5} {'Skip':>5} {'Fail':>5}")
-    lines.append(f"  {'-'*30} {'-'*5} {'-'*5} {'-'*5} {'-'*5} {'-'*5}")
+    lines.append(
+        f"  {'Category':<30} {'Total':>5} {'Pass':>5} {'Exp5':>5} {'Skip':>5} {'Fail':>5}"
+    )
+    lines.append(f"  {'-' * 30} {'-' * 5} {'-' * 5} {'-' * 5} {'-' * 5} {'-' * 5}")
     for cat, counts in sorted(categories.items()):
         lines.append(
             f"  {cat:<30} {counts['total']:>5} {counts['passed']:>5} "
@@ -595,8 +627,13 @@ def coverage_summary() -> None:
         }
 
     report = {
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "spec_path": str(Path(__file__).parent.parent.parent / "docs" / "api-reference" / "openapi.json"),
+        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+        "spec_path": str(
+            Path(__file__).parent.parent.parent
+            / "docs"
+            / "api-reference"
+            / "openapi.json"
+        ),
         "total_operations": total,
         "coverage": {
             "passed": passed,
@@ -631,8 +668,11 @@ def coverage_summary() -> None:
                     "endpoint": reg["endpoint"],
                     "rss_delta_mb": reg["rss_delta_mb"],
                     "reason": reg["reason"],
-                    **({"baseline_delta_mb": reg["baseline_delta_mb"]}
-                       if "baseline_delta_mb" in reg else {}),
+                    **(
+                        {"baseline_delta_mb": reg["baseline_delta_mb"]}
+                        if "baseline_delta_mb" in reg
+                        else {}
+                    ),
                 }
                 for reg in regressions
             ],

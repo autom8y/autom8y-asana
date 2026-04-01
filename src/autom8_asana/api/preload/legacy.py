@@ -399,13 +399,12 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
 
     except Exception as e:  # noqa: BLE001 — ADVISORY: startup degrade; service can function without warm cache (see finally block)
         # Graceful degradation - log and continue
-        logger.error(
+        logger.exception(
             "dataframe_preload_failed",
             extra={
                 "error": str(e),
                 "error_type": type(e).__name__,
             },
-            exc_info=True,
         )
 
     finally:

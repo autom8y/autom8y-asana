@@ -12,7 +12,6 @@ from pydantic import ValidationError
 
 from autom8_asana.api.routes.internal import ServiceClaims
 
-
 # ---------------------------------------------------------------------------
 # ServiceClaims
 # ---------------------------------------------------------------------------
@@ -53,9 +52,7 @@ class TestServiceClaims:
 
     def test_model_dump(self) -> None:
         """model_dump produces expected dict shape."""
-        claims = ServiceClaims(
-            sub="svc-1", service_name="autom8y-google", scope="read"
-        )
+        claims = ServiceClaims(sub="svc-1", service_name="autom8y-google", scope="read")
         dumped = claims.model_dump()
         assert dumped == {
             "sub": "svc-1",
@@ -71,9 +68,7 @@ class TestServiceClaims:
 
     def test_serialization_round_trip(self) -> None:
         """model_dump -> model_validate round-trip."""
-        claims = ServiceClaims(
-            sub="svc-1", service_name="autom8y-asana", scope="admin"
-        )
+        claims = ServiceClaims(sub="svc-1", service_name="autom8y-asana", scope="admin")
         restored = ServiceClaims.model_validate(claims.model_dump())
         assert restored.sub == claims.sub
         assert restored.service_name == claims.service_name
