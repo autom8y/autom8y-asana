@@ -41,7 +41,7 @@ jobs:
           echo "CODEARTIFACT_AUTH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
 
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: uv sync --all-extras
         env:
           UV_INDEX_AUTOM8Y_USERNAME: aws
           UV_INDEX_AUTOM8Y_PASSWORD: ${{ env.CODEARTIFACT_AUTH_TOKEN }}

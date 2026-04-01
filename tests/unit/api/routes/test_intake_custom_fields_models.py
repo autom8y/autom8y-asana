@@ -16,7 +16,6 @@ from autom8_asana.api.routes.intake_custom_fields_models import (
     CustomFieldWriteResponse,
 )
 
-
 # ---------------------------------------------------------------------------
 # CustomFieldWriteRequest
 # ---------------------------------------------------------------------------
@@ -27,9 +26,7 @@ class TestCustomFieldWriteRequest:
 
     def test_string_values(self) -> None:
         """Fields dict accepts string values."""
-        req = CustomFieldWriteRequest(
-            fields={"vertical": "chiro", "status": "active"}
-        )
+        req = CustomFieldWriteRequest(fields={"vertical": "chiro", "status": "active"})
         assert req.fields["vertical"] == "chiro"
         assert req.fields["status"] == "active"
 
