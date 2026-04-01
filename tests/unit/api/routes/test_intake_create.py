@@ -149,9 +149,7 @@ def _make_mock_asana_client(
             # Fallback
             return {"gid": "unknown_gid"}
 
-        mock_client.tasks.create_async = AsyncMock(
-            side_effect=create_async_side_effect
-        )
+        mock_client.tasks.create_async = AsyncMock(side_effect=create_async_side_effect)
 
     if raise_on_get:
         mock_client.tasks.get_async = AsyncMock(side_effect=raise_on_get)
@@ -211,10 +209,12 @@ def _make_mock_asana_client(
 
     # users.list_for_workspace_async returns a PageIterator-like with .collect()
     mock_client.users.list_for_workspace_async = MagicMock(
-        return_value=_make_collect_mock([
-            {"gid": "user_alice", "name": "Alice Johnson"},
-            {"gid": "user_bob", "name": "Bob Williams"},
-        ]),
+        return_value=_make_collect_mock(
+            [
+                {"gid": "user_alice", "name": "Alice Johnson"},
+                {"gid": "user_bob", "name": "Bob Williams"},
+            ]
+        ),
     )
 
     return mock_client
