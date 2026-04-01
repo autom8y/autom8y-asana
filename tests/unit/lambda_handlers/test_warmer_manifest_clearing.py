@@ -116,6 +116,30 @@ class TestWarmerManifestPreservation:
                 "autom8_asana.dataframes.section_persistence.SectionPersistence",
                 return_value=mock_section_persistence,
             ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._push_gid_mappings_for_completed_entities",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._push_account_status_for_completed_entities",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._warm_story_caches_for_completed_entities",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._run_vertical_backfill",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._aggregate_pipeline_stages",
+                new_callable=AsyncMock,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._run_reconciliation_shadow",
+                new_callable=AsyncMock,
+            ),
         ):
             mock_warm_result.SUCCESS = mock_warm_status.result
 
