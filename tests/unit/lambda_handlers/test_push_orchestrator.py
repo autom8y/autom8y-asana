@@ -124,9 +124,7 @@ class TestPushGidMappingsDispatch:
         mock_index.__len__ = MagicMock(return_value=1)
 
         with (
-            patch(
-                "autom8_asana.services.gid_lookup.GidLookupIndex"
-            ) as mock_index_cls,
+            patch("autom8_asana.services.gid_lookup.GidLookupIndex") as mock_index_cls,
             patch(
                 "autom8_asana.services.gid_push.push_gid_mappings_to_data_service",
                 side_effect=Exception("push service down"),

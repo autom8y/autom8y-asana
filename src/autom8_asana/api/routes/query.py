@@ -450,7 +450,9 @@ async def query_rows(
     return build_success_response(data=result, request_id=request_id)
 
 
-@router.post("/{entity_type}/aggregate", response_model=SuccessResponse[AggregateResponse])
+@router.post(
+    "/{entity_type}/aggregate", response_model=SuccessResponse[AggregateResponse]
+)
 async def query_aggregate(
     entity_type: str,
     request_body: AggregateRequest,

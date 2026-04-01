@@ -129,13 +129,12 @@ def _invoke_cache_warmer_lambda_from_preload(
             },
         )
     except Exception as e:  # noqa: BLE001 — ADVISORY: Lambda invocation is fire-and-forget; failure degrades to no-op (Lambda will not be invoked)
-        logger.error(
+        logger.exception(
             "preload_lambda_invoke_failed",
             extra={
                 "error": str(e),
                 "entity_types": entity_types,
             },
-            exc_info=True,
         )
 
 
@@ -535,9 +534,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                                     "rows_corrected": cascade_result.rows_corrected,
                                                 },
                                             )
-                                    except (
-                                        Exception
-                                    ) as e:  # noqa: BLE001 — ADVISORY: cascade validation is additive; failure does not invalidate the loaded DataFrame
+                                    except Exception as e:  # noqa: BLE001 — ADVISORY: cascade validation is additive; failure does not invalidate the loaded DataFrame
                                         logger.warning(
                                             "progressive_preload_cascade_validation_failed",
                                             extra={
@@ -630,7 +627,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                         return True
 
                 except Exception as e:  # noqa: BLE001 — ADVISORY: per-project isolation; one project failure must not abort other projects in the phase
-                    logger.error(
+                    logger.exception(
                         "progressive_preload_project_failed",
                         extra={
                             "project_gid": project_gid,
@@ -638,7 +635,6 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                             "error": str(e),
                             "error_type": type(e).__name__,
                         },
-                        exc_info=True,
                     )
                     return False
 
@@ -727,13 +723,12 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         # (SCAR-005/006). It must NEVER be caught by BROAD-CATCH handlers.
         raise
     except Exception as e:  # noqa: BLE001 — ADVISORY: outer startup degrade; WarmupOrderingError is re-raised above and never reaches here
-        logger.error(
+        logger.exception(
             "progressive_preload_failed",
             extra={
                 "error": str(e),
                 "error_type": type(e).__name__,
             },
-            exc_info=True,
         )
 
     finally:
