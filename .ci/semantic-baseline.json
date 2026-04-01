@@ -1,21 +1,21 @@
 {
-  "spec_path": "autom8y-asana/docs/api-reference/openapi.json",
+  "spec_path": "docs/api-reference/openapi.json",
   "metrics": {
     "M-01_field_description": {
-      "score": 0.9615,
-      "numerator": 150,
-      "denominator": 156,
+      "score": 0.9632,
+      "numerator": 157,
+      "denominator": 163,
       "floor": 0.8,
       "weight": 0.25,
       "pass": true
     },
     "M-02_field_example": {
-      "score": 0.5128,
+      "score": 0.4908,
       "numerator": 80,
-      "denominator": 156,
+      "denominator": 163,
       "floor": 0.5,
       "weight": 0.15,
-      "pass": true
+      "pass": false
     },
     "M-03_endpoint_summary": {
       "score": 1.0,
@@ -34,9 +34,9 @@
       "pass": true
     },
     "M-05_type_strictness": {
-      "score": 0.9936,
-      "numerator": 155,
-      "denominator": 156,
+      "score": 0.9939,
+      "numerator": 162,
+      "denominator": 163,
       "floor": 0.9,
       "weight": 0.15,
       "pass": true
@@ -58,8 +58,9 @@
       "pass": false
     }
   },
-  "composite_score": 0.7823,
+  "composite_score": 0.7794,
   "floor_violations": [
+    "M-02_field_example",
     "M-06_extension_completeness",
     "M-07_constraint_coverage"
   ],
