@@ -89,7 +89,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         Returns:
             Response with X-Request-ID header.
         """
-        request_id = uuid.uuid4().hex[:16]
+        request_id = request.headers.get("x-request-id") or uuid.uuid4().hex[:16]
         request.state.request_id = request_id
 
         response = await call_next(request)
