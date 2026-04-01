@@ -574,7 +574,7 @@ class IntakeCreateService:
                 },
             )
             return IntakeRouteResponse(
-                process_gid=existing_gid,
+                process_gid=str(existing_gid or ""),
                 process_type=process_type,
                 is_new=False,
             )
@@ -647,7 +647,7 @@ class IntakeCreateService:
             subtasks_result = await self._client.tasks.subtasks_async(
                 unit_gid,
                 opt_fields=["name", "completed"],
-            )
+            ).collect()
             subtasks = self._to_list(subtasks_result)
         except Exception as exc:
             logger.warning(
@@ -667,7 +667,7 @@ class IntakeCreateService:
                 else getattr(st, "completed", False)
             )
             if st_name and st_name.lower() == process_name_lower and not st_completed:
-                return st  # type: ignore[return-value]
+                return dict(st) if not isinstance(st, dict) else st
 
         return None
 
@@ -678,9 +678,11 @@ class IntakeCreateService:
         Logs warning on failure but does not raise.
         """
         try:
-            users_result = await self._client.users.get_users_async(
+            workspace_gid = resolve_workspace_gid()
+            users_result = await self._client.users.list_for_workspace_async(
+                workspace_gid,
                 opt_fields=["name", "gid"],
-            )
+            ).collect()
             users = self._to_list(users_result)
 
             assignee_lower = assignee_name.lower()
@@ -712,11 +714,11 @@ class IntakeCreateService:
     def _extract_gid(result: Any) -> str:
         """Extract GID from Asana API result."""
         if isinstance(result, dict):
-            return result.get("gid", "")
+            return str(result.get("gid", ""))
         return getattr(result, "gid", "")
 
     @staticmethod
-    def _to_list(result: Any) -> list:
+    def _to_list(result: Any) -> list[Any]:
         """Convert Asana API result to a plain list."""
         if isinstance(result, list):
             return result

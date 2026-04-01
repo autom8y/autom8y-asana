@@ -602,7 +602,7 @@ def handle_rows(args: argparse.Namespace) -> int:
             engine.execute_rows(
                 entity_type=entity_type,
                 project_gid=project_gid,
-                client=client,  # type: ignore[arg-type]
+                client=client,
                 request=request,
                 entity_project_registry=project_registry,
             )
@@ -721,7 +721,7 @@ def handle_aggregate(args: argparse.Namespace) -> int:
             engine.execute_aggregate(
                 entity_type=entity_type,
                 project_gid=project_gid,
-                client=client,  # type: ignore[arg-type]
+                client=client,
                 request=request,
             )
         )
@@ -1139,7 +1139,7 @@ def handle_run(args: argparse.Namespace) -> int:
             engine.execute_rows(
                 entity_type=entity_type,
                 project_gid=project_gid,
-                client=client,  # type: ignore[arg-type]
+                client=client,
                 request=request,
                 entity_project_registry=project_registry,
             )
@@ -1177,7 +1177,7 @@ def handle_run(args: argparse.Namespace) -> int:
             engine.execute_aggregate(
                 entity_type=entity_type,
                 project_gid=project_gid,
-                client=client,  # type: ignore[arg-type]
+                client=client,
                 request=agg_request,
             )
         )

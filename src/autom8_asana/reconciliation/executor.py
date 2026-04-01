@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from autom8y_log import get_logger
 
 if TYPE_CHECKING:
-    from autom8_asana.clients.asana import AsanaClient
+    from autom8_asana.client import AsanaClient
     from autom8_asana.reconciliation.processor import ReconciliationAction
     from autom8_asana.services.task_service import TaskService
 
