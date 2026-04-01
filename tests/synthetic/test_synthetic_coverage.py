@@ -44,7 +44,9 @@ from tests.synthetic.conftest import (
 # Constants
 # =============================================================================
 
-SPEC_PATH = Path(__file__).parent.parent.parent / "docs" / "api-reference" / "openapi.json"
+SPEC_PATH = (
+    Path(__file__).parent.parent.parent / "docs" / "api-reference" / "openapi.json"
+)
 
 
 # =============================================================================
@@ -82,7 +84,11 @@ def resolve_schema(spec: dict, schema: dict, _depth: int = 0) -> dict:
 
     # Unwrap Pydantic nullable pattern: anyOf: [{type: T}, {type: null}]
     if "anyOf" in schema:
-        non_null = [s for s in schema["anyOf"] if s.get("type") != "null" and s != {"type": "null"}]
+        non_null = [
+            s
+            for s in schema["anyOf"]
+            if s.get("type") != "null" and s != {"type": "null"}
+        ]
         if non_null:
             resolved = resolve_schema(spec, non_null[0], _depth + 1)
             merged = {**schema, **resolved}
@@ -302,7 +308,9 @@ def deep_resolve_schema(spec: dict, schema: dict, _seen: set | None = None) -> d
             result[key] = deep_resolve_schema(spec, value, _seen.copy())
         elif isinstance(value, list):
             result[key] = [
-                deep_resolve_schema(spec, item, _seen.copy()) if isinstance(item, dict) else item
+                deep_resolve_schema(spec, item, _seen.copy())
+                if isinstance(item, dict)
+                else item
                 for item in value
             ]
         else:
@@ -340,10 +348,7 @@ def validate_response_schema(
         return True, None
 
     schema = (
-        response_spec
-        .get("content", {})
-        .get("application/json", {})
-        .get("schema", {})
+        response_spec.get("content", {}).get("application/json", {}).get("schema", {})
     )
     if not schema:
         return True, None
@@ -439,7 +444,9 @@ _operation_ids = [f"{method.upper()}:{path}" for path, method, _ in _all_operati
     _all_operations,
     ids=_operation_ids,
 )
-def test_operation(synthetic_client: TestClient, path: str, method: str, req: dict) -> None:
+def test_operation(
+    synthetic_client: TestClient, path: str, method: str, req: dict
+) -> None:
     """Exercise a single API operation and assert no 5xx (except known gaps).
 
     PASSED: 2xx or 4xx response (expected for data mismatches with shallow mock).
@@ -480,14 +487,19 @@ def test_operation(synthetic_client: TestClient, path: str, method: str, req: di
         status = response.status_code
     except Exception as exc:
         rss_after = _current_rss_mb()
-        _results.append({
-            "path": path, "method": method.upper(), "status": None,
-            "outcome": "FAILED", "category": category,
-            "note": str(exc)[:100],
-            "rss_before_mb": round(rss_before, 2),
-            "rss_after_mb": round(rss_after, 2),
-            "rss_delta_mb": round(rss_after - rss_before, 2),
-        })
+        _results.append(
+            {
+                "path": path,
+                "method": method.upper(),
+                "status": None,
+                "outcome": "FAILED",
+                "category": category,
+                "note": str(exc)[:100],
+                "rss_before_mb": round(rss_before, 2),
+                "rss_after_mb": round(rss_after, 2),
+                "rss_delta_mb": round(rss_after - rss_before, 2),
+            }
+        )
         pytest.fail(f"Request raised exception: {exc}")
         return
 
@@ -530,7 +542,11 @@ def test_operation(synthetic_client: TestClient, path: str, method: str, req: di
         try:
             body = response.json()
             schema_valid, schema_error = validate_response_schema(
-                _spec, path, method, status, body,
+                _spec,
+                path,
+                method,
+                status,
+                body,
             )
         except Exception:
             schema_valid = None
@@ -538,8 +554,11 @@ def test_operation(synthetic_client: TestClient, path: str, method: str, req: di
     rss_delta = rss_after - rss_before
 
     result_entry: dict[str, Any] = {
-        "path": path, "method": method.upper(), "status": status,
-        "outcome": outcome, "category": category,
+        "path": path,
+        "method": method.upper(),
+        "status": status,
+        "outcome": outcome,
+        "category": category,
         "duration_ms": round(duration_ms, 1),
         "rss_before_mb": round(rss_before, 2),
         "rss_after_mb": round(rss_after, 2),

@@ -167,9 +167,7 @@ class TestMatchFieldComparison:
 
     def test_frozen(self) -> None:
         """MatchFieldComparison is frozen."""
-        comp = MatchFieldComparison(
-            field_name="name", similarity=0.9, contributed=True
-        )
+        comp = MatchFieldComparison(field_name="name", similarity=0.9, contributed=True)
         with pytest.raises(ValidationError):
             comp.contributed = False  # type: ignore[misc]
 

@@ -27,9 +27,7 @@ class TestCustomFieldWriteRequest:
 
     def test_string_values(self) -> None:
         """Fields dict accepts string values."""
-        req = CustomFieldWriteRequest(
-            fields={"vertical": "chiro", "status": "active"}
-        )
+        req = CustomFieldWriteRequest(fields={"vertical": "chiro", "status": "active"})
         assert req.fields["vertical"] == "chiro"
         assert req.fields["status"] == "active"
 

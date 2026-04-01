@@ -130,9 +130,7 @@ class TestResolutionRequest:
 
     def test_minimal_valid(self) -> None:
         """Request with one criterion and defaults."""
-        req = ResolutionRequest(
-            criteria=[ResolutionCriterion(phone="+19259998806")]
-        )
+        req = ResolutionRequest(criteria=[ResolutionCriterion(phone="+19259998806")])
         assert len(req.criteria) == 1
         assert req.fields is None
         assert req.active_only is True  # FR-1 intentional default
@@ -179,9 +177,7 @@ class TestResolutionRequest:
     def test_extra_fields_rejected(self) -> None:
         """Request-level extra fields are rejected (extra=forbid)."""
         with pytest.raises(ValidationError):
-            ResolutionRequest.model_validate(
-                {"criteria": [], "bogus_field": True}
-            )
+            ResolutionRequest.model_validate({"criteria": [], "bogus_field": True})
 
 
 # ---------------------------------------------------------------------------
@@ -243,17 +239,13 @@ class TestResolutionResultModel:
 
     def test_error_result(self) -> None:
         """Result with error code."""
-        result = ResolutionResultModel(
-            gid=None, error="SCHEMA_MISMATCH"
-        )
+        result = ResolutionResultModel(gid=None, error="SCHEMA_MISMATCH")
         assert result.error == "SCHEMA_MISMATCH"
 
     def test_extra_fields_rejected(self) -> None:
         """ResolutionResultModel rejects extra fields (extra=forbid)."""
         with pytest.raises(ValidationError):
-            ResolutionResultModel.model_validate(
-                {"gid": "123", "bogus": True}
-            )
+            ResolutionResultModel.model_validate({"gid": "123", "bogus": True})
 
 
 # ---------------------------------------------------------------------------

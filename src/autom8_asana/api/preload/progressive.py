@@ -535,9 +535,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                                     "rows_corrected": cascade_result.rows_corrected,
                                                 },
                                             )
-                                    except (
-                                        Exception
-                                    ) as e:  # noqa: BLE001 — ADVISORY: cascade validation is additive; failure does not invalidate the loaded DataFrame
+                                    except Exception as e:  # noqa: BLE001 — ADVISORY: cascade validation is additive; failure does not invalidate the loaded DataFrame
                                         logger.warning(
                                             "progressive_preload_cascade_validation_failed",
                                             extra={
