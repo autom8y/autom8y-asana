@@ -8,4 +8,4 @@ on:
 
 jobs:
   gitleaks:
-    uses: autom8y/autom8y-workflows/.github/workflows/security-gitleaks.yml@2b73d0b06823a1e816d4b40439c69476bb3c8b17
+    uses: autom8y/autom8y-workflows/.github/workflows/security-gitleaks.yml@44b771e516a49a0d964782e4bbd0f0e39b2f97a1
