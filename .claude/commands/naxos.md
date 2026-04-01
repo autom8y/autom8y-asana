@@ -19,7 +19,7 @@ If `naxos_summary` is present in the frontmatter, reference it when presenting c
 ## Pre-flight: Naxos Availability
 
 Check if naxos is currently available:
-1. Run `ls ~/.claude/agents/naxos.md 2>/dev/null` via Bash
+1. Run `ls ~/.claude/agents/naxos.md 2>/dev/null` via Bash <!-- HA-CHAN: checks harness-specific agent installation path -->
 2. If file exists: proceed to Routing
 3. If file missing:
    a. Run `ari agent summon naxos` via Bash

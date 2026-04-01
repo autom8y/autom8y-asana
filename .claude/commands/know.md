@@ -38,7 +38,7 @@ Some code paths already read the file for other reasons (Phase 0 time-only, Phas
 ## Pre-flight: Theoros Availability
 
 Check if theoros is currently available:
-1. Run `ls ~/.claude/agents/theoros.md 2>/dev/null` via Bash
+1. Run `ls ~/.claude/agents/theoros.md 2>/dev/null` via Bash <!-- HA-CHAN: checks harness-specific agent installation path -->
 2. If file exists: proceed to Pre-flight argument parsing
 3. If file missing:
    a. Run `ari agent summon theoros` via Bash
@@ -137,7 +137,7 @@ Check if theoros is currently available:
 
 Check if Myron is currently available:
 
-1. Run `ls ~/.claude/agents/myron.md 2>/dev/null` via Bash
+1. Run `ls ~/.claude/agents/myron.md 2>/dev/null` via Bash <!-- HA-CHAN: checks harness-specific agent installation path -->
 2. If file missing:
    a. Run `ari agent summon myron` via Bash
    b. Tell user: "Myron summoned. Restart CC to activate, then re-run /know --discover."
