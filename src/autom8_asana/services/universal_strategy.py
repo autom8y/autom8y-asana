@@ -796,7 +796,8 @@ class UniversalResolutionStrategy:
                     self._last_freshness_info = cache.get_freshness_info(
                         project_gid, self.entity_type
                     )
-                    return entry.dataframe
+                    cached_df: pl.DataFrame | None = entry.dataframe
+                    return cached_df
         except CACHE_TRANSIENT_ERRORS as e:
             logger.warning(
                 "dataframe_cache_fetch_failed",
@@ -887,7 +888,7 @@ class UniversalResolutionStrategy:
                 )
 
                 result = await builder.build_progressive_async(resume=True)
-                df = result.dataframe
+                df: pl.DataFrame | None = result.dataframe
 
             logger.info(
                 "entity_dataframe_built",
