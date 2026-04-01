@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # noqa: TC002
 
 from tests.synthetic.conftest import (
     _category_rss,
