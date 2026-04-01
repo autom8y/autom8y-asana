@@ -611,6 +611,28 @@ def create_app() -> FastAPI:
         # top-level in components/schemas).
         components.setdefault("schemas", {})["Task"] = task_schema
 
+        # 7. Inject shared registry types required by fleet schema governance
+        #
+        # Routes use SuccessResponse[T] as parametrized generics, so FastAPI
+        # generates schema names like "SuccessResponse_list_AsanaResource__"
+        # but NOT the base SuccessResponse type.  ErrorResponse / ErrorDetail
+        # may already appear via error_responses.py, but we inject all three
+        # unconditionally so the fleet validation gate always passes.
+        from autom8_asana.api.models import (
+            ErrorDetail,
+            ErrorResponse,
+            SuccessResponse,
+        )
+
+        for _registry_model in [SuccessResponse, ErrorResponse, ErrorDetail]:
+            _schema = _registry_model.model_json_schema(
+                ref_template="#/components/schemas/{model}"
+            )
+            _defs = _schema.pop("$defs", {})
+            for _def_name, _def_schema in _defs.items():
+                components.setdefault("schemas", {})[_def_name] = _def_schema
+            components.setdefault("schemas", {})[_registry_model.__name__] = _schema
+
         spec["webhooks"] = {
             "asanaTaskChanged": {
                 "post": {
