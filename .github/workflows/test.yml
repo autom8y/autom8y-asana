@@ -28,7 +28,7 @@ jobs:
       openapi_spec_path: 'docs/api-reference/openapi.json'
       spec_check_enabled: true
       spec_check_validate_script: 'scripts/validate_openapi.py'
-      spec_check_extras: '--extra dev'
+      spec_check_extras: '--all-extras'
       spec_check_env: |-
         AUTOM8Y_ENV=local
         AUTH_DEV_MODE=true

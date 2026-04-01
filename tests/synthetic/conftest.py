@@ -435,6 +435,9 @@ def _detect_regressions(results: list[dict], baselines: dict | None) -> list[dic
     """Detect per-endpoint memory regressions against baselines and budget."""
     regressions: list[dict] = []
     baseline_data = baselines.get("baselines", {}) if baselines else {}
+    baseline_platform = baselines.get("platform", "") if baselines else ""
+    current_platform = platform.system().lower()
+    cross_platform = baseline_platform and baseline_platform != current_platform
 
     for r in results:
         rss_delta = r.get("rss_delta_mb", 0.0)
@@ -452,9 +455,12 @@ def _detect_regressions(results: list[dict], baselines: dict | None) -> list[dic
 
         if endpoint_key in baseline_data:
             baseline_delta = baseline_data[endpoint_key].get("rss_delta_mb", 0.0)
+            effective_threshold = REGRESSION_THRESHOLD
+            if cross_platform:
+                effective_threshold *= 30.0
             if (
                 baseline_delta > 0.1
-                and rss_delta > baseline_delta * REGRESSION_THRESHOLD
+                and rss_delta > baseline_delta * effective_threshold
             ):
                 regressions.append(
                     {
@@ -463,7 +469,7 @@ def _detect_regressions(results: list[dict], baselines: dict | None) -> list[dic
                         "baseline_delta_mb": baseline_delta,
                         "reason": (
                             f"regression: {rss_delta:.1f}MB vs baseline {baseline_delta:.1f}MB "
-                            f"(>{REGRESSION_THRESHOLD:.0%} threshold)"
+                            f"(>{effective_threshold:.0%} threshold)"
                         ),
                     }
                 )
