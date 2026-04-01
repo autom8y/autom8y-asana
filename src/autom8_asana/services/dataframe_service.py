@@ -460,7 +460,8 @@ async def build_for_project(
 
         result = await builder.build_progressive_async(resume=use_cache)
         assert result.dataframe is not None, "Build produced no DataFrame"
-        return result.dataframe
+        df: pl.DataFrame = result.dataframe
+        return df
 
 
 async def build_for_section(

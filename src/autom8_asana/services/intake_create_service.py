@@ -260,9 +260,10 @@ class IntakeCreateService:
         if notes_parts:
             task_data["notes"] = "\n".join(notes_parts)
 
-        result = await self._client.tasks.create_in_workspace_async(
-            project_gid,  # workspace_gid placeholder -- routed via project
-            data=task_data,
+        result = await self._client.tasks.create_async(
+            name=task_data["name"],
+            projects=task_data.get("projects"),
+            notes=task_data.get("notes"),
         )
 
         return self._extract_gid(result)
@@ -274,9 +275,9 @@ class IntakeCreateService:
         """
 
         async def create_holder(holder_name: str) -> tuple[str, str]:
-            result = await self._client.tasks.create_subtask_async(
-                business_gid,
-                data={"name": holder_name},
+            result = await self._client.tasks.create_async(
+                name=holder_name,
+                parent=business_gid,
             )
             return holder_name, self._extract_gid(result)
 
@@ -292,12 +293,10 @@ class IntakeCreateService:
         vertical: str,
     ) -> str:
         """Phase 3: Create Unit subtask under unit_holder."""
-        result = await self._client.tasks.create_subtask_async(
-            unit_holder_gid,
-            data={
-                "name": unit_name,
-                "notes": f"Vertical: {vertical}",
-            },
+        result = await self._client.tasks.create_async(
+            name=unit_name,
+            parent=unit_holder_gid,
+            notes=f"Vertical: {vertical}",
         )
         unit_gid = self._extract_gid(result)
 
@@ -404,12 +403,10 @@ class IntakeCreateService:
         if contact.timezone:
             notes_parts.append(f"Timezone: {contact.timezone}")
 
-        result = await self._client.tasks.create_subtask_async(
-            contact_holder_gid,
-            data={
-                "name": contact.name,
-                "notes": "\n".join(notes_parts) if notes_parts else "",
-            },
+        result = await self._client.tasks.create_async(
+            name=contact.name,
+            parent=contact_holder_gid,
+            notes="\n".join(notes_parts) if notes_parts else "",
         )
         return self._extract_gid(result)
 
@@ -577,7 +574,7 @@ class IntakeCreateService:
                 },
             )
             return IntakeRouteResponse(
-                process_gid=existing_gid,
+                process_gid=str(existing_gid or ""),
                 process_type=process_type,
                 is_new=False,
             )
@@ -590,10 +587,14 @@ class IntakeCreateService:
         if due_at:
             process_data["due_at"] = due_at
 
-        result = await self._client.tasks.create_subtask_async(
-            unit_gid,
-            data=process_data,
-        )
+        create_kwargs: dict[str, Any] = {
+            "name": process_data["name"],
+            "parent": unit_gid,
+            "notes": process_data.get("notes"),
+        }
+        if "due_at" in process_data:
+            create_kwargs["due_at"] = process_data["due_at"]
+        result = await self._client.tasks.create_async(**create_kwargs)
         process_gid = self._extract_gid(result)
 
         # Resolve assignee if provided
@@ -646,7 +647,7 @@ class IntakeCreateService:
             subtasks_result = await self._client.tasks.subtasks_async(
                 unit_gid,
                 opt_fields=["name", "completed"],
-            )
+            ).collect()
             subtasks = self._to_list(subtasks_result)
         except Exception as exc:
             logger.warning(
@@ -666,7 +667,7 @@ class IntakeCreateService:
                 else getattr(st, "completed", False)
             )
             if st_name and st_name.lower() == process_name_lower and not st_completed:
-                return st  # type: ignore[return-value]
+                return dict(st) if not isinstance(st, dict) else st
 
         return None
 
@@ -677,9 +678,11 @@ class IntakeCreateService:
         Logs warning on failure but does not raise.
         """
         try:
-            users_result = await self._client.users.get_users_async(
+            workspace_gid = resolve_workspace_gid()
+            users_result = await self._client.users.list_for_workspace_async(
+                workspace_gid,
                 opt_fields=["name", "gid"],
-            )
+            ).collect()
             users = self._to_list(users_result)
 
             assignee_lower = assignee_name.lower()
@@ -711,11 +714,11 @@ class IntakeCreateService:
     def _extract_gid(result: Any) -> str:
         """Extract GID from Asana API result."""
         if isinstance(result, dict):
-            return result.get("gid", "")
+            return str(result.get("gid", ""))
         return getattr(result, "gid", "")
 
     @staticmethod
-    def _to_list(result: Any) -> list:
+    def _to_list(result: Any) -> list[Any]:
         """Convert Asana API result to a plain list."""
         if isinstance(result, list):
             return result
