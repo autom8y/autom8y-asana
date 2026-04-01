@@ -1,75 +1,81 @@
-name: intelligence
+name: rnd
 workflow_type: sequential
-description: Product analytics, user research, experimentation, and insights synthesis
+description: Technology scouting, integration analysis, prototyping, and future architecture
 
 # entry_point: The first specialist in the domain workflow (not the CC routing agent).
 # The CC routing agent is manifest.yaml:entry_agent (always potnia for orchestrated rites).
 entry_point:
-  agent: analytics-engineer
+  agent: technology-scout
   artifact:
-    type: tracking-plan
-    path_template: .ledge/spikes/TRACK-{slug}.md
+    type: tech-assessment
+    path_template: .ledge/spikes/SCOUT-{slug}.md
 
 phases:
-  - name: instrumentation
-    agent: analytics-engineer
-    produces: tracking-plan
-    next: research
+  - name: scouting
+    agent: technology-scout
+    produces: tech-assessment
+    next: integration-analysis
 
-  - name: research
-    agent: user-researcher
-    produces: research-findings
-    next: experimentation
-    condition: "complexity >= FEATURE"
+  - name: integration-analysis
+    agent: integration-researcher
+    produces: integration-map
+    next: prototyping
+    condition: "complexity >= EVALUATION"
 
-  - name: experimentation
-    agent: experimentation-lead
-    produces: experiment-design
-    next: synthesis
+  - name: prototyping
+    agent: prototype-engineer
+    produces: prototype
+    next: future-architecture
 
-  - name: synthesis
-    agent: insights-analyst
-    produces: insights-report
+  - name: future-architecture
+    agent: moonshot-architect
+    produces: moonshot-plan
+    next: transfer
+
+  - name: transfer
+    agent: tech-transfer
+    produces: tech-transfer-package
     next: null
+    condition: "complexity >= EVALUATION"
 
 complexity_levels:
-  - name: METRIC
-    scope: "Single metric analysis, existing event data"
-    phases: [experimentation, synthesis]
+  - name: SPIKE
+    scope: "Quick feasibility check, single technology"
+    phases: [scouting, prototyping]
 
-  - name: FEATURE
-    scope: "New feature instrumentation, user journey analysis"
-    phases: [instrumentation, research, experimentation, synthesis]
+  - name: EVALUATION
+    scope: "Full technology evaluation with integration analysis"
+    phases: [scouting, integration-analysis, prototyping, future-architecture, transfer]
 
-  - name: INITIATIVE
-    scope: "Cross-feature analysis, strategic product decisions"
-    phases: [instrumentation, research, experimentation, synthesis]
+  - name: MOONSHOT
+    scope: "Paradigm shift exploration, multi-year architecture"
+    phases: [scouting, integration-analysis, prototyping, future-architecture, transfer]
 
 # Agent roles for command mapping:
-# /architect   → experimentation-lead
-# /build       → analytics-engineer
-# /qa          → insights-analyst
-# /hotfix      → (N/A - intelligence rite)
-# /code-review → (N/A - intelligence rite)
+# /architect   → integration-researcher
+# /build       → prototype-engineer
+# /qa          → moonshot-architect
+# /hotfix      → (N/A - R&D rite)
+# /code-review → (N/A - R&D rite)
 
 back_routes:
-  - source_phase: synthesis
+  - source_phase: future-architecture
     trigger: "fail(acceptance_criteria)"
-    target_phase: instrumentation
-    target_agent: analytics-engineer
+    target_phase: scouting
+    target_agent: technology-scout
     requires_user_confirmation: true
     condition: "Failure is requirement gap, not implementation bug"
 
-  - source_phase: synthesis
+  - source_phase: future-architecture
     trigger: "fail(implementation)"
-    target_phase: experimentation
-    target_agent: experimentation-lead
+    target_phase: prototyping
+    target_agent: prototype-engineer
     requires_user_confirmation: false
     condition: "Failure is implementation bug"
 
-  - source_phase: experimentation
+  - source_phase: prototyping
     trigger: "design_conflict"
-    target_phase: research
-    target_agent: user-researcher
+    target_phase: integration-analysis
+    target_agent: integration-researcher
     requires_user_confirmation: false
     condition: "Implementation reveals design flaw"

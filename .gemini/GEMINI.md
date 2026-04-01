@@ -7,15 +7,16 @@ Use the available agents and slash commands. Agents activate automatically when 
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-5-agent workflow (intelligence):
+6-agent workflow (rnd):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates analytics and research initiative phases |
-| **analytics-engineer** | Designs tracking plans and implements event instrumentation |
-| **user-researcher** | Conducts user research and extracts qualitative insights |
-| **experimentation-lead** | Designs experiments with proper statistical methodology |
-| **insights-analyst** | Synthesizes quantitative and qualitative data into insights |
+| **potnia** | Coordinates technology exploration phases |
+| **technology-scout** | Scouts emerging technologies and provides build vs buy analysis |
+| **integration-researcher** | Maps integration dependencies and assesses compatibility |
+| **prototype-engineer** | Builds proof-of-concept prototypes with deliberate shortcuts |
+| **moonshot-architect** | Designs visionary long-term architecture plans |
+| **tech-transfer** | Facilitates technology transfer from R&D to production teams |
 
 Agents activate when your prompt matches their description.
 <!-- KNOSSOS:END quick-start -->
@@ -43,11 +44,12 @@ Agents cannot spawn other agents — only the main thread can dispatch sub-agent
 
 Prompts in `.gemini/agents/`:
 
-- `potnia.md` - Coordinates analytics and research initiative phases
-- `analytics-engineer.md` - Designs tracking plans and implements event instrumentation
-- `user-researcher.md` - Conducts user research and extracts qualitative insights
-- `experimentation-lead.md` - Designs experiments with proper statistical methodology
-- `insights-analyst.md` - Synthesizes quantitative and qualitative data into insights
+- `potnia.md` - Coordinates technology exploration phases
+- `technology-scout.md` - Scouts emerging technologies and provides build vs buy analysis
+- `integration-researcher.md` - Maps integration dependencies and assesses compatibility
+- `prototype-engineer.md` - Builds proof-of-concept prototypes with deliberate shortcuts
+- `moonshot-architect.md` - Designs visionary long-term architecture plans
+- `tech-transfer.md` - Facilitates technology transfer from R&D to production teams
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:
@@ -56,8 +58,8 @@ Operational agents available on demand. Their commands handle the lifecycle:
 - **dionysus** - Knowledge synthesizer -> `/land`
 - **naxos** - Session hygiene -> `/naxos`
 
-Summon: `ari agent summon {name}` then restart CC.
-Dismiss: `ari agent dismiss {name}` then restart CC.
+Summon: `ari agent summon {name}` then restart Gemini Code Assist.
+Dismiss: `ari agent dismiss {name}` then restart Gemini Code Assist.
 <!-- KNOSSOS:END agent-configurations -->
 
 <!-- KNOSSOS:START platform-infrastructure -->

@@ -28,7 +28,7 @@ Store the parsed scope as `{scope}`. Derive `{scope-slug}` for file naming:
 
 Check if Myron is currently available:
 
-1. Run `ls ~/.claude/agents/myron.md 2>/dev/null` via Bash
+1. Run `ls ~/.claude/agents/myron.md 2>/dev/null` via Bash <!-- HA-CHAN: checks harness-specific agent installation path -->
 2. If file exists: proceed to Dispatch
 3. If file missing:
    a. Run `ari agent summon myron` via Bash

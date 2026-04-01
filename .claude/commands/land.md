@@ -21,7 +21,7 @@ Dionysus is a leaf agent. It reads `.sos/archive/` and writes `.sos/land/{domain
 ## Pre-flight: Dionysus Availability
 
 Check if dionysus is currently available:
-1. Run `ls ~/.claude/agents/dionysus.md 2>/dev/null` via Bash
+1. Run `ls ~/.claude/agents/dionysus.md 2>/dev/null` via Bash <!-- HA-CHAN: checks harness-specific agent installation path -->
 2. If file exists: proceed to Stage 1
 3. If file missing:
    a. Run `ari agent summon dionysus` via Bash
