@@ -10,29 +10,6 @@ on:
     paths:
       - '.github/workflows/**'
 
-permissions:
-  contents: read
-  security-events: write
-
 jobs:
   zizmor:
-    name: Actions Security Audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          persist-credentials: false
-
-      - name: Install zizmor
-        run: pip install zizmor
-
-      - name: Run zizmor
-        run: zizmor --format sarif . > zizmor-results.sarif || true
-
-      - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@45580472a5bb82c4681c4ac726cfdb60060c2ee1 # v3
-        if: always() && github.event.repository.visibility == 'public'
-        continue-on-error: true
-        with:
-          sarif_file: zizmor-results.sarif
-          category: zizmor
+    uses: autom8y/autom8y-workflows/.github/workflows/security-zizmor.yml@2b73d0b06823a1e816d4b40439c69476bb3c8b17

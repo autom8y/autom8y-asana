@@ -4,15 +4,6 @@ on:
   pull_request:
     branches: [main]
 
-permissions:
-  contents: read
-
 jobs:
   dependency-review:
-    name: Dependency Review
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Dependency Review
-        uses: actions/dependency-review-action@2031cfc080254a8a887f58cffee85186f0e49e48 # v4
+    uses: autom8y/autom8y-workflows/.github/workflows/security-dependency-review.yml@2b73d0b06823a1e816d4b40439c69476bb3c8b17
