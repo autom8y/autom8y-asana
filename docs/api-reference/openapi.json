@@ -359,12 +359,48 @@
       },
       "EntitySchemaResponse": {
         "additionalProperties": false,
-        "description": "Response for schema discovery endpoint.\n\nReturns metadata about queryable fields for an entity type.",
+        "description": "Response for schema discovery endpoint.\n\nReturns metadata about queryable fields for an entity type.\n\nPer Sprint 4 TDD: Extended with category, holder_for, and\nparent_entity fields derived from EntityDescriptor.",
         "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Entity category classification (e.g., 'root', 'composite', 'leaf', 'holder'). Derived from EntityDescriptor.",
+            "title": "Category"
+          },
           "entity_type": {
             "description": "Entity type this schema describes (e.g., 'unit', 'business').",
             "title": "Entity Type",
             "type": "string"
+          },
+          "holder_for": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For holder entities, the entity type this holds (e.g., 'asset_edit' for asset_edit_holder). None for non-holders.",
+            "title": "Holder For"
+          },
+          "parent_entity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Parent entity type in the hierarchy (e.g., 'business'). None when no parent relationship exists.",
+            "title": "Parent Entity"
           },
           "queryable_fields": {
             "description": "Fields available for querying and resolution criteria.",
@@ -1334,7 +1370,6 @@
         "type": "object"
       },
       "ResponseMeta": {
-        "additionalProperties": false,
         "description": "Metadata included with all API responses.\n\nProvides request correlation and timing information for\ndebugging and observability.\n\nAttributes:\n    request_id: Unique identifier for this request.\n    timestamp: UTC timestamp when response was generated.\n    pagination: Pagination info for list responses (optional).",
         "examples": [
           {
@@ -1355,7 +1390,7 @@
             "description": "Pagination metadata for list responses"
           },
           "request_id": {
-            "description": "Request correlation ID",
+            "description": "Request correlation ID (canonical: 16-char lowercase hex)",
             "examples": [
               "a1b2c3d4e5f67890"
             ],
@@ -1516,7 +1551,6 @@
         "type": "object"
       },
       "SuccessResponse_AsanaResource_": {
-        "additionalProperties": false,
         "examples": [
           {
             "data": {
@@ -1546,8 +1580,37 @@
         "title": "SuccessResponse[AsanaResource]",
         "type": "object"
       },
+      "SuccessResponse_ResolutionResponse_": {
+        "examples": [
+          {
+            "data": {
+              "id": "123",
+              "name": "Example resource"
+            },
+            "meta": {
+              "request_id": "a1b2c3d4e5f67890",
+              "timestamp": "2026-03-15T10:30:00Z"
+            }
+          }
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ResolutionResponse",
+            "description": "Response data payload"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta",
+            "description": "Response metadata"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "SuccessResponse[ResolutionResponse]",
+        "type": "object"
+      },
       "SuccessResponse_SectionTimelinesResponse_": {
-        "additionalProperties": false,
         "examples": [
           {
             "data": {
@@ -1577,8 +1640,37 @@
         "title": "SuccessResponse[SectionTimelinesResponse]",
         "type": "object"
       },
+      "SuccessResponse_WorkflowInvokeResponse_": {
+        "examples": [
+          {
+            "data": {
+              "id": "123",
+              "name": "Example resource"
+            },
+            "meta": {
+              "request_id": "a1b2c3d4e5f67890",
+              "timestamp": "2026-03-15T10:30:00Z"
+            }
+          }
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/WorkflowInvokeResponse",
+            "description": "Response data payload"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta",
+            "description": "Response metadata"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "SuccessResponse[WorkflowInvokeResponse]",
+        "type": "object"
+      },
       "SuccessResponse_list_AsanaResource__": {
-        "additionalProperties": false,
         "examples": [
           {
             "data": {
@@ -5583,7 +5675,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WorkflowInvokeResponse"
+                  "$ref": "#/components/schemas/SuccessResponse_WorkflowInvokeResponse_"
                 }
               }
             },
@@ -6151,7 +6243,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ResolutionResponse"
+                  "$ref": "#/components/schemas/SuccessResponse_ResolutionResponse_"
                 }
               }
             },

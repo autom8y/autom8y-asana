@@ -728,7 +728,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 status=response.status_code,
             )
         except Exception:  # noqa: BLE001 — SCAR-IDEM-001: VERIFY-BEFORE-PROD — finalize failure means key NOT persisted; a client retry will re-execute the mutation (double-execution risk). Acceptable only if: (a) DynamoDBIdempotencyStore.finalize() already logs at warning with exc_info, AND (b) the upstream caller is a human or idempotent system. For S2S callers with strict-once semantics this must be promoted to an error metric. See ADR-omniscience-idempotency Section 3.7.
-            logger.error(
+            logger.exception(
                 "idempotency_store_finalize_failed",
                 extra={
                     "operation": "finalize",
@@ -736,7 +736,6 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                     "key": key,
                     "impact": "idempotency_key_not_persisted_retry_will_re_execute",
                 },
-                exc_info=True,
             )
 
         # 9. Return response with echo header

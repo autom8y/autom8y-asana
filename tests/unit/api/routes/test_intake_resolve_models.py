@@ -19,7 +19,6 @@ from autom8_asana.api.routes.intake_resolve_models import (
     ContactResolveResponse,
 )
 
-
 # ---------------------------------------------------------------------------
 # BusinessResolveRequest
 # ---------------------------------------------------------------------------
@@ -36,9 +35,7 @@ class TestBusinessResolveRequest:
 
     def test_with_vertical(self) -> None:
         """Request with vertical filter."""
-        req = BusinessResolveRequest(
-            office_phone="+19259998806", vertical="chiro"
-        )
+        req = BusinessResolveRequest(office_phone="+19259998806", vertical="chiro")
         assert req.vertical == "chiro"
 
     def test_missing_office_phone_raises(self) -> None:
@@ -56,9 +53,7 @@ class TestBusinessResolveRequest:
 
     def test_model_dump_round_trip(self) -> None:
         """model_dump -> model_validate round-trip."""
-        req = BusinessResolveRequest(
-            office_phone="+19259998806", vertical="dental"
-        )
+        req = BusinessResolveRequest(office_phone="+19259998806", vertical="dental")
         restored = BusinessResolveRequest.model_validate(req.model_dump())
         assert restored.office_phone == req.office_phone
         assert restored.vertical == req.vertical
@@ -144,16 +139,12 @@ class TestContactResolveRequest:
 
     def test_with_email(self) -> None:
         """Request with email lookup."""
-        req = ContactResolveRequest(
-            business_gid="123", email="jane@acmechiro.com"
-        )
+        req = ContactResolveRequest(business_gid="123", email="jane@acmechiro.com")
         assert req.email == "jane@acmechiro.com"
 
     def test_with_phone(self) -> None:
         """Request with phone lookup."""
-        req = ContactResolveRequest(
-            business_gid="123", phone="+14155551234"
-        )
+        req = ContactResolveRequest(business_gid="123", phone="+14155551234")
         assert req.phone == "+14155551234"
 
     def test_with_both_email_and_phone(self) -> None:
