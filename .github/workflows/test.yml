@@ -15,7 +15,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@29099fd3a4b5f194d981f99e4b907867fda85923
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@701a6ac7c288a854f5015df1541341af2c6af742
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
