@@ -2,17 +2,17 @@
   "spec_path": "docs/api-reference/openapi.json",
   "metrics": {
     "M-01_field_description": {
-      "score": 0.9632,
-      "numerator": 157,
-      "denominator": 163,
+      "score": 0.9636,
+      "numerator": 159,
+      "denominator": 165,
       "floor": 0.8,
       "weight": 0.25,
       "pass": true
     },
     "M-02_field_example": {
-      "score": 0.4908,
+      "score": 0.4848,
       "numerator": 80,
-      "denominator": 163,
+      "denominator": 165,
       "floor": 0.5,
       "weight": 0.15,
       "pass": false
@@ -34,9 +34,9 @@
       "pass": true
     },
     "M-05_type_strictness": {
-      "score": 0.9939,
-      "numerator": 162,
-      "denominator": 163,
+      "score": 0.9879,
+      "numerator": 163,
+      "denominator": 165,
       "floor": 0.9,
       "weight": 0.15,
       "pass": true
@@ -58,7 +58,7 @@
       "pass": false
     }
   },
-  "composite_score": 0.7794,
+  "composite_score": 0.7777,
   "floor_violations": [
     "M-02_field_example",
     "M-06_extension_completeness",

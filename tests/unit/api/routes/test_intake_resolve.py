@@ -45,6 +45,17 @@ def _mock_jwt_validation(service_name: str = "autom8_data") -> AsyncMock:
     return AsyncMock(return_value=mock_claims)
 
 
+def _make_collect_mock(items):
+    """Create a mock that supports the .collect() async pattern.
+
+    Matches the PageIterator pattern: service calls method(...).collect().
+    The method returns an object synchronously, and .collect() is awaited.
+    """
+    mock = MagicMock()
+    mock.collect = AsyncMock(return_value=items)
+    return mock
+
+
 def _make_mock_asana_client(
     *,
     task_data: dict | None = None,
@@ -53,7 +64,12 @@ def _make_mock_asana_client(
     raise_on_get: Exception | None = None,
     raise_on_subtasks: Exception | None = None,
 ) -> MagicMock:
-    """Create mock AsanaClient with configurable task/subtask responses."""
+    """Create mock AsanaClient with configurable task/subtask responses.
+
+    subtasks_async returns a PageIterator-like object with .collect().
+    The source code calls: await client.tasks.subtasks_async(...).collect()
+    So subtasks_async is a sync call returning an object, and .collect() is awaited.
+    """
     mock_client = MagicMock()
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
@@ -65,22 +81,29 @@ def _make_mock_asana_client(
         mock_client.tasks.get_async = AsyncMock(return_value=task_data or {})
 
     # Mock tasks.subtasks_async with context-sensitive responses
+    # subtasks_async(...) returns a PageIterator synchronously;
+    # .collect() on that iterator is awaited.
     if raise_on_subtasks:
-        mock_client.tasks.subtasks_async = AsyncMock(side_effect=raise_on_subtasks)
+        # Make .collect() raise the exception when awaited
+        error_mock = MagicMock()
+        error_mock.collect = AsyncMock(side_effect=raise_on_subtasks)
+        mock_client.tasks.subtasks_async = MagicMock(return_value=error_mock)
     elif contact_holder_subtasks is not None:
         # First call returns business subtasks (with contact_holder),
         # second call returns contacts under contact_holder
         call_count = {"n": 0}
 
-        async def subtasks_side_effect(gid, **kwargs):
+        def subtasks_side_effect(gid, **kwargs):
             call_count["n"] += 1
             if call_count["n"] == 1:
-                return subtasks or []
-            return contact_holder_subtasks
+                return _make_collect_mock(subtasks or [])
+            return _make_collect_mock(contact_holder_subtasks)
 
-        mock_client.tasks.subtasks_async = AsyncMock(side_effect=subtasks_side_effect)
+        mock_client.tasks.subtasks_async = MagicMock(side_effect=subtasks_side_effect)
     else:
-        mock_client.tasks.subtasks_async = AsyncMock(return_value=subtasks or [])
+        mock_client.tasks.subtasks_async = MagicMock(
+            return_value=_make_collect_mock(subtasks or []),
+        )
 
     return mock_client
 

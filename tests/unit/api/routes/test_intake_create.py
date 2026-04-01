@@ -91,6 +91,16 @@ def _mock_jwt_validation(service_name: str = "autom8_data") -> AsyncMock:
     return AsyncMock(return_value=mock_claims)
 
 
+def _make_collect_mock(return_value):
+    """Create a mock object whose .collect() returns an AsyncMock with given value.
+
+    Matches the PageIterator pattern: service calls method(...).collect().
+    """
+    collector = MagicMock()
+    collector.collect = AsyncMock(return_value=return_value)
+    return collector
+
+
 def _make_mock_asana_client(
     *,
     raise_on_create: Exception | None = None,
@@ -99,51 +109,47 @@ def _make_mock_asana_client(
     """Create mock AsanaClient for business creation tests.
 
     Mocks:
-    - tasks.create_in_workspace_async -> returns business task GID
-    - tasks.create_subtask_async -> returns holder/unit/contact/process GIDs
+    - tasks.create_async -> dispatches by kwarg: projects= (business), parent= (subtask)
     - tasks.get_async -> returns task with custom_fields
     - tasks.update_async -> no-op success
-    - tasks.subtasks_async -> returns empty (no existing processes)
-    - users.get_users_async -> returns mock users
+    - tasks.subtasks_async -> returns PageIterator-like with .collect() (empty)
+    - users.list_for_workspace_async -> returns PageIterator-like with .collect()
     """
     mock_client = MagicMock()
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=None)
 
     if raise_on_create:
-        mock_client.tasks.create_in_workspace_async = AsyncMock(
-            side_effect=raise_on_create
-        )
-        mock_client.tasks.create_subtask_async = AsyncMock(side_effect=raise_on_create)
+        mock_client.tasks.create_async = AsyncMock(side_effect=raise_on_create)
     else:
-        # Phase 1: create_in_workspace_async returns business
-        mock_client.tasks.create_in_workspace_async = AsyncMock(
-            return_value={"gid": BUSINESS_GID},
-        )
-
-        # Phase 2-5: create_subtask_async returns sequential GIDs
-        # The call order: 7 holders (parallel), then unit, contact, process
+        # Unified create_async mock that distinguishes by keyword args:
+        # - projects= kwarg -> Phase 1 business task creation
+        # - parent= kwarg -> Phase 2-5 subtask creation (holders, unit, contact, process)
         subtask_call_count = {"n": 0}
 
-        async def create_subtask_side_effect(parent_gid, data=None, **kwargs):
-            subtask_call_count["n"] += 1
-            n = subtask_call_count["n"]
-            # First 7 calls are holders (Phase 2)
-            if n <= 7:
-                holder_name = data.get("name", f"holder_{n}") if data else f"holder_{n}"
-                return {"gid": HOLDER_GIDS.get(holder_name, f"holder_{n:03d}")}
-            # 8th call is unit (Phase 3)
-            if n == 8:
-                return {"gid": UNIT_GID}
-            # 9th call is contact (Phase 4)
-            if n == 9:
-                return {"gid": CONTACT_GID}
-            # 10th call is process (Phase 5)
-            return {"gid": PROCESS_GID}
+        async def create_async_side_effect(*, name, **kwargs):
+            if "projects" in kwargs and kwargs["projects"]:
+                # Phase 1: Business task creation (has projects kwarg)
+                return {"gid": BUSINESS_GID}
+            elif "parent" in kwargs and kwargs["parent"]:
+                # Phase 2-5: Subtask creation (has parent kwarg)
+                subtask_call_count["n"] += 1
+                n = subtask_call_count["n"]
+                # First 7 calls are holders (Phase 2)
+                if n <= 7:
+                    return {"gid": HOLDER_GIDS.get(name, f"holder_{n:03d}")}
+                # 8th call is unit (Phase 3)
+                if n == 8:
+                    return {"gid": UNIT_GID}
+                # 9th call is contact (Phase 4)
+                if n == 9:
+                    return {"gid": CONTACT_GID}
+                # 10th call is process (Phase 5)
+                return {"gid": PROCESS_GID}
+            # Fallback
+            return {"gid": "unknown_gid"}
 
-        mock_client.tasks.create_subtask_async = AsyncMock(
-            side_effect=create_subtask_side_effect
-        )
+        mock_client.tasks.create_async = AsyncMock(side_effect=create_async_side_effect)
 
     if raise_on_get:
         mock_client.tasks.get_async = AsyncMock(side_effect=raise_on_get)
@@ -195,12 +201,20 @@ def _make_mock_asana_client(
         )
 
     mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
-    mock_client.tasks.subtasks_async = AsyncMock(return_value=[])
-    mock_client.users.get_users_async = AsyncMock(
-        return_value=[
-            {"gid": "user_alice", "name": "Alice Johnson"},
-            {"gid": "user_bob", "name": "Bob Williams"},
-        ],
+
+    # subtasks_async returns a PageIterator-like object with .collect() method
+    mock_client.tasks.subtasks_async = MagicMock(
+        return_value=_make_collect_mock([]),
+    )
+
+    # users.list_for_workspace_async returns a PageIterator-like with .collect()
+    mock_client.users.list_for_workspace_async = MagicMock(
+        return_value=_make_collect_mock(
+            [
+                {"gid": "user_alice", "name": "Alice Johnson"},
+                {"gid": "user_bob", "name": "Bob Williams"},
+            ]
+        ),
     )
 
     return mock_client
@@ -495,18 +509,14 @@ class TestCreateIntakeBusinessEndpoint:
 
         assert resp.status_code == 201
 
-        # Verify the unit was created with default name
-        # The 8th subtask call should be the unit (after 7 holders)
-        create_calls = mock_asana.tasks.create_subtask_async.call_args_list
+        # Verify the unit was created with default name via create_async
+        create_calls = mock_asana.tasks.create_async.call_args_list
         # Find the unit creation call (should contain the default unit name)
         unit_created = False
         expected_name = "Test Dental Practice -- Dental"
         for call in create_calls:
-            call_data = call.kwargs.get("data", {}) if call.kwargs else {}
-            if not call_data and len(call.args) > 1:
-                call_data = call.args[1] if isinstance(call.args[1], dict) else {}
-            name = call_data.get("name", "")
-            if name == expected_name:
+            call_name = call.kwargs.get("name", "")
+            if call_name == expected_name:
                 unit_created = True
                 break
         assert unit_created, (
@@ -567,7 +577,7 @@ class TestPhase3VerticalCustomField:
         matches an enum option, the service writes the enum option GID.
         """
         mock_client = MagicMock()
-        mock_client.tasks.create_subtask_async = AsyncMock(
+        mock_client.tasks.create_async = AsyncMock(
             return_value={"gid": UNIT_GID},
         )
         # get_async returns task with Vertical enum custom field
@@ -625,7 +635,7 @@ class TestPhase3VerticalCustomField:
         created and its GID returned.
         """
         mock_client = MagicMock()
-        mock_client.tasks.create_subtask_async = AsyncMock(
+        mock_client.tasks.create_async = AsyncMock(
             return_value={"gid": UNIT_GID},
         )
         # get_async returns task WITHOUT a Vertical custom field
@@ -663,7 +673,7 @@ class TestPhase3VerticalCustomField:
         without writing.
         """
         mock_client = MagicMock()
-        mock_client.tasks.create_subtask_async = AsyncMock(
+        mock_client.tasks.create_async = AsyncMock(
             return_value={"gid": UNIT_GID},
         )
         # get_async returns Vertical field but with no matching enum option
@@ -703,7 +713,7 @@ class TestPhase3VerticalCustomField:
     async def test_phase3_vertical_case_insensitive_match(self) -> None:
         """Verifies case-insensitive matching of vertical to enum option."""
         mock_client = MagicMock()
-        mock_client.tasks.create_subtask_async = AsyncMock(
+        mock_client.tasks.create_async = AsyncMock(
             return_value={"gid": UNIT_GID},
         )
         mock_client.tasks.get_async = AsyncMock(
