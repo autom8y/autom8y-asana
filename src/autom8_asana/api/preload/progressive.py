@@ -128,13 +128,14 @@ def _invoke_cache_warmer_lambda_from_preload(
                 "entity_types": entity_types,
             },
         )
-    except Exception as e:  # BROAD-CATCH: degrade
+    except Exception as e:  # noqa: BLE001 — ADVISORY: Lambda invocation is fire-and-forget; failure degrades to no-op (Lambda will not be invoked)
         logger.error(
             "preload_lambda_invoke_failed",
             extra={
                 "error": str(e),
                 "entity_types": entity_types,
             },
+            exc_info=True,
         )
 
 
@@ -465,7 +466,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                                         "task_count": len(task_dicts),
                                                     },
                                                 )
-                                    except Exception as e:  # BROAD-CATCH: enrichment
+                                    except Exception as e:  # noqa: BLE001 — ADVISORY: cascade store population is additive enrichment; failure does not block preload
                                         logger.warning(
                                             "progressive_preload_store_populate_failed",
                                             extra={
@@ -473,6 +474,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                                 "error": str(e),
                                                 "error_type": type(e).__name__,
                                             },
+                                            exc_info=True,
                                         )
 
                                 # WS-1: Run cascade validation on entities
@@ -535,7 +537,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                             )
                                     except (
                                         Exception
-                                    ) as e:  # BROAD-CATCH: cascade is additive
+                                    ) as e:  # noqa: BLE001 — ADVISORY: cascade validation is additive; failure does not invalidate the loaded DataFrame
                                         logger.warning(
                                             "progressive_preload_cascade_validation_failed",
                                             extra={
@@ -544,6 +546,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                                 "error": str(e),
                                                 "error_type": type(e).__name__,
                                             },
+                                            exc_info=True,
                                         )
 
                                 if s3_watermark is not None:
@@ -626,7 +629,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
 
                         return True
 
-                except Exception as e:  # BROAD-CATCH: isolation
+                except Exception as e:  # noqa: BLE001 — ADVISORY: per-project isolation; one project failure must not abort other projects in the phase
                     logger.error(
                         "progressive_preload_project_failed",
                         extra={
@@ -635,6 +638,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                             "error": str(e),
                             "error_type": type(e).__name__,
                         },
+                        exc_info=True,
                     )
                     return False
 
@@ -693,13 +697,18 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                     if isinstance(result, bool) and result:
                         loaded_count += 1
                     elif isinstance(result, BaseException):
-                        logger.warning(
+                        # BaseException here means the exception escaped process_project's
+                        # BROAD-CATCH handler (e.g., asyncio.CancelledError, KeyboardInterrupt,
+                        # or SystemExit). WarmupOrderingError is re-raised above and never reaches
+                        # here. Log at ERROR with full traceback for operator visibility.
+                        logger.error(
                             "preload_phase_exception_discarded",
                             extra={
                                 "phase": phase_idx,
                                 "exc_type": type(result).__name__,
                                 "exc_detail": str(result),
                             },
+                            exc_info=result,
                         )
 
                 # Mark all entity types in this phase as completed
@@ -717,13 +726,14 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         # WarmupOrderingError is a safety-critical invariant violation
         # (SCAR-005/006). It must NEVER be caught by BROAD-CATCH handlers.
         raise
-    except Exception as e:  # BROAD-CATCH: degrade
+    except Exception as e:  # noqa: BLE001 — ADVISORY: outer startup degrade; WarmupOrderingError is re-raised above and never reaches here
         logger.error(
             "progressive_preload_failed",
             extra={
                 "error": str(e),
                 "error_type": type(e).__name__,
             },
+            exc_info=True,
         )
 
     finally:

@@ -212,7 +212,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                                 "index_entries": len(index),
                             },
                         )
-                    except Exception as e:  # BROAD-CATCH: degrade
+                    except Exception as e:  # noqa: BLE001 — ADVISORY: optional in-memory index recovery; failure falls through to full rebuild
                         logger.warning(
                             "dataframe_preload_index_recovery_failed",
                             extra={
@@ -220,6 +220,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                                 "entity_type": entity_type,
                                 "error": str(e),
                             },
+                            exc_info=True,
                         )
                         # index remains None, will fall through to full rebuild
 
@@ -384,7 +385,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                             extra={"project_gid": project_gid},
                         )
 
-            except Exception as e:  # BROAD-CATCH: isolation
+            except Exception as e:  # noqa: BLE001 — ADVISORY: per-project isolation; one project failure must not abort other projects
                 # Graceful degradation - continue with other projects
                 logger.warning(
                     "dataframe_preload_project_failed",
@@ -393,9 +394,10 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                         "error": str(e),
                         "error_type": type(e).__name__,
                     },
+                    exc_info=True,
                 )
 
-    except Exception as e:  # BROAD-CATCH: degrade
+    except Exception as e:  # noqa: BLE001 — ADVISORY: startup degrade; service can function without warm cache (see finally block)
         # Graceful degradation - log and continue
         logger.error(
             "dataframe_preload_failed",
@@ -403,6 +405,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                 "error": str(e),
                 "error_type": type(e).__name__,
             },
+            exc_info=True,
         )
 
     finally:
@@ -525,7 +528,7 @@ async def _do_incremental_catchup(
 
             return updated_df, new_watermark, was_incremental
 
-    except Exception as e:  # BROAD-CATCH: degrade
+    except Exception as e:  # noqa: BLE001 — ADVISORY: incremental catch-up failure returns existing state; full rebuild happens on next startup
         logger.warning(
             "incremental_catchup_failed",
             extra={
@@ -534,6 +537,7 @@ async def _do_incremental_catchup(
                 "error_type": type(e).__name__,
                 "fallback": "return_existing",
             },
+            exc_info=True,
         )
         # Return existing state unchanged
         return existing_df, watermark, False
@@ -613,7 +617,7 @@ async def _do_full_rebuild(
 
                 return result.dataframe, result.watermark
 
-    except Exception as e:  # BROAD-CATCH: degrade
+    except Exception as e:  # noqa: BLE001 — ADVISORY: full rebuild failure returns None; project is skipped for this startup cycle
         logger.warning(
             "full_rebuild_failed",
             extra={
@@ -621,5 +625,6 @@ async def _do_full_rebuild(
                 "error": str(e),
                 "error_type": type(e).__name__,
             },
+            exc_info=True,
         )
         return None, now
