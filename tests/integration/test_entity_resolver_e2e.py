@@ -259,7 +259,10 @@ class TestEntityResolverE2E:
             f"Expected 200, got {response.status_code}: {response.text}"
         )
 
-        data = response.json()
+        outer = response.json()
+        assert "data" in outer
+        assert "meta" in outer
+        data = outer["data"]
         assert "results" in data
         assert "meta" in data
         assert len(data["results"]) == 1
@@ -285,7 +288,10 @@ class TestEntityResolverE2E:
         )
 
         assert response.status_code == 200
-        data = response.json()
+        outer = response.json()
+        assert "data" in outer
+        assert "meta" in outer
+        data = outer["data"]
         assert data["results"][0]["gid"] is None
         assert data["results"][0]["error"] == "NOT_FOUND"
         assert data["meta"]["resolved_count"] == 0
@@ -309,7 +315,10 @@ class TestEntityResolverE2E:
         )
 
         assert response.status_code == 200
-        data = response.json()
+        outer = response.json()
+        assert "data" in outer
+        assert "meta" in outer
+        data = outer["data"]
 
         # Verify order is preserved
         assert len(data["results"]) == 3
