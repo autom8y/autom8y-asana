@@ -232,14 +232,14 @@ class TestPreloadPhaseExceptionLogging:
                 ) as mock_logger:
                     await _preload_dataframe_cache_progressive(app)
 
-        # Verify the warning was logged
-        warning_calls = [
+        # Verify the error was logged (upgraded from warning: escaped BaseException requires operator attention)
+        error_calls = [
             c
-            for c in mock_logger.warning.call_args_list
+            for c in mock_logger.error.call_args_list
             if c[0][0] == "preload_phase_exception_discarded"
         ]
-        assert len(warning_calls) == 1
-        extra = warning_calls[0][1]["extra"]
+        assert len(error_calls) == 1
+        extra = error_calls[0][1]["extra"]
         assert extra["phase"] == 0
         assert extra["exc_type"] == "RuntimeError"
         assert "simulated preload failure" in extra["exc_detail"]
@@ -280,13 +280,13 @@ class TestPreloadPhaseExceptionLogging:
                 ) as mock_logger:
                     await _preload_dataframe_cache_progressive(app)
 
-        warning_calls = [
+        error_calls = [
             c
-            for c in mock_logger.warning.call_args_list
+            for c in mock_logger.error.call_args_list
             if c[0][0] == "preload_phase_exception_discarded"
         ]
-        assert len(warning_calls) == 1
-        assert warning_calls[0][1]["extra"]["exc_type"] == "CancelledError"
+        assert len(error_calls) == 1
+        assert error_calls[0][1]["extra"]["exc_type"] == "CancelledError"
 
     @pytest.mark.asyncio
     async def test_bool_false_is_not_logged_as_exception(self) -> None:

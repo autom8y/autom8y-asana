@@ -274,7 +274,7 @@ class DynamoDBIdempotencyStore:
                     "sk": {"S": sk},
                 },
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 — ADVISORY: DynamoDB read failure degrades to cache-miss; request executes normally (HG-01 passthrough)
             logger.warning(
                 "dynamodb_get_item_failed",
                 extra={"pk": pk, "sk": sk},
@@ -338,7 +338,7 @@ class DynamoDBIdempotencyStore:
             return True
         except self._client.exceptions.ConditionalCheckFailedException:
             return False
-        except Exception:
+        except Exception:  # noqa: BLE001 — ADVISORY: DynamoDB claim failure (non-ConditionalCheck) degrades to False; middleware falls back to pass-through
             logger.warning(
                 "dynamodb_claim_failed",
                 extra={"pk": pk, "sk": sk},
@@ -389,7 +389,7 @@ class DynamoDBIdempotencyStore:
                 },
             )
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 — ADVISORY: DynamoDB finalize failure; idempotency key not persisted, retry will re-execute (see dispatch handler annotation)
             logger.warning(
                 "dynamodb_finalize_failed",
                 extra={"pk": pk, "sk": sk},
@@ -409,7 +409,7 @@ class DynamoDBIdempotencyStore:
                 },
             )
             return True
-        except Exception:
+        except Exception:  # noqa: BLE001 — ADVISORY: DynamoDB delete failure; key remains in store until TTL expiry; no correctness impact
             logger.warning(
                 "dynamodb_delete_failed",
                 extra={"pk": pk, "sk": sk},
@@ -597,13 +597,14 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         # 5. Try to claim the key (two-phase protocol)
         try:
             claimed = await self.store.claim(pk, sk, fingerprint)
-        except Exception:
+        except Exception:  # noqa: BLE001 — ADVISORY: store unavailable at claim time; X-Idempotent-Degraded header signals passthrough to client
             # Graceful degradation: store unavailable
             logger.warning(
                 "idempotency_store_unavailable",
                 operation="claim",
                 endpoint=path_template,
                 key=key,
+                exc_info=True,
             )
             response = await call_next(request)
             response.headers["Idempotency-Key"] = key
@@ -614,12 +615,13 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             # Key already exists -- check if processing or complete
             try:
                 existing = await self.store.get(pk, sk)
-            except Exception:
+            except Exception:  # noqa: BLE001 — ADVISORY: store unavailable at replay-check time; X-Idempotent-Degraded header signals passthrough to client
                 logger.warning(
                     "idempotency_store_unavailable",
                     operation="get",
                     endpoint=path_template,
                     key=key,
+                    exc_info=True,
                 )
                 response = await call_next(request)
                 response.headers["Idempotency-Key"] = key
@@ -725,12 +727,16 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 endpoint=path_template,
                 status=response.status_code,
             )
-        except Exception:
-            logger.warning(
-                "idempotency_store_unavailable",
-                operation="finalize",
-                endpoint=path_template,
-                key=key,
+        except Exception:  # noqa: BLE001 — SCAR-IDEM-001: VERIFY-BEFORE-PROD — finalize failure means key NOT persisted; a client retry will re-execute the mutation (double-execution risk). Acceptable only if: (a) DynamoDBIdempotencyStore.finalize() already logs at warning with exc_info, AND (b) the upstream caller is a human or idempotent system. For S2S callers with strict-once semantics this must be promoted to an error metric. See ADR-omniscience-idempotency Section 3.7.
+            logger.error(
+                "idempotency_store_finalize_failed",
+                extra={
+                    "operation": "finalize",
+                    "endpoint": path_template,
+                    "key": key,
+                    "impact": "idempotency_key_not_persisted_retry_will_re_execute",
+                },
+                exc_info=True,
             )
 
         # 9. Return response with echo header
