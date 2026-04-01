@@ -30,6 +30,8 @@ Design Principles:
 import os
 from typing import Any
 
+from pydantic import BaseModel
+
 from autom8y_log import get_logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -624,7 +626,8 @@ def create_app() -> FastAPI:
             SuccessResponse,
         )
 
-        for _registry_model in [SuccessResponse, ErrorResponse, ErrorDetail]:
+        _registry_models: list[type[BaseModel]] = [SuccessResponse, ErrorResponse, ErrorDetail]
+        for _registry_model in _registry_models:
             _schema = _registry_model.model_json_schema(
                 ref_template="#/components/schemas/{model}"
             )
