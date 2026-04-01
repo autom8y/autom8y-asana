@@ -1,0 +1,718 @@
+{
+  "timestamp": "2026-04-01T14:28:33.841379+00:00",
+  "spec_path": "/Users/tomtenuta/Code/a8/repos/autom8y-asana/docs/api-reference/openapi.json",
+  "total_operations": 53,
+  "coverage": {
+    "passed": 51,
+    "expected_5xx": 2,
+    "skipped": 0,
+    "failed": 0,
+    "active_coverage_pct": 100.0
+  },
+  "schema_validation": {
+    "checked": 33,
+    "valid": 33,
+    "invalid": 0,
+    "findings": []
+  },
+  "memory": {
+    "baseline_rss_mb": 309.5,
+    "final_rss_mb": 303.5,
+    "total_growth_mb": 0.0,
+    "budget_mb": 100,
+    "per_endpoint_budget_mb": 50,
+    "per_category": {
+      "dataframes": {
+        "rss_before": 309.5,
+        "rss_after": 310.0,
+        "delta_mb": 0.4,
+        "operations": 4
+      },
+      "health": {
+        "rss_before": 310.0,
+        "rss_after": 312.0,
+        "delta_mb": 2.0,
+        "operations": 3
+      },
+      "offers": {
+        "rss_before": 312.0,
+        "rss_after": 312.0,
+        "delta_mb": 0.0,
+        "operations": 1
+      },
+      "projects": {
+        "rss_before": 312.0,
+        "rss_after": 312.1,
+        "delta_mb": 0.2,
+        "operations": 8
+      },
+      "query": {
+        "rss_before": 312.1,
+        "rss_after": 312.1,
+        "delta_mb": 0.0,
+        "operations": 6
+      },
+      "resolver": {
+        "rss_before": 312.1,
+        "rss_after": 312.1,
+        "delta_mb": 0.0,
+        "operations": 3
+      },
+      "sections": {
+        "rss_before": 312.1,
+        "rss_after": 312.2,
+        "delta_mb": 0.0,
+        "operations": 6
+      },
+      "tasks": {
+        "rss_before": 312.2,
+        "rss_after": 312.3,
+        "delta_mb": 0.1,
+        "operations": 14
+      },
+      "users": {
+        "rss_before": 312.3,
+        "rss_after": 312.2,
+        "delta_mb": -0.1,
+        "operations": 3
+      },
+      "webhooks": {
+        "rss_before": 312.1,
+        "rss_after": 312.0,
+        "delta_mb": -0.1,
+        "operations": 1
+      },
+      "workflows": {
+        "rss_before": 312.0,
+        "rss_after": 310.9,
+        "delta_mb": -1.2,
+        "operations": 2
+      },
+      "workspaces": {
+        "rss_before": 310.1,
+        "rss_after": 309.8,
+        "delta_mb": -0.3,
+        "operations": 2
+      }
+    },
+    "regressions": []
+  },
+  "operations": [
+    {
+      "path": "/api/v1/dataframes/project/{gid}",
+      "method": "GET",
+      "category": "dataframes",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 9.6,
+      "rss_before_mb": 309.53,
+      "rss_after_mb": 309.92,
+      "rss_delta_mb": 0.39,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/dataframes/schemas",
+      "method": "GET",
+      "category": "dataframes",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.1,
+      "rss_before_mb": 309.92,
+      "rss_after_mb": 309.95,
+      "rss_delta_mb": 0.03,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/dataframes/schemas/{name}",
+      "method": "GET",
+      "category": "dataframes",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.8,
+      "rss_before_mb": 309.95,
+      "rss_after_mb": 309.95,
+      "rss_delta_mb": 0.0,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/dataframes/section/{gid}",
+      "method": "GET",
+      "category": "dataframes",
+      "status": 404,
+      "outcome": "PASSED",
+      "duration_ms": 13.6,
+      "rss_before_mb": 309.95,
+      "rss_after_mb": 309.95,
+      "rss_delta_mb": 0.0
+    },
+    {
+      "path": "/health",
+      "method": "GET",
+      "category": "health",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 3.6,
+      "rss_before_mb": 309.97,
+      "rss_after_mb": 310.0,
+      "rss_delta_mb": 0.03,
+      "schema_valid": true
+    },
+    {
+      "path": "/health/deps",
+      "method": "GET",
+      "category": "health",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 502.9,
+      "rss_before_mb": 309.97,
+      "rss_after_mb": 311.95,
+      "rss_delta_mb": 1.98,
+      "schema_valid": true
+    },
+    {
+      "path": "/ready",
+      "method": "GET",
+      "category": "health",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.1,
+      "rss_before_mb": 311.95,
+      "rss_after_mb": 311.95,
+      "rss_delta_mb": 0.0,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/offers/section-timelines",
+      "method": "GET",
+      "category": "offers",
+      "status": 502,
+      "outcome": "EXPECTED-5xx",
+      "duration_ms": 10.5,
+      "rss_before_mb": 311.95,
+      "rss_after_mb": 311.95,
+      "rss_delta_mb": 0.0
+    },
+    {
+      "path": "/api/v1/projects",
+      "method": "GET",
+      "category": "projects",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 7.6,
+      "rss_before_mb": 311.95,
+      "rss_after_mb": 311.97,
+      "rss_delta_mb": 0.02,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/projects",
+      "method": "POST",
+      "category": "projects",
+      "status": 201,
+      "outcome": "PASSED",
+      "duration_ms": 6.5,
+      "rss_before_mb": 311.97,
+      "rss_after_mb": 311.98,
+      "rss_delta_mb": 0.02,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/projects/{gid}",
+      "method": "GET",
+      "category": "projects",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.3,
+      "rss_before_mb": 311.98,
+      "rss_after_mb": 312.0,
+      "rss_delta_mb": 0.02,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/projects/{gid}",
+      "method": "PUT",
+      "category": "projects",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 8.3,
+      "rss_before_mb": 312.02,
+      "rss_after_mb": 312.02,
+      "rss_delta_mb": 0.0,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/projects/{gid}",
+      "method": "DELETE",
+      "category": "projects",
+      "status": 204,
+      "outcome": "PASSED",
+      "duration_ms": 4.9,
+      "rss_before_mb": 312.02,
+      "rss_after_mb": 312.05,
+      "rss_delta_mb": 0.03
+    },
+    {
+      "path": "/api/v1/projects/{gid}/members",
+      "method": "POST",
+      "category": "projects",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.6,
+      "rss_before_mb": 312.02,
+      "rss_after_mb": 312.03,
+      "rss_delta_mb": 0.02,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/projects/{gid}/members",
+      "method": "DELETE",
+      "category": "projects",
+      "status": 422,
+      "outcome": "PASSED",
+      "duration_ms": 6.5,
+      "rss_before_mb": 312.03,
+      "rss_after_mb": 312.09,
+      "rss_delta_mb": 0.06
+    },
+    {
+      "path": "/api/v1/projects/{gid}/sections",
+      "method": "GET",
+      "category": "projects",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.0,
+      "rss_before_mb": 312.09,
+      "rss_after_mb": 312.14,
+      "rss_delta_mb": 0.05,
+      "schema_valid": true
+    },
+    {
+      "path": "/v1/query/data-sources",
+      "method": "GET",
+      "category": "query",
+      "status": 401,
+      "outcome": "PASSED",
+      "duration_ms": 5.1,
+      "rss_before_mb": 312.11,
+      "rss_after_mb": 312.12,
+      "rss_delta_mb": 0.02
+    },
+    {
+      "path": "/v1/query/data-sources/{factory}/fields",
+      "method": "GET",
+      "category": "query",
+      "status": 401,
+      "outcome": "PASSED",
+      "duration_ms": 4.9,
+      "rss_before_mb": 312.12,
+      "rss_after_mb": 312.17,
+      "rss_delta_mb": 0.05
+    },
+    {
+      "path": "/v1/query/entities",
+      "method": "GET",
+      "category": "query",
+      "status": 401,
+      "outcome": "PASSED",
+      "duration_ms": 4.6,
+      "rss_before_mb": 312.14,
+      "rss_after_mb": 312.17,
+      "rss_delta_mb": 0.03
+    },
+    {
+      "path": "/v1/query/{entity_type}/fields",
+      "method": "GET",
+      "category": "query",
+      "status": 401,
+      "outcome": "PASSED",
+      "duration_ms": 6.9,
+      "rss_before_mb": 312.14,
+      "rss_after_mb": 312.14,
+      "rss_delta_mb": 0.0
+    },
+    {
+      "path": "/v1/query/{entity_type}/relations",
+      "method": "GET",
+      "category": "query",
+      "status": 401,
+      "outcome": "PASSED",
+      "duration_ms": 4.9,
+      "rss_before_mb": 312.14,
+      "rss_after_mb": 312.17,
+      "rss_delta_mb": 0.03
+    },
+    {
+      "path": "/v1/query/{entity_type}/sections",
+      "method": "GET",
+      "category": "query",
+      "status": 401,
+      "outcome": "PASSED",
+      "duration_ms": 5.1,
+      "rss_before_mb": 312.14,
+      "rss_after_mb": 312.17,
+      "rss_delta_mb": 0.03
+    },
+    {
+      "path": "/v1/resolve/{entity_type}",
+      "method": "POST",
+      "category": "resolver",
+      "status": 401,
+      "outcome": "PASSED",
+      "duration_ms": 5.6,
+      "rss_before_mb": 312.14,
+      "rss_after_mb": 312.14,
+      "rss_delta_mb": 0.0
+    },
+    {
+      "path": "/v1/resolve/{entity_type}/schema",
+      "method": "GET",
+      "category": "resolver",
+      "status": 401,
+      "outcome": "PASSED",
+      "duration_ms": 5.0,
+      "rss_before_mb": 312.14,
+      "rss_after_mb": 312.17,
+      "rss_delta_mb": 0.03
+    },
+    {
+      "path": "/v1/resolve/{entity_type}/schema/enums/{field_name}",
+      "method": "GET",
+      "category": "resolver",
+      "status": 401,
+      "outcome": "PASSED",
+      "duration_ms": 4.4,
+      "rss_before_mb": 312.14,
+      "rss_after_mb": 312.17,
+      "rss_delta_mb": 0.03
+    },
+    {
+      "path": "/api/v1/sections",
+      "method": "POST",
+      "category": "sections",
+      "status": 201,
+      "outcome": "PASSED",
+      "duration_ms": 7.0,
+      "rss_before_mb": 312.14,
+      "rss_after_mb": 312.14,
+      "rss_delta_mb": 0.0,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/sections/{gid}",
+      "method": "GET",
+      "category": "sections",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.0,
+      "rss_before_mb": 312.14,
+      "rss_after_mb": 312.19,
+      "rss_delta_mb": 0.05,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/sections/{gid}",
+      "method": "PUT",
+      "category": "sections",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 7.2,
+      "rss_before_mb": 312.16,
+      "rss_after_mb": 312.16,
+      "rss_delta_mb": 0.0,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/sections/{gid}",
+      "method": "DELETE",
+      "category": "sections",
+      "status": 204,
+      "outcome": "PASSED",
+      "duration_ms": 6.3,
+      "rss_before_mb": 312.16,
+      "rss_after_mb": 312.16,
+      "rss_delta_mb": 0.0
+    },
+    {
+      "path": "/api/v1/sections/{gid}/reorder",
+      "method": "POST",
+      "category": "sections",
+      "status": 204,
+      "outcome": "PASSED",
+      "duration_ms": 6.1,
+      "rss_before_mb": 312.16,
+      "rss_after_mb": 312.16,
+      "rss_delta_mb": 0.0
+    },
+    {
+      "path": "/api/v1/sections/{gid}/tasks",
+      "method": "POST",
+      "category": "sections",
+      "status": 204,
+      "outcome": "PASSED",
+      "duration_ms": 6.7,
+      "rss_before_mb": 312.16,
+      "rss_after_mb": 312.16,
+      "rss_delta_mb": 0.0
+    },
+    {
+      "path": "/api/v1/tasks",
+      "method": "GET",
+      "category": "tasks",
+      "status": 400,
+      "outcome": "PASSED",
+      "duration_ms": 7.1,
+      "rss_before_mb": 312.16,
+      "rss_after_mb": 312.16,
+      "rss_delta_mb": 0.0
+    },
+    {
+      "path": "/api/v1/tasks",
+      "method": "POST",
+      "category": "tasks",
+      "status": 201,
+      "outcome": "PASSED",
+      "duration_ms": 6.3,
+      "rss_before_mb": 312.16,
+      "rss_after_mb": 312.19,
+      "rss_delta_mb": 0.03,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/tasks/{gid}",
+      "method": "GET",
+      "category": "tasks",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.1,
+      "rss_before_mb": 312.19,
+      "rss_after_mb": 312.19,
+      "rss_delta_mb": 0.0,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/tasks/{gid}",
+      "method": "PUT",
+      "category": "tasks",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.5,
+      "rss_before_mb": 312.19,
+      "rss_after_mb": 312.2,
+      "rss_delta_mb": 0.02,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/tasks/{gid}",
+      "method": "DELETE",
+      "category": "tasks",
+      "status": 204,
+      "outcome": "PASSED",
+      "duration_ms": 5.6,
+      "rss_before_mb": 312.2,
+      "rss_after_mb": 312.23,
+      "rss_delta_mb": 0.03
+    },
+    {
+      "path": "/api/v1/tasks/{gid}/assignee",
+      "method": "PUT",
+      "category": "tasks",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.7,
+      "rss_before_mb": 312.2,
+      "rss_after_mb": 312.22,
+      "rss_delta_mb": 0.02,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/tasks/{gid}/dependents",
+      "method": "GET",
+      "category": "tasks",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.1,
+      "rss_before_mb": 312.22,
+      "rss_after_mb": 312.25,
+      "rss_delta_mb": 0.03,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/tasks/{gid}/duplicate",
+      "method": "POST",
+      "category": "tasks",
+      "status": 201,
+      "outcome": "PASSED",
+      "duration_ms": 6.2,
+      "rss_before_mb": 312.22,
+      "rss_after_mb": 312.23,
+      "rss_delta_mb": 0.02,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/tasks/{gid}/projects",
+      "method": "POST",
+      "category": "tasks",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.8,
+      "rss_before_mb": 312.23,
+      "rss_after_mb": 312.23,
+      "rss_delta_mb": 0.0,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/tasks/{gid}/projects/{project_gid}",
+      "method": "DELETE",
+      "category": "tasks",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 5.8,
+      "rss_before_mb": 312.23,
+      "rss_after_mb": 312.27,
+      "rss_delta_mb": 0.03,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/tasks/{gid}/section",
+      "method": "POST",
+      "category": "tasks",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.4,
+      "rss_before_mb": 312.23,
+      "rss_after_mb": 312.25,
+      "rss_delta_mb": 0.02,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/tasks/{gid}/subtasks",
+      "method": "GET",
+      "category": "tasks",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.2,
+      "rss_before_mb": 312.25,
+      "rss_after_mb": 312.27,
+      "rss_delta_mb": 0.02,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/tasks/{gid}/tags",
+      "method": "POST",
+      "category": "tasks",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.4,
+      "rss_before_mb": 312.27,
+      "rss_after_mb": 312.3,
+      "rss_delta_mb": 0.03,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/tasks/{gid}/tags/{tag_gid}",
+      "method": "DELETE",
+      "category": "tasks",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 5.8,
+      "rss_before_mb": 312.27,
+      "rss_after_mb": 312.3,
+      "rss_delta_mb": 0.03,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/users",
+      "method": "GET",
+      "category": "users",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.4,
+      "rss_before_mb": 312.27,
+      "rss_after_mb": 312.27,
+      "rss_delta_mb": 0.0,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/users/me",
+      "method": "GET",
+      "category": "users",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.5,
+      "rss_before_mb": 312.27,
+      "rss_after_mb": 312.27,
+      "rss_delta_mb": 0.0,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/users/{gid}",
+      "method": "GET",
+      "category": "users",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 13.7,
+      "rss_before_mb": 312.27,
+      "rss_after_mb": 312.22,
+      "rss_delta_mb": -0.05,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/webhooks/inbound",
+      "method": "POST",
+      "category": "webhooks",
+      "status": 503,
+      "outcome": "EXPECTED-5xx",
+      "duration_ms": 13.7,
+      "rss_before_mb": 312.12,
+      "rss_after_mb": 312.14,
+      "rss_delta_mb": 0.02
+    },
+    {
+      "path": "/api/v1/workflows/",
+      "method": "GET",
+      "category": "workflows",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 6.4,
+      "rss_before_mb": 312.03,
+      "rss_after_mb": 312.02,
+      "rss_delta_mb": -0.02,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/workflows/{workflow_id}/invoke",
+      "method": "POST",
+      "category": "workflows",
+      "status": 404,
+      "outcome": "PASSED",
+      "duration_ms": 8.1,
+      "rss_before_mb": 312.02,
+      "rss_after_mb": 311.64,
+      "rss_delta_mb": -0.38
+    },
+    {
+      "path": "/api/v1/workspaces",
+      "method": "GET",
+      "category": "workspaces",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 7.3,
+      "rss_before_mb": 310.08,
+      "rss_after_mb": 310.02,
+      "rss_delta_mb": -0.06,
+      "schema_valid": true
+    },
+    {
+      "path": "/api/v1/workspaces/{gid}",
+      "method": "GET",
+      "category": "workspaces",
+      "status": 200,
+      "outcome": "PASSED",
+      "duration_ms": 5.7,
+      "rss_before_mb": 310.02,
+      "rss_after_mb": 310.02,
+      "rss_delta_mb": 0.0,
+      "schema_valid": true
+    }
+  ]
+}
