@@ -198,9 +198,7 @@ def generate_object(spec: dict, schema: dict, _depth: int = 0) -> dict:
     result: dict[str, Any] = {}
 
     for name, prop_schema in props.items():
-        if name in required:
-            result[name] = generate_value(spec, prop_schema, _depth + 1)
-        elif "examples" in prop_schema or "default" in prop_schema:
+        if name in required or "examples" in prop_schema or "default" in prop_schema:
             result[name] = generate_value(spec, prop_schema, _depth + 1)
 
     return result
@@ -528,9 +526,10 @@ def test_operation(
 
     if not is_5xx:
         outcome = "PASSED"
-    elif path in tolerated_5xx_paths:
-        outcome = "EXPECTED-5xx"
-    elif (method.upper(), path) in tolerated_5xx_path_methods:
+    elif (
+        path in tolerated_5xx_paths
+        or (method.upper(), path) in tolerated_5xx_path_methods
+    ):
         outcome = "EXPECTED-5xx"
     else:
         outcome = "FAILED"

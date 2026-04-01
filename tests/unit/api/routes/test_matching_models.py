@@ -19,7 +19,6 @@ from autom8_asana.api.routes.matching_models import (
     MatchingQueryResponse,
 )
 
-
 # ---------------------------------------------------------------------------
 # MatchingQueryRequest
 # ---------------------------------------------------------------------------

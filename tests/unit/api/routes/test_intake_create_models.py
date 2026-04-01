@@ -24,7 +24,6 @@ from autom8_asana.api.routes.intake_create_models import (
     IntakeSocialProfile,
 )
 
-
 # ---------------------------------------------------------------------------
 # IntakeAddress
 # ---------------------------------------------------------------------------

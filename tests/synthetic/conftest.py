@@ -256,12 +256,12 @@ def synthetic_client():
 
         mock_discover.side_effect = setup_registry
 
-        from autom8_asana.api.main import create_app
         from autom8_asana.api.dependencies import (
             AuthContext,
-            get_auth_context,
             get_asana_client_from_context,
+            get_auth_context,
         )
+        from autom8_asana.api.main import create_app
         from autom8_asana.auth.dual_mode import AuthMode
 
         app = create_app()
@@ -482,7 +482,7 @@ def _write_baselines(results: list[dict]) -> None:
         }
 
     baseline_doc = {
-        "generated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
         "platform": platform.system().lower(),
         "spec_path": str(
             Path(__file__).parent.parent.parent
@@ -621,7 +621,7 @@ def coverage_summary() -> None:
         }
 
     report = {
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         "spec_path": str(
             Path(__file__).parent.parent.parent
             / "docs"

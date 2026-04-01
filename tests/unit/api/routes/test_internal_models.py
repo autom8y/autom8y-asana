@@ -12,7 +12,6 @@ from pydantic import ValidationError
 
 from autom8_asana.api.routes.internal import ServiceClaims
 
-
 # ---------------------------------------------------------------------------
 # ServiceClaims
 # ---------------------------------------------------------------------------

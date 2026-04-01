@@ -19,7 +19,6 @@ from autom8_asana.api.routes.intake_resolve_models import (
     ContactResolveResponse,
 )
 
-
 # ---------------------------------------------------------------------------
 # BusinessResolveRequest
 # ---------------------------------------------------------------------------

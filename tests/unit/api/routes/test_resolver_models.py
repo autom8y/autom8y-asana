@@ -21,7 +21,6 @@ from autom8_asana.api.routes.resolver_models import (
     ResolutionResultModel,
 )
 
-
 # ---------------------------------------------------------------------------
 # ResolutionCriterion
 # ---------------------------------------------------------------------------

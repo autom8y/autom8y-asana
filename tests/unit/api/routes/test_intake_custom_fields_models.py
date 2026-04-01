@@ -16,7 +16,6 @@ from autom8_asana.api.routes.intake_custom_fields_models import (
     CustomFieldWriteResponse,
 )
 
-
 # ---------------------------------------------------------------------------
 # CustomFieldWriteRequest
 # ---------------------------------------------------------------------------
