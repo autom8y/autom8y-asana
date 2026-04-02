@@ -52,7 +52,7 @@ auth = ["autom8y-auth[observability]>=2.0.0"]
 events = ["autom8y-events>=0.1.0"]
 # interop: Cross-service protocol alignment via autom8y-interop
 # Per ADR-bridge-dispatch-model: Protocol annotation pressure, NOT client migration
-interop = ["autom8y-interop>=1.2.0"]
+interop = ["autom8y-interop>=2.0.0"]
 # scheduler: Polling scheduler for development mode (production uses cron)
 scheduler = ["apscheduler>=3.10.0"]
 # lambda: AWS Lambda Runtime Interface Client for container-based Lambda execution
