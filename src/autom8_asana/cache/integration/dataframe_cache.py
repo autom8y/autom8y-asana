@@ -806,7 +806,10 @@ class DataFrameCache:
         success = await self.coalescer.wait_async(cache_key, timeout_seconds)
 
         if success:
-            return await self.get_async(project_gid, entity_type)
+            result: DataFrameCacheEntry | None = await self.get_async(
+                project_gid, entity_type
+            )
+            return result
         return None
 
     def get_stats(self) -> dict[str, dict[str, int]]:

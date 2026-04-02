@@ -53,6 +53,16 @@ def _mock_jwt_validation(service_name: str = "autom8_data") -> AsyncMock:
     return AsyncMock(return_value=mock_claims)
 
 
+def _make_collect_mock(return_value):
+    """Create a mock object whose .collect() returns an AsyncMock with given value.
+
+    Matches the PageIterator pattern: service calls method(...).collect().
+    """
+    collector = MagicMock()
+    collector.collect = AsyncMock(return_value=return_value)
+    return collector
+
+
 def _make_mock_asana_client(
     *,
     existing_processes: list[dict] | None = None,
@@ -65,7 +75,7 @@ def _make_mock_asana_client(
     Args:
         existing_processes: List of existing process subtasks under unit.
         raise_on_get: Exception to raise on tasks.get_async.
-        raise_on_create: Exception to raise on tasks.create_subtask_async.
+        raise_on_create: Exception to raise on tasks.create_async.
         users: Mock workspace users for assignee resolution.
     """
     mock_client = MagicMock()
@@ -80,30 +90,32 @@ def _make_mock_asana_client(
             return_value={"gid": UNIT_GID, "name": "Unit Task"},
         )
 
-    # tasks.subtasks_async -- return existing processes
-    mock_client.tasks.subtasks_async = AsyncMock(
-        return_value=existing_processes or [],
+    # tasks.subtasks_async -- returns PageIterator-like with .collect()
+    mock_client.tasks.subtasks_async = MagicMock(
+        return_value=_make_collect_mock(existing_processes or []),
     )
 
-    # tasks.create_subtask_async -- create new process
+    # tasks.create_async -- create new process (subtask with parent= kwarg)
     if raise_on_create:
-        mock_client.tasks.create_subtask_async = AsyncMock(
+        mock_client.tasks.create_async = AsyncMock(
             side_effect=raise_on_create,
         )
     else:
-        mock_client.tasks.create_subtask_async = AsyncMock(
+        mock_client.tasks.create_async = AsyncMock(
             return_value={"gid": PROCESS_GID},
         )
 
     # tasks.update_async -- set fields
     mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
 
-    # users.get_users_async -- for assignee resolution
+    # users.list_for_workspace_async -- returns PageIterator-like with .collect()
     default_users = users or [
         {"gid": "user_alice", "name": "Alice Johnson"},
         {"gid": "user_bob", "name": "Bob Williams"},
     ]
-    mock_client.users.get_users_async = AsyncMock(return_value=default_users)
+    mock_client.users.list_for_workspace_async = MagicMock(
+        return_value=_make_collect_mock(default_users),
+    )
 
     return mock_client
 
@@ -250,8 +262,8 @@ class TestRouteIntakeProcessEndpoint:
         assert data["process_gid"] == EXISTING_PROCESS_GID
         assert data["is_new"] is False
 
-        # Verify no new subtask was created
-        mock_asana.tasks.create_subtask_async.assert_not_called()
+        # Verify no new task was created (create_async not called with parent=)
+        mock_asana.tasks.create_async.assert_not_called()
 
     def test_completed_process_not_reused(self, client: TestClient) -> None:
         """Completed process is ignored; new one created."""
@@ -278,8 +290,8 @@ class TestRouteIntakeProcessEndpoint:
         assert data["process_gid"] == PROCESS_GID  # New one
         assert data["is_new"] is True
 
-        # Verify a new subtask WAS created
-        mock_asana.tasks.create_subtask_async.assert_called_once()
+        # Verify a new task WAS created via create_async
+        mock_asana.tasks.create_async.assert_called_once()
 
     def test_with_assignee_fuzzy_match(self, client: TestClient) -> None:
         """Assignee resolved by fuzzy name match."""
@@ -341,10 +353,9 @@ class TestRouteIntakeProcessEndpoint:
 
         assert resp.status_code == 200
 
-        # Verify due_at was included in the create call
-        create_call = mock_asana.tasks.create_subtask_async.call_args
-        call_data = create_call.kwargs.get("data", {}) if create_call.kwargs else {}
-        assert call_data.get("due_at") == "2026-04-01T10:00:00Z"
+        # Verify due_at was included in the create_async call
+        create_call = mock_asana.tasks.create_async.call_args
+        assert create_call.kwargs.get("due_at") == "2026-04-01T10:00:00Z"
 
     def test_unit_not_found_404(self, client: TestClient) -> None:
         """Invalid unit_gid returns 404 UNIT_NOT_FOUND."""

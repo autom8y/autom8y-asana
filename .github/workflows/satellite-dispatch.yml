@@ -1,6 +1,8 @@
 name: Satellite Dispatch
 
 on:
+  repository_dispatch:
+    types: [sdk-published]
   workflow_run:
     workflows: ["Test"]
     types: [completed]
@@ -9,7 +11,10 @@ on:
 
 jobs:
   dispatch:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event_name == 'repository_dispatch' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub App token
@@ -24,7 +29,9 @@ jobs:
       - name: Determine trigger type
         id: trigger
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "triggered_by=sdk-published" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "triggered_by=workflow_dispatch" >> $GITHUB_OUTPUT
           else
             echo "triggered_by=push" >> $GITHUB_OUTPUT
