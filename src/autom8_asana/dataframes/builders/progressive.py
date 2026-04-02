@@ -1376,4 +1376,5 @@ async def build_project_progressive_async(
         store=store,
         index_builder=index_builder,
     )
-    return await builder.build_progressive_async(resume=resume)
+    result: BuildResult = await builder.build_progressive_async(resume=resume)
+    return result

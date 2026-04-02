@@ -501,8 +501,12 @@
         "examples": [
           {
             "code": "DATA-NF-002",
+            "details": null,
+            "field": null,
             "message": "Resource with ID 123 not found",
-            "retryable": false
+            "retry_after_seconds": null,
+            "retryable": false,
+            "suggestions": null
           }
         ],
         "properties": {
@@ -524,6 +528,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "description": "Additional error context",
             "examples": [
               null
@@ -539,6 +544,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "description": "Field name that caused the error (validation errors)",
             "examples": [
               null
@@ -556,13 +562,14 @@
           "retry_after_seconds": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "description": "Suggested delay in seconds before retry (for rate-limited or throttled requests)",
             "examples": [
               null
@@ -590,6 +597,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "description": "Corrective suggestions for the user",
             "examples": [
               null
@@ -611,10 +619,15 @@
           {
             "error": {
               "code": "DATA-NF-002",
+              "details": null,
+              "field": null,
               "message": "Resource with ID 123 not found",
-              "retryable": false
+              "retry_after_seconds": null,
+              "retryable": false,
+              "suggestions": null
             },
             "meta": {
+              "pagination": null,
               "request_id": "a1b2c3d4e5f67890",
               "timestamp": "2026-03-15T10:30:00Z"
             }
@@ -878,7 +891,8 @@
           {
             "has_more": true,
             "limit": 100,
-            "next_offset": "eyJvZmZzZXQiOjEwMH0"
+            "next_offset": "eyJvZmZzZXQiOjEwMH0",
+            "total_count": null
           }
         ],
         "properties": {
@@ -895,7 +909,7 @@
             "examples": [
               100
             ],
-            "minimum": 1.0,
+            "minimum": 1,
             "title": "Limit",
             "type": "integer"
           },
@@ -908,6 +922,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "description": "Opaque cursor for next page",
             "examples": [
               "eyJvZmZzZXQiOjEwMH0"
@@ -917,13 +932,14 @@
           "total_count": {
             "anyOf": [
               {
-                "minimum": 0.0,
+                "minimum": 0,
                 "type": "integer"
               },
               {
                 "type": "null"
               }
             ],
+            "default": null,
             "description": "Total item count (optional, for offset-based services during migration)",
             "examples": [
               null
@@ -1373,6 +1389,7 @@
         "description": "Metadata included with all API responses.\n\nProvides request correlation and timing information for\ndebugging and observability.\n\nAttributes:\n    request_id: Unique identifier for this request.\n    timestamp: UTC timestamp when response was generated.\n    pagination: Pagination info for list responses (optional).",
         "examples": [
           {
+            "pagination": null,
             "request_id": "a1b2c3d4e5f67890",
             "timestamp": "2026-03-15T10:30:00Z"
           }
@@ -1387,6 +1404,7 @@
                 "type": "null"
               }
             ],
+            "default": null,
             "description": "Pagination metadata for list responses"
           },
           "request_id": {
@@ -1548,6 +1566,38 @@
           }
         },
         "title": "SetAssigneeRequest",
+        "type": "object"
+      },
+      "SuccessResponse": {
+        "description": "Standard success response envelope.\n\nWraps response data with metadata for consistent API responses\nacross the autom8y fleet.\n\nAttributes:\n    data: The response payload (single item or list).\n    meta: Response metadata including request_id and timestamp.",
+        "examples": [
+          {
+            "data": {
+              "id": "123",
+              "name": "Example resource"
+            },
+            "meta": {
+              "pagination": null,
+              "request_id": "a1b2c3d4e5f67890",
+              "timestamp": "2026-03-15T10:30:00Z"
+            }
+          }
+        ],
+        "properties": {
+          "data": {
+            "description": "Response data payload",
+            "title": "Data"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta",
+            "description": "Response metadata"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "SuccessResponse",
         "type": "object"
       },
       "SuccessResponse_AsanaResource_": {

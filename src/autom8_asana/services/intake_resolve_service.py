@@ -73,9 +73,9 @@ def resolve_gid_from_index(
         GID string if found, None otherwise.
     """
     try:
-        from autom8_asana.services.dynamic_index import DynamicIndexCache
+        from autom8_asana.services.universal_strategy import get_shared_index_cache
 
-        cache = DynamicIndexCache.get_instance()
+        cache = get_shared_index_cache()
         criterion = {
             "office_phone": office_phone,
             "vertical": vertical or "",
@@ -86,14 +86,14 @@ def resolve_gid_from_index(
         if index is not None:
             gids = index.lookup(criterion)
             if gids:
-                return gids[0]
+                return str(gids[0])
 
         # Fall back to unit index (businesses are often indexed under unit)
         index = cache.get("unit", ["office_phone", "vertical"])
         if index is not None:
             gids = index.lookup(criterion)
             if gids:
-                return gids[0]
+                return str(gids[0])
     except Exception:
         pass
 
@@ -169,7 +169,7 @@ class IntakeResolveService:
             subtasks = await self._client.tasks.subtasks_async(
                 gid,
                 opt_fields=["name"],
-            )
+            ).collect()
             subtask_list = self._to_list(subtasks)
             for st in subtask_list:
                 st_name = (
@@ -231,7 +231,7 @@ class IntakeResolveService:
             contacts_result = await self._client.tasks.subtasks_async(
                 contact_holder_gid,
                 opt_fields=["name", "custom_fields"],
-            )
+            ).collect()
             contacts = self._to_list(contacts_result)
         except Exception as exc:
             logger.warning(
@@ -326,7 +326,7 @@ class IntakeResolveService:
             subtasks_result = await self._client.tasks.subtasks_async(
                 business_gid,
                 opt_fields=["name"],
-            )
+            ).collect()
             subtasks = self._to_list(subtasks_result)
         except Exception as exc:
             logger.warning(
@@ -347,7 +347,7 @@ class IntakeResolveService:
         return None
 
     @staticmethod
-    def _to_list(result: Any) -> list:
+    def _to_list(result: Any) -> list[Any]:
         """Convert Asana API result to a plain list."""
         if isinstance(result, list):
             return result
