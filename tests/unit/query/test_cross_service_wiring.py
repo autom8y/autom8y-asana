@@ -254,7 +254,7 @@ class TestCreateDataClientIfNeeded:
         assert result == "mock_client"
 
     def test_creates_client_with_auth_provider(self) -> None:
-        """When SERVICE_API_KEY is available, auth_provider is passed."""
+        """When SERVICE_CLIENT_ID/SECRET are available, auth_provider is passed."""
         from autom8_asana.query.__main__ import _create_data_client_if_needed
 
         mock_auth = object()
@@ -298,7 +298,10 @@ class TestServiceTokenAuthProvider:
         with (
             patch("autom8y_core.Config") as mock_config_cls,
             patch("autom8y_core.TokenManager") as mock_tm_cls,
-            patch.dict("os.environ", {"SERVICE_API_KEY": "test-key-123"}),
+            patch.dict(
+                "os.environ",
+                {"SERVICE_CLIENT_ID": "test-cid-123", "SERVICE_CLIENT_SECRET": "test-secret-456"},
+            ),
         ):
             mock_manager = mock_tm_cls.return_value
             mock_manager.get_token.return_value = "jwt-token-abc"
@@ -310,21 +313,23 @@ class TestServiceTokenAuthProvider:
 
         assert token == "jwt-token-abc"
         mock_config_cls.assert_called_once_with(
-            service_key="test-key-123",
+            client_id="test-cid-123",
+            client_secret="test-secret-456",
             auth_url="https://auth.api.autom8y.io",
             service_name="autom8y-asana",
         )
 
     def test_raises_on_missing_service_key(self) -> None:
-        """Raises ValueError when SERVICE_API_KEY is not set."""
+        """Raises ValueError when SERVICE_CLIENT_ID/SECRET is not set."""
         with (
             patch.dict("os.environ", {}, clear=False),
-            pytest.raises(ValueError, match="SERVICE_API_KEY is required"),
+            pytest.raises(ValueError, match="SERVICE_CLIENT_ID and SERVICE_CLIENT_SECRET are required"),
         ):
-            # Ensure SERVICE_API_KEY is not in env
+            # Ensure service credentials are not in env
             import os
 
-            os.environ.pop("SERVICE_API_KEY", None)
+            os.environ.pop("SERVICE_CLIENT_ID", None)
+            os.environ.pop("SERVICE_CLIENT_SECRET", None)
 
             from autom8_asana.auth.service_token import ServiceTokenAuthProvider
 
@@ -335,7 +340,10 @@ class TestServiceTokenAuthProvider:
         with (
             patch("autom8y_core.Config"),
             patch("autom8y_core.TokenManager") as mock_tm_cls,
-            patch.dict("os.environ", {"SERVICE_API_KEY": "test-key"}),
+            patch.dict(
+                "os.environ",
+                {"SERVICE_CLIENT_ID": "test-cid", "SERVICE_CLIENT_SECRET": "test-secret"},
+            ),
         ):
             from autom8_asana.auth.service_token import ServiceTokenAuthProvider
 

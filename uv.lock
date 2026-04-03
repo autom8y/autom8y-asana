@@ -195,22 +195,22 @@ requires-dist = [
     { name = "arrow", specifier = ">=1.3.0" },
     { name = "asana", specifier = ">=5.0.3" },
     { name = "autom8y-api-schemas", marker = "extra == 'api'", specifier = ">=1.5.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-auth", extras = ["observability"], marker = "extra == 'auth'", specifier = ">=2.0.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-auth", extras = ["observability"], marker = "extra == 'dev'", specifier = ">=2.0.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-auth", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=2.0.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-auth", extras = ["observability"], marker = "extra == 'auth'", specifier = ">=2.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-auth", extras = ["observability"], marker = "extra == 'dev'", specifier = ">=2.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-auth", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=2.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-cache", specifier = ">=0.4.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-cache", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=0.4.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-config", specifier = ">=1.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-config", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=1.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-core", specifier = ">=1.1.1", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-core", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=1.1.1", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-config", specifier = ">=1.2.1", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-config", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=1.2.1", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-core", specifier = ">=1.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-core", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=1.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-events", marker = "extra == 'events'", specifier = ">=0.1.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-http", extras = ["otel"], specifier = ">=0.5.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-http", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=0.5.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-interop", marker = "extra == 'interop'", specifier = ">=1.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-http", extras = ["otel"], specifier = ">=0.6.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-http", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=0.6.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-interop", marker = "extra == 'interop'", specifier = ">=2.0.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-log", specifier = ">=0.5.6", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-log", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=0.5.6", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-telemetry", extras = ["aws", "fastapi", "otlp"], specifier = ">=0.6.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-telemetry", extras = ["aws", "fastapi", "otlp"], specifier = ">=0.6.1", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "awslambdaric", marker = "extra == 'lambda'", specifier = ">=2.2.0" },
     { name = "boto3", specifier = ">=1.42.19" },
     { name = "boto3-stubs", extras = ["secretsmanager"], marker = "extra == 'dev'", specifier = ">=1.34.0" },
@@ -252,7 +252,7 @@ dev = [
 
 [[package]]
 name = "autom8y-auth"
-version = "2.0.0"
+version = "2.2.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-core" },
@@ -262,9 +262,9 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyjwt", extra = ["crypto"] },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/2.0.0/autom8y_auth-2.0.0.tar.gz", hash = "sha256:020bf6df4859c13f7024b621e076fac801bca7caebe81c946559388111eacc85" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/2.2.0/autom8y_auth-2.2.0.tar.gz", hash = "sha256:7c835781c992224c6049fdcae5bf2d9db20adc98508a53948b1b53fd83dbfaae" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/2.0.0/autom8y_auth-2.0.0-py3-none-any.whl", hash = "sha256:b699d6ae1d5936dd83ce2b7c7c58cdd566c2eab7837be9e204f8214e7bff5db8" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/2.2.0/autom8y_auth-2.2.0-py3-none-any.whl", hash = "sha256:c1d0faf84415fa5f12ed12f201041a64499dfb022f4d1a8e769bc878da16353f" },
 ]
 
 [package.optional-dependencies]
@@ -314,15 +314,15 @@ testing = [
 
 [[package]]
 name = "autom8y-core"
-version = "1.2.0"
+version = "1.3.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/1.2.0/autom8y_core-1.2.0.tar.gz", hash = "sha256:72cf63b4ca24f9b8855c151fa9b2f1f489d690a2e997943946a0c75debe30a70" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/1.3.0/autom8y_core-1.3.0.tar.gz", hash = "sha256:1561ab9bf2bb4a2e0e9b7443c49f851f29db0d07eb5423f9a636eaa13c6d0083" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/1.2.0/autom8y_core-1.2.0-py3-none-any.whl", hash = "sha256:68724ec5ab99dbc3a1c6ff8a8b15ce24aba941cba7370bf1cd4f1ce8cb34401e" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/1.3.0/autom8y_core-1.3.0-py3-none-any.whl", hash = "sha256:9641caab565eea595071a35875809a7a317c063bafb7303d072e80664f59a2fd" },
 ]
 
 [package.optional-dependencies]
@@ -344,15 +344,15 @@ wheels = [
 
 [[package]]
 name = "autom8y-http"
-version = "0.5.0"
+version = "0.6.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-log" },
     { name = "httpx" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-http/0.5.0/autom8y_http-0.5.0.tar.gz", hash = "sha256:4aeb29bf4501664ec9e8f620190a24369a041aa7bb4021c2ae13f95d2d5f17eb" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-http/0.6.0/autom8y_http-0.6.0.tar.gz", hash = "sha256:a5b4a34b7223edb0d7ddc512ccb9d50ee9e581eb39105d3ebc4d724a06705eb1" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-http/0.5.0/autom8y_http-0.5.0-py3-none-any.whl", hash = "sha256:13833be5d2df8cae8baab2976c1ab6596cc1c06b107338f11f651bdd15246713" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-http/0.6.0/autom8y_http-0.6.0-py3-none-any.whl", hash = "sha256:c7c0364700492f5cc1470b9a3bfa53e512583e76d9f364df3fd1916b98ada9c7" },
 ]
 
 [package.optional-dependencies]
@@ -366,16 +366,16 @@ testing = [
 
 [[package]]
 name = "autom8y-interop"
-version = "1.2.0"
+version = "2.0.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-core" },
     { name = "autom8y-http" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-interop/1.2.0/autom8y_interop-1.2.0.tar.gz", hash = "sha256:7d2c4bc30a4f979992a5fd39565f082746cc348650f83a653ae12c25715ae094" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-interop/2.0.0/autom8y_interop-2.0.0.tar.gz", hash = "sha256:4a6e359adcd3fb27906d76157338752d4015843ccfc893c9cd07cee46788b772" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-interop/1.2.0/autom8y_interop-1.2.0-py3-none-any.whl", hash = "sha256:4d9a5fc3517dedbddf178b998a4d4dd9060dfe668ae19975fa01adb0c6a05ae6" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-interop/2.0.0/autom8y_interop-2.0.0-py3-none-any.whl", hash = "sha256:3fe97370c87d611ba61b23e78056a3e6997af39a3403065c2fe77c5080353c8d" },
 ]
 
 [[package]]
