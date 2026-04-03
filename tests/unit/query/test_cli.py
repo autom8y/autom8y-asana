@@ -1110,14 +1110,17 @@ class TestGetLiveConfig:
     """Test live mode configuration resolution via platform TokenManager."""
 
     def test_missing_service_key_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """_get_live_config raises CLIError when SERVICE_API_KEY is not set."""
+        """_get_live_config raises CLIError when SERVICE_CLIENT_ID/SECRET is not set."""
+        monkeypatch.delenv("SERVICE_CLIENT_ID", raising=False)
+        monkeypatch.delenv("SERVICE_CLIENT_SECRET", raising=False)
         monkeypatch.delenv("SERVICE_API_KEY", raising=False)
-        with pytest.raises(CLIError, match="SERVICE_API_KEY"):
+        with pytest.raises(CLIError, match="SERVICE_CLIENT_ID"):
             _get_live_config()
 
     def test_returns_url_and_jwt_headers(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """_get_live_config exchanges service key for JWT via TokenManager."""
-        monkeypatch.setenv("SERVICE_API_KEY", "sk_test_key")
+        """_get_live_config exchanges service credentials for JWT via TokenManager."""
+        monkeypatch.setenv("SERVICE_CLIENT_ID", "test-client-id")
+        monkeypatch.setenv("SERVICE_CLIENT_SECRET", "test-client-secret")
         monkeypatch.setenv("AUTOM8Y_DATA_URL", "http://myhost:9999")
 
         mock_manager = MagicMock()
@@ -1138,7 +1141,8 @@ class TestGetLiveConfig:
 
     def test_default_url_is_production(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """_get_live_config defaults to production API URL."""
-        monkeypatch.setenv("SERVICE_API_KEY", "sk_test_key")
+        monkeypatch.setenv("SERVICE_CLIENT_ID", "test-client-id")
+        monkeypatch.setenv("SERVICE_CLIENT_SECRET", "test-client-secret")
         monkeypatch.delenv("AUTOM8Y_DATA_URL", raising=False)
 
         mock_manager = MagicMock()
@@ -1154,7 +1158,9 @@ class TestGetLiveConfig:
         assert base_url == "https://data.api.autom8y.io"
 
     def test_exit_code_is_2(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Missing service key exits with code 2 (infrastructure error)."""
+        """Missing service credentials exits with code 2 (infrastructure error)."""
+        monkeypatch.delenv("SERVICE_CLIENT_ID", raising=False)
+        monkeypatch.delenv("SERVICE_CLIENT_SECRET", raising=False)
         monkeypatch.delenv("SERVICE_API_KEY", raising=False)
         with pytest.raises(CLIError) as exc_info:
             _get_live_config()
@@ -1162,7 +1168,8 @@ class TestGetLiveConfig:
 
     def test_token_acquisition_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """_get_live_config raises CLIError when token exchange fails."""
-        monkeypatch.setenv("SERVICE_API_KEY", "sk_bad_key")
+        monkeypatch.setenv("SERVICE_CLIENT_ID", "bad-client-id")
+        monkeypatch.setenv("SERVICE_CLIENT_SECRET", "bad-client-secret")
 
         from autom8y_core.errors import TokenAcquisitionError
 
@@ -1452,9 +1459,11 @@ class TestLiveCLIIntegration:
         monkeypatch: pytest.MonkeyPatch,
         capsys: pytest.CaptureFixture,
     ) -> None:
-        """--live without SERVICE_API_KEY exits with code 2."""
+        """--live without SERVICE_CLIENT_ID/SECRET exits with code 2."""
+        monkeypatch.delenv("SERVICE_CLIENT_ID", raising=False)
+        monkeypatch.delenv("SERVICE_CLIENT_SECRET", raising=False)
         monkeypatch.delenv("SERVICE_API_KEY", raising=False)
         exit_code = main(["rows", "offer", "--live"])
         assert exit_code == 2
         captured = capsys.readouterr()
-        assert "SERVICE_API_KEY" in captured.err
+        assert "SERVICE_CLIENT_ID" in captured.err

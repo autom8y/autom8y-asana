@@ -18,7 +18,7 @@
 # Requirements:
 #   - curl
 #   - jq
-#   - SERVICE_API_KEY environment variable set
+#   - SERVICE_CLIENT_ID and SERVICE_CLIENT_SECRET environment variables set
 #   - Internet connectivity to https://auth.api.autom8y.io and https://api.autom8y.io
 ################################################################################
 
@@ -59,21 +59,20 @@ echo -e "${BLUE}    Universal Schema-Driven Resolver${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
 echo ""
 
-# Step 1: Check for API key
-if [ -z "$SERVICE_API_KEY" ]; then
-  echo -e "${RED}✗ SERVICE_API_KEY environment variable not set${NC}"
-  echo "Run: export SERVICE_API_KEY=sk_prod_..."
+# Step 1: Check for service credentials
+if [ -z "$SERVICE_CLIENT_ID" ] || [ -z "$SERVICE_CLIENT_SECRET" ]; then
+  echo -e "${RED}✗ SERVICE_CLIENT_ID and SERVICE_CLIENT_SECRET environment variables not set${NC}"
+  echo "Run: export SERVICE_CLIENT_ID=... && export SERVICE_CLIENT_SECRET=..."
   exit 1
 fi
 
 echo -e "${YELLOW}[1/6] Getting access token...${NC}"
-echo "Using key: ${SERVICE_API_KEY:0:15}..."
+echo "Using client_id: ${SERVICE_CLIENT_ID:0:15}..."
 
 TOKEN_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
   "$AUTH_URL" \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: $SERVICE_API_KEY" \
-  -d '{"service_name": "demo_dynamic_api"}')
+  -d "{\"grant_type\": \"client_credentials\", \"client_id\": \"$SERVICE_CLIENT_ID\", \"client_secret\": \"$SERVICE_CLIENT_SECRET\", \"service_name\": \"demo_dynamic_api\"}")
 
 # Extract HTTP status code (last line) and body (everything else)
 HTTP_CODE=$(echo "$TOKEN_RESPONSE" | tail -n1)

@@ -125,20 +125,17 @@ class DiscoveredFixtures:
 def _acquire_jwt(auth_base: str) -> str | None:
     """Acquire S2S JWT via platform TokenManager.
 
-    Reads SERVICE_API_KEY from environment (platform convention).
-    Returns None if key is missing or exchange fails.
+    Reads SERVICE_CLIENT_ID + SERVICE_CLIENT_SECRET from environment
+    (ServiceAccount convention). Falls back to SERVICE_API_KEY via Config.from_env().
+    Returns None if credentials are missing or exchange fails.
     """
     from autom8y_core import Config, TokenManager
 
-    key = os.environ.get("SERVICE_API_KEY", "")
-    if not key:
+    try:
+        config = Config.from_env()
+    except ValueError:
         return None
     try:
-        config = Config(
-            service_key=key,
-            auth_url=auth_base,
-            service_name="autom8y-asana",
-        )
         manager = TokenManager(config)
         token = manager.get_token()
         manager.close()
@@ -678,7 +675,7 @@ async def tier2_s2s_readonly(
             name="Tier 2 (all)",
             tier=2,
             status=TestStatus.SKIP,
-            message="No JWT (set SERVICE_API_KEY)",
+            message="No JWT (set SERVICE_CLIENT_ID + SERVICE_CLIENT_SECRET)",
         )
         results.append(r)
         _print_result(r, config.verbose)
@@ -990,7 +987,7 @@ def parse_args() -> SmokeConfig:
         jwt = _acquire_jwt(AUTH_BASE_PRODUCTION)
         if not jwt:
             print(
-                f"  {YELLOW}No SERVICE_API_KEY found or exchange failed, Tier 2/3 will be skipped{RESET}"
+                f"  {YELLOW}No service credentials found or exchange failed, Tier 2/3 will be skipped{RESET}"
             )
     elif mode == "local":
         jwt = "local-dev-token"

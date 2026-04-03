@@ -43,10 +43,11 @@ else:
 
 
 def _ensure_data_api_token() -> None:
-    """Exchange service key for data API bearer token if not already set.
+    """Exchange service credentials for data API bearer token if not already set.
 
     Uses platform autom8y_core.TokenManager for S2S JWT exchange.
-    Reads SERVICE_API_KEY from environment (platform convention).
+    Reads SERVICE_CLIENT_ID + SERVICE_CLIENT_SECRET from environment
+    (ServiceAccount convention). Falls back to SERVICE_API_KEY via Config.from_env().
     """
     if _SMOKE_MODE == "local":
         return  # Local dev stack does not require JWT auth
@@ -56,18 +57,14 @@ def _ensure_data_api_token() -> None:
 
     from autom8y_core import Config, TokenManager
 
-    key = os.environ.get("SERVICE_API_KEY", "")
-    if not key:
+    try:
+        config = Config.from_env()
+    except ValueError:
         raise RuntimeError(
-            "SERVICE_API_KEY not found in environment. "
-            "Source .env/production or set SERVICE_API_KEY directly."
+            "SERVICE_CLIENT_ID and SERVICE_CLIENT_SECRET not found in environment. "
+            "Set them or source .env/production."
         )
 
-    config = Config(
-        service_key=key,
-        auth_url="https://auth.api.autom8y.io",
-        service_name="autom8y-asana",
-    )
     manager = TokenManager(config)
     token = manager.get_token()
     manager.close()
