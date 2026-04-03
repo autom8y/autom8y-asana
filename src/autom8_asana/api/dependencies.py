@@ -497,7 +497,7 @@ def get_data_service_client(request: Request) -> DataServiceClient | None:
     try:
         from autom8_asana.clients.data.client import DataServiceClient
 
-        # Prefer SERVICE_API_KEY → TokenManager → JWT (ecosystem standard).
+        # Prefer SERVICE_CLIENT_ID + SERVICE_CLIENT_SECRET → TokenManager → JWT.
         # Falls back to DataServiceClient without auth_provider, which reads
         # AUTOM8Y_DATA_API_KEY from env (backward compat for Lambda/ECS).
         auth_provider = None
@@ -506,7 +506,7 @@ def get_data_service_client(request: Request) -> DataServiceClient | None:
 
             auth_provider = ServiceTokenAuthProvider()
         except (ValueError, ImportError):
-            pass  # No SERVICE_API_KEY — fall through to env var fallback
+            pass  # No ServiceAccount credentials — fall through to env var fallback
 
         client = DataServiceClient(auth_provider=auth_provider)
         request.app.state.data_service_client = client
