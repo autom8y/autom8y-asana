@@ -26,12 +26,16 @@ if TYPE_CHECKING:
 def reset_client(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
     """Reset the auth client singleton before and after each test.
 
-    Also removes production URL env vars that trigger the SDK's
-    production URL guard (FATAL: Production URL detected in local environment).
+    Also removes env vars that affect auth behavior:
+    - Production URL env vars that trigger the SDK's production URL guard
+    - AUTH_DEV_MODE / AUTH__DEV_MODE that bypass JWT validation (may leak
+      from synthetic test conftest running earlier in the same process)
     """
     monkeypatch.delenv("AUTOM8Y_DATA_URL", raising=False)
     monkeypatch.delenv("AUTOM8Y_ENV", raising=False)
     monkeypatch.delenv("ASANA_ENVIRONMENT", raising=False)
+    monkeypatch.delenv("AUTH_DEV_MODE", raising=False)
+    monkeypatch.delenv("AUTH__DEV_MODE", raising=False)
     reset_auth_client()
     yield
     reset_auth_client()
