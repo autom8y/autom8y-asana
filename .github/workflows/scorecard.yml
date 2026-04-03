@@ -9,6 +9,7 @@ on:
 
 permissions:
   security-events: write
+  id-token: write        # Required: OIDC for publish_results
   contents: read
   actions: read
 
