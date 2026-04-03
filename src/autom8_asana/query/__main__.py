@@ -232,14 +232,14 @@ def _get_live_config() -> tuple[str, dict[str, str]]:
     """Resolve live API URL + auth headers via platform TokenManager.
 
     Uses autom8y_core.TokenManager for S2S JWT exchange with retry,
-    backoff, and proper error handling. Reads SERVICE_API_KEY from
-    environment (platform convention per autom8y-core Config).
+    backoff, and proper error handling. Reads SERVICE_CLIENT_ID and
+    SERVICE_CLIENT_SECRET from environment (ServiceAccount convention).
 
     Returns:
         Tuple of (base_url, headers_with_jwt).
 
     Raises:
-        CLIError: If SERVICE_API_KEY is not set or auth exchange fails.
+        CLIError: If ServiceAccount credentials are not set or auth exchange fails.
     """
     import os
 
@@ -251,8 +251,8 @@ def _get_live_config() -> tuple[str, dict[str, str]]:
         config = Config.from_env()
     except ValueError:
         raise CLIError(
-            "Live mode requires SERVICE_API_KEY environment variable. "
-            "Set it or remove --live for offline (S3 cache) mode.",
+            "Live mode requires SERVICE_CLIENT_ID and SERVICE_CLIENT_SECRET "
+            "environment variables. Set them or remove --live for offline (S3 cache) mode.",
             exit_code=2,
         )
     manager = TokenManager(config)
@@ -496,7 +496,7 @@ def _create_data_client_if_needed(
     try:
         from autom8_asana.clients.data.client import DataServiceClient
 
-        # Prefer SERVICE_API_KEY → TokenManager → JWT (ecosystem standard).
+        # Prefer SERVICE_CLIENT_ID + SERVICE_CLIENT_SECRET → TokenManager → JWT.
         # Falls back to AUTOM8Y_DATA_API_KEY env var via DataServiceClient default.
         auth_provider = None
         try:
@@ -510,7 +510,7 @@ def _create_data_client_if_needed(
     except Exception as e:
         raise CLIError(
             f"Data-service joins require AUTOM8Y_DATA_URL and authentication "
-            f"(SERVICE_API_KEY or AUTOM8Y_DATA_API_KEY). Error: {e}"
+            f"(SERVICE_CLIENT_ID + SERVICE_CLIENT_SECRET or AUTOM8Y_DATA_API_KEY). Error: {e}"
         ) from None
 
 
@@ -1399,7 +1399,7 @@ def build_parser() -> argparse.ArgumentParser:
     rows_parser.add_argument(
         "--live",
         action="store_true",
-        help="Use live API instead of S3 cache (requires SERVICE_API_KEY)",
+        help="Use live API instead of S3 cache (requires SERVICE_CLIENT_ID + SERVICE_CLIENT_SECRET)",
     )
 
     # --- aggregate subcommand ---
@@ -1436,7 +1436,7 @@ def build_parser() -> argparse.ArgumentParser:
     agg_parser.add_argument(
         "--live",
         action="store_true",
-        help="Use live API instead of S3 cache (requires SERVICE_API_KEY)",
+        help="Use live API instead of S3 cache (requires SERVICE_CLIENT_ID + SERVICE_CLIENT_SECRET)",
     )
 
     # --- discovery subcommands ---
