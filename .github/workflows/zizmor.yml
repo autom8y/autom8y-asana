@@ -10,6 +10,10 @@ on:
     paths:
       - '.github/workflows/**'
 
+permissions:
+  contents: read
+  security-events: write
+
 jobs:
   zizmor:
     uses: autom8y/autom8y-workflows/.github/workflows/security-zizmor.yml@44b771e516a49a0d964782e4bbd0f0e39b2f97a1
