@@ -300,7 +300,10 @@ class TestServiceTokenAuthProvider:
             patch("autom8y_core.TokenManager") as mock_tm_cls,
             patch.dict(
                 "os.environ",
-                {"SERVICE_CLIENT_ID": "test-cid-123", "SERVICE_CLIENT_SECRET": "test-secret-456"},
+                {
+                    "SERVICE_CLIENT_ID": "test-cid-123",
+                    "SERVICE_CLIENT_SECRET": "test-secret-456",
+                },
             ),
         ):
             mock_manager = mock_tm_cls.return_value
@@ -323,7 +326,10 @@ class TestServiceTokenAuthProvider:
         """Raises ValueError when SERVICE_CLIENT_ID/SECRET is not set."""
         with (
             patch.dict("os.environ", {}, clear=False),
-            pytest.raises(ValueError, match="SERVICE_CLIENT_ID and SERVICE_CLIENT_SECRET are required"),
+            pytest.raises(
+                ValueError,
+                match="SERVICE_CLIENT_ID and SERVICE_CLIENT_SECRET are required",
+            ),
         ):
             # Ensure service credentials are not in env
             import os
@@ -342,7 +348,10 @@ class TestServiceTokenAuthProvider:
             patch("autom8y_core.TokenManager") as mock_tm_cls,
             patch.dict(
                 "os.environ",
-                {"SERVICE_CLIENT_ID": "test-cid", "SERVICE_CLIENT_SECRET": "test-secret"},
+                {
+                    "SERVICE_CLIENT_ID": "test-cid",
+                    "SERVICE_CLIENT_SECRET": "test-secret",
+                },
             ),
         ):
             from autom8_asana.auth.service_token import ServiceTokenAuthProvider
