@@ -1,13 +1,13 @@
 ---
 domain: api
-generated_at: "2026-04-01T12:00:00Z"
+generated_at: "2026-04-04T12:00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
-  - "./app/**/*.py"
+  - "./docs/api-reference/openapi.json"
   - "./pyproject.toml"
 generator: theoros
-source_hash: "24d8e44"
+source_hash: "55aaab5"
 confidence: 0.88
 format_version: "1.0"
 update_mode: "full"
@@ -19,316 +19,338 @@ max_incremental_cycles: 3
 
 ## Route Inventory
 
-This service exposes **57 route handler functions** across 19 routers, grouped into two URL namespaces:
+**Framework**: FastAPI (Python 3.12), optional extra `[api]` activates the service. Application factory at `src/autom8_asana/api/main.py`, routes aggregated in `src/autom8_asana/api/routes/__init__.py`.
 
-- `/api/v1/*` — PAT-authenticated public endpoints (user-facing)
-- `/v1/*` — S2S JWT-authenticated internal endpoints (service-to-service)
+**Base URLs** (injected in custom OpenAPI):
+- Production: `https://asana.api.autom8y.io`
+- Staging: `https://asana.staging.api.autom8y.io`
 
-Route router definitions are in `src/autom8_asana/api/routes/`.
+The API uses two URL namespace prefixes:
+- `/api/v1/*` — PAT-authenticated resource endpoints (public-facing)
+- `/v1/*` — S2S JWT-only endpoints (internal service-to-service)
 
-### Health (no auth)
+### Health Routes (`src/autom8_asana/api/routes/health.py`)
 
-Router: plain `APIRouter`, no prefix, tag `health`
-Handler file: `src/autom8_asana/api/routes/health.py`
+Auth tag: `health` (no auth required)
 
-| Method | Path | Handler | Notes |
-|--------|------|---------|-------|
-| GET | `/health` | `health_check` | Liveness -- always 200, no I/O |
-| GET | `/ready` | `readiness_check` | Readiness -- 503 while cache warms |
-| GET | `/health/deps` | `deps_check` | Checks JWKS reachability + ASANA_PAT presence |
+| Method | Path | Summary |
+|--------|------|---------|
+| GET | `/health` | Liveness probe — always 200, no I/O |
+| GET | `/ready` | Readiness probe — 200 when cache warm, 503 while preloading |
+| GET | `/health/deps` | Dependency probe — checks JWKS reachability and bot PAT config |
 
-### Tasks -- PAT Bearer
+### Tasks Routes (`src/autom8_asana/api/routes/tasks.py`)
 
-Router: `pat_router(prefix="/api/v1/tasks", tags=["tasks"])`
-Handler file: `src/autom8_asana/api/routes/tasks.py`
+Router prefix: `/api/v1/tasks`, auth: PAT Bearer
 
-| Method | Path | Response Model |
-|--------|------|----------------|
-| GET | `/api/v1/tasks` | `SuccessResponse[list[AsanaResource]]` |
-| GET | `/api/v1/tasks/{gid}` | `SuccessResponse[AsanaResource]` |
-| POST | `/api/v1/tasks` | `SuccessResponse[AsanaResource]` (201) |
-| PUT | `/api/v1/tasks/{gid}` | `SuccessResponse[AsanaResource]` |
-| DELETE | `/api/v1/tasks/{gid}` | 204 No Content |
-| GET | `/api/v1/tasks/{gid}/subtasks` | `SuccessResponse[list[AsanaResource]]` |
-| GET | `/api/v1/tasks/{gid}/dependents` | `SuccessResponse[list[AsanaResource]]` |
-| POST | `/api/v1/tasks/{gid}/duplicate` | `SuccessResponse[AsanaResource]` (201) |
-| POST | `/api/v1/tasks/{gid}/tags` | `SuccessResponse[AsanaResource]` |
-| DELETE | `/api/v1/tasks/{gid}/tags/{tag_gid}` | `SuccessResponse[AsanaResource]` |
-| POST | `/api/v1/tasks/{gid}/section` | `SuccessResponse[AsanaResource]` |
-| PUT | `/api/v1/tasks/{gid}/assignee` | `SuccessResponse[AsanaResource]` |
-| POST | `/api/v1/tasks/{gid}/projects` | `SuccessResponse[AsanaResource]` |
-| DELETE | `/api/v1/tasks/{gid}/projects/{project_gid}` | `SuccessResponse[AsanaResource]` |
+| Method | Path | Summary |
+|--------|------|---------|
+| GET | `/api/v1/tasks` | List tasks by project or section (cursor pagination) |
+| GET | `/api/v1/tasks/{gid}` | Get task by GID |
+| POST | `/api/v1/tasks` | Create task (201) |
+| PUT | `/api/v1/tasks/{gid}` | Update task (partial) |
+| DELETE | `/api/v1/tasks/{gid}` | Delete task (204) |
+| GET | `/api/v1/tasks/{gid}/subtasks` | List direct subtasks (cursor pagination) |
+| GET | `/api/v1/tasks/{gid}/dependents` | List dependent tasks (cursor pagination) |
+| POST | `/api/v1/tasks/{gid}/duplicate` | Duplicate task (201) |
+| POST | `/api/v1/tasks/{gid}/tags` | Add tag to task |
+| DELETE | `/api/v1/tasks/{gid}/tags/{tag_gid}` | Remove tag from task |
+| POST | `/api/v1/tasks/{gid}/section` | Move task to section |
+| PUT | `/api/v1/tasks/{gid}/assignee` | Set or clear task assignee |
+| POST | `/api/v1/tasks/{gid}/projects` | Add task to project |
+| DELETE | `/api/v1/tasks/{gid}/projects/{project_gid}` | Remove task from project |
 
-### Projects -- PAT Bearer
+### Projects Routes (`src/autom8_asana/api/routes/projects.py`)
 
-Router: `pat_router(prefix="/api/v1/projects", tags=["projects"])`
-Handler file: `src/autom8_asana/api/routes/projects.py`
+Router prefix: `/api/v1/projects`, auth: PAT Bearer
 
-| Method | Path | Response Model |
-|--------|------|----------------|
-| GET | `/api/v1/projects` | `SuccessResponse[list[AsanaResource]]` |
-| GET | `/api/v1/projects/{gid}` | `SuccessResponse[AsanaResource]` |
-| POST | `/api/v1/projects` | `SuccessResponse[AsanaResource]` (201) |
-| PUT | `/api/v1/projects/{gid}` | `SuccessResponse[AsanaResource]` |
-| DELETE | `/api/v1/projects/{gid}` | 204 No Content |
-| GET | `/api/v1/projects/{gid}/sections` | `SuccessResponse[list[AsanaResource]]` |
-| POST | `/api/v1/projects/{gid}/members` | `SuccessResponse[AsanaResource]` |
-| DELETE | `/api/v1/projects/{gid}/members` | `SuccessResponse[AsanaResource]` |
+| Method | Path | Summary |
+|--------|------|---------|
+| GET | `/api/v1/projects` | List projects in workspace (cursor pagination) |
+| GET | `/api/v1/projects/{gid}` | Get project by GID |
+| POST | `/api/v1/projects` | Create project (201) |
+| PUT | `/api/v1/projects/{gid}` | Update project |
+| DELETE | `/api/v1/projects/{gid}` | Delete project (204) |
+| GET | `/api/v1/projects/{gid}/sections` | List project sections |
+| POST | `/api/v1/projects/{gid}/members` | Add members to project |
+| DELETE | `/api/v1/projects/{gid}/members` | Remove members from project |
 
-### Sections -- PAT Bearer
+### Sections Routes (`src/autom8_asana/api/routes/sections.py`)
 
-Router: `pat_router(prefix="/api/v1/sections", tags=["sections"])`
-Handler file: `src/autom8_asana/api/routes/sections.py`
+Router prefix: `/api/v1/sections`, auth: PAT Bearer
 
-| Method | Path | Notes |
-|--------|------|-------|
+| Method | Path | Summary |
+|--------|------|---------|
 | GET | `/api/v1/sections/{gid}` | Get section by GID |
 | POST | `/api/v1/sections` | Create section |
 | PUT | `/api/v1/sections/{gid}` | Update section |
-| DELETE | `/api/v1/sections/{gid}` | Delete section |
-| POST | `/api/v1/sections/{gid}/tasks` | Add task to section |
+| DELETE | `/api/v1/sections/{gid}` | Delete section (204) |
+| POST | `/api/v1/sections/{gid}/addTask` | Add task to section |
 | POST | `/api/v1/sections/{gid}/reorder` | Reorder section within project |
 
-### Users -- PAT Bearer
+### Users Routes (`src/autom8_asana/api/routes/users.py`)
 
-Router: `pat_router(prefix="/api/v1/users", tags=["users"])`
-Handler file: `src/autom8_asana/api/routes/users.py`
+Router prefix: `/api/v1/users`, auth: PAT Bearer
 
-| Method | Path | Notes |
-|--------|------|-------|
-| GET | `/api/v1/users/me` | Get authenticated user |
+| Method | Path | Summary |
+|--------|------|---------|
+| GET | `/api/v1/users/me` | Get current authenticated user |
 | GET | `/api/v1/users/{gid}` | Get user by GID |
 | GET | `/api/v1/users` | List users in workspace |
 
-### Workspaces -- PAT Bearer
+### Workspaces Routes (`src/autom8_asana/api/routes/workspaces.py`)
 
-Router: `pat_router(prefix="/api/v1/workspaces", tags=["workspaces"])`
-Handler file: `src/autom8_asana/api/routes/workspaces.py`
+Router prefix: `/api/v1/workspaces`, auth: PAT Bearer
 
-| Method | Path | Notes |
-|--------|------|-------|
-| GET | `/api/v1/workspaces` | List all workspaces |
+| Method | Path | Summary |
+|--------|------|---------|
+| GET | `/api/v1/workspaces` | List accessible workspaces |
 | GET | `/api/v1/workspaces/{gid}` | Get workspace by GID |
 
-### DataFrames -- PAT Bearer
+### DataFrames Routes (`src/autom8_asana/api/routes/dataframes.py`)
 
-Router: `pat_router(prefix="/api/v1/dataframes", tags=["dataframes"])`
-Handler file: `src/autom8_asana/api/routes/dataframes.py`
+Router prefix: `/api/v1/dataframes`, auth: PAT Bearer
 
-| Method | Path | Notes |
-|--------|------|-------|
-| GET | `/api/v1/dataframes/schemas` | List available schemas |
-| GET | `/api/v1/dataframes/{schema}/columns` | Get schema column definitions |
-| GET | `/api/v1/dataframes/{schema}` | Fetch DataFrame for schema |
-| GET | `/api/v1/dataframes/{schema}/export` | Export DataFrame (Polars-serialized) |
+| Method | Path | Summary |
+|--------|------|---------|
+| GET | `/api/v1/dataframes/schemas` | List all dataframe schemas |
+| GET | `/api/v1/dataframes/schemas/{name}` | Get single schema details |
+| GET | `/api/v1/dataframes/project/{gid}` | Project tasks as dataframe |
+| GET | `/api/v1/dataframes/section/{gid}` | Section tasks as dataframe |
 
-### Section Timelines / Offers -- PAT Bearer
+Content negotiation via `Accept` header: `application/json` (default) or `application/x-polars-json`.
 
-Router: `pat_router(prefix="/api/v1/offers", tags=["offers"])`
-Handler file: `src/autom8_asana/api/routes/section_timelines.py`
+### Offers / Section Timelines (`src/autom8_asana/api/routes/section_timelines.py`)
 
-| Method | Path | Notes |
-|--------|------|-------|
-| GET | `/api/v1/offers` | Offer activity timeline reporting |
+Router prefix: `/api/v1/offers`, auth: PAT Bearer
 
-### Workflows -- PAT Bearer
+| Method | Path | Summary |
+|--------|------|---------|
+| GET | `/api/v1/offers/section-timelines` | Get section timelines for all offers (query params: period_start, period_end, classification) |
 
-Router: `pat_router(prefix="/api/v1/workflows", tags=["workflows"])`
-Handler file: `src/autom8_asana/api/routes/workflows.py`
+### Workflows Routes (`src/autom8_asana/api/routes/workflows.py`)
 
-| Method | Path | Notes |
-|--------|------|-------|
-| GET | `/api/v1/workflows` | List registered workflows |
-| POST | `/api/v1/workflows/{workflow_id}/invoke` | Invoke a workflow (rate-limited: 10/min) |
+Router prefix: `/api/v1/workflows`, auth: PAT Bearer. Rate limited: 10 requests/minute.
 
-### Webhooks -- URL Token
+| Method | Path | Summary |
+|--------|------|---------|
+| GET | `/api/v1/workflows` | List available workflow IDs |
+| POST | `/api/v1/workflows/{workflow_id}/invoke` | Invoke workflow against entities (120s timeout) |
 
-Router: `APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])`
-Handler file: `src/autom8_asana/api/routes/webhooks.py`
+### Webhooks Routes (`src/autom8_asana/api/routes/webhooks.py`)
 
-| Method | Path | Notes |
-|--------|------|-------|
-| POST | `/api/v1/webhooks/inbound?token=<secret>` | Inbound Asana task notification |
+Router prefix: `/api/v1/webhooks`, auth: URL token (`?token=<secret>`)
 
-### Resolver -- S2S JWT (in spec)
+| Method | Path | Summary |
+|--------|------|---------|
+| POST | `/api/v1/webhooks/inbound` | Receive Asana Rules task notification (returns 200 immediately, background processing) |
 
-Router: `s2s_router(prefix="/v1/resolve", tags=["resolver"], include_in_schema=True)`
-Handler file: `src/autom8_asana/api/routes/resolver.py`
+### Resolver Routes (`src/autom8_asana/api/routes/resolver.py`)
 
-| Method | Path | Notes |
-|--------|------|-------|
-| POST | `/v1/resolve/{entity_type}` | Batch GID resolution by business identifiers |
+Router prefix: `/v1/resolve`, auth: S2S JWT. Visible in schema.
 
-### Query -- S2S JWT (mixed spec visibility)
+| Method | Path | Summary |
+|--------|------|---------|
+| POST | `/v1/resolve/{entity_type}` | Batch resolve business identifiers to Asana GIDs |
+| GET | `/v1/resolve/{entity_type}/schema` | Schema discovery (via `resolver_schema.py` sub-router) |
 
-Introspection router: `s2s_router(prefix="/v1/query", tags=["query"], include_in_schema=True)`
-Execution router: `s2s_router(prefix="/v1/query", tags=["query"], include_in_schema=False)`
-Handler file: `src/autom8_asana/api/routes/query.py`
+### Query Introspection Routes (`src/autom8_asana/api/routes/query.py`)
 
-| Method | Path | In Spec | Notes |
-|--------|------|---------|-------|
-| GET | `/v1/query/entities` | Yes | List queryable entity types |
-| GET | `/v1/query/{entity_type}/fields` | Yes | List entity fields |
-| GET | `/v1/query/{entity_type}/relations` | Yes | List joinable entities |
-| POST | `/v1/query/{entity_type}/rows` | No | Filtered row retrieval |
-| POST | `/v1/query/{entity_type}/aggregate` | No | Aggregate with grouping |
-| POST | `/v1/query/{entity_type}` | No | Legacy query (deprecated, sunset 2026-06-01) |
+Router: `query_introspection_router`, prefix `/v1/query`, auth: S2S JWT. Visible in schema.
 
-### Intake Resolve -- S2S JWT (hidden from spec)
+| Method | Path | Summary |
+|--------|------|---------|
+| GET | `/v1/query/entities` | List queryable entity types |
+| GET | `/v1/query/data-sources` | List data-service factories |
+| GET | `/v1/query/data-sources/{factory}/fields` | List fields for a data-service factory |
+| GET | `/v1/query/{entity_type}/fields` | List fields for an entity type |
+| GET | `/v1/query/{entity_type}/relations` | List joinable entity types |
+| GET | `/v1/query/{entity_type}/sections` | List sections and classifications |
 
-Router: `s2s_router(prefix="/v1", tags=["intake-resolve"], include_in_schema=False)`
-Handler file: `src/autom8_asana/api/routes/intake_resolve.py`
+### Query Execution Routes (`src/autom8_asana/api/routes/query.py`)
 
-| Method | Path | Notes |
-|--------|------|-------|
-| POST | `/v1/resolve/business` | Resolve business by phone/vertical |
+Router: `query_router`, prefix `/v1/query`, auth: S2S JWT. Hidden from schema (`include_in_schema=False`).
+
+| Method | Path | Summary |
+|--------|------|---------|
+| POST | `/v1/query/{entity_type}/rows` | Filtered row retrieval with composable predicates |
+| POST | `/v1/query/{entity_type}/aggregate` | Aggregate entity data with grouping |
+| POST | `/v1/query/{entity_type}` | **DEPRECATED** (sunset 2026-06-01) — flat equality query. Returns `Deprecation: true`, `Sunset: 2026-06-01`, `Link: </v1/query/{entity_type}/rows>; rel="successor-version"` headers. |
+
+### Admin Routes (`src/autom8_asana/api/routes/admin.py`)
+
+Router prefix: `/v1/admin`, auth: S2S JWT. Hidden from schema.
+
+| Method | Path | Summary |
+|--------|------|---------|
+| POST | `/v1/admin/cache/refresh` | Trigger cache refresh (202 Accepted, background task) |
+
+### Internal Routes (`src/autom8_asana/api/routes/internal.py`)
+
+Router prefix: `/api/v1/internal`, auth: S2S JWT. Hidden from schema. No route handlers defined here — the file provides shared `require_service_claims` dependency and `ServiceClaims` model used by other S2S routers.
+
+### Entity Write Routes (`src/autom8_asana/api/routes/entity_write.py`)
+
+Router prefix: `/api/v1/entity`, auth: S2S JWT. Hidden from schema.
+
+| Method | Path | Summary |
+|--------|------|---------|
+| PATCH | `/api/v1/entity/{entity_type}/{gid}` | Write custom fields to an entity task |
+
+### Intake Resolve Routes (`src/autom8_asana/api/routes/intake_resolve.py`)
+
+Router prefix: `/v1`, auth: S2S JWT. Hidden from schema. **Route ordering matters**: these explicit paths are registered before the wildcard `/v1/resolve/{entity_type}`.
+
+| Method | Path | Summary |
+|--------|------|---------|
+| POST | `/v1/resolve/business` | Resolve business by phone/vertical (GidLookupIndex O(1)) |
 | POST | `/v1/resolve/contact` | Resolve contact by email/phone within business scope |
 
-**Note**: These two paths must be registered before `/v1/resolve/{entity_type}` (the resolver wildcard) to avoid path conflicts.
+### Intake Create Routes (`src/autom8_asana/api/routes/intake_create.py`)
 
-### Intake Create -- S2S JWT (hidden from spec)
+Router prefix: `/v1/intake`, auth: S2S JWT. Hidden from schema.
 
-Router: `s2s_router(prefix="/v1/intake", tags=["intake-create"], include_in_schema=False)`
-Handler file: `src/autom8_asana/api/routes/intake_create.py`
-
-| Method | Path | Notes |
-|--------|------|-------|
+| Method | Path | Summary |
+|--------|------|---------|
 | POST | `/v1/intake/business` | Create full business hierarchy (7-phase SaveSession) |
-| POST | `/v1/intake/route` | Route unit to process type |
+| POST | `/v1/intake/route` | Route a unit to a process type |
 
-### Intake Custom Fields -- S2S JWT (hidden from spec)
+### Intake Custom Fields Routes (`src/autom8_asana/api/routes/intake_custom_fields.py`)
 
-Router: `s2s_router(prefix="/v1/tasks", tags=["intake-custom-fields"], include_in_schema=False)`
-Handler file: `src/autom8_asana/api/routes/intake_custom_fields.py`
+Router prefix: `/v1/tasks`, auth: S2S JWT. Hidden from schema.
 
-| Method | Path | Notes |
-|--------|------|-------|
-| POST | `/v1/tasks/{gid}/custom-fields` | Write custom fields on task |
+| Method | Path | Summary |
+|--------|------|---------|
+| POST | `/v1/tasks/{gid}/custom-fields` | Write custom fields to a task |
 
-### Entity Write -- S2S JWT (hidden from spec)
+### Matching Routes (`src/autom8_asana/api/routes/matching.py`)
 
-Router: `s2s_router(prefix="/api/v1/entity", tags=["entity-write"], include_in_schema=False)`
-Handler file: `src/autom8_asana/api/routes/entity_write.py`
+Router prefix: `/v1/matching`, auth: S2S JWT. Hidden from schema.
 
-| Method | Path | Notes |
-|--------|------|-------|
-| PATCH | `/api/v1/entity/{entity_type}/{gid}` | Write typed fields to entity |
+| Method | Path | Summary |
+|--------|------|---------|
+| POST | `/v1/matching/query` | Matching query for scored business candidates (reads cached DataFrame) |
 
-### Admin -- S2S JWT (hidden from spec)
+**Total routes**: approximately 60 endpoints across 18 routers.
 
-Router: `s2s_router(prefix="/v1/admin", tags=["admin"], include_in_schema=False)`
-Handler file: `src/autom8_asana/api/routes/admin.py`
-
-| Method | Path | Notes |
-|--------|------|-------|
-| POST | `/v1/admin/cache/refresh` | Manual cache invalidation and rebuild (202 Accepted) |
-
-### Matching -- S2S JWT (hidden from spec)
-
-Router: `s2s_router(prefix="/v1/matching", tags=["matching"], include_in_schema=False)`
-Handler file: `src/autom8_asana/api/routes/matching.py`
-
-| Method | Path | Notes |
-|--------|------|-------|
-| POST | `/v1/matching/query` | Matching query for scored business candidates |
-
-### Internal -- S2S JWT (hidden from spec)
-
-Router: `s2s_router(prefix="/api/v1/internal", tags=["internal"], include_in_schema=False)`
-Handler file: `src/autom8_asana/api/routes/internal.py`
-
-Acts primarily as a dependency provider (`ServiceClaims`, `require_service_claims`) used by other S2S routers.
-
-### Route Versioning Pattern
-
-Two parallel namespaces exist:
-- `/api/v1/` -- public user-facing (PAT auth)
-- `/v1/` -- internal service-facing (S2S JWT auth)
-
-There is no v2 yet. No version negotiation via headers.
+---
 
 ## Authentication & Authorization Model
 
-### Auth Scheme Overview
+The service implements a **dual-mode auth** system with three authentication schemes, classified by tag in the OpenAPI spec.
 
-Three security schemes are defined and injected into the OpenAPI spec by `custom_openapi()` in `src/autom8_asana/api/main.py`:
+### Authentication Schemes
 
-| Scheme | OAS Name | Type | Routes |
-|--------|----------|------|--------|
-| Asana PAT | `PersonalAccessToken` | HTTP Bearer | `/api/v1/*` (PAT tags) |
-| Service JWT | `ServiceJWT` | HTTP Bearer (JWT) | `/v1/*` and some `/api/v1/entity`, `/api/v1/internal` |
-| Webhook Token | `WebhookToken` | API Key (query param `?token=`) | `/api/v1/webhooks/*` |
+**1. PersonalAccessToken (PAT Bearer)**
 
-### Dual-Mode Detection
+Used by: `tasks`, `projects`, `sections`, `users`, `workspaces`, `dataframes`, `offers`, `workflows` tags.
 
-Every authenticated request passes through `get_auth_context()` in `src/autom8_asana/api/dependencies.py`. The dispatcher in `src/autom8_asana/auth/dual_mode.py` detects token type by dot-counting:
+- Token: Asana Personal Access Token (user-issued)
+- Transport: `Authorization: Bearer <token>`
+- Detection: `autom8_asana.auth.dual_mode.detect_token_type()` — distinguishes PAT from JWT by token structure
+- Behavior: PAT is passed through directly to the Asana API. No platform auth validation.
+- Client lifecycle: Per-request via token-keyed `ClientPool` (`src/autom8_asana/api/client_pool.py`). PAT-mode TTL in pool: 5 minutes.
+- Code path: `src/autom8_asana/api/dependencies.py` -> `get_auth_context()` -> PAT branch returns `AuthContext(mode=PAT, asana_pat=token)`
 
-- Token with exactly 2 dots -> `AuthMode.JWT` (S2S)
-- Token with 0 dots -> `AuthMode.PAT` (user pass-through)
+**2. ServiceJWT (S2S JWT)**
 
-### PAT Pass-Through (AuthMode.PAT)
+Used by: `resolver`, `query`, `admin`, `internal`, `entity-write`, `intake-resolve`, `intake-custom-fields`, `intake-create`, `matching` tags.
 
-The user's Asana PAT is passed **directly** to the Asana SDK. The token is never logged (structlog filter in `src/autom8_asana/api/middleware/core.py` redacts fields matching `authorization`, `token`, `pat`, `password`, `secret`).
+- Token: JWT issued by `autom8y-auth` service
+- Transport: `Authorization: Bearer <JWT>`
+- Detection: `detect_token_type()` — JWT-mode path
+- Validation: `autom8_asana.auth.jwt_validator.validate_service_token()` -> delegates entirely to `autom8y-auth` SDK `AuthClient.validate_service_token()`
+- JWKS: Auto-fetched and cached (5-minute TTL, configurable via `AUTH__CACHE__TTL_SECONDS`) from `AUTH_JWKS_URL` env var (default: `https://auth.api.autom8y.io/.well-known/jwks.json`)
+- Bot PAT injection: After JWT validation, the bot PAT (`ASANA_PAT` env var) replaces the JWT for downstream Asana API calls
+- Client lifecycle: S2S mode TTL in pool: 1 hour
+- Code path: `src/autom8_asana/api/dependencies.py` -> `get_auth_context()` -> JWT branch -> `validate_service_token()` -> `get_bot_pat()` -> `AuthContext(mode=JWT, asana_pat=bot_pat, caller_service=...)`
+- Claims model: `src/autom8_asana/api/routes/internal.py:ServiceClaims` — `{sub, service_name, scope}`
+- S2S-only enforcement: `require_service_claims()` dependency rejects PAT tokens with `401 SERVICE_TOKEN_REQUIRED`
 
-### S2S JWT Validation (AuthMode.JWT)
+**3. WebhookToken (URL query parameter)**
 
-For JWT tokens:
-1. `validate_service_token()` in `src/autom8_asana/auth/jwt_validator.py` delegates to `autom8y_auth.AuthClient`
-2. JWKS endpoint: `https://auth.api.autom8y.io/.well-known/jwks.json` (configurable via `AUTH_JWKS_URL`)
-3. JWKS caching: 5-minute TTL, managed by SDK (stale cache fallback enabled)
-4. On success: `ServiceClaims` returned with `service_name` and `scope`
-5. Bot PAT is then fetched from `ASANA_PAT` env var via `src/autom8_asana/auth/bot_pat.py`
+Used by: `webhooks` tag.
 
-### Auth Error Propagation
+- Token: Secret string
+- Transport: `?token=<secret>` query parameter
+- Verification: `src/autom8_asana/api/routes/webhooks.py:verify_webhook_token()` — timing-safe `hmac.compare_digest()` against `ASANA_WEBHOOK_INBOUND_TOKEN` env var
+- No JWT validation involved
 
-| Error | HTTP Status |
-|-------|-------------|
-| Missing Authorization header | 401 MISSING_AUTH |
-| Non-Bearer scheme | 401 INVALID_SCHEME |
-| JWT signature/expiry failure | 401 (from `PermanentAuthError`) |
-| JWKS unreachable | 503 (from `TransientAuthError` or `CircuitOpenError`) |
-| Bot PAT not configured | 503 S2S_NOT_CONFIGURED |
+**4. Health endpoints** — No authentication (tag: `health`)
 
-### Route-Level Auth Classification
+### Security Primitives
 
-The `custom_openapi()` function defines four tag sets for OpenAPI annotation:
+- `src/autom8_asana/api/routes/_security.py` — `pat_router()` and `s2s_router()` factory functions using `autom8y_api_schemas.SecureRouter`. The `auto_error=False` setting means `SecureRouter` injects OpenAPI metadata only — runtime auth is handled by dependency injection (`get_auth_context`, `require_service_claims`).
+- `src/autom8_asana/api/dependencies.py` — `_extract_bearer_token()` extracts and minimally validates Bearer token format; `get_auth_context()` is the primary auth dependency wiring dual-mode detection, JWT validation, and PAT injection.
 
-- `_PAT_TAGS`: `tasks`, `projects`, `sections`, `users`, `workspaces`, `dataframes`, `offers`, `workflows`
-- `_TOKEN_TAGS`: `webhooks`
-- `_S2S_TAGS`: `resolver`, `query`, `admin`, `internal`, `entity-write`, `intake-resolve`, `intake-custom-fields`, `intake-create`, `matching`
-- `_NO_AUTH_TAGS`: `health`
+### Error Handling for Auth
 
-### Webhook Auth
+Handled by typed exceptions registered in `src/autom8_asana/api/errors.py`:
+- `ApiAuthError` -> 401 with `WWW-Authenticate: Bearer` header
+- `ApiServiceUnavailableError` -> 503 (JWKS unreachable, bot PAT missing, circuit breaker open)
+- `AuthenticationError` (SDK) -> 401 INVALID_CREDENTIALS
+- `ForbiddenError` (SDK) -> 403 FORBIDDEN
 
-`POST /api/v1/webhooks/inbound` uses URL query token auth (`?token=<secret>`). Timing-safe comparison via `hmac.compare_digest` against `ASANA_WEBHOOK_INBOUND_TOKEN` env var.
+### Auth Dependencies Chain
+
+```
+Route handler
+  -> AsanaClientDualMode (Depends(get_asana_client_from_context))
+       -> AuthContextDep (Depends(get_auth_context))
+            -> _extract_bearer_token (Depends)
+                 -> Authorization header
+```
+
+For S2S routes, additionally:
+```
+claims: ServiceClaims (Depends(require_service_claims))
+  -> validate_service_token(token)
+       -> autom8y_auth.AuthClient
+            -> JWKS endpoint
+```
+
+---
 
 ## Request/Response Contracts
 
-### Response Envelope
+### Envelope Format
 
-All success responses use the fleet-standard envelope from `autom8y_api_schemas`:
+All API responses use a **fleet-standard envelope** from `autom8y-api-schemas` package, imported/re-exported at `src/autom8_asana/api/models.py`:
 
+**Success response:**
 ```json
 {
-  "data": "<payload>",
+  "data": "<response_payload>",
   "meta": {
-    "request_id": "abc123def456789a",
-    "timestamp": "2026-04-01T00:00:00Z"
+    "request_id": "<16-char hex>",
+    "timestamp": "<ISO-8601>"
   }
 }
 ```
 
-Paginated list responses include `pagination` key in `meta` with `limit`, `has_more`, `next_offset`.
+**Paginated success response** (list endpoints):
+```json
+{
+  "data": ["..."],
+  "meta": {
+    "request_id": "...",
+    "timestamp": "...",
+    "pagination": {
+      "limit": 100,
+      "has_more": false,
+      "next_offset": null
+    }
+  }
+}
+```
 
-The `SuccessResponse[T]` and `build_success_response()` types are imported from `autom8y_api_schemas` and re-exported from `src/autom8_asana/api/models.py`.
-
-### Error Response Envelope
-
+**Error response:**
 ```json
 {
   "error": {
     "code": "RESOURCE_NOT_FOUND",
-    "message": "..."
+    "message": "...",
+    "details": {}
   },
   "meta": {
     "request_id": "..."
@@ -336,92 +358,242 @@ The `SuccessResponse[T]` and `build_success_response()` types are imported from 
 }
 ```
 
-### Standard HTTP Error Status Codes
+Models: `SuccessResponse[T]` (generic), `ErrorResponse`, `ErrorDetail`, `ResponseMeta`, `PaginationMeta`.
 
-| Status | Code | Trigger |
-|--------|------|---------|
-| 400 | `VALIDATION_ERROR` | GidValidationError |
-| 401 | `INVALID_CREDENTIALS` / `MISSING_AUTH` | AuthenticationError |
-| 403 | `FORBIDDEN` | ForbiddenError |
-| 404 | `RESOURCE_NOT_FOUND` | NotFoundError |
-| 422 | (FastAPI default) | Pydantic validation failure |
-| 429 | `RATE_LIMITED` | RateLimitError; includes `Retry-After` header |
-| 500 | `INTERNAL_ERROR` | Catch-all |
-| 502 | `UPSTREAM_ERROR` | Asana ServerError or httpx RequestError |
-| 503 | `S2S_NOT_CONFIGURED` | Bot PAT missing, auth circuit open |
-| 504 | `UPSTREAM_TIMEOUT` | TimeoutError |
+### Core Shared Models
 
-### Pagination Model
+Located in `src/autom8_asana/api/models.py`:
 
-Cursor-based pagination: `?limit=<int>&offset=<cursor_string>`. Default limit: 100, max limit: 100.
+- `AsanaResource` — Base resource: `{gid: str, resource_type: str|None, name: str|None}` with `extra="allow"` (accepts any additional Asana fields)
 
-### Content Types
+**Request models:**
+- `CreateTaskRequest` — `{name, notes?, assignee?, projects?, due_on?, workspace?}`. At least `projects` or `workspace` required.
+- `UpdateTaskRequest` — `{name?, notes?, completed?, due_on?}` (partial update)
+- `AddTagRequest` — `{tag_gid}`
+- `MoveSectionRequest` — `{section_gid, project_gid}`
+- `SetAssigneeRequest` — `{assignee_gid?}` (null to unassign)
+- `AddToProjectRequest` — `{project_gid}`
+- `DuplicateTaskRequest` — `{name}`
+- `CreateProjectRequest` — `{name, workspace, team?}`
+- `UpdateProjectRequest` — `{name?, notes?, archived?}`
+- `MembersRequest` — `{members: list[str]}`
+- `CreateSectionRequest` — `{name, project}`
+- `UpdateSectionRequest` — `{name}`
+- `AddTaskToSectionRequest` — `{task_gid}`
+- `ReorderSectionRequest` — `{project_gid, before_section?, after_section?}` (exactly one of before/after)
 
-Default: `application/json`. DataFrames export: Polars-serialized binary when requested via `Accept` header.
+### Resolver Contract (`src/autom8_asana/api/routes/resolver_models.py`)
 
-### Idempotency
+`ResolutionRequest`:
+```json
+{
+  "criteria": [{"phone": "+15551234567", "vertical": "dental"}],
+  "fields": ["gid", "name"],
+  "active_only": false
+}
+```
 
-RFC 8791 idempotency via `IdempotencyMiddleware` in `src/autom8_asana/api/middleware/idempotency.py`. Backend: `dynamodb` (default), `memory`, or `noop`.
+`ResolutionResponse`:
+```json
+{
+  "results": [
+    {
+      "gid": "1234567890123456",
+      "gids": ["..."],
+      "match_count": 1,
+      "error": null,
+      "data": ["..."],
+      "status": ["..."],
+      "total_match_count": 1
+    }
+  ],
+  "meta": {
+    "resolved_count": 1,
+    "unresolved_count": 0,
+    "entity_type": "unit",
+    "project_gid": "...",
+    "available_fields": ["gid", "name"],
+    "criteria_schema": ["phone", "vertical"]
+  }
+}
+```
+
+### Query Contracts (`src/autom8_asana/query/models.py`)
+
+`RowsRequest` — composable predicate filtering (where, select, section, classification, limit, offset, join). Used by `POST /v1/query/{entity_type}/rows`.
+
+`AggregateRequest` — group_by, metrics, where (predicate), having (predicate), section, join. Used by `POST /v1/query/{entity_type}/aggregate`.
+
+Legacy `QueryRequest` (deprecated) — flat `where: dict`, `select: list`, `limit`, `offset`.
+
+### Intake Contracts
+
+`BusinessResolveRequest` (`src/autom8_asana/api/routes/intake_resolve_models.py`):
+- `{office_phone: str (E.164), vertical: str?}`
+
+`BusinessResolveResponse`:
+- `{found: bool, task_gid: str|None, ...}`
+
+`ContactResolveRequest`:
+- `{business_gid: str, email: str?, phone: str?}` (at least one of email/phone required)
+
+`ContactResolveResponse`:
+- `{found: bool, match_field: str|None, ...}`
+
+`IntakeBusinessCreateRequest` / `IntakeBusinessCreateResponse` (from `src/autom8_asana/api/routes/intake_create_models.py`):
+- Full business hierarchy creation (7-phase SaveSession). `is_new: bool` in response — idempotent.
+
+### Matching Contract (`src/autom8_asana/api/routes/matching_models.py`)
+
+`MatchingQueryRequest` — business identity fields for scored candidate matching. `MatchingQueryResponse` — list of scored candidate records.
+
+### Entity Write Contract (`src/autom8_asana/api/routes/entity_write.py`)
+
+`PATCH /api/v1/entity/{entity_type}/{gid}` — body contains fields to write as custom field GID-to-value map.
+
+### Pagination
+
+All list endpoints use cursor-based pagination: `limit` (1-100, default 100, max 100), `offset` (opaque cursor string from `meta.pagination.next_offset`). `meta.pagination.has_more` signals more pages.
+
+### Error Codes (Standard)
+
+Defined in `src/autom8_asana/api/errors.py`:
+
+| SDK Exception | HTTP Status | Error Code |
+|---|---|---|
+| NotFoundError | 404 | RESOURCE_NOT_FOUND |
+| AuthenticationError | 401 | INVALID_CREDENTIALS |
+| ForbiddenError | 403 | FORBIDDEN |
+| RateLimitError | 429 | RATE_LIMITED (+ Retry-After header) |
+| GidValidationError | 400 | VALIDATION_ERROR |
+| ServerError | 502 | UPSTREAM_ERROR |
+| TimeoutError | 504 | UPSTREAM_TIMEOUT |
+| RequestError | 502 | UPSTREAM_ERROR |
+| AsanaError (generic) | 500 | INTERNAL_ERROR |
+
+Domain-specific: `MISSING_AUTH`, `INVALID_SCHEME`, `SERVICE_TOKEN_REQUIRED`, `S2S_NOT_CONFIGURED`, `CACHE_NOT_WARMED`, `DISCOVERY_INCOMPLETE`, `UNKNOWN_ENTITY_TYPE`, `INVALID_PHONE_FORMAT`, `INDEX_NOT_READY`, `MISSING_CRITERIA`.
+
+### OpenAPI Extension Annotations
+
+Several routes carry fleet extension fields:
+- `x-fleet-side-effects` — list of side effects (type: `asana_api`)
+- `x-fleet-idempotency` — `{idempotent: bool, key_source: str|null}`
+- `x-fleet-references` — `{service, entity}`
+- `x-idempotent`, `x-safe` — annotated on query engine GET endpoints
+
+### Idempotency Middleware
+
+`IdempotencyMiddleware` (`src/autom8_asana/api/middleware/idempotency.py`) implements RFC 8791 store-and-replay. Stores: DynamoDB (default, table `autom8-idempotency-keys`, region `us-east-1`), in-memory, or noop. Configured via `IDEMPOTENCY_STORE_BACKEND` env var.
+
+---
 
 ## Cross-Service Dependencies
 
-### Outbound: Asana API
+### 1. Asana API (External)
 
-All routes (except health and webhooks) make outbound calls to the Asana REST API via `AsanaClient`. Client lifecycle is per-request, pooled via `ClientPool` on `app.state`.
+All routes ultimately call the Asana REST API via `AsanaClient`. Client pool managed at `src/autom8_asana/api/client_pool.py`. Bot PAT from `ASANA_PAT` env var.
 
-### Outbound: autom8y-data Service
+### 2. autom8y-auth (Platform Auth Service)
 
-`src/autom8_asana/clients/data/client.py` -- `DataServiceClient` for cross-service joins and DataFrame enrichment.
+- **Dependency**: `autom8y-auth[observability]>=2.2.0` (optional extra `[auth]`)
+- **What**: JWKS-backed JWT validation for all S2S JWT requests
+- **Endpoint**: `AUTH_JWKS_URL` (default: `https://auth.api.autom8y.io/.well-known/jwks.json`)
+- **Code**: `src/autom8_asana/auth/jwt_validator.py` — lazy-init `AuthClient` singleton
+- **Failure mode**: `CircuitOpenError` -> 503; `TransientAuthError` -> 503; `PermanentAuthError` -> 401
+- **Health probe**: `/health/deps` checks JWKS reachability
 
-- Base URL: `AUTOM8Y_DATA_URL` env var (default `http://localhost:8000`)
-- Auth: `AUTOM8Y_DATA_API_KEY` or `ServiceTokenAuthProvider`
-- Retry: 2 retries with exponential backoff, retries 429/502/503/504
-- Circuit breaker: 5 failures in 60s opens circuit, 30s recovery timeout
+### 3. autom8y-data / DataServiceClient (Internal Service)
 
-### Outbound: autom8y-auth JWKS
+- **Dependency**: No pip package — calls `autom8_data` via HTTP
+- **What**: Analytics insights API for cross-service query joins (workflow insights, payment reconciliation)
+- **Contract**: `docs/contracts/openapi-data-service-client.yaml` — client-side spec
+- **Endpoint**: `POST /api/v1/factory/{factory_name}` on `autom8_data`
+- **Code**: `src/autom8_asana/clients/data/client.py` — `DataServiceClient` with circuit breaker, retry, cache fallback
+- **Auth**: Bearer token (service JWT via `ServiceTokenAuthProvider` or API key `AUTOM8Y_DATA_API_KEY`)
+- **Factories**: account, ads, adsets, campaigns, spend, leads, appts, assets, targeting, payments, business_offers, ad_questions, ad_tests, base
+- **Used by**: Query engine joins (`src/autom8_asana/query/engine.py`, `join.py`), automation workflows (`insights/workflow.py`, `payment_reconciliation/workflow.py`)
+- **Initialization**: Lazy singleton on `app.state` via `get_data_service_client()` in `dependencies.py`
+- **Graceful degradation**: Returns `None` when unconfigured; query engine raises `JoinError` with clear message when join attempted without client
 
-`src/autom8_asana/auth/jwt_validator.py` uses `autom8y_auth.AuthClient` which fetches JWKS from `https://auth.api.autom8y.io/.well-known/jwks.json`.
+### 4. AWS S3 (Cache Storage)
 
-### Inbound: Asana Rules Webhooks
+- **Dependency**: `boto3>=1.42.19`
+- **What**: Progressive DataFrame cache storage (parquet files, manifests, watermarks)
+- **Code**: `src/autom8_asana/cache/backends/s3.py`
+- **Used by**: `ProgressiveProjectBuilder`, `SectionPersistence`
 
-`POST /api/v1/webhooks/inbound` receives full task JSON payloads from Asana Rules actions.
+### 5. AWS DynamoDB (Idempotency Store)
 
-### Service Dependency Map
+- **What**: RFC 8791 idempotency key store
+- **Table**: `autom8-idempotency-keys` (configurable via `IDEMPOTENCY_TABLE_NAME`)
+- **Region**: `us-east-1` (configurable via `IDEMPOTENCY_TABLE_REGION`)
+- **Code**: `src/autom8_asana/api/middleware/idempotency.py`
+- **Failure mode**: Falls back to `NoopIdempotencyStore` on connection error
 
-```
-External Caller (PAT)  -> autom8y-asana API
-Internal Service (S2S JWT) -> autom8y-asana API
-Asana Rules -> POST /api/v1/webhooks/inbound
+### 6. AWS Lambda (Cache Warmer)
 
-autom8y-asana API -> Asana REST API (per-request, SDK)
-autom8y-asana API -> autom8y-data satellite (DataServiceClient)
-autom8y-asana API -> autom8y-auth JWKS endpoint (JWT validation)
-```
+- **What**: Fire-and-forget Lambda invocation to rebuild DataFrame cache after force-refresh
+- **Trigger**: `POST /v1/admin/cache/refresh` with `force_full_rebuild=true`
+- **ARN**: `CACHE_WARMER_LAMBDA_ARN` env var (optional — degrades to "rebuild on restart" if unset)
+- **Code**: `src/autom8_asana/api/routes/admin.py:_invoke_cache_warmer_lambda()`
+
+### 7. autom8y-events / EventBridge (Lambda handlers only)
+
+- **Dependency**: `autom8y-events>=0.1.0` (optional extra `[events]`)
+- **What**: Domain event publishing for bridge dispatch
+- **Used by**: Lambda handlers (`workflow_handler.py`, `insights_export.py`, `payment_reconciliation.py`, `conversation_audit.py`) — NOT the FastAPI routes themselves
+- **Code**: `src/autom8_asana/lambda_handlers/`
+
+### 8. Redis (Optional Cache Backend)
+
+- **Dependency**: `redis>=5.0.0` (optional extra `[redis]`)
+- **What**: Alternative cache backend for task/section data
+- **Code**: `src/autom8_asana/cache/backends/redis.py`
+
+---
 
 ## Spec Completeness & Freshness
 
-### No Committed OpenAPI Spec in Main Branch
+### Available Spec Files
 
-There is no `docs/api-reference/openapi.yaml` in the main working tree. The spec is generated at runtime by `custom_openapi()` in `src/autom8_asana/api/main.py`.
+1. **`docs/api-reference/openapi.json`** — 229KB, 6597 lines. OpenAPI 3.2.0. Last committed 2026-04-02 (commit `322eb00`). This is the primary machine-readable spec.
 
-### Spec Generation Mechanism
+2. **`docs/contracts/openapi-data-service-client.yaml`** — OpenAPI 3.1.0 client-side contract documenting what `autom8_asana` expects from `autom8_data`. Not an authoritative server spec (the server spec lives in `autom8_data`).
 
-Runtime-generated via FastAPI's `get_openapi()` with post-processing to inject security schemes, tag descriptions, and OAS 3.2.0 metadata. Cached on `app.openapi_schema` after first call.
+### What the Spec Covers
 
-### Spec Authority
+The `openapi.json` is auto-generated by FastAPI from the live route definitions and post-processed by `custom_openapi()` in `src/autom8_asana/api/main.py`:
 
-The runtime-generated spec is the **source of truth**. Routes with `include_in_schema=False` are hidden from the generated spec but present in the live router.
+- **Included** (tag has `include_in_schema=True` or no override): health, tasks, projects, sections, users, workspaces, dataframes, offers, workflows, resolver, query introspection endpoints
+- **Excluded** (`include_in_schema=False`): admin, internal, entity-write, intake-resolve, intake-create, intake-custom-fields, matching, query execution (rows/aggregate)
 
-### Spec vs. Code Route Count
+The spec has been enriched with:
+- `components.securitySchemes`: `PersonalAccessToken`, `ServiceJWT`, `WebhookToken`
+- Per-operation security annotations from tag classification sets (`_PAT_TAGS`, `_S2S_TAGS`, `_TOKEN_TAGS`, `_NO_AUTH_TAGS`)
+- `servers` block with production and staging URLs
+- `tags` descriptions (14 tags documented)
+- `webhooks.asanaTaskChanged` definition (OpenAPI 3.1+ webhook object)
+- `x-query-method-candidates` extension documenting POST-as-QUERY endpoints
+- Fleet registry types (`SuccessResponse`, `ErrorResponse`, `ErrorDetail`) injected into `components.schemas`
+- `Task` model schema injected for webhook payload documentation
 
-Routes in spec: ~35-38 (PAT endpoints + resolver + query introspection + webhooks)
-Routes in code: 57 handler functions across 19 routers
-Delta: ~19-22 routes intentionally hidden (S2S internal routes)
+### Spec Freshness Assessment
+
+The spec was last regenerated on 2026-04-02, two days before the audit date (2026-04-04). The most recent commits include route additions and type fixes — the spec appears to track source code changes actively. A `openapi-spec-validator>=0.7.1` dev dependency suggests automated validation in CI.
+
+### Notable Gaps in Spec Coverage
+
+- **~30 S2S endpoints are absent**: All `include_in_schema=False` routes (admin, entity-write, intake-*, matching, query execution) have no OpenAPI documentation. These are intentionally hidden but create a documentation gap for internal service consumers.
+- **`x-query-method-candidates` extension** documents the hidden query execution endpoints at the spec level via a top-level extension, partially mitigating the gap.
+- **Lambda handler endpoints**: The Lambda execution entry points (`src/autom8_asana/lambda_handlers/`) are not covered by the spec — they are invoked directly by AWS, not via HTTP.
+
+---
 
 ## Knowledge Gaps
 
-1. **Route handler bodies for sections, users, workspaces, workflows, dataframes** -- exact request/response schema models not individually read.
-2. **`internal.py` endpoint listing** -- identified as dependency provider; actual handler definitions not read.
-3. **`resolver_schema.py`** -- a separate `schema_router` is defined but not imported in `__init__.py`. Mount status unclear.
-4. **`DataServiceClient` endpoint URL paths** -- target URL paths inside `_endpoints/` not extracted.
-5. **Idempotency middleware covered operations** -- which HTTP methods/paths it applies to not verified.
+1. **Exact path strings for sections router** — The `sections.py` grep shows 6 route decorators but the file was not read in full. Path strings were inferred from standard FastAPI patterns.
+2. **`resolver_schema.py` sub-router** — The schema discovery sub-router included into the resolver router via `router.include_router(schema_router)` was not read.
+3. **`intake_create_models.py` and `intake_resolve_models.py` full field schemas** — Partial: request/response field names were inferred from docstrings and handler code but not fully enumerated from the Pydantic model definitions.
+4. **`entity_write.py` full PATCH request body schema** — The route path and HTTP method are confirmed but the request body model definition was not fully observed.
+5. **DynamoDB idempotency store full schema** — Behavior is documented from `main.py` references only.
+6. **Rate limit specifics beyond workflows** — SlowAPI is configured (`src/autom8_asana/api/rate_limit.py`). The workflows router has an explicit 10 req/min limit. Other per-route limits were not investigated.

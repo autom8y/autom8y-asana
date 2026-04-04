@@ -1,13 +1,13 @@
 ---
 domain: design-constraints
-generated_at: "2026-04-01T12:00:00Z"
+generated_at: "2026-04-04T12:00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
   - "./app/**/*.py"
   - "./pyproject.toml"
 generator: theoros
-source_hash: "24d8e44"
+source_hash: "55aaab5"
 confidence: 0.82
 format_version: "1.0"
 update_mode: "full"
@@ -22,184 +22,354 @@ land_hash: "ccac1bdf21a076abac37f960cd0d2210bee78a023d780c7374cb6d5c087c9c5b"
 
 ## Tension Catalog
 
-### TENSION-001: Legacy Cache Layer Coexists with Unified Cache
+### TENSION-001: Dual Config System -- Domain Dataclasses vs Platform Primitives
 
-**Type**: Dual-system pattern
-**Location**: `src/autom8_asana/client.py:254,692`, `src/autom8_asana/cache/integration/autom8_adapter.py`, `src/autom8_asana/cache/__init__.py:266`
-**Current state**: `AsanaClient` has both `_cache_provider` (legacy) and `_unified_store` (`UnifiedTaskStore`). `MIGRATION-PLAN-legacy-cache-elimination` referenced at 4 call sites but not completed.
-**Why it persists**: Big-bang cutover deferred. `autom8_adapter.py` smooths migration from S3 legacy to Redis.
-**Resolution cost**: HIGH. Two cache invalidation paths operate in parallel.
+**Location**: `src/autom8_asana/config.py` (lines 22-65), `src/autom8_asana/transport/config_translator.py`
 
-### TENSION-002: Dual Preload Strategy -- Progressive vs. Legacy Fallback
+The codebase maintains two parallel configuration hierarchies for the same transport concerns. `config.py` declares `RateLimitConfig`, `RetryConfig`, `ConcurrencyConfig`, `TimeoutConfig`, `ConnectionPoolConfig`, and `CircuitBreakerConfig` as domain dataclasses. Simultaneously, `autom8y_http` exports platform equivalents.
 
-**Type**: Dual-system pattern
-**Location**: `src/autom8_asana/api/preload/progressive.py:329-344`, `src/autom8_asana/api/preload/legacy.py`
-**Current state**: Progressive preload is active. Legacy fallback when S3 unavailable. Legacy contains "12 bare-except sites preserved as-is."
-**Why it persists**: Retirement criteria: "S3 >= 99.9% for 90 days, this event unfired 90 days." Per ADR-011.
-**Resolution cost**: MEDIUM. Any DataFrame warm path change must validate both branches.
+The `ConfigTranslator` class exists solely to translate between the two.
 
-### TENSION-003: CascadingFieldResolver Null Rate -- Persistent Production Risk
+**Constraint**: Do not consolidate these configs without a phased migration. Callers across 200+ files depend on the domain dataclasses. Platform configs are for new code only (TDD-PRIMITIVE-MIGRATION-001 Phase 2).
 
-**Type**: Data model coupling
-**Location**: `src/autom8_asana/dataframes/builders/cascade_validator.py:29-32`, `src/autom8_asana/services/universal_strategy.py:570,627,669`
-**Current state**: `CASCADE_NULL_WARN_THRESHOLD = 0.05` and `CASCADE_NULL_ERROR_THRESHOLD = 0.20` calibrated against SCAR-005's 30% production incident. Two sessions recorded 30-40% null rates.
-**Why it persists**: Structural coupling between Asana parent-child hierarchy and cascade field model. Validator/auditor approach is mitigation, not fix.
-**Resolution cost**: HIGH. Schema redesign required.
+---
 
-### TENSION-004: Deprecated Query Endpoint Still Serving Traffic
+### TENSION-002: Services Layer Imports from API Layer (Intentional Violation)
 
-**Type**: Backward compatibility
-**Location**: `src/autom8_asana/api/routes/query.py:7,524-646`
-**Current state**: `POST /v1/query/{entity_type}` marked deprecated, sunset 2026-06-01. Co-exists with active replacement.
-**Why it persists**: Callers not yet migrated.
-**Resolution cost**: LOW after 2026-06-01. Route cannot be deleted before sunset date.
+**Location**: `src/autom8_asana/services/intake_create_service.py:23`, `src/autom8_asana/services/matching_service.py:20`, `src/autom8_asana/services/intake_resolve_service.py:17`, `src/autom8_asana/services/intake_custom_field_service.py:16`
 
-### TENSION-005: `source=None` Schema Columns Require Hand-Coded Extractors
+Services import request/response models from the API routes layer, inverting the expected dependency direction. Marked with custom semgrep rule suppression `nosemgrep: autom8y.no-lower-imports-api`.
 
-**Type**: Architecture constraint
-**Location**: `src/autom8_asana/dataframes/extractors/schema.py:7-10`, `src/autom8_asana/dataframes/schemas/`
-**Current state**: `SchemaExtractor` handles `cf:`, `cascade:`, `gid:` sources automatically. `source=None` columns bypass it and require dedicated extractor classes.
-**Why it persists**: Some derived fields require multi-step resolution logic with no single source column.
-**Resolution cost**: STRUCTURAL. The safety valve is by design.
+**Constraint**: Extracting service contracts to a shared `models/contracts/` location would break API layer callers. Accepted violation locked in by API-first schema design.
 
-### TENSION-006: Section GIDs Hardcoded as Unverified Placeholders
+---
 
-**Type**: Phantom abstraction
-**Location**: `src/autom8_asana/reconciliation/section_registry.py:19-69`
-**Current state**: `EXCLUDED_SECTION_GIDS` and `UNIT_SECTION_GIDS` are placeholder strings. Two TODOs acknowledge this. Name-based fallback (`EXCLUDED_SECTION_NAMES`) is the operational path.
-**Why it persists**: Live API verification not yet performed.
-**Resolution cost**: LOW. Verify GIDs or remove constants.
+### TENSION-003: Models Layer Importing from Persistence Layer
 
-### TENSION-007: Dual Authentication Mode -- JWT vs. PAT Token Detection
+**Location**: `src/autom8_asana/models/task.py:413-416`, `src/autom8_asana/models/custom_field_accessor.py:423`
 
-**Type**: By-design complexity
-**Location**: `src/autom8_asana/auth/dual_mode.py`, 15 usages in `api/routes/tasks.py`, 7 in `sections.py`
-**Current state**: `detect_token_type()` uses dot-counting heuristic (JWT = 2 dots, PAT = 0). Per ADR-S2S-001.
-**Why it persists**: External routes need PAT pass-through; internal routes use JWT. The API bridges both worlds.
-**Resolution cost**: N/A (intentional design).
+`Task` and `CustomFieldAccessor` use deferred `TYPE_CHECKING`-guarded imports from `persistence.session` and `persistence.exceptions`, suppressed with `nosemgrep: autom8y.no-models-import-upper`.
 
-### TENSION-008: Freshness Enum Consolidation -- Type Aliases at Old Locations
+**Constraint**: These lazy imports are load-bearing for the SaveSession pattern (`ADR-0050`). Removing them requires refactoring the session-commit protocol.
 
-**Type**: Migration in progress
-**Location**: `src/autom8_asana/cache/models/freshness_unified.py:1-25`
-**Current state**: Four legacy enums consolidated into two. Type aliases remain for backward compatibility per `SPIKE-cache-freshness-consolidation.md`.
-**Why it persists**: Callers spread across codebase imported old names.
-**Resolution cost**: MEDIUM. Import sweep across codebase.
+---
 
-### TENSION-009: Two Names for the Same Auth Env Var
+### TENSION-004: Lambda Handlers as Service-Layer Overflow
 
-**Type**: Deployment coupling
-**Location**: `src/autom8_asana/services/gid_push.py:126`, `src/autom8_asana/api/dependencies.py:502-509`, `src/autom8_asana/clients/data/config.py:242`
-**Current state**: `SERVICE_API_KEY` (new standard) with fallback to `AUTOM8Y_DATA_API_KEY` (Lambda/ECS deployed).
-**Why it persists**: Changing all deployment configs simultaneously is risky.
-**Resolution cost**: COORDINATED. Code + deployment must move together.
+**Location**: `src/autom8_asana/lambda_handlers/pipeline_stage_aggregator.py:14-16`, `src/autom8_asana/lambda_handlers/reconciliation_runner.py:11-12`, `src/autom8_asana/lambda_handlers/push_orchestrator.py:8-9`
 
-### TENSION-010: SystemContext Reset Pattern -- Module Side-Effects at Import
+Three modules that logically belong in `services/` live in `lambda_handlers/` because moving them creates circular dependencies. Each module's docstring explains.
 
-**Type**: Test infrastructure coupling
-**Location**: `src/autom8_asana/core/system_context.py`, 12 files using `register_reset`
-**Current state**: Singleton modules register reset functions via module-level side effects. `_repopulate_from_imported_modules()` works around Python module caching.
-**Why it persists**: Test isolation requires `SystemContext.reset_all()` without re-importing.
-**Resolution cost**: HIGH. Changing requires rethinking test singleton isolation.
+**Constraint**: Circular import structure prevents proper module placement. Resolving requires either inversion of control or introduction of an intermediate abstraction.
 
-### TENSION-011: Temp GID Placeholder System in Persistence Pipeline
+---
 
-**Type**: Architecture constraint
-**Location**: `src/autom8_asana/persistence/pipeline.py:195-196`, `graph.py:228`, `action_executor.py:158`
-**Current state**: `temp_xxx` placeholder GIDs for forward references resolved via `gid_map` after Asana assigns real GIDs.
-**Why it persists**: Asana does not provide transactional multi-entity creation.
-**Resolution cost**: STRUCTURAL. Any persistence change must preserve two-phase GID resolution.
+### TENSION-005: Entity Classes Duplicate Project GIDs from Registry
+
+**Location**: `src/autom8_asana/core/project_registry.py`, `src/autom8_asana/models/business/*.py`
+
+`core/project_registry.py` is the declared "single source of truth" for Asana project GIDs, yet 15+ entity classes maintain their own hardcoded `PRIMARY_PROJECT_GID` class attributes with raw GID strings.
+
+**Constraint**: Migration blocked by test and call site count. Parity enforced via `tests/unit/core/test_project_registry.py:313`. Any GID change requires updating both locations.
+
+---
+
+### TENSION-006: autom8y_interop Protocol Gap -- DataServiceClient Coverage Only 30%
+
+**Location**: `src/autom8_asana/automation/workflows/protocols.py:41-44`, `src/autom8_asana/automation/workflows/bridge_base.py:29-38`
+
+`autom8y_interop` SDK protocols cover ~30% of `DataServiceClient` surface. No interop reconciliation protocol, no interop export protocol.
+
+**Constraint**: Full migration blocked until upstream `autom8y_interop` adds `DataReconciliationProtocol` and export protocols.
+
+---
+
+### TENSION-007: Polars-Primary DataFrame Layer with Pandas Backward-Compat Bridge
+
+**Location**: `src/autom8_asana/clients/data/models.py:283-292`
+
+The data layer is Polars-native, but `InsightsResponse.to_pandas()` provides backward-compatibility for pre-Polars consumers. Marked "Per TDD-INSIGHTS-001 FR-005.5."
+
+**Constraint**: Removing `to_pandas()` would break external consumers. Must persist until all callers are Polars-compatible.
+
+---
+
+## Trade-off Documentation
+
+### TRADE-001: raw=True Dual-Return Type on All Asana Clients
+
+All 12 `*Client` classes implement `raw: bool = False` on read methods. When `raw=True`, methods return raw `dict` instead of typed Pydantic models. Maintains backward compatibility with pre-typing callers.
+
+**Cost**: Every read method carries dual return-type complexity. Removing requires auditing all callers of 12 client classes.
+
+---
+
+### TRADE-002: Circuit Breaker Disabled by Default
+
+`CircuitBreakerConfig.enabled = False` (opt-in). `src/autom8_asana/config.py:291-297`: "default False for backward compat."
+
+**Cost**: New deployments do not get circuit breaker protection unless they explicitly opt in.
+
+---
+
+### TRADE-003: AIMD Adaptive Semaphore with Unused Cooldown Parameter
+
+`ConcurrencyConfig.aimd_cooldown_duration_seconds` exists but the adaptive semaphore logs `"cooldown_not_active_in_v1"`. Reserved for future AIMD v2.
+
+**Location**: `src/autom8_asana/config.py:207`, `src/autom8_asana/transport/adaptive_semaphore.py:60,339`
+
+---
+
+### TRADE-004: Broad Except Catches Annotated as Intentional (BROAD-CATCH)
+
+213 `except Exception` / `except:` sites exist. Lambda handlers annotated with `# BROAD-CATCH: {rationale}`. 12 bare-except sites in preload tagged for `I6` narrowing.
+
+**Cost**: Static analysis cannot distinguish intentional from accidental broad catches.
+
+---
+
+### TRADE-005: ADR-0025 Big-Bang S3 Cutover -- No Fallback
+
+The migration from legacy S3-based caching to Redis uses a big-bang cutover strategy with no S3 fallback. Initial cache miss spike of 100% at T+0. Requires cache warming to recover.
+
+---
+
+### TRADE-006: max_batch_size >= 500 Constraint Coupling
+
+`DataServiceConfig.max_batch_size = 500` has a hard minimum enforced only by comment. `DataServiceJoinFetcher` depends on this being >= 500 to avoid extra chunking rounds.
+
+**Location**: `src/autom8_asana/clients/data/config.py:252-256`
+
+---
 
 ## Abstraction Gap Mapping
 
-### GAP-001: No Abstraction Over Dual Preload Paths
-**Location**: `src/autom8_asana/api/preload/progressive.py`, `legacy.py`
-**Impact**: Bug fixes to watermark handling, index recovery, or cache coordination must be applied twice. Two 600+ line functions with nearly identical inner loops.
+### GAP-001: Missing Consultation ProcessType Model
 
-### GAP-002: `SchemaExtractor` Cannot Handle Computed Fields
-**Location**: `src/autom8_asana/dataframes/extractors/schema.py`
-**Impact**: Each new entity with derived fields adds a full extractor class. No extension point for custom field logic.
+**Location**: `src/autom8_asana/services/intake_create_service.py:46-48`, `src/autom8_asana/models/business/process.py:51`
 
-### GAP-003: Reconciliation Section GIDs Are a Phantom Abstraction
-**Location**: `src/autom8_asana/reconciliation/section_registry.py`
-**Impact**: Future callers may trust GID constants without reading the TODOs, causing silent reconciliation failures.
+`VALID_PROCESS_TYPES` contains `{"sales", "retention", "implementation"}` with TODO for "consultation". `ProcessType` enum lacks `CONSULTATION` variant. Intake route cannot route consultation processes.
 
-### GAP-004: `FieldWriteService` Has No Retry or Idempotency on Asana Write
-**Location**: `src/autom8_asana/services/field_write_service.py`
-**Impact**: Partial failure between write and cache invalidation leaves cache stale. FQ write hardening (WS-4) still pending.
+---
 
-## Load-Bearing Code
+### GAP-002: Reconciliation Section GIDs Are Unverified Placeholders
 
-### LB-001: `SystemContext.reset_all()` + `register_reset` Chain
-**Location**: `src/autom8_asana/core/system_context.py`, 12 consuming modules
-**Callers**: Every test fixture calling `SystemContext.reset_all()`. Breaking any `register_reset()` call leaves singleton state across tests.
-**Hot path**: No (test-only). But failure produces non-deterministic test results.
+**Location**: `src/autom8_asana/reconciliation/section_registry.py:94-143`
 
-### LB-002: CascadingFieldResolver + CascadeViewPlugin Integration
-**Location**: `src/autom8_asana/dataframes/resolver/cascading.py`, `views/cascade_view.py`, `builders/cascade_validator.py`
-**Callers**: 15 files, 61 usages. Load path for all `cascade:` schema columns.
-**Hot path**: Yes. Runs on every DataFrame build. Changing parent chain traversal without updating cascade column set silently produces nulls (SCAR-005 failure mode).
+`EXCLUDED_SECTION_GIDS` and `UNIT_SECTION_GIDS` are `VERIFY-BEFORE-PROD (SCAR-REG-001)` — sequential placeholder values not verified against the live Asana API. Self-detection logic (`_looks_like_placeholder_gids()`) logs warnings.
 
-### LB-003: Two-Router Query Mounting in `api/main.py`
-**Location**: `src/autom8_asana/api/main.py:387-388`
-**What a naive fix would break**: Reordering router registration can shadow routes. Deprecated route must remain ordered after active routes.
+---
 
-### LB-004: Temp GID Resolution in Persistence Pipeline
-**Location**: `src/autom8_asana/persistence/pipeline.py`, `graph.py`, `action_executor.py`
-**What a naive fix would break**: Short-circuiting graph traversal executes operations before dependencies have real GIDs, producing broken cross-entity references.
+### GAP-003: TieredCacheProvider S3 Cold Tier Is Phase 3 (Not Implemented)
 
-### LB-005: Broad-Catch Exception Boundaries
-**Location**: 91 files contain `except Exception` (209 occurrences); concentrated in `api/preload/legacy.py` (6), `progressive.py` (8), `lifecycle/engine.py` (10)
-**What a naive fix would break**: Narrowing exceptions prematurely converts silent-degradation into hard service failures. `# BROAD-CATCH: degrade` and `# BROAD-CATCH: isolation` comments are intentional markers.
+**Location**: `src/autom8_asana/cache/integration/factory.py:208,216-217`, `src/autom8_asana/cache/providers/tiered.py:66-73`
 
-## Evolution Constraints
+`TieredCacheProvider` architecturally supports Redis (hot) + S3 (cold), but the factory only wires Redis: "For Phase 1, tiered maps to Redis (S3 cold tier is Phase 3)."
 
-| Area | Rating | Condition |
-|------|--------|-----------|
-| `api/routes/query.py` deprecated endpoint | FROZEN | Until 2026-06-01 sunset date |
-| `api/preload/legacy.py` | MIGRATION | Requires 90-day S3 uptime metric |
-| `MIGRATION-PLAN-legacy-cache-elimination` | COORDINATED | Multi-file, multi-service migration |
-| `source=None` schema columns | SAFE | Provided hand-coded extractor is also written |
-| Auth env var fallback chain | COORDINATED | Code + deployment must move together |
-| Section GID constants | FROZEN | Not safe for filtering until verified against live API |
-| Freshness enum old names | MIGRATION | Type aliases removable after import sweep |
+---
+
+### GAP-004: DataServiceClient / autom8y_interop Protocol Gaps
+
+**Location**: `src/autom8_asana/automation/workflows/protocols.py:34-44`
+
+Two bridge-specific capabilities have no interop analogue: `get_reconciliation_async()` and `get_export_csv_async()`. Requires upstream PRs.
+
+---
+
+### GAP-005: Metrics Layer Phase 1 -- Section Scoping Not Fully Implemented
+
+**Location**: `src/autom8_asana/metrics/metric.py:28-30`
+
+`Metric.scope.section_name` supports "offer" only in Phase 1. `None` means "all sections" (not implemented).
+
+---
+
+### GAP-006: EntityType Binding Uses object.__setattr__ on Frozen Dataclasses
+
+**Location**: `src/autom8_asana/core/entity_registry.py:851-890`
+
+`EntityDescriptor` instances are `@dataclass(frozen=True)`, but `_bind_entity_types()` mutates them at module load via `object.__setattr__()`. Documented as intentional per ADR-001. `entity_type` typed as `Any = None` to avoid circular import.
+
+---
+
+### GAP-007: Deferred EntityType Binding to Break core -> models Circular Import
+
+**Location**: `src/autom8_asana/core/entity_registry.py:140,851-853`
+
+`EntityDescriptor.entity_type` typed as `Any = None` (not `EntityType | None`) to avoid `core -> models` circular imports. Binding deferred to module load.
+
+---
+
+## Load-Bearing Code Identification
+
+### LBC-001: EntityRegistry Singleton -- Import-Time Validation Gate
+
+**Location**: `src/autom8_asana/core/entity_registry.py:896-1062`
+
+Built at module import time via `_validate_registry_integrity()`. 7 integrity checks. Failure raises `ValueError` at import time, preventing startup.
+
+**Load-bearing for**: All DataFrame layer consumers, cache warming, API startup.
+
+---
+
+### LBC-002: ENTITY_DESCRIPTORS Tuple -- Single Declaration Per Entity
+
+**Location**: `src/autom8_asana/core/entity_registry.py`
+
+All entity metadata declared once. Backward-compatible facades (`ENTITY_TYPES`, `DEFAULT_ENTITY_TTLS`, `ENTITY_ALIASES`, `DEFAULT_KEY_COLUMNS`) delegate to this. Adding a new entity requires one entry; removing breaks all facades.
+
+---
+
+### LBC-003: DEFAULT_ENTITY_TTLS in config.py -- Backward-Compatible Facade
+
+**Location**: `src/autom8_asana/config.py:104-112`
+
+Module-level computed constant delegating to `EntityRegistry`. Import shim for legacy code. Removing breaks any code importing from `autom8_asana.config`.
+
+---
+
+### LBC-004: EXCLUDED_SECTION_NAMES -- Reconciliation Firewall
+
+**Location**: `src/autom8_asana/reconciliation/section_registry.py:109-120`
+
+"DO NOT use `UNIT_CLASSIFIER.ignored` as the exclusion source." `EXCLUDED_SECTION_NAMES` with all 4 values prevents reconciliation from processing units in `Templates`, `Next Steps`, `Account Review`, `Account Error`. Replacing with `UNIT_CLASSIFIER.ignored` would silently pass 3/4 excluded sections.
+
+---
+
+### LBC-005: SWR_GRACE_MULTIPLIER and LKG_MAX_STALENESS_MULTIPLIER
+
+**Location**: `src/autom8_asana/config.py:93-102`
+
+`SWR_GRACE_MULTIPLIER = 3.0` (3x entity TTL for stale serving). `LKG_MAX_STALENESS_MULTIPLIER = 0.0` (unlimited Last-Known-Good fallback). Module-level constants affecting all cache staleness decisions.
+
+---
+
+### LBC-006: DataServiceConfig max_batch_size >= 500 Dependency
+
+**Location**: `src/autom8_asana/clients/data/config.py:252-256`, `src/autom8_asana/query/fetcher.py:8`
+
+No hard validation prevents reducing below 500, which silently breaks join fetcher batching.
+
+---
+
+### LBC-007: Cascade Warm-Up Ordering Validated at API Startup
+
+**Location**: `src/autom8_asana/api/lifespan.py:242`, `src/autom8_asana/dataframes/cascade_utils.py:134-228`
+
+`cascade_warm_phases()` computes topological ordering. If cascade provider ordering is incorrect, downstream field resolution fails silently.
+
+---
+
+### LBC-008: BROAD-CATCH in Lambda Handlers -- Isolation Invariant
+
+**Location**: `src/autom8_asana/lambda_handlers/` (14 annotated sites)
+
+The Lambda handler isolation pattern — every per-entity step catches `Exception` — is load-bearing. Removing causes single-entity failures to abort entire cache warming runs.
+
+---
+
+## Evolution Constraint Documentation
+
+### EC-001: TDD-PRIMITIVE-MIGRATION-001 -- Transport Primitive Migration
+
+Phase 2 (import platform configs for new code) is complete. Phase 3 (consolidate domain configs) has not started. New transport code should use platform configs; existing callers must not be changed without a migration sprint.
+
+---
+
+### EC-002: Project GID Migration -- Entity Classes to Project Registry
+
+15+ entity classes hold hardcoded GID strings duplicating `project_registry.py`. Parity enforced by tests. Migration to have entity classes reference the registry directly is documented but not started.
+
+---
+
+### EC-003: Cache Architecture Phase Roadmap
+
+- **Phase 1** (current): Redis hot tier only
+- **Phase 3** (planned): S3 cold tier wired into `TieredCacheProvider`
+
+---
+
+### EC-004: Consultation ProcessType -- Blocked Model Landing
+
+`VALID_PROCESS_TYPES` artificially restricted. Requires `CONSULTATION` variant in `ProcessType` enum and intake flow extension.
+
+---
+
+### EC-005: autom8y_interop Partial Migration -- Blocked on Upstream PRs
+
+`DataServiceClient` cannot be migrated to interop protocols until upstream adds `DataReconciliationProtocol` and export protocol.
+
+---
+
+### EC-006: Exception Narrowing in Preload (I6 Backlog)
+
+12 bare-except sites in preload code tagged for `I6 (Exception Narrowing)` sprint item, which has not run.
+
+---
+
+### EC-007: Reconciliation Section GIDs -- Production Verification Required
+
+All section GIDs are sequential placeholders. Production deployment requires API verification via `GET /projects/1201081073731555/sections`.
+
+---
 
 ## Risk Zone Mapping
 
-### RISK-001: Reconciliation Section GID Filtering is Silent No-Op
-**Location**: `src/autom8_asana/reconciliation/section_registry.py`
-**Risk**: GID-based exclusion uses unverified placeholders. Code using `EXCLUDED_SECTION_GIDS` silently passes through all units.
-**Cross-reference**: TENSION-006
+### RISK-001: Reconciliation Uses Unverified Section GIDs (SCAR-REG-001)
 
-### RISK-002: Legacy Preload Broad-Catch Silences Data Corruption
-**Location**: `src/autom8_asana/api/preload/legacy.py:387-407,528-539,616-625`
-**Risk**: Outer `except Exception` always sets `cache_ready = True`. Corrupted data results in service responding 200 with stale cache.
-**Cross-reference**: TENSION-002, GAP-001
+**Severity**: High. Placeholder GIDs for section exclusion and targeting. Misfire risk in production.
 
-### RISK-003: Cascade Null Rate Above 20% Raises Unhandled in Production
-**Location**: `src/autom8_asana/services/universal_strategy.py:669`
-**Risk**: `CascadeNullRateError` propagates to route handler. Production has experienced 30-40% null rates. If unhandled at route boundary, produces 500 for all resolution queries.
-**Cross-reference**: TENSION-003
+**Location**: `src/autom8_asana/reconciliation/section_registry.py:94-143`
 
-### RISK-004: FQ Write Hardening Pending -- No Idempotency Guard
-**Location**: `src/autom8_asana/services/field_write_service.py`
-**Risk**: Write succeeds but `MutationEvent` dispatch fails -> cache stale indefinitely. WS-4 started but parked.
-**Cross-reference**: GAP-004
+**Mitigation**: `_looks_like_placeholder_gids()` emits warning with `"action_required": "verify_gids_against_asana_api_before_production"`.
 
-### RISK-005: Optional `HierarchyAwareResolver` Falls Back Silently to N+1
-**Location**: `src/autom8_asana/dataframes/resolver/cascading.py:24-27`
-**Risk**: `try/except ImportError` fallback to `None`. N+1 API calls under load can exhaust rate limits. No log event when fallback is active.
-**Cross-reference**: LB-002
+---
 
-### RISK-006: Two-Router Ordering at `POST /v1/query` -- No Code Enforcement
-**Location**: `src/autom8_asana/api/main.py:387-388`
-**Risk**: Router registration ordering constraint documented in comment only. Refactor could silently shadow active routes.
-**Cross-reference**: LB-003, TENSION-004
+### RISK-002: Phantom Exclusion Rate in Reconciliation (TC-4)
+
+**Severity**: Medium. Production smoke test produced 756 phantom exclusions (~100% exclusion rate). Warning threshold: 50%.
+
+---
+
+### RISK-003: Circular Import Structure -- Hidden Coupling Debt
+
+**Severity**: Medium. Three `lambda_handlers/` modules misplaced due to circular imports. Multiple `TYPE_CHECKING`-guarded lazy imports across layers. Each represents frozen coupling blocking clean evolution.
+
+---
+
+### RISK-004: config.py Module-Level Computation at Import Time
+
+**Severity**: Medium. `DEFAULT_ENTITY_TTLS` computed at module-level via `_get_entity_registry()`. If `EntityRegistry` initialization fails, importing `autom8_asana.config` fails with `ValueError`.
+
+**Location**: `src/autom8_asana/config.py:106-112`
+
+---
+
+### RISK-005: DataServiceConfig max_batch_size Has No Minimum Enforcement
+
+**Severity**: Low-Medium. The >= 500 constraint for `DataServiceJoinFetcher` is enforced only by comment.
+
+**Location**: `src/autom8_asana/clients/data/config.py:252-256`
+
+---
+
+### RISK-006: object.__setattr__ on Frozen EntityDescriptors Is Order-Dependent
+
+**Severity**: Low. Mutation must complete before any consumer reads. Guaranteed by module-level execution order.
+
+---
+
+### RISK-007: 12 Bare-Except Sites in Preload -- Exception Signal Loss
+
+**Severity**: Low. Preload exceptions silently swallowed. Service reports `cache_ready=True` even when preload has failed silently.
+
+---
 
 ## Knowledge Gaps
 
-- **Reconciliation executor live API wiring**: `src/autom8_asana/reconciliation/executor.py:94` contains `TODO: Wire up actual Asana API call`. Section moves not yet wired.
-- **`CONSULTATION` process type missing**: `src/autom8_asana/services/intake_create_service.py:47` has `TODO(truth-audit)`. Entity registry does not yet model consultation.
-- **Architecture Review: Data Attachment Bridge**: Parked at requirements (session-20260318). `DataInsightProtocol` re-export carries `noqa: F401`.
-- **FQ Write Hardening (WS-4)**: Started, not completed. No ADR documents the intended mechanism.
-- **`CascadeNullRateError` route-level handling**: Whether API routes catch this specifically or allow 500 was not confirmed.
+1. **Lifecycle YAML files**: Automation config references lifecycle stage YAML but no YAML schema was found in the repository.
+2. **autom8y_http and autom8y_log internal contracts**: External packages used by 212+ files. Internal constraints not observable.
+3. **INTEGRATE-ecosystem-dispatch Section 1.4**: Referenced in `protocols.py` but document not found in repository.
+4. **Actual section GID values**: Real GIDs must be retrieved from live Asana API.
+5. **ADR documents**: Numerous ADR references in code but no ADR directory found during this audit.
+6. **DataServiceClient endpoint depth**: `clients/data/` package not fully read. Endpoint-level constraints partially captured.
