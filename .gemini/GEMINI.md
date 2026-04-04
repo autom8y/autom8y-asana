@@ -7,16 +7,14 @@ Use the available agents and slash commands. Agents activate automatically when 
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-6-agent workflow (rnd):
+4-agent workflow (review):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates technology exploration phases |
-| **technology-scout** | Scouts emerging technologies and provides build vs buy analysis |
-| **integration-researcher** | Maps integration dependencies and assesses compatibility |
-| **prototype-engineer** | Builds proof-of-concept prototypes with deliberate shortcuts |
-| **moonshot-architect** | Designs visionary long-term architecture plans |
-| **tech-transfer** | Facilitates technology transfer from R&D to production teams |
+| **potnia** | Coordinates code review phases, gates complexity, manages back-routes |
+| **signal-sifter** | Reads codebase and sifts signal from noise using structural heuristics |
+| **pattern-profiler** | Connects dots across signals, builds severity profile and health grades |
+| **case-reporter** | Writes the definitive case file with health report card |
 
 Agents activate when your prompt matches their description.
 <!-- KNOSSOS:END quick-start -->
@@ -44,12 +42,10 @@ Agents cannot spawn other agents — only the main thread can dispatch sub-agent
 
 Prompts in `.gemini/agents/`:
 
-- `potnia.md` - Coordinates technology exploration phases
-- `technology-scout.md` - Scouts emerging technologies and provides build vs buy analysis
-- `integration-researcher.md` - Maps integration dependencies and assesses compatibility
-- `prototype-engineer.md` - Builds proof-of-concept prototypes with deliberate shortcuts
-- `moonshot-architect.md` - Designs visionary long-term architecture plans
-- `tech-transfer.md` - Facilitates technology transfer from R&D to production teams
+- `potnia.md` - Coordinates code review phases, gates complexity, manages back-routes
+- `signal-sifter.md` - Reads codebase and sifts signal from noise using structural heuristics
+- `pattern-profiler.md` - Connects dots across signals, builds severity profile and health grades
+- `case-reporter.md` - Writes the definitive case file with health report card
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:

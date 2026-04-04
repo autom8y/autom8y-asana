@@ -1,81 +1,56 @@
-name: rnd
+name: review
 workflow_type: sequential
-description: Technology scouting, integration analysis, prototyping, and future architecture
+description: Language-agnostic code review lifecycle (Scan -> Assess -> Report)
 
 # entry_point: The first specialist in the domain workflow (not the CC routing agent).
 # The CC routing agent is manifest.yaml:entry_agent (always potnia for orchestrated rites).
 entry_point:
-  agent: technology-scout
+  agent: signal-sifter
   artifact:
-    type: tech-assessment
-    path_template: .ledge/spikes/SCOUT-{slug}.md
+    type: scan-findings
+    path_template: .sos/wip/review/SCAN-{slug}.md
 
 phases:
-  - name: scouting
-    agent: technology-scout
-    produces: tech-assessment
-    next: integration-analysis
+  - name: scan
+    agent: signal-sifter
+    produces: scan-findings
+    next: assess
 
-  - name: integration-analysis
-    agent: integration-researcher
-    produces: integration-map
-    next: prototyping
-    condition: "complexity >= EVALUATION"
+  - name: assess
+    agent: pattern-profiler
+    produces: assessment
+    next: report
+    condition: "complexity == FULL"
 
-  - name: prototyping
-    agent: prototype-engineer
-    produces: prototype
-    next: future-architecture
-
-  - name: future-architecture
-    agent: moonshot-architect
-    produces: moonshot-plan
-    next: transfer
-
-  - name: transfer
-    agent: tech-transfer
-    produces: tech-transfer-package
+  - name: report
+    agent: case-reporter
+    produces: review-report
     next: null
-    condition: "complexity >= EVALUATION"
 
 complexity_levels:
-  - name: SPIKE
-    scope: "Quick feasibility check, single technology"
-    phases: [scouting, prototyping]
+  - name: QUICK
+    scope: "Focused triage of specific files or module, scan + report only"
+    phases: [scan, report]
 
-  - name: EVALUATION
-    scope: "Full technology evaluation with integration analysis"
-    phases: [scouting, integration-analysis, prototyping, future-architecture, transfer]
-
-  - name: MOONSHOT
-    scope: "Paradigm shift exploration, multi-year architecture"
-    phases: [scouting, integration-analysis, prototyping, future-architecture, transfer]
+  - name: FULL
+    scope: "Complete repository review with health grading and cross-rite routing"
+    phases: [scan, assess, report]
 
 # Agent roles for command mapping:
-# /architect   → integration-researcher
-# /build       → prototype-engineer
-# /qa          → moonshot-architect
-# /hotfix      → (N/A - R&D rite)
-# /code-review → (N/A - R&D rite)
+# /review          -> potnia (orchestrated, determines QUICK vs FULL)
+# Direct Task      -> signal-sifter (scan-only, no orchestration)
 
 back_routes:
-  - source_phase: future-architecture
-    trigger: "fail(acceptance_criteria)"
-    target_phase: scouting
-    target_agent: technology-scout
-    requires_user_confirmation: true
-    condition: "Failure is requirement gap, not implementation bug"
-
-  - source_phase: future-architecture
-    trigger: "fail(implementation)"
-    target_phase: prototyping
-    target_agent: prototype-engineer
+  - source_phase: assess
+    trigger: "coverage_gap"
+    target_phase: scan
+    target_agent: signal-sifter
     requires_user_confirmation: false
-    condition: "Failure is implementation bug"
+    condition: "Assessment reveals areas not scanned or insufficiently covered"
 
-  - source_phase: prototyping
-    trigger: "design_conflict"
-    target_phase: integration-analysis
-    target_agent: integration-researcher
+  - source_phase: report
+    trigger: "assessment_gap"
+    target_phase: assess
+    target_agent: pattern-profiler
     requires_user_confirmation: false
-    condition: "Implementation reveals design flaw"
+    condition: "Report synthesis reveals findings without severity or ungrouped themes"
