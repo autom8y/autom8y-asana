@@ -79,8 +79,10 @@ async def validate_service_token(token: str) -> ServiceClaims:
     """
     client = _get_auth_client()
 
-    # Validate and ensure it's a service token
-    claims = await client.validate_service_token(token)
+    # Validate and ensure it's a service token (F-002 C.3: fleet audience enforcement)
+    claims = await client.validate_service_token(
+        token, audience="https://api.autom8y.io"
+    )
 
     # Log success without sensitive data
     logger.debug(
