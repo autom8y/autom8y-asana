@@ -9,6 +9,8 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   dispatch:
     timeout-minutes: 5
