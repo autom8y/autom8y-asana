@@ -11,6 +11,7 @@ on:
 
 jobs:
   dispatch:
+    timeout-minutes: 5
     if: >-
       github.event_name == 'repository_dispatch' ||
       github.event_name == 'workflow_dispatch' ||
