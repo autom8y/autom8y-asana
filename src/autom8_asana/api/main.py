@@ -30,6 +30,7 @@ Design Principles:
 import os
 from typing import Any
 
+from autom8y_auth import JWTAuthMiddleware
 from autom8y_log import get_logger
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -284,8 +285,9 @@ def create_app() -> FastAPI:
     #   1. RequestIDMiddleware           (last added -> outermost; sets request_id first)
     #   2. RequestLoggingMiddleware      (logs once request_id is available)
     #   3. SlowAPIMiddleware             (rate limiting)
-    #   4. IdempotencyMiddleware         (RFC 8791 store-and-replay; ADR-omniscience-idempotency)
-    #   5. CORSMiddleware (if enabled)   (first added -> innermost; preflight handler)
+    #   4. JWTAuthMiddleware             (PKG-009 fail-closed JWT enforcement)
+    #   5. IdempotencyMiddleware         (RFC 8791 store-and-replay; ADR-omniscience-idempotency)
+    #   6. CORSMiddleware (if enabled)   (first added -> innermost; preflight handler)
     # Note: MetricsMiddleware from instrument_app() is added above and
     # wraps the entire stack for accurate request duration measurement.
     # V-1 F-1 (security-remediation procession): the previous comment
@@ -360,6 +362,46 @@ def create_app() -> FastAPI:
         idempotency_store = NoopIdempotencyStore()
 
     app.add_middleware(IdempotencyMiddleware, store=idempotency_store)
+
+    # JWT auth baseline (PKG-009 / AUDIT-010)
+    # Fleet baseline JWTAuthMiddleware. Asana retains its DI-based dual-mode
+    # auth (get_auth_context) for PAT-vs-JWT routing, but the middleware
+    # provides fail-closed enforcement for any route lacking explicit
+    # Depends(get_auth_context). Health, docs, webhooks (URL-token auth), and
+    # PAT-only routes are excluded from middleware enforcement -- those keep
+    # their existing per-route auth contracts. The middleware fails CLOSED on
+    # any other unannotated route, eliminating the AUDIT-010 silent fail-open.
+    #
+    # IMPORTANT: PAT routes MUST be excluded. The middleware can only validate
+    # JWTs against the fleet JWKS; an Asana PAT (which is just an opaque
+    # bearer string) would fail JWT signature verification. Excluding the PAT
+    # route trees lets the existing dependencies.py dual-mode resolver
+    # continue to handle them correctly.
+    app.add_middleware(
+        JWTAuthMiddleware,
+        exclude_paths=[
+            # Health / docs (standard fleet exclusions)
+            "/health",
+            "/ready",
+            "/health/*",
+            "/docs/*",
+            "/redoc",
+            "/openapi.json",
+            "/metrics",
+            # Webhooks: URL-token auth via ?token=, not Bearer
+            "/api/v1/webhooks/*",
+            # PAT-tag route trees (handled by dual-mode get_auth_context DI)
+            "/api/v1/tasks/*",
+            "/api/v1/projects/*",
+            "/api/v1/sections/*",
+            "/api/v1/users/*",
+            "/api/v1/workspaces/*",
+            "/api/v1/dataframes/*",
+            "/api/v1/offers/*",
+            "/api/v1/workflows/*",
+        ],
+        audience="https://api.autom8y.io",
+    )
 
     # Rate limiting
     app.state.limiter = limiter
@@ -507,7 +549,17 @@ def create_app() -> FastAPI:
                     operation["security"] = [{"ServiceJWT": []}]
                 elif tags & _PAT_TAGS:
                     operation["security"] = [{"PersonalAccessToken": []}]
-                # else: unknown tag -- no security key (fail-open)
+                else:
+                    # PKG-009 / AUDIT-010: Fail closed on unknown tags. Any
+                    # route whose tag is not classified into _NO_AUTH_TAGS,
+                    # _TOKEN_TAGS, _S2S_TAGS, or _PAT_TAGS must explicitly
+                    # opt in. Silent fall-through previously left the route
+                    # documented as anonymous, which is a fail-open posture.
+                    raise ValueError(
+                        f"Unknown OpenAPI tag(s): {sorted(tags)}. Add to "
+                        "_PAT_TAGS, _S2S_TAGS, _TOKEN_TAGS, or _NO_AUTH_TAGS "
+                        "in autom8_asana.api.main."
+                    )
 
                 # Strip authorization header param (ADR-SPRINT1-002)
                 if "parameters" in operation:

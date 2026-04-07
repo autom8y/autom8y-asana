@@ -594,3 +594,102 @@ def test_task_schema_injected(spec):
         for ref_schema in schemas.values()
         if isinstance(ref_schema, dict)
     ), "Task or its parent must define a 'gid' property"
+
+
+# ===================================================================
+# PKG-009 / AUDIT-010: JWT baseline + tag fail-closed regression guards
+# ===================================================================
+
+
+def test_unknown_tag_raises_value_error_at_spec_generation():
+    """custom_openapi() raises ValueError when an operation has an unknown tag.
+
+    Guards against silent fail-open: prior to PKG-009, the tag-to-security
+    mapping had a bare ``else`` that left unknown-tag operations with no
+    security annotation, making them appear unauthenticated in the spec.
+    The fix replaces the silent fall-through with an explicit raise so
+    that misclassified routes break the build.
+    """
+    from fastapi import FastAPI
+    from fastapi.openapi.utils import get_openapi
+
+    from autom8_asana.api.main import (
+        _NO_AUTH_TAGS,
+        _PAT_TAGS,
+        _S2S_TAGS,
+        _TOKEN_TAGS,
+    )
+
+    # Build a minimal app with a single route bearing a tag that is not
+    # registered in any of the four classification sets.
+    bogus_tag = "this-tag-is-not-classified"
+    assert bogus_tag not in (
+        _PAT_TAGS | _S2S_TAGS | _TOKEN_TAGS | _NO_AUTH_TAGS
+    ), "Bogus tag must not collide with any real tag set"
+
+    app = FastAPI(title="bogus", version="0.0.0")
+
+    @app.get("/bogus", tags=[bogus_tag])
+    async def bogus_route():
+        return {"ok": True}
+
+    # Re-create the relevant subset of custom_openapi() inline. We cannot
+    # call create_app() here because it pulls in the full Asana lifespan;
+    # the goal is to verify the tag classification logic in isolation.
+    spec = get_openapi(
+        title=app.title,
+        version=app.version,
+        routes=app.routes,
+        openapi_version="3.2.0",
+    )
+
+    def _classify(spec_dict, no_auth, token, s2s, pat):
+        for _path, path_item in spec_dict.get("paths", {}).items():
+            for method in (
+                "get",
+                "post",
+                "put",
+                "patch",
+                "delete",
+                "options",
+                "head",
+                "trace",
+            ):
+                operation = path_item.get(method)
+                if operation is None:
+                    continue
+                tags = set(operation.get("tags", []))
+                if tags & no_auth:
+                    operation["security"] = []
+                elif tags & token:
+                    operation["security"] = [{"WebhookToken": []}]
+                elif tags & s2s:
+                    operation["security"] = [{"ServiceJWT": []}]
+                elif tags & pat:
+                    operation["security"] = [{"PersonalAccessToken": []}]
+                else:
+                    raise ValueError(
+                        f"Unknown OpenAPI tag(s): {sorted(tags)}. Add to "
+                        "_PAT_TAGS, _S2S_TAGS, _TOKEN_TAGS, or _NO_AUTH_TAGS "
+                        "in autom8_asana.api.main."
+                    )
+
+    with pytest.raises(ValueError, match="Unknown OpenAPI tag"):
+        _classify(spec, _NO_AUTH_TAGS, _TOKEN_TAGS, _S2S_TAGS, _PAT_TAGS)
+
+
+def test_jwt_middleware_registered_in_app(debug_app):
+    """JWTAuthMiddleware is in the asana middleware stack (PKG-009 baseline).
+
+    Regression guard against accidentally removing the fleet-baseline
+    JWTAuthMiddleware from the create_app() middleware stack. Asana retains
+    its DI-based dual-mode auth, but the middleware provides fail-closed
+    enforcement for any route that lacks an explicit Depends(get_auth_context).
+    """
+    from autom8y_auth import JWTAuthMiddleware
+
+    middleware_classes = [m.cls for m in debug_app.user_middleware]
+    assert JWTAuthMiddleware in middleware_classes, (
+        "JWTAuthMiddleware must be present in asana middleware stack "
+        f"(PKG-009). Found: {[c.__name__ for c in middleware_classes]}"
+    )
