@@ -5,6 +5,31 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # sdk-contract-governance Sprint 3: accept dispatch from
+  # autom8y/sdk-publish-v2.yml's consumer-gate job. See sibling satellites
+  # for the rollout-window pin rationale.
+  workflow_dispatch:
+    inputs:
+      candidate_sdk_name:
+        description: 'Candidate SDK distribution name (consumer-gate)'
+        type: string
+        required: false
+        default: ''
+      candidate_sdk_version:
+        description: 'Candidate SDK version (consumer-gate)'
+        type: string
+        required: false
+        default: ''
+      candidate_wheel_run_id:
+        description: 'Run ID of the workflow that uploaded the candidate wheel artifact'
+        type: string
+        required: false
+        default: ''
+      dispatch_correlation_id:
+        description: 'Correlation UUID echoed into the run name (consumer-gate)'
+        type: string
+        required: false
+        default: ''
 
 concurrency:
   group: test-${{ github.ref }}
@@ -15,7 +40,9 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@4710f6216b52f12d1ed45afa587a370976d49f9c
+    # NOTE: re-pin to a SHA after the consumer-gate-aware reusable workflow
+    # commit lands in autom8y/autom8y-workflows.
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@main
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
@@ -33,6 +60,10 @@ jobs:
         AUTOM8Y_ENV=local
         AUTH_DEV_MODE=true
       semantic_score_enabled: true
+      candidate_sdk_name: ${{ inputs.candidate_sdk_name }}
+      candidate_sdk_version: ${{ inputs.candidate_sdk_version }}
+      candidate_wheel_run_id: ${{ inputs.candidate_wheel_run_id }}
+      dispatch_correlation_id: ${{ inputs.dispatch_correlation_id }}
     secrets: inherit
 
   fleet-schema-governance:
