@@ -1,4 +1,5 @@
 name: Test
+run-name: "Test [${{ github.event.inputs.dispatch_correlation_id || github.sha }}]"
 
 on:
   push:
