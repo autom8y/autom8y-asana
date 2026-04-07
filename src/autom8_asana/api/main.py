@@ -277,15 +277,19 @@ def create_app() -> FastAPI:
         )
 
     # --- Middleware Stack ---
-    # Starlette executes middleware in reverse order of addition.
-    # Outer to inner execution order:
-    # 1. CORSMiddleware - handle preflight (outermost)
-    # 2. IdempotencyMiddleware - RFC 8791 store-and-replay (ADR-omniscience-idempotency)
-    # 3. SlowAPIMiddleware - rate limiting
-    # 4. RequestLoggingMiddleware - log all requests
-    # 5. RequestIDMiddleware - set request_id (innermost)
+    # Starlette's add_middleware does `user_middleware.insert(0, ...)`, so
+    # the LAST middleware added becomes the OUTERMOST in the runtime stack.
+    # Given the call sequence below, the actual outer-to-inner execution
+    # order is:
+    #   1. RequestIDMiddleware           (last added -> outermost; sets request_id first)
+    #   2. RequestLoggingMiddleware      (logs once request_id is available)
+    #   3. SlowAPIMiddleware             (rate limiting)
+    #   4. IdempotencyMiddleware         (RFC 8791 store-and-replay; ADR-omniscience-idempotency)
+    #   5. CORSMiddleware (if enabled)   (first added -> innermost; preflight handler)
     # Note: MetricsMiddleware from instrument_app() is added above and
     # wraps the entire stack for accurate request duration measurement.
+    # V-1 F-1 (security-remediation procession): the previous comment
+    # block here had this order inverted; corrected during recede cycle 1.
 
     # CORS (if configured) - MUST be outermost to handle preflight OPTIONS
     if settings.cors_origins_list:
