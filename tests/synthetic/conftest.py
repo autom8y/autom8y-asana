@@ -75,7 +75,9 @@ def _setup_env() -> None:
     - IDEMPOTENCY_STORE_BACKEND=noop: prevent DynamoDB connection
     """
     os.environ["AUTH_DEV_MODE"] = "true"
-    os.environ["AUTOM8Y_ENV"] = "test"
+    # PKG-002: AuthSettings.model_post_init raises ValueError when dev_mode=True
+    # and AUTOM8Y_ENV != LOCAL. Must use LOCAL when AUTH_DEV_MODE is set.
+    os.environ["AUTOM8Y_ENV"] = "LOCAL"
     os.environ["IDEMPOTENCY_STORE_BACKEND"] = "noop"
 
 
