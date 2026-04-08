@@ -242,6 +242,9 @@ ignore = [
 # inappropriate for a synchronous CLI development tool.
 # T201: print() is intentional in the CLI query tool (separately governed)
 "src/autom8_asana/query/__main__.py" = ["TID251", "T201"]
+# stdlib logging — pre-existing; migration tracked by herculean-fleet-grade-lift
+"src/autom8_asana/_defaults/log.py" = ["TID251"]
+"src/autom8_asana/models/business/fields.py" = ["TID251"]
 # T201: print() is intentional in CLI/script entrypoints (structured output to stdout/stderr)
 "src/autom8_asana/automation/polling/cli.py" = ["T201"]
 "src/autom8_asana/metrics/__main__.py" = ["T201"]
@@ -267,6 +270,10 @@ runtime-evaluated-decorators = [
 "loguru".msg = "Use autom8y_log.get_logger() instead of loguru. See docs/guides/sdk-only-imports-migration.md"
 "loguru.logger".msg = "Use autom8y_log.get_logger() instead of loguru.logger. See docs/guides/sdk-only-imports-migration.md"
 "structlog".msg = "Use autom8y_log.get_logger() instead of direct structlog. See docs/guides/sdk-only-imports-migration.md"
+# Stdlib logging: Use autom8y_log.get_logger() -- ensures structured JSON output, consistent fields, and OTel trace correlation.
+# Added by herculean-fleet-grade-lift Full-GO Sprint 1 Stream A (RG-009 propagation).
+"logging".msg = "Use autom8y_log.get_logger() instead of stdlib logging. structured logs + OTel trace correlation require the SDK wrapper. See docs/guides/sdk-only-imports-migration.md"
+"logging.getLogger".msg = "Use autom8y_log.get_logger() instead of logging.getLogger(). See docs/guides/sdk-only-imports-migration.md"
 # HTTP: Use autom8y-http SDK
 "httpx".msg = "Use autom8y_http.Autom8yHttpClient instead of raw httpx. See docs/guides/sdk-only-imports-migration.md"
 "httpx.AsyncClient".msg = "Use autom8y_http.Autom8yHttpClient instead of httpx.AsyncClient. See docs/guides/sdk-only-imports-migration.md"
