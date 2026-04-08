@@ -51,7 +51,6 @@ jobs:
         run: uv run pytest tests/synthetic/ -q -s --tb=short
         env:
           AUTOM8Y_ENV: test
-          AUTH_DEV_MODE: 'true'
           IDEMPOTENCY_STORE_BACKEND: noop
 
       - name: Upload aegis report
