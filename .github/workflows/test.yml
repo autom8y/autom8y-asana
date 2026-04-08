@@ -58,7 +58,6 @@ jobs:
       spec_check_extras: '--all-extras'
       spec_check_env: |-
         AUTOM8Y_ENV=local
-        AUTH_DEV_MODE=true
       semantic_score_enabled: true
       candidate_sdk_name: ${{ inputs.candidate_sdk_name }}
       candidate_sdk_version: ${{ inputs.candidate_sdk_version }}
