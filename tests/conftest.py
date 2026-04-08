@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+import os
+
+# Bypass Autom8yBaseSettings production URL guard in test context.
+# AuthSettings.jwks_url defaults to the production autom8y.io domain;
+# the base-settings SDK guard rejects it when AUTOM8Y_ENV=test.
+# This must be set BEFORE any AuthSettings instantiation.
+os.environ.setdefault("AUTH__JWKS_URL", "http://localhost:8000/.well-known/jwks.json")
+
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 

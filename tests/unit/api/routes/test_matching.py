@@ -19,7 +19,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from autom8_asana.api.main import create_app
+from autom8_asana.api.dependencies import AuthContext, get_auth_context
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
+from autom8_asana.auth.dual_mode import AuthMode
 from autom8_asana.auth.jwt_validator import reset_auth_client
 from autom8_asana.services.resolver import EntityProjectRegistry
 
@@ -88,8 +90,60 @@ def _make_fake_dataframe():
 
 
 @pytest.fixture(scope="module")
-def app():
-    """Create test app with mocked lifespan."""
+def app(monkeypatch_module):
+    """Create test app with auth middleware in dev-mode bypass.
+
+    Sets AUTOM8Y_ENV=LOCAL + AUTH__DEV_MODE=true so the JWTAuthMiddleware
+    returns bypass claims instead of validating tokens. Also overrides the
+    get_auth_context dependency for consistent auth context in route logic.
+
+    TestMatchingAuth uses a separate unauthenticated fixture (raw_client)
+    with a non-LOCAL env to test auth rejection behavior.
+    """
+    monkeypatch_module.setenv("AUTOM8Y_ENV", "LOCAL")
+    monkeypatch_module.setenv("AUTH__DEV_MODE", "true")
+
+    with patch(
+        "autom8_asana.api.lifespan._discover_entity_projects",
+        new_callable=AsyncMock,
+    ) as mock_discover:
+
+        async def setup_registry(app):
+            EntityProjectRegistry.reset()
+            registry = EntityProjectRegistry.get_instance()
+            registry.register(
+                entity_type="business",
+                project_gid=BUSINESS_PROJECT_GID,
+                project_name="Business",
+            )
+            app.state.entity_project_registry = registry
+
+        mock_discover.side_effect = setup_registry
+        test_app = create_app()
+
+        async def _mock_get_auth_context() -> AuthContext:
+            return AuthContext(
+                mode=AuthMode.JWT,
+                asana_pat="test_bot_pat",
+                caller_service="autom8_data",
+            )
+
+        test_app.dependency_overrides[get_auth_context] = _mock_get_auth_context
+        yield test_app
+
+
+@pytest.fixture(scope="module")
+def monkeypatch_module():
+    """Module-scoped monkeypatch (pytest's monkeypatch is function-scoped)."""
+    from _pytest.monkeypatch import MonkeyPatch
+    mp = MonkeyPatch()
+    yield mp
+    mp.undo()
+
+
+@pytest.fixture(scope="module")
+def raw_app():
+    """Create test app WITHOUT auth bypass — for auth rejection tests."""
     with patch(
         "autom8_asana.api.lifespan._discover_entity_projects",
         new_callable=AsyncMock,
@@ -111,8 +165,15 @@ def app():
 
 @pytest.fixture(scope="module")
 def _module_client(app):
-    """Module-scoped TestClient."""
+    """Module-scoped TestClient with auth bypass."""
     with TestClient(app) as tc:
+        yield tc
+
+
+@pytest.fixture(scope="module")
+def raw_client(raw_app):
+    """Module-scoped TestClient WITHOUT auth bypass — for auth tests."""
+    with TestClient(raw_app) as tc:
         yield tc
 
 
@@ -146,27 +207,25 @@ def client(_module_client) -> TestClient:
 
 
 class TestMatchingAuth:
-    """Authentication tests for POST /v1/matching/query."""
+    """Authentication tests for POST /v1/matching/query.
 
-    def test_missing_auth_returns_401(self, client: TestClient) -> None:
+    Uses raw_client (no auth override) so the real auth middleware fires.
+    """
+
+    def test_missing_auth_returns_401(self, raw_client: TestClient) -> None:
         """Request without Authorization header returns 401."""
-        resp = client.post("/v1/matching/query", json=MINIMAL_QUERY_BODY)
+        resp = raw_client.post("/v1/matching/query", json=MINIMAL_QUERY_BODY)
         assert resp.status_code == 401
 
-    def test_pat_token_rejected(self, client: TestClient) -> None:
-        """PAT tokens are rejected (S2S JWT required)."""
-        with patch("autom8_asana.api.routes.internal.detect_token_type") as mock_detect:
-            from autom8_asana.auth.dual_mode import AuthMode
-
-            mock_detect.return_value = AuthMode.PAT
-
-            resp = client.post(
-                "/v1/matching/query",
-                json=MINIMAL_QUERY_BODY,
-                headers={"Authorization": "Bearer pat_token_1234567890"},
-            )
-            assert resp.status_code == 401
-            assert resp.json()["error"]["code"] == "SERVICE_TOKEN_REQUIRED"
+    def test_pat_token_rejected(self, raw_client: TestClient) -> None:
+        """Non-JWT tokens are rejected by auth middleware before route-level check."""
+        resp = raw_client.post(
+            "/v1/matching/query",
+            json=MINIMAL_QUERY_BODY,
+            headers={"Authorization": "Bearer pat_token_1234567890"},
+        )
+        assert resp.status_code == 401
+        assert resp.json()["error"]["code"] == "AUTH-INVALID-TOKEN"
 
 
 # ---------------------------------------------------------------------------
