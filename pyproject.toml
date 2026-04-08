@@ -187,7 +187,7 @@ src = ["src"]
 extend-exclude = ["examples/", "prototypes/", "scripts/", "tmp/", "docs/"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "G", "LOG", "TCH", "TID", "SIM", "T201"]
+select = ["E", "F", "I", "UP", "B", "G", "LOG", "TCH", "TID", "SIM", "T201", "ERA"]
 ignore = [
     "E501", # Line length handled by formatter
     "B904", # raise-without-from-inside-except - common pattern in HTTP handlers
