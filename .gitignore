@@ -92,3 +92,10 @@ src/smoke_test_report.csv
 !**/.ledge/shelf/**
 **/.knossos/
 # KNOSSOS:END infra-ignores
+
+# Scratch / temporary files (PT-00.5 recurrence prevention)
+tmp/
+
+# Claude Code local settings — MUST NOT commit (FC2-5 origin — contained Asana PAT at commit 15cffee1)
+.claude/settings.local.json
+.claude/settings.local*
