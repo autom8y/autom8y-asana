@@ -1,9 +1,11 @@
 # spectral-fleet.yaml
-# Fleet OpenAPI governance rules for autom8y services.
 #
-# Minimal ruleset: extends standard OAS validation only.
-# Custom fleet governance rules (R-01..R-04) temporarily removed because
-# JSONPath filter expressions (@property.match) are unsupported by the
-# Spectral version on CI runners. Re-add once CI Spectral is upgraded.
+# Fleet OpenAPI governance rules live in autom8y-api-schemas/spectral-fleet.yaml.
+# This file is NOT consumed by CI. The satellite-ci-reusable.yml Spectral job
+# fetches the canonical ruleset from autom8y-api-schemas via sparse checkout.
+#
+# This pointer file is retained for developer reference only.
+# Run locally: spectral lint docs/api-reference/openapi.json \
+#   --ruleset ../autom8y-api-schemas/spectral-fleet.yaml
 
 extends: ["spectral:oas"]
