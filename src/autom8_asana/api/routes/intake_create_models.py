@@ -69,10 +69,12 @@ class IntakeSocialProfile(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     platform: str = Field(
+        min_length=1,
         description="Social media platform name (facebook, instagram, youtube, linkedin).",
         examples=["facebook"],
     )
     url: str = Field(
+        min_length=1,
         description="Full URL to the social media profile.",
         examples=["https://www.facebook.com/acme.chiro"],
     )
@@ -84,7 +86,9 @@ class IntakeContact(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     name: str = Field(
-        description="Full name of the primary contact.", examples=["Dr. Jane Smith"]
+        min_length=1,
+        description="Full name of the primary contact.",
+        examples=["Dr. Jane Smith"],
     )
     email: str | None = Field(
         default=None,
@@ -109,6 +113,7 @@ class IntakeProcessConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     process_type: str = Field(
+        min_length=1,
         description="Process type to route to (sales, consultation, retention, implementation).",
         examples=["consultation"],
     )
@@ -139,9 +144,12 @@ class IntakeBusinessCreateRequest(BaseModel):
 
     # Business identity
     name: str = Field(
-        description="Business display name.", examples=["Acme Chiropractic"]
+        min_length=1,
+        description="Business display name.",
+        examples=["Acme Chiropractic"],
     )
     office_phone: str = Field(
+        min_length=1,
         description="Primary office phone number in E.164 format.",
         examples=["+19259998806"],
     )
@@ -179,6 +187,7 @@ class IntakeBusinessCreateRequest(BaseModel):
 
     # Unit configuration
     vertical: str = Field(
+        min_length=1,
         description="Business vertical category (e.g., 'dental', 'medical').",
         examples=["chiro"],
     )
@@ -250,10 +259,12 @@ class IntakeRouteRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     unit_gid: str = Field(
+        min_length=1,
         description="Asana GID of the unit to route from.",
         examples=["1234567890123458"],
     )
     process_type: str = Field(
+        min_length=1,
         description="Process type to route to (sales, consultation, retention, implementation).",
         examples=["consultation"],
     )

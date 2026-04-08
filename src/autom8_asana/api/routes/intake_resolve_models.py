@@ -23,6 +23,7 @@ class BusinessResolveRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     office_phone: str = Field(
+        min_length=1,
         description="Office phone number in E.164 format. Primary lookup key.",
         examples=["+19259998806"],
     )
@@ -97,6 +98,7 @@ class ContactResolveRequest(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     business_gid: str = Field(
+        min_length=1,
         description="Asana GID of the business to scope contact resolution to.",
         examples=["1234567890123456"],
     )
