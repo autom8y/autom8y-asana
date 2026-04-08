@@ -8,6 +8,7 @@ Use raw=True for backward-compatible dict returns.
 
 from __future__ import annotations
 
+import asyncio
 import mimetypes
 from pathlib import Path
 from typing import Any, BinaryIO, Literal, overload
@@ -322,14 +323,18 @@ class AttachmentsClient(BaseClient):
         path = Path(path)
         filename = name or path.name
 
-        with open(path, "rb") as f:
-            if raw:
-                return await self.upload_async(
-                    parent=parent, file=f, name=filename, raw=True
-                )
+        # C4-03: Read file content via thread pool to avoid blocking the
+        # event loop on filesystem I/O.
+        file_bytes = await asyncio.to_thread(path.read_bytes)
+
+        import io
+
+        f = io.BytesIO(file_bytes)
+        if raw:
             return await self.upload_async(
-                parent=parent, file=f, name=filename, raw=False
+                parent=parent, file=f, name=filename, raw=True
             )
+        return await self.upload_async(parent=parent, file=f, name=filename, raw=False)
 
     # --- External Attachments ---
 
@@ -468,18 +473,19 @@ class AttachmentsClient(BaseClient):
 
         if isinstance(destination, (str, Path)):
             dest_path = Path(destination)
-            file_obj = open(dest_path, "wb")  # noqa: SIM115 — file managed via try-finally; conditional open cannot use `with`
+            # C4-02: Open file via thread pool to avoid blocking the event loop.
+            file_obj = await asyncio.to_thread(open, dest_path, "wb")  # type: ignore[assignment]  # noqa: SIM115
             should_close = True
         else:
             file_obj = destination
             should_close = False
 
         try:
-            # Stream download
+            # C4-02: Stream download with non-blocking writes via thread pool.
             async for chunk in self._http.get_stream_url(attachment.download_url):
-                file_obj.write(chunk)
+                await asyncio.to_thread(file_obj.write, chunk)
         finally:
             if should_close and file_obj:
-                file_obj.close()
+                await asyncio.to_thread(file_obj.close)
 
         return dest_path

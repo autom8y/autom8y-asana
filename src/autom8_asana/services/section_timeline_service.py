@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import time as time_module
-from collections import defaultdict
+from collections import OrderedDict
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -44,11 +44,18 @@ logger = get_logger(__name__)
 # Per TDD-SECTION-TIMELINE-REMEDIATION: In-process asyncio.Lock keyed
 # by (project_gid, classifier_name) prevents concurrent computation
 # of the same derived entry.
-_computation_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+#
+# C4-08: Uses OrderedDict with LRU eviction to prevent unbounded growth
+# when many distinct (project, classifier) pairs are encountered over time.
+_COMPUTATION_LOCK_MAX_SIZE: int = 256
+_computation_locks: OrderedDict[str, asyncio.Lock] = OrderedDict()
 
 
 def _get_computation_lock(project_gid: str, classifier_name: str) -> asyncio.Lock:
     """Get or create a computation lock for a (project, classifier) pair.
+
+    C4-08: Evicts the least-recently-used lock when the dict exceeds
+    _COMPUTATION_LOCK_MAX_SIZE entries.
 
     Args:
         project_gid: Asana project GID.
@@ -58,7 +65,18 @@ def _get_computation_lock(project_gid: str, classifier_name: str) -> asyncio.Loc
         asyncio.Lock for this (project, classifier) pair.
     """
     key = f"{project_gid}:{classifier_name}"
-    return _computation_locks[key]
+    if key in _computation_locks:
+        _computation_locks.move_to_end(key)
+        return _computation_locks[key]
+
+    lock = asyncio.Lock()
+    _computation_locks[key] = lock
+
+    # Evict oldest entries if over capacity
+    while len(_computation_locks) > _COMPUTATION_LOCK_MAX_SIZE:
+        _computation_locks.popitem(last=False)
+
+    return lock
 
 
 # Business Offers project GID (matches Offer.PRIMARY_PROJECT_GID)
