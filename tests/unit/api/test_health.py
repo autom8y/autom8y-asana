@@ -164,10 +164,17 @@ class TestReadinessEndpoint:
         set_cache_ready(False)
         _assert_contract_envelope(client.get("/ready").json(), expect_checks=True)
 
-    def test_status_ok_when_ready(self, client: TestClient) -> None:
-        """Status is 'ok' when cache is warm."""
+    def test_status_ok_or_degraded_when_cache_ready(self, client: TestClient) -> None:
+        """Status is 'ok' or 'degraded' when cache is warm.
+
+        After SP-L3-1 D4, /ready includes JWKS and bot_pat deep checks.
+        In test environments without JWKS/PAT, those checks report degraded,
+        so overall status is 'degraded'.  In production with real JWKS/PAT,
+        status is 'ok'.  Either way, HTTP status is 200 (not 503).
+        """
         set_cache_ready(True)
-        assert client.get("/ready").json()["status"] == "ok"
+        data = client.get("/ready").json()
+        assert data["status"] in ("ok", "degraded")
 
     def test_status_unavailable_when_not_ready(self, client: TestClient) -> None:
         """Status is 'unavailable' during cache warmup."""
@@ -202,14 +209,20 @@ class TestReadinessEndpoint:
         assert response.status_code == 503
 
     def test_state_transition(self, client: TestClient) -> None:
-        """Readiness status follows cache state transitions."""
+        """Readiness status follows cache state transitions.
+
+        After SP-L3-1 D4, /ready includes JWKS and bot_pat deep checks.
+        When cache is ready, status may be 'ok' or 'degraded' depending
+        on JWKS/PAT availability in the test environment.  Either way,
+        HTTP 200 (not 503).  When cache is not ready -> 503 unavailable.
+        """
         set_cache_ready(False)
         assert client.get("/ready").status_code == 503
         assert client.get("/ready").json()["status"] == "unavailable"
 
         set_cache_ready(True)
         assert client.get("/ready").status_code == 200
-        assert client.get("/ready").json()["status"] == "ok"
+        assert client.get("/ready").json()["status"] in ("ok", "degraded")
 
         set_cache_ready(False)
         assert client.get("/ready").status_code == 503
@@ -428,6 +441,71 @@ class TestDepsEndpoint:
 
 
 # ---- Cache state helpers ----
+
+
+class TestDeepReadinessChecks:
+    """Verify /ready includes deep connectivity checks (SP-L3-1 D4).
+
+    Tests that JWKS and bot_pat checks were promoted from /health/deps
+    to /ready so that false-healthy scenarios are caught by the ALB
+    readiness probe.
+    """
+
+    def test_ready_includes_jwks_check(self, client: TestClient) -> None:
+        """JWKS check is now present in /ready (promoted from /health/deps)."""
+        data = client.get("/ready").json()
+        assert "jwks" in data["checks"], "JWKS check missing from /ready (SP-L3-1)"
+
+    def test_ready_includes_bot_pat_check(self, client: TestClient) -> None:
+        """Bot PAT check is now present in /ready (promoted from /health/deps)."""
+        data = client.get("/ready").json()
+        assert "bot_pat" in data["checks"], (
+            "bot_pat check missing from /ready (SP-L3-1)"
+        )
+
+    def test_ready_bot_pat_degraded_when_missing(self, client: TestClient) -> None:
+        """Bot PAT not configured -> degraded status in /ready."""
+        with patch.dict(os.environ, {"ASANA_PAT": ""}, clear=False):
+            data = client.get("/ready").json()
+            assert data["checks"]["bot_pat"]["status"] == "degraded"
+            assert data["checks"]["bot_pat"]["detail"]["configured"] is False
+
+    def test_ready_bot_pat_ok_when_configured(self, client: TestClient) -> None:
+        """Bot PAT configured -> ok status in /ready."""
+        with patch.dict(
+            os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
+        ):
+            data = client.get("/ready").json()
+            assert data["checks"]["bot_pat"]["status"] == "ok"
+
+    def test_ready_jwks_degraded_on_timeout(self, client: TestClient) -> None:
+        """JWKS timeout -> degraded status in /ready."""
+        with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
+            mock_raw_client = AsyncMock()
+            mock_raw_client.get = AsyncMock(
+                side_effect=httpx.TimeoutException("timeout")
+            )
+            raw_ctx = AsyncMock()
+            raw_ctx.__aenter__ = AsyncMock(return_value=mock_raw_client)
+            raw_ctx.__aexit__ = AsyncMock(return_value=None)
+            mock_http_client = AsyncMock()
+            mock_http_client.__aenter__ = AsyncMock(return_value=mock_http_client)
+            mock_http_client.__aexit__ = AsyncMock(return_value=None)
+            mock_http_client.raw = MagicMock(return_value=raw_ctx)
+            mock_cls.return_value = mock_http_client
+            data = client.get("/ready").json()
+            assert data["checks"]["jwks"]["status"] == "degraded"
+
+    def test_ready_returns_503_when_cache_not_ready_and_deps_degraded(
+        self, client: TestClient
+    ) -> None:
+        """Cache unavailable dominates even when JWKS/PAT are degraded -> 503."""
+        set_cache_ready(False)
+        with patch.dict(os.environ, {"ASANA_PAT": ""}, clear=False):
+            response = client.get("/ready")
+            assert response.status_code == 503
+            data = response.json()
+            assert data["status"] == "unavailable"
 
 
 class TestCacheStateHelpers:
