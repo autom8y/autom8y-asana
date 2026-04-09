@@ -326,7 +326,7 @@ class TestReceiveInboundWebhook:
         )
 
         assert response.status_code == 401
-        assert response.json()["detail"]["error"] == "MISSING_TOKEN"
+        assert response.json()["detail"]["error"]["code"] == "MISSING_TOKEN"
 
     def test_wrong_token_returns_401(self, test_client, sample_task_payload):
         """Request with wrong token should return 401."""
@@ -336,7 +336,7 @@ class TestReceiveInboundWebhook:
         )
 
         assert response.status_code == 401
-        assert response.json()["detail"]["error"] == "INVALID_TOKEN"
+        assert response.json()["detail"]["error"]["code"] == "INVALID_TOKEN"
 
     def test_unconfigured_token_returns_503(
         self, test_client_unconfigured, sample_task_payload
@@ -348,7 +348,7 @@ class TestReceiveInboundWebhook:
         )
 
         assert response.status_code == 503
-        assert response.json()["detail"]["error"] == "WEBHOOK_NOT_CONFIGURED"
+        assert response.json()["detail"]["error"]["code"] == "WEBHOOK_NOT_CONFIGURED"
 
     def test_non_json_body_returns_400(self, test_client):
         """Non-JSON body should return 400."""
@@ -649,12 +649,14 @@ class TestAdversarialTokenVerification:
             json={"gid": "12345"},
         )
         body = response.json()
-        detail = body.get("detail", {})
         # Must not contain the actual token or hints about it
         response_text = str(body)
         assert _TEST_TOKEN not in response_text
         assert "expected" not in response_text.lower()
-        assert detail.get("message") in (
+        # Error message is in detail.error.message (test_client uses plain FastAPI app)
+        detail = body.get("detail", {})
+        error_message = detail.get("error", {}).get("message", "")
+        assert "token" in error_message.lower() or error_message in (
             "Authentication required",
             "Authentication failed",
         )

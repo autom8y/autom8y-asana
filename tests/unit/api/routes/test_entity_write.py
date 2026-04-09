@@ -354,10 +354,10 @@ class TestEntityWriteRoute:
             _stop_patches(*patches)
 
         assert resp.status_code == 404
-        data = resp.json()["detail"]
-        assert data["error"] == "UNKNOWN_ENTITY_TYPE"
-        assert "available_types" in data
-        assert "offer" in data["available_types"]
+        data = resp.json()
+        assert data["error"]["code"] == "UNKNOWN_ENTITY_TYPE"
+        assert "available_types" in data["error"]["details"]
+        assert "offer" in data["error"]["details"]["available_types"]
 
     def test_task_not_found_404(self, client: TestClient) -> None:
         """Invalid GID -> 404 TASK_NOT_FOUND."""
@@ -376,7 +376,7 @@ class TestEntityWriteRoute:
             _stop_patches(*patches)
 
         assert resp.status_code == 404
-        assert resp.json()["detail"]["error"] == "TASK_NOT_FOUND"
+        assert resp.json()["error"]["code"] == "TASK_NOT_FOUND"
 
     def test_entity_type_mismatch_404(self, client: TestClient) -> None:
         """Wrong project -> 404 ENTITY_TYPE_MISMATCH."""
@@ -399,7 +399,7 @@ class TestEntityWriteRoute:
             _stop_patches(*patches)
 
         assert resp.status_code == 404
-        assert resp.json()["detail"]["error"] == "ENTITY_TYPE_MISMATCH"
+        assert resp.json()["error"]["code"] == "ENTITY_TYPE_MISMATCH"
 
     def test_empty_fields_422(self, client: TestClient) -> None:
         """Empty fields -> 422."""
@@ -432,7 +432,7 @@ class TestEntityWriteRoute:
             _stop_patches(*patches)
 
         assert resp.status_code == 422
-        assert resp.json()["detail"]["error"] == "NO_VALID_FIELDS"
+        assert resp.json()["error"]["code"] == "NO_VALID_FIELDS"
 
     def test_partial_success_200(self, client: TestClient) -> None:
         """Mix of valid/invalid -> 200 with skipped results."""

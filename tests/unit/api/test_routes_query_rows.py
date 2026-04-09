@@ -535,8 +535,8 @@ class TestRowsErrors:
 
         assert response.status_code == 422
         data = response.json()
-        assert data["detail"]["error"] == "UNKNOWN_FIELD"
-        assert "nonexistent" in data["detail"]["message"]
+        assert data["error"]["code"] == "UNKNOWN_FIELD"
+        assert "nonexistent" in data["error"]["message"]
 
     def test_tc_i005_invalid_operator_for_dtype(self, client: TestClient) -> None:
         """TC-I005: /rows with invalid operator for dtype -> 422 INVALID_OPERATOR."""
@@ -576,7 +576,7 @@ class TestRowsErrors:
 
         assert response.status_code == 422
         data = response.json()
-        assert data["detail"]["error"] == "INVALID_OPERATOR"
+        assert data["error"]["code"] == "INVALID_OPERATOR"
 
     def test_tc_i006_coercion_failure(self, client: TestClient) -> None:
         """TC-I006: /rows with coercion failure -> 422 COERCION_FAILED."""
@@ -614,7 +614,7 @@ class TestRowsErrors:
 
         assert response.status_code == 422
         data = response.json()
-        assert data["detail"]["error"] == "COERCION_FAILED"
+        assert data["error"]["code"] == "COERCION_FAILED"
 
     def test_tc_i007_unknown_section(self, client: TestClient) -> None:
         """TC-I007: /rows with unknown section -> 422 UNKNOWN_SECTION."""
@@ -657,7 +657,7 @@ class TestRowsErrors:
 
         assert response.status_code == 422
         data = response.json()
-        assert data["detail"]["error"] == "UNKNOWN_SECTION"
+        assert data["error"]["code"] == "UNKNOWN_SECTION"
 
     def test_tc_i008_depth_exceeds_limit(self, client: TestClient) -> None:
         """TC-I008: /rows with depth > 5 -> 400 QUERY_TOO_COMPLEX."""
@@ -712,7 +712,7 @@ class TestRowsErrors:
 
         assert response.status_code == 400
         data = response.json()
-        assert data["detail"]["error"] == "QUERY_TOO_COMPLEX"
+        assert data["error"]["code"] == "QUERY_TOO_COMPLEX"
 
     def test_tc_i013_cache_not_warm(self, client: TestClient) -> None:
         """TC-I013: /rows cache not warm -> 503 CACHE_NOT_WARMED."""
@@ -745,7 +745,7 @@ class TestRowsErrors:
 
         assert response.status_code == 503
         data = response.json()
-        assert data["detail"]["error"] == "CACHE_NOT_WARMED"
+        assert data["error"]["code"] == "CACHE_NOT_WARMED"
 
 
 class TestRowsAuthentication:
@@ -866,4 +866,4 @@ class TestRowsEntityType:
 
         assert response.status_code == 404
         data = response.json()
-        assert data["detail"]["error"] == "UNKNOWN_ENTITY_TYPE"
+        assert data["error"]["code"] == "UNKNOWN_ENTITY_TYPE"

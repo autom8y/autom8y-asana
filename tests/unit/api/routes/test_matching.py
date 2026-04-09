@@ -257,8 +257,7 @@ class TestMatchingValidation:
                 headers=AUTH_HEADER,
             )
             assert resp.status_code == 400
-            detail = resp.json()["detail"]
-            assert detail["error"]["code"] == "INVALID_QUERY"
+            assert resp.json()["error"]["code"] == "INVALID_QUERY"
 
     def test_only_limit_and_threshold_returns_400(self, client: TestClient) -> None:
         """Request with only limit/threshold (no identity fields) returns 400."""
@@ -503,7 +502,7 @@ class TestMatchingQueryErrors:
             )
 
         assert resp.status_code == 503
-        assert resp.json()["detail"]["error"] == "CACHE_UNAVAILABLE"
+        assert resp.json()["error"]["code"] == "CACHE_UNAVAILABLE"
 
     def test_cache_miss_returns_503(self, client: TestClient) -> None:
         """When cache entry is None (miss), returns 503."""
@@ -534,7 +533,7 @@ class TestMatchingQueryErrors:
             )
 
         assert resp.status_code == 503
-        assert resp.json()["detail"]["error"] == "CACHE_UNAVAILABLE"
+        assert resp.json()["error"]["code"] == "CACHE_UNAVAILABLE"
 
     def test_cache_fetch_error_returns_503(self, client: TestClient) -> None:
         """When cache.get_async raises, returns 503."""
@@ -602,7 +601,7 @@ class TestMatchingQueryErrors:
             )
 
         assert resp.status_code == 500
-        assert resp.json()["detail"]["error"] == "MATCHING_ERROR"
+        assert resp.json()["error"]["code"] == "MATCHING_ERROR"
 
 
 # ---------------------------------------------------------------------------

@@ -128,8 +128,15 @@ def _reset_singletons():
 
 
 @pytest.fixture()
-def app():
-    """Create a test application with mocked discovery."""
+def app(monkeypatch):
+    """Create a test application with mocked discovery.
+
+    Sets AUTH__DEV_MODE=true so JWTAuthMiddleware returns bypass claims
+    instead of validating tokens.
+    """
+    monkeypatch.setenv("AUTOM8Y_ENV", "LOCAL")
+    monkeypatch.setenv("AUTH__DEV_MODE", "true")
+
     with patch(
         "autom8_asana.api.lifespan._discover_entity_projects",
         new_callable=AsyncMock,
@@ -163,8 +170,14 @@ def app():
 
 @pytest.fixture()
 def client(app) -> TestClient:
-    """Create a test client."""
-    with TestClient(app) as tc:
+    """Create a test client with a default Authorization header.
+
+    The header value doesn't matter because get_auth_context is overridden,
+    but the JWTAuthMiddleware still checks for its presence even in dev mode.
+    """
+    with TestClient(
+        app, headers={"Authorization": "Bearer test_token_workflows"}
+    ) as tc:
         yield tc
 
 
@@ -213,7 +226,7 @@ class TestInvokeUnknownWorkflow:
 
         assert resp.status_code == 404
         body = resp.json()
-        assert body["detail"]["error"] == "WORKFLOW_NOT_FOUND"
+        assert body["error"]["code"] == "WORKFLOW_NOT_FOUND"
 
 
 class TestInvokeValidation:
@@ -300,7 +313,7 @@ class TestInvokeValidationFailed:
 
         assert resp.status_code == 422
         body = resp.json()
-        assert body["detail"]["error"] == "WORKFLOW_VALIDATION_FAILED"
+        assert body["error"]["code"] == "WORKFLOW_VALIDATION_FAILED"
 
 
 class TestInvokeDryRun:

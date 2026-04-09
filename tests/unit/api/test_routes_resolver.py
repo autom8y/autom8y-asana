@@ -414,8 +414,8 @@ class TestResolveEntityType:
 
         assert response.status_code == 404
         data = response.json()
-        assert data["detail"]["error"] == "UNKNOWN_ENTITY_TYPE"
-        assert "invalid_type" in data["detail"]["message"]
+        assert data["error"]["code"] == "UNKNOWN_ENTITY_TYPE"
+        assert "invalid_type" in data["error"]["message"]
 
 
 class TestResolveDiscoveryIncomplete:
@@ -468,7 +468,7 @@ class TestResolveDiscoveryIncomplete:
 
                 assert response.status_code == 503
                 data = response.json()
-                assert data["detail"]["error"] == "DISCOVERY_INCOMPLETE"
+                assert data["error"]["code"] == "DISCOVERY_INCOMPLETE"
 
 
 class TestResolveInputOrder:
@@ -647,8 +647,8 @@ class TestFieldFiltering:
 
         assert response.status_code == 422
         data = response.json()
-        assert data["detail"]["error"] == "INVALID_FIELD"
-        assert "Invalid fields" in data["detail"]["message"]
+        assert data["error"]["code"] == "INVALID_FIELD"
+        assert "Invalid fields" in data["error"]["message"]
 
     def test_filter_result_fields_default_gid_only(self) -> None:
         """Default (no fields) returns gid only."""
@@ -770,8 +770,8 @@ class TestSchemaDiscoveryEndpoint:
 
         assert response.status_code == 404
         data = response.json()
-        assert data["detail"]["error"] == "UNKNOWN_ENTITY_TYPE"
-        assert "available_types" in data["detail"]
+        assert data["error"]["code"] == "UNKNOWN_ENTITY_TYPE"
+        assert "available_types" in data["error"]["details"]
 
     def test_schema_endpoint_requires_auth(self, client: TestClient) -> None:
         """Schema endpoint requires authentication."""
@@ -899,4 +899,4 @@ class TestDynamicCriteriaFields:
         # Backend validation rejects unknown field
         assert response.status_code == 422
         data = response.json()
-        assert "MISSING_REQUIRED_FIELD" in data["detail"]["error"]
+        assert "MISSING_REQUIRED_FIELD" in data["error"]["code"]

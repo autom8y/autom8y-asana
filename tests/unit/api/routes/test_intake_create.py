@@ -488,7 +488,7 @@ class TestCreateIntakeBusinessEndpoint:
 
         assert resp.status_code == 400
         data = resp.json()
-        assert data["detail"]["error"] == "INVALID_PHONE_FORMAT"
+        assert data["error"]["code"] == "INVALID_PHONE_FORMAT"
 
     def test_requires_s2s_jwt(self, client: TestClient) -> None:
         """Missing auth header returns 401."""
@@ -561,7 +561,7 @@ class TestCreateIntakeBusinessEndpoint:
 
         assert resp.status_code == 422
         data = resp.json()
-        assert data["detail"]["error"] == "UNKNOWN_PROCESS_TYPE"
+        assert data["error"]["code"] == "UNKNOWN_PROCESS_TYPE"
 
 
 # ---------------------------------------------------------------------------

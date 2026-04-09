@@ -293,6 +293,14 @@ class TestPascalCaseSchemaLookup:
             "autom8_asana.auth.jwt_validator.validate_service_token",
             _mock_jwt_validation(),
         )
+        pat_patch = patch(
+            "autom8_asana.auth.bot_pat.get_bot_pat",
+            return_value="test_bot_pat",
+        )
+        pat_patch_deps = patch(
+            "autom8_asana.api.dependencies.get_bot_pat",
+            return_value="test_bot_pat",
+        )
         # Patch get_supported_entity_types at the resolver module (source of
         # the lazy import in resolver_schema.py)
         supported_patch = patch(
@@ -310,6 +318,8 @@ class TestPascalCaseSchemaLookup:
         with (
             jwt_patch,
             jwt_patch_canonical,
+            pat_patch,
+            pat_patch_deps,
             supported_patch,
             patch(
                 "autom8_asana.dataframes.models.registry.SchemaRegistry"
@@ -360,9 +370,9 @@ class TestExceptChain:
 
         # CacheNotReadyError has status_hint=503, error_code="CACHE_NOT_WARMED"
         assert response.status_code == 503
-        detail = response.json()["detail"]
-        assert detail["error"]["code"] == "CACHE_NOT_WARMED"
-        assert "request_id" in detail
+        body = response.json()
+        assert body["error"]["code"] == "CACHE_NOT_WARMED"
+        assert "request_id" in body["meta"]
 
     def test_ee003_service_error_generic_500(self, client: TestClient) -> None:
         """Base ServiceError -> 500 with SERVICE_ERROR code.
@@ -385,8 +395,7 @@ class TestExceptChain:
             )
 
         assert response.status_code == 500
-        detail = response.json()["detail"]
-        assert detail["error"]["code"] == "SERVICE_ERROR"
+        assert response.json()["error"]["code"] == "SERVICE_ERROR"
 
     def test_ee004_asana_error_propagates_to_global_handler(
         self, client: TestClient
@@ -439,9 +448,9 @@ class TestExceptChain:
             )
 
         assert response.status_code == 500
-        detail = response.json()["detail"]
-        assert detail["error"]["code"] == "RESOLUTION_ERROR"
+        body = response.json()
+        assert body["error"]["code"] == "RESOLUTION_ERROR"
         assert (
-            detail["error"]["message"]
+            body["error"]["message"]
             == "An unexpected error occurred during resolution."
         )

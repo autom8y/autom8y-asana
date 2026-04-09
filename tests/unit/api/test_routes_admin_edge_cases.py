@@ -13,11 +13,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from autom8_asana.api.dependencies import AuthContext, get_auth_context
 from autom8_asana.api.routes.admin import (
     VALID_ENTITY_TYPES,
     router,
 )
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
+from autom8_asana.auth.dual_mode import AuthMode
 
 
 @pytest.fixture
@@ -42,7 +44,15 @@ def authed_app(app: FastAPI, mock_service_claims: ServiceClaims) -> FastAPI:
     async def override_require_service_claims() -> ServiceClaims:
         return mock_service_claims
 
+    async def override_get_auth_context() -> AuthContext:
+        return AuthContext(
+            mode=AuthMode.JWT,
+            asana_pat="test_bot_pat",
+            caller_service="test-service",
+        )
+
     app.dependency_overrides[require_service_claims] = override_require_service_claims
+    app.dependency_overrides[get_auth_context] = override_get_auth_context
     return app
 
 
@@ -76,7 +86,7 @@ class TestAdminRefreshAdversarialInputs:
 
         assert response.status_code == 400
         body = response.json()
-        assert body["detail"]["error"] == "INVALID_ENTITY_TYPE"
+        assert body["detail"]["error"]["code"] == "INVALID_ENTITY_TYPE"
 
     @pytest.mark.parametrize(
         "entity_type",

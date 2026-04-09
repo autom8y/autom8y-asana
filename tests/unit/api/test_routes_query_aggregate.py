@@ -139,7 +139,7 @@ class TestAggregateEndpointBasic:
 
         assert response.status_code == 404
         data = response.json()
-        assert data["detail"]["error"] == "UNKNOWN_ENTITY_TYPE"
+        assert data["error"]["code"] == "UNKNOWN_ENTITY_TYPE"
 
     def test_tc_ra003_sum_on_boolean_column(self, client: TestClient) -> None:
         """TC-RA003: sum on Boolean column returns 422 AGGREGATION_ERROR."""
@@ -176,8 +176,8 @@ class TestAggregateEndpointBasic:
 
         assert response.status_code == 422
         data = response.json()
-        assert data["detail"]["error"] == "AGGREGATION_ERROR"
-        assert "sum" in data["detail"]["message"]
+        assert data["error"]["code"] == "AGGREGATION_ERROR"
+        assert "sum" in data["error"]["message"]
 
     def test_tc_ra004_group_by_list_column(self, client: TestClient) -> None:
         """TC-RA004: group_by on List column returns 422 AGGREGATION_ERROR."""
@@ -212,8 +212,8 @@ class TestAggregateEndpointBasic:
 
         assert response.status_code == 422
         data = response.json()
-        assert data["detail"]["error"] == "AGGREGATION_ERROR"
-        assert "List" in data["detail"]["message"]
+        assert data["error"]["code"] == "AGGREGATION_ERROR"
+        assert "List" in data["error"]["message"]
 
     def test_tc_ra006_where_predicate_too_deep(self, client: TestClient) -> None:
         """TC-RA006: WHERE predicate too deep returns 400 QUERY_TOO_COMPLEX."""
@@ -241,7 +241,7 @@ class TestAggregateEndpointBasic:
 
         assert response.status_code == 400
         data = response.json()
-        assert data["detail"]["error"] == "QUERY_TOO_COMPLEX"
+        assert data["error"]["code"] == "QUERY_TOO_COMPLEX"
 
     def test_tc_ra007_cache_not_warm(self, client: TestClient) -> None:
         """TC-RA007: Cache not warm returns 503 CACHE_NOT_WARMED."""
@@ -277,7 +277,7 @@ class TestAggregateEndpointBasic:
 
         assert response.status_code == 503
         data = response.json()
-        assert data["detail"]["error"] == "CACHE_NOT_WARMED"
+        assert data["error"]["code"] == "CACHE_NOT_WARMED"
 
     def test_tc_ra008_empty_aggregation_result(self, client: TestClient) -> None:
         """TC-RA008: Empty aggregation result returns 200 with empty data."""

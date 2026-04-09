@@ -96,10 +96,8 @@ class TestSectionsEndpoint:
 
         assert response.status_code == 404
         body = response.json()
-        # FastAPI wraps HTTPException detail in a "detail" key
-        detail = body["detail"]
-        assert detail["error"]["code"] == "NO_SECTION_CLASSIFIER"
-        assert "No section classifier" in detail["error"]["message"]
+        assert body["error"]["code"] == "NO_SECTION_CLASSIFIER"
+        assert "No section classifier" in body["error"]["message"]
 
     def test_missing_auth_returns_401(self, client: TestClient) -> None:
         """Request without Authorization header returns 401."""

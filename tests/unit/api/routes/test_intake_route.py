@@ -376,7 +376,7 @@ class TestRouteIntakeProcessEndpoint:
 
         assert resp.status_code == 404
         data = resp.json()
-        assert data["detail"]["error"] == "UNIT_NOT_FOUND"
+        assert data["error"]["code"] == "UNIT_NOT_FOUND"
 
     def test_unknown_process_type_422(self, client: TestClient) -> None:
         """Unknown process_type returns 422 UNKNOWN_PROCESS_TYPE."""
@@ -393,7 +393,7 @@ class TestRouteIntakeProcessEndpoint:
 
         assert resp.status_code == 422
         data = resp.json()
-        assert data["detail"]["error"] == "UNKNOWN_PROCESS_TYPE"
+        assert data["error"]["code"] == "UNKNOWN_PROCESS_TYPE"
 
     def test_requires_s2s_jwt(self, client: TestClient) -> None:
         """Missing auth header returns 401."""

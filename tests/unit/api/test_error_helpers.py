@@ -72,7 +72,7 @@ class TestRaiseApiErrorHappyPath:
         assert exc.status_code == 400
         assert exc.detail["error"]["code"] == "INVALID_INPUT"
         assert exc.detail["error"]["message"] == "Bad input"
-        assert exc.detail["request_id"] == "req-001"
+        assert exc.detail["meta"]["request_id"] == "req-001"
 
     def test_with_string_request_id(self) -> None:
         """raise_api_error accepts raw string for request_id."""
@@ -80,7 +80,7 @@ class TestRaiseApiErrorHappyPath:
             raise_api_error("raw-id-456", 404, "NOT_FOUND", "Gone")
 
         exc = exc_info.value
-        assert exc.detail["request_id"] == "raw-id-456"
+        assert exc.detail["meta"]["request_id"] == "raw-id-456"
         assert exc.detail["error"]["code"] == "NOT_FOUND"
 
     def test_with_details_kwarg(self) -> None:
@@ -96,16 +96,16 @@ class TestRaiseApiErrorHappyPath:
 
         detail = exc_info.value.detail
         assert detail["error"]["code"] == "INVALID_FIELD"
-        assert detail["request_id"] == "req-002"
-        assert detail["field"] == "foo"
-        assert detail["available"] == ["bar", "baz"]
+        assert detail["meta"]["request_id"] == "req-002"
+        assert detail["error"]["details"]["field"] == "foo"
+        assert detail["error"]["details"]["available"] == ["bar", "baz"]
 
     def test_with_headers(self) -> None:
         """Custom headers are passed through to HTTPException."""
         req = _make_request("req-003")
         with pytest.raises(HTTPException) as exc_info:
             raise_api_error(
-                req,
+                req.state.request_id,
                 429,
                 "RATE_LIMITED",
                 "Slow down",
@@ -119,7 +119,7 @@ class TestRaiseApiErrorHappyPath:
         """When headers not provided, HTTPException headers is None."""
         req = _make_request("req-004")
         with pytest.raises(HTTPException) as exc_info:
-            raise_api_error(req, 500, "INTERNAL_ERROR", "Oops")
+            raise_api_error(req.state.request_id, 500, "INTERNAL_ERROR", "Oops")
 
         assert exc_info.value.headers is None
 
@@ -145,15 +145,14 @@ class TestRaiseApiErrorEdgeCases:
         with pytest.raises(HTTPException) as exc_info:
             raise_api_error("unknown", 400, "CODE", "msg")
 
-        assert exc_info.value.detail["request_id"] == "unknown"
+        assert exc_info.value.detail["meta"]["request_id"] == "unknown"
 
     def test_empty_string_request_id(self) -> None:
-        """Empty string request_id is preserved (not replaced with 'unknown')."""
-        with pytest.raises(HTTPException) as exc_info:
-            raise_api_error("", 400, "CODE", "msg")
+        """Empty string request_id causes a ValidationError — ResponseMeta requires min 1 char."""
+        import pydantic
 
-        # Empty string IS a valid request_id (caller's problem if they pass "")
-        assert exc_info.value.detail["request_id"] == ""
+        with pytest.raises(pydantic.ValidationError):
+            raise_api_error("", 400, "CODE", "msg")
 
     def test_empty_code(self) -> None:
         """Empty error code is allowed (caller's responsibility)."""
@@ -182,7 +181,7 @@ class TestRaiseApiErrorEdgeCases:
             raise_api_error("id", 400, "CODE", "msg", details=details)
 
         detail = exc_info.value.detail
-        assert set(detail.keys()) == {"error", "message", "request_id"}
+        assert set(detail.keys()) == {"error", "meta"}
 
     def test_details_can_overwrite_base_keys(self) -> None:
         """Adversarial: details dict can overwrite 'error' or 'message'.
@@ -200,23 +199,24 @@ class TestRaiseApiErrorEdgeCases:
             )
 
         detail = exc_info.value.detail
-        # details.update() overwrites base keys
-        assert detail["error"]["code"] == "OVERWRITTEN"
-        assert detail["error"]["message"] == "overwritten msg"
+        # details nested inside error.details; "error" and "message" keys in
+        # details end up in error.details, not at the top level
+        assert detail["error"]["details"]["error"] == "OVERWRITTEN"
+        assert detail["error"]["details"]["message"] == "overwritten msg"
 
     def test_never_returns(self) -> None:
         """raise_api_error always raises, never returns a value."""
         req = _make_request()
         # If this didn't raise, the test would fail
         with pytest.raises(HTTPException):
-            raise_api_error(req, 400, "CODE", "msg")
+            raise_api_error(req.state.request_id, 400, "CODE", "msg")
 
     def test_unicode_in_message(self) -> None:
         """Unicode characters in message are preserved."""
         with pytest.raises(HTTPException) as exc_info:
             raise_api_error("id", 400, "CODE", "Error: \u2603 \u00e9\u00e8\u00ea")
 
-        assert "\u2603" in exc_info.value.detail["message"]
+        assert "\u2603" in exc_info.value.detail["error"]["message"]
 
     def test_very_long_request_id(self) -> None:
         """Very long request_id does not crash."""
@@ -224,7 +224,7 @@ class TestRaiseApiErrorEdgeCases:
         with pytest.raises(HTTPException) as exc_info:
             raise_api_error(long_id, 400, "CODE", "msg")
 
-        assert exc_info.value.detail["request_id"] == long_id
+        assert exc_info.value.detail["meta"]["request_id"] == long_id
 
 
 # ===========================================================================
@@ -246,7 +246,7 @@ class TestRaiseServiceErrorHappyPath:
         assert exc.status_code == 500  # ServiceError -> 500
         assert exc.detail["error"]["code"] == "SERVICE_ERROR"
         assert exc.detail["error"]["message"] == "something broke"
-        assert exc.detail["request_id"] == "svc-001"
+        assert exc.detail["meta"]["request_id"] == "svc-001"
 
     def test_task_not_found_error(self) -> None:
         """TaskNotFoundError maps to 404."""
@@ -257,8 +257,8 @@ class TestRaiseServiceErrorHappyPath:
         exc = exc_info.value
         assert exc.status_code == 404
         assert exc.detail["error"]["code"] == "TASK_NOT_FOUND"
-        assert "1234567890" in exc.detail["message"]
-        assert exc.detail["request_id"] == "req-id"
+        assert "1234567890" in exc.detail["error"]["message"]
+        assert exc.detail["meta"]["request_id"] == "req-id"
 
     def test_unknown_entity_error_preserves_extra_fields(self) -> None:
         """UnknownEntityError.to_dict() has available_types; request_id added."""
@@ -268,8 +268,8 @@ class TestRaiseServiceErrorHappyPath:
 
         detail = exc_info.value.detail
         assert detail["error"]["code"] == "UNKNOWN_ENTITY_TYPE"
-        assert detail["available_types"] == ["offer", "unit"]
-        assert detail["request_id"] == "req-id"
+        assert detail["error"]["details"]["available_types"] == ["offer", "unit"]
+        assert detail["meta"]["request_id"] == "req-id"
 
     def test_entity_type_mismatch_preserves_extra_fields(self) -> None:
         """EntityTypeMismatchError.to_dict() has expected/actual projects."""
@@ -278,9 +278,9 @@ class TestRaiseServiceErrorHappyPath:
             raise_service_error("req-id", err)
 
         detail = exc_info.value.detail
-        assert detail["expected_project"] == "proj_a"
-        assert detail["actual_projects"] == ["proj_b", "proj_c"]
-        assert detail["request_id"] == "req-id"
+        assert detail["error"]["details"]["expected_project"] == "proj_a"
+        assert detail["error"]["details"]["actual_projects"] == ["proj_b", "proj_c"]
+        assert detail["meta"]["request_id"] == "req-id"
 
     def test_invalid_field_error(self) -> None:
         """InvalidFieldError maps to 422 and preserves field lists."""
@@ -290,8 +290,8 @@ class TestRaiseServiceErrorHappyPath:
 
         exc = exc_info.value
         assert exc.status_code == 422
-        assert exc.detail["invalid_fields"] == ["bad_field"]
-        assert exc.detail["available_fields"] == ["gid", "name"]
+        assert exc.detail["error"]["details"]["invalid_fields"] == ["bad_field"]
+        assert exc.detail["error"]["details"]["available_fields"] == ["gid", "name"]
 
     def test_cache_not_ready_error(self) -> None:
         """CacheNotReadyError maps to 503."""
@@ -316,7 +316,7 @@ class TestRaiseServiceErrorHappyPath:
         with pytest.raises(HTTPException) as exc_info:
             raise_service_error("raw-string-id", err)
 
-        assert exc_info.value.detail["request_id"] == "raw-string-id"
+        assert exc_info.value.detail["meta"]["request_id"] == "raw-string-id"
 
     def test_with_request_object(self) -> None:
         """raise_service_error accepts string request_id extracted from Request."""
@@ -325,7 +325,7 @@ class TestRaiseServiceErrorHappyPath:
         with pytest.raises(HTTPException) as exc_info:
             raise_service_error(req.state.request_id, err)
 
-        assert exc_info.value.detail["request_id"] == "from-request"
+        assert exc_info.value.detail["meta"]["request_id"] == "from-request"
 
 
 # ===========================================================================
@@ -342,7 +342,7 @@ class TestRaiseServiceErrorEdgeCases:
         with pytest.raises(HTTPException) as exc_info:
             raise_service_error("unknown", err)
 
-        assert exc_info.value.detail["request_id"] == "unknown"
+        assert exc_info.value.detail["meta"]["request_id"] == "unknown"
 
     def test_unknown_section_without_available(self) -> None:
         """UnknownSectionError without available_sections."""
@@ -352,9 +352,9 @@ class TestRaiseServiceErrorEdgeCases:
 
         detail = exc_info.value.detail
         assert detail["error"]["code"] == "UNKNOWN_SECTION"
-        assert detail["request_id"] == "req-id"
+        assert detail["meta"]["request_id"] == "req-id"
         # available_sections omitted when empty list
-        assert "available_sections" not in detail
+        assert "available_sections" not in detail.get("error", {}).get("details", {})
 
     def test_unknown_section_with_available(self) -> None:
         """UnknownSectionError with available_sections."""
@@ -363,7 +363,10 @@ class TestRaiseServiceErrorEdgeCases:
             raise_service_error("req-id", err)
 
         detail = exc_info.value.detail
-        assert detail["available_sections"] == ["Done", "In Progress"]
+        assert detail["error"]["details"]["available_sections"] == [
+            "Done",
+            "In Progress",
+        ]
 
     def test_no_valid_fields_error(self) -> None:
         """NoValidFieldsError maps to 422."""
@@ -380,13 +383,14 @@ class TestRaiseServiceErrorEdgeCases:
             raise_service_error("req-id", err)
 
         detail = exc_info.value.detail
-        # All to_dict() fields preserved
+        # Envelope keys
         assert "error" in detail
-        assert "message" in detail
-        assert "invalid_fields" in detail
-        assert "available_fields" in detail
-        # Plus request_id injected
-        assert "request_id" in detail
+        assert "meta" in detail
+        # error.details contains service-error-specific fields
+        assert "invalid_fields" in detail["error"]["details"]
+        assert "available_fields" in detail["error"]["details"]
+        # request_id injected into meta
+        assert "request_id" in detail["meta"]
 
 
 # ===========================================================================
@@ -409,8 +413,8 @@ class TestFormatConsistencyAcrossRoutes:
 
         detail = exc_info.value.detail
         assert "error" in detail
-        assert "message" in detail
-        assert "request_id" in detail
+        assert "meta" in detail
+        assert "request_id" in detail["meta"]
 
     def test_admin_pattern_via_raise_api_error(self) -> None:
         """admin.py pattern: direct raise_api_error with validation."""
@@ -424,8 +428,8 @@ class TestFormatConsistencyAcrossRoutes:
 
         detail = exc_info.value.detail
         assert "error" in detail
-        assert "message" in detail
-        assert "request_id" in detail
+        assert "meta" in detail
+        assert "request_id" in detail["meta"]
 
     def test_entity_write_pattern_sdk_recatch(self) -> None:
         """entity_write.py REVIEW pattern: recatch SDK errors with raise_api_error."""
@@ -441,7 +445,7 @@ class TestFormatConsistencyAcrossRoutes:
         detail = exc_info.value.detail
         assert detail["error"]["code"] == "RATE_LIMITED"
         assert detail["error"]["message"] == "Rate limit exceeded"
-        assert detail["request_id"] == "ew-req-id"
+        assert detail["meta"]["request_id"] == "ew-req-id"
         assert exc_info.value.headers == {"Retry-After": "60"}
 
     def test_query_error_pattern_via_internal_helper(self) -> None:
@@ -453,7 +457,7 @@ class TestFormatConsistencyAcrossRoutes:
 
         detail = exc_info.value.detail
         assert detail["error"]["code"] == "QUERY_TOO_COMPLEX"
-        assert detail["request_id"] == "qv2-req-id"
+        assert detail["meta"]["request_id"] == "qv2-req-id"
 
     def test_base_keys_always_present(self) -> None:
         """Every invocation pattern produces the three base keys."""
@@ -473,8 +477,11 @@ class TestFormatConsistencyAcrossRoutes:
                     raise_api_error("id", status, "CODE", "msg")
 
             detail = exc_info.value.detail
-            for key in ("error", "message", "request_id"):
+            for key in ("error", "meta"):
                 assert key in detail, f"{label}: missing key '{key}'"
+            assert "request_id" in detail["meta"], (
+                f"{label}: missing 'request_id' in meta"
+            )
 
 
 # ===========================================================================
@@ -765,7 +772,7 @@ class TestRequestIdExtraction:
         """String request_id is used directly without any transformation."""
         with pytest.raises(HTTPException) as exc_info:
             raise_api_error(request_id, 400, "C", "m")
-        assert exc_info.value.detail["request_id"] == request_id
+        assert exc_info.value.detail["meta"]["request_id"] == request_id
 
     @pytest.mark.parametrize(
         "request_id",
@@ -779,7 +786,7 @@ class TestRequestIdExtraction:
         err = ServiceError("test")
         with pytest.raises(HTTPException) as exc_info:
             raise_service_error(request_id, err)
-        assert exc_info.value.detail["request_id"] == request_id
+        assert exc_info.value.detail["meta"]["request_id"] == request_id
 
 
 # ===========================================================================
@@ -790,11 +797,9 @@ class TestRequestIdExtraction:
 class TestDetailsRequestIdInteraction:
     """Verify that details dict cannot accidentally remove request_id."""
 
-    def test_details_with_request_id_key_overwrites(self) -> None:
-        """Adversarial: if details contains 'request_id', it overwrites.
-
-        This is because detail.update(details) runs after request_id is set.
-        Document this as known behavior.
+    def test_details_with_request_id_key_does_not_clobber_meta(self) -> None:
+        """Adversarial: details dict with 'request_id' key goes into error.details,
+        not into meta. The canonical request_id in meta is always from the caller.
         """
         with pytest.raises(HTTPException) as exc_info:
             raise_api_error(
@@ -805,18 +810,19 @@ class TestDetailsRequestIdInteraction:
                 details={"request_id": "clobbered-id"},
             )
 
-        # details.update() overwrites request_id
-        assert exc_info.value.detail["request_id"] == "clobbered-id"
+        # details land in error.details — meta.request_id is canonical and unchanged
+        assert exc_info.value.detail["meta"]["request_id"] == "original-id"
+        assert exc_info.value.detail["error"]["details"]["request_id"] == "clobbered-id"
 
     def test_service_error_request_id_always_last(self) -> None:
-        """In raise_service_error, request_id is set AFTER to_dict().
+        """In raise_service_error, request_id is set in meta from the caller string.
 
-        So even if to_dict() returned a 'request_id' key, it gets overwritten.
+        So even if to_dict() returned a 'request_id' key, meta.request_id is canonical.
         """
         # ServiceError.to_dict() does not include request_id by default
         err = ServiceError("test")
         with pytest.raises(HTTPException) as exc_info:
             raise_service_error("winner-id", err)
 
-        # request_id is set after detail = error.to_dict()
-        assert exc_info.value.detail["request_id"] == "winner-id"
+        # request_id is in meta
+        assert exc_info.value.detail["meta"]["request_id"] == "winner-id"

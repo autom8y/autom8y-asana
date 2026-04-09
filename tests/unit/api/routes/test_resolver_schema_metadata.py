@@ -315,7 +315,7 @@ class TestDefensiveFallback:
 
         assert response.status_code == 404
         data = response.json()
-        assert data["detail"]["error"] == "UNKNOWN_ENTITY_TYPE"
+        assert data["error"]["code"] == "UNKNOWN_ENTITY_TYPE"
 
     def test_descriptor_not_found_uses_defaults(self) -> None:
         """When EntityRegistry.get() returns None, the handler's defensive

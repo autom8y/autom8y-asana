@@ -143,7 +143,7 @@ class TestValidationErrors:
 
         assert response.status_code == 422
         body = response.json()
-        assert body["detail"]["error"] == "VALIDATION_ERROR"
+        assert body["error"]["code"] == "VALIDATION_ERROR"
 
     def test_422_missing_period_start(self, test_client: TestClient) -> None:
         """Missing period_start returns 422."""
@@ -196,4 +196,4 @@ class TestUpstreamErrors:
 
         assert response.status_code == 502
         body = response.json()
-        assert body["detail"]["error"] == "UPSTREAM_ERROR"
+        assert body["error"]["code"] == "UPSTREAM_ERROR"

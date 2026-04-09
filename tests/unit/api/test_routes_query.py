@@ -322,9 +322,9 @@ class TestQueryEndpoint:
 
         assert response.status_code == 404
         data = response.json()
-        assert data["detail"]["error"] == "UNKNOWN_ENTITY_TYPE"
-        assert "invalid_type" in data["detail"]["message"]
-        assert "available_types" in data["detail"]
+        assert data["error"]["code"] == "UNKNOWN_ENTITY_TYPE"
+        assert "invalid_type" in data["error"]["message"]
+        assert "available_types" in data["error"]["details"]
 
     def test_invalid_field_in_where_returns_422(self, client: TestClient) -> None:
         """TC-006: Invalid field in where clause returns 422 INVALID_FIELD."""
@@ -351,9 +351,9 @@ class TestQueryEndpoint:
 
         assert response.status_code == 422
         data = response.json()
-        assert data["detail"]["error"] == "INVALID_FIELD"
-        assert "nonexistent_field" in data["detail"]["message"]
-        assert "available_fields" in data["detail"]
+        assert data["error"]["code"] == "INVALID_FIELD"
+        assert "nonexistent_field" in data["error"]["message"]
+        assert "available_fields" in data["error"]["details"]
 
     def test_invalid_field_in_select_returns_422(self, client: TestClient) -> None:
         """TC-007: Invalid field in select returns 422 INVALID_FIELD."""
@@ -380,7 +380,7 @@ class TestQueryEndpoint:
 
         assert response.status_code == 422
         data = response.json()
-        assert data["detail"]["error"] == "INVALID_FIELD"
+        assert data["error"]["code"] == "INVALID_FIELD"
 
     def test_multiple_where_fields_and_semantics(self, client: TestClient) -> None:
         """TC-011: Multiple where fields use AND semantics."""
@@ -600,8 +600,8 @@ class TestQueryCacheNotWarm:
 
         assert response.status_code == 503
         data = response.json()
-        assert data["detail"]["error"] == "CACHE_NOT_WARMED"
-        assert "retry_after_seconds" in data["detail"]
+        assert data["error"]["code"] == "CACHE_NOT_WARMED"
+        assert "retry_after_seconds" in data["error"]["details"]
 
 
 class TestQueryProjectNotConfigured:
@@ -700,7 +700,7 @@ class TestQueryProjectNotConfigured:
                     # ServiceNotConfiguredError -> 503
                     assert response.status_code == 503
                     data = response.json()
-                    assert data["detail"]["error"] == "SERVICE_NOT_CONFIGURED"
+                    assert data["error"]["code"] == "SERVICE_NOT_CONFIGURED"
             finally:
                 test_app.dependency_overrides.clear()
 

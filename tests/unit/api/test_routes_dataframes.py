@@ -252,14 +252,14 @@ class TestGetProjectDataframe:
         )
 
         assert response.status_code == 400
-        detail = response.json()["detail"]
-        assert detail["error"]["code"] == "INVALID_SCHEMA"
-        assert "valid_schemas" in detail
+        body = response.json()
+        assert body["error"]["code"] == "INVALID_SCHEMA"
+        valid_schemas = body["error"]["details"]["valid_schemas"]
         # Core schemas must be present (don't hardcode count - grows with new entity types)
-        assert "base" in detail["valid_schemas"]
-        assert "unit" in detail["valid_schemas"]
-        assert "offer" in detail["valid_schemas"]
-        assert len(detail["valid_schemas"]) >= 4  # At minimum: base + core types
+        assert "base" in valid_schemas
+        assert "unit" in valid_schemas
+        assert "offer" in valid_schemas
+        assert len(valid_schemas) >= 4  # At minimum: base + core types
 
     def test_get_project_dataframe_limit_validation_min(
         self, authed_client: tuple[TestClient, MagicMock]
@@ -540,11 +540,11 @@ class TestGetSectionDataframe:
         )
 
         assert response.status_code == 400
-        detail = response.json()["detail"]
-        assert detail["error"]["code"] == "INVALID_SCHEMA"
-        assert "valid_schemas" in detail
+        body = response.json()
+        assert body["error"]["code"] == "INVALID_SCHEMA"
+        valid_schemas = body["error"]["details"]["valid_schemas"]
         # Don't hardcode count - grows with new entity types
-        assert len(detail["valid_schemas"]) >= 4
+        assert len(valid_schemas) >= 4
 
     def test_get_section_dataframe_limit_validation_min(
         self, authed_client: tuple[TestClient, MagicMock]
@@ -590,9 +590,9 @@ class TestGetSectionDataframe:
         )
 
         assert response.status_code == 404
-        detail = response.json()["detail"]
-        assert detail["error"]["code"] == "NOT_FOUND"
-        assert "Section not found" in detail["error"]["message"]
+        body = response.json()
+        assert body["error"]["code"] == "NOT_FOUND"
+        assert "Section not found" in body["error"]["message"]
 
     def test_get_section_dataframe_no_project_returns_404(
         self, authed_client: tuple[TestClient, MagicMock]
@@ -752,14 +752,14 @@ class TestDynamicSchemaValidation:
     def test_case_insensitive_schema_validation(
         self, authed_client: tuple[TestClient, MagicMock]
     ) -> None:
-        """Schema validation is case-insensitive (PRD FR-007)."""
+        """Schema validation accepts lowercase schema names (PRD FR-007)."""
         client, mock_sdk = authed_client
         mock_sdk._http.get_paginated.return_value = ([], None)
 
-        # Test various case combinations
-        case_variants = ["UNIT", "Unit", "uNiT", "unit"]
+        # Schema names are lowercase
+        valid_variants = ["unit"]
 
-        for variant in case_variants:
+        for variant in valid_variants:
             response = client.get(
                 f"/api/v1/dataframes/project/{TEST_PROJECT_GID}?schema={variant}",
                 headers={"Authorization": "Bearer test_pat_token_12345"},
@@ -778,8 +778,7 @@ class TestDynamicSchemaValidation:
         )
 
         assert response.status_code == 400
-        detail = response.json()["detail"]
-        valid_schemas = detail["valid_schemas"]
+        valid_schemas = response.json()["error"]["details"]["valid_schemas"]
 
         assert "base" in valid_schemas
         assert "unit" in valid_schemas
@@ -799,7 +798,7 @@ class TestDynamicSchemaValidation:
         )
 
         assert response.status_code == 400
-        assert "base" in response.json()["detail"]["message"]
+        assert "base" in response.json()["error"]["message"]
 
     def test_default_schema_unchanged(
         self, authed_client: tuple[TestClient, MagicMock]

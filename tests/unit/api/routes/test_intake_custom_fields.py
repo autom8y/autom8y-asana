@@ -321,7 +321,7 @@ class TestWriteCustomFieldsEndpoint:
             )
 
         assert resp.status_code == 404
-        assert resp.json()["detail"]["error"] == "TASK_NOT_FOUND"
+        assert resp.json()["error"]["code"] == "TASK_NOT_FOUND"
 
     def test_empty_fields_422(self, client: TestClient) -> None:
         """Empty fields dict returns 422 EMPTY_FIELDS."""
@@ -336,7 +336,7 @@ class TestWriteCustomFieldsEndpoint:
 
         assert resp.status_code == 422
         data = resp.json()
-        assert data["detail"]["error"] == "EMPTY_FIELDS"
+        assert data["error"]["code"] == "EMPTY_FIELDS"
 
     def test_requires_s2s_jwt(self, client: TestClient) -> None:
         """Missing auth header returns 401."""

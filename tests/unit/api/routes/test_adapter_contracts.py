@@ -67,7 +67,7 @@ def _make_task_data(
 
 
 def _make_section_data(
-    gid: str = "section_123",
+    gid: str = "1234567890001",
     name: str = "Contract Test Section",
 ) -> dict[str, Any]:
     """Build a realistic section dict."""
@@ -81,7 +81,7 @@ def _make_section_data(
 
 
 def _make_user_data(
-    gid: str = "user_456",
+    gid: str = "1234567890002",
     name: str = "Contract Test User",
     email: str = "contract@example.com",
 ) -> dict[str, Any]:
@@ -366,7 +366,7 @@ class TestSectionResponseContract:
 
     def test_section_data_has_gid_and_name(self, section_client: TestClient) -> None:
         """Section data contains gid and name."""
-        response = section_client.get("/api/v1/sections/section_123")
+        response = section_client.get("/api/v1/sections/1234567890001")
         assert response.status_code == 200
 
         body = response.json()
@@ -390,7 +390,7 @@ class TestUserResponseContract:
 
     def test_user_data_has_gid_name_email(self, user_client: TestClient) -> None:
         """User data contains gid, name, email."""
-        response = user_client.get("/api/v1/users/user_456")
+        response = user_client.get("/api/v1/users/1234567890002")
         assert response.status_code == 200
 
         body = response.json()
