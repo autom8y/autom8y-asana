@@ -3,8 +3,20 @@ name: Aegis Synthetic Coverage
 on:
   push:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/synthetic/**'
+      - 'docs/api-reference/**'
+      - 'scripts/aegis-check.py'
+      - '.github/workflows/aegis-synthetic-coverage.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'tests/synthetic/**'
+      - 'docs/api-reference/**'
+      - 'scripts/aegis-check.py'
+      - '.github/workflows/aegis-synthetic-coverage.yml'
 
 concurrency:
   group: aegis-${{ github.ref }}
