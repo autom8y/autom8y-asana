@@ -623,9 +623,9 @@ def test_unknown_tag_raises_value_error_at_spec_generation():
     # Build a minimal app with a single route bearing a tag that is not
     # registered in any of the four classification sets.
     bogus_tag = "this-tag-is-not-classified"
-    assert bogus_tag not in (
-        _PAT_TAGS | _S2S_TAGS | _TOKEN_TAGS | _NO_AUTH_TAGS
-    ), "Bogus tag must not collide with any real tag set"
+    assert bogus_tag not in (_PAT_TAGS | _S2S_TAGS | _TOKEN_TAGS | _NO_AUTH_TAGS), (
+        "Bogus tag must not collide with any real tag set"
+    )
 
     app = FastAPI(title="bogus", version="0.0.0")
 

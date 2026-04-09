@@ -18,8 +18,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from autom8_asana.api.main import create_app
 from autom8_asana.api.dependencies import AuthContext, get_auth_context
+from autom8_asana.api.main import create_app
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.dual_mode import AuthMode
 from autom8_asana.auth.jwt_validator import reset_auth_client
@@ -136,6 +136,7 @@ def app(monkeypatch_module):
 def monkeypatch_module():
     """Module-scoped monkeypatch (pytest's monkeypatch is function-scoped)."""
     from _pytest.monkeypatch import MonkeyPatch
+
     mp = MonkeyPatch()
     yield mp
     mp.undo()
