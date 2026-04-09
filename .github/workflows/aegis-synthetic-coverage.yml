@@ -61,6 +61,19 @@ jobs:
           path: aegis-report.json
           if-no-files-found: warn
 
+      - name: Validate aegis report exists
+        if: always()
+        run: |
+          if [ ! -f aegis-report.json ]; then
+            echo "::error::aegis-report.json was not generated -- pytest likely crashed before fixture teardown"
+            exit 1
+          fi
+          if [ ! -s aegis-report.json ]; then
+            echo "::error::aegis-report.json is empty -- fixture teardown did not complete"
+            exit 1
+          fi
+          echo "aegis-report.json found ($(wc -c < aegis-report.json | tr -d ' ') bytes)"
+
       - name: Aegis threshold enforcement
         if: always()
         run: uv run python scripts/aegis-check.py aegis-report.json
