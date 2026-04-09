@@ -15,7 +15,6 @@
             "examples": [
               "2222222222222222"
             ],
-            "pattern": "^\\d{1,64}$",
             "title": "Tag Gid",
             "type": "string"
           }
@@ -40,7 +39,6 @@
             "examples": [
               "1234567890123456"
             ],
-            "pattern": "^\\d{1,64}$",
             "title": "Task Gid",
             "type": "string"
           }
@@ -65,7 +63,6 @@
             "examples": [
               "1234567890123456"
             ],
-            "pattern": "^\\d{1,64}$",
             "title": "Project Gid",
             "type": "string"
           }
@@ -92,7 +89,6 @@
             "examples": [
               "1234567890123456"
             ],
-            "pattern": "^\\d{1,64}$",
             "title": "Gid",
             "type": "string"
           },
@@ -156,7 +152,6 @@
           "team": {
             "anyOf": [
               {
-                "pattern": "^\\d{1,64}$",
                 "type": "string"
               },
               {
@@ -174,7 +169,6 @@
             "examples": [
               "1111111111111111"
             ],
-            "pattern": "^\\d{1,64}$",
             "title": "Workspace",
             "type": "string"
           }
@@ -210,7 +204,6 @@
             "examples": [
               "1234567890123456"
             ],
-            "pattern": "^\\d{1,64}$",
             "title": "Project",
             "type": "string"
           }
@@ -240,7 +233,6 @@
           "assignee": {
             "anyOf": [
               {
-                "pattern": "^\\d{1,64}$",
                 "type": "string"
               },
               {
@@ -297,7 +289,6 @@
             "anyOf": [
               {
                 "items": {
-                  "pattern": "^\\d{1,64}$",
                   "type": "string"
                 },
                 "type": "array"
@@ -317,7 +308,6 @@
           "workspace": {
             "anyOf": [
               {
-                "pattern": "^\\d{1,64}$",
                 "type": "string"
               },
               {
@@ -689,7 +679,6 @@
               ]
             ],
             "items": {
-              "pattern": "^\\d{1,64}$",
               "type": "string"
             },
             "minItems": 1,
@@ -718,7 +707,6 @@
             "examples": [
               "1234567890123456"
             ],
-            "pattern": "^\\d{1,64}$",
             "title": "Project Gid",
             "type": "string"
           },
@@ -727,7 +715,6 @@
             "examples": [
               "3333333333333333"
             ],
-            "pattern": "^\\d{1,64}$",
             "title": "Section Gid",
             "type": "string"
           }
@@ -973,7 +960,6 @@
           "after_section": {
             "anyOf": [
               {
-                "pattern": "^\\d{1,64}$",
                 "type": "string"
               },
               {
@@ -989,7 +975,6 @@
           "before_section": {
             "anyOf": [
               {
-                "pattern": "^\\d{1,64}$",
                 "type": "string"
               },
               {
@@ -1007,7 +992,6 @@
             "examples": [
               "1234567890123456"
             ],
-            "pattern": "^\\d{1,64}$",
             "title": "Project Gid",
             "type": "string"
           }
@@ -1560,7 +1544,6 @@
           "assignee_gid": {
             "anyOf": [
               {
-                "pattern": "^\\d{1,64}$",
                 "type": "string"
               },
               {
@@ -1968,7 +1951,6 @@
           },
           "gid": {
             "description": "Globally unique identifier for this Asana resource. A numeric string (1-64 digits).",
-            "pattern": "^\\d{1,64}$",
             "title": "Gid",
             "type": "string"
           },
@@ -2616,7 +2598,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3062,7 +3043,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3365,7 +3345,6 @@
             "required": true,
             "schema": {
               "description": "Workspace GID to list projects from",
-              "pattern": "^\\d{1,64}$",
               "title": "Workspace",
               "type": "string"
             }
@@ -3564,7 +3543,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3644,7 +3622,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3752,7 +3729,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3844,7 +3820,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3934,7 +3909,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4026,7 +4000,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4227,7 +4200,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4307,7 +4279,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4394,7 +4365,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4486,7 +4456,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4571,7 +4540,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4659,7 +4627,6 @@
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^\\d{1,64}$",
                   "type": "string"
                 },
                 {
@@ -4678,7 +4645,6 @@
             "schema": {
               "anyOf": [
                 {
-                  "pattern": "^\\d{1,64}$",
                   "type": "string"
                 },
                 {
@@ -4895,7 +4861,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4975,7 +4940,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5083,7 +5047,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5175,7 +5138,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5274,7 +5236,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5395,7 +5356,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5487,7 +5447,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5586,7 +5545,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5596,7 +5554,6 @@
             "name": "project_gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Project Gid",
               "type": "string"
             }
@@ -5685,7 +5642,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5784,7 +5740,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5905,7 +5860,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5997,7 +5951,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -6007,7 +5960,6 @@
             "name": "tag_gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Tag Gid",
               "type": "string"
             }
@@ -6098,7 +6050,6 @@
             "required": true,
             "schema": {
               "description": "Workspace GID to list users from",
-              "pattern": "^\\d{1,64}$",
               "title": "Workspace",
               "type": "string"
             }
@@ -6296,7 +6247,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -6744,7 +6694,6 @@
             "name": "gid",
             "required": true,
             "schema": {
-              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
