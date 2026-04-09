@@ -474,7 +474,7 @@ class AttachmentsClient(BaseClient):
         if isinstance(destination, (str, Path)):
             dest_path = Path(destination)
             # C4-02: Open file via thread pool to avoid blocking the event loop.
-            file_obj = await asyncio.to_thread(open, dest_path, "wb")  # type: ignore[assignment]  # noqa: SIM115
+            file_obj = await asyncio.to_thread(open, dest_path, "wb")  # noqa: SIM115
             should_close = True
         else:
             file_obj = destination
