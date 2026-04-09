@@ -4,36 +4,49 @@ from __future__ import annotations
 
 import os
 
-
 # ---------------------------------------------------------------------------
-# FIX-004: schemathesis 4.15 / pytest-xdist 3.8 version incompatibility
+# R4-FIX-002: schemathesis 4.14.3 / pytest-xdist 3.x incompatibility
 #
-# schemathesis registers XdistReportingPlugin.pytest_testnodedown which
-# accesses node.workeroutput unconditionally.  In xdist 3.8 the attribute
-# is only set when the worker finishes cleanly ("workerfinished" event);
-# if the worker errors out, workeroutput is never set and the hook raises
-# AttributeError, causing INTERNALERROR (exit code 3).
+# schemathesis.pytest.xdist.XdistReportingPlugin.pytest_testnodedown (line 351
+# of xdist.py) dereferences ``node.workeroutput`` unconditionally. In
+# pytest-xdist 3.x the controller-side ``WorkerController`` only gains a
+# ``workeroutput`` attribute when the worker exits cleanly via the
+# ``workerfinished`` event. If a worker errors out (``worker_errordown``),
+# the attribute is never set and the hook raises ``AttributeError``,
+# triggering pytest ``INTERNALERROR`` (exit code 3).
 #
-# Guard: wrap the access with getattr(..., {}) so a missing attribute is
-# treated the same as "no schemathesis recorder data to collect".
+# Prior remediation attempts (FIX-004 fae6ff1e, R3-FIX-003 2341b32b) failed:
+#   - fae6ff1e patched the plugin *instance* from inside ``pytest_configure``,
+#     but pluggy caches the hook implementation reference at registration
+#     time (``pluggy._manager`` stores ``getattr(plugin, hook_name)`` when the
+#     plugin is registered). Mutating the instance attribute after pluggy has
+#     already snapshotted it does nothing - pluggy keeps calling the original
+#     unpatched method.
+#   - 2341b32b pinned schemathesis<4.15.0, but the same bug exists unchanged
+#     in 4.14.3 and earlier.
+#
+# Correct fix: patch the *class method* at module import time, BEFORE pluggy
+# introspects the plugin instance during registration. conftest.py is
+# imported by pytest before schemathesis's ``pytest_configure`` hook runs, so
+# by the time schemathesis calls ``pluginmanager.register(XdistReportingPlugin())``,
+# the class's ``pytest_testnodedown`` slot already points at our wrapper.
 # ---------------------------------------------------------------------------
-def pytest_configure(config):
-    """Patch schemathesis xdist plugin to tolerate missing workeroutput."""
-    if not config.pluginmanager.hasplugin("schemathesis-xdist"):
-        return
+try:
+    from schemathesis.pytest import xdist as _sx_xdist
 
-    plugin = config.pluginmanager.get_plugin("schemathesis-xdist")
-    if plugin is None:
-        return
+    _sx_original_testnodedown = _sx_xdist.XdistReportingPlugin.pytest_testnodedown
 
-    _original = plugin.pytest_testnodedown
-
-    def _safe_testnodedown(node, error):
+    def _safe_testnodedown(self, node, error):  # type: ignore[no-untyped-def]
+        # Skip the hook entirely if the worker never populated workeroutput
+        # (i.e. it errored out before sending the workerfinished event).
         if not hasattr(node, "workeroutput"):
-            return
-        return _original(node=node, error=error)
+            return None
+        return _sx_original_testnodedown(self, node, error)
 
-    plugin.pytest_testnodedown = _safe_testnodedown
+    _sx_xdist.XdistReportingPlugin.pytest_testnodedown = _safe_testnodedown
+except ImportError:
+    # schemathesis not installed - nothing to patch.
+    pass
 
 
 # Set test environment BEFORE any model imports.
