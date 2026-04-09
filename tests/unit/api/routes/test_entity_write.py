@@ -152,8 +152,15 @@ def mock_write_registry():
 
 
 @pytest.fixture()
-def app(mock_write_registry):
-    """Create a test application with mocked discovery and write registry."""
+def app(mock_write_registry, monkeypatch):
+    """Create a test application with mocked discovery and write registry.
+
+    Sets AUTOM8Y_ENV=LOCAL + AUTH__DEV_MODE=true so JWTAuthMiddleware returns
+    bypass claims instead of attempting to validate the JWT token.
+    """
+    monkeypatch.setenv("AUTOM8Y_ENV", "LOCAL")
+    monkeypatch.setenv("AUTH__DEV_MODE", "true")
+
     with patch(
         "autom8_asana.api.lifespan._discover_entity_projects",
         new_callable=AsyncMock,
