@@ -312,6 +312,7 @@ autom8y-interop = { index = "autom8y" }
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.151.12",
     "pytest-asyncio>=1.3.0",
     "pytest-json-report>=1.5.0",
     "pytest-timeout>=2.4.0",
