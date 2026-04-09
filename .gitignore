@@ -99,3 +99,7 @@ tmp/
 # Claude Code local settings — MUST NOT commit (FC2-5 origin — contained Asana PAT at commit 15cffee1)
 .claude/settings.local.json
 .claude/settings.local*
+
+# Mutation testing and property-based testing artifacts
+.mutmut-cache
+.hypothesis/
