@@ -4,6 +4,38 @@ from __future__ import annotations
 
 import os
 
+
+# ---------------------------------------------------------------------------
+# FIX-004: schemathesis 4.15 / pytest-xdist 3.8 version incompatibility
+#
+# schemathesis registers XdistReportingPlugin.pytest_testnodedown which
+# accesses node.workeroutput unconditionally.  In xdist 3.8 the attribute
+# is only set when the worker finishes cleanly ("workerfinished" event);
+# if the worker errors out, workeroutput is never set and the hook raises
+# AttributeError, causing INTERNALERROR (exit code 3).
+#
+# Guard: wrap the access with getattr(..., {}) so a missing attribute is
+# treated the same as "no schemathesis recorder data to collect".
+# ---------------------------------------------------------------------------
+def pytest_configure(config):
+    """Patch schemathesis xdist plugin to tolerate missing workeroutput."""
+    if not config.pluginmanager.hasplugin("schemathesis-xdist"):
+        return
+
+    plugin = config.pluginmanager.get_plugin("schemathesis-xdist")
+    if plugin is None:
+        return
+
+    _original = plugin.pytest_testnodedown
+
+    def _safe_testnodedown(node, error):
+        if not hasattr(node, "workeroutput"):
+            return
+        return _original(node=node, error=error)
+
+    plugin.pytest_testnodedown = _safe_testnodedown
+
+
 # Set test environment BEFORE any model imports.
 # This relaxes AsanaResource.gid pattern validation (production: ^\d{1,64}$, test: any string)
 # and controls other environment-gated behaviors.
