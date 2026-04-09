@@ -5974,7 +5974,7 @@
     },
     "/ready": {
       "get": {
-        "description": "Readiness probe \u2014 returns 200 when cache is warm, 503 while loading.\n\nUse this endpoint to gate traffic: route requests here only after\nreceiving 200. The ALB should use ``/health`` for liveness; this\nendpoint is for readiness-aware load balancers and deployment pipelines.\n\nPer sprint-materialization-002 FR-004:\n- Returns 503 (unavailable) during cache preload.\n- Returns 200 (ok) after cache is ready.\n\nDoes NOT require authentication.\n\nReturns:\n    - 200: Cache ready \u2014 service can handle all requests.\n    - 503: Cache warming \u2014 service is starting up.",
+        "description": "Readiness probe \u2014 deep connectivity checks for critical dependencies.\n\nChecks run concurrently with individual 2s timeouts to fit within\nthe 5s ALB health check window.\n\nChecks:\n- ``cache``: DataFrame cache warm-up state (FR-004).\n- ``workflow_configs``: Workflow config registration (REMEDY-002).\n- ``jwks``: JWKS endpoint reachability for JWT validation (promoted\n  from /health/deps per SP-L3-1 D4).\n- ``bot_pat``: Asana PAT configuration presence check (promoted\n  from /health/deps per SP-L3-1 D4).\n\nDoes NOT require authentication.\n\nReturns:\n    - 200: All critical checks pass \u2014 service can handle requests.\n    - 503: At least one critical dependency unavailable.",
         "operationId": "readiness_check_ready_get",
         "responses": {
           "200": {
@@ -5983,7 +5983,7 @@
                 "schema": {}
               }
             },
-            "description": "Service readiness status with cache state"
+            "description": "Service readiness status with dependency connectivity"
           }
         },
         "security": [],
