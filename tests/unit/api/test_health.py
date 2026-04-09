@@ -129,7 +129,10 @@ class TestLivenessEndpoint:
 
     def test_satellite_routes_removed(self, client: TestClient) -> None:
         """Old /satellite/health route no longer exists."""
-        response = client.get("/satellite/health")
+        response = client.get(
+            "/satellite/health",
+            headers={"Authorization": "Bearer test.token"},
+        )
         assert response.status_code == 404
 
 
@@ -221,7 +224,10 @@ class TestReadinessEndpoint:
 
     def test_satellite_ready_route_removed(self, client: TestClient) -> None:
         """Old /satellite/health/ready route no longer exists."""
-        response = client.get("/satellite/health/ready")
+        response = client.get(
+            "/satellite/health/ready",
+            headers={"Authorization": "Bearer test.token"},
+        )
         assert response.status_code == 404
 
 
@@ -414,7 +420,10 @@ class TestDepsEndpoint:
 
     def test_satellite_s2s_route_removed(self, client: TestClient) -> None:
         """Old /satellite/health/s2s route no longer exists."""
-        response = client.get("/satellite/health/s2s")
+        response = client.get(
+            "/satellite/health/s2s",
+            headers={"Authorization": "Bearer test.token"},
+        )
         assert response.status_code == 404
 
 

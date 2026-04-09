@@ -19,6 +19,7 @@ Test IDs: CT-001 through CT-016 (per TDD-B01 Section 6).
 
 from __future__ import annotations
 
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -116,8 +117,11 @@ def _reset_singletons():
 
 
 @pytest.fixture()
-def app():
+def app(monkeypatch):
     """Create a test application with mocked discovery and entity registry."""
+    monkeypatch.setenv("AUTOM8Y_ENV", "LOCAL")
+    monkeypatch.setenv("AUTH__DEV_MODE", "true")
+
     with patch(
         "autom8_asana.api.lifespan._discover_entity_projects",
         new_callable=AsyncMock,
@@ -414,7 +418,7 @@ class TestGidLookupAuth:
 
         assert response.status_code == 401
         data = response.json()
-        assert data["error"]["code"] == "MISSING_AUTH"
+        assert data["error"]["code"] == "AUTH-MISSING-TOKEN"
 
     def test_ct008_pat_token_returns_401(self, client: TestClient) -> None:
         """CT-008: PAT token (0/xxx format) returns 401 SERVICE_TOKEN_REQUIRED."""
@@ -640,10 +644,13 @@ class TestGidLookupAvailability:
         """CT-014: When entity registry is not ready, returns 503 DISCOVERY_INCOMPLETE."""
         EntityProjectRegistry.reset()
 
-        with patch(
-            "autom8_asana.api.lifespan._discover_entity_projects",
-            new_callable=AsyncMock,
-        ) as mock_discover:
+        with (
+            patch.dict(os.environ, {"AUTOM8Y_ENV": "LOCAL", "AUTH__DEV_MODE": "true"}),
+            patch(
+                "autom8_asana.api.lifespan._discover_entity_projects",
+                new_callable=AsyncMock,
+            ) as mock_discover,
+        ):
 
             async def no_setup(app):
                 EntityProjectRegistry.reset()

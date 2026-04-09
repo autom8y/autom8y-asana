@@ -58,6 +58,16 @@ def app():
     Individual tests that need specific auth behaviour use their own
     patch() or override this override via app.dependency_overrides.
     """
+    import os
+
+    # Enable auth dev mode bypass so JWTAuthMiddleware returns bypass claims
+    # instead of validating the fake JWT token. Must be set before create_app()
+    # because the middleware reads env at construction time.
+    _prev_dev_mode = os.environ.get("AUTH__DEV_MODE")
+    _prev_env = os.environ.get("AUTOM8Y_ENV")
+    os.environ["AUTH__DEV_MODE"] = "true"
+    os.environ["AUTOM8Y_ENV"] = "LOCAL"
+
     with patch(
         "autom8_asana.api.lifespan._discover_entity_projects",
         new_callable=AsyncMock,
@@ -83,6 +93,16 @@ def app():
         test_app.dependency_overrides[get_auth_context] = _mock_get_auth_context
 
         yield test_app
+
+    # Restore env vars after the module-scoped fixture tears down
+    if _prev_dev_mode is None:
+        os.environ.pop("AUTH__DEV_MODE", None)
+    else:
+        os.environ["AUTH__DEV_MODE"] = _prev_dev_mode
+    if _prev_env is None:
+        os.environ.pop("AUTOM8Y_ENV", None)
+    else:
+        os.environ["AUTOM8Y_ENV"] = _prev_env
 
 
 @pytest.fixture(scope="module")

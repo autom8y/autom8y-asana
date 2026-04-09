@@ -92,6 +92,8 @@ def app_with_memory_store():
     """
     env_overrides = {
         "IDEMPOTENCY_STORE_BACKEND": "memory",
+        "AUTH__DEV_MODE": "true",
+        "AUTOM8Y_ENV": "LOCAL",
     }
     with (
         patch.dict(os.environ, env_overrides),

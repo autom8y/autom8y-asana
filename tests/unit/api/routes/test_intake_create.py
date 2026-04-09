@@ -280,8 +280,11 @@ def _reset_singletons():
 
 
 @pytest.fixture()
-def app():
+def app(monkeypatch):
     """Create a test application with mocked lifespan discovery."""
+    monkeypatch.setenv("AUTOM8Y_ENV", "LOCAL")
+    monkeypatch.setenv("AUTH__DEV_MODE", "true")
+
     with patch(
         "autom8_asana.api.lifespan._discover_entity_projects",
         new_callable=AsyncMock,

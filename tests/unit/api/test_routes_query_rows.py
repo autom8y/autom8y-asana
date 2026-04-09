@@ -759,7 +759,7 @@ class TestRowsAuthentication:
         )
         assert response.status_code == 401
         data = response.json()
-        assert data["error"]["code"] == "MISSING_AUTH"
+        assert data["error"]["code"] == "AUTH-MISSING-TOKEN"
 
     def test_tc_i015_pat_token_rejected(self, client: TestClient) -> None:
         """TC-I015: /rows PAT token -> 401 SERVICE_TOKEN_REQUIRED."""

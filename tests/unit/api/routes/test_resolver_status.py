@@ -110,8 +110,11 @@ def _reset_singletons():  # type: ignore[misc]
 
 
 @pytest.fixture()
-def app():  # type: ignore[misc]
+def app(monkeypatch):  # type: ignore[misc]
     """Create a test application with mocked discovery and entity registry."""
+    monkeypatch.setenv("AUTOM8Y_ENV", "LOCAL")
+    monkeypatch.setenv("AUTH__DEV_MODE", "true")
+
     with patch(
         "autom8_asana.api.lifespan._discover_entity_projects",
         new_callable=AsyncMock,

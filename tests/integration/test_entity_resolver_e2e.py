@@ -15,6 +15,7 @@ Per TDD-custom-field-type-coercion:
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -176,6 +177,10 @@ def resolver_test_client(
     )
 
     with (
+        patch.dict(
+            os.environ,
+            {"AUTH__DEV_MODE": "true", "AUTOM8Y_ENV": "LOCAL"},
+        ),
         patch(
             "autom8_asana.api.lifespan._discover_entity_projects",
             new_callable=AsyncMock,
@@ -466,4 +471,4 @@ class TestAuthenticationEnforcement:
 
             assert response.status_code == 401
             data = response.json()
-            assert data["error"]["code"] == "MISSING_AUTH"
+            assert data["error"]["code"] == "AUTH-MISSING-TOKEN"

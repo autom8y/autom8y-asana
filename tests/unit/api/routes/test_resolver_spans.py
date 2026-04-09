@@ -159,8 +159,11 @@ def _reset_singletons():
 
 
 @pytest.fixture()
-def app():
+def app(monkeypatch):
     """Create a test application with mocked discovery and entity registry."""
+    monkeypatch.setenv("AUTOM8Y_ENV", "LOCAL")
+    monkeypatch.setenv("AUTH__DEV_MODE", "true")
+
     from autom8_asana.api.lifespan import _discover_entity_projects  # noqa: PLC2701
     from autom8_asana.api.main import create_app
 

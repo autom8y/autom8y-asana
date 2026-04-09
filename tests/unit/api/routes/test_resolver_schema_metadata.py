@@ -17,6 +17,7 @@ Test Matrix:
 
 from __future__ import annotations
 
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -66,6 +67,11 @@ def _populate_test_registry():
 @pytest.fixture(scope="module")
 def app():
     """Create a test application with all 6 resolvable entities registered."""
+    _prev_dev_mode = os.environ.get("AUTH__DEV_MODE")
+    _prev_env = os.environ.get("AUTOM8Y_ENV")
+    os.environ["AUTH__DEV_MODE"] = "true"
+    os.environ["AUTOM8Y_ENV"] = "LOCAL"
+
     with patch(
         "autom8_asana.api.lifespan._discover_entity_projects",
         new_callable=AsyncMock,
@@ -87,6 +93,15 @@ def app():
 
         test_app.dependency_overrides[get_auth_context] = _mock_get_auth_context
         yield test_app
+
+    if _prev_dev_mode is None:
+        os.environ.pop("AUTH__DEV_MODE", None)
+    else:
+        os.environ["AUTH__DEV_MODE"] = _prev_dev_mode
+    if _prev_env is None:
+        os.environ.pop("AUTOM8Y_ENV", None)
+    else:
+        os.environ["AUTOM8Y_ENV"] = _prev_env
 
 
 @pytest.fixture(scope="module")
