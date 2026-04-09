@@ -1,0 +1,66 @@
+# Configuration invariants for autom8y-asana.
+# Validates cross-field constraints and range limits at deploy time.
+# Used by: autom8y_config.specvalidator
+#
+# See: .ledge/reviews/ for coupling analysis (CC-06 through CC-16)
+
+[project]
+name = "autom8y-asana"
+revision = "1.0"
+
+# ---------------------------------------------------------------------------
+# CC-06: Asana cache provider/TTL coupling (DOCUMENT)
+# When ASANA_CACHE_PROVIDER is "redis", REDIS_HOST must be set.
+# When ASANA_CACHE_PROVIDER is "memory", TTL settings are bounded by
+# process memory. Provider and TTL are coupled -- switching provider
+# without adjusting TTLs can cause cache thrashing or OOM.
+# ---------------------------------------------------------------------------
+[invariants.cache_provider_ttl_coupling]
+description = "Cache provider selection must match TTL and infrastructure configuration"
+type = "cross-field"
+expression = "ASANA_CACHE_PROVIDER != 'redis' or REDIS_HOST != ''"
+severity = "medium"
+coupling_id = "CC-06"
+status = "document"
+
+# ---------------------------------------------------------------------------
+# CC-10: REDIS_SSL default inconsistency (DOCUMENT)
+# autom8y-data defaults REDIS_SSL=False; autom8y-asana has no SSL toggle
+# (relies on redis:// vs rediss:// URL scheme). Fleet-wide Redis SSL
+# posture is inconsistent. Document until fleet-wide convention is set.
+# ---------------------------------------------------------------------------
+[invariants.redis_ssl_inconsistency]
+description = "Redis SSL default differs between data (explicit toggle) and asana (URL scheme)"
+type = "convention"
+severity = "low"
+coupling_id = "CC-10"
+status = "document"
+
+# ---------------------------------------------------------------------------
+# CC-14: Asana DataFrame cache heap% x container memory (DOCUMENT)
+# In-memory cache for DataFrames is bounded by Python heap. When
+# ASANA_CACHE_PROVIDER="memory" (default in dev), large DataFrame caches
+# can consume a significant percentage of container memory. No runtime
+# enforcement yet -- operator must monitor container memory utilization.
+# ---------------------------------------------------------------------------
+[invariants.dataframe_cache_heap]
+description = "DataFrame in-memory cache size must fit within container heap budget"
+type = "cross-field"
+severity = "medium"
+coupling_id = "CC-14"
+status = "document"
+
+# ---------------------------------------------------------------------------
+# CC-16: REDIS_ prefix collision (DOCUMENT)
+# Both autom8y-data and autom8y-asana read REDIS_* env vars. In shared
+# ECS task definitions, a single REDIS_HOST env var is consumed by both
+# services. This is currently intentional (shared Redis instance) but
+# creates implicit coupling. If services need separate Redis instances,
+# prefix differentiation is required.
+# ---------------------------------------------------------------------------
+[invariants.redis_prefix_collision]
+description = "REDIS_ prefix is shared between data and asana services"
+type = "convention"
+severity = "low"
+coupling_id = "CC-16"
+status = "document"

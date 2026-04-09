@@ -138,63 +138,155 @@ async def health_check() -> JSONResponse:
 @router.get(
     "/ready",
     summary="Check service readiness",
-    response_description="Service readiness status with cache state",
+    response_description="Service readiness status with dependency connectivity",
 )
 async def readiness_check() -> JSONResponse:
-    """Readiness probe — returns 200 when cache is warm, 503 while loading.
+    """Readiness probe — deep connectivity checks for critical dependencies.
 
-    Use this endpoint to gate traffic: route requests here only after
-    receiving 200. The ALB should use ``/health`` for liveness; this
-    endpoint is for readiness-aware load balancers and deployment pipelines.
+    Checks run concurrently with individual 2s timeouts to fit within
+    the 5s ALB health check window.
 
-    Per sprint-materialization-002 FR-004:
-    - Returns 503 (unavailable) during cache preload.
-    - Returns 200 (ok) after cache is ready.
+    Checks:
+    - ``cache``: DataFrame cache warm-up state (FR-004).
+    - ``workflow_configs``: Workflow config registration (REMEDY-002).
+    - ``jwks``: JWKS endpoint reachability for JWT validation (promoted
+      from /health/deps per SP-L3-1 D4).
+    - ``bot_pat``: Asana PAT configuration presence check (promoted
+      from /health/deps per SP-L3-1 D4).
 
     Does NOT require authentication.
 
     Returns:
-        - 200: Cache ready — service can handle all requests.
-        - 503: Cache warming — service is starting up.
+        - 200: All critical checks pass — service can handle requests.
+        - 503: At least one critical dependency unavailable.
     """
+    import asyncio
+
     from autom8_asana.api.health_models import (
         CheckResult,
         HealthStatus,
         readiness_response,
     )
 
+    checks: dict[str, CheckResult] = {}
+
+    # --- Cache warmth (FR-004) ---
     if _cache_ready:
-        cache_check = CheckResult(status=HealthStatus.OK)
+        checks["cache"] = CheckResult(status=HealthStatus.OK)
     else:
         logger.debug(
             "readiness_check_warming",
             extra={"cache_ready": False},
         )
-        cache_check = CheckResult(
+        checks["cache"] = CheckResult(
             status=HealthStatus.UNAVAILABLE,
             detail={"message": "Cache preload in progress"},
         )
 
-    # Per REMEDY-002: Surface workflow config registration outcome so that
-    # ECS startup degradation (silent import failure) is observable.
+    # --- Workflow config registration (REMEDY-002) ---
     if _workflow_configs_registered is True:
-        workflow_check = CheckResult(status=HealthStatus.OK)
+        checks["workflow_configs"] = CheckResult(status=HealthStatus.OK)
     elif _workflow_configs_registered is False:
-        workflow_check = CheckResult(
+        checks["workflow_configs"] = CheckResult(
             status=HealthStatus.UNAVAILABLE,
             detail={"message": "Workflow config import failed at startup"},
         )
     else:
-        # None = startup not yet complete (ECS is still initializing)
-        workflow_check = CheckResult(
+        checks["workflow_configs"] = CheckResult(
             status=HealthStatus.UNAVAILABLE,
             detail={"message": "Workflow config registration pending"},
         )
 
+    # --- Deep connectivity checks (SP-L3-1 D4) ---
+    # Run JWKS and PAT checks concurrently with individual 2s timeouts.
+    async def _probe_jwks() -> CheckResult:
+        """JWKS reachability probe (promoted from /health/deps)."""
+        jwks_url = os.environ.get(
+            "AUTH_JWKS_URL",
+            "https://auth.api.autom8y.io/.well-known/jwks.json",
+        )
+        t0 = time.monotonic()
+        _jwks_config = HttpClientConfig(
+            timeout=2.0, enable_retry=False, enable_circuit_breaker=False
+        )
+        try:
+            async with Autom8yHttpClient(_jwks_config) as client:
+                async with client.raw() as raw_client:
+                    response = await raw_client.get(jwks_url)
+                latency = (time.monotonic() - t0) * 1000
+                if response.status_code == 200:
+                    data = response.json()
+                    if "keys" in data and isinstance(data["keys"], list):
+                        return CheckResult(
+                            status=HealthStatus.OK,
+                            latency_ms=round(latency, 1),
+                        )
+                    return CheckResult(
+                        status=HealthStatus.DEGRADED,
+                        latency_ms=round(latency, 1),
+                        detail={"error": "invalid_response"},
+                    )
+                return CheckResult(
+                    status=HealthStatus.DEGRADED,
+                    latency_ms=round(latency, 1),
+                    detail={"error": f"http_{response.status_code}"},
+                )
+        except TimeoutException:
+            latency = (time.monotonic() - t0) * 1000
+            return CheckResult(
+                status=HealthStatus.DEGRADED,
+                latency_ms=round(latency, 1),
+                detail={"error": "timeout"},
+            )
+        except RequestError:
+            latency = (time.monotonic() - t0) * 1000
+            return CheckResult(
+                status=HealthStatus.DEGRADED,
+                latency_ms=round(latency, 1),
+                detail={"error": "connection_error"},
+            )
+        except Exception:
+            latency = (time.monotonic() - t0) * 1000
+            return CheckResult(
+                status=HealthStatus.DEGRADED,
+                latency_ms=round(latency, 1),
+                detail={"error": "unexpected"},
+            )
+
+    async def _probe_bot_pat() -> CheckResult:
+        """Bot PAT configuration presence check (promoted from /health/deps)."""
+        bot_pat = os.environ.get("ASANA_PAT", "")
+        if bot_pat and len(bot_pat) >= 10:
+            return CheckResult(
+                status=HealthStatus.OK,
+                detail={"configured": True},
+            )
+        return CheckResult(
+            status=HealthStatus.DEGRADED,
+            detail={"configured": False},
+        )
+
+    # Run deep probes concurrently with 2s individual timeouts
+    async def _run_with_timeout(coro: object, timeout: float = 2.0) -> CheckResult:
+        try:
+            return await asyncio.wait_for(coro, timeout=timeout)  # type: ignore[arg-type]
+        except TimeoutError:
+            return CheckResult(
+                status=HealthStatus.DEGRADED,
+                detail={"error": "timeout"},
+            )
+
+    jwks_result, pat_result = await asyncio.gather(
+        _run_with_timeout(_probe_jwks()),
+        _run_with_timeout(_probe_bot_pat()),
+    )
+    checks["jwks"] = jwks_result
+    checks["bot_pat"] = pat_result
+
     resp = readiness_response(
         SERVICE_NAME,
         API_VERSION,
-        checks={"cache": cache_check, "workflow_configs": workflow_check},
+        checks=checks,
     )
     return JSONResponse(
         content=resp.model_dump(mode="json"),
