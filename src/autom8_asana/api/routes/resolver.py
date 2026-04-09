@@ -167,7 +167,7 @@ async def resolve_entities(
     entity_type: str,
     request_body: ResolutionRequest,
     request_id: RequestId,
-    auth_context: AuthContextDep,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> SuccessResponse[ResolutionResponse]:
     """Resolve entity identifiers to task GIDs.
@@ -216,7 +216,7 @@ async def resolve_entities(
         entity_type: Path parameter for entity type
         request_body: ResolutionRequest with criteria
         request_id: Request ID from RequestId dependency
-        auth_context: Authentication context with Asana PAT
+        auth: Authentication context with Asana PAT
         claims: Validated service claims from JWT
 
     Returns:
@@ -353,7 +353,7 @@ async def resolve_entities(
         span.set_attribute("resolver.caller_service", claims.service_name)
 
         try:
-            async with AsanaClient(token=auth_context.asana_pat) as client:
+            async with AsanaClient(token=auth.asana_pat) as client:
                 resolution_results = await strategy.resolve(
                     criteria=criteria_dicts,
                     project_gid=project_gid,

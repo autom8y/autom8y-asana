@@ -237,10 +237,14 @@ class AsanaHttpClient:
             )
 
             # Store the underlying httpx client for direct header configuration
-            # The platform client's internal httpx client needs auth headers
+            # The platform client's internal httpx client needs auth headers.
+            # Ensure token is ASCII-safe for httpx headers to prevent
+            # UnicodeEncodeError when processing fuzzed tokens.
+            safe_token = str(token).encode("ascii", errors="replace").decode("ascii")
+
             self._platform_client._client.headers.update(
                 {
-                    "Authorization": f"Bearer {token}",
+                    "Authorization": f"Bearer {safe_token}",
                     "Accept": "application/json",
                     "Content-Type": "application/json",
                 }

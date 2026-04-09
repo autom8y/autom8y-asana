@@ -25,6 +25,7 @@ from autom8_asana.api.error_responses import (
 )
 from autom8_asana.api.models import (
     AsanaResource,
+    GidStr,
     PaginationMeta,
     SuccessResponse,
     build_success_response,
@@ -73,7 +74,7 @@ async def get_current_user(
     responses=entity_responses(),
 )
 async def get_user(
-    gid: str,
+    gid: GidStr,
     client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[AsanaResource]:
@@ -105,7 +106,7 @@ async def list_users(
     client: AsanaClientDualMode,
     request_id: RequestId,
     workspace: Annotated[
-        str,
+        GidStr,
         Query(description="Workspace GID to list users from"),
     ],
     limit: Annotated[

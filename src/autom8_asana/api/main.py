@@ -398,7 +398,6 @@ def create_app() -> FastAPI:
             "/api/v1/workspaces/*",
             "/api/v1/dataframes/*",
             "/api/v1/offers/*",
-            "/api/v1/workflows/*",
         ],
         audience="https://api.autom8y.io",
     )
@@ -537,6 +536,47 @@ def create_app() -> FastAPI:
                 operation = path_item.get(method)
                 if operation is None:
                     continue
+
+                # Inject 400 Bad Request (Mandate 3)
+                # Documentation-based for pydantic validation and SDK GidValidationError mapping
+                if "400" not in operation.get("responses", {}):
+                    operation.setdefault("responses", {})["400"] = {
+                        "description": "Bad Request (Validation Error)",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+                            }
+                        },
+                    }
+
+                # Inject 401/403 (Mandate 3) - Core security status codes
+                if "401" not in operation.get("responses", {}):
+                    operation.setdefault("responses", {})["401"] = {
+                        "description": "Unauthorized (Missing or Invalid Token)",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+                            }
+                        },
+                    }
+                if "403" not in operation.get("responses", {}):
+                    operation.setdefault("responses", {})["403"] = {
+                        "description": "Forbidden (Insufficient Permissions)",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+                            }
+                        },
+                    }
+                if "404" not in operation.get("responses", {}):
+                    operation.setdefault("responses", {})["404"] = {
+                        "description": "Not Found (Resource or Schema not found)",
+                        "content": {
+                            "application/json": {
+                                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+                            }
+                        },
+                    }
 
                 tags = set(operation.get("tags", []))
 

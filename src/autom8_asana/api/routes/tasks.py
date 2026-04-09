@@ -48,6 +48,8 @@ from autom8_asana.api.models import (
     AsanaResource,
     CreateTaskRequest,
     DuplicateTaskRequest,
+    GidStr,
+    ListTasksParams,
     MoveSectionRequest,
     PaginationMeta,
     SetAssigneeRequest,
@@ -80,27 +82,12 @@ async def list_tasks(
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
-    project: Annotated[
-        str | None,
-        Query(description="Project GID to list tasks from"),
-    ] = None,
-    section: Annotated[
-        str | None,
-        Query(description="Section GID to list tasks from"),
-    ] = None,
-    limit: Annotated[
-        int,
-        Query(ge=1, le=MAX_LIMIT, description="Number of items per page"),
-    ] = DEFAULT_LIMIT,
-    offset: Annotated[
-        str | None,
-        Query(description="Pagination cursor from previous response"),
-    ] = None,
+    params: Annotated[ListTasksParams, Query()],
 ) -> SuccessResponse[list[AsanaResource]]:
     """List tasks from a project or section with cursor-based pagination.
 
     Exactly one of ``project`` or ``section`` must be provided. Supplying
-    both or neither returns ``400 INVALID_PARAMETER``.
+    both or neither returns ``422 Unprocessable Entity`` (via Pydantic).
 
     Use ``offset`` from the previous response's ``meta.pagination.next_offset``
     to retrieve the next page. When ``has_more`` is false, you have reached
@@ -109,26 +96,28 @@ async def list_tasks(
     Requires Bearer token authentication (JWT or PAT).
 
     Args:
-        project: Project GID to list tasks from.
-        section: Section GID to list tasks from.
-        limit: Items per page (1–100, default 100).
-        offset: Pagination cursor from previous response.
+        params: Query parameters (project/section, limit, offset).
 
     Returns:
         Paginated list of tasks with ``gid``, ``name``, and task fields.
 
     Raises:
-        400: Neither project nor section provided, or both provided.
+        400: Business logic error from service layer.
+        422: Validation error if project/section rules are violated.
     """
     try:
         result = await task_service.list_tasks(
-            client, project=project, section=section, limit=limit, offset=offset
+            client,
+            project=params.project,
+            section=params.section,
+            limit=params.limit,
+            offset=params.offset,
         )
     except ServiceError as e:
         raise_service_error(request_id, e)
 
     pagination = PaginationMeta(
-        limit=limit,
+        limit=params.limit,
         has_more=result.has_more,
         next_offset=result.next_offset,
     )
@@ -148,7 +137,7 @@ async def list_tasks(
     responses=entity_responses(),
 )
 async def get_task(
-    gid: str,
+    gid: GidStr,
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
@@ -260,7 +249,7 @@ async def create_task(
     responses={**entity_responses(), **mutation_responses()},
 )
 async def update_task(
-    gid: str,
+    gid: GidStr,
     body: UpdateTaskRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
@@ -314,7 +303,7 @@ async def update_task(
     responses=entity_responses(),
 )
 async def delete_task(
-    gid: str,
+    gid: GidStr,
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
@@ -356,7 +345,7 @@ async def delete_task(
     responses=entity_responses(),
 )
 async def list_subtasks(
-    gid: str,
+    gid: GidStr,
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
@@ -415,7 +404,7 @@ async def list_subtasks(
     responses=entity_responses(),
 )
 async def list_dependents(
-    gid: str,
+    gid: GidStr,
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
@@ -476,7 +465,7 @@ async def list_dependents(
     responses={**entity_responses(), **mutation_responses()},
 )
 async def duplicate_task(
-    gid: str,
+    gid: GidStr,
     body: DuplicateTaskRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
@@ -523,7 +512,7 @@ async def duplicate_task(
     responses={**entity_responses(), **mutation_responses()},
 )
 async def add_tag(
-    gid: str,
+    gid: GidStr,
     body: AddTagRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
@@ -565,8 +554,8 @@ async def add_tag(
     response_model=SuccessResponse[AsanaResource],
 )
 async def remove_tag(
-    gid: str,
-    tag_gid: str,
+    gid: GidStr,
+    tag_gid: GidStr,
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,
@@ -610,7 +599,7 @@ async def remove_tag(
     response_model=SuccessResponse[AsanaResource],
 )
 async def move_to_section(
-    gid: str,
+    gid: GidStr,
     body: MoveSectionRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
@@ -656,7 +645,7 @@ async def move_to_section(
     response_model=SuccessResponse[AsanaResource],
 )
 async def set_assignee(
-    gid: str,
+    gid: GidStr,
     body: SetAssigneeRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
@@ -697,7 +686,7 @@ async def set_assignee(
     response_model=SuccessResponse[AsanaResource],
 )
 async def add_to_project(
-    gid: str,
+    gid: GidStr,
     body: AddToProjectRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
@@ -739,8 +728,8 @@ async def add_to_project(
     response_model=SuccessResponse[AsanaResource],
 )
 async def remove_from_project(
-    gid: str,
-    project_gid: str,
+    gid: GidStr,
+    project_gid: GidStr,
     client: AsanaClientDualMode,
     request_id: RequestId,
     task_service: TaskServiceDep,

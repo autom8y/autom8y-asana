@@ -17,6 +17,9 @@ from autom8y_log import get_logger
 from fastapi import BackgroundTasks, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from autom8_asana.api.dependencies import (
+    AuthContextDep,  # noqa: TC001 -- FastAPI resolves at runtime
+)
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
@@ -396,6 +399,7 @@ async def refresh_cache(
     request: Request,
     body: CacheRefreshRequest,
     background_tasks: BackgroundTasks,
+    auth: AuthContextDep,
     claims: ServiceClaims = Depends(require_service_claims),  # noqa: B008
 ) -> CacheRefreshResponse:
     """Trigger cache refresh for one or all entity types.

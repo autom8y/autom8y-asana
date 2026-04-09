@@ -1,49 +1,70 @@
 schema_version: "2.0"
-last_sync: 2026-04-04T14:50:28.620692Z
-active_rite: review
+last_sync: 2026-04-09T15:01:44.348796Z
+active_rite: hygiene
 entries:
+    .mcp.json:
+        owner: knossos
+        scope: rite
+        source_path: (generated)
+        source_type: template
+        checksum: sha256:5640f4f9381aba5c6eedb4b481d456462faeb1a56af91161bf17851e08dae94f
+        last_synced: 2026-04-09T15:01:44.333457Z
     ACTIVE_WORKFLOW.yaml:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/review/workflow.yaml
+        source_path: ../../../knossos/rites/hygiene/workflow.yaml
         source_type: knossos
-        checksum: sha256:e8eb7dd8b4ff5067f5fc1dfb2d8b345ffe2a75c90fae80ca8e237a258a56646b
-        last_synced: 2026-04-04T14:50:28.568066Z
+        checksum: sha256:d7c02a773132bba4955665d8e67b01a30020e763890e9382c4e6c8426c03527d
+        last_synced: 2026-04-09T15:01:44.343471Z
     CLAUDE.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/knossos/templates/CLAUDE.md.tpl
+        source_path: ../../../knossos/knossos/templates/CLAUDE.md.tpl
         source_type: template
-        checksum: sha256:10322b9053882703b8c36f3558c5a90e975a9d46bc99703eb50910a3f4bb98a0
-        last_synced: 2026-04-04T14:50:28.423319Z
+        checksum: sha256:bbb295a5a12b86c9eda2c3c4de08c0f55d0534786244ba4711de4c0b952f647f
+        last_synced: 2026-04-09T15:01:44.317995Z
     agents/.DS_Store:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/hygiene/agents/.DS_Store
+        source_path: ../../../knossos/rites/hygiene/agents/.DS_Store
         source_type: knossos
         checksum: sha256:d65165279105ca6773180500688df4bdc69a2c7b771752f0a46ef120b7fd8ec3
-        last_synced: 2026-03-24T23:30:36.061834Z
-    agents/case-reporter.md:
+        last_synced: 2026-04-09T15:01:42.88237Z
+    agents/architect-enforcer.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/review/agents/case-reporter.md
+        source_path: ../../../knossos/rites/hygiene/agents/architect-enforcer.md
         source_type: knossos
-        checksum: sha256:54bf93c27be3453cdceefe7d3c6b70d2cefda58ce1e7de9c41cf6ddc947942d5
-        last_synced: 2026-04-04T14:50:26.98764Z
-    agents/pattern-profiler.md:
+        checksum: sha256:83dcd965f37189bf4d5468e290eb744c627b55a581a35c8d6a4b3af7e2c4f859
+        last_synced: 2026-04-09T15:01:42.887479Z
+    agents/audit-lead.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/review/agents/pattern-profiler.md
+        source_path: ../../../knossos/rites/hygiene/agents/audit-lead.md
         source_type: knossos
-        checksum: sha256:51bc93e30cdab6e5dd97a14f2b0456af065c43b688c81539afa8b37ec589f541
-        last_synced: 2026-04-04T14:50:27.02533Z
+        checksum: sha256:dcfc2e76bac71337d86134d06bbe17471a53d24e4936d5c5b9d46e2eb1318916
+        last_synced: 2026-04-09T15:01:42.893401Z
+    agents/code-smeller.md:
+        owner: knossos
+        scope: rite
+        source_path: ../../../knossos/rites/hygiene/agents/code-smeller.md
+        source_type: knossos
+        checksum: sha256:e702cae4925297c7afb12b3e7b85fed2a65d0ddd25fc6d8318ecb197c73ecb7e
+        last_synced: 2026-04-09T15:01:42.900521Z
+    agents/janitor.md:
+        owner: knossos
+        scope: rite
+        source_path: ../../../knossos/rites/hygiene/agents/janitor.md
+        source_type: knossos
+        checksum: sha256:c8212450e9ef78ad83aa5db3aaccd8b08a8662bfe80a53f51b4df309c3912ab0
+        last_synced: 2026-04-09T15:01:42.905369Z
     agents/potnia.md:
         owner: knossos
         scope: rite
-        source_path: knossos/archetypes/orchestrator.md.tpl
-        source_type: archetype
-        checksum: sha256:f3abaa5ad2d9077dff3bfea11c5ffab601d284909206901c6afcb64e4837a7bc
-        last_synced: 2026-04-04T14:50:26.927591Z
+        source_path: ../../../knossos/rites/hygiene/agents/potnia.md
+        source_type: knossos
+        checksum: sha256:c92986a9cf01e4d028ed9cf7236b6af39a8ccf1e32e91fb1c1dbb25a50c7ec5a
+        last_synced: 2026-04-09T15:01:42.91042Z
     agents/pythia.md:
         owner: user
         scope: rite
@@ -51,342 +72,342 @@ entries:
         source_type: knossos
         checksum: sha256:43f0af73ac3f4a2f2356fc93491cd725a62ecd0f7839fc9d5a6c20f704b6cef9
         last_synced: 2026-03-05T10:21:23.122194Z
-    agents/signal-sifter.md:
+    commands/.gitkeep:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/review/agents/signal-sifter.md
-        source_type: knossos
-        checksum: sha256:4f4747e25e3d713f0353a7ed7601ab1e01f6a4e3669c6a6b577426a48ad333ee
-        last_synced: 2026-04-04T14:50:27.070276Z
+        source_path: ../../../knossos/rites/hygiene/mena/.gitkeep
+        source_type: project
+        checksum: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        last_synced: 2026-04-09T15:01:44.220417Z
     commands/10x.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/rite-switching/10x.dro.md
+        source_path: ../../../knossos/mena/rite-switching/10x.dro.md
         source_type: project
         checksum: sha256:b95eae4c9007e2848e7f606694e8005bbc9b53f618a6b65d12ebdf93400ff7ae
-        last_synced: 2026-04-04T14:50:28.096937Z
+        last_synced: 2026-04-09T15:01:44.205391Z
     commands/arch.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/rite-switching/arch.dro.md
+        source_path: ../../../knossos/mena/rite-switching/arch.dro.md
         source_type: project
         checksum: sha256:8b2a3adae14b9e3181840a28f6e593947130de34d4e84289bfc1c0243c8411b2
-        last_synced: 2026-04-04T14:50:28.10463Z
+        last_synced: 2026-04-09T15:01:44.275394Z
     commands/architect.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/operations/architect.dro.md
+        source_path: ../../../knossos/mena/operations/architect.dro.md
         source_type: project
         checksum: sha256:a159a027f96ae9cae443a8234a0fb5715815538ba4e26e940cb3c4911b611247
-        last_synced: 2026-04-04T14:50:28.104346Z
+        last_synced: 2026-04-09T15:01:44.270418Z
     commands/build.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/operations/build.dro.md
+        source_path: ../../../knossos/mena/operations/build.dro.md
         source_type: project
         checksum: sha256:46059009ba31d32b78a251bef1246c4353321afe51df7bc85787273af2464741
-        last_synced: 2026-04-04T14:50:28.096827Z
+        last_synced: 2026-04-09T15:01:44.200479Z
     commands/code-review/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/operations/code-review
+        source_path: ../../../knossos/mena/operations/code-review
         source_type: project
         checksum: sha256:ef269f2fbc1b105ff4802eb34d07d26cb61825f75924962c510187c12989f326
-        last_synced: 2026-04-04T14:50:28.040457Z
+        last_synced: 2026-04-09T15:01:42.936867Z
     commands/commit/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/operations/commit
+        source_path: ../../../knossos/mena/operations/commit
         source_type: project
         checksum: sha256:d90d623437d7bbb6ca7b8815f5c656b3d1c08bb0173986a37027667ba606cc1a
-        last_synced: 2026-04-04T14:50:27.583077Z
+        last_synced: 2026-04-09T15:01:43.764532Z
     commands/consult/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/navigation/consult
+        source_path: ../../../knossos/mena/navigation/consult
         source_type: project
         checksum: sha256:e414bff621ac5640fe978f9361daa6aaee401f95a5c3f090315a1dbb4871b928
-        last_synced: 2026-04-04T14:50:27.351748Z
+        last_synced: 2026-04-09T15:01:43.997902Z
     commands/debt.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/rite-switching/debt.dro.md
+        source_path: ../../../knossos/mena/rite-switching/debt.dro.md
         source_type: project
         checksum: sha256:1d16620b2c3bf4eafdb9e0ea284d4becf760642f2fee36d899e2a1a8ae0c5e2c
-        last_synced: 2026-04-04T14:50:28.096484Z
+        last_synced: 2026-04-09T15:01:44.295445Z
     commands/dion/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/dion
+        source_path: ../../../knossos/mena/dion
         source_type: project
         checksum: sha256:8c0e02fb1627a182584f739ce1471fef674efbe48228c1044a17247749dabffd
-        last_synced: 2026-04-04T14:50:27.32295Z
+        last_synced: 2026-04-09T15:01:43.920201Z
     commands/discover/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/discover
+        source_path: ../../../knossos/mena/discover
         source_type: project
         checksum: sha256:fbdf2e018720b219bd2b2cde8b42e4a20ed82da87beb0b8c088d6802419b9cd1
-        last_synced: 2026-04-04T14:50:27.451767Z
+        last_synced: 2026-04-09T15:01:43.97818Z
     commands/docs.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/rite-switching/docs.dro.md
+        source_path: ../../../knossos/mena/rite-switching/docs.dro.md
         source_type: project
         checksum: sha256:49895c66e70c85b94fd43509a706681b4b738ee9723be21eedcf22512eea08b4
-        last_synced: 2026-04-04T14:50:28.106031Z
+        last_synced: 2026-04-09T15:01:44.210462Z
     commands/ecosystem.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/navigation/ecosystem.dro.md
+        source_path: ../../../knossos/mena/navigation/ecosystem.dro.md
         source_type: project
         checksum: sha256:d5d7772697ed780b8dea7f0402c573c67006bab6e0b4497f5d0d22956f8c5fed
-        last_synced: 2026-04-04T14:50:28.103918Z
+        last_synced: 2026-04-09T15:01:44.195367Z
     commands/forge.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/rite-switching/forge.dro.md
+        source_path: ../../../knossos/mena/rite-switching/forge.dro.md
         source_type: project
         checksum: sha256:97035e92b47261b5a1496121f98d8dd88aab6a89d4c75109b1683b1a4275c11a
-        last_synced: 2026-04-04T14:50:28.097048Z
+        last_synced: 2026-04-09T15:01:44.290577Z
     commands/frame/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/frame
+        source_path: ../../../knossos/mena/frame
         source_type: project
         checksum: sha256:c662c8ca5df4d9a682ceecc330c91f54dc2b4aaeecd9dd5b48e6c70f389d5f66
-        last_synced: 2026-04-04T14:50:27.321973Z
+        last_synced: 2026-04-09T15:01:43.991263Z
     commands/fray/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/session/fray
+        source_path: ../../../knossos/mena/session/fray
         source_type: project
         checksum: sha256:c17cc2955111f340f7aaf4b45fbd2fbab3992871f7ec6e40ab995d01977277cb
-        last_synced: 2026-04-04T14:50:28.092766Z
+        last_synced: 2026-04-09T15:01:44.109188Z
     commands/go.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/navigation/go.dro.md
+        source_path: ../../../knossos/mena/navigation/go.dro.md
         source_type: project
         checksum: sha256:8a3c84ab990ea2eae0ebd823373b03eb23c55e19712e30e72492c3ea19f5278a
-        last_synced: 2026-04-04T14:50:28.105718Z
+        last_synced: 2026-04-09T15:01:44.285421Z
     commands/handoff/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/session/handoff
+        source_path: ../../../knossos/mena/session/handoff
         source_type: project
         checksum: sha256:70b4ff5f85c46da7a2cf9261c290ecd89091660f798a7922f19e24cb4201a1d0
-        last_synced: 2026-04-04T14:50:27.328501Z
+        last_synced: 2026-04-09T15:01:43.832612Z
     commands/hotfix/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/workflow/hotfix
+        source_path: ../../../knossos/mena/workflow/hotfix
         source_type: project
         checksum: sha256:9d15f94c4e214a37aa0a21aa9098f7feac61a3542ec00bb6edcd77b448df7e95
-        last_synced: 2026-04-04T14:50:27.44809Z
-    commands/hygiene.md:
+        last_synced: 2026-04-09T15:01:43.816372Z
+    commands/hygiene/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/rite-switching/hygiene.dro.md
+        source_path: ../../../knossos/rites/hygiene/mena/hygiene-switch
         source_type: project
-        checksum: sha256:84488a192d533c14086c719825ac3f89edcb90d44cf8feb30ccb2f00e30042fc
-        last_synced: 2026-04-04T14:50:28.098004Z
+        checksum: sha256:e71fdff78986d48a63080b6026ddcc5bfa6a6ba6ec50f329b9035ecd5172ef3b
+        last_synced: 2026-04-09T15:01:43.269641Z
     commands/intelligence.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/rite-switching/intelligence.dro.md
+        source_path: ../../../knossos/mena/rite-switching/intelligence.dro.md
         source_type: project
         checksum: sha256:3efcee616f4836ec06f3451fee94fc5e7e4576ac41eb85ea4f9594d5c5dcdb36
-        last_synced: 2026-04-04T14:50:28.104769Z
+        last_synced: 2026-04-09T15:01:44.265358Z
     commands/interview/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/interview
+        source_path: ../../../knossos/rites/shared/mena/interview
         source_type: project
         checksum: sha256:8992ca0823977293c6420142f469e137553091f0a7494360e0d3f420cc0cef34
-        last_synced: 2026-04-04T14:50:27.438131Z
+        last_synced: 2026-04-09T15:01:43.660661Z
     commands/know/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/know
+        source_path: ../../../knossos/mena/know
         source_type: project
         checksum: sha256:d5531f55d4c4b4bbdfd59e355c5db67526465eb76428622e3b9950bbb72d033b
-        last_synced: 2026-04-04T14:50:27.343751Z
+        last_synced: 2026-04-09T15:01:44.089055Z
     commands/land/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/land
+        source_path: ../../../knossos/mena/land
         source_type: project
         checksum: sha256:624e11f2392233bf668a6b677c5486fa3dd141aa09c7bb3576eafbeab7941953
-        last_synced: 2026-04-04T14:50:27.335678Z
+        last_synced: 2026-04-09T15:01:42.948358Z
     commands/minus-1.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/meta/minus-1.dro.md
+        source_path: ../../../knossos/mena/meta/minus-1.dro.md
         source_type: project
         checksum: sha256:a587a6c46ae5d2ea9084c6bddc34c684d0bbfbdcb6bab841d8b087c705977fcf
-        last_synced: 2026-04-04T14:50:28.105395Z
+        last_synced: 2026-04-09T15:01:44.181432Z
     commands/naxos/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/session/naxos
+        source_path: ../../../knossos/mena/session/naxos
         source_type: project
         checksum: sha256:88d566ae76ee29cfbb255988a5dfb35f10c0361365ca40db9c7aac2c2a3ac962
-        last_synced: 2026-04-04T14:50:27.451295Z
+        last_synced: 2026-04-09T15:01:44.00397Z
     commands/one.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/meta/one.dro.md
+        source_path: ../../../knossos/mena/meta/one.dro.md
         source_type: project
         checksum: sha256:5a892a628b28a3d4ac362f143035010b8273967296e0dbe0962870adc8f6d9ab
-        last_synced: 2026-04-04T14:50:28.096739Z
+        last_synced: 2026-04-09T15:01:44.245318Z
     commands/pr/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/operations/pr
+        source_path: ../../../knossos/mena/operations/pr
         source_type: project
         checksum: sha256:1e6b779b01da5091c93e65de6996e9152bfc3827a8bf67da08dc743d7e026670
-        last_synced: 2026-04-04T14:50:27.324247Z
+        last_synced: 2026-04-09T15:01:43.728549Z
     commands/procession/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/procession
+        source_path: ../../../knossos/mena/procession
         source_type: project
         checksum: sha256:6688a37445d3b9b6fe9cba6b479b1f4b41904d3fc602d3d6a94850fcb81e643a
-        last_synced: 2026-04-04T14:50:27.337104Z
+        last_synced: 2026-04-09T15:01:43.670444Z
     commands/qa/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/operations/qa
+        source_path: ../../../knossos/mena/operations/qa
         source_type: project
         checksum: sha256:1e001e4ab301a5982b7220d25916d4db11f8243ad5aff1b27045093a5e0e5d41
-        last_synced: 2026-04-04T14:50:27.340559Z
+        last_synced: 2026-04-09T15:01:44.003596Z
     commands/radar/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/radar
+        source_path: ../../../knossos/mena/radar
         source_type: project
         checksum: sha256:c831b2d4e1714c0125f621d8a626cb8cb0abc2d2015b2a14b4872b135603bbda
-        last_synced: 2026-04-04T14:50:27.50023Z
+        last_synced: 2026-04-09T15:01:43.405455Z
     commands/reflect/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/reflect
+        source_path: ../../../knossos/mena/reflect
         source_type: project
         checksum: sha256:7754b31ce49cf9663685c4cd8ec79a3df0ad1830d4ac104c2e8e08fdbc8cdeb4
-        last_synced: 2026-04-04T14:50:27.460084Z
+        last_synced: 2026-04-09T15:01:43.565777Z
     commands/research/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/research
+        source_path: ../../../knossos/mena/research
         source_type: project
         checksum: sha256:763377f2d41dfcc8d3735f703e3c9fb7f134f2e4736f354aa1a22eab7dac2de2
-        last_synced: 2026-04-04T14:50:28.084389Z
-    commands/review/:
+        last_synced: 2026-04-09T15:01:44.176171Z
+    commands/rite-switching/hygiene.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/review/mena/review-switch
+        source_path: ../../../knossos/mena/rite-switching/hygiene.dro.md
         source_type: project
-        checksum: sha256:bddf6c1a47e074a13b8f78c1b309a22409c9139aa86a3353e053ce13422ac459
-        last_synced: 2026-04-04T14:50:27.5794Z
+        checksum: sha256:84488a192d533c14086c719825ac3f89edcb90d44cf8feb30ccb2f00e30042fc
+        last_synced: 2026-04-09T15:01:44.225501Z
     commands/rite.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/navigation/rite.dro.md
+        source_path: ../../../knossos/mena/navigation/rite.dro.md
         source_type: project
         checksum: sha256:239af514cb9402471b6df8a6d36a4f7455144838aca6624552efdf97e269335a
-        last_synced: 2026-04-04T14:50:28.104221Z
+        last_synced: 2026-04-09T15:01:44.260494Z
     commands/rnd.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/rite-switching/rnd.dro.md
+        source_path: ../../../knossos/mena/rite-switching/rnd.dro.md
         source_type: project
         checksum: sha256:c13612b19ecfde592916e359a00ef38985ad2d6e44c2619c62be1447eb562b7b
-        last_synced: 2026-04-04T14:50:28.09835Z
+        last_synced: 2026-04-09T15:01:44.280544Z
     commands/security.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/rite-switching/security.dro.md
+        source_path: ../../../knossos/mena/rite-switching/security.dro.md
         source_type: project
         checksum: sha256:cdada97120ade391fd3952f7f4e564fc3a32d4d44b29eec55aa0bd37e2ea47c9
-        last_synced: 2026-04-04T14:50:28.104906Z
+        last_synced: 2026-04-09T15:01:44.230468Z
     commands/sessions.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/navigation/sessions.dro.md
+        source_path: ../../../knossos/mena/navigation/sessions.dro.md
         source_type: project
         checksum: sha256:909cd831b1145aa3548f6782b74f6aaef1d9ab7069b8c7e84fb622e4fa6bb2ba
-        last_synced: 2026-04-04T14:50:28.09624Z
+        last_synced: 2026-04-09T15:01:44.186322Z
     commands/shape/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/shape
+        source_path: ../../../knossos/mena/shape
         source_type: project
         checksum: sha256:4c8de90b34037ee8c7cb13bcf5fe762e010f1360c823f0ac369741596d38346f
-        last_synced: 2026-04-04T14:50:28.094211Z
+        last_synced: 2026-04-09T15:01:43.978808Z
     commands/slop-chop.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/rite-switching/slop-chop.dro.md
+        source_path: ../../../knossos/mena/rite-switching/slop-chop.dro.md
         source_type: project
         checksum: sha256:a644802b9bff2e74adbdb9800c01d21cad5ead27eeff3967f49166906e22c4d1
-        last_synced: 2026-04-04T14:50:28.096378Z
+        last_synced: 2026-04-09T15:01:44.255339Z
     commands/sos/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/session/sos
+        source_path: ../../../knossos/mena/session/sos
         source_type: project
-        checksum: sha256:b32195d1c9036ec95e921cbb4d8cd22afc1250ad886fa18998fd8d2f9dd2108f
-        last_synced: 2026-04-04T14:50:27.580887Z
+        checksum: sha256:34bb9a5348f96ca60cd222f057eb13fc3f767864b4db391728a354745cb83b3c
+        last_synced: 2026-04-09T15:01:42.94756Z
     commands/spike/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/operations/spike
+        source_path: ../../../knossos/mena/operations/spike
         source_type: project
         checksum: sha256:fa48fafc4ac50d29b1ee33765fe64724a598298c46aac1dfeaf3f63eeb2ea1d2
-        last_synced: 2026-04-04T14:50:27.496226Z
+        last_synced: 2026-04-09T15:01:44.175542Z
     commands/sprint.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/workflow/sprint.dro.md
+        source_path: ../../../knossos/mena/workflow/sprint.dro.md
         source_type: project
         checksum: sha256:af3e403baa7b73290f0e519e6dd1fd380ab4a0c22e500718e9bcf8007fbaef02
-        last_synced: 2026-04-04T14:50:28.105257Z
+        last_synced: 2026-04-09T15:01:44.235361Z
     commands/sre.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/rite-switching/sre.dro.md
+        source_path: ../../../knossos/mena/rite-switching/sre.dro.md
         source_type: project
         checksum: sha256:de1ca09a3dbf0414a9b5c505edbd841dae61c1b60ac4bfc9d433335be00f2da7
-        last_synced: 2026-04-04T14:50:28.105066Z
+        last_synced: 2026-04-09T15:01:44.300494Z
     commands/strategy.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/rite-switching/strategy.dro.md
+        source_path: ../../../knossos/mena/rite-switching/strategy.dro.md
         source_type: project
         checksum: sha256:7a2cce29f13d9f4bef8bcaba0589947e9bfbf413cf8b164e56118bf1d137c223
-        last_synced: 2026-04-04T14:50:28.105886Z
+        last_synced: 2026-04-09T15:01:44.190428Z
     commands/sync.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/cem/sync.dro.md
+        source_path: ../../../knossos/mena/cem/sync.dro.md
         source_type: project
         checksum: sha256:34ddbb659febc50bc4c88a85d33ac023f6f1f6b9d13622120f569aab93843ad9
-        last_synced: 2026-04-04T14:50:28.106448Z
+        last_synced: 2026-04-09T15:01:44.225361Z
     commands/task.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/workflow/task.dro.md
+        source_path: ../../../knossos/mena/workflow/task.dro.md
         source_type: project
         checksum: sha256:4bd2071136db9af1592bf1a764f95542778a16276342825a3b80b8372e3e59b6
-        last_synced: 2026-04-04T14:50:28.09891Z
+        last_synced: 2026-04-09T15:01:44.215396Z
     commands/workflow/sprint-parallel-worktrees.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/workflow/sprint-parallel-worktrees.md
+        source_path: ../../../knossos/mena/workflow/sprint-parallel-worktrees.md
         source_type: project
         checksum: sha256:3f15ce958706b569f2317161fbf035fd90a913fae849829ea1009db00ee7d4fe
-        last_synced: 2026-04-04T14:50:28.104478Z
+        last_synced: 2026-04-09T15:01:44.240413Z
     commands/workflow/sprint.md:
         owner: user
         scope: rite
@@ -404,301 +425,308 @@ entries:
     commands/worktree/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/navigation/worktree
+        source_path: ../../../knossos/mena/navigation/worktree
         source_type: project
         checksum: sha256:aa465d57aab392d502f8d2ac415b6f746f3f3f4e3e1255655e376c753e7d444a
-        last_synced: 2026-04-04T14:50:27.512975Z
+        last_synced: 2026-04-09T15:01:44.108739Z
     commands/zero.md:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/meta/zero.dro.md
+        source_path: ../../../knossos/mena/meta/zero.dro.md
         source_type: project
         checksum: sha256:5b7bdf7b78f1cb31b99d49cb57c9d28c06c305be61db8b3ed5844763d8700f7f
-        last_synced: 2026-04-04T14:50:28.097184Z
+        last_synced: 2026-04-09T15:01:44.250451Z
     settings.local.json:
         owner: knossos
         scope: rite
         source_path: (generated)
         source_type: config
-        checksum: sha256:9ac4c84eb49cd27e2534142299fa0aa1f7ad66be3c397e529c076ec3e51fd29d
-        last_synced: 2026-04-04T14:50:28.428274Z
+        checksum: sha256:64ffd1dedd95fcde7a2151fcedc66b96216667a6a8b5fc8b9954c066c09e83ee
+        last_synced: 2026-04-09T15:01:44.323558Z
     skills/assessment-methodology/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/assessment-methodology
+        source_path: ../../../knossos/rites/shared/mena/assessment-methodology
         source_type: project
         checksum: sha256:8ce6ecd26f0f1c3be5d3a85b5c66e4ca6d667a3f777fc015013ab6bac60b7ca8
-        last_synced: 2026-04-04T14:50:27.493161Z
+        last_synced: 2026-04-09T15:01:43.394343Z
     skills/avatar-assembly-line-ref/:
         owner: knossos
         scope: rite
         source_path: .knossos/procession-mena/avatar-assembly-line-ref
         source_type: project
         checksum: sha256:53fc35a7d262a6f2de99c903b7ea27b157cb397936d2a685cf689c5460504780
-        last_synced: 2026-04-04T14:50:27.45233Z
+        last_synced: 2026-04-09T15:01:43.415286Z
     skills/citation-format-standard/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/citation-format-standard
+        source_path: ../../../knossos/rites/shared/mena/citation-format-standard
         source_type: project
         checksum: sha256:9b30cff9b72305a9408f3c3fd2b454d0e7b90f3a3d7efee537a6bc965770d78c
-        last_synced: 2026-04-04T14:50:27.458604Z
+        last_synced: 2026-04-09T15:01:43.384309Z
     skills/collaboration-methodology/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/collaboration-methodology
+        source_path: ../../../knossos/rites/shared/mena/collaboration-methodology
         source_type: project
         checksum: sha256:438ec2048b2d2496dc185c608c58aaefb720536e2e155f824dcf0dad04d3991d
-        last_synced: 2026-04-04T14:50:27.503212Z
+        last_synced: 2026-04-09T15:01:43.529409Z
     skills/complaint-filing/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/complaint-filing
+        source_path: ../../../knossos/rites/shared/mena/complaint-filing
         source_type: project
         checksum: sha256:f8ae590634537fa241b131dbe8f9a4353991d9de3ae4c22d168113f23537aaa9
-        last_synced: 2026-04-04T14:50:27.490928Z
+        last_synced: 2026-04-09T15:01:43.334529Z
     skills/context-engineering/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/context-engineering
+        source_path: ../../../knossos/rites/shared/mena/context-engineering
         source_type: project
         checksum: sha256:26ab2a5994f494f0f0b777cd9f69196e256c87c93f30c1098505283a12b33bed
-        last_synced: 2026-04-04T14:50:27.347094Z
+        last_synced: 2026-04-09T15:01:42.999554Z
     skills/conventions/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/conventions
+        source_path: ../../../knossos/mena/conventions
         source_type: project
         checksum: sha256:409a5da0a29279a3b929db7bed79332db98492d3fc2937e781c3161fdfa831e4
-        last_synced: 2026-04-04T14:50:27.579935Z
+        last_synced: 2026-04-09T15:01:43.389447Z
     skills/cross-rite-handoff/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/cross-rite-handoff
+        source_path: ../../../knossos/rites/shared/mena/cross-rite-handoff
         source_type: project
         checksum: sha256:1dbd2f71b224eae0230a3cf70d6995b6aa02eadf15da7b3ba7089b4d47b59a22
-        last_synced: 2026-04-04T14:50:28.096132Z
+        last_synced: 2026-04-09T15:01:43.714573Z
     skills/ephemeral-artifacts/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/ephemeral-artifacts
+        source_path: ../../../knossos/mena/ephemeral-artifacts
         source_type: project
         checksum: sha256:4bb8cafcc349f32b15761a62a9afe6ca3a944593630038a8edc49f73a612e60f
-        last_synced: 2026-04-04T14:50:27.337828Z
+        last_synced: 2026-04-09T15:01:43.57635Z
     skills/evidence-grade-vocabulary/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/evidence-grade-vocabulary
+        source_path: ../../../knossos/rites/shared/mena/evidence-grade-vocabulary
         source_type: project
         checksum: sha256:5e91b0838195fb84a32a3754b7f900b0617833c32398a3c8614669e481c770d0
-        last_synced: 2026-04-04T14:50:28.034031Z
+        last_synced: 2026-04-09T15:01:43.990561Z
     skills/feat-knowledge/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/feat-knowledge
+        source_path: ../../../knossos/mena/feat-knowledge
         source_type: project
         checksum: sha256:3c83bafc987edd3204bb6efce04b87c7e062a9732504eda41aac76dc35476810
-        last_synced: 2026-04-04T14:50:27.344491Z
+        last_synced: 2026-04-09T15:01:43.523315Z
     skills/guidance/cross-rite/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/guidance/cross-rite
+        source_path: ../../../knossos/mena/guidance/cross-rite
         source_type: project
         checksum: sha256:a26ecddc323652b164ba11b696a11968f9e264eec3161b36302be17f334825aa
-        last_synced: 2026-04-04T14:50:28.082692Z
+        last_synced: 2026-04-09T15:01:43.80464Z
     skills/guidance/file-verification/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/guidance/file-verification
+        source_path: ../../../knossos/mena/guidance/file-verification
         source_type: project
         checksum: sha256:b748bbd41ccb8f55fc6182dcfc8eba4945ee0827208a30ec9e3ec015977a4a7a
-        last_synced: 2026-04-04T14:50:27.490594Z
+        last_synced: 2026-04-09T15:01:43.919483Z
     skills/guidance/lexicon/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/guidance/lexicon
+        source_path: ../../../knossos/mena/guidance/lexicon
         source_type: project
         checksum: sha256:1d603aa7630bbad38320fca7c7fefa2085f0f873823a5b5fc12c0c3bfcccfd4c
-        last_synced: 2026-04-04T14:50:27.492255Z
+        last_synced: 2026-04-09T15:01:43.690549Z
     skills/guidance/prompting/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/guidance/prompting
+        source_path: ../../../knossos/mena/guidance/prompting
         source_type: project
         checksum: sha256:0fb033d9cf243f88a1ae0abce539ff39c91bc042d9dc8a1f169e174cd6e94fee
-        last_synced: 2026-04-04T14:50:27.505733Z
+        last_synced: 2026-04-09T15:01:43.89302Z
     skills/guidance/rite-discovery/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/guidance/rite-discovery
+        source_path: ../../../knossos/mena/guidance/rite-discovery
         source_type: project
         checksum: sha256:f107b74764292621fcddab94bf97d3d9f90c81ad5bf14639dbab298c0d0915ce
-        last_synced: 2026-04-04T14:50:27.320555Z
+        last_synced: 2026-04-09T15:01:43.299684Z
     skills/guidance/standards/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/guidance/standards
+        source_path: ../../../knossos/mena/guidance/standards
         source_type: project
         checksum: sha256:1bcf3209b60d5ea1b5bc4d832060f102857f03c6fcb0bd28e70642dc9d494e8e
-        last_synced: 2026-04-04T14:50:28.090294Z
+        last_synced: 2026-04-09T15:01:43.378611Z
+    skills/hygiene-catalog/:
+        owner: knossos
+        scope: rite
+        source_path: ../../../knossos/rites/hygiene/mena/hygiene-catalog
+        source_type: project
+        checksum: sha256:7fdc4f80bfa1c0d41e5fb29245f3489fd92b8a1bb65d65defb1d852a7fbc446d
+        last_synced: 2026-04-09T15:01:42.937369Z
+    skills/hygiene-ref/:
+        owner: knossos
+        scope: rite
+        source_path: ../../../knossos/rites/hygiene/mena/hygiene-ref
+        source_type: project
+        checksum: sha256:a9f828fafb9280ff629a93f0b35ded043a1a6089fdf7ef13f3362ee7333a003d
+        last_synced: 2026-04-09T15:01:43.929517Z
     skills/inquisition-ref/:
         owner: knossos
         scope: rite
         source_path: .knossos/procession-mena/inquisition-ref
         source_type: project
         checksum: sha256:4ccf1592f1909c001c4ccc40c43f08479225c96cbe9706c189b4ac8d2f3392bf
-        last_synced: 2026-04-04T14:50:28.077812Z
+        last_synced: 2026-04-09T15:01:43.924577Z
     skills/know-candidate-protocol/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/know-candidate-protocol
+        source_path: ../../../knossos/rites/shared/mena/know-candidate-protocol
         source_type: project
         checksum: sha256:4186ce8d22c4d1e1387e5fd74412829d86f005306b4241204c22d35580a1b3d4
-        last_synced: 2026-04-04T14:50:28.034613Z
+        last_synced: 2026-04-09T15:01:43.30448Z
     skills/knowledge-assembly-line-ref/:
         owner: knossos
         scope: rite
         source_path: .knossos/procession-mena/knowledge-assembly-line-ref
         source_type: project
         checksum: sha256:58b02077792224f2548b5d3045ea8e832a974ccca4cd528ae2c274933982bd5a
-        last_synced: 2026-04-04T14:50:27.337336Z
+        last_synced: 2026-04-09T15:01:43.004499Z
     skills/literature-review/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/literature-review
+        source_path: ../../../knossos/mena/literature-review
         source_type: project
         checksum: sha256:b4b62857ca88a6d3e42e5859b2cc918fd659e2db74ae7a2ef20eed48f3826979
-        last_synced: 2026-04-04T14:50:27.44935Z
+        last_synced: 2026-04-09T15:01:43.753566Z
     skills/orchestrator-antipatterns/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/orchestrator-antipatterns
+        source_path: ../../../knossos/rites/shared/mena/orchestrator-antipatterns
         source_type: project
         checksum: sha256:52db15c5199f3044244130b8626024ae0ca52891f9dd63f39dcb394b1bca91fe
-        last_synced: 2026-04-04T14:50:27.320781Z
+        last_synced: 2026-04-09T15:01:43.410363Z
     skills/orchestrator-templates/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/orchestrator-templates
+        source_path: ../../../knossos/rites/shared/mena/orchestrator-templates
         source_type: project
         checksum: sha256:b9c4ad4f9a4700d9240a915305139382a38a0e430c0af2194fd724b3a6594e52
-        last_synced: 2026-04-04T14:50:27.457803Z
+        last_synced: 2026-04-09T15:01:43.288767Z
     skills/pinakes/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/pinakes
+        source_path: ../../../knossos/mena/pinakes
         source_type: project
-        checksum: sha256:d597968a2e63b1eafa8d61a0556e3e31a03de9f3621b2a816d7ecceade9774d7
-        last_synced: 2026-04-04T14:50:27.490273Z
+        checksum: sha256:dda0ade78d407f11fd9ded7a80bd07303f9d8b06321abb6823eed77aa3ccd81a
+        last_synced: 2026-04-09T15:01:43.265005Z
     skills/procession-ref/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/procession-ref
+        source_path: ../../../knossos/rites/shared/mena/procession-ref
         source_type: project
         checksum: sha256:5bdc3861b07ea64f3de1c67f466f3487cdf66b7ce5345b2dcd7e3e7b5bc94c5e
-        last_synced: 2026-04-04T14:50:27.325687Z
+        last_synced: 2026-04-09T15:01:43.435361Z
     skills/retrospective-template/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/retrospective-template
+        source_path: ../../../knossos/rites/shared/mena/retrospective-template
         source_type: project
         checksum: sha256:db07f6d68eb10156e7c5c4b3db3fda73b8bf00fd3523336532dbfc210a309613
-        last_synced: 2026-04-04T14:50:27.456535Z
-    skills/review-ref/:
-        owner: knossos
-        scope: rite
-        source_path: ../../../../Code/knossos/rites/review/mena/review-ref
-        source_type: project
-        checksum: sha256:261b401efd851dfd9085903e1c3f9d72682bab4c8897b88a07a9725cf63224ed
-        last_synced: 2026-04-04T14:50:28.029598Z
+        last_synced: 2026-04-09T15:01:43.564437Z
     skills/security-remediation-ref/:
         owner: knossos
         scope: rite
         source_path: .knossos/procession-mena/security-remediation-ref
         source_type: project
         checksum: sha256:f4721383fcd0fe327af9d99c95727c9e784fe90776996f519f3c3c85aed7de01
-        last_synced: 2026-04-04T14:50:27.336201Z
+        last_synced: 2026-04-09T15:01:43.570497Z
     skills/session/common/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/session/common
+        source_path: ../../../knossos/mena/session/common
         source_type: project
         checksum: sha256:44167886554987757f30f7a961d3c6093ddd026a068bf91b6b04763ab1deb318
-        last_synced: 2026-04-04T14:50:27.333306Z
+        last_synced: 2026-04-09T15:01:43.977808Z
     skills/session/moirai/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/session/moirai
+        source_path: ../../../knossos/mena/session/moirai
         source_type: project
-        checksum: sha256:1f5adedb5ab5702d566ed9a31b7ea16ff5e1fb9ea09d54f3890ffe5ebe62eefd
-        last_synced: 2026-04-04T14:50:27.346451Z
+        checksum: sha256:1d1d3d08f0a99dba9918d09ad6fcbaa6184b9b724aef5d830de79d9f1c7dbc72
+        last_synced: 2026-04-09T15:01:43.91369Z
     skills/session/shared/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/session/shared
+        source_path: ../../../knossos/mena/session/shared
         source_type: project
         checksum: sha256:860a3c823f868e3370f937cc712271c1791ee7fc55ef0cd9bc06dcd5be1a5268
-        last_synced: 2026-04-04T14:50:27.334881Z
+        last_synced: 2026-04-09T15:01:42.993827Z
     skills/shape-schema/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/shape-schema
+        source_path: ../../../knossos/mena/shape-schema
         source_type: project
         checksum: sha256:95741ba84d7ab25478b29991423db2b51ba601338a5ce22d6b74d834ecfec0a6
-        last_synced: 2026-04-04T14:50:27.50269Z
+        last_synced: 2026-04-09T15:01:43.639951Z
     skills/shared-templates/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/shared-templates
+        source_path: ../../../knossos/rites/shared/mena/shared-templates
         source_type: project
         checksum: sha256:74ed69d4b5f1039e0442894c55153af89424757cd2c2dcdef7357c20a84177ef
-        last_synced: 2026-04-04T14:50:27.511416Z
+        last_synced: 2026-04-09T15:01:44.150925Z
     skills/smell-detection/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/smell-detection
+        source_path: ../../../knossos/rites/shared/mena/smell-detection
         source_type: project
         checksum: sha256:dc030fe0bb3665579ae835b1459d72f31fce7e63b8d55aeb7b1917e8cba2cae9
-        last_synced: 2026-04-04T14:50:27.447215Z
+        last_synced: 2026-04-09T15:01:44.086165Z
     skills/systems-thinking/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/systems-thinking
+        source_path: ../../../knossos/rites/shared/mena/systems-thinking
         source_type: project
         checksum: sha256:e6fa581a89e62a31672168b80675b010c587a17469cda933047ce955018766fc
-        last_synced: 2026-04-04T14:50:27.31992Z
+        last_synced: 2026-04-09T15:01:43.984466Z
     skills/templates/atuin-desktop/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/templates/atuin-desktop
+        source_path: ../../../knossos/mena/templates/atuin-desktop
         source_type: project
         checksum: sha256:f2114464e6225c2571a475cee16e3172b326776ac0ce094aed6732b18d11e357
-        last_synced: 2026-04-04T14:50:27.349876Z
+        last_synced: 2026-04-09T15:01:43.050948Z
     skills/templates/doc-artifacts/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/templates/doc-artifacts
+        source_path: ../../../knossos/mena/templates/doc-artifacts
         source_type: project
         checksum: sha256:6316101427f7945abd14a3e5423b34ebb9e01804613cac7b08de4b21047fe5be
-        last_synced: 2026-04-04T14:50:27.454243Z
+        last_synced: 2026-04-09T15:01:43.329802Z
     skills/templates/documentation/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/templates/documentation
+        source_path: ../../../knossos/mena/templates/documentation
         source_type: project
         checksum: sha256:bccac90eb0f019608999f81a8e3da116106455ced1bd3a113ee57185745faf5e
-        last_synced: 2026-04-04T14:50:27.450733Z
+        last_synced: 2026-04-09T15:01:44.013748Z
     skills/templates/justfile/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/mena/templates/justfile
+        source_path: ../../../knossos/mena/templates/justfile
         source_type: project
         checksum: sha256:60d2ae629ba6583f33d9e2df3e54d79d24348fb81e64909d89ddebcd971a61ac
-        last_synced: 2026-04-04T14:50:28.033411Z
+        last_synced: 2026-04-09T15:01:43.518652Z
     skills/triage-scoring/:
         owner: knossos
         scope: rite
-        source_path: ../../../../Code/knossos/rites/shared/mena/triage-scoring
+        source_path: ../../../knossos/rites/shared/mena/triage-scoring
         source_type: project
         checksum: sha256:7bcb1e22ee143bb6253e796a5030581c8cae7112fb862a2979f31d1e0ff67271
-        last_synced: 2026-04-04T14:50:27.494638Z
+        last_synced: 2026-04-09T15:01:43.539481Z

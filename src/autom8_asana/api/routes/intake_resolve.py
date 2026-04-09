@@ -66,7 +66,7 @@ router = s2s_router(prefix="/v1", tags=["intake-resolve"], include_in_schema=Fal
 async def resolve_business(
     body: BusinessResolveRequest,
     request_id: RequestId,
-    auth_context: AuthContextDep,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> SuccessResponse[BusinessResolveResponse]:
     """Resolve business by phone via GidLookupIndex O(1).
@@ -109,7 +109,7 @@ async def resolve_business(
 
     # Resolve via service layer
     try:
-        async with AsanaClient(token=auth_context.asana_pat) as client:
+        async with AsanaClient(token=auth.asana_pat) as client:
             service = IntakeResolveService(client)
             result = await service.resolve_business(
                 office_phone=body.office_phone,
@@ -171,7 +171,7 @@ async def resolve_business(
 async def resolve_contact(
     body: ContactResolveRequest,
     request_id: RequestId,
-    auth_context: AuthContextDep,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> SuccessResponse[ContactResolveResponse]:
     """Resolve contact within a business scope.
@@ -218,7 +218,7 @@ async def resolve_contact(
 
     # Resolve via service layer
     try:
-        async with AsanaClient(token=auth_context.asana_pat) as client:
+        async with AsanaClient(token=auth.asana_pat) as client:
             service = IntakeResolveService(client)
             result = await service.resolve_contact(
                 business_gid=body.business_gid,

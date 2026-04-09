@@ -22,6 +22,8 @@ Per PRD-ASANA-SATELLITE Appendix A:
 # Fleet-standard envelope types from shared package.
 # Re-exported at this path for backward compatibility -- existing code
 # imports these from autom8_asana.api.models.
+from typing import Annotated
+
 from autom8y_api_schemas import (
     ErrorDetail,
     ErrorResponse,
@@ -31,7 +33,47 @@ from autom8y_api_schemas import (
     build_error_response,
     build_success_response,
 )
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+
+# Reusable GID type (Mandate 3: Regex Field patterns)
+# ... (rest of imports and GidStr unchanged)
+GidStr = Annotated[
+    str,
+    StringConstraints(pattern=r"^\d{1,64}$"),
+]
+
+
+class ListTasksParams(BaseModel):
+    """Query parameters for listing tasks.
+
+    Per FR-API-TASK-001/002: Exactly one of project or section must be provided.
+    """
+
+    project: GidStr | None = Field(
+        default=None,
+        description="Project GID to list tasks from",
+    )
+    section: GidStr | None = Field(
+        default=None,
+        description="Section GID to list tasks from",
+    )
+    limit: int = Field(
+        default=100,
+        ge=1,
+        le=100,
+        description="Number of items per page",
+    )
+    offset: str | None = Field(
+        default=None,
+        description="Pagination cursor from previous response",
+    )
+
+    @model_validator(mode="after")
+    def validate_exactly_one_target(self) -> "ListTasksParams":
+        """Enforce that exactly one of project or section is provided."""
+        if (self.project is None) == (self.section is None):
+            raise ValueError("Exactly one of 'project' or 'section' must be provided")
+        return self
 
 
 class AsanaResource(BaseModel):
@@ -49,9 +91,9 @@ class AsanaResource(BaseModel):
         name: Display name of the resource (optional, depends on opt_fields).
     """
 
-    gid: str = Field(
+    gid: GidStr = Field(
         ...,
-        description="Globally unique Asana resource identifier",
+        description="Globally unique Asana resource identifier (numeric string)",
         examples=["1234567890123456"],
     )
     resource_type: str | None = Field(
@@ -108,12 +150,12 @@ class CreateTaskRequest(BaseModel):
         description="Task description",
         examples=["Check accuracy and completeness before the team review."],
     )
-    assignee: str | None = Field(
+    assignee: GidStr | None = Field(
         default=None,
         description="Assignee user GID",
         examples=["9876543210987654"],
     )
-    projects: list[str] | None = Field(
+    projects: list[GidStr] | None = Field(
         default=None,
         description="Project GIDs to add task to",
         examples=[["1234567890123456"]],
@@ -124,7 +166,7 @@ class CreateTaskRequest(BaseModel):
         description="Due date (YYYY-MM-DD)",
         examples=["2026-03-15"],
     )
-    workspace: str | None = Field(
+    workspace: GidStr | None = Field(
         default=None,
         description="Workspace GID (required if no projects)",
         examples=["1111111111111111"],
@@ -207,9 +249,8 @@ class AddTagRequest(BaseModel):
         tag_gid: GID of the tag to add.
     """
 
-    tag_gid: str = Field(
+    tag_gid: GidStr = Field(
         ...,
-        min_length=1,
         description="Tag GID to add",
         examples=["2222222222222222"],
     )
@@ -230,15 +271,13 @@ class MoveSectionRequest(BaseModel):
         project_gid: GID of the project containing the section.
     """
 
-    section_gid: str = Field(
+    section_gid: GidStr = Field(
         ...,
-        min_length=1,
         description="Target section GID",
         examples=["3333333333333333"],
     )
-    project_gid: str = Field(
+    project_gid: GidStr = Field(
         ...,
-        min_length=1,
         description="Project GID containing section",
         examples=["1234567890123456"],
     )
@@ -265,7 +304,7 @@ class SetAssigneeRequest(BaseModel):
         assignee_gid: GID of the user to assign (null to unassign).
     """
 
-    assignee_gid: str | None = Field(
+    assignee_gid: GidStr | None = Field(
         default=None,
         description="User GID to assign (null to unassign)",
         examples=["9876543210987654"],
@@ -286,9 +325,8 @@ class AddToProjectRequest(BaseModel):
         project_gid: GID of the project to add task to.
     """
 
-    project_gid: str = Field(
+    project_gid: GidStr = Field(
         ...,
-        min_length=1,
         description="Project GID to add to",
         examples=["1234567890123456"],
     )
@@ -343,13 +381,12 @@ class CreateProjectRequest(BaseModel):
         description="Project name",
         examples=["Website Redesign"],
     )
-    workspace: str = Field(
+    workspace: GidStr = Field(
         ...,
-        min_length=1,
         description="Workspace GID",
         examples=["1111111111111111"],
     )
-    team: str | None = Field(
+    team: GidStr | None = Field(
         default=None,
         description="Team GID (for organizations)",
         examples=["4444444444444444"],
@@ -422,7 +459,7 @@ class MembersRequest(BaseModel):
         members: List of user GIDs to add or remove.
     """
 
-    members: list[str] = Field(
+    members: list[GidStr] = Field(
         ...,
         min_length=1,
         description="List of user GIDs",
@@ -456,9 +493,8 @@ class CreateSectionRequest(BaseModel):
         description="Section name",
         examples=["In Progress"],
     )
-    project: str = Field(
+    project: GidStr = Field(
         ...,
-        min_length=1,
         description="Project GID",
         examples=["1234567890123456"],
     )
@@ -507,9 +543,8 @@ class AddTaskToSectionRequest(BaseModel):
         task_gid: GID of the task to add.
     """
 
-    task_gid: str = Field(
+    task_gid: GidStr = Field(
         ...,
-        min_length=1,
         description="Task GID to add",
         examples=["1234567890123456"],
     )
@@ -533,18 +568,17 @@ class ReorderSectionRequest(BaseModel):
         after_section: Section GID to insert after (optional).
     """
 
-    project_gid: str = Field(
+    project_gid: GidStr = Field(
         ...,
-        min_length=1,
         description="Project GID",
         examples=["1234567890123456"],
     )
-    before_section: str | None = Field(
+    before_section: GidStr | None = Field(
         default=None,
         description="Section GID to insert before",
         examples=["3333333333333333"],
     )
-    after_section: str | None = Field(
+    after_section: GidStr | None = Field(
         default=None,
         description="Section GID to insert after",
         examples=[None],
@@ -575,6 +609,7 @@ __all__ = [
     "build_error_response",
     "build_success_response",
     # Task request models
+    "ListTasksParams",
     "AddTagRequest",
     "AddToProjectRequest",
     "CreateTaskRequest",

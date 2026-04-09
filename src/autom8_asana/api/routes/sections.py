@@ -32,6 +32,7 @@ from autom8_asana.api.models import (
     AddTaskToSectionRequest,
     AsanaResource,
     CreateSectionRequest,
+    GidStr,
     ReorderSectionRequest,
     SuccessResponse,
     UpdateSectionRequest,
@@ -54,7 +55,7 @@ router = pat_router(prefix="/api/v1/sections", tags=["sections"])
     responses=entity_responses(),
 )
 async def get_section(
-    gid: str,
+    gid: GidStr,
     client: AsanaClientDualMode,
     request_id: RequestId,
     section_service: SectionServiceDep,
@@ -137,7 +138,7 @@ async def create_section(
     responses={**entity_responses(), **mutation_responses()},
 )
 async def update_section(
-    gid: str,
+    gid: GidStr,
     body: UpdateSectionRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
@@ -180,7 +181,7 @@ async def update_section(
     responses=entity_responses(),
 )
 async def delete_section(
-    gid: str,
+    gid: GidStr,
     client: AsanaClientDualMode,
     request_id: RequestId,
     section_service: SectionServiceDep,
@@ -223,7 +224,7 @@ async def delete_section(
     responses={**entity_responses(), **mutation_responses()},
 )
 async def add_task_to_section(
-    gid: str,
+    gid: GidStr,
     body: AddTaskToSectionRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
@@ -268,7 +269,7 @@ async def add_task_to_section(
     responses={**entity_responses(), **mutation_responses()},
 )
 async def reorder_section(
-    gid: str,
+    gid: GidStr,
     body: ReorderSectionRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,

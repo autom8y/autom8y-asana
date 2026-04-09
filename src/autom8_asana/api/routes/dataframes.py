@@ -35,18 +35,20 @@ Per TDD-SERVICE-LAYER-001 v2.0 Phase 4:
 from __future__ import annotations
 
 from io import StringIO
-from typing import TYPE_CHECKING, Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, Literal
 
 from fastapi import Header, Query
 from fastapi.responses import JSONResponse, Response
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
     AsanaClientDualMode,
+    AuthContextDep,
     DataFrameServiceDep,
     RequestId,
 )
 from autom8_asana.api.errors import raise_service_error
 from autom8_asana.api.models import (
+    GidStr,
     PaginationMeta,
     ResponseMeta,
     build_success_response,
@@ -75,7 +77,19 @@ _SCHEMA_NAMES = (
     "offer",
     "asset_edit",
     "asset_edit_holder",
+    "process",
 )
+
+DataFrameSchemaLiteral = Literal[
+    "base",
+    "unit",
+    "contact",
+    "business",
+    "offer",
+    "asset_edit",
+    "asset_edit_holder",
+    "process",
+]
 
 # MIME types for content negotiation
 MIME_JSON = "application/json"
@@ -163,6 +177,7 @@ def _load_all_schemas() -> dict[str, Any]:
         BUSINESS_SCHEMA,
         CONTACT_SCHEMA,
         OFFER_SCHEMA,
+        PROCESS_SCHEMA,
         UNIT_SCHEMA,
     )
 
@@ -172,6 +187,7 @@ def _load_all_schemas() -> dict[str, Any]:
         "contact": CONTACT_SCHEMA,
         "business": BUSINESS_SCHEMA,
         "offer": OFFER_SCHEMA,
+        "process": PROCESS_SCHEMA,
         "asset_edit": ASSET_EDIT_SCHEMA,
         "asset_edit_holder": ASSET_EDIT_HOLDER_SCHEMA,
     }
@@ -264,8 +280,9 @@ def _schema_to_dict(
         "metadata with business meaning, data type semantics, and more."
     ),
 )
-async def list_schemas(
+async def list_dataframes(
     request_id: RequestId,
+    auth: AuthContextDep,
     include_semantic: Annotated[
         bool,
         Query(
@@ -320,9 +337,10 @@ async def list_schemas(
         "descriptions include structured YAML metadata."
     ),
 )
-async def get_schema(
-    name: str,
+async def get_dataframe_schema(
+    name: DataFrameSchemaLiteral,
     request_id: RequestId,
+    auth: AuthContextDep,
     include_semantic: Annotated[
         bool,
         Query(
@@ -412,17 +430,19 @@ async def get_schema(
         },
     },
 )
-async def get_project_dataframe(
-    gid: str,
+async def list_project_dataframe(
+    gid: GidStr,
     client: AsanaClientDualMode,
+    auth: AuthContextDep,
     request_id: RequestId,
     dataframe_service: DataFrameServiceDep,
     schema: Annotated[
-        str,
+        DataFrameSchemaLiteral,
         Query(
             description=(
                 "Schema to use for extraction. Valid values: base, unit, "
-                "contact, business, offer, asset_edit, asset_edit_holder"
+                "contact, business, offer, asset_edit, asset_edit_holder, "
+                "process"
             ),
         ),
     ] = "base",
@@ -448,8 +468,8 @@ async def get_project_dataframe(
     **Schemas** control which custom fields are extracted:
 
     - ``base`` — GID, name, completed, created_at (default)
-    - ``unit`` / ``contact`` / ``business`` / ``offer`` — domain-specific
-      custom fields (office_phone, weekly_ad_spend, email, etc.)
+    - ``unit`` / ``contact`` / ``business`` / ``offer`` / ``process`` —
+      domain-specific custom fields (office_phone, weekly_ad_spend, email, etc.)
     - ``asset_edit`` / ``asset_edit_holder`` — asset editing metadata
 
     **Response formats** (via ``Accept`` header):
@@ -530,17 +550,19 @@ async def get_project_dataframe(
         },
     },
 )
-async def get_section_dataframe(
-    gid: str,
+async def list_section_dataframe(
+    gid: GidStr,
     client: AsanaClientDualMode,
+    auth: AuthContextDep,
     request_id: RequestId,
     dataframe_service: DataFrameServiceDep,
     schema: Annotated[
-        str,
+        DataFrameSchemaLiteral,
         Query(
             description=(
                 "Schema to use for extraction. Valid values: base, unit, "
-                "contact, business, offer, asset_edit, asset_edit_holder"
+                "contact, business, offer, asset_edit, asset_edit_holder, "
+                "process"
             ),
         ),
     ] = "base",
@@ -566,8 +588,8 @@ async def get_section_dataframe(
     **Schemas** control which custom fields are extracted:
 
     - ``base`` — GID, name, completed, created_at (default)
-    - ``unit`` / ``contact`` / ``business`` / ``offer`` — domain-specific
-      custom fields
+    - ``unit`` / ``contact`` / ``business`` / ``offer`` / ``process`` —
+      domain-specific custom fields
     - ``asset_edit`` / ``asset_edit_holder`` — asset editing metadata
 
     **Response formats** (via ``Accept`` header):

@@ -32,7 +32,8 @@ from fastapi import Depends, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.api.dependencies import (
-    RequestId,  # noqa: TC001 — FastAPI resolves these at runtime
+    AuthContextDep,  # noqa: TC001 -- FastAPI resolves at runtime
+    RequestId,  # noqa: TC001 -- FastAPI resolves at runtime
 )
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.routes._security import s2s_router
@@ -154,6 +155,7 @@ class EntitySchemaResponse(BaseModel):
 async def get_entity_schema(
     entity_type: str,
     request_id: RequestId,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     include_semantic: Annotated[
         bool,
@@ -380,6 +382,7 @@ async def get_enum_detail(
     entity_type: str,
     field_name: str,
     request_id: RequestId,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> EnumDetailResponse:
     """Return enum values for a specific field on an entity type.

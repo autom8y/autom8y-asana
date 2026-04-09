@@ -112,22 +112,22 @@ def raise_api_error(
         status_code: HTTP status code.
         code: Machine-readable error code (e.g., "INVALID_ENTITY_TYPE").
         message: Human-readable error description.
-        details: Additional structured context (optional). Merged into detail dict.
+        details: Additional structured context (optional).
         headers: Additional HTTP headers (e.g., Retry-After).
 
     Raises:
         HTTPException: Always raised, never returns.
     """
-    detail: dict[str, Any] = {
-        "error": code,
-        "message": message,
-        "request_id": request_id,
-    }
-    if details:
-        detail.update(details)
     raise HTTPException(
         status_code=status_code,
-        detail=detail,
+        detail=ErrorResponse(
+            error=ErrorDetail(
+                code=code,
+                message=message,
+                details=details,
+            ),
+            meta=ResponseMeta(request_id=request_id),
+        ).model_dump(mode="json"),
         headers=headers,
     )
 
@@ -141,8 +141,7 @@ def raise_service_error(
     """Raise HTTPException from a ServiceError with consistent format.
 
     Convenience wrapper for the common pattern of catching ServiceError
-    and converting to HTTPException. Preserves all fields from
-    error.to_dict() and injects request_id.
+    and converting to HTTPException. Ensures envelope conformance.
 
     Per ADR-I6-001 Tier 2: Preferred for routes that delegate to a
     service layer raising domain exceptions.
@@ -157,11 +156,22 @@ def raise_service_error(
     """
     from autom8_asana.services.errors import get_status_for_error
 
-    detail = error.to_dict()
-    detail["request_id"] = request_id
+    err_dict = error.to_dict()
+    # Remove metadata if present in to_dict() to avoid redundancy in the envelope
+    err_dict.pop("request_id", None)
+    err_dict.pop("error_code", None)
+    err_dict.pop("message", None)
+
     raise HTTPException(
         status_code=get_status_for_error(error),
-        detail=detail,
+        detail=ErrorResponse(
+            error=ErrorDetail(
+                code=error.error_code,
+                message=error.message,
+                details=err_dict if err_dict else None,
+            ),
+            meta=ResponseMeta(request_id=request_id),
+        ).model_dump(mode="json"),
         headers=headers,
     )
 
@@ -434,6 +444,35 @@ async def asana_error_handler(
     )
 
 
+async def http_exception_handler(
+    request: Request,
+    exc: HTTPException,
+) -> JSONResponse:
+    """Handle HTTPException without redundant 'detail' wrapping.
+
+    If exc.detail is already a dict (our canonical envelope), return it directly.
+    Ensures conformance with ErrorResponse schema for manually raised errors.
+
+    Args:
+        request: FastAPI request object.
+        exc: HTTPException being handled.
+
+    Returns:
+        JSONResponse with content from exc.detail.
+    """
+    if isinstance(exc.detail, dict):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=exc.detail,
+            headers=exc.headers,
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=exc.headers,
+    )
+
+
 async def generic_error_handler(
     request: Request,
     exc: Exception,
@@ -644,6 +683,9 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.exception_handler(ApiServiceUnavailableError)(api_service_unavailable_handler)
     app.exception_handler(ApiDataFrameBuildError)(api_dataframe_build_error_handler)
     app.exception_handler(ApiError)(api_error_handler)
+
+    # Core HTTPException (prevent redundant 'detail' wrapping)
+    app.exception_handler(HTTPException)(http_exception_handler)
 
     # Catch-all must be last
     app.exception_handler(Exception)(generic_error_handler)

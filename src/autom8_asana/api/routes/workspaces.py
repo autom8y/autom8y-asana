@@ -24,6 +24,7 @@ from autom8_asana.api.error_responses import (
 )
 from autom8_asana.api.models import (
     AsanaResource,
+    GidStr,
     PaginationMeta,
     SuccessResponse,
     build_success_response,
@@ -105,7 +106,7 @@ async def list_workspaces(
     responses=entity_responses(),
 )
 async def get_workspace(
-    gid: str,
+    gid: GidStr,
     client: AsanaClientDualMode,
     request_id: RequestId,
 ) -> SuccessResponse[AsanaResource]:

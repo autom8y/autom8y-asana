@@ -205,8 +205,10 @@ def _get_workflow_factory(workflow_id: str) -> WorkflowHandlerConfig | None:
 )
 async def list_workflows(
     request_id: RequestId,
+    auth: AuthContextDep,
 ) -> dict[str, Any]:
     """List all registered workflows available for invocation."""
+    _ = auth  # Enforce authentication
     result = []
     for workflow_id, config in _WORKFLOW_CONFIGS.items():
         result.append(

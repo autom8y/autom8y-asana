@@ -28,7 +28,8 @@ class AsanaResource(BaseModel):
     )
 
     gid: str = Field(
-        description="Globally unique identifier for this Asana resource. A 16-digit numeric string.",
+        pattern=r"^\d{1,64}$",
+        description="Globally unique identifier for this Asana resource. A numeric string (1-64 digits).",
     )
     resource_type: str | None = Field(
         default=None,

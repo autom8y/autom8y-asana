@@ -1,3 +1,28 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "github": {
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "command": "npx",
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "go-semantic": {
+      "args": [
+        "-config",
+        "/Users/tomtenuta/Code/mcp-go-semantic/configs/default.yaml"
+      ],
+      "command": "/Users/tomtenuta/Code/mcp-go-semantic/mcp-server"
+    },
+    "terraform": {
+      "args": [
+        "-y",
+        "terraform-mcp-server"
+      ],
+      "command": "npx"
+    }
+  }
 }

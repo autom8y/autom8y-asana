@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
+    AuthContextDep,
     DataServiceClientDep,
     EntityServiceDep,
     RequestId,
@@ -203,6 +204,7 @@ class QueryResponse(BaseModel):
     ),
 )
 async def list_query_entities(
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> dict[str, Any]:
     """List all queryable entity types.
@@ -228,6 +230,7 @@ async def list_query_entities(
     ),
 )
 async def list_data_sources(
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> dict[str, Any]:
     """List available data-service factories for cross-service joins.
@@ -254,6 +257,7 @@ async def list_data_sources(
 async def list_data_source_fields(
     factory: str,
     request_id: RequestId,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> dict[str, Any]:
     """List known columns for a data-service factory.
@@ -295,6 +299,7 @@ async def list_data_source_fields(
 async def list_query_fields(
     entity_type: str,
     request_id: RequestId,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> dict[str, Any]:
     """List available fields for an entity type.
@@ -323,6 +328,7 @@ async def list_query_fields(
 )
 async def list_query_relations(
     entity_type: str,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> dict[str, Any]:
     """List joinable entity types and their join keys.
@@ -350,6 +356,7 @@ async def list_query_relations(
 async def list_query_sections(
     entity_type: str,
     request_id: RequestId,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> dict[str, Any]:
     """List section names and classifications for an entity type.
@@ -387,6 +394,7 @@ async def query_rows(
     entity_type: str,
     request_body: RowsRequest,
     request_id: RequestId,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     entity_service: EntityServiceDep,
     data_service_client: DataServiceClientDep = None,
@@ -457,6 +465,7 @@ async def query_aggregate(
     entity_type: str,
     request_body: AggregateRequest,
     request_id: RequestId,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     entity_service: EntityServiceDep,
     data_service_client: DataServiceClientDep = None,
@@ -532,6 +541,7 @@ async def query_entities(
     entity_type: str,
     request_body: QueryRequest,
     request_id: RequestId,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
     entity_service: EntityServiceDep,
 ) -> JSONResponse:

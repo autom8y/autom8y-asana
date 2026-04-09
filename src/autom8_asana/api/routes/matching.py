@@ -19,6 +19,7 @@ from autom8y_log import get_logger
 from fastapi import Depends
 
 from autom8_asana.api.dependencies import (
+    AuthContextDep,  # noqa: TC001 -- FastAPI resolves at runtime
     RequestId,  # noqa: TC001 -- FastAPI resolves at runtime
 )
 from autom8_asana.api.errors import raise_api_error
@@ -56,6 +57,7 @@ router = s2s_router(
 async def matching_query(
     body: MatchingQueryRequest,
     request_id: RequestId,
+    auth: AuthContextDep,
     claims: Annotated[ServiceClaims, Depends(require_service_claims)],
 ) -> SuccessResponse[MatchingQueryResponse]:
     """Query for matching business candidates.

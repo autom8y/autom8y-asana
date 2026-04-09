@@ -33,6 +33,7 @@ from autom8_asana.api.errors import raise_api_error
 from autom8_asana.api.models import (
     AsanaResource,
     CreateProjectRequest,
+    GidStr,
     MembersRequest,
     PaginationMeta,
     SuccessResponse,
@@ -62,7 +63,7 @@ async def list_projects(
     client: AsanaClientDualMode,
     request_id: RequestId,
     workspace: Annotated[
-        str,
+        GidStr,
         Query(description="Workspace GID to list projects from"),
     ],
     limit: Annotated[
@@ -120,7 +121,7 @@ async def list_projects(
     responses=entity_responses(),
 )
 async def get_project(
-    gid: str,
+    gid: GidStr,
     client: AsanaClientDualMode,
     request_id: RequestId,
     opt_fields: Annotated[
@@ -208,7 +209,7 @@ async def create_project(
     responses={**entity_responses(), **mutation_responses()},
 )
 async def update_project(
-    gid: str,
+    gid: GidStr,
     body: UpdateProjectRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
@@ -264,7 +265,7 @@ async def update_project(
     responses=entity_responses(),
 )
 async def delete_project(
-    gid: str,
+    gid: GidStr,
     client: AsanaClientDualMode,
 ) -> None:
     """Permanently delete a project from Asana.
@@ -302,7 +303,7 @@ async def delete_project(
     responses=entity_responses(),
 )
 async def list_sections(
-    gid: str,
+    gid: GidStr,
     client: AsanaClientDualMode,
     request_id: RequestId,
     limit: Annotated[
@@ -365,7 +366,7 @@ async def list_sections(
     responses={**entity_responses(), **mutation_responses()},
 )
 async def add_members(
-    gid: str,
+    gid: GidStr,
     body: MembersRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,
@@ -406,7 +407,7 @@ async def add_members(
     responses={**entity_responses(), **mutation_responses()},
 )
 async def remove_members(
-    gid: str,
+    gid: GidStr,
     body: MembersRequest,
     client: AsanaClientDualMode,
     request_id: RequestId,

@@ -7,14 +7,15 @@ Use the available agents and slash commands. Delegate complex work to specialist
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-4-agent workflow (review):
+5-agent workflow (hygiene):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates code review phases, gates complexity, manages back-routes |
-| **signal-sifter** | Reads codebase and sifts signal from noise using structural heuristics |
-| **pattern-profiler** | Connects dots across signals, builds severity profile and health grades |
-| **case-reporter** | Writes the definitive case file with health report card |
+| **potnia** | Coordinates code hygiene initiative phases |
+| **code-smeller** | Detects code smells and quality issues across codebase |
+| **architect-enforcer** | Plans refactoring approach and enforces architecture standards |
+| **janitor** | Executes code cleanup and improvements |
+| **audit-lead** | Audits cleanup results and provides quality signoff |
 
 Delegate to specialists via Task tool.
 <!-- KNOSSOS:END quick-start -->
@@ -37,15 +38,16 @@ Delegate to specialists via Task tool.
 Agents cannot spawn other agents — only the main thread has Task tool access.
 <!-- KNOSSOS:END commands -->
 
-<!-- KNOSSOS:START agent-configurations regenerate=true source=agents/*.md -->
+<!-- KNOSSOS:START agent-configurations source=agents/*.md regenerate=true -->
 ## Agents
 
 Prompts in `.claude/agents/`:
 
-- `potnia.md` - Coordinates code review phases, gates complexity, manages back-routes
-- `signal-sifter.md` - Reads codebase and sifts signal from noise using structural heuristics
-- `pattern-profiler.md` - Connects dots across signals, builds severity profile and health grades
-- `case-reporter.md` - Writes the definitive case file with health report card
+- `potnia.md` - Coordinates code hygiene initiative phases
+- `code-smeller.md` - Detects code smells and quality issues across codebase
+- `architect-enforcer.md` - Plans refactoring approach and enforces architecture standards
+- `janitor.md` - Executes code cleanup and improvements
+- `audit-lead.md` - Audits cleanup results and provides quality signoff
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:
@@ -65,6 +67,7 @@ CLI reference: `ari --help`.
 <!-- KNOSSOS:END platform-infrastructure -->
 
 <!-- KNOSSOS:START know -->
+
 ## Codebase Knowledge
 
 Persistent knowledge in `.know/`. Generate with `/know --all` if not present.
@@ -81,7 +84,12 @@ Work product artifacts in `.ledge/`:
 - `.ledge/specs/` — PRDs and technical specs
 - `.ledge/reviews/` — audit reports and code reviews
 - `.ledge/spikes/` — exploration and research artifacts
+
 <!-- KNOSSOS:END know -->
+
+<!-- KNOSSOS:START hierarchy-map -->
+
+<!-- KNOSSOS:END hierarchy-map -->
 
 <!-- KNOSSOS:START user-content -->
 ## Project-Specific Instructions

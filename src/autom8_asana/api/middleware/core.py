@@ -144,11 +144,15 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         # Build structured log context (no sensitive data)
+        # Ensure path is ASCII-safe to prevent UnicodeEncodeError in log handlers
+        # when processing fuzzed inputs with non-ASCII characters.
+        safe_path = request.url.path.encode("ascii", errors="replace").decode("ascii")
+
         log_data = {
-            "request_id": request_id,
-            "method": request.method,
-            "path": request.url.path,
-            "status_code": response.status_code,
+            "request_id": str(request_id),
+            "method": str(request.method),
+            "path": safe_path,
+            "status_code": int(response.status_code),
             "duration_ms": round(duration_ms, 2),
         }
 

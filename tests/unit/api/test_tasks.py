@@ -30,7 +30,7 @@ class TestListTasks:
     def test_list_tasks_requires_project_or_section(
         self, authed_client: tuple[TestClient, MagicMock]
     ) -> None:
-        """List tasks without project or section returns 400."""
+        """List tasks without project or section returns 422."""
         client, _ = authed_client
 
         response = client.get(
@@ -38,10 +38,10 @@ class TestListTasks:
             headers={"Authorization": "Bearer test_pat_token_12345"},
         )
 
-        assert response.status_code == 400
-        detail = response.json()["detail"]
-        assert detail["error"] == "INVALID_PARAMETER"
-        assert "project" in detail["message"].lower()
+        assert response.status_code == 422
+        error = response.json()["error"]
+        assert error["code"] == "FLEET-VAL-001"
+        assert "exactly one" in str(error["details"]).lower()
 
     def test_list_tasks_rejects_both_project_and_section(
         self, authed_client: tuple[TestClient, MagicMock]
