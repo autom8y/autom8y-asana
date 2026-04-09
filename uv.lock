@@ -186,6 +186,7 @@ dev = [
     { name = "pytest-json-report" },
     { name = "pytest-timeout" },
     { name = "respx" },
+    { name = "schemathesis" },
     { name = "slowapi" },
 ]
 
@@ -247,6 +248,7 @@ dev = [
     { name = "pytest-json-report", specifier = ">=1.5.0" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "respx", specifier = ">=0.22.0" },
+    { name = "schemathesis", specifier = ">=4.11.0" },
     { name = "slowapi", specifier = ">=0.1.9" },
 ]
 
@@ -858,6 +860,15 @@ wheels = [
 ]
 
 [[package]]
+name = "graphql-core"
+version = "3.2.8"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/graphql-core/3.2.8/graphql_core-3.2.8.tar.gz", hash = "sha256:015457da5d996c924ddf57a43f4e959b0b94fb695b85ed4c29446e508ed65cf3" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/graphql-core/3.2.8/graphql_core-3.2.8-py3-none-any.whl", hash = "sha256:cbee07bee1b3ed5e531723685369039f32ff815ef60166686e0162f540f1520c" },
+]
+
+[[package]]
 name = "grpcio"
 version = "1.78.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
@@ -905,6 +916,15 @@ source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.ama
 sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/h11/0.16.0/h11-0.16.0.tar.gz", hash = "sha256:4e35b956cf45792e4caa5885e69fba00bdbc6ffafbfa020300e549b208ee5ff1" }
 wheels = [
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/h11/0.16.0/h11-0.16.0-py3-none-any.whl", hash = "sha256:63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86" },
+]
+
+[[package]]
+name = "harfile"
+version = "0.4.0"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/harfile/0.4.0/harfile-0.4.0.tar.gz", hash = "sha256:34e2d9ef34101d769566bffab3c420e147776174308bed1a036ed8db600cabde" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/harfile/0.4.0/harfile-0.4.0-py3-none-any.whl", hash = "sha256:ddb1483cb30f7549ddc67c0b7fdc6424f1feb19373b67e33e429b02f09bf43a8" },
 ]
 
 [[package]]
@@ -1025,6 +1045,44 @@ wheels = [
 ]
 
 [[package]]
+name = "hypothesis"
+version = "6.151.12"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "sortedcontainers" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/hypothesis/6.151.12/hypothesis-6.151.12.tar.gz", hash = "sha256:be485f503979af4c3dfa19e3fc2b967d0458e7f8c4e28128d7e215e0a55102e0" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/hypothesis/6.151.12/hypothesis-6.151.12-py3-none-any.whl", hash = "sha256:37d4f3a768365c30571b11dfd7a6857a12173d933010b2c4ab65619f1b5952c5" },
+]
+
+[[package]]
+name = "hypothesis-graphql"
+version = "0.12.0"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "graphql-core" },
+    { name = "hypothesis" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/hypothesis-graphql/0.12.0/hypothesis_graphql-0.12.0.tar.gz", hash = "sha256:15f5f69b6e0b9ad889f59d340e091d7d481471373eb6a8a8591d126aa56e7700" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/hypothesis-graphql/0.12.0/hypothesis_graphql-0.12.0-py3-none-any.whl", hash = "sha256:d200d3d4320e772248075f13c656f4b1de01e7f0f5e7d9fd6fea7da759b325f3" },
+]
+
+[[package]]
+name = "hypothesis-jsonschema"
+version = "0.23.1"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "hypothesis" },
+    { name = "jsonschema" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/hypothesis-jsonschema/0.23.1/hypothesis-jsonschema-0.23.1.tar.gz", hash = "sha256:f4ac032024342a4149a10253984f5a5736b82b3fe2afb0888f3834a31153f215" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/hypothesis-jsonschema/0.23.1/hypothesis_jsonschema-0.23.1-py3-none-any.whl", hash = "sha256:a4d74d9516dd2784fbbae82e009f62486c9104ac6f4e3397091d98a1d5ee94a2" },
+]
+
+[[package]]
 name = "idna"
 version = "3.11"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
@@ -1105,6 +1163,37 @@ wheels = [
 ]
 
 [[package]]
+name = "jsonschema-rs"
+version = "0.45.1"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1.tar.gz", hash = "sha256:94c725dfc287fd0d3e3c03d5d9556119df227385ba92098057818e5cdc836cd3" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp310-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:9f2f3695ba51241bebef7efb4f7cef7b9316a761aee2192a6c48bd599e90bccd" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:d95a80fe005138a9507b2f346efb4d8451c7747718ad8ac75412189b2f50e2b2" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp310-abi3-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:9678887c63a64102f71cce3f49cd32257c498ed471db72fed455312cf6e272ae" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8811c23d902b45e7620f59556296776635c7fbd462de30271ab8fbb605ef7369" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:22da9b7c894d7f1c02191b559319119b38aa47683f602fecc737c5e601c8f27f" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:401e47ac238516236472614287006442cdb3c4c73b325ef8083ecc428c37ccbb" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:7ec5586c134e1070265bedf68ac989232e3cf50e92d04787d5b916930a2b0de3" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp310-abi3-win32.whl", hash = "sha256:8eb9c34739de362c340922031c8647574f9253eeed9bb5a4d6a6229cf58ba697" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp310-abi3-win_amd64.whl", hash = "sha256:350c04bfc0cddf5fb28f5fdee5309ff984b59731f22d47576ee82396a54f98a9" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp313-cp313t-macosx_10_12_x86_64.whl", hash = "sha256:7f9f20e6fe70216107d2b4645e5e4433e634a374f3e81b32c86d9d38aa9e305d" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:f85ed24e55ed3afa322f21cde33e58fa097a422ccb1047ab45fb56c2d0b95b87" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp313-cp313t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0582d872634dfab03290afa4a38faddbce1a8416cb10075a6bcffa4e4e41ff85" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp313-cp313t-manylinux_2_28_aarch64.whl", hash = "sha256:1c776bf2050cfbe518a3e1d268ea652a78c57c360a19e0b5a8d98f28555abaf1" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:f1c733ab6789e2c6b629aa6ff8f617441425c6abd24b79f15dc9d41e9df98763" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:5e4db2879237f6c99075c20f1f5e47ac297d902017ef28ffcae3b9a8b6a218dc" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp313-cp313t-win_amd64.whl", hash = "sha256:50b5f7ac39d96b1daa17a620c8422f7cecb857e7aff8e852860390c6a581b11c" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp314-cp314t-macosx_10_12_x86_64.whl", hash = "sha256:249a871e54f3df94653dd7882acf2b1a1aebea520afcd1e9b1af9eeb76640594" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:0a9ad67174aa37b92e547a52a2d27e4c4d178dfc589dbe104ed9875974c5d4b6" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:0743c9530a46cf5b78873429df71cbbbc1c2c0c440979ab8aaa7f2942dc32ff9" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:bacd2958dbc0f2d2002b4515707fa19416e0677fd88cf94f74c5dc2a35ac82d7" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:3abac54be783ac5f52c02ac667495b5f5a41abed78a58fb4a056f188c44630bd" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:2c918c56e32b6e0c0c942f3e25ec6799382402063d7757bf4bb0362e49428149" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-rs/0.45.1/jsonschema_rs-0.45.1-cp314-cp314t-win_amd64.whl", hash = "sha256:5ba2bbbd375b2edf2df3b0a668a9179b31f0290d1101196a0362831444d9b504" },
+]
+
+[[package]]
 name = "jsonschema-specifications"
 version = "2025.9.1"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
@@ -1114,6 +1203,18 @@ dependencies = [
 sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-specifications/2025.9.1/jsonschema_specifications-2025.9.1.tar.gz", hash = "sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d" }
 wheels = [
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/jsonschema-specifications/2025.9.1/jsonschema_specifications-2025.9.1-py3-none-any.whl", hash = "sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe" },
+]
+
+[[package]]
+name = "junit-xml"
+version = "1.9"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "six" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/junit-xml/1.9/junit-xml-1.9.tar.gz", hash = "sha256:de16a051990d4e25a3982b2dd9e89d671067548718866416faec14d9de56db9f" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/junit-xml/1.9/junit_xml-1.9-py2.py3-none-any.whl", hash = "sha256:ec5ca1a55aefdd76d28fcc0b135251d156c7106fa979686a4b48d62b761b4732" },
 ]
 
 [[package]]
@@ -1223,6 +1324,18 @@ wheels = [
 ]
 
 [[package]]
+name = "markdown-it-py"
+version = "4.0.0"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "mdurl" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/markdown-it-py/4.0.0/markdown_it_py-4.0.0.tar.gz", hash = "sha256:cb0a2b4aa34f932c007117b194e945bd74e0ec24133ceb5bac59009cda1cb9f3" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/markdown-it-py/4.0.0/markdown_it_py-4.0.0-py3-none-any.whl", hash = "sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147" },
+]
+
+[[package]]
 name = "markupsafe"
 version = "3.0.3"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
@@ -1283,6 +1396,15 @@ wheels = [
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/markupsafe/3.0.3/markupsafe-3.0.3-cp314-cp314t-win32.whl", hash = "sha256:915c04ba3851909ce68ccc2b8e2cd691618c4dc4c4232fb7982bca3f41fd8c3d" },
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/markupsafe/3.0.3/markupsafe-3.0.3-cp314-cp314t-win_amd64.whl", hash = "sha256:4faffd047e07c38848ce017e8725090413cd80cbc23d86e55c587bf979e579c9" },
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/markupsafe/3.0.3/markupsafe-3.0.3-cp314-cp314t-win_arm64.whl", hash = "sha256:32001d6a8fc98c8cb5c947787c5d08b0a50663d139f1305bac5885d98d9b40fa" },
+]
+
+[[package]]
+name = "mdurl"
+version = "0.1.2"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/mdurl/0.1.2/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/mdurl/0.1.2/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8" },
 ]
 
 [[package]]
@@ -1810,6 +1932,15 @@ crypto = [
 ]
 
 [[package]]
+name = "pyrate-limiter"
+version = "4.1.0"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/pyrate-limiter/4.1.0/pyrate_limiter-4.1.0.tar.gz", hash = "sha256:be1ac413a263aa410b98757d1b01a880650948a1fc3a959512f15865eb58dbf3" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/pyrate-limiter/4.1.0/pyrate_limiter-4.1.0-py3-none-any.whl", hash = "sha256:2696b4e4a6cffb3d40fc76662baccb766697893f0979e12bebbfc7d3b6b19603" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.0.2"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
@@ -2058,6 +2189,19 @@ wheels = [
 ]
 
 [[package]]
+name = "rich"
+version = "14.3.3"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "markdown-it-py" },
+    { name = "pygments" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/rich/14.3.3/rich-14.3.3.tar.gz", hash = "sha256:b8daa0b9e4eef54dd8cf7c86c03713f53241884e814f4e2f5fb342fe520f639b" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/rich/14.3.3/rich-14.3.3-py3-none-any.whl", hash = "sha256:793431c1f8619afa7d3b52b2cdec859562b950ea0d4b6b505397612db8d5362d" },
+]
+
+[[package]]
 name = "rpds-py"
 version = "0.30.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
@@ -2176,6 +2320,35 @@ wheels = [
 ]
 
 [[package]]
+name = "schemathesis"
+version = "4.15.0"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "click" },
+    { name = "harfile" },
+    { name = "httpx" },
+    { name = "hypothesis" },
+    { name = "hypothesis-graphql" },
+    { name = "hypothesis-jsonschema" },
+    { name = "jsonschema" },
+    { name = "jsonschema-rs" },
+    { name = "junit-xml" },
+    { name = "pyrate-limiter" },
+    { name = "pytest" },
+    { name = "pyyaml" },
+    { name = "requests" },
+    { name = "rich" },
+    { name = "starlette-testclient" },
+    { name = "tenacity" },
+    { name = "typing-extensions" },
+    { name = "werkzeug" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/schemathesis/4.15.0/schemathesis-4.15.0.tar.gz", hash = "sha256:6f57b494d3957b1afed4746cdf92a6ed4b0b2add0354de4b450c52477913eb59" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/schemathesis/4.15.0/schemathesis-4.15.0-py3-none-any.whl", hash = "sha256:c4349f6f1f64029501bcb286e8497a067857453d3c80357fb9ea2be1174443e7" },
+]
+
+[[package]]
 name = "simplejson"
 version = "3.20.2"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
@@ -2263,12 +2436,34 @@ wheels = [
 ]
 
 [[package]]
+name = "starlette-testclient"
+version = "0.4.1"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "requests" },
+    { name = "starlette" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/starlette-testclient/0.4.1/starlette_testclient-0.4.1.tar.gz", hash = "sha256:9e993ffe12fab45606116257813986612262fe15c1bb6dc9e39cc68693ac1fc5" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/starlette-testclient/0.4.1/starlette_testclient-0.4.1-py3-none-any.whl", hash = "sha256:dcf0eb237dc47f062ef5925f98330af46f67e547cb587119c9ae78c17ae6c1d1" },
+]
+
+[[package]]
 name = "structlog"
 version = "25.5.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/structlog/25.5.0/structlog-25.5.0.tar.gz", hash = "sha256:098522a3bebed9153d4570c6d0288abf80a031dfdb2048d59a49e9dc2190fc98" }
 wheels = [
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/structlog/25.5.0/structlog-25.5.0-py3-none-any.whl", hash = "sha256:a8453e9b9e636ec59bd9e79bbd4a72f025981b3ba0f5837aebf48f02f37a7f9f" },
+]
+
+[[package]]
+name = "tenacity"
+version = "9.1.4"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/tenacity/9.1.4/tenacity-9.1.4.tar.gz", hash = "sha256:adb31d4c263f2bd041081ab33b498309a57c77f9acf2db65aadf0898179cf93a" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/tenacity/9.1.4/tenacity-9.1.4-py3-none-any.whl", hash = "sha256:6095a360c919085f28c6527de529e76a06ad89b23659fa881ae0649b867a9d55" },
 ]
 
 [[package]]
