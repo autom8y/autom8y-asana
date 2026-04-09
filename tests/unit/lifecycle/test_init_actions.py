@@ -1042,7 +1042,7 @@ class TestPlayCreationHandler:
             play_type="backend_onboard_a_business",
             project_gid="1207507299545000",
             condition="not_already_linked",
-            # reopen_if_completed_within_days=None (default)
+            # reopen_if_completed_within_days=None (default)  # noqa: ERA001
         )
 
         # No existing dependencies

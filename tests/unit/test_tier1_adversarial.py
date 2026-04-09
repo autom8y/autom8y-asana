@@ -384,7 +384,7 @@ class TestCRUDOperationsAllClients:
         await client.get_async("1234567890123")
         mock_http.get.assert_called_with("/projects/1234567890123", params={})
 
-        # POST (Create)
+        # POST (Create)  # noqa: ERA001
         mock_http.post.return_value = {"gid": "newproj", "name": "New"}
         await client.create_async(name="New", workspace="ws123")
         mock_http.post.assert_called_with(
@@ -392,7 +392,7 @@ class TestCRUDOperationsAllClients:
             json={"data": {"name": "New", "workspace": "ws123"}},
         )
 
-        # PUT (Update)
+        # PUT (Update)  # noqa: ERA001
         mock_http.put.return_value = {"gid": "proj123", "name": "Updated"}
         await client.update_async("proj123", name="Updated")
         mock_http.put.assert_called_with(
@@ -431,7 +431,7 @@ class TestCRUDOperationsAllClients:
             json={"data": {"name": "New Section"}},
         )
 
-        # PUT (Update)
+        # PUT (Update)  # noqa: ERA001
         mock_http.put.return_value = {"gid": "sec123", "name": "Renamed"}
         await client.update_async("sec123", name="Renamed")
         mock_http.put.assert_called_with(
@@ -462,7 +462,7 @@ class TestCRUDOperationsAllClients:
         await client.get_async("1234567890123")
         mock_http.get.assert_called_with("/custom_fields/1234567890123", params={})
 
-        # POST (Create)
+        # POST (Create)  # noqa: ERA001
         mock_http.post.return_value = {"gid": "newcf", "name": "New Field"}
         await client.create_async(
             workspace="ws123", name="New Field", resource_subtype="text"
@@ -478,7 +478,7 @@ class TestCRUDOperationsAllClients:
             },
         )
 
-        # PUT (Update)
+        # PUT (Update)  # noqa: ERA001
         mock_http.put.return_value = {"gid": "cf123", "name": "Updated"}
         await client.update_async("cf123", name="Updated")
         mock_http.put.assert_called_with(

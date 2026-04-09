@@ -304,20 +304,20 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
         COMPANY_ID = CascadingFieldDef(
             name="Company ID",
             target_types=None,  # None = all descendants
-            # allow_override=False is DEFAULT
+            # allow_override=False is DEFAULT  # noqa: ERA001
         )
 
         BUSINESS_NAME = CascadingFieldDef(
             name="Business Name",
             target_types={"Unit", "Offer"},
             source_field="name",  # Maps from Task.name
-            # allow_override=False is DEFAULT
+            # allow_override=False is DEFAULT  # noqa: ERA001
         )
 
         PRIMARY_CONTACT_PHONE = CascadingFieldDef(
             name="Primary Contact Phone",
             target_types={"Unit", "Offer", "Process"},
-            # allow_override=False is DEFAULT
+            # allow_override=False is DEFAULT  # noqa: ERA001
         )
 
         @classmethod

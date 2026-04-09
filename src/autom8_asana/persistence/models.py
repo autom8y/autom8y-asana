@@ -534,13 +534,13 @@ def _build_comment_data(extra_params: dict[str, Any]) -> dict[str, Any]:
 # Dispatch table for ActionType -> API call generation.
 # Each entry maps to: (endpoint_suffix, payload_key, payload_style)
 # payload_style values:
-#   "single"      - {"data": {key: target_gid}}
-#   "list"        - {"data": {key: [target_gid]}}
+#   "single"      - {"data": {key: target_gid}}  # noqa: ERA001
+#   "list"        - {"data": {key: [target_gid]}}  # noqa: ERA001
 #   "positioning" - {"data": {key: target_gid, +positioning}} via task path
 #   "section"     - {"data": {"task": task_gid, +positioning}} via section path (MOVE_TO_SECTION)
 #   "parent"      - {"data": {"parent": extra_params["parent"], +positioning}}
-#   "no_target"   - {"data": {}}
-#   "comment"     - {"data": _build_comment_data(extra_params)}
+#   "no_target"   - {"data": {}}  # noqa: ERA001
+#   "comment"     - {"data": _build_comment_data(extra_params)}  # noqa: ERA001
 _ACTION_SPECS: dict[ActionType, tuple[str, str, str]] = {
     ActionType.ADD_TAG: ("addTag", "tag", "single"),
     ActionType.REMOVE_TAG: ("removeTag", "tag", "single"),

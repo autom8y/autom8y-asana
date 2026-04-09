@@ -436,7 +436,7 @@ class TestAC004StateInspectionAccuracy:
         reader_thread = threading.Thread(target=reader)
         reader_thread.start()
 
-        # Writer: commit and close
+        # Writer: commit and close  # noqa: ERA001
         task = Task(gid="123", name="Test")
         session.track(task)
         task.name = "Modified"

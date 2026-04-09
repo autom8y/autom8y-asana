@@ -720,7 +720,7 @@ class TestBatchSummaryStatistics:
 
     def test_large_mixed_results(self) -> None:
         """Large batch with mixed results has accurate counts."""
-        # 75% success, 25% failure
+        # 75% success, 25% failure  # noqa: ERA001
         results = []
         for i in range(100):
             if i % 4 == 0:

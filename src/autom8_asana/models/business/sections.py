@@ -25,9 +25,9 @@ class OfferSection(StrEnum):
 
     ACTIVE = "1143843662099256"
     # Future sections can be added as GIDs are identified:
-    # PAUSED = "..."
-    # CANCELLED = "..."
-    # ONBOARDING = "..."
+    # PAUSED = "..."  # noqa: ERA001
+    # CANCELLED = "..."  # noqa: ERA001
+    # ONBOARDING = "..."  # noqa: ERA001
 
     @classmethod
     def from_name(cls, name: str) -> OfferSection | None:

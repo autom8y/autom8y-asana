@@ -420,7 +420,7 @@ class TestDynamicModelProperties:
 
         ext = SchemaExtractor(OFFER_SCHEMA)
         model = ext._build_dynamic_row_model()
-        # platforms is List[Utf8]
+        # platforms is List[Utf8]  # noqa: ERA001
         platforms_field = model.model_fields.get("platforms")
         assert platforms_field is not None
         assert platforms_field.default_factory is list

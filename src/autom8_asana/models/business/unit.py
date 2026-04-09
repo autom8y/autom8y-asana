@@ -182,19 +182,19 @@ class Unit(
         BOOKING_TYPE = CascadingFieldDef(
             name="Booking Type",
             target_types={"Offer"},
-            # allow_override=False is DEFAULT
+            # allow_override=False is DEFAULT  # noqa: ERA001
         )
 
         MRR = CascadingFieldDef(
             name="MRR",
             target_types={"Offer"},
-            # allow_override=False is DEFAULT
+            # allow_override=False is DEFAULT  # noqa: ERA001
         )
 
         WEEKLY_AD_SPEND = CascadingFieldDef(
             name="Weekly Ad Spend",
             target_types={"Offer"},
-            # allow_override=False is DEFAULT
+            # allow_override=False is DEFAULT  # noqa: ERA001
         )
 
         @classmethod

@@ -59,7 +59,7 @@ class InsightsRequest(BaseModel):
         extra="ignore",
     )
 
-    # Filtering (required)
+    # Filtering (required)  # noqa: ERA001
     office_phone: str
     vertical: str
 

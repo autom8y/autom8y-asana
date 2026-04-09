@@ -1701,7 +1701,7 @@ class TestExecuteAggregate:
             )
 
         data_by_vert = {d["vertical"]: d for d in result.data}
-        # dental: "100.50" + "200.75" = 301.25
+        # dental: "100.50" + "200.75" = 301.25  # noqa: ERA001
         assert data_by_vert["dental"]["total_mrr"] == pytest.approx(301.25)
         # medical: "300.00" + null (invalid cast) = 300.0
         assert data_by_vert["medical"]["total_mrr"] == pytest.approx(300.0)

@@ -93,7 +93,7 @@ __all__ = [
     "DataFrameBuilder",
     "ProgressiveProjectBuilder",
     "SectionDataFrameBuilder",
-    # Resolver (TDD-0009.1)
+    # Resolver (TDD-0009.1)  # noqa: ERA001
     "CustomFieldResolver",
     "DefaultCustomFieldResolver",
     "MockCustomFieldResolver",

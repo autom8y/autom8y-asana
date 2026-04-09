@@ -285,7 +285,7 @@ class AutoCascadeSeeder:
         if subtype == "number":
             return get_field_attr(field_dict, "number_value", None)
 
-        # Fallback: display_value
+        # Fallback: display_value  # noqa: ERA001
         return get_field_attr(field_dict, "display_value", None)
 
     @staticmethod

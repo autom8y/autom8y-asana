@@ -258,7 +258,7 @@ class TestResolveHolderAsync:
         """Test finds holder among subtasks by matching PRIMARY_PROJECT_GID."""
         from autom8_asana.models.business.contact import ContactHolder
 
-        # ContactHolder.PRIMARY_PROJECT_GID = "1201500116978260"
+        # ContactHolder.PRIMARY_PROJECT_GID = "1201500116978260"  # noqa: ERA001
         contact_holder_gid = ContactHolder.PRIMARY_PROJECT_GID
         matching_subtask = self._make_subtask_mock(
             "holder-001",

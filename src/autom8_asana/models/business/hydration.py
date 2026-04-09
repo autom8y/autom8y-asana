@@ -759,7 +759,7 @@ def _convert_to_typed_entity(
     # Note: Holders inherit from Task with HolderMixin, not BusinessEntity.
     # We use type[Task] here to accommodate both BusinessEntity and Holder types.
     type_to_class: dict[EntityType, type[Task]] = {
-        # Holders (Task + HolderMixin)
+        # Holders (Task + HolderMixin)  # noqa: ERA001
         EntityType.CONTACT_HOLDER: ContactHolder,
         EntityType.UNIT_HOLDER: UnitHolder,
         EntityType.OFFER_HOLDER: OfferHolder,

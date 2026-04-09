@@ -1781,7 +1781,7 @@ class SaveSession:
 
         # Build set of successful action identities
         # Per ADR-0107: Identity uses NameGid (hashable via gid-based __hash__)
-        # Identity = (task.gid, action_type, target)
+        # Identity = (task.gid, action_type, target)  # noqa: ERA001
         successful_identities: set[tuple[str, ActionType, NameGid | None]] = set()
         for result in action_results:
             if result.success:

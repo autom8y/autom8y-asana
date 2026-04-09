@@ -777,7 +777,7 @@ class TestAdversarialNumericBoundaries:
         import math
 
         result = coercer.coerce("inf", "Float64")
-        # float("inf") is valid
+        # float("inf") is valid  # noqa: ERA001
         assert result == math.inf
 
     def test_nan_to_float64(self, coercer: TypeCoercer) -> None:
@@ -839,7 +839,7 @@ class TestAdversarialNumericBoundaries:
     def test_negative_zero(self, coercer: TypeCoercer) -> None:
         """Test negative zero handling."""
         result = coercer.coerce("-0", "Float64")
-        # -0.0 == 0.0 in Python
+        # -0.0 == 0.0 in Python  # noqa: ERA001
         assert result == 0.0
 
     def test_decimal_with_exponent(self, coercer: TypeCoercer) -> None:

@@ -960,7 +960,7 @@ class TestAttachmentUploadEdgeCases:
 
             call_args = mock_http.post_multipart.call_args
             files_param = call_args[1]["files"]
-            # files is {"file": (name, file_obj, content_type)}
+            # files is {"file": (name, file_obj, content_type)}  # noqa: ERA001
             actual_mime = files_param["file"][2]
             assert actual_mime == expected_mime, f"Failed for {filename}"
 

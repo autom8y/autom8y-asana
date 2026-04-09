@@ -119,7 +119,7 @@ async def get_reconciliation(
     import autom8_asana.clients.data.client as _client_mod
     from autom8_asana.clients.data._pii import mask_phone_number
 
-    # S1: Pre-flight
+    # S1: Pre-flight  # noqa: ERA001
     client._check_feature_enabled()
 
     request_id = str(uuid.uuid4())

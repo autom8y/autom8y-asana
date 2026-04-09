@@ -43,7 +43,7 @@ def _parse_content_disposition_filename(header: str) -> str | None:
     Returns:
         Filename string or None if not parseable.
     """
-    # Pattern: attachment; filename="conversations_17705753103_20260210.csv"
+    # Pattern: attachment; filename="conversations_17705753103_20260210.csv"  # noqa: ERA001
     match = re.search(r'filename="?([^";\s]+)"?', header)
     return match.group(1) if match else None
 

@@ -595,7 +595,7 @@ class TestUnifiedTaskStoreInvalidate:
         store.invalidate("parent", cascade=True)
 
         # All four invalidate calls should have been attempted
-        # (parent + child-1 + child-2 + child-3)
+        # (parent + child-1 + child-2 + child-3)  # noqa: ERA001
         assert call_count == 4
 
         # hierarchy.remove should still execute despite child-2 failure

@@ -557,7 +557,7 @@ async def test_no_schema_validates_nothing() -> None:
         cascade_plugin=plugin,
         project_gid="proj-1",
         entity_type="test",
-        # schema=None (default)
+        # schema=None (default)  # noqa: ERA001
     )
 
     assert result.rows_checked == 0

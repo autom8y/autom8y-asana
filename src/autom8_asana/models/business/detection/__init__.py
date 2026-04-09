@@ -110,7 +110,7 @@ __all__ = [
     "detect_by_parent_inference",
     # Tier 4: Structure inspection
     "detect_by_structure_inspection",
-    # Facade: Orchestration
+    # Facade: Orchestration  # noqa: ERA001
     "detect_by_project",
     "detect_by_parent",
     "detect_by_structure_async",

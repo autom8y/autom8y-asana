@@ -1049,7 +1049,7 @@ class TestS2005LevelDependencyGraph:
         assert contact_holder in levels[1]
         assert unit_holder in levels[1]
 
-        # L2: Contact and Unit
+        # L2: Contact and Unit  # noqa: ERA001
         assert contact in levels[2]
         assert unit in levels[2]
 
@@ -1057,7 +1057,7 @@ class TestS2005LevelDependencyGraph:
         assert offer_holder in levels[3]
         assert process_holder in levels[3]
 
-        # L4: Offer and Process
+        # L4: Offer and Process  # noqa: ERA001
         assert offer in levels[4]
         assert process in levels[4]
 
