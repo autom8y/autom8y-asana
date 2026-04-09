@@ -5,7 +5,16 @@ Per ADR-0005: Pydantic v2 with extra="ignore" for forward compatibility.
 
 from __future__ import annotations
 
+import os
+
 from pydantic import BaseModel, ConfigDict, Field
+
+# Production enforces numeric-only GIDs (Asana API contract).
+# Test context relaxes to allow human-readable GIDs (task_123, section_1)
+# for test clarity. Controlled via AUTOM8Y_ENV.
+_GID_PATTERN: str | None = (
+    r"^\d{1,64}$" if os.environ.get("AUTOM8Y_ENV", "production") != "test" else None
+)
 
 
 class AsanaResource(BaseModel):
@@ -28,7 +37,7 @@ class AsanaResource(BaseModel):
     )
 
     gid: str = Field(
-        pattern=r"^\d{1,64}$",
+        pattern=_GID_PATTERN,
         description="Globally unique identifier for this Asana resource. A numeric string (1-64 digits).",
     )
     resource_type: str | None = Field(

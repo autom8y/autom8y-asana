@@ -126,7 +126,7 @@ class TestVerifyWebhookToken:
         with pytest.raises(HTTPException) as exc_info:
             verify_webhook_token(request_id="test-req-id", token=None)
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"] == "MISSING_TOKEN"
+        assert exc_info.value.detail["error"]["code"] == "MISSING_TOKEN"
 
     def test_empty_token_raises_401(self, webhook_token):
         """Empty string token should raise 401."""
@@ -135,7 +135,7 @@ class TestVerifyWebhookToken:
         with pytest.raises(HTTPException) as exc_info:
             verify_webhook_token(request_id="test-req-id", token="")
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"] == "MISSING_TOKEN"
+        assert exc_info.value.detail["error"]["code"] == "MISSING_TOKEN"
 
     def test_wrong_token_raises_401(self, webhook_token):
         """Incorrect token should raise 401."""
@@ -144,7 +144,7 @@ class TestVerifyWebhookToken:
         with pytest.raises(HTTPException) as exc_info:
             verify_webhook_token(request_id="test-req-id", token="wrong-token")
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"] == "INVALID_TOKEN"
+        assert exc_info.value.detail["error"]["code"] == "INVALID_TOKEN"
 
     def test_unconfigured_token_raises_503(self, unconfigured_token):
         """When WEBHOOK_INBOUND_TOKEN is not set, should raise 503."""
@@ -153,7 +153,7 @@ class TestVerifyWebhookToken:
         with pytest.raises(HTTPException) as exc_info:
             verify_webhook_token(request_id="test-req-id", token="any-token")
         assert exc_info.value.status_code == 503
-        assert exc_info.value.detail["error"] == "WEBHOOK_NOT_CONFIGURED"
+        assert exc_info.value.detail["error"]["code"] == "WEBHOOK_NOT_CONFIGURED"
 
     def test_timing_safe_comparison_used(self, webhook_token):
         """Verify hmac.compare_digest is used for comparison."""

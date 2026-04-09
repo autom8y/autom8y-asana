@@ -258,7 +258,7 @@ class TestMatchingValidation:
             )
             assert resp.status_code == 400
             detail = resp.json()["detail"]
-            assert detail["error"] == "INVALID_QUERY"
+            assert detail["error"]["code"] == "INVALID_QUERY"
 
     def test_only_limit_and_threshold_returns_400(self, client: TestClient) -> None:
         """Request with only limit/threshold (no identity fields) returns 400."""

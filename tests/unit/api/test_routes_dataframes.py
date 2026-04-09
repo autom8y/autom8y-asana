@@ -253,7 +253,7 @@ class TestGetProjectDataframe:
 
         assert response.status_code == 400
         detail = response.json()["detail"]
-        assert detail["error"] == "INVALID_SCHEMA"
+        assert detail["error"]["code"] == "INVALID_SCHEMA"
         assert "valid_schemas" in detail
         # Core schemas must be present (don't hardcode count - grows with new entity types)
         assert "base" in detail["valid_schemas"]
@@ -541,7 +541,7 @@ class TestGetSectionDataframe:
 
         assert response.status_code == 400
         detail = response.json()["detail"]
-        assert detail["error"] == "INVALID_SCHEMA"
+        assert detail["error"]["code"] == "INVALID_SCHEMA"
         assert "valid_schemas" in detail
         # Don't hardcode count - grows with new entity types
         assert len(detail["valid_schemas"]) >= 4
@@ -591,8 +591,8 @@ class TestGetSectionDataframe:
 
         assert response.status_code == 404
         detail = response.json()["detail"]
-        assert detail["error"] == "NOT_FOUND"
-        assert "Section not found" in detail["message"]
+        assert detail["error"]["code"] == "NOT_FOUND"
+        assert "Section not found" in detail["error"]["message"]
 
     def test_get_section_dataframe_no_project_returns_404(
         self, authed_client: tuple[TestClient, MagicMock]

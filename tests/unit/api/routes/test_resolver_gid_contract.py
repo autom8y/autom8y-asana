@@ -632,7 +632,7 @@ class TestGidLookupRouting:
 
         assert response.status_code == 404
         detail = response.json()["detail"]
-        assert detail["error"] == "UNKNOWN_ENTITY_TYPE"
+        assert detail["error"]["code"] == "UNKNOWN_ENTITY_TYPE"
         assert "available_types" in detail
         assert isinstance(detail["available_types"], list)
 
@@ -692,7 +692,7 @@ class TestGidLookupAvailability:
 
                 assert response.status_code == 503
                 detail = response.json()["detail"]
-                assert detail["error"] == "DISCOVERY_INCOMPLETE"
+                assert detail["error"]["code"] == "DISCOVERY_INCOMPLETE"
 
 
 class TestGidLookupInvariants:

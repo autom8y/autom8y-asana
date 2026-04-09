@@ -361,7 +361,7 @@ class TestExceptChain:
         # CacheNotReadyError has status_hint=503, error_code="CACHE_NOT_WARMED"
         assert response.status_code == 503
         detail = response.json()["detail"]
-        assert detail["error"] == "CACHE_NOT_WARMED"
+        assert detail["error"]["code"] == "CACHE_NOT_WARMED"
         assert "request_id" in detail
 
     def test_ee003_service_error_generic_500(self, client: TestClient) -> None:
@@ -386,7 +386,7 @@ class TestExceptChain:
 
         assert response.status_code == 500
         detail = response.json()["detail"]
-        assert detail["error"] == "SERVICE_ERROR"
+        assert detail["error"]["code"] == "SERVICE_ERROR"
 
     def test_ee004_asana_error_propagates_to_global_handler(
         self, client: TestClient
@@ -440,5 +440,8 @@ class TestExceptChain:
 
         assert response.status_code == 500
         detail = response.json()["detail"]
-        assert detail["error"] == "RESOLUTION_ERROR"
-        assert detail["message"] == "An unexpected error occurred during resolution."
+        assert detail["error"]["code"] == "RESOLUTION_ERROR"
+        assert (
+            detail["error"]["message"]
+            == "An unexpected error occurred during resolution."
+        )

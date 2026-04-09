@@ -56,8 +56,8 @@ class TestListTasks:
 
         assert response.status_code == 400
         detail = response.json()["detail"]
-        assert detail["error"] == "INVALID_PARAMETER"
-        assert "only one" in detail["message"].lower()
+        assert detail["error"]["code"] == "INVALID_PARAMETER"
+        assert "only one" in detail["error"]["message"].lower()
 
     def test_list_tasks_by_project_success(
         self, authed_client: tuple[TestClient, MagicMock]
@@ -232,8 +232,8 @@ class TestCreateTask:
 
         assert response.status_code == 400
         detail = response.json()["detail"]
-        assert detail["error"] == "INVALID_PARAMETER"
-        assert "projects" in detail["message"].lower()
+        assert detail["error"]["code"] == "INVALID_PARAMETER"
+        assert "projects" in detail["error"]["message"].lower()
 
     def test_create_task_with_workspace(
         self, authed_client: tuple[TestClient, MagicMock]
@@ -344,8 +344,8 @@ class TestUpdateTask:
 
         assert response.status_code == 400
         detail = response.json()["detail"]
-        assert detail["error"] == "INVALID_PARAMETER"
-        assert "at least one field" in detail["message"].lower()
+        assert detail["error"]["code"] == "INVALID_PARAMETER"
+        assert "at least one field" in detail["error"]["message"].lower()
 
     def test_update_task_partial(
         self, authed_client: tuple[TestClient, MagicMock]

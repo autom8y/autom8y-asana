@@ -61,7 +61,7 @@ def _make_task_data(
         "start_on": None,
         "created_at": created_at,
         "modified_at": modified_at,
-        "projects": [{"gid": "proj_123", "name": "Test Project"}],
+        "projects": [{"gid": "300123", "name": "Test Project"}],
         "tags": [{"gid": "tag_1", "name": "urgent"}],
     }
 
@@ -75,7 +75,7 @@ def _make_section_data(
         "gid": gid,
         "name": name,
         "resource_type": "section",
-        "project": {"gid": "proj_123", "name": "Test Project"},
+        "project": {"gid": "300123", "name": "Test Project"},
         "created_at": "2026-02-07T12:00:00.000Z",
     }
 
@@ -112,7 +112,7 @@ def task_app() -> FastAPI:
 
     # list_tasks returns a paginated result
     list_result = MagicMock()
-    list_result.data = [_make_task_data(gid="t1"), _make_task_data(gid="t2")]
+    list_result.data = [_make_task_data(gid="100001"), _make_task_data(gid="100002")]
     list_result.has_more = True
     list_result.next_offset = "cursor_abc"
     mock_task_service.list_tasks = AsyncMock(return_value=list_result)
@@ -333,7 +333,7 @@ class TestListResponseContract:
 
     def test_list_response_has_pagination_meta(self, task_client: TestClient) -> None:
         """meta.pagination contains has_more, next_offset, limit."""
-        response = task_client.get("/api/v1/tasks?project=proj_123")
+        response = task_client.get("/api/v1/tasks?project=300123")
         assert response.status_code == 200
 
         body = response.json()
@@ -348,7 +348,7 @@ class TestListResponseContract:
 
     def test_list_data_is_array(self, task_client: TestClient) -> None:
         """data is a list of dicts for list endpoints."""
-        response = task_client.get("/api/v1/tasks?project=proj_123")
+        response = task_client.get("/api/v1/tasks?project=300123")
         data = response.json()["data"]
 
         assert isinstance(data, list), "data must be a list for list endpoints"

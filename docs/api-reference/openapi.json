@@ -15,7 +15,7 @@
             "examples": [
               "2222222222222222"
             ],
-            "minLength": 1,
+            "pattern": "^\\d{1,64}$",
             "title": "Tag Gid",
             "type": "string"
           }
@@ -40,7 +40,7 @@
             "examples": [
               "1234567890123456"
             ],
-            "minLength": 1,
+            "pattern": "^\\d{1,64}$",
             "title": "Task Gid",
             "type": "string"
           }
@@ -65,7 +65,7 @@
             "examples": [
               "1234567890123456"
             ],
-            "minLength": 1,
+            "pattern": "^\\d{1,64}$",
             "title": "Project Gid",
             "type": "string"
           }
@@ -88,10 +88,11 @@
         ],
         "properties": {
           "gid": {
-            "description": "Globally unique Asana resource identifier",
+            "description": "Globally unique Asana resource identifier (numeric string)",
             "examples": [
               "1234567890123456"
             ],
+            "pattern": "^\\d{1,64}$",
             "title": "Gid",
             "type": "string"
           },
@@ -155,6 +156,7 @@
           "team": {
             "anyOf": [
               {
+                "pattern": "^\\d{1,64}$",
                 "type": "string"
               },
               {
@@ -172,7 +174,7 @@
             "examples": [
               "1111111111111111"
             ],
-            "minLength": 1,
+            "pattern": "^\\d{1,64}$",
             "title": "Workspace",
             "type": "string"
           }
@@ -208,7 +210,7 @@
             "examples": [
               "1234567890123456"
             ],
-            "minLength": 1,
+            "pattern": "^\\d{1,64}$",
             "title": "Project",
             "type": "string"
           }
@@ -238,6 +240,7 @@
           "assignee": {
             "anyOf": [
               {
+                "pattern": "^\\d{1,64}$",
                 "type": "string"
               },
               {
@@ -294,6 +297,7 @@
             "anyOf": [
               {
                 "items": {
+                  "pattern": "^\\d{1,64}$",
                   "type": "string"
                 },
                 "type": "array"
@@ -313,6 +317,7 @@
           "workspace": {
             "anyOf": [
               {
+                "pattern": "^\\d{1,64}$",
                 "type": "string"
               },
               {
@@ -684,6 +689,7 @@
               ]
             ],
             "items": {
+              "pattern": "^\\d{1,64}$",
               "type": "string"
             },
             "minItems": 1,
@@ -712,7 +718,7 @@
             "examples": [
               "1234567890123456"
             ],
-            "minLength": 1,
+            "pattern": "^\\d{1,64}$",
             "title": "Project Gid",
             "type": "string"
           },
@@ -721,7 +727,7 @@
             "examples": [
               "3333333333333333"
             ],
-            "minLength": 1,
+            "pattern": "^\\d{1,64}$",
             "title": "Section Gid",
             "type": "string"
           }
@@ -967,6 +973,7 @@
           "after_section": {
             "anyOf": [
               {
+                "pattern": "^\\d{1,64}$",
                 "type": "string"
               },
               {
@@ -982,6 +989,7 @@
           "before_section": {
             "anyOf": [
               {
+                "pattern": "^\\d{1,64}$",
                 "type": "string"
               },
               {
@@ -999,7 +1007,7 @@
             "examples": [
               "1234567890123456"
             ],
-            "minLength": 1,
+            "pattern": "^\\d{1,64}$",
             "title": "Project Gid",
             "type": "string"
           }
@@ -1552,6 +1560,7 @@
           "assignee_gid": {
             "anyOf": [
               {
+                "pattern": "^\\d{1,64}$",
                 "type": "string"
               },
               {
@@ -1958,7 +1967,8 @@
             "title": "Followers"
           },
           "gid": {
-            "description": "Globally unique identifier for this Asana resource. A 16-digit numeric string.",
+            "description": "Globally unique identifier for this Asana resource. A numeric string (1-64 digits).",
+            "pattern": "^\\d{1,64}$",
             "title": "Gid",
             "type": "string"
           },
@@ -2598,26 +2608,37 @@
   "paths": {
     "/api/v1/dataframes/project/{gid}": {
       "get": {
-        "description": "Fetch all tasks in a project as a structured DataFrame.\n\nExtracts task fields according to the selected ``schema``, then returns\nthe result as either JSON records or Polars-serialized JSON depending\non the ``Accept`` header.\n\n**Schemas** control which custom fields are extracted:\n\n- ``base`` \u2014 GID, name, completed, created_at (default)\n- ``unit`` / ``contact`` / ``business`` / ``offer`` \u2014 domain-specific\n  custom fields (office_phone, weekly_ad_spend, email, etc.)\n- ``asset_edit`` / ``asset_edit_holder`` \u2014 asset editing metadata\n\n**Response formats** (via ``Accept`` header):\n\n- ``application/json`` (default) \u2014 JSON records array\n- ``application/x-polars-json`` \u2014 Polars-serialized format for direct\n  DataFrame deserialization\n\nSupports cursor-based pagination via ``offset`` and ``limit``.\n\nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n    gid: Asana project GID.\n    schema: Field extraction schema (default ``base``).\n    limit: Items per page (1\u2013100, default 100).\n    offset: Pagination cursor from previous response.\n    accept: Response format preference (``Accept`` header).\n\nReturns:\n    DataFrame of project tasks in the requested format and schema.\n\nRaises:\n    400: Invalid ``schema`` value. Response includes list of valid schemas.\n    404: Project not found or not accessible.",
-        "operationId": "get_project_dataframe_api_v1_dataframes_project__gid__get",
+        "description": "Fetch all tasks in a project as a structured DataFrame.\n\nExtracts task fields according to the selected ``schema``, then returns\nthe result as either JSON records or Polars-serialized JSON depending\non the ``Accept`` header.\n\n**Schemas** control which custom fields are extracted:\n\n- ``base`` \u2014 GID, name, completed, created_at (default)\n- ``unit`` / ``contact`` / ``business`` / ``offer`` / ``process`` \u2014\n  domain-specific custom fields (office_phone, weekly_ad_spend, email, etc.)\n- ``asset_edit`` / ``asset_edit_holder`` \u2014 asset editing metadata\n\n**Response formats** (via ``Accept`` header):\n\n- ``application/json`` (default) \u2014 JSON records array\n- ``application/x-polars-json`` \u2014 Polars-serialized format for direct\n  DataFrame deserialization\n\nSupports cursor-based pagination via ``offset`` and ``limit``.\n\nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n    gid: Asana project GID.\n    schema: Field extraction schema (default ``base``).\n    limit: Items per page (1\u2013100, default 100).\n    offset: Pagination cursor from previous response.\n    accept: Response format preference (``Accept`` header).\n\nReturns:\n    DataFrame of project tasks in the requested format and schema.\n\nRaises:\n    400: Invalid ``schema`` value. Response includes list of valid schemas.\n    404: Project not found or not accessible.",
+        "operationId": "list_project_dataframe_api_v1_dataframes_project__gid__get",
         "parameters": [
           {
             "in": "path",
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
           },
           {
-            "description": "Schema to use for extraction. Valid values: base, unit, contact, business, offer, asset_edit, asset_edit_holder",
+            "description": "Schema to use for extraction. Valid values: base, unit, contact, business, offer, asset_edit, asset_edit_holder, process",
             "in": "query",
             "name": "schema",
             "required": false,
             "schema": {
               "default": "base",
-              "description": "Schema to use for extraction. Valid values: base, unit, contact, business, offer, asset_edit, asset_edit_holder",
+              "description": "Schema to use for extraction. Valid values: base, unit, contact, business, offer, asset_edit, asset_edit_holder, process",
+              "enum": [
+                "base",
+                "unit",
+                "contact",
+                "business",
+                "offer",
+                "asset_edit",
+                "asset_edit_holder",
+                "process"
+              ],
               "title": "Schema",
               "type": "string"
             }
@@ -2708,6 +2729,46 @@
             },
             "description": "DataFrame data in requested format"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -2733,7 +2794,7 @@
     "/api/v1/dataframes/schemas": {
       "get": {
         "description": "Returns all available dataframe schemas with their column definitions. Each schema maps Asana custom fields to typed DataFrame columns. Use this to discover which schema to pass to the project or section dataframe endpoints (GET /api/v1/dataframes/project/{gid}?schema=...). When include_semantic=true, descriptions include structured YAML metadata with business meaning, data type semantics, and more.",
-        "operationId": "list_schemas_api_v1_dataframes_schemas_get",
+        "operationId": "list_dataframes_api_v1_dataframes_schemas_get",
         "parameters": [
           {
             "description": "When true, descriptions include the full YAML semantic annotation block after a --- delimiter.",
@@ -2783,11 +2844,51 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response List Schemas Api V1 Dataframes Schemas Get"
+                  "title": "Response List Dataframes Api V1 Dataframes Schemas Get"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -2814,13 +2915,23 @@
     "/api/v1/dataframes/schemas/{name}": {
       "get": {
         "description": "Returns detailed column definitions for a specific dataframe schema. Each column includes name, dtype (Polars type), nullable flag, and description. Use this to understand the exact columns returned when requesting data with this schema. When include_semantic=true, descriptions include structured YAML metadata.",
-        "operationId": "get_schema_api_v1_dataframes_schemas__name__get",
+        "operationId": "get_dataframe_schema_api_v1_dataframes_schemas__name__get",
         "parameters": [
           {
             "in": "path",
             "name": "name",
             "required": true,
             "schema": {
+              "enum": [
+                "base",
+                "unit",
+                "contact",
+                "business",
+                "offer",
+                "asset_edit",
+                "asset_edit_holder",
+                "process"
+              ],
               "title": "Name",
               "type": "string"
             }
@@ -2873,11 +2984,51 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Get Schema Api V1 Dataframes Schemas  Name  Get"
+                  "title": "Response Get Dataframe Schema Api V1 Dataframes Schemas  Name  Get"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -2903,26 +3054,37 @@
     },
     "/api/v1/dataframes/section/{gid}": {
       "get": {
-        "description": "Fetch all tasks in a section as a structured DataFrame.\n\nIdentical to ``GET /api/v1/dataframes/project/{gid}`` but scoped to\na single section. Useful when you need task data from one lane of a\nboard without fetching the entire project.\n\n**Schemas** control which custom fields are extracted:\n\n- ``base`` \u2014 GID, name, completed, created_at (default)\n- ``unit`` / ``contact`` / ``business`` / ``offer`` \u2014 domain-specific\n  custom fields\n- ``asset_edit`` / ``asset_edit_holder`` \u2014 asset editing metadata\n\n**Response formats** (via ``Accept`` header):\n\n- ``application/json`` (default) \u2014 JSON records array\n- ``application/x-polars-json`` \u2014 Polars-serialized format\n\nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n    gid: Asana section GID.\n    schema: Field extraction schema (default ``base``).\n    limit: Items per page (1\u2013100, default 100).\n    offset: Pagination cursor from previous response.\n    accept: Response format preference (``Accept`` header).\n\nReturns:\n    DataFrame of section tasks in the requested format and schema.\n\nRaises:\n    400: Invalid ``schema`` value. Response includes list of valid schemas.\n    404: Section not found or not accessible.",
-        "operationId": "get_section_dataframe_api_v1_dataframes_section__gid__get",
+        "description": "Fetch all tasks in a section as a structured DataFrame.\n\nIdentical to ``GET /api/v1/dataframes/project/{gid}`` but scoped to\na single section. Useful when you need task data from one lane of a\nboard without fetching the entire project.\n\n**Schemas** control which custom fields are extracted:\n\n- ``base`` \u2014 GID, name, completed, created_at (default)\n- ``unit`` / ``contact`` / ``business`` / ``offer`` / ``process`` \u2014\n  domain-specific custom fields\n- ``asset_edit`` / ``asset_edit_holder`` \u2014 asset editing metadata\n\n**Response formats** (via ``Accept`` header):\n\n- ``application/json`` (default) \u2014 JSON records array\n- ``application/x-polars-json`` \u2014 Polars-serialized format\n\nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n    gid: Asana section GID.\n    schema: Field extraction schema (default ``base``).\n    limit: Items per page (1\u2013100, default 100).\n    offset: Pagination cursor from previous response.\n    accept: Response format preference (``Accept`` header).\n\nReturns:\n    DataFrame of section tasks in the requested format and schema.\n\nRaises:\n    400: Invalid ``schema`` value. Response includes list of valid schemas.\n    404: Section not found or not accessible.",
+        "operationId": "list_section_dataframe_api_v1_dataframes_section__gid__get",
         "parameters": [
           {
             "in": "path",
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
           },
           {
-            "description": "Schema to use for extraction. Valid values: base, unit, contact, business, offer, asset_edit, asset_edit_holder",
+            "description": "Schema to use for extraction. Valid values: base, unit, contact, business, offer, asset_edit, asset_edit_holder, process",
             "in": "query",
             "name": "schema",
             "required": false,
             "schema": {
               "default": "base",
-              "description": "Schema to use for extraction. Valid values: base, unit, contact, business, offer, asset_edit, asset_edit_holder",
+              "description": "Schema to use for extraction. Valid values: base, unit, contact, business, offer, asset_edit, asset_edit_holder, process",
+              "enum": [
+                "base",
+                "unit",
+                "contact",
+                "business",
+                "offer",
+                "asset_edit",
+                "asset_edit_holder",
+                "process"
+              ],
               "title": "Schema",
               "type": "string"
             }
@@ -3008,6 +3170,46 @@
             },
             "description": "DataFrame data in requested format"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3089,6 +3291,16 @@
             },
             "description": "Section timeline entries for all offers in the period"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -3108,6 +3320,16 @@
               }
             },
             "description": "Forbidden -- valid token but insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -3143,6 +3365,7 @@
             "required": true,
             "schema": {
               "description": "Workspace GID to list projects from",
+              "pattern": "^\\d{1,64}$",
               "title": "Workspace",
               "type": "string"
             }
@@ -3191,6 +3414,16 @@
             },
             "description": "Paginated list of projects"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -3210,6 +3443,16 @@
               }
             },
             "description": "Forbidden -- valid token but insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -3256,6 +3499,16 @@
             },
             "description": "Created project details"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -3275,6 +3528,16 @@
               }
             },
             "description": "Forbidden -- valid token but insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "description": "Validation error -- invalid request parameters"
@@ -3301,6 +3564,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3309,6 +3573,16 @@
         "responses": {
           "204": {
             "description": "No content"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -3370,6 +3644,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3406,6 +3681,16 @@
               }
             },
             "description": "Project details"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -3467,6 +3752,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3492,6 +3778,16 @@
               }
             },
             "description": "Updated project details"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -3548,6 +3844,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3573,6 +3870,16 @@
               }
             },
             "description": "Updated project with members removed"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -3627,6 +3934,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3652,6 +3960,16 @@
               }
             },
             "description": "Updated project with new members"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -3708,6 +4026,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3755,6 +4074,16 @@
               }
             },
             "description": "Paginated list of sections"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -3833,6 +4162,16 @@
             },
             "description": "Created section details"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -3852,6 +4191,16 @@
               }
             },
             "description": "Forbidden -- valid token but insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "description": "Validation error -- invalid request parameters"
@@ -3878,6 +4227,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3886,6 +4236,16 @@
         "responses": {
           "204": {
             "description": "No content"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -3947,6 +4307,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -3962,6 +4323,16 @@
               }
             },
             "description": "Section details"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -4023,6 +4394,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4048,6 +4420,16 @@
               }
             },
             "description": "Updated section details"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -4104,6 +4486,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4122,6 +4505,16 @@
         "responses": {
           "204": {
             "description": "No content"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -4178,6 +4571,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4196,6 +4590,16 @@
         "responses": {
           "204": {
             "description": "No content"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -4244,7 +4648,7 @@
     },
     "/api/v1/tasks": {
       "get": {
-        "description": "List tasks from a project or section with cursor-based pagination.\n\nExactly one of ``project`` or ``section`` must be provided. Supplying\nboth or neither returns ``400 INVALID_PARAMETER``.\n\nUse ``offset`` from the previous response's ``meta.pagination.next_offset``\nto retrieve the next page. When ``has_more`` is false, you have reached\nthe last page.\n\nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n    project: Project GID to list tasks from.\n    section: Section GID to list tasks from.\n    limit: Items per page (1\u2013100, default 100).\n    offset: Pagination cursor from previous response.\n\nReturns:\n    Paginated list of tasks with ``gid``, ``name``, and task fields.\n\nRaises:\n    400: Neither project nor section provided, or both provided.",
+        "description": "List tasks from a project or section with cursor-based pagination.\n\nExactly one of ``project`` or ``section`` must be provided. Supplying\nboth or neither returns ``422 Unprocessable Entity`` (via Pydantic).\n\nUse ``offset`` from the previous response's ``meta.pagination.next_offset``\nto retrieve the next page. When ``has_more`` is false, you have reached\nthe last page.\n\nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n    params: Query parameters (project/section, limit, offset).\n\nReturns:\n    Paginated list of tasks with ``gid``, ``name``, and task fields.\n\nRaises:\n    400: Business logic error from service layer.\n    422: Validation error if project/section rules are violated.",
         "operationId": "list_tasks_api_v1_tasks_get",
         "parameters": [
           {
@@ -4255,6 +4659,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "pattern": "^\\d{1,64}$",
                   "type": "string"
                 },
                 {
@@ -4273,6 +4678,7 @@
             "schema": {
               "anyOf": [
                 {
+                  "pattern": "^\\d{1,64}$",
                   "type": "string"
                 },
                 {
@@ -4327,6 +4733,16 @@
             },
             "description": "Paginated list of tasks"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -4346,6 +4762,16 @@
               }
             },
             "description": "Forbidden -- valid token but insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -4392,6 +4818,16 @@
             },
             "description": "Created task details"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -4411,6 +4847,16 @@
               }
             },
             "description": "Forbidden -- valid token but insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "description": "Validation error -- invalid request parameters"
@@ -4449,6 +4895,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4457,6 +4904,16 @@
         "responses": {
           "204": {
             "description": "No content"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -4518,6 +4975,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4554,6 +5012,16 @@
               }
             },
             "description": "Task details"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -4615,6 +5083,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4640,6 +5109,16 @@
               }
             },
             "description": "Updated task details"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -4696,6 +5175,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4721,6 +5201,46 @@
               }
             },
             "description": "Updated task with new assignee"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -4754,6 +5274,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4801,6 +5322,16 @@
               }
             },
             "description": "Paginated list of dependent tasks"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -4864,6 +5395,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4889,6 +5421,16 @@
               }
             },
             "description": "Newly duplicated task details"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -4945,6 +5487,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -4970,6 +5513,46 @@
               }
             },
             "description": "Updated task with new project membership"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -5003,6 +5586,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5012,6 +5596,7 @@
             "name": "project_gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Project Gid",
               "type": "string"
             }
@@ -5027,6 +5612,46 @@
               }
             },
             "description": "Updated task with project membership removed"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -5060,6 +5685,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5085,6 +5711,46 @@
               }
             },
             "description": "Updated task with new section"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -5118,6 +5784,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5165,6 +5832,16 @@
               }
             },
             "description": "Paginated list of subtasks"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -5228,6 +5905,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5253,6 +5931,16 @@
               }
             },
             "description": "Updated task with new tag"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -5309,6 +5997,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5318,6 +6007,7 @@
             "name": "tag_gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Tag Gid",
               "type": "string"
             }
@@ -5333,6 +6023,46 @@
               }
             },
             "description": "Updated task with tag removed"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -5368,6 +6098,7 @@
             "required": true,
             "schema": {
               "description": "Workspace GID to list users from",
+              "pattern": "^\\d{1,64}$",
               "title": "Workspace",
               "type": "string"
             }
@@ -5416,6 +6147,16 @@
             },
             "description": "Paginated list of workspace users"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -5435,6 +6176,16 @@
               }
             },
             "description": "Forbidden -- valid token but insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -5473,6 +6224,16 @@
             },
             "description": "Current user profile"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -5492,6 +6253,16 @@
               }
             },
             "description": "Forbidden -- valid token but insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -5525,6 +6296,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5540,6 +6312,16 @@
               }
             },
             "description": "User profile"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -5624,6 +6406,16 @@
             },
             "description": "Accepted status for valid payloads"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -5643,6 +6435,16 @@
               }
             },
             "description": "Forbidden -- valid token but insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -5682,6 +6484,56 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -5736,6 +6588,16 @@
           },
           "401": {
             "description": "Missing or invalid authentication"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
           },
           "404": {
             "description": "Unknown workflow_id"
@@ -5810,6 +6672,16 @@
             },
             "description": "Paginated list of workspaces"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
           "401": {
             "content": {
               "application/json": {
@@ -5829,6 +6701,16 @@
               }
             },
             "description": "Forbidden -- valid token but insufficient permissions"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -5862,6 +6744,7 @@
             "name": "gid",
             "required": true,
             "schema": {
+              "pattern": "^\\d{1,64}$",
               "title": "Gid",
               "type": "string"
             }
@@ -5877,6 +6760,16 @@
               }
             },
             "description": "Workspace details"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
           },
           "401": {
             "content": {
@@ -5942,6 +6835,46 @@
               }
             },
             "description": "Application liveness status"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           }
         },
         "security": [],
@@ -5963,6 +6896,46 @@
               }
             },
             "description": "Dependency health status with per-check results"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           }
         },
         "security": [],
@@ -5984,6 +6957,46 @@
               }
             },
             "description": "Service readiness status with dependency connectivity"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           }
         },
         "security": [],
@@ -6009,6 +7022,56 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -6052,6 +7115,46 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -6092,6 +7195,56 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -6134,6 +7287,46 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -6187,6 +7380,46 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -6238,6 +7471,46 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -6298,6 +7571,46 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {
@@ -6389,6 +7702,46 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -6445,6 +7798,46 @@
               }
             },
             "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
           },
           "422": {
             "content": {

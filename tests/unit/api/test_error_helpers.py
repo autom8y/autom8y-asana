@@ -70,8 +70,8 @@ class TestRaiseApiErrorHappyPath:
 
         exc = exc_info.value
         assert exc.status_code == 400
-        assert exc.detail["error"] == "INVALID_INPUT"
-        assert exc.detail["message"] == "Bad input"
+        assert exc.detail["error"]["code"] == "INVALID_INPUT"
+        assert exc.detail["error"]["message"] == "Bad input"
         assert exc.detail["request_id"] == "req-001"
 
     def test_with_string_request_id(self) -> None:
@@ -81,7 +81,7 @@ class TestRaiseApiErrorHappyPath:
 
         exc = exc_info.value
         assert exc.detail["request_id"] == "raw-id-456"
-        assert exc.detail["error"] == "NOT_FOUND"
+        assert exc.detail["error"]["code"] == "NOT_FOUND"
 
     def test_with_details_kwarg(self) -> None:
         """Extra details dict is merged into detail."""
@@ -95,7 +95,7 @@ class TestRaiseApiErrorHappyPath:
             )
 
         detail = exc_info.value.detail
-        assert detail["error"] == "INVALID_FIELD"
+        assert detail["error"]["code"] == "INVALID_FIELD"
         assert detail["request_id"] == "req-002"
         assert detail["field"] == "foo"
         assert detail["available"] == ["bar", "baz"]
@@ -160,14 +160,14 @@ class TestRaiseApiErrorEdgeCases:
         with pytest.raises(HTTPException) as exc_info:
             raise_api_error("id", 400, "", "msg")
 
-        assert exc_info.value.detail["error"] == ""
+        assert exc_info.value.detail["error"]["code"] == ""
 
     def test_empty_message(self) -> None:
         """Empty message is allowed."""
         with pytest.raises(HTTPException) as exc_info:
             raise_api_error("id", 400, "CODE", "")
 
-        assert exc_info.value.detail["message"] == ""
+        assert exc_info.value.detail["error"]["message"] == ""
 
     @pytest.mark.parametrize(
         "details",
@@ -201,8 +201,8 @@ class TestRaiseApiErrorEdgeCases:
 
         detail = exc_info.value.detail
         # details.update() overwrites base keys
-        assert detail["error"] == "OVERWRITTEN"
-        assert detail["message"] == "overwritten msg"
+        assert detail["error"]["code"] == "OVERWRITTEN"
+        assert detail["error"]["message"] == "overwritten msg"
 
     def test_never_returns(self) -> None:
         """raise_api_error always raises, never returns a value."""
@@ -244,8 +244,8 @@ class TestRaiseServiceErrorHappyPath:
 
         exc = exc_info.value
         assert exc.status_code == 500  # ServiceError -> 500
-        assert exc.detail["error"] == "SERVICE_ERROR"
-        assert exc.detail["message"] == "something broke"
+        assert exc.detail["error"]["code"] == "SERVICE_ERROR"
+        assert exc.detail["error"]["message"] == "something broke"
         assert exc.detail["request_id"] == "svc-001"
 
     def test_task_not_found_error(self) -> None:
@@ -256,7 +256,7 @@ class TestRaiseServiceErrorHappyPath:
 
         exc = exc_info.value
         assert exc.status_code == 404
-        assert exc.detail["error"] == "TASK_NOT_FOUND"
+        assert exc.detail["error"]["code"] == "TASK_NOT_FOUND"
         assert "1234567890" in exc.detail["message"]
         assert exc.detail["request_id"] == "req-id"
 
@@ -267,7 +267,7 @@ class TestRaiseServiceErrorHappyPath:
             raise_service_error("req-id", err)
 
         detail = exc_info.value.detail
-        assert detail["error"] == "UNKNOWN_ENTITY_TYPE"
+        assert detail["error"]["code"] == "UNKNOWN_ENTITY_TYPE"
         assert detail["available_types"] == ["offer", "unit"]
         assert detail["request_id"] == "req-id"
 
@@ -300,7 +300,7 @@ class TestRaiseServiceErrorHappyPath:
             raise_service_error("req-id", err)
 
         assert exc_info.value.status_code == 503
-        assert exc_info.value.detail["error"] == "CACHE_NOT_WARMED"
+        assert exc_info.value.detail["error"]["code"] == "CACHE_NOT_WARMED"
 
     def test_with_headers(self) -> None:
         """Custom headers are passed through."""
@@ -351,7 +351,7 @@ class TestRaiseServiceErrorEdgeCases:
             raise_service_error("req-id", err)
 
         detail = exc_info.value.detail
-        assert detail["error"] == "UNKNOWN_SECTION"
+        assert detail["error"]["code"] == "UNKNOWN_SECTION"
         assert detail["request_id"] == "req-id"
         # available_sections omitted when empty list
         assert "available_sections" not in detail
@@ -439,8 +439,8 @@ class TestFormatConsistencyAcrossRoutes:
             )
 
         detail = exc_info.value.detail
-        assert detail["error"] == "RATE_LIMITED"
-        assert detail["message"] == "Rate limit exceeded"
+        assert detail["error"]["code"] == "RATE_LIMITED"
+        assert detail["error"]["message"] == "Rate limit exceeded"
         assert detail["request_id"] == "ew-req-id"
         assert exc_info.value.headers == {"Retry-After": "60"}
 
@@ -452,7 +452,7 @@ class TestFormatConsistencyAcrossRoutes:
             raise_api_error("qv2-req-id", 400, d["error"], d["message"])
 
         detail = exc_info.value.detail
-        assert detail["error"] == "QUERY_TOO_COMPLEX"
+        assert detail["error"]["code"] == "QUERY_TOO_COMPLEX"
         assert detail["request_id"] == "qv2-req-id"
 
     def test_base_keys_always_present(self) -> None:

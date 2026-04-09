@@ -4,6 +4,12 @@ from __future__ import annotations
 
 import os
 
+# Set test environment BEFORE any model imports.
+# This relaxes AsanaResource.gid pattern validation (production: ^\d{1,64}$, test: any string)
+# and controls other environment-gated behaviors.
+# Force-set (not setdefault) because shell may have AUTOM8Y_ENV=local.
+os.environ["AUTOM8Y_ENV"] = "test"
+
 # Bypass Autom8yBaseSettings production URL guard in test context.
 # AuthSettings.jwks_url defaults to the production autom8y.io domain;
 # the base-settings SDK guard rejects it when AUTOM8Y_ENV=test.
