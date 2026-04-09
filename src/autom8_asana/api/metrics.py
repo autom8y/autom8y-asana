@@ -17,32 +17,32 @@ from prometheus_client import Counter, Gauge, Histogram
 # --- DataFrame Cache Metrics ---
 
 DATAFRAME_BUILD_DURATION = Histogram(
-    "asana_dataframe_build_duration_seconds",
+    "autom8y_asana_dataframe_build_duration_seconds",
     "Time to build a DataFrame from API data",
     labelnames=["entity_type"],
     buckets=(0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0, 120.0),
 )
 
 DATAFRAME_CACHE_OPS = Counter(
-    "asana_dataframe_cache_operations_total",
+    "autom8y_asana_dataframe_cache_operations_total",
     "DataFrame cache operations by tier and result",
     labelnames=["entity_type", "tier", "result"],
 )
 
 DATAFRAME_ROWS_CACHED = Gauge(
-    "asana_dataframe_rows_cached",
+    "autom8y_asana_dataframe_rows_cached",
     "Current row count in most recent cached DataFrame per entity type",
     labelnames=["entity_type"],
 )
 
 DATAFRAME_SWR_REFRESHES = Counter(
-    "asana_dataframe_swr_refreshes_total",
+    "autom8y_asana_dataframe_swr_refreshes_total",
     "Stale-while-revalidate background refresh attempts",
     labelnames=["entity_type", "result"],
 )
 
 DATAFRAME_CIRCUIT_BREAKER = Gauge(
-    "asana_dataframe_circuit_breaker_state",
+    "autom8y_asana_dataframe_circuit_breaker_state",
     "Circuit breaker state per project (0=closed, 1=open, 2=half_open)",
     labelnames=["project_gid"],
 )
@@ -52,13 +52,13 @@ DATAFRAME_CIRCUIT_BREAKER = Gauge(
 # domain-specific API call tracking at the Asana resource level.
 
 ASANA_API_CALLS = Counter(
-    "asana_api_calls_total",
+    "autom8y_asana_api_calls_total",
     "Asana API calls by endpoint pattern and status",
     labelnames=["method", "path_pattern", "status_code"],
 )
 
 ASANA_API_DURATION = Histogram(
-    "asana_api_call_duration_seconds",
+    "autom8y_asana_api_call_duration_seconds",
     "Asana API call duration by endpoint pattern",
     labelnames=["method", "path_pattern"],
     buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
