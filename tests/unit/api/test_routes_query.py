@@ -700,7 +700,7 @@ class TestQueryProjectNotConfigured:
                     # ServiceNotConfiguredError -> 503
                     assert response.status_code == 503
                     data = response.json()
-                    assert data["error"]["code"] == "SERVICE_NOT_CONFIGURED"
+                    assert data["error"]["code"] == "S2S_NOT_CONFIGURED"
             finally:
                 test_app.dependency_overrides.clear()
 

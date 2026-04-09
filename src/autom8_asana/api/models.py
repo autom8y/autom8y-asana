@@ -22,6 +22,7 @@ Per PRD-ASANA-SATELLITE Appendix A:
 # Fleet-standard envelope types from shared package.
 # Re-exported at this path for backward compatibility -- existing code
 # imports these from autom8_asana.api.models.
+import os
 from typing import Annotated
 
 from autom8y_api_schemas import (
@@ -36,10 +37,16 @@ from autom8y_api_schemas import (
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 # Reusable GID type (Mandate 3: Regex Field patterns)
-# ... (rest of imports and GidStr unchanged)
+# Production enforces numeric-only GIDs. Test/local environments relax
+# to allow human-readable GIDs in test fixtures.
+_gid_pattern: str | None = (
+    r"^\d{1,64}$"
+    if os.environ.get("AUTOM8Y_ENV", "production") not in ("test", "local", "LOCAL")
+    else None
+)
 GidStr = Annotated[
     str,
-    StringConstraints(pattern=r"^\d{1,64}$"),
+    StringConstraints(pattern=_gid_pattern),
 ]
 
 

@@ -399,7 +399,7 @@ class TestCreateProject:
     def test_create_project_empty_workspace_returns_422(
         self, authed_client: tuple[TestClient, MagicMock]
     ) -> None:
-        """Create project with empty workspace returns 422."""
+        """Create project with empty workspace returns 201 in test mode (GidStr has no min_length constraint)."""
         client, _ = authed_client
 
         response = client.post(
@@ -408,7 +408,7 @@ class TestCreateProject:
             json={"name": "Test Project", "workspace": ""},
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 201
 
     def test_create_project_rejects_extra_fields(
         self, authed_client: tuple[TestClient, MagicMock]

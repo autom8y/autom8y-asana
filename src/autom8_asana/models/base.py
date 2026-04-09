@@ -13,7 +13,9 @@ from pydantic import BaseModel, ConfigDict, Field
 # Test context relaxes to allow human-readable GIDs (task_123, section_1)
 # for test clarity. Controlled via AUTOM8Y_ENV.
 _GID_PATTERN: str | None = (
-    r"^\d{1,64}$" if os.environ.get("AUTOM8Y_ENV", "production") != "test" else None
+    r"^\d{1,64}$"
+    if os.environ.get("AUTOM8Y_ENV", "production") not in ("test", "local", "LOCAL")
+    else None
 )
 
 

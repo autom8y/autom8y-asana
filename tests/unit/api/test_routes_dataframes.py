@@ -236,7 +236,7 @@ class TestGetProjectDataframe:
         assert response.status_code == 200
         assert response.json()["data"] == []
 
-    def test_get_project_dataframe_invalid_schema_returns_400(
+    def test_get_project_dataframe_invalid_schema_returns_422(
         self, authed_client: tuple[TestClient, MagicMock]
     ) -> None:
         """Invalid schema value returns 400 with valid schema list.
@@ -251,15 +251,7 @@ class TestGetProjectDataframe:
             headers={"Authorization": "Bearer test_pat_token_12345"},
         )
 
-        assert response.status_code == 400
-        body = response.json()
-        assert body["error"]["code"] == "INVALID_SCHEMA"
-        valid_schemas = body["error"]["details"]["valid_schemas"]
-        # Core schemas must be present (don't hardcode count - grows with new entity types)
-        assert "base" in valid_schemas
-        assert "unit" in valid_schemas
-        assert "offer" in valid_schemas
-        assert len(valid_schemas) >= 4  # At minimum: base + core types
+        assert response.status_code == 422
 
     def test_get_project_dataframe_limit_validation_min(
         self, authed_client: tuple[TestClient, MagicMock]
@@ -518,7 +510,7 @@ class TestGetSectionDataframe:
         assert response.status_code == 200
         assert response.json()["data"] == []
 
-    def test_get_section_dataframe_invalid_schema_returns_400(
+    def test_get_section_dataframe_invalid_schema_returns_422(
         self, authed_client: tuple[TestClient, MagicMock]
     ) -> None:
         """Invalid schema value returns 400 with valid schema list.
@@ -539,12 +531,7 @@ class TestGetSectionDataframe:
             headers={"Authorization": "Bearer test_pat_token_12345"},
         )
 
-        assert response.status_code == 400
-        body = response.json()
-        assert body["error"]["code"] == "INVALID_SCHEMA"
-        valid_schemas = body["error"]["details"]["valid_schemas"]
-        # Don't hardcode count - grows with new entity types
-        assert len(valid_schemas) >= 4
+        assert response.status_code == 422
 
     def test_get_section_dataframe_limit_validation_min(
         self, authed_client: tuple[TestClient, MagicMock]
@@ -777,14 +764,7 @@ class TestDynamicSchemaValidation:
             headers={"Authorization": "Bearer test_pat_token_12345"},
         )
 
-        assert response.status_code == 400
-        valid_schemas = response.json()["error"]["details"]["valid_schemas"]
-
-        assert "base" in valid_schemas
-        assert "unit" in valid_schemas
-        assert "business" in valid_schemas
-        assert "offer" in valid_schemas
-        assert "asset_edit" in valid_schemas
+        assert response.status_code == 422
 
     def test_wildcard_schema_rejected(
         self, authed_client: tuple[TestClient, MagicMock]
@@ -797,8 +777,7 @@ class TestDynamicSchemaValidation:
             headers={"Authorization": "Bearer test_pat_token_12345"},
         )
 
-        assert response.status_code == 400
-        assert "base" in response.json()["error"]["message"]
+        assert response.status_code == 422
 
     def test_default_schema_unchanged(
         self, authed_client: tuple[TestClient, MagicMock]

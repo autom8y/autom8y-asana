@@ -67,9 +67,9 @@ class TestSectionTimelinesClassificationParam:
         )
 
         assert response.status_code == 422
-        detail = response.json()["detail"]
-        assert detail["error"]["code"] == "VALIDATION_ERROR"
-        assert "bogus" in detail["error"]["message"]
+        body = response.json()
+        assert body["error"]["code"] == "VALIDATION_ERROR"
+        assert "bogus" in body["error"]["message"]
 
     def test_valid_classification_accepted(
         self, authed_client: tuple[TestClient, MagicMock]
