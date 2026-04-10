@@ -50,9 +50,7 @@ jobs:
       test_parallel: true
       test_markers_exclude: 'not integration and not benchmark'
       run_integration: ${{ github.event_name == 'push' }}
-      test_env: |
-        ASANA_WORKSPACE_GID=${{ vars.ASANA_WORKSPACE_GID }}
-        ASANA_PAT=${{ secrets.ASANA_PAT }}
+      test_env: 'ASANA_WORKSPACE_GID=${{ vars.ASANA_WORKSPACE_GID }}'
       spectral_enabled: true
       openapi_spec_path: 'docs/api-reference/openapi.json'
       spec_check_enabled: true
