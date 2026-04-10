@@ -93,6 +93,17 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 timeout = 60
 timeout_method = "thread"
+# --dist=loadfile keeps every test from the same file on a single xdist worker.
+# Rationale (R5-FIX, 2026-04-10): with the default ``--dist=load`` scheduler,
+# pytest-xdist hands individual test items out round-robin across workers.
+# ``tests/unit/lambda_handlers/test_workflow_handler.py`` and
+# ``tests/test_openapi_fuzz.py`` share process-global state (schemathesis
+# hypothesis DB, SystemContext singletons, app-factory mocks) and crashed
+# gw0/gw1/gw2/gw4 mid-run, dropping coverage to 31.23% (below the 80% floor)
+# because crashed workers never flush .coverage data. ``loadfile`` grouping
+# guarantees per-file isolation on a single worker, which sidesteps the
+# cross-item state corruption without disabling parallelism entirely.
+addopts = "--dist=loadfile"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests requiring live API access",
