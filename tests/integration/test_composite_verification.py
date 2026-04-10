@@ -31,7 +31,15 @@ from autom8_asana.api.middleware.idempotency import (
 )
 from autom8_asana.services.resolver import EntityProjectRegistry
 
-pytestmark = pytest.mark.integration
+ASANA_PAT = os.getenv("ASANA_PAT")
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not ASANA_PAT,
+        reason="ASANA_PAT not set — composite verification requires S2S credentials. "
+        "Set via direnv (secretspec.toml) locally or CI test_env injection.",
+    ),
+]
 
 # ---------------------------------------------------------------------------
 # JWT bearer header used across all S2S endpoint tests
