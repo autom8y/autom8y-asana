@@ -306,6 +306,11 @@ def create_app() -> FastAPI:
             "/api/v1/dataframes/*",
             "/api/v1/offers/*",
         ],
+        # W3.5b-3-alpha-1 (fleet-api-sovereignty D3): opt in to ADR-07 §7.1
+        # precedence (bypass_scope_enforcement -> business_id -> reject)
+        # after successful signature validation. Excluded routes above
+        # continue to bypass auth entirely.
+        require_business_scope=True,
     )
 
     app = create_fleet_app(
