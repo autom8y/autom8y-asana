@@ -60,7 +60,10 @@ router = s2s_router(prefix="/v1", tags=["intake-resolve"], include_in_schema=Fal
     openapi_extra={
         "x-fleet-side-effects": [],
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
-        "x-fleet-references": {"service": "autom8y-asana", "entity": "business"},
+        "x-fleet-cross-service-refs": {
+            "service": "autom8y-asana",
+            "entity": "business",
+        },
     },
 )
 async def resolve_business(
@@ -165,7 +168,7 @@ async def resolve_business(
     openapi_extra={
         "x-fleet-side-effects": [],
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
-        "x-fleet-references": {"service": "autom8y-asana", "entity": "contact"},
+        "x-fleet-cross-service-refs": {"service": "autom8y-asana", "entity": "contact"},
     },
 )
 async def resolve_contact(

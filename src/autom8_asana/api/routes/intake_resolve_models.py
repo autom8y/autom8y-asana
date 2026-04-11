@@ -1,7 +1,7 @@
 """Pydantic models for intake resolve endpoints.
 
 Contract constraint: These models MUST produce the exact same JSON shape
-as the interop models in autom8y-interop/asana/models.py.
+as the interop models in autom8y-client-sdk/asana/models.py.
 """
 
 from __future__ import annotations

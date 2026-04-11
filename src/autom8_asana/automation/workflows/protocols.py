@@ -6,7 +6,7 @@ with a single required method (is_healthy).
 Per ADR-bridge-format-engine: FormatEngine -- platform protocol for
 bridge output formatters with render(data) -> bytes.
 
-Protocol Alignment with autom8y-interop (H-003)
+Protocol Alignment with autom8y-client-sdk (H-003)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Per ADR-bridge-dispatch-model: DataSource is the bridge platform's
@@ -64,7 +64,7 @@ class DataSource(Protocol):
     Per ADR-bridge-data-source-protocol.
 
     Interop alignment (H-003): This protocol's ``is_healthy()`` method
-    overlaps conceptually with ``autom8y_interop.data.DataReadProtocol
+    overlaps conceptually with ``autom8y_client_sdk.data.DataReadProtocol
     .health_check()``, but the signatures differ intentionally:
 
     - ``DataSource.is_healthy()`` -> ``None`` (raises on failure)

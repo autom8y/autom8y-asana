@@ -26,7 +26,7 @@ from autom8_asana.automation.workflows.base import (
 from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
 
 if TYPE_CHECKING:
-    # H-003: Protocol alignment with autom8y-interop.
+    # H-003: Protocol alignment with autom8y-client-sdk.
     # DataInsightProtocol overlaps with DataSource on the insight-fetch
     # subset, but DataSource is deliberately minimal (health-check only).
     # DataServiceClient structurally satisfies DataSource and partially
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     # to get_insight). Full migration blocked: interop covers ~30% of
     # DataServiceClient surface. See protocols.py module docstring for
     # the complete coverage map.
-    from autom8y_interop.data import (
+    from autom8y_client_sdk.data import (
         DataInsightProtocol as _DataInsightProtocol,  # noqa: F401
     )
 

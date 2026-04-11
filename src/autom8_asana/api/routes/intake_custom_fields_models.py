@@ -1,7 +1,7 @@
 """Pydantic models for intake custom field write endpoint.
 
 Contract constraint: These models MUST produce the exact same JSON shape
-as CustomFieldWriteRequest/Response in autom8y-interop/asana/models.py.
+as CustomFieldWriteRequest/Response in autom8y-client-sdk/asana/models.py.
 """
 
 from __future__ import annotations

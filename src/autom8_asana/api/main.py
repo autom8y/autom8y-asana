@@ -30,22 +30,22 @@ Design Principles:
 import os
 from typing import Any
 
-from autom8y_auth import JWTAuthMiddleware
+from autom8y_api_middleware import (
+    CORSConfig,
+    FleetAppConfig,
+    JWTAuthConfig,
+    RateLimitConfig,
+    RouterMount,
+    create_fleet_app,
+)
 from autom8y_log import get_logger
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
+from starlette.middleware import Middleware
 
 from .config import get_settings
 from .errors import register_exception_handlers
 from .lifespan import lifespan  # noqa: F401
-from .middleware import (
-    RequestIDMiddleware,
-    RequestLoggingMiddleware,
-)
 from .rate_limit import limiter
 from .routes import (
     admin_router,
@@ -213,108 +213,16 @@ def create_app() -> FastAPI:
 
     Returns:
         Configured FastAPI application with:
-        - Lifespan context manager
-        - CORS middleware (if configured)
-        - Rate limiting middleware
-        - Request ID middleware
-        - Request logging middleware
+        - Fleet-standard middleware stack (via create_fleet_app)
+        - IdempotencyMiddleware (extra_middleware)
+        - Rate limiting via SlowAPI
         - Platform observability (metrics, tracing, log correlation)
-        - Health route
+        - Health route + all domain routers
         - Exception handlers
-
-    Per TDD-ASANA-SATELLITE:
-    - Middleware stack order matters for proper execution
-    - Exception handlers map SDK errors to HTTP responses
-
-    Per PRD-PLATFORM-OBSERVABILITY-STD M3.3:
-    - instrument_app() provides platform-standard baseline metrics
-    - Graceful degradation if autom8y-telemetry is not installed
     """
     settings = get_settings()
 
-    app = FastAPI(
-        title="autom8_asana API",
-        description="REST API for Asana integration via autom8_asana SDK",
-        version="0.1.0",
-        lifespan=lifespan,
-        # Disable automatic docs in production
-        docs_url="/docs",
-        redoc_url="/redoc",
-    )
-
-    # --- Platform Observability ---
-    # Per PRD-PLATFORM-OBSERVABILITY-STD M3.3: Adopt instrument_app() for
-    # platform-standard metrics (request duration, count, in-flight),
-    # /metrics endpoint, tracing, and log correlation.
-    # Must be added BEFORE other middleware so MetricsMiddleware wraps them.
-    try:
-        from autom8y_telemetry import InstrumentationConfig, instrument_app
-
-        instrument_app(
-            app,
-            InstrumentationConfig(
-                service_name="asana",
-                enable_tracing=True,
-                enable_log_correlation=True,
-            ),
-        )
-        # Register domain-specific Prometheus metrics on the default registry.
-        # Per TDD-SDK-ALIGNMENT Path 3: metrics are served alongside SDK metrics
-        # via the /metrics endpoint that instrument_app() creates.
-        import autom8_asana.api.metrics  # noqa: F401 - register domain metrics
-
-        logger.info(
-            "platform_observability_enabled",
-            extra={"service_name": "asana"},
-        )
-    except ImportError:
-        logger.warning(
-            "platform_observability_unavailable",
-            extra={
-                "reason": "autom8y-telemetry not installed",
-                "impact": "No platform metrics, /metrics endpoint, or tracing",
-                "remediation": "Install autom8y-telemetry[fastapi]>=0.2.0",
-            },
-        )
-
-    # --- Middleware Stack ---
-    # Starlette's add_middleware does `user_middleware.insert(0, ...)`, so
-    # the LAST middleware added becomes the OUTERMOST in the runtime stack.
-    # Given the call sequence below, the actual outer-to-inner execution
-    # order is:
-    #   1. RequestIDMiddleware           (last added -> outermost; sets request_id first)
-    #   2. RequestLoggingMiddleware      (logs once request_id is available)
-    #   3. SlowAPIMiddleware             (rate limiting)
-    #   4. JWTAuthMiddleware             (PKG-009 fail-closed JWT enforcement)
-    #   5. IdempotencyMiddleware         (RFC 8791 store-and-replay; ADR-omniscience-idempotency)
-    #   6. CORSMiddleware (if enabled)   (first added -> innermost; preflight handler)
-    # Note: MetricsMiddleware from instrument_app() is added above and
-    # wraps the entire stack for accurate request duration measurement.
-    # V-1 F-1 (security-remediation procession): the previous comment
-    # block here had this order inverted; corrected during recede cycle 1.
-
-    # CORS (if configured) - MUST be outermost to handle preflight OPTIONS
-    if settings.cors_origins_list:
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=settings.cors_origins_list,
-            allow_credentials=True,
-            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            allow_headers=[
-                "Authorization",
-                "Content-Type",
-                "X-Request-ID",
-                "Idempotency-Key",
-            ],
-        )
-        logger.info(
-            "cors_enabled",
-            extra={"allowed_origins": settings.cors_origins_list},
-        )
-
-    # Idempotency middleware (per ADR-omniscience-idempotency, Section 3.1)
-    # Positioned after CORS, before rate limiting in execution order.
-    # Environment gate: IDEMPOTENCY_STORE_BACKEND selects store implementation.
+    # --- Build IdempotencyMiddleware for extra_middleware ---
     from autom8_asana.api.middleware.idempotency import (
         DynamoDBIdempotencyStore,
         IdempotencyMiddleware,
@@ -361,24 +269,23 @@ def create_app() -> FastAPI:
         )
         idempotency_store = NoopIdempotencyStore()
 
-    app.add_middleware(IdempotencyMiddleware, store=idempotency_store)
+    # --- Build CORS config ---
+    cors_config = None
+    if settings.cors_origins_list:
+        cors_config = CORSConfig(
+            allow_origins=settings.cors_origins_list,
+            allow_headers=[
+                "Authorization",
+                "Content-Type",
+                "X-Request-ID",
+                "Idempotency-Key",
+            ],
+        )
 
-    # JWT auth baseline (PKG-009 / AUDIT-010)
-    # Fleet baseline JWTAuthMiddleware. Asana retains its DI-based dual-mode
-    # auth (get_auth_context) for PAT-vs-JWT routing, but the middleware
-    # provides fail-closed enforcement for any route lacking explicit
-    # Depends(get_auth_context). Health, docs, webhooks (URL-token auth), and
-    # PAT-only routes are excluded from middleware enforcement -- those keep
-    # their existing per-route auth contracts. The middleware fails CLOSED on
-    # any other unannotated route, eliminating the AUDIT-010 silent fail-open.
-    #
-    # IMPORTANT: PAT routes MUST be excluded. The middleware can only validate
-    # JWTs against the fleet JWKS; an Asana PAT (which is just an opaque
-    # bearer string) would fail JWT signature verification. Excluding the PAT
-    # route trees lets the existing dependencies.py dual-mode resolver
-    # continue to handle them correctly.
-    app.add_middleware(
-        JWTAuthMiddleware,
+    # --- JWT auth config ---
+    # PKG-009 / AUDIT-010: Fleet baseline JWTAuthMiddleware.
+    # PAT routes MUST be excluded -- the middleware validates JWTs only.
+    jwt_auth_config = JWTAuthConfig(
         exclude_paths=[
             # Health / docs (standard fleet exclusions)
             "/health",
@@ -399,59 +306,62 @@ def create_app() -> FastAPI:
             "/api/v1/dataframes/*",
             "/api/v1/offers/*",
         ],
-        audience="https://api.autom8y.io",
     )
 
-    # Rate limiting
-    app.state.limiter = limiter
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
-    app.add_middleware(SlowAPIMiddleware)
+    app = create_fleet_app(
+        config=FleetAppConfig(
+            title="autom8_asana API",
+            description="REST API for Asana integration via autom8_asana SDK",
+            version="0.1.0",
+            service_name="asana",
+            redoc_url="/redoc",
+        ),
+        routers=[
+            RouterMount(router=health_router),
+            RouterMount(router=users_router),
+            RouterMount(router=workspaces_router),
+            RouterMount(router=dataframes_router),
+            RouterMount(router=tasks_router),
+            RouterMount(router=projects_router),
+            RouterMount(router=sections_router),
+            RouterMount(router=internal_router),
+            # Intake resolve endpoints BEFORE resolver_router so explicit paths
+            # match before the wildcard /v1/resolve/{entity_type} pattern.
+            RouterMount(router=intake_resolve_router),
+            RouterMount(router=resolver_router),
+            RouterMount(router=query_introspection_router),
+            RouterMount(router=query_router),
+            RouterMount(router=admin_router),
+            RouterMount(router=webhooks_router),
+            RouterMount(router=workflows_router),
+            RouterMount(router=entity_write_router),
+            RouterMount(router=section_timelines_router),
+            RouterMount(router=intake_custom_fields_router),
+            RouterMount(router=intake_create_router),
+            RouterMount(router=matching_router),
+        ],
+        lifespan=lifespan,
+        cors=cors_config,
+        jwt_auth=jwt_auth_config,
+        rate_limit=RateLimitConfig(limiter=limiter),
+        extra_middleware=[
+            Middleware(IdempotencyMiddleware, store=idempotency_store),
+        ],
+    )
 
-    # Request logging (before RequestID so it has access to request_id)
-    app.add_middleware(RequestLoggingMiddleware)
+    # Register domain-specific Prometheus metrics on the default registry.
+    try:
+        import autom8_asana.api.metrics  # noqa: F401 - register domain metrics
 
-    # Request ID (innermost - runs first, sets request_id for others)
-    app.add_middleware(RequestIDMiddleware)
-
-    # --- Routes ---
-    app.include_router(health_router)  # /health, /ready, /health/deps
-    app.include_router(users_router)
-    app.include_router(workspaces_router)
-    app.include_router(dataframes_router)
-    app.include_router(tasks_router)
-    app.include_router(projects_router)
-    app.include_router(sections_router)
-    app.include_router(internal_router)
-    # Intake resolve endpoints BEFORE resolver_router so explicit paths
-    # (/v1/resolve/business, /v1/resolve/contact) match before the
-    # wildcard /v1/resolve/{entity_type} pattern.
-    app.include_router(intake_resolve_router)
-    app.include_router(resolver_router)
-    # Query introspection: GET endpoints exposed in OpenAPI spec
-    app.include_router(query_introspection_router)
-    # Query execution: /rows and /aggregate (active) + deprecated
-    # POST /{entity_type} (sunset 2026-06-01). Route order within the
-    # router ensures /rows is matched before the wildcard /{entity_type}.
-    app.include_router(query_router)
-    app.include_router(admin_router)
-    app.include_router(webhooks_router)
-    app.include_router(workflows_router)
-    app.include_router(entity_write_router)
-    app.include_router(section_timelines_router)
-    # Intake custom field writes
-    app.include_router(intake_custom_fields_router)
-    # Intake business creation and process routing
-    app.include_router(intake_create_router)
-    # Matching query (S2S only, hidden from schema)
-    app.include_router(matching_router)
+        logger.info(
+            "domain_metrics_registered",
+            extra={"service_name": "asana"},
+        )
+    except ImportError:
+        pass
 
     # --- Exception Handlers ---
     register_exception_handlers(app)
-
-    # Canonical 422 validation error handler (ADR-canonical-error-vocabulary D-03)
-    from autom8y_api_schemas.validation import register_validation_handler
-
-    register_validation_handler(app)
 
     # --- Custom OpenAPI spec enrichment (TDD-SPRINT1-CUSTOM-OPENAPI) ---
     def custom_openapi() -> dict[str, Any]:

@@ -33,6 +33,9 @@ _WEBHOOK_CACHE_ERRORS: tuple[type[Exception], ...] = (
     RuntimeError,
 )
 
+# SC-02 exemption: Webhooks use HMAC URL-token verification, not JWT.
+# Raw APIRouter is intentional -- SecureRouter would inject JWT requirements
+# that conflict with the webhook authentication model. See OQ-3 in TDD.
 router = APIRouter(prefix="/api/v1/webhooks", tags=["webhooks"])
 
 # Entry types invalidated for inbound task notifications

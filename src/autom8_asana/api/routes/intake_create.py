@@ -69,7 +69,7 @@ router = s2s_router(
             {"type": "asana_api", "target": "business_task"},
         ],
         "x-fleet-idempotency": {"idempotent": False, "key_source": None},
-        "x-fleet-references": {"service": "autom8y-data", "entity": "business"},
+        "x-fleet-cross-service-refs": {"service": "autom8y-data", "entity": "business"},
     },
 )
 async def create_intake_business(
@@ -208,7 +208,7 @@ async def create_intake_business(
             {"type": "asana_api", "target": "process_task"},
         ],
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
-        "x-fleet-references": {"service": "autom8y-asana", "entity": "unit"},
+        "x-fleet-cross-service-refs": {"service": "autom8y-asana", "entity": "unit"},
     },
 )
 async def route_intake_process(

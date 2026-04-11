@@ -196,7 +196,7 @@ class TestFormatEngineProtocol:
 
 
 class TestInteropProtocolAlignment:
-    """Tests for protocol alignment with autom8y-interop.
+    """Tests for protocol alignment with autom8y-client-sdk.
 
     Per ADR-bridge-dispatch-model H-003: Verify that DataServiceClient
     structurally satisfies both DataSource (bridge protocol) and partially
@@ -234,7 +234,7 @@ class TestInteropProtocolAlignment:
         """DataServiceClient has get_reconciliation_async with no interop equivalent.
 
         Per INTEGRATE Section 1.3: No DataReconciliationProtocol exists
-        in autom8y-interop. This test documents the gap.
+        in autom8y-client-sdk. This test documents the gap.
         """
         from autom8_asana.clients.data.client import DataServiceClient
 
@@ -242,21 +242,21 @@ class TestInteropProtocolAlignment:
         assert hasattr(DataServiceClient, "get_reconciliation_async")
 
     def test_interop_insight_protocol_importable(self) -> None:
-        """autom8y_interop.data.DataInsightProtocol is importable.
+        """autom8y_client_sdk.data.DataInsightProtocol is importable.
 
         Per H-003: Verifies the interop dependency resolves correctly
         as an optional extra.
         """
-        from autom8y_interop.data import DataInsightProtocol
+        from autom8y_client_sdk.data import DataInsightProtocol
 
         assert hasattr(DataInsightProtocol, "get_insight")
 
     def test_interop_read_protocol_has_health_check(self) -> None:
-        """autom8y_interop.data.DataReadProtocol has health_check.
+        """autom8y_client_sdk.data.DataReadProtocol has health_check.
 
         Documents the semantic overlap with DataSource.is_healthy().
         """
-        from autom8y_interop.data import DataReadProtocol
+        from autom8y_client_sdk.data import DataReadProtocol
 
         assert hasattr(DataReadProtocol, "health_check")
 
@@ -269,5 +269,5 @@ class TestInteropProtocolAlignment:
         from autom8_asana.automation.workflows import protocols
 
         docstring = protocols.__doc__ or ""
-        assert "Protocol Alignment with autom8y-interop" in docstring
+        assert "Protocol Alignment with autom8y-client-sdk" in docstring
         assert "DataReconciliationProtocol" in docstring
