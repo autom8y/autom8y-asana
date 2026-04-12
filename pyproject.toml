@@ -41,7 +41,7 @@ aws = [
 ]
 api = [
     "fastapi>=0.115.0",
-    "autom8y-api-schemas>=1.5.0",
+    "autom8y-api-schemas>=1.5.0",  # NOTE: fleet_query_adapter requires 1.6.0+ at runtime; pin bump deferred to S7 releaser per S3 D4 dispatch
     "uvicorn[standard]>=0.27.0",
     "slowapi>=0.1.9",
 ]

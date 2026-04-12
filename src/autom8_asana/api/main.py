@@ -51,6 +51,8 @@ from .routes import (
     admin_router,
     dataframes_router,
     entity_write_router,
+    fleet_query_router_api_v1,
+    fleet_query_router_v1,
     health_router,
     intake_create_router,
     intake_custom_fields_router,
@@ -335,6 +337,19 @@ def create_app() -> FastAPI:
             RouterMount(router=intake_resolve_router),
             RouterMount(router=resolver_router),
             RouterMount(router=query_introspection_router),
+            # S3 D4: fleet-canonical FleetQuery surface, dual-mounted
+            # at /v1/query/entities and /api/v1/query/entities per
+            # TDD-fleet-api-sovereignty-s3 section 7.4.3.
+            #
+            # IMPORTANT: fleet routes MUST mount BEFORE query_router so
+            # that POST /v1/query/entities matches the fleet handler
+            # rather than the legacy /v1/query/{entity_type} wildcard
+            # (which would treat "entities" as a path parameter and
+            # validate the body against the legacy QueryRequest model
+            # without a `filters` field, surfacing a 422 extra_forbidden
+            # error). FastAPI matches routes in registration order.
+            RouterMount(router=fleet_query_router_v1),
+            RouterMount(router=fleet_query_router_api_v1),
             RouterMount(router=query_router),
             RouterMount(router=admin_router),
             RouterMount(router=webhooks_router),
