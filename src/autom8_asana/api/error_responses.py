@@ -10,22 +10,39 @@ the correct status codes in the generated spec.
 
 Per TDD sprint4-error-catalog: STANDARD_ERROR_RESPONSES is the single
 source of truth for error response metadata.
+
+ADR-dual-error-envelope-resolution (S3 — DOCUMENT verdict):
+401 and 403 use oneOf[ErrorResponse, AuthTebError] to document both
+the application-layer envelope (ErrorResponse via route handlers) and
+the middleware-layer envelope (AuthTebError via JWTAuthMiddleware AUTH-TEB-NNN).
+This makes the dual shape visible in the spec and enables schemathesis to
+validate AUTH-TEB responses without custom hooks.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from autom8y_api_schemas import AuthTebError
+
 from autom8_asana.api.models import ErrorResponse
+
+# Union type for auth-protected route responses: documents both the
+# application-layer ErrorResponse and the middleware-layer AuthTebError.
+_AuthEnvelope = ErrorResponse | AuthTebError
 
 STANDARD_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {
-        "model": ErrorResponse,
-        "description": ("Authentication failed -- missing or invalid Bearer token"),
+        "model": _AuthEnvelope,
+        "description": (
+            "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
+        ),
     },
     403: {
-        "model": ErrorResponse,
-        "description": ("Forbidden -- valid token but insufficient permissions"),
+        "model": _AuthEnvelope,
+        "description": (
+            "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
+        ),
     },
     404: {
         "model": ErrorResponse,

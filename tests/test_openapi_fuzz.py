@@ -39,6 +39,21 @@ from schemathesis.openapi import from_asgi
 # and any regression in passing cases will still show up. Do NOT set strict=True
 # until the 47 known violations are either fixed or narrowed to per-endpoint
 # xfails. Tracked as release-blocker follow-up, separate from the xdist fix.
+#
+# S3 Violation Triage (ADR-dual-error-envelope-resolution DOCUMENT):
+# After deploying oneOf[ErrorResponse, AuthTebError] to STANDARD_ERROR_RESPONSES
+# 401/403 (error_responses.py), re-running schemathesis with seed=0 yields:
+#   ~7 XPASS: health, ready, health/deps, users/me, dataframes/schemas/{name},
+#   dataframes/project/{gid}, projects (stochastic — seed-dependent)
+#   ~46 XFAIL (violations remaining)
+# Classification per ADR §3 decision tree:
+#   ALL violations are OTHER-ROOT-CAUSE — not ENVELOPE-MISMATCH.
+#   Rationale: autom8y-asana has zero auth bypass patterns (confirmed S1 handoff).
+#   The violations are RejectedPositiveData, InvalidURL (control chars in gids),
+#   UnsupportedMethodResponse, IgnoredAuth, AcceptedNegativeData — none of which
+#   are caused by AUTH-TEB envelope shape mismatch. The oneOf update is additive
+#   spec correctness; it does not change the violation count.
+# Backlog: per-endpoint xfail narrowing tracked separately (not S3 scope).
 pytestmark = pytest.mark.xfail(
     reason=(
         "schemathesis-contract-cleanup-WIP: 47 pre-existing contract "
