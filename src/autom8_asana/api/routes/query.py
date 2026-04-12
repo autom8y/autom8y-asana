@@ -389,7 +389,14 @@ async def list_query_sections(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{entity_type}/rows", response_model=SuccessResponse[RowsResponse])
+@router.post(
+    "/{entity_type}/rows",
+    response_model=SuccessResponse[RowsResponse],
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+    },
+)
 async def query_rows(
     entity_type: str,
     request_body: RowsRequest,
@@ -459,7 +466,12 @@ async def query_rows(
 
 
 @router.post(
-    "/{entity_type}/aggregate", response_model=SuccessResponse[AggregateResponse]
+    "/{entity_type}/aggregate",
+    response_model=SuccessResponse[AggregateResponse],
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+    },
 )
 async def query_aggregate(
     entity_type: str,
@@ -536,7 +548,14 @@ async def query_aggregate(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{entity_type}", response_model=SuccessResponse[QueryResponse])
+@router.post(
+    "/{entity_type}",
+    response_model=SuccessResponse[QueryResponse],
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+    },
+)
 async def query_entities(
     entity_type: str,
     request_body: QueryRequest,

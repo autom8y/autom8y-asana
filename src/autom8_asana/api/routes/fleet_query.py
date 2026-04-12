@@ -230,6 +230,10 @@ async def handle_fleet_query(
         "asana entity query service. PaginationMeta in the response "
         "envelope round-trips the request limit/offset."
     ),
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+    },
 )
 async def fleet_query_v1(
     request_body: FleetQuery,
@@ -257,6 +261,10 @@ async def fleet_query_v1(
         "/api/v1 namespace per S3 TDD section 7.4.3 dual-namespace "
         "requirement."
     ),
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+    },
 )
 async def fleet_query_api_v1(
     request_body: FleetQuery,
