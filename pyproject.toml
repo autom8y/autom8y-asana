@@ -47,9 +47,10 @@ api = [
 ]
 # auth: Platform authentication via autom8y-auth SDK
 # JWT validation, JWKS fetching, and crypto are encapsulated in the SDK
-# 3.2.0: Fleet API Sovereignty S2 UC-1/UC-2/UC-3 bundle (claims_dict_for,
+# 3.2.1: Fleet API Sovereignty S2 UC-1/UC-2/UC-3 bundle (claims_dict_for,
 # AUTH-TEB canonical error taxonomy, DEFAULT_EXCLUDE_PATHS export).
-auth = ["autom8y-auth[observability]>=3.2.0"]
+# Bumped from 3.2.0 to eliminate phantom wheel SHA (COMPLAINT-20260412-003226).
+auth = ["autom8y-auth[observability]>=3.2.1"]
 # events: Domain event publishing via autom8y-events (EventBridge)
 # Per ADR-bridge-dispatch-model Decision 3: BridgeExecutionComplete emission
 events = ["autom8y-events>=0.1.0"]
@@ -74,14 +75,14 @@ dev = [
     "fakeredis>=2.20.0",                   # Redis mocking for tests
     "moto>=5.0.0",                         # AWS/S3 mocking for tests
     "boto3-stubs[secretsmanager]>=1.34.0", # Type stubs for boto3
-    "autom8y-auth[observability]>=3.2.0",  # Required for test_auth tests (S2 UC-1/2/3)
+    "autom8y-auth[observability]>=3.2.1",  # Required for test_auth tests (S2 UC-1/2/3)
     # SDK testing subpackages (per TDD-SDK-TESTING-ADOPTION)
     "autom8y-log[testing]>=0.5.6",
     "autom8y-cache[testing]>=0.4.0",
     "autom8y-http[testing]>=0.6.0",
     "autom8y-config[testing]>=2.0.0",
     "autom8y-core[testing]>=1.3.0",
-    "autom8y-auth[testing]>=3.2.0",
+    "autom8y-auth[testing]>=3.2.1",
     "openapi-spec-validator>=0.7.1",       # OpenAPI 3.2.0 spec validation in CI
 ]
 

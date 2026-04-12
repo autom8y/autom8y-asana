@@ -116,16 +116,28 @@ rate-limit = [
 
 [[package]]
 name = "autom8y-api-schemas"
-version = "1.5.0"
-source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+version = "1.6.0"
+source = { editable = "../autom8y-api-schemas" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-api-schemas/1.5.0/autom8y_api_schemas-1.5.0.tar.gz", hash = "sha256:d8a10b14d6b25c96fd8cd9e2a760d6d713fc637a0f9ff1f0c9eedf764b023f40" }
-wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-api-schemas/1.5.0/autom8y_api_schemas-1.5.0-py3-none-any.whl", hash = "sha256:c4f1e4ca4d1eafefc6f95008c6bdbe102b45777ee820da2783b582dc68ea452f" },
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.100.0" },
+    { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.100.0" },
+    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.24.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
+    { name = "pydantic", specifier = ">=2.5.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "pyyaml", marker = "extra == 'dev'", specifier = ">=6.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
+    { name = "types-pyyaml", marker = "extra == 'dev'", specifier = ">=6.0" },
 ]
+provides-extras = ["fastapi", "dev"]
 
 [[package]]
 name = "autom8y-asana"
@@ -217,9 +229,9 @@ requires-dist = [
     { name = "asana", specifier = ">=5.0.3" },
     { name = "autom8y-api-middleware", extras = ["rate-limit"], specifier = ">=0.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-api-schemas", marker = "extra == 'api'", specifier = ">=1.5.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-auth", extras = ["observability"], marker = "extra == 'auth'", specifier = ">=3.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-auth", extras = ["observability"], marker = "extra == 'dev'", specifier = ">=3.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-auth", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=3.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-auth", extras = ["observability"], marker = "extra == 'auth'", specifier = ">=3.2.1", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-auth", extras = ["observability"], marker = "extra == 'dev'", specifier = ">=3.2.1", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-auth", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=3.2.1", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-cache", specifier = ">=0.4.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-cache", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=0.4.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-client-sdk", marker = "extra == 'interop'", editable = "../autom8y/sdks/python/autom8y-client-sdk" },
@@ -276,7 +288,7 @@ dev = [
 
 [[package]]
 name = "autom8y-auth"
-version = "3.2.0"
+version = "3.3.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-core" },
@@ -286,9 +298,9 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyjwt", extra = ["crypto"] },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/3.2.0/autom8y_auth-3.2.0.tar.gz", hash = "sha256:45680f10a86991b1117c4b42b54d7eab8d3485856a8b15b703f83f1050eb2223" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/3.3.0/autom8y_auth-3.3.0.tar.gz", hash = "sha256:7203dd0c37571bdf0f2a96939858896c3565d76947d7a4aa0d74818b4ffee6f9" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/3.2.0/autom8y_auth-3.2.0-py3-none-any.whl", hash = "sha256:0db75bb4700f22f50bfad7055d69c69bcaee6b4ec2cb6a458ea7b2b3cfa3ce69" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/3.3.0/autom8y_auth-3.3.0-py3-none-any.whl", hash = "sha256:bc6dd56781b80e59efe7b87c6cd276df1ca922c151cf0cae70d1f097a1fb42ad" },
 ]
 
 [package.optional-dependencies]
@@ -323,6 +335,7 @@ name = "autom8y-client-sdk"
 version = "2.1.0"
 source = { editable = "../autom8y/sdks/python/autom8y-client-sdk" }
 dependencies = [
+    { name = "autom8y-api-schemas" },
     { name = "autom8y-core" },
     { name = "autom8y-http" },
     { name = "pydantic" },
@@ -330,6 +343,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "autom8y-api-schemas", editable = "../autom8y-api-schemas" },
     { name = "autom8y-core", editable = "../autom8y/sdks/python/autom8y-core" },
     { name = "autom8y-http", editable = "../autom8y/sdks/python/autom8y-http" },
     { name = "pydantic", specifier = ">=2.0.0" },
