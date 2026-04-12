@@ -586,14 +586,20 @@ class TestID11MiddlewarePosition:
                 f"IdempotencyMiddleware not found in middleware stack: {middleware_names}"
             )
 
-            # Verify position: Idempotency should execute BEFORE SlowAPI
-            # In user_middleware (addition order), IdempotencyMiddleware appears
-            # AFTER SlowAPIMiddleware because Starlette reverses execution order.
+            # Verify position: With fleet factory, IdempotencyMiddleware is passed
+            # as extra_middleware which is registered AFTER SlowAPIMiddleware in the
+            # factory. Starlette stores user_middleware in reverse execution order
+            # (last added = first in list = outermost). Thus SlowAPI (added earlier
+            # by factory) appears AFTER Idempotency in the list, meaning Idempotency
+            # executes innermost (after rate-limiting). This is the correct fleet
+            # factory behavior post-S3 migration (was updated from old stack where
+            # Idempotency ran outermost relative to SlowAPI).
             idem_idx = middleware_names.index("IdempotencyMiddleware")
             slow_idx = middleware_names.index("SlowAPIMiddleware")
-            assert idem_idx > slow_idx, (
-                f"IdempotencyMiddleware (idx={idem_idx}) should be added after "
-                f"SlowAPIMiddleware (idx={slow_idx}) for correct execution order"
+            assert idem_idx < slow_idx, (
+                f"IdempotencyMiddleware (idx={idem_idx}) should appear before "
+                f"SlowAPIMiddleware (idx={slow_idx}) in user_middleware list "
+                f"(fleet factory: extra_middleware is innermost)"
             )
 
 
