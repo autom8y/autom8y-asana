@@ -383,6 +383,12 @@ def create_app() -> FastAPI:
     # --- Exception Handlers ---
     register_exception_handlers(app)
 
+    # Canonical 422 validation error handler (ADR-canonical-error-vocabulary D-03)
+    # Converts FastAPI's default {"detail": [...]} 422 into fleet ErrorResponse envelope.
+    from autom8y_api_schemas.validation import register_validation_handler
+
+    register_validation_handler(app)
+
     # --- Custom OpenAPI spec enrichment (TDD-SPRINT1-CUSTOM-OPENAPI) ---
     def custom_openapi() -> dict[str, Any]:
         """Post-process the auto-generated OpenAPI spec.

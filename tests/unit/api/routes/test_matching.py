@@ -226,7 +226,7 @@ class TestMatchingAuth:
             headers={"Authorization": "Bearer pat_token_1234567890"},
         )
         assert resp.status_code == 401
-        assert resp.json()["error"]["code"] == "AUTH-INVALID-TOKEN"
+        assert resp.json()["error"]["code"] == "AUTH-TEB-003"
 
 
 # ---------------------------------------------------------------------------
