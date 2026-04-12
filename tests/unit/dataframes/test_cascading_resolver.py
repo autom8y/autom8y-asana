@@ -500,22 +500,6 @@ class TestParentCache:
         # Should only call API once (business cached after first call)
         assert mock_client.tasks.get_async.call_count == 1
 
-    @pytest.mark.xfail(reason="clear_cache method removed - test needs update")
-    def test_clear_cache_empties_the_cache(self, mock_client: MagicMock) -> None:
-        """Test clear_cache() empties the parent cache."""
-        resolver = CascadingFieldResolver(mock_client)
-
-        # Manually populate cache
-        resolver._parent_cache["task_1"] = MockTask(gid="task_1")  # type: ignore[assignment]
-        resolver._parent_cache["task_2"] = MockTask(gid="task_2")  # type: ignore[assignment]
-
-        assert resolver.get_cache_size() == 2
-
-        resolver.clear_cache()
-
-        assert resolver.get_cache_size() == 0
-        assert len(resolver._parent_cache) == 0
-
 
 # ============================================================================
 # Test Broken Parent Chain

@@ -557,8 +557,9 @@ async def get_or_compute_timelines(
             account_activity = (
                 classifier.classify(section_name) if section_name else None
             )
-            office_phone = _extract_office_phone(task.model_dump())
-            offer_id = _extract_offer_id(task.model_dump())
+            task_data = task.model_dump()
+            office_phone = _extract_office_phone(task_data)
+            offer_id = _extract_offer_id(task_data)
 
             if raw_stories is not None:
                 cache_hits += 1

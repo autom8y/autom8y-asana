@@ -27,6 +27,7 @@ from autom8_asana.services.section_timeline_service import (
     _is_cross_project_noise,
     _parse_datetime,
     build_timeline_for_offer,
+    get_or_compute_timelines,
 )
 
 # ---------------------------------------------------------------------------
@@ -728,3 +729,106 @@ class TestComputeDayCountsClassificationFilter:
             classification_filter="active",
         )
         assert len(active_entries) < len(all_entries)
+
+
+# ---------------------------------------------------------------------------
+# Scale-boundary regression test (SCAR-015)
+# ---------------------------------------------------------------------------
+
+
+class TestScaleBoundary:
+    """Regression test for SCAR-015: timeline 504 at ~3,800 offers.
+
+    The production incident occurred when per-request I/O exceeded the ALB
+    60-second timeout. The remediation moved I/O to warm-up, making the
+    request handler pure-CPU. This test asserts the CPU-bound timeline
+    building phase stays well under the timeout threshold at production
+    scale.
+
+    The test exercises the full Step 5 hot loop (model_dump, story parsing,
+    interval building, imputation) with 4,000 synthetic tasks — above the
+    ~3,800 production scale that triggered SCAR-015.
+    """
+
+    @pytest.mark.asyncio()
+    async def test_timeline_computation_under_threshold_at_production_scale(
+        self,
+    ) -> None:
+        """SCAR-015 gate: 4,000 offers must compute in < 5 seconds."""
+        import time
+
+        OFFER_COUNT = 4_000
+        THRESHOLD_SECONDS = 5.0
+
+        # Build synthetic tasks with stories (cache-hit path)
+        tasks = []
+        stories_by_gid: dict[str, list[dict]] = {}
+
+        for i in range(OFFER_COUNT):
+            task = _make_task_mock(
+                gid=f"task_{i}",
+                created_at="2025-01-01T00:00:00.000Z",
+                section_name="ACTIVE",
+                office_phone=f"555-{i:04d}",
+                offer_id=f"OFR-{i:04d}",
+            )
+            tasks.append(task)
+
+            # Each task has 2 section_changed stories (typical case)
+            stories_by_gid[f"task_{i}"] = [
+                {
+                    "gid": f"s_{i}_1",
+                    "resource_subtype": "section_changed",
+                    "created_at": "2025-01-02T00:00:00.000Z",
+                    "new_section": {"gid": "sec1", "name": "ACTIVATING"},
+                    "old_section": {"gid": "sec0", "name": "Sales Process"},
+                },
+                {
+                    "gid": f"s_{i}_2",
+                    "resource_subtype": "section_changed",
+                    "created_at": "2025-01-10T00:00:00.000Z",
+                    "new_section": {"gid": "sec2", "name": "ACTIVE"},
+                    "old_section": {"gid": "sec1", "name": "ACTIVATING"},
+                },
+            ]
+
+        # Mock the client and cache provider
+        client = MagicMock()
+        client._cache_provider = MagicMock()
+
+        # Mock task enumeration
+        task_result = MagicMock()
+        task_result.collect = AsyncMock(return_value=tasks)
+        client.tasks.list_async = MagicMock(return_value=task_result)
+
+        # Patch derived cache (miss) and story cache (all hits)
+        with (
+            patch(
+                "autom8_asana.cache.integration.derived.get_cached_timelines",
+                return_value=None,
+            ),
+            patch(
+                "autom8_asana.cache.integration.stories.read_stories_batch",
+                return_value=stories_by_gid,
+            ),
+            patch(
+                "autom8_asana.cache.integration.derived.store_derived_timelines",
+            ),
+        ):
+            start = time.perf_counter()
+            entries = await get_or_compute_timelines(
+                client=client,
+                project_gid="proj_123",
+                classifier_name="offer",
+                period_start=date(2025, 1, 1),
+                period_end=date(2025, 3, 31),
+            )
+            elapsed = time.perf_counter() - start
+
+        assert len(entries) == OFFER_COUNT, (
+            f"Expected {OFFER_COUNT} entries, got {len(entries)}"
+        )
+        assert elapsed < THRESHOLD_SECONDS, (
+            f"SCAR-015 regression: {OFFER_COUNT} offers took {elapsed:.2f}s "
+            f"(threshold: {THRESHOLD_SECONDS}s)"
+        )

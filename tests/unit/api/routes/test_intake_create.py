@@ -749,3 +749,205 @@ class TestPhase3VerticalCustomField:
             UNIT_GID,
             data={"custom_fields": {"cf_vertical": {"gid": "enum_dental"}}},
         )
+
+
+# ---------------------------------------------------------------------------
+# Service-layer tests for create_business_hierarchy orchestration
+# ---------------------------------------------------------------------------
+
+
+class TestCreateBusinessHierarchyOrchestration:
+    """Tests for the 7-phase SaveSession orchestration.
+
+    Route-level tests exercise the endpoint. These tests exercise the
+    IntakeCreateService.create_business_hierarchy method directly to verify
+    phase ordering, Phase 2 parallel gather semantics, and partial-failure
+    behavior — aspects invisible through the route layer.
+    """
+
+    @staticmethod
+    def _make_request(
+        *,
+        with_process: bool = False,
+        with_social: bool = False,
+        with_address: bool = False,
+    ):
+        from autom8_asana.api.routes.intake_create_models import (
+            IntakeAddress,
+            IntakeBusinessCreateRequest,
+            IntakeContact,
+            IntakeProcessConfig,
+            IntakeSocialProfile,
+        )
+
+        kwargs: dict = {
+            "name": "Test Dental Practice",
+            "office_phone": "+15551234567",
+            "vertical": "dental",
+            "contact": IntakeContact(name="Jane Smith"),
+        }
+        if with_process:
+            kwargs["process"] = IntakeProcessConfig(process_type="sales")
+        if with_social:
+            kwargs["social_profiles"] = [
+                IntakeSocialProfile(
+                    platform="facebook",
+                    url="https://facebook.com/testdental",
+                )
+            ]
+        if with_address:
+            kwargs["address"] = IntakeAddress(
+                city="Springfield", postal_code="62701"
+            )
+        return IntakeBusinessCreateRequest(**kwargs)
+
+    @pytest.mark.asyncio()
+    async def test_phases_execute_in_strict_dependency_order(self) -> None:
+        """Phase 1 completes before Phase 2; Phase 2 before Phase 3.
+
+        Verifies the orchestrator enforces dependency order: unit_gid
+        (Phase 3) depends on unit_holder (Phase 2), which depends on
+        business_gid (Phase 1).
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        call_order: list[str] = []
+
+        async def create_side_effect(**kwargs):
+            if "projects" in kwargs:
+                call_order.append("phase1_business")
+                return {"gid": BUSINESS_GID}
+            parent = kwargs.get("parent")
+            name = kwargs.get("name", "")
+            if parent == BUSINESS_GID:
+                call_order.append(f"phase2_holder:{name}")
+                return {"gid": HOLDER_GIDS[name]}
+            if parent == HOLDER_GIDS["unit_holder"]:
+                call_order.append("phase3_unit")
+                return {"gid": UNIT_GID}
+            if parent == HOLDER_GIDS["contact_holder"]:
+                call_order.append("phase4_contact")
+                return {"gid": CONTACT_GID}
+            return {"gid": "unknown"}
+
+        mock_client = MagicMock()
+        mock_client.tasks.create_async = AsyncMock(side_effect=create_side_effect)
+        mock_client.tasks.get_async = AsyncMock(
+            return_value={"gid": UNIT_GID, "custom_fields": []}
+        )
+        mock_client.tasks.update_async = AsyncMock()
+
+        with patch(
+            "autom8_asana.services.intake_create_service.resolve_business_project_gid",
+            return_value=BUSINESS_PROJECT_GID,
+        ):
+            service = IntakeCreateService(mock_client)
+            response = await service.create_business_hierarchy(self._make_request())
+
+        # Phase 1 must come first
+        assert call_order[0] == "phase1_business"
+        # All 7 holders must complete before Phase 3 (unit) or Phase 4 (contact)
+        phase2_calls = [c for c in call_order if c.startswith("phase2_holder:")]
+        assert len(phase2_calls) == 7
+        phase3_idx = call_order.index("phase3_unit")
+        phase4_idx = call_order.index("phase4_contact")
+        for phase2_call in phase2_calls:
+            assert call_order.index(phase2_call) < phase3_idx
+            assert call_order.index(phase2_call) < phase4_idx
+        # Phase 3 (unit) must come before Phase 4 (contact) — sequential
+        assert phase3_idx < phase4_idx
+
+        assert response.business_gid == BUSINESS_GID
+        assert response.unit_gid == UNIT_GID
+        assert response.contact_gid == CONTACT_GID
+        assert len(response.holders) == 7
+
+    @pytest.mark.asyncio()
+    async def test_phase2_holder_failure_propagates_and_aborts_hierarchy(
+        self,
+    ) -> None:
+        """One failed holder in Phase 2 aborts create_business_hierarchy.
+
+        Phase 2 uses asyncio.gather() without return_exceptions=True, so the
+        first failing holder propagates, cancels siblings, and the hierarchy
+        creation raises — preventing partial state commitment downstream.
+        """
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        phase3_called = False
+
+        async def create_side_effect(**kwargs):
+            nonlocal phase3_called
+            if "projects" in kwargs:
+                return {"gid": BUSINESS_GID}
+            parent = kwargs.get("parent")
+            name = kwargs.get("name", "")
+            if parent == BUSINESS_GID:
+                if name == "dna_holder":
+                    raise RuntimeError("Asana API 500 on dna_holder creation")
+                return {"gid": HOLDER_GIDS.get(name, "unknown")}
+            # Phase 3+ should never be reached if Phase 2 fails
+            phase3_called = True
+            return {"gid": "should_not_exist"}
+
+        mock_client = MagicMock()
+        mock_client.tasks.create_async = AsyncMock(side_effect=create_side_effect)
+
+        with patch(
+            "autom8_asana.services.intake_create_service.resolve_business_project_gid",
+            return_value=BUSINESS_PROJECT_GID,
+        ):
+            service = IntakeCreateService(mock_client)
+            with pytest.raises(RuntimeError, match="dna_holder"):
+                await service.create_business_hierarchy(self._make_request())
+
+        assert phase3_called is False, (
+            "Phase 3 must not execute when Phase 2 partially fails"
+        )
+
+    @pytest.mark.asyncio()
+    async def test_phase5_skipped_when_process_not_requested(self) -> None:
+        """Phase 5 (process routing) is skipped when request.process is None."""
+        from autom8_asana.services.intake_create_service import IntakeCreateService
+
+        route_process_called = False
+
+        async def create_side_effect(**kwargs):
+            if "projects" in kwargs:
+                return {"gid": BUSINESS_GID}
+            parent = kwargs.get("parent")
+            name = kwargs.get("name", "")
+            if parent == BUSINESS_GID:
+                return {"gid": HOLDER_GIDS[name]}
+            if parent == HOLDER_GIDS["unit_holder"]:
+                return {"gid": UNIT_GID}
+            if parent == HOLDER_GIDS["contact_holder"]:
+                return {"gid": CONTACT_GID}
+            return {"gid": "unknown"}
+
+        mock_client = MagicMock()
+        mock_client.tasks.create_async = AsyncMock(side_effect=create_side_effect)
+        mock_client.tasks.get_async = AsyncMock(
+            return_value={"gid": UNIT_GID, "custom_fields": []}
+        )
+        mock_client.tasks.update_async = AsyncMock()
+
+        service = IntakeCreateService(mock_client)
+
+        async def tracking_route_process(*args, **kwargs):
+            nonlocal route_process_called
+            route_process_called = True
+            return MagicMock(process_gid=PROCESS_GID)
+
+        service.route_process = tracking_route_process  # type: ignore[method-assign]
+
+        with patch(
+            "autom8_asana.services.intake_create_service.resolve_business_project_gid",
+            return_value=BUSINESS_PROJECT_GID,
+        ):
+            response = await service.create_business_hierarchy(
+                self._make_request(with_process=False)
+            )
+
+        assert route_process_called is False
+        assert response.process_gid is None
