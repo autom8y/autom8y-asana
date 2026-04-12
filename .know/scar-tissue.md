@@ -336,6 +336,15 @@ This catalog documents 33 confirmed production or near-production failures. SCAR
 - `VERIFY-BEFORE-PROD` annotations on both GID sets
 **Known gap**: Must verify via `GET /projects/1201081073731555/sections` before production.
 
+### SCAR-WS8: Route Precedence (intake_resolve_router before resolver_router) Unprotected by Regression Test
+**Category**: Route Ordering / Correctness
+**What failed**: No regression test guards the ordering constraint that `intake_resolve_router` must mount before `resolver_router`. If the order were reversed, `POST /v1/resolve/business` would match `/{entity_type}` in `resolver_router` instead of the explicit `/resolve/business` handler in `intake_resolve_router`, producing wrong response shape and silently broken business resolve behavior.
+**Fix location**: `src/autom8_asana/api/main.py:335-338` (comment + mounting order)
+**Constraint**: LB-003 in `.know/feat/fastapi-server.md:74`
+**Regression test**: None added (option B per S6 plan: test infra complexity exceeds benefit for this ordering constraint — the comment and LB-003 serve as the primary guard). Tracked for S7 if integration test fixture stabilizes.
+**Scar surface**: `src/autom8_asana/api/main.py:335-338`
+**S6 reference**: S6-D-4 (WS-8 closure, option B)
+
 ---
 
 ## Category Coverage
@@ -444,3 +453,4 @@ Four-layer defense:
 7. **SCAR-IDEM-001 mitigation incomplete**: Observability-only fix. Double-execution risk for strict-once callers not fully mitigated.
 8. **SCAR-REG-001 production blocker**: Sequential placeholder GIDs must be replaced with verified GIDs before production.
 9. **Auth migration (REM-005) documentation**: SCAR-012 auth description updated to reflect `client_credentials` grant (commit `527c6ac`).
+10. **SCAR-WS8 route ordering unprotected by regression test**: Route ordering (intake_resolve_router before resolver_router) documented in code comment and LB-003 but not tested. See SCAR-WS8 entry.

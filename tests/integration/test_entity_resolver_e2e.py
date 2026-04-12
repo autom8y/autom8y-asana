@@ -471,4 +471,4 @@ class TestAuthenticationEnforcement:
 
             assert response.status_code == 401
             data = response.json()
-            assert data["error"]["code"] == "AUTH-MISSING-TOKEN"
+            assert data["error"]["code"] == "AUTH-TEB-001"

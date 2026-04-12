@@ -316,7 +316,7 @@ class TestEntityWriteRoute:
             json={"fields": {"name": "Updated"}},
         )
         assert resp.status_code == 401
-        assert resp.json()["error"]["code"] == "AUTH-MISSING-TOKEN"
+        assert resp.json()["error"]["code"] == "AUTH-TEB-001"
 
     def test_pat_token_rejected_401(self, client: TestClient) -> None:
         """PAT token -> 401 SERVICE_TOKEN_REQUIRED."""

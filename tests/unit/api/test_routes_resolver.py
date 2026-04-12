@@ -344,7 +344,7 @@ class TestResolveAuthentication:
 
         assert response.status_code == 401
         data = response.json()
-        assert data["error"]["code"] == "AUTH-MISSING-TOKEN"
+        assert data["error"]["code"] == "AUTH-TEB-001"
 
     def test_pat_token_returns_401(self, client: TestClient) -> None:
         """TC-012: PAT token returns 401 with SERVICE_TOKEN_REQUIRED."""

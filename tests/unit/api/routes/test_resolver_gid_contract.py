@@ -418,7 +418,7 @@ class TestGidLookupAuth:
 
         assert response.status_code == 401
         data = response.json()
-        assert data["error"]["code"] == "AUTH-MISSING-TOKEN"
+        assert data["error"]["code"] == "AUTH-TEB-001"
 
     def test_ct008_pat_token_returns_401(self, client: TestClient) -> None:
         """CT-008: PAT token (0/xxx format) returns 401 SERVICE_TOKEN_REQUIRED."""
