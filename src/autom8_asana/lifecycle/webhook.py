@@ -35,7 +35,13 @@ class WebhookResponse(BaseModel):
     message: str = ""
 
 
-@router.post("/asana")
+@router.post(
+    "/asana",
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+    },
+)
 async def handle_asana_webhook(
     payload: AsanaWebhookPayload,
     request: Request,

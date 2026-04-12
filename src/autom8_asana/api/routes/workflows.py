@@ -238,6 +238,13 @@ async def list_workflows(
         429: {"description": "Rate limit exceeded (10 requests/minute)"},
         504: {"description": "Workflow execution timed out (120s limit)"},
     },
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 @limiter.limit("10/minute")
 async def invoke_workflow(

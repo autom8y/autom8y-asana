@@ -92,6 +92,13 @@ async def get_section(
     response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
     responses=mutation_responses(),
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "section"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def create_section(
     body: CreateSectionRequest,
@@ -136,6 +143,13 @@ async def create_section(
     response_description="Updated section details",
     response_model=SuccessResponse[AsanaResource],
     responses={**entity_responses(), **mutation_responses()},
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "section"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def update_section(
     gid: GidStr,
@@ -179,6 +193,13 @@ async def update_section(
     response_description="No content",
     status_code=status.HTTP_204_NO_CONTENT,
     responses=entity_responses(),
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "section"},
+        ],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def delete_section(
     gid: GidStr,
@@ -222,6 +243,13 @@ async def delete_section(
     response_description="No content",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={**entity_responses(), **mutation_responses()},
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def add_task_to_section(
     gid: GidStr,
@@ -267,6 +295,13 @@ async def add_task_to_section(
     response_description="No content",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={**entity_responses(), **mutation_responses()},
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "section"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def reorder_section(
     gid: GidStr,

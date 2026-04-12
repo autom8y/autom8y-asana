@@ -394,6 +394,10 @@ def _invoke_cache_warmer_lambda(
     "/cache/refresh",
     response_model=CacheRefreshResponse,
     status_code=202,
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+    },
 )
 async def refresh_cache(
     request: Request,

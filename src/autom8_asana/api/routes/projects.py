@@ -165,6 +165,13 @@ async def get_project(
     response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
     responses=mutation_responses(),
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "project"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def create_project(
     body: CreateProjectRequest,
@@ -207,6 +214,13 @@ async def create_project(
     response_description="Updated project details",
     response_model=SuccessResponse[AsanaResource],
     responses={**entity_responses(), **mutation_responses()},
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "project"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def update_project(
     gid: GidStr,
@@ -263,6 +277,13 @@ async def update_project(
     response_description="No content",
     status_code=status.HTTP_204_NO_CONTENT,
     responses=entity_responses(),
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "project"},
+        ],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def delete_project(
     gid: GidStr,
@@ -364,6 +385,13 @@ async def list_sections(
     response_description="Updated project with new members",
     response_model=SuccessResponse[AsanaResource],
     responses={**entity_responses(), **mutation_responses()},
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "project"},
+        ],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def add_members(
     gid: GidStr,
@@ -405,6 +433,13 @@ async def add_members(
     response_description="Updated project with members removed",
     response_model=SuccessResponse[AsanaResource],
     responses={**entity_responses(), **mutation_responses()},
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "project"},
+        ],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def remove_members(
     gid: GidStr,

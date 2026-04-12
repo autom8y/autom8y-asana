@@ -53,7 +53,14 @@ router = s2s_router(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/query", response_model=SuccessResponse[MatchingQueryResponse])
+@router.post(
+    "/query",
+    response_model=SuccessResponse[MatchingQueryResponse],
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+    },
+)
 async def matching_query(
     body: MatchingQueryRequest,
     request_id: RequestId,

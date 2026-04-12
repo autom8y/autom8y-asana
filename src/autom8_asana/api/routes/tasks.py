@@ -247,6 +247,13 @@ async def create_task(
     response_description="Updated task details",
     response_model=SuccessResponse[AsanaResource],
     responses={**entity_responses(), **mutation_responses()},
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def update_task(
     gid: GidStr,
@@ -301,6 +308,13 @@ async def update_task(
     response_description="No content",
     status_code=status.HTTP_204_NO_CONTENT,
     responses=entity_responses(),
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def delete_task(
     gid: GidStr,
@@ -463,6 +477,13 @@ async def list_dependents(
     response_model=SuccessResponse[AsanaResource],
     status_code=status.HTTP_201_CREATED,
     responses={**entity_responses(), **mutation_responses()},
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def duplicate_task(
     gid: GidStr,
@@ -510,6 +531,13 @@ async def duplicate_task(
     response_description="Updated task with new tag",
     response_model=SuccessResponse[AsanaResource],
     responses={**entity_responses(), **mutation_responses()},
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def add_tag(
     gid: GidStr,
@@ -552,6 +580,13 @@ async def add_tag(
     summary="Remove a tag from a task",
     response_description="Updated task with tag removed",
     response_model=SuccessResponse[AsanaResource],
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def remove_tag(
     gid: GidStr,
@@ -597,6 +632,13 @@ async def remove_tag(
     summary="Move a task to a section",
     response_description="Updated task with new section",
     response_model=SuccessResponse[AsanaResource],
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def move_to_section(
     gid: GidStr,
@@ -643,6 +685,13 @@ async def move_to_section(
     summary="Set or clear a task assignee",
     response_description="Updated task with new assignee",
     response_model=SuccessResponse[AsanaResource],
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def set_assignee(
     gid: GidStr,
@@ -684,6 +733,13 @@ async def set_assignee(
     summary="Add a task to a project",
     response_description="Updated task with new project membership",
     response_model=SuccessResponse[AsanaResource],
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def add_to_project(
     gid: GidStr,
@@ -726,6 +782,13 @@ async def add_to_project(
     summary="Remove a task from a project",
     response_description="Updated task with project membership removed",
     response_model=SuccessResponse[AsanaResource],
+    openapi_extra={
+        "x-fleet-side-effects": [
+            {"type": "asana_api", "target": "task"},
+        ],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-rate-limit": {"tier": "external"},
+    },
 )
 async def remove_from_project(
     gid: GidStr,

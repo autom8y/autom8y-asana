@@ -306,6 +306,10 @@ async def _process_inbound_task(task: Task, cache_provider: Any) -> None:
     summary="Receive an inbound webhook event from Asana",
     response_description="Accepted status for valid payloads",
     responses=authenticated_responses(),
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+    },
 )
 async def receive_inbound_webhook(
     request: Request,

@@ -162,6 +162,11 @@ def get_supported_entity_types() -> set[str]:
         "Use GET /v1/resolve/{entity_type}/schema to discover valid criterion "
         "fields for each entity type."
     ),
+    openapi_extra={
+        "x-fleet-side-effects": [],
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
+        "x-fleet-cross-service-refs": {"service": "autom8y-asana", "entity": "task"},
+    },
 )
 async def resolve_entities(
     entity_type: str,
