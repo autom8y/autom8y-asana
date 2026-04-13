@@ -36,11 +36,15 @@ from autom8y_api_middleware import (
     JWTAuthConfig,
     RateLimitConfig,
     RouterMount,
+    SecurityAnnotationStrategy,
+    SecurityScheme,
+    ServerEntry,
+    TagClassification,
     create_fleet_app,
+    enrich_openapi_schema,
 )
 from autom8y_log import get_logger
 from fastapi import FastAPI
-from fastapi.openapi.utils import get_openapi
 from starlette.middleware import Middleware
 
 from .config import get_settings
@@ -388,14 +392,17 @@ def create_app() -> FastAPI:
     register_validation_handler(app)
 
     # --- Custom OpenAPI spec enrichment (TDD-SPRINT1-CUSTOM-OPENAPI) ---
+    # PKG-018: common boilerplate extracted to enrich_openapi_schema().
     def custom_openapi() -> dict[str, Any]:
         """Post-process the auto-generated OpenAPI spec.
 
         Enrichment steps:
-        1. Inject ``PersonalAccessToken`` and ``ServiceJWT`` security schemes.
-        2. Annotate per-operation security based on tag classification.
-        3. Strip leaked ``authorization`` header parameters.
-        4. Seed tag descriptions for Sprint 3.
+        1–8: Common fleet enrichment via enrich_openapi_schema (OAS 3.2.0,
+             jsonSchemaDialect, server URLs, security schemes, fail-closed
+             tag-classified per-operation security, health path exemption,
+             authorization header stripping, error response injection).
+        9+:  Service-specific: QUERY method candidates, Task model schema
+             injection, registry type injection, webhook definition.
 
         The function runs once per process lifetime; FastAPI caches the
         result on ``app.openapi_schema``.
@@ -403,149 +410,106 @@ def create_app() -> FastAPI:
         if app.openapi_schema:
             return app.openapi_schema
 
-        spec = get_openapi(
-            title=app.title,
-            version=app.version,
-            description=app.description,
-            routes=app.routes,
-            openapi_version="3.2.0",
+        spec = enrich_openapi_schema(
+            app,
+            servers=[
+                ServerEntry("https://asana.api.autom8y.io", "Production"),
+                ServerEntry("https://asana.staging.api.autom8y.io", "Staging"),
+            ],
+            security_schemes=[
+                SecurityScheme(
+                    "PersonalAccessToken",
+                    {
+                        "type": "http",
+                        "scheme": "bearer",
+                        "description": (
+                            "Asana Personal Access Token (PAT). The token"
+                            " is passed directly to the Asana API. Use for"
+                            " standard resource endpoints (/api/v1/*)."
+                        ),
+                    },
+                ),
+                SecurityScheme(
+                    "ServiceJWT",
+                    {
+                        "type": "http",
+                        "scheme": "bearer",
+                        "bearerFormat": "JWT",
+                        "description": (
+                            "Service-to-service JWT issued by the autom8y"
+                            " auth service. The service validates the JWT"
+                            " against its JWKS endpoint and uses a bot PAT"
+                            " for downstream Asana API calls. Use for"
+                            " internal service endpoints (/v1/*)."
+                        ),
+                    },
+                ),
+                SecurityScheme(
+                    "WebhookToken",
+                    {
+                        "type": "apiKey",
+                        "in": "query",
+                        "name": "token",
+                        "description": (
+                            "URL token for inbound webhook authentication."
+                            " Passed as ?token=<secret> query parameter."
+                            " Verified via timing-safe comparison against"
+                            " ASANA_WEBHOOK_INBOUND_TOKEN."
+                        ),
+                    },
+                ),
+            ],
+            annotation_strategy=SecurityAnnotationStrategy.FAIL_CLOSED,
+            tag_classification=TagClassification(
+                no_auth_tags=_NO_AUTH_TAGS,
+                scheme_tag_map={
+                    "WebhookToken": _TOKEN_TAGS,
+                    "ServiceJWT": _S2S_TAGS,
+                    "PersonalAccessToken": _PAT_TAGS,
+                },
+                fail_on_unknown=True,
+            ),
+            strip_authorization_header=True,
+            inject_error_responses={
+                "400": {
+                    "description": "Bad Request (Validation Error)",
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+                        }
+                    },
+                },
+                "401": {
+                    "description": "Unauthorized (Missing or Invalid Token)",
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+                        }
+                    },
+                },
+                "403": {
+                    "description": "Forbidden (Insufficient Permissions)",
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+                        }
+                    },
+                },
+                "404": {
+                    "description": "Not Found (Resource or Schema not found)",
+                    "content": {
+                        "application/json": {
+                            "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+                        }
+                    },
+                },
+            },
         )
 
-        # OAS 3.2.0 metadata
-        spec["jsonSchemaDialect"] = "https://json-schema.org/draft/2020-12/schema"
-        spec["servers"] = [
-            {"url": "https://asana.api.autom8y.io", "description": "Production"},
-            {"url": "https://asana.staging.api.autom8y.io", "description": "Staging"},
-        ]
-
-        # 1. Inject security schemes
+        # components ref for service-specific patches below
         components = spec.setdefault("components", {})
-        components["securitySchemes"] = {
-            "PersonalAccessToken": {
-                "type": "http",
-                "scheme": "bearer",
-                "description": (
-                    "Asana Personal Access Token (PAT). The token"
-                    " is passed directly to the Asana API. Use for"
-                    " standard resource endpoints (/api/v1/*)."
-                ),
-            },
-            "ServiceJWT": {
-                "type": "http",
-                "scheme": "bearer",
-                "bearerFormat": "JWT",
-                "description": (
-                    "Service-to-service JWT issued by the autom8y"
-                    " auth service. The service validates the JWT"
-                    " against its JWKS endpoint and uses a bot PAT"
-                    " for downstream Asana API calls. Use for"
-                    " internal service endpoints (/v1/*)."
-                ),
-            },
-            "WebhookToken": {
-                "type": "apiKey",
-                "in": "query",
-                "name": "token",
-                "description": (
-                    "URL token for inbound webhook authentication."
-                    " Passed as ?token=<secret> query parameter."
-                    " Verified via timing-safe comparison against"
-                    " ASANA_WEBHOOK_INBOUND_TOKEN."
-                ),
-            },
-        }
 
-        # 2-3. Per-operation security annotation + parameter stripping
-        for _path, path_item in spec.get("paths", {}).items():
-            for method in (
-                "get",
-                "post",
-                "put",
-                "patch",
-                "delete",
-                "options",
-                "head",
-                "trace",
-            ):
-                operation = path_item.get(method)
-                if operation is None:
-                    continue
-
-                # Inject 400 Bad Request (Mandate 3)
-                # Documentation-based for pydantic validation and SDK GidValidationError mapping
-                if "400" not in operation.get("responses", {}):
-                    operation.setdefault("responses", {})["400"] = {
-                        "description": "Bad Request (Validation Error)",
-                        "content": {
-                            "application/json": {
-                                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-                            }
-                        },
-                    }
-
-                # Inject 401/403 (Mandate 3) - Core security status codes
-                if "401" not in operation.get("responses", {}):
-                    operation.setdefault("responses", {})["401"] = {
-                        "description": "Unauthorized (Missing or Invalid Token)",
-                        "content": {
-                            "application/json": {
-                                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-                            }
-                        },
-                    }
-                if "403" not in operation.get("responses", {}):
-                    operation.setdefault("responses", {})["403"] = {
-                        "description": "Forbidden (Insufficient Permissions)",
-                        "content": {
-                            "application/json": {
-                                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-                            }
-                        },
-                    }
-                if "404" not in operation.get("responses", {}):
-                    operation.setdefault("responses", {})["404"] = {
-                        "description": "Not Found (Resource or Schema not found)",
-                        "content": {
-                            "application/json": {
-                                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
-                            }
-                        },
-                    }
-
-                tags = set(operation.get("tags", []))
-
-                # Apply security annotation (ADR-SPRINT1-001)
-                if tags & _NO_AUTH_TAGS:
-                    operation["security"] = []
-                elif tags & _TOKEN_TAGS:
-                    operation["security"] = [{"WebhookToken": []}]
-                elif tags & _S2S_TAGS:
-                    operation["security"] = [{"ServiceJWT": []}]
-                elif tags & _PAT_TAGS:
-                    operation["security"] = [{"PersonalAccessToken": []}]
-                else:
-                    # PKG-009 / AUDIT-010: Fail closed on unknown tags. Any
-                    # route whose tag is not classified into _NO_AUTH_TAGS,
-                    # _TOKEN_TAGS, _S2S_TAGS, or _PAT_TAGS must explicitly
-                    # opt in. Silent fall-through previously left the route
-                    # documented as anonymous, which is a fail-open posture.
-                    raise ValueError(
-                        f"Unknown OpenAPI tag(s): {sorted(tags)}. Add to "
-                        "_PAT_TAGS, _S2S_TAGS, _TOKEN_TAGS, or _NO_AUTH_TAGS "
-                        "in autom8_asana.api.main."
-                    )
-
-                # Strip authorization header param (ADR-SPRINT1-002)
-                if "parameters" in operation:
-                    operation["parameters"] = [
-                        p
-                        for p in operation["parameters"]
-                        if not (p.get("name") == "authorization" and p.get("in") == "header")
-                    ]
-                    if not operation["parameters"]:
-                        del operation["parameters"]
-
-        # 4. Seed tag descriptions
+        # 4. Seed tag descriptions (service-specific tag set)
         spec["tags"] = [
             {"name": tag, "description": desc} for tag, desc in _TAG_DESCRIPTIONS.items()
         ]
