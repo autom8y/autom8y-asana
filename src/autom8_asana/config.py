@@ -620,7 +620,7 @@ class AsanaConfig:
     automation: AutomationConfig = field(default_factory=AutomationConfig)
 
     # Auth key names (used with AuthProvider.get_secret)
-    token_key: str = "ASANA_PAT"
+    token_key: str = "ASANA_PAT"  # noqa: S105 -- env var name for secret lookup, not a password
 
 
 # --- Startup Validation ---

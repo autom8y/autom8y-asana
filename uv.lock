@@ -98,15 +98,15 @@ wheels = [
 
 [[package]]
 name = "autom8y-api-middleware"
-version = "0.2.0"
+version = "0.3.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-auth" },
     { name = "fastapi" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-api-middleware/0.2.0/autom8y_api_middleware-0.2.0.tar.gz", hash = "sha256:d19723caa3ad9337468fee333be67a33df79e03f110276bec2dd87aaa5c549ee" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-api-middleware/0.3.0/autom8y_api_middleware-0.3.0.tar.gz", hash = "sha256:3998c48c54bfcef78a6977eb139fe5ccabf05b93569580d1a22e1b5b34bbbf61" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-api-middleware/0.2.0/autom8y_api_middleware-0.2.0-py3-none-any.whl", hash = "sha256:0f5154454006b06489f7f5af7c78f0a10f7628d4ac172b6ad95b84cedf454503" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-api-middleware/0.3.0/autom8y_api_middleware-0.3.0-py3-none-any.whl", hash = "sha256:71f9d2242294c2a53fb1016154b38a08103f197eac470f040f4319e106e8fc4e" },
 ]
 
 [package.optional-dependencies]
@@ -227,7 +227,7 @@ requires-dist = [
     { name = "apscheduler", marker = "extra == 'scheduler'", specifier = ">=3.10.0" },
     { name = "arrow", specifier = ">=1.3.0" },
     { name = "asana", specifier = ">=5.0.3" },
-    { name = "autom8y-api-middleware", extras = ["rate-limit"], specifier = ">=0.2.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-api-middleware", extras = ["rate-limit"], specifier = ">=0.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-api-schemas", marker = "extra == 'api'", specifier = ">=1.6.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-auth", extras = ["observability"], marker = "extra == 'auth'", specifier = ">=3.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-auth", extras = ["observability"], marker = "extra == 'dev'", specifier = ">=3.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },

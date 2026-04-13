@@ -139,7 +139,13 @@ def test_health_endpoints_no_security(spec):
 
 
 def test_pat_endpoints_personal_access_token(spec):
-    """Operations tagged with PAT tags have PersonalAccessToken security."""
+    """Operations tagged with PAT tags have PersonalAccessToken security.
+
+    The security array is an OR list: the first entry is always
+    PersonalAccessToken (the primary auth scheme).  Sprint-6 Track D
+    adds an OAuth2Asana entry with entity-scoped scopes as an
+    alternative — this is expected and acceptable.
+    """
     pat_prefixes = ("/api/v1/tasks", "/api/v1/projects")
     found_any = False
     for path, path_item in spec["paths"].items():
@@ -155,8 +161,12 @@ def test_pat_endpoints_personal_access_token(spec):
                 if operation is None:
                     continue
                 found_any = True
-                assert operation.get("security") == [{"PersonalAccessToken": []}], (
-                    f"{method.upper()} {path} should have PersonalAccessToken security"
+                security = operation.get("security", [])
+                assert len(security) >= 1, (
+                    f"{method.upper()} {path} has no security entries"
+                )
+                assert {"PersonalAccessToken": []} in security, (
+                    f"{method.upper()} {path} should include PersonalAccessToken security"
                 )
     assert found_any, "No PAT-tagged operations found in spec"
 

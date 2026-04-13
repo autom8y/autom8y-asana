@@ -131,7 +131,7 @@ class SecretsManagerAuthProvider:
         self,
         service_name: str = "asana",
         *,
-        secret_path_pattern: str = "autom8y/{service}/{key}",
+        secret_path_pattern: str = "autom8y/{service}/{key}",  # noqa: S107 -- SM path template, not a password
         region: str | None = None,
         client: SecretsManagerClient | None = None,
     ) -> None:

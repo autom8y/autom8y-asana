@@ -228,7 +228,7 @@ class DataServiceConfig:
     """
 
     base_url: str = field(default_factory=lambda: get_settings().data_service.url)
-    token_key: str = "AUTOM8Y_DATA_API_KEY"
+    token_key: str = "AUTOM8Y_DATA_API_KEY"  # noqa: S105 -- env var name for secret lookup, not a password
 
     timeout: TimeoutConfig = field(default_factory=TimeoutConfig)
     connection_pool: ConnectionPoolConfig = field(default_factory=ConnectionPoolConfig)

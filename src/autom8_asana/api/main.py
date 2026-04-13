@@ -121,6 +121,71 @@ _S2S_TAGS: frozenset[str] = frozenset(
 # Tags whose operations require no auth
 _NO_AUTH_TAGS: frozenset[str] = frozenset({"health"})
 
+# ---------------------------------------------------------------------------
+# OAuth2 scope taxonomy (Track D, Sprint 6 — op-level authz pilot)
+#
+# Scope naming convention: {entity}:{action}
+# Scopes are DOCUMENTATION-ONLY — they describe intended authorization
+# requirements per-operation.  Runtime enforcement remains unchanged.
+#
+# PAT operations: scopes describe what the PAT holder is authorised to do.
+# S2S operations: scopes describe what the calling service is authorised to do.
+# ---------------------------------------------------------------------------
+
+# Scope definitions surfaced in the OAuth2 securitySchemes.
+_OAUTH2_SCOPE_DEFINITIONS: dict[str, str] = {
+    "tasks:read": "Read access to Asana tasks, subtasks, and dependents",
+    "tasks:write": "Create, update, delete, duplicate, tag, and move tasks",
+    "projects:read": "Read access to Asana projects and their sections",
+    "projects:write": "Create, update, delete projects and manage members",
+    "sections:read": "Read access to project sections",
+    "sections:write": "Create, update, delete, and reorder sections",
+    "users:read": "Read access to Asana user profiles",
+    "workspaces:read": "Read access to Asana workspaces",
+    "dataframes:read": "Read access to structured DataFrame extractions",
+    "workflows:execute": "Invoke registered automation workflows",
+    "resolver:read": "Resolve business identifiers to Asana entities (S2S)",
+    "query:read": "Schema introspection and entity queries (S2S)",
+    "intake:write": "Create and resolve entities via intake pipeline (S2S)",
+    "admin:manage": "Administrative operations (cache, config, diagnostics)",
+    "webhooks:receive": "Receive inbound webhook notifications",
+}
+
+# Path-prefix + HTTP method -> required scopes.  Evaluated in order;
+# first matching prefix wins.  Write methods (POST/PUT/PATCH/DELETE) check
+# the write column; GET/HEAD check the read column.
+_SCOPE_RULES: list[tuple[str, list[str], list[str]]] = [
+    ("/api/v1/tasks", ["tasks:read"], ["tasks:write"]),
+    ("/api/v1/projects", ["projects:read"], ["projects:write"]),
+    ("/api/v1/sections", ["sections:read"], ["sections:write"]),
+    ("/api/v1/users", ["users:read"], ["users:read"]),
+    ("/api/v1/workspaces", ["workspaces:read"], ["workspaces:read"]),
+    ("/api/v1/dataframes", ["dataframes:read"], ["dataframes:read"]),
+    ("/api/v1/workflows", ["workflows:execute"], ["workflows:execute"]),
+    ("/api/v1/webhooks", ["webhooks:receive"], ["webhooks:receive"]),
+    ("/v1/resolve", ["resolver:read"], ["resolver:read"]),
+    ("/v1/query", ["query:read"], ["query:read"]),
+    ("/v1/intake", ["intake:write"], ["intake:write"]),
+    ("/v1/matching", ["query:read"], ["query:read"]),
+    ("/v1/admin", ["admin:manage"], ["admin:manage"]),
+    ("/v1/internal", ["admin:manage"], ["admin:manage"]),
+    ("/v1/entity-write", ["admin:manage"], ["intake:write"]),
+]
+
+_WRITE_METHODS: frozenset[str] = frozenset({"post", "put", "patch", "delete"})
+
+
+def _resolve_scopes_for_operation(path: str, method: str) -> list[str]:
+    """Return the OAuth2 scopes required for a given path + method.
+
+    Returns an empty list when no rule matches (health, unknown paths).
+    """
+    for prefix, read_scopes, write_scopes in _SCOPE_RULES:
+        if path.startswith(prefix):
+            return write_scopes if method in _WRITE_METHODS else read_scopes
+    return []
+
+
 # Tag descriptions for include_in_schema=True routers
 _TAG_DESCRIPTIONS: dict[str, str] = {
     "health": (
@@ -513,6 +578,57 @@ def create_app() -> FastAPI:
         spec["tags"] = [
             {"name": tag, "description": desc} for tag, desc in _TAG_DESCRIPTIONS.items()
         ]
+
+        # ---------------------------------------------------------------
+        # Sprint-6, Track D: OAuth2 scope annotations (pilot)
+        #
+        # Inject an OAuth2 client-credentials security scheme that declares
+        # per-entity scopes, then annotate each operation with the specific
+        # scopes it requires.  This is DOCUMENTATION-ONLY — no runtime
+        # enforcement changes.  The existing per-operation security arrays
+        # (PersonalAccessToken, ServiceJWT, WebhookToken) remain; we ADD
+        # an OAuth2 alternative to each operation's security list so that
+        # consumers can discover required scopes.
+        # ---------------------------------------------------------------
+        security_schemes = components.setdefault("securitySchemes", {})
+        security_schemes["OAuth2Asana"] = {
+            "type": "oauth2",
+            "flows": {
+                "clientCredentials": {
+                    "tokenUrl": "https://auth.api.autom8y.io/oauth/token",
+                    "scopes": _OAUTH2_SCOPE_DEFINITIONS,
+                }
+            },
+            "description": (
+                "OAuth2 Client Credentials flow for the Asana service. "
+                "Scopes document the authorization requirements per "
+                "operation. Use PersonalAccessToken or ServiceJWT for "
+                "actual authentication until OAuth2 enforcement is live."
+            ),
+        }
+
+        # Annotate each operation with its required OAuth2 scopes.
+        # The existing security array has a single entry like
+        # [{"PersonalAccessToken": []}].  We append an OAuth2Asana
+        # alternative entry so the security array becomes an OR list:
+        # e.g. [{"PersonalAccessToken": []}, {"OAuth2Asana": ["tasks:read"]}]
+        _http_methods = frozenset(
+            {"get", "post", "put", "patch", "delete", "head", "options", "trace"}
+        )
+        for path_key, path_item in spec.get("paths", {}).items():
+            for method_key, operation in path_item.items():
+                if method_key not in _http_methods or not isinstance(operation, dict):
+                    continue
+                scopes = _resolve_scopes_for_operation(path_key, method_key)
+                if not scopes:
+                    continue  # health paths, unknown paths — leave as-is
+                security_list = operation.get("security")
+                if security_list is None or security_list == []:
+                    continue  # no-auth operations (health) — leave as-is
+                # Append OAuth2 scope entry to the existing security OR-list
+                oauth2_entry = {"OAuth2Asana": scopes}
+                if oauth2_entry not in security_list:
+                    security_list.append(oauth2_entry)
 
         # Sprint-6 (Lexicon Ascension): Annotate QUERY method candidates.
         # The following POST endpoints are semantically QUERY operations
