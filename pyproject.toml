@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "autom8y-asana"
 version = "1.1.0"
 description = "Async-first Asana API client extracted from autom8"
-# readme = "README.md"  # Deferred to Phase 5
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.25.0",
@@ -41,22 +41,20 @@ aws = [
 ]
 api = [
     "fastapi>=0.115.0",
-    "autom8y-api-schemas>=1.5.0",  # NOTE: fleet_query_adapter requires 1.6.0+ at runtime; pin bump deferred to S7 releaser per S3 D4 dispatch
+    "autom8y-api-schemas>=1.6.0",
     "uvicorn[standard]>=0.27.0",
     "slowapi>=0.1.9",
 ]
 # auth: Platform authentication via autom8y-auth SDK
 # JWT validation, JWKS fetching, and crypto are encapsulated in the SDK
-# 3.2.1: Fleet API Sovereignty S2 UC-1/UC-2/UC-3 bundle (claims_dict_for,
-# AUTH-TEB canonical error taxonomy, DEFAULT_EXCLUDE_PATHS export).
-# Bumped from 3.2.0 to eliminate phantom wheel SHA (COMPLAINT-20260412-003226).
-auth = ["autom8y-auth[observability]>=3.2.1"]
+# 3.3.0: Fleet API Sovereignty S7 release — TokenManager /tokens/exchange-business.
+auth = ["autom8y-auth[observability]>=3.3.0"]
 # events: Domain event publishing via autom8y-events (EventBridge)
 # Per ADR-bridge-dispatch-model Decision 3: BridgeExecutionComplete emission
 events = ["autom8y-events>=0.1.0"]
 # interop: Cross-service protocol alignment via autom8y-client-sdk
 # Per ADR-bridge-dispatch-model: Protocol annotation pressure, NOT client migration
-interop = ["autom8y-client-sdk>=2.1.0"]
+interop = ["autom8y-client-sdk>=3.0.0"]
 # scheduler: Polling scheduler for development mode (production uses cron)
 scheduler = ["apscheduler>=3.10.0"]
 # lambda: AWS Lambda Runtime Interface Client for container-based Lambda execution
@@ -75,14 +73,14 @@ dev = [
     "fakeredis>=2.20.0",                   # Redis mocking for tests
     "moto>=5.0.0",                         # AWS/S3 mocking for tests
     "boto3-stubs[secretsmanager]>=1.34.0", # Type stubs for boto3
-    "autom8y-auth[observability]>=3.2.1",  # Required for test_auth tests (S2 UC-1/2/3)
+    "autom8y-auth[observability]>=3.3.0",  # Required for test_auth tests (S2 UC-1/2/3)
     # SDK testing subpackages (per TDD-SDK-TESTING-ADOPTION)
     "autom8y-log[testing]>=0.5.6",
     "autom8y-cache[testing]>=0.4.0",
     "autom8y-http[testing]>=0.6.0",
     "autom8y-config[testing]>=2.0.0",
     "autom8y-core[testing]>=1.3.0",
-    "autom8y-auth[testing]>=3.2.1",
+    "autom8y-auth[testing]>=3.3.0",
     "openapi-spec-validator>=0.7.1",       # OpenAPI 3.2.0 spec validation in CI
 ]
 
