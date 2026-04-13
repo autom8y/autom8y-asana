@@ -34,7 +34,7 @@ from autom8y_log import get_logger
 from fastapi import Depends, Header, Request
 
 from autom8_asana import AsanaClient
-from autom8_asana.api.exceptions import ApiAuthError, ApiServiceUnavailableError
+from autom8_asana.api.exception_types import ApiAuthError, ApiServiceUnavailableError
 from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
 from autom8_asana.auth.dual_mode import AuthMode, detect_token_type
 from autom8_asana.cache.integration.mutation_invalidator import MutationInvalidator

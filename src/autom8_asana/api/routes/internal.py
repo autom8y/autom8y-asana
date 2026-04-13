@@ -17,7 +17,7 @@ from fastapi import (
 )
 from pydantic import BaseModel
 
-from autom8_asana.api.exceptions import ApiAuthError, ApiServiceUnavailableError
+from autom8_asana.api.exception_types import ApiAuthError, ApiServiceUnavailableError
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.auth.dual_mode import AuthMode, detect_token_type
 from autom8_asana.auth.jwt_validator import validate_service_token

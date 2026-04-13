@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import polars as pl
 import pytest
 
-from autom8_asana.api.exceptions import ApiDataFrameBuildError
+from autom8_asana.api.exception_types import ApiDataFrameBuildError
 from autom8_asana.cache.dataframe.decorator import dataframe_cache
 from autom8_asana.cache.dataframe.factory import reset_dataframe_cache
 from autom8_asana.cache.integration.dataframe_cache import (

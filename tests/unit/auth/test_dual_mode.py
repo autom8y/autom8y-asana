@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from autom8_asana.api.exceptions import ApiAuthError
+from autom8_asana.api.exception_types import ApiAuthError
 from autom8_asana.auth.dual_mode import AuthMode, detect_token_type, get_auth_mode
 
 

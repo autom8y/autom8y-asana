@@ -46,7 +46,7 @@ from autom8_asana.errors import (
 )
 from autom8_asana.persistence.errors import GidValidationError
 
-from .exceptions import (
+from .exception_types import (
     ApiAuthError,
     ApiDataFrameBuildError,
     ApiError,

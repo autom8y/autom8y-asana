@@ -21,7 +21,7 @@ from typing import Annotated
 
 from fastapi import Header
 
-from autom8_asana.api.exceptions import ApiAuthError
+from autom8_asana.api.exception_types import ApiAuthError
 
 
 class AuthMode(StrEnum):

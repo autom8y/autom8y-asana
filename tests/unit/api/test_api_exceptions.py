@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from autom8_asana.api.exceptions import (
+from autom8_asana.api.exception_types import (
     ApiAuthError,
     ApiDataFrameBuildError,
     ApiError,

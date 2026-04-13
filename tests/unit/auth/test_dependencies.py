@@ -18,7 +18,7 @@ from autom8_asana.api.dependencies import (
     _extract_bearer_token,
     get_auth_context,
 )
-from autom8_asana.api.exceptions import ApiAuthError, ApiServiceUnavailableError
+from autom8_asana.api.exception_types import ApiAuthError, ApiServiceUnavailableError
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.dual_mode import AuthMode
 from autom8_asana.auth.jwt_validator import reset_auth_client

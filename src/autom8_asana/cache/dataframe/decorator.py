@@ -150,7 +150,7 @@ def dataframe_cache(
                     "entity_type": entity_type,
                 },
             )
-            from autom8_asana.api.exceptions import (
+            from autom8_asana.api.exception_types import (
                 ApiDataFrameBuildError,  # noqa: E501 -- lazy import avoids circular dependency
             )
 
@@ -189,7 +189,7 @@ def dataframe_cache(
                     await cache.release_build_lock_async(
                         project_gid, entity_type, success=False
                     )
-                    from autom8_asana.api.exceptions import (
+                    from autom8_asana.api.exception_types import (
                         ApiDataFrameBuildError,  # noqa: E501 -- lazy import avoids circular dependency
                     )
 
@@ -211,7 +211,7 @@ def dataframe_cache(
                     await cache.release_build_lock_async(
                         project_gid, entity_type, success=False
                     )
-                    from autom8_asana.api.exceptions import (
+                    from autom8_asana.api.exception_types import (
                         ApiDataFrameBuildError,  # noqa: E501 -- lazy import avoids circular dependency
                     )
 
@@ -234,7 +234,7 @@ def dataframe_cache(
                 return result
 
             except Exception as e:  # BROAD-CATCH: boundary -- catch-all converts to typed exception at API boundary
-                from autom8_asana.api.exceptions import (
+                from autom8_asana.api.exception_types import (
                     ApiDataFrameBuildError,  # noqa: E501 -- lazy import avoids circular dependency
                 )
 
