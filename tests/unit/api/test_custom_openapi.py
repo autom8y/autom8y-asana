@@ -162,9 +162,7 @@ def test_pat_endpoints_personal_access_token(spec):
                     continue
                 found_any = True
                 security = operation.get("security", [])
-                assert len(security) >= 1, (
-                    f"{method.upper()} {path} has no security entries"
-                )
+                assert len(security) >= 1, f"{method.upper()} {path} has no security entries"
                 assert {"PersonalAccessToken": []} in security, (
                     f"{method.upper()} {path} should include PersonalAccessToken security"
                 )
