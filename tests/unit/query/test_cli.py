@@ -398,9 +398,7 @@ class TestCLIIntegration:
         targets = {entry["target"] for entry in data}
         assert "unit" in targets or "business" in targets
 
-    def test_unknown_entity_exits_with_error(
-        self, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_unknown_entity_exits_with_error(self, capsys: pytest.CaptureFixture) -> None:
         """Unknown entity type in 'fields' returns exit code 1."""
         exit_code = main(["fields", "nonexistent_xyz_entity"])
         assert exit_code == 1
@@ -441,9 +439,7 @@ class TestCLIIntegration:
                 return_value=mock_response,
             ),
         ):
-            exit_code = main(
-                ["rows", "offer", "--format", "json", "--classification", "active"]
-            )
+            exit_code = main(["rows", "offer", "--format", "json", "--classification", "active"])
             assert exit_code == 0
             captured = capsys.readouterr()
             stdout = captured.out
@@ -521,9 +517,7 @@ class TestCLIIntegration:
 class TestSettingsGuardBypass:
     """Verify main() sets env defaults for offline CLI usage."""
 
-    def test_main_sets_autom8_data_url_default(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_main_sets_autom8_data_url_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """main() should set AUTOM8Y_DATA_URL if not already set."""
         import os
 
@@ -542,9 +536,7 @@ class TestSettingsGuardBypass:
 
         assert os.environ.get("AUTOM8Y_DATA_URL") == "http://my-custom-url:8000"
 
-    def test_main_sets_workspace_gid_default(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_main_sets_workspace_gid_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """main() should set ASANA_WORKSPACE_GID if not already set."""
         import os
 
@@ -713,9 +705,7 @@ class TestSectionsSubcommand:
         captured = capsys.readouterr()
         assert "ERROR" in captured.err
 
-    def test_sections_entity_without_classifier(
-        self, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_sections_entity_without_classifier(self, capsys: pytest.CaptureFixture) -> None:
         """'sections' with entity that has no classifier returns exit code 1."""
         exit_code = main(["sections", "business"])
         assert exit_code == 1

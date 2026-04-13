@@ -468,9 +468,7 @@ class TestPersistenceIntegration:
 
         repo = get_watermark_repo()
         mock_persistence = MagicMock()
-        mock_persistence.save_watermark = AsyncMock(
-            side_effect=ConnectionError("S3 error")
-        )
+        mock_persistence.save_watermark = AsyncMock(side_effect=ConnectionError("S3 error"))
 
         wm = datetime(2024, 6, 15, tzinfo=UTC)
 
@@ -540,9 +538,7 @@ class TestPersistenceIntegration:
 
         repo = get_watermark_repo()
         mock_persistence = MagicMock()
-        mock_persistence.load_all_watermarks = AsyncMock(
-            side_effect=ConnectionError("S3 error")
-        )
+        mock_persistence.load_all_watermarks = AsyncMock(side_effect=ConnectionError("S3 error"))
 
         loaded = await repo.load_from_persistence(mock_persistence)
 
@@ -562,9 +558,7 @@ class TestPersistenceIntegration:
         # Load from persistence
         mock_persistence = MagicMock()
         new_wm = datetime(2024, 6, 1, tzinfo=UTC)
-        mock_persistence.load_all_watermarks = AsyncMock(
-            return_value={"new-proj": new_wm}
-        )
+        mock_persistence.load_all_watermarks = AsyncMock(return_value={"new-proj": new_wm})
 
         await repo.load_from_persistence(mock_persistence)
 
@@ -620,9 +614,7 @@ class TestDataFrameStorageIntegration:
         mock_storage = MagicMock()
         wm1 = datetime(2026, 1, 1, tzinfo=UTC)
         wm2 = datetime(2026, 2, 1, tzinfo=UTC)
-        mock_storage.load_all_watermarks = AsyncMock(
-            return_value={"proj_a": wm1, "proj_b": wm2}
-        )
+        mock_storage.load_all_watermarks = AsyncMock(return_value={"proj_a": wm1, "proj_b": wm2})
 
         loaded = await repo.load_from_persistence(mock_storage)
 

@@ -109,9 +109,7 @@ class TestManifestViaStorage:
         storage = _make_mock_storage()
         persistence = _make_persistence(storage=storage)
 
-        manifest = await persistence.create_manifest_async(
-            "proj_123", "offer", ["sec_1", "sec_2"]
-        )
+        manifest = await persistence.create_manifest_async("proj_123", "offer", ["sec_1", "sec_2"])
 
         assert manifest.project_gid == "proj_123"
         assert manifest.total_sections == 2
@@ -133,9 +131,7 @@ class TestManifestViaStorage:
             "completed_sections": 0,
             "version": 1,
         }
-        storage.load_json = AsyncMock(
-            return_value=json.dumps(manifest_data).encode("utf-8")
-        )
+        storage.load_json = AsyncMock(return_value=json.dumps(manifest_data).encode("utf-8"))
 
         persistence = _make_persistence(storage=storage)
         manifest = await persistence.get_manifest_async("proj_123")
@@ -165,9 +161,7 @@ class TestManifestViaStorage:
         result = await persistence.delete_manifest_async("proj_123")
 
         assert result is True
-        storage.delete_object.assert_called_once_with(
-            "dataframes/proj_123/manifest.json"
-        )
+        storage.delete_object.assert_called_once_with("dataframes/proj_123/manifest.json")
 
 
 # ---------------------------------------------------------------------------
@@ -333,9 +327,7 @@ class TestFinalArtifactsViaStorage:
         df = _make_df()
         watermark = datetime(2026, 2, 4, 12, 0, 0, tzinfo=UTC)
 
-        result = await persistence.write_final_artifacts_async(
-            "proj_123", df, watermark
-        )
+        result = await persistence.write_final_artifacts_async("proj_123", df, watermark)
 
         assert result is True
         storage.save_dataframe.assert_called_once()
@@ -365,9 +357,7 @@ class TestDeleteViaStorage:
             "completed_sections": 2,
             "version": 1,
         }
-        storage.load_json = AsyncMock(
-            return_value=json.dumps(manifest_data).encode("utf-8")
-        )
+        storage.load_json = AsyncMock(return_value=json.dumps(manifest_data).encode("utf-8"))
 
         persistence = _make_persistence(storage=storage)
         result = await persistence.delete_section_files_async("proj_123")

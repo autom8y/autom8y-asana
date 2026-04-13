@@ -151,9 +151,7 @@ class TestBuildResult:
             resumed=resumed,
         )
 
-    def test_build_result_success_status(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_success_status(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """All SUCCESS sections -> BuildStatus.SUCCESS."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -169,9 +167,7 @@ class TestBuildResult:
         )
         assert result.status == BuildStatus.SUCCESS
 
-    def test_build_result_partial_status(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_partial_status(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """Mix of SUCCESS and ERROR -> BuildStatus.PARTIAL."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -188,9 +184,7 @@ class TestBuildResult:
         )
         assert result.status == BuildStatus.PARTIAL
 
-    def test_build_result_failure_status(
-        self, empty_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_failure_status(self, empty_df: pl.DataFrame, now: datetime) -> None:
         """All ERROR sections -> BuildStatus.FAILURE."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -206,9 +200,7 @@ class TestBuildResult:
         )
         assert result.status == BuildStatus.FAILURE
 
-    def test_build_result_no_sections(
-        self, empty_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_no_sections(self, empty_df: pl.DataFrame, now: datetime) -> None:
         """Empty sections list -> SUCCESS (empty DataFrame)."""
         result = BuildResult.from_section_results(
             section_results=[],
@@ -222,9 +214,7 @@ class TestBuildResult:
         assert result.status == BuildStatus.SUCCESS
         assert result.sections == ()
 
-    def test_build_result_only_skipped(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_only_skipped(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """All SKIPPED (resumed) -> SUCCESS."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -240,9 +230,7 @@ class TestBuildResult:
         )
         assert result.status == BuildStatus.SUCCESS
 
-    def test_build_result_skipped_plus_error(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_skipped_plus_error(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """SKIPPED + ERROR without SUCCESS -> FAILURE."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -271,9 +259,7 @@ class TestBuildResult:
         )
         assert result.status == BuildStatus.FAILURE
 
-    def test_build_result_sections_succeeded(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_sections_succeeded(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """sections_succeeded counts correctly."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -291,9 +277,7 @@ class TestBuildResult:
         )
         assert result.sections_succeeded == 2
 
-    def test_build_result_sections_failed(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_sections_failed(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """sections_failed counts correctly."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -310,9 +294,7 @@ class TestBuildResult:
         )
         assert result.sections_failed == 2
 
-    def test_build_result_sections_resumed(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_sections_resumed(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """sections_resumed counts resumed flag."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -347,9 +329,7 @@ class TestBuildResult:
         )
         assert result.total_rows == 5  # len(df), not 50
 
-    def test_build_result_total_rows_all_skipped_with_dataframe(
-        self, now: datetime
-    ) -> None:
+    def test_build_result_total_rows_all_skipped_with_dataframe(self, now: datetime) -> None:
         """total_rows reflects merged DataFrame even when all sections are SKIPPED.
 
         This is the SWR resume scenario: builder resumes with all sections
@@ -373,9 +353,7 @@ class TestBuildResult:
         assert result.total_rows == 2804
         assert result.fetched_rows == 0  # No API fetches
 
-    def test_build_result_total_rows_falls_back_without_dataframe(
-        self, now: datetime
-    ) -> None:
+    def test_build_result_total_rows_falls_back_without_dataframe(self, now: datetime) -> None:
         """total_rows sums SUCCESS sections when no DataFrame is available."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -412,9 +390,7 @@ class TestBuildResult:
         assert result.fetched_rows == 35  # 20 + 15, ignores SKIPPED
         assert result.total_rows == 3  # len(df)
 
-    def test_build_result_failed_section_gids(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_failed_section_gids(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """Returns GIDs of ERROR sections."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -431,9 +407,7 @@ class TestBuildResult:
         )
         assert result.failed_section_gids == ["s2", "s3"]
 
-    def test_build_result_error_summary(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_error_summary(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """Groups errors by type correctly."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -454,9 +428,7 @@ class TestBuildResult:
             "S3TransportError": 1,
         }
 
-    def test_build_result_error_summary_empty(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_error_summary_empty(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """error_summary is empty dict when no errors."""
         result = BuildResult.from_section_results(
             section_results=[self._make_success("s1")],
@@ -469,9 +441,7 @@ class TestBuildResult:
         )
         assert result.error_summary == {}
 
-    def test_build_result_is_usable(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_is_usable(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """True for SUCCESS and PARTIAL, False for FAILURE."""
         success = BuildResult.from_section_results(
             section_results=[self._make_success("s1")],
@@ -548,9 +518,7 @@ class TestBuildResult:
         with pytest.raises(AttributeError):
             result.status = BuildStatus.FAILURE  # type: ignore[misc]
 
-    def test_build_result_sections_is_tuple(
-        self, sample_df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_build_result_sections_is_tuple(self, sample_df: pl.DataFrame, now: datetime) -> None:
         """Sections are stored as immutable tuple."""
         result = BuildResult.from_section_results(
             section_results=[self._make_success("s1")],
@@ -696,9 +664,7 @@ class TestClassificationEdgeCases:
     def df(self) -> pl.DataFrame:
         return pl.DataFrame({"gid": ["1"]})
 
-    def test_skipped_not_resumed_is_success(
-        self, df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_skipped_not_resumed_is_success(self, df: pl.DataFrame, now: datetime) -> None:
         """SKIPPED without resumed flag still classified as SUCCESS."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -717,9 +683,7 @@ class TestClassificationEdgeCases:
         )
         assert result.status == BuildStatus.SUCCESS
 
-    def test_success_plus_skipped_is_success(
-        self, df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_success_plus_skipped_is_success(self, df: pl.DataFrame, now: datetime) -> None:
         """SUCCESS + SKIPPED (no ERROR) -> SUCCESS."""
         result = BuildResult.from_section_results(
             section_results=[
@@ -743,9 +707,7 @@ class TestClassificationEdgeCases:
         )
         assert result.status == BuildStatus.SUCCESS
 
-    def test_all_three_outcomes_is_partial(
-        self, df: pl.DataFrame, now: datetime
-    ) -> None:
+    def test_all_three_outcomes_is_partial(self, df: pl.DataFrame, now: datetime) -> None:
         """SUCCESS + ERROR + SKIPPED -> PARTIAL (has_success and has_error)."""
         result = BuildResult.from_section_results(
             section_results=[

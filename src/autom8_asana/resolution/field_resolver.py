@@ -115,9 +115,7 @@ def _resolve_single_option(
     logger.debug(
         "field_resolver_enum_value_not_found",
         value=value,
-        available=[
-            opt.get("name", "") for opt in enum_options if opt.get("enabled", True)
-        ],
+        available=[opt.get("name", "") for opt in enum_options if opt.get("enabled", True)],
     )
     return None
 
@@ -146,11 +144,7 @@ def _available_enum_options(field_def: dict[str, Any]) -> list[str]:
         List of enabled option name strings.
     """
     options = field_def.get("enum_options", [])
-    return [
-        opt.get("name", "")
-        for opt in options
-        if opt.get("name") and opt.get("enabled", True)
-    ]
+    return [opt.get("name", "") for opt in options if opt.get("name") and opt.get("enabled", True)]
 
 
 class FieldResolver:
@@ -304,9 +298,7 @@ class FieldResolver:
             )
 
         if field_type == "multi_enum":
-            multi_value, unresolved = self._resolve_multi_enum(
-                field_def, value, list_mode
-            )
+            multi_value, unresolved = self._resolve_multi_enum(field_def, value, list_mode)
             if not multi_value and unresolved:
                 # All values failed resolution -- report as error with available options
                 options = _available_enum_options(field_def)
@@ -329,11 +321,7 @@ class FieldResolver:
             )
 
         # TextListField append handling
-        if (
-            field_type == "text"
-            and list_mode == "append"
-            and isinstance(value, (str, list))
-        ):
+        if field_type == "text" and list_mode == "append" and isinstance(value, (str, list)):
             resolved_value = self._resolve_text_append(field_def, value)
             return ResolvedField(
                 input_name=input_name,
@@ -495,31 +483,16 @@ class FieldResolver:
             return f"Field '{input_name}' expects a number, got {type(value).__name__}"
 
         # Allow list for text fields (append mode handles it)
-        if (
-            field_type == "text"
-            and not isinstance(value, str)
-            and not isinstance(value, list)
-        ):
-            return (
-                f"Field '{input_name}' expects text (str), got {type(value).__name__}"
-            )
+        if field_type == "text" and not isinstance(value, str) and not isinstance(value, list):
+            return f"Field '{input_name}' expects text (str), got {type(value).__name__}"
 
         if field_type == "enum" and not isinstance(value, str):
-            return (
-                f"Field '{input_name}' expects an enum string, "
-                f"got {type(value).__name__}"
-            )
+            return f"Field '{input_name}' expects an enum string, got {type(value).__name__}"
 
         if field_type == "multi_enum" and not isinstance(value, (list, str)):
-            return (
-                f"Field '{input_name}' expects a list of enum values, "
-                f"got {type(value).__name__}"
-            )
+            return f"Field '{input_name}' expects a list of enum values, got {type(value).__name__}"
 
         if field_type == "date" and not isinstance(value, str):
-            return (
-                f"Field '{input_name}' expects a date string, "
-                f"got {type(value).__name__}"
-            )
+            return f"Field '{input_name}' expects a date string, got {type(value).__name__}"
 
         return None

@@ -338,15 +338,11 @@ class TestExecuteAsync:
 
         # Setup mock context with template
         template_section = MockSection("section_123", "Template")
-        template_task = MockTask(
-            "template_123", "Onboarding Template", "Template notes"
-        )
+        template_task = MockTask("template_123", "Onboarding Template", "Template notes")
         created_task = MockTask("new_task_123", "Sales Lead")
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
             created_task=created_task,
@@ -393,9 +389,7 @@ class TestExecuteAsync:
         """Test failure when no template in target project."""
         rule = PipelineConversionRule()
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             # No template section or task
         )
 
@@ -417,9 +411,7 @@ class TestExecuteAsync:
         """Test failure when entity is not a Process."""
         rule = PipelineConversionRule()
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
         )
 
         offer = MockOffer(gid="offer_123")
@@ -438,14 +430,10 @@ class TestExecuteAsync:
         # Create context that will raise an exception
         config = AutomationConfig(
             enabled=True,
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
         )
         client = MagicMock()
-        client.sections.list_for_project_async.side_effect = ConnectionError(
-            "API Error"
-        )
+        client.sections.list_for_project_async.side_effect = ConnectionError("API Error")
 
         context = AutomationContext(
             client=client,
@@ -472,14 +460,10 @@ class TestExecuteAsync:
 
         template_section = MockSection("section_123", "Template")
         # Template has bracketed "[Business Name]" placeholder
-        template_task = MockTask(
-            "template_123", "Onboarding Process - [Business Name]", "Notes"
-        )
+        template_task = MockTask("template_123", "Onboarding Process - [Business Name]", "Notes")
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
         )
@@ -511,9 +495,7 @@ class TestExecuteAsync:
         template_task = MockTask("template_123", None, "Notes")  # No template name
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
         )
@@ -539,9 +521,7 @@ class TestExecuteAsync:
         template_subtasks = [MockSubtask("subtask_1"), MockSubtask("subtask_2")]
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
             template_subtasks=template_subtasks,
@@ -576,9 +556,7 @@ class TestExecuteAsync:
         created_task = MockTask("new_task_123", "Lead")
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
             created_task=created_task,
@@ -965,9 +943,7 @@ class TestSectionPlacement:
         template_task = MockTask("template_123", "Template", "Notes")
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
             target_sections=[opportunity_section],
@@ -1209,9 +1185,7 @@ class TestDueDateHandling:
         template_task = MockTask("template_123", "Template", "Notes")
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
         )
@@ -1316,9 +1290,7 @@ class TestPreTransitionValidation:
 
     def test_multiple_missing_fields(self) -> None:
         """Test validation reports all missing fields."""
-        rule = PipelineConversionRule(
-            required_source_fields=["field1", "field2", "field3"]
-        )
+        rule = PipelineConversionRule(required_source_fields=["field1", "field2", "field3"])
         process = MockProcess(gid="process_123")
 
         result = rule._validate_pre_transition(process)
@@ -1394,9 +1366,7 @@ class TestPreValidationInExecuteAsync:
         template_task = MockTask("template_123", "Template", "Notes")
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
         )
@@ -1426,9 +1396,7 @@ class TestPreValidationInExecuteAsync:
         template_task = MockTask("template_123", "Template", "Notes")
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
         )
@@ -1460,9 +1428,7 @@ class TestPreValidationInExecuteAsync:
         template_task = MockTask("template_123", "Template", "Notes")
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
         )
@@ -1496,9 +1462,7 @@ class TestPreValidationInExecuteAsync:
         template_task = MockTask("template_123", "Template", "Notes")
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
         )
@@ -1527,9 +1491,7 @@ class TestPreValidationInExecuteAsync:
         template_task = MockTask("template_123", "Template", "Notes")
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
         )
@@ -1561,9 +1523,7 @@ class TestPostValidationInExecuteAsync:
         template_task = MockTask("template_123", "Template", "Notes")
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
         )
@@ -1590,9 +1550,7 @@ class TestPostValidationInExecuteAsync:
         template_task = MockTask("template_123", "Template", "Notes")
 
         context = create_mock_context(
-            pipeline_stages={
-                "onboarding": PipelineStage(project_gid="onboarding_project_123")
-            },
+            pipeline_stages={"onboarding": PipelineStage(project_gid="onboarding_project_123")},
             template_section=template_section,
             template_task=template_task,
         )

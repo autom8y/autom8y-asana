@@ -450,12 +450,9 @@ class TestExecuteAsyncCircuitBreakerOpen:
     @pytest.mark.asyncio
     async def test_circuit_breaker_all_fail(self) -> None:
         """All exports fail with circuit breaker -> all failed."""
-        holders = [
-            _make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}") for i in range(3)
-        ]
+        holders = [_make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}") for i in range(3)]
         parent_tasks = {
-            f"biz{i}": _make_parent_task(f"+1770575310{i}", gid=f"biz{i}")
-            for i in range(3)
+            f"biz{i}": _make_parent_task(f"+1770575310{i}", gid=f"biz{i}") for i in range(3)
         }
         export_errors = {
             f"+1770575310{i}": ExportError(
@@ -490,9 +487,7 @@ class TestExecuteAsyncUploadFirstOrdering:
 
         phone = "+17705753101"
         new_filename = f"conversations_{phone.lstrip('+')}_20260210.csv"
-        old_att = _make_attachment(
-            "old-att-1", "conversations_17705753101_20260203.csv"
-        )
+        old_att = _make_attachment("old-att-1", "conversations_17705753101_20260203.csv")
 
         wf, _, _, mock_att = _make_workflow(
             holders=[h1],
@@ -552,9 +547,7 @@ class TestExecuteAsyncDeleteFailureTolerance:
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
         parent_tasks = {"biz1": _make_parent_task("+17705753101", gid="biz1")}
 
-        old_att = _make_attachment(
-            "old-att-1", "conversations_17705753101_20260203.csv"
-        )
+        old_att = _make_attachment("old-att-1", "conversations_17705753101_20260203.csv")
 
         wf, _, _, mock_att = _make_workflow(
             holders=[h1],
@@ -578,12 +571,9 @@ class TestExecuteAsyncConcurrency:
     @pytest.mark.asyncio
     async def test_max_concurrency_from_params(self) -> None:
         """Verify max_concurrency is taken from params."""
-        holders = [
-            _make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}") for i in range(10)
-        ]
+        holders = [_make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}") for i in range(10)]
         parent_tasks = {
-            f"biz{i}": _make_parent_task(f"+1770575310{i}", gid=f"biz{i}")
-            for i in range(10)
+            f"biz{i}": _make_parent_task(f"+1770575310{i}", gid=f"biz{i}") for i in range(10)
         }
 
         wf, _, _, _ = _make_workflow(
@@ -962,7 +952,9 @@ class TestResolveBusinessActivity:
     patch at the conversation_audit module's import site.
     """
 
-    _HYDRATE_PATH = "autom8_asana.automation.workflows.conversation_audit.workflow.hydrate_from_gid_async"
+    _HYDRATE_PATH = (
+        "autom8_asana.automation.workflows.conversation_audit.workflow.hydrate_from_gid_async"
+    )
 
     def _make_clean_workflow(self):
         """Create workflow without pre-populated activity_map."""
@@ -1012,9 +1004,7 @@ class TestResolveBusinessActivity:
         """Resolution failure caches and returns None."""
         wf, _, _, _ = self._make_clean_workflow()
 
-        with patch(
-            self._HYDRATE_PATH, new=AsyncMock(side_effect=Exception("API error"))
-        ):
+        with patch(self._HYDRATE_PATH, new=AsyncMock(side_effect=Exception("API error"))):
             result = await wf._resolve_business_activity("biz-bad")
 
         assert result is None

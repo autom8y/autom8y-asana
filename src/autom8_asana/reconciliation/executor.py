@@ -110,12 +110,7 @@ async def execute_actions(
         return result
 
     # Live execution path -- validate injected dependencies
-    if (
-        task_service is None
-        or client is None
-        or project_gid is None
-        or section_name_to_gid is None
-    ):
+    if task_service is None or client is None or project_gid is None or section_name_to_gid is None:
         missing = [
             name
             for name, val in [

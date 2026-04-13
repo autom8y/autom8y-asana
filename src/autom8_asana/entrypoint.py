@@ -83,9 +83,7 @@ def main() -> None:
     else:
         # Lambda mode - handler passed as first argument
         if len(sys.argv) < 2:
-            log_error(
-                "No handler specified. Usage: python -m autom8_asana.entrypoint <handler>"
-            )
+            log_error("No handler specified. Usage: python -m autom8_asana.entrypoint <handler>")
             log_error(
                 "Example: python -m autom8_asana.entrypoint autom8_asana.lambda_handlers.cache_warmer.handler"
             )

@@ -138,9 +138,7 @@ class TestRowsRequestClassification:
     def test_section_and_classification_mutually_exclusive(self) -> None:
         """RowsRequest with both section and classification raises ValidationError."""
         with pytest.raises(ValueError, match="mutually exclusive"):
-            RowsRequest.model_validate(
-                {"section": "ACTIVE", "classification": "active"}
-            )
+            RowsRequest.model_validate({"section": "ACTIVE", "classification": "active"})
 
     def test_section_alone_still_works(self) -> None:
         """RowsRequest with section alone is unaffected by new field."""
@@ -242,9 +240,7 @@ class TestResolveClassification:
         with pytest.raises(ClassificationError, match="Invalid classification value"):
             engine._resolve_classification("bogus", "offer")
 
-    def test_invalid_classification_lists_valid_values(
-        self, engine: QueryEngine
-    ) -> None:
+    def test_invalid_classification_lists_valid_values(self, engine: QueryEngine) -> None:
         """Error message includes valid classification values."""
         with pytest.raises(ClassificationError) as exc_info:
             engine._resolve_classification("bogus", "offer")
@@ -498,9 +494,7 @@ class TestClassificationErrorSerialization:
 
     def test_to_dict(self) -> None:
         """ClassificationError.to_dict() produces expected structure."""
-        err = ClassificationError(
-            message="No classifier registered for entity type 'business'"
-        )
+        err = ClassificationError(message="No classifier registered for entity type 'business'")
         d = err.to_dict()
         assert d["error"] == "INVALID_CLASSIFICATION"
         assert "business" in d["message"]

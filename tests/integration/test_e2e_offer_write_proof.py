@@ -149,9 +149,7 @@ async def test_e2e_offer_write_proof():
         for rf in result.field_results:
             icon = "+" if rf.status == "resolved" else "x"
             print(f"    [{icon}] {rf.input_name} -> {rf.matched_name}")
-        assert result.fields_written == 8, (
-            f"Expected 8 fields written, got {result.fields_written}"
-        )
+        assert result.fields_written == 8, f"Expected 8 fields written, got {result.fields_written}"
         assert result.fields_skipped == 0
         assert result.updated_fields is not None
         assert result.updated_fields["asset_id"] == "E2E-PROOF-001"
@@ -247,8 +245,7 @@ async def test_e2e_offer_write_proof():
             gid=target_gid,
             fields={
                 "internal_notes": (
-                    f"[Entity Write API e2e {time.strftime('%H:%M')}] "
-                    "Sibling field write verified."
+                    f"[Entity Write API e2e {time.strftime('%H:%M')}] Sibling field write verified."
                 ),
             },
             include_updated=True,

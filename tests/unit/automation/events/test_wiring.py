@@ -38,9 +38,7 @@ class TestSetupEventEmission:
         }
 
         with patch.dict(os.environ, env, clear=True):
-            with patch(
-                "autom8_asana.automation.events.SQSTransport.from_boto3"
-            ) as mock_transport:
+            with patch("autom8_asana.automation.events.SQSTransport.from_boto3") as mock_transport:
                 mock_transport.return_value = mock_transport
                 result = setup_event_emission(engine)
 

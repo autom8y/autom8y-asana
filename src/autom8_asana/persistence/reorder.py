@@ -81,12 +81,8 @@ def _compute_lis_indices(position_sequence: list[int]) -> set[int]:
         return set()
 
     tails: list[int] = []  # tails[i] = smallest ending value of IS of length i+1
-    tail_indices: list[
-        int
-    ] = []  # tail_indices[i] = index in position_sequence of tails[i]
-    predecessors: list[int] = [
-        -1
-    ] * n  # predecessors[i] = index of element before i in the LIS
+    tail_indices: list[int] = []  # tail_indices[i] = index in position_sequence of tails[i]
+    predecessors: list[int] = [-1] * n  # predecessors[i] = index of element before i in the LIS
 
     for i, val in enumerate(position_sequence):
         pos = bisect_left(tails, val)
@@ -177,9 +173,7 @@ def compute_reorder_plan(
     placed_gids: set[str] = {current_order[i].gid for i in lis_indices}
 
     # Map gid -> AsanaResource from desired_order for lookup
-    gid_to_resource: dict[str, AsanaResource] = {
-        item.gid: item for item in desired_order
-    }
+    gid_to_resource: dict[str, AsanaResource] = {item.gid: item for item in desired_order}
 
     # Process non-LIS elements in desired order (ascending by desired position)
     non_lis_in_desired_order: list[AsanaResource] = [

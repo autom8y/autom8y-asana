@@ -361,13 +361,9 @@ def get_dataframe_cache(request: Request) -> DataFrameCache | None:
 # Type aliases for cleaner route signatures
 AsanaClientDualMode = Annotated[AsanaClient, Depends(get_asana_client_from_context)]
 AuthContextDep = Annotated[AuthContext, Depends(get_auth_context)]
-MutationInvalidatorDep = Annotated[
-    MutationInvalidator, Depends(get_mutation_invalidator)
-]
+MutationInvalidatorDep = Annotated[MutationInvalidator, Depends(get_mutation_invalidator)]
 RequestId = Annotated[str, Depends(get_request_id)]
-EntityWriteRegistryDep = Annotated[
-    "EntityWriteRegistry | None", Depends(get_entity_write_registry)
-]
+EntityWriteRegistryDep = Annotated["EntityWriteRegistry | None", Depends(get_entity_write_registry)]
 
 
 # --- Service Factories (I2 additions) ---
@@ -484,9 +480,7 @@ def get_data_service_client(request: Request) -> DataServiceClient | None:
 
     Pattern: Same as get_entity_service() — lazy singleton on app.state.
     """
-    client: DataServiceClient | None = getattr(
-        request.app.state, "data_service_client", None
-    )
+    client: DataServiceClient | None = getattr(request.app.state, "data_service_client", None)
     if client is not None:
         return client
 
@@ -516,9 +510,7 @@ def get_data_service_client(request: Request) -> DataServiceClient | None:
         return None
 
 
-DataServiceClientDep = Annotated[
-    "DataServiceClient | None", Depends(get_data_service_client)
-]
+DataServiceClientDep = Annotated["DataServiceClient | None", Depends(get_data_service_client)]
 
 
 __all__ = [

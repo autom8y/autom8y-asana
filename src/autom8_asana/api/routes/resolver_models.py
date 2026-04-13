@@ -138,9 +138,7 @@ class ResolutionRequest(BaseModel):
 
     @field_validator("criteria")
     @classmethod
-    def validate_batch_size(
-        cls, v: list[ResolutionCriterion]
-    ) -> list[ResolutionCriterion]:
+    def validate_batch_size(cls, v: list[ResolutionCriterion]) -> list[ResolutionCriterion]:
         """Enforce max 1000 criteria per request.
 
         Per TDD: Batch size limit preserves existing API behavior.
@@ -157,8 +155,7 @@ class ResolutionRequest(BaseModel):
         MAX_BATCH_SIZE = 1000
         if len(v) > MAX_BATCH_SIZE:
             raise ValueError(
-                f"Batch size {len(v)} exceeds maximum {MAX_BATCH_SIZE}. "
-                f"Please chunk requests."
+                f"Batch size {len(v)} exceeds maximum {MAX_BATCH_SIZE}. Please chunk requests."
             )
         return v
 
@@ -249,9 +246,7 @@ class ResolutionMeta(BaseModel):
         description="Number of criteria that found no matches.",
         examples=[2],
     )
-    entity_type: str = Field(
-        description="Entity type that was resolved.", examples=["unit"]
-    )
+    entity_type: str = Field(description="Entity type that was resolved.", examples=["unit"])
     project_gid: str = Field(
         description="Asana project GID used for resolution.",
         examples=["1111111111111111"],
@@ -280,6 +275,4 @@ class ResolutionResponse(BaseModel):
     results: list[ResolutionResultModel] = Field(
         description="Resolution results in the same order as input criteria."
     )
-    meta: ResolutionMeta = Field(
-        description="Summary statistics for the resolution batch."
-    )
+    meta: ResolutionMeta = Field(description="Summary statistics for the resolution batch.")

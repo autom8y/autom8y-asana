@@ -72,9 +72,7 @@ class TestWarmerManifestPreservation:
 
         mock_section_persistence = MagicMock()
         mock_section_persistence.delete_manifest_async = AsyncMock(return_value=True)
-        mock_section_persistence.__aenter__ = AsyncMock(
-            return_value=mock_section_persistence
-        )
+        mock_section_persistence.__aenter__ = AsyncMock(return_value=mock_section_persistence)
         mock_section_persistence.__aexit__ = AsyncMock(return_value=None)
 
         context = MockLambdaContext(remaining_time_ms=600_000)
@@ -179,9 +177,7 @@ class TestWarmerManifestPreservation:
 
         mock_section_persistence = MagicMock()
         mock_section_persistence.delete_manifest_async = AsyncMock(return_value=True)
-        mock_section_persistence.__aenter__ = AsyncMock(
-            return_value=mock_section_persistence
-        )
+        mock_section_persistence.__aenter__ = AsyncMock(return_value=mock_section_persistence)
         mock_section_persistence.__aexit__ = AsyncMock(return_value=None)
 
         context = MockLambdaContext(remaining_time_ms=600_000)

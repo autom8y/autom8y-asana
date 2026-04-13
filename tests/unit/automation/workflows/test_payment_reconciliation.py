@@ -27,11 +27,15 @@ from autom8_asana.clients.data.models import InsightsResponse
 from autom8_asana.core.scope import EntityScope
 
 # Patch paths
-_RC_PATCH_PATH = "autom8_asana.automation.workflows.payment_reconciliation.workflow.ResolutionContext"
+_RC_PATCH_PATH = (
+    "autom8_asana.automation.workflows.payment_reconciliation.workflow.ResolutionContext"
+)
 _COMPOSE_PATCH_PATH = (
     "autom8_asana.automation.workflows.payment_reconciliation.workflow.compose_excel"
 )
-_MASK_PATCH_PATH = "autom8_asana.automation.workflows.payment_reconciliation.workflow.mask_phone_number"
+_MASK_PATCH_PATH = (
+    "autom8_asana.automation.workflows.payment_reconciliation.workflow.mask_phone_number"
+)
 
 
 # --- Helpers ---

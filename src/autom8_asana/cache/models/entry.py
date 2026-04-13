@@ -48,9 +48,7 @@ class EntryType(StrEnum):
     GID_ENUMERATION = "gid_enumeration"  # TTL: 300s (5 min)
 
     # Per ADR-INS-004: autom8_data insights caching
-    INSIGHTS = (
-        "insights"  # TTL: 300s (default, configurable via AUTOM8Y_DATA_CACHE_TTL)
-    )
+    INSIGHTS = "insights"  # TTL: 300s (default, configurable via AUTOM8Y_DATA_CACHE_TTL)
 
     # Per TDD-SECTION-TIMELINE-REMEDIATION: Derived/computed cache entries
     # materialized from other cached data (e.g., timelines derived from stories)
@@ -237,9 +235,7 @@ class CacheEntry:
             CacheEntry or appropriate subclass instance.
         """
         entry_type_str = data.get("_type") or data.get("entry_type")
-        target_cls = (
-            cls._type_registry.get(entry_type_str, cls) if entry_type_str else cls
-        )
+        target_cls = cls._type_registry.get(entry_type_str, cls) if entry_type_str else cls
         # Delegate to subclass from_dict_impl if registered
         if target_cls is not cls and hasattr(target_cls, "_from_dict_impl"):
             result: CacheEntry = target_cls._from_dict_impl(data)
@@ -513,9 +509,7 @@ class DataFrameMetaCacheEntry(
     def __post_init__(self) -> None:
         """Validate project_gid is set for DataFrame entries."""
         if self.project_gid is None:
-            raise ValueError(
-                f"project_gid is required for {self.entry_type.value} entries"
-            )
+            raise ValueError(f"project_gid is required for {self.entry_type.value} entries")
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize with subclass-specific fields."""

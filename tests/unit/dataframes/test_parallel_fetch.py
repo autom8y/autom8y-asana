@@ -273,9 +273,7 @@ class TestParallelSectionFetcher:
     async def test_fetch_all_semaphore_limits(self) -> None:
         """Test that semaphore limits concurrent requests."""
         # Create many sections to test concurrency
-        many_sections = [
-            Section(gid=f"section_{i}", name=f"Section {i}") for i in range(20)
-        ]
+        many_sections = [Section(gid=f"section_{i}", name=f"Section {i}") for i in range(20)]
 
         sections_client = create_mock_sections_client(many_sections)
 
@@ -300,9 +298,7 @@ class TestParallelSectionFetcher:
 
             return []
 
-        def create_tracking_iterator(
-            section: str | None = None, **kwargs: Any
-        ) -> MagicMock:
+        def create_tracking_iterator(section: str | None = None, **kwargs: Any) -> MagicMock:
             """Create a mock iterator that tracks concurrency on collect."""
             mock_iterator = MagicMock()
             mock_iterator.collect = track_concurrency_collect
@@ -340,9 +336,7 @@ class TestParallelSectionFetcher:
 
         call_count = 0
 
-        def create_iterator_with_failure(
-            section: str | None = None, **kwargs: Any
-        ) -> MagicMock:
+        def create_iterator_with_failure(section: str | None = None, **kwargs: Any) -> MagicMock:
             nonlocal call_count
             call_count += 1
             mock_iterator = MagicMock()
@@ -382,9 +376,7 @@ class TestParallelSectionFetcher:
         # Create tasks client where multiple sections fail
         tasks_client = MagicMock()
 
-        def create_failing_iterator(
-            section: str | None = None, **kwargs: Any
-        ) -> MagicMock:
+        def create_failing_iterator(section: str | None = None, **kwargs: Any) -> MagicMock:
             mock_iterator = MagicMock()
             if section in ("section_1", "section_3"):
                 mock_iterator.collect = AsyncMock(side_effect=Exception("API Error"))
@@ -632,9 +624,7 @@ class TestFetchSectionTaskGidsAsync:
 
         tasks_client = MagicMock()
 
-        def create_iterator_with_failure(
-            section: str | None = None, **kwargs: Any
-        ) -> MagicMock:
+        def create_iterator_with_failure(section: str | None = None, **kwargs: Any) -> MagicMock:
             mock_iterator = MagicMock()
             if section == "section_2":
                 mock_iterator.collect = AsyncMock(side_effect=Exception("API Error"))
@@ -659,9 +649,7 @@ class TestFetchSectionTaskGidsAsync:
     @pytest.mark.asyncio
     async def test_fetch_gids_respects_semaphore(self) -> None:
         """Test GID enumeration respects concurrency limit."""
-        many_sections = [
-            Section(gid=f"section_{i}", name=f"Section {i}") for i in range(15)
-        ]
+        many_sections = [Section(gid=f"section_{i}", name=f"Section {i}") for i in range(15)]
         sections_client = create_mock_sections_client(many_sections)
 
         # Track concurrent requests
@@ -683,9 +671,7 @@ class TestFetchSectionTaskGidsAsync:
 
             return []
 
-        def create_tracking_iterator(
-            section: str | None = None, **kwargs: Any
-        ) -> MagicMock:
+        def create_tracking_iterator(section: str | None = None, **kwargs: Any) -> MagicMock:
             mock_iterator = MagicMock()
             mock_iterator.collect = track_concurrency_collect
             return mock_iterator
@@ -868,9 +854,7 @@ class TestFetchByGids:
 
         tasks_client = MagicMock()
 
-        def create_failing_iterator(
-            section: str | None = None, **kwargs: Any
-        ) -> MagicMock:
+        def create_failing_iterator(section: str | None = None, **kwargs: Any) -> MagicMock:
             mock_iterator = MagicMock()
             if section == "section_1":
                 mock_iterator.collect = AsyncMock(side_effect=Exception("API Error"))
@@ -1275,12 +1259,8 @@ class TestGidEnumerationCache:
 
         # Create mock cache provider that throws on all operations
         mock_cache = MagicMock()
-        mock_cache.get_versioned = MagicMock(
-            side_effect=RedisTransportError("Cache unavailable")
-        )
-        mock_cache.set_versioned = MagicMock(
-            side_effect=RedisTransportError("Cache write failed")
-        )
+        mock_cache.get_versioned = MagicMock(side_effect=RedisTransportError("Cache unavailable"))
+        mock_cache.set_versioned = MagicMock(side_effect=RedisTransportError("Cache write failed"))
 
         fetcher = ParallelSectionFetcher(
             sections_client=sections_client,
@@ -1338,12 +1318,8 @@ class TestGidEnumerationCache:
 
         # Create mock cache provider that throws
         mock_cache = MagicMock()
-        mock_cache.get_versioned = MagicMock(
-            side_effect=RedisTransportError("Test error")
-        )
-        mock_cache.set_versioned = MagicMock(
-            side_effect=RedisTransportError("Write error")
-        )
+        mock_cache.get_versioned = MagicMock(side_effect=RedisTransportError("Test error"))
+        mock_cache.set_versioned = MagicMock(side_effect=RedisTransportError("Write error"))
 
         fetcher = ParallelSectionFetcher(
             sections_client=sections_client,
@@ -1354,9 +1330,7 @@ class TestGidEnumerationCache:
 
         # Patch the logger to verify the warning call directly, avoiding
         # structlog configuration pollution from test ordering in full suite
-        with patch(
-            "autom8_asana.dataframes.builders.parallel_fetch.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.parallel_fetch.logger") as mock_logger:
             await fetcher.fetch_section_task_gids_async()
 
             # Verify warning was emitted with the expected event name

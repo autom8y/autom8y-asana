@@ -173,9 +173,7 @@ class TestTimerEdgeCases:
     async def test_zero_window_immediate_execution(self) -> None:
         """Test that zero coalesce window executes immediately."""
         mock_checker = MagicMock()
-        mock_checker.check_batch_async = AsyncMock(
-            return_value={"123": "2025-12-23T10:30:00.000Z"}
-        )
+        mock_checker.check_batch_async = AsyncMock(return_value={"123": "2025-12-23T10:30:00.000Z"})
 
         coalescer = RequestCoalescer(
             checker=mock_checker,
@@ -401,9 +399,7 @@ class TestMalformedModifiedAt:
             return_value=[
                 BatchResult(
                     status_code=200,
-                    body={
-                        "data": {"gid": "123", "modified_at": 12345}
-                    },  # Number instead of string
+                    body={"data": {"gid": "123", "modified_at": 12345}},  # Number instead of string
                 )
             ]
         )
@@ -638,9 +634,7 @@ class TestMixedSuccessFailure:
             return_value=[
                 BatchResult(
                     status_code=200,
-                    body={
-                        "data": {"gid": "1", "modified_at": "2025-12-23T10:00:00.000Z"}
-                    },
+                    body={"data": {"gid": "1", "modified_at": "2025-12-23T10:00:00.000Z"}},
                 ),
                 BatchResult(
                     status_code=404,
@@ -652,9 +646,7 @@ class TestMixedSuccessFailure:
                 ),
                 BatchResult(
                     status_code=200,
-                    body={
-                        "data": {"gid": "4", "modified_at": "2025-12-23T11:00:00.000Z"}
-                    },
+                    body={"data": {"gid": "4", "modified_at": "2025-12-23T11:00:00.000Z"}},
                 ),
             ]
         )
@@ -680,9 +672,7 @@ class TestCoordinatorGracefulDegradation:
     async def test_cache_unavailable_handled(self) -> None:
         """Test that cache unavailability is handled gracefully."""
         mock_cache = MagicMock()
-        mock_cache.set_versioned = MagicMock(
-            side_effect=RedisTransportError("Redis down")
-        )
+        mock_cache.set_versioned = MagicMock(side_effect=RedisTransportError("Redis down"))
         mock_cache.invalidate = MagicMock()
 
         batch_client = MagicMock()

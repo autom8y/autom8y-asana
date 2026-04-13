@@ -15,9 +15,7 @@ from tests.unit.api.conftest import TEST_WORKSPACE_GID
 class TestListWorkspaces:
     """Tests for GET /api/v1/workspaces endpoint."""
 
-    def test_list_workspaces_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_workspaces_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully lists all accessible workspaces."""
         client, mock_sdk = authed_client
 
@@ -71,9 +69,7 @@ class TestListWorkspaces:
         assert pagination["next_offset"] == "next_cursor_token"
         assert pagination["limit"] == 1
 
-    def test_list_workspaces_with_offset(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_workspaces_with_offset(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """List workspaces passes offset parameter to SDK."""
         client, mock_sdk = authed_client
 
@@ -140,13 +136,9 @@ class TestGetWorkspaceByGid:
         assert "request_id" in data["meta"]
 
         # Verify SDK was called with correct GID
-        mock_sdk.workspaces.get_async.assert_called_once_with(
-            TEST_WORKSPACE_GID, raw=True
-        )
+        mock_sdk.workspaces.get_async.assert_called_once_with(TEST_WORKSPACE_GID, raw=True)
 
-    def test_get_workspace_response_data(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_get_workspace_response_data(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Workspace response contains expected fields."""
         client, mock_sdk = authed_client
 

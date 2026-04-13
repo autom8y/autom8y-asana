@@ -82,9 +82,7 @@ def _make_mock_services(
     )
 
     init_action_registry = AsyncMock()
-    init_action_registry.execute_actions_async = AsyncMock(
-        return_value=action_results or []
-    )
+    init_action_registry.execute_actions_async = AsyncMock(return_value=action_results or [])
 
     wiring_service = AsyncMock()
     wiring_service.wire_defaults_async = AsyncMock(
@@ -255,9 +253,7 @@ class TestConvertedRouting:
         assert "offer1" in result.entities_updated
         assert "unit1" in result.entities_updated
 
-    async def test_onboarding_converted_to_implementation(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_onboarding_converted_to_implementation(self, lifecycle_config, mock_client):
         """FR-ROUTE-003: Onboarding CONVERTED creates Implementation."""
         process = _make_mock_process(ProcessType.ONBOARDING)
         # Onboarding has pre-validation for "Contact Phone" (mode=warn)
@@ -281,9 +277,7 @@ class TestConvertedRouting:
         assert "pre_validation" in result.actions_executed
         assert result.rule_id == "lifecycle_onboarding_to_implementation"
 
-    async def test_implementation_converted_terminal(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_implementation_converted_terminal(self, lifecycle_config, mock_client):
         """FR-ROUTE-004: Implementation CONVERTED is terminal."""
         process = _make_mock_process(ProcessType.IMPLEMENTATION)
         engine = _make_engine(
@@ -354,9 +348,7 @@ class TestDncRouting:
         # No entities created for reopen
         assert result.entities_created == []
 
-    async def test_implementation_dnc_creates_outreach(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_implementation_dnc_creates_outreach(self, lifecycle_config, mock_client):
         """FR-DNC-003: Implementation DNC creates new Outreach (create_new)."""
         process = _make_mock_process(ProcessType.IMPLEMENTATION)
         engine = _make_engine(lifecycle_config, mock_client)
@@ -397,9 +389,7 @@ class TestDncRouting:
 class TestAutoCompletion:
     """Auto-completion per-transition flag."""
 
-    async def test_auto_complete_triggered_when_true(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_auto_complete_triggered_when_true(self, lifecycle_config, mock_client):
         """Sales has auto_complete_prior: true."""
         process = _make_mock_process(ProcessType.SALES)
         services = _make_mock_services(
@@ -419,9 +409,7 @@ class TestAutoCompletion:
         assert "auto_complete_source" in result.actions_executed
         services["completion_service"].complete_source_async.assert_called_once()
 
-    async def test_auto_complete_not_triggered_when_false(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_auto_complete_not_triggered_when_false(self, lifecycle_config, mock_client):
         """Outreach has auto_complete_prior: false."""
         process = _make_mock_process(ProcessType.OUTREACH)
         services = _make_mock_services()
@@ -478,9 +466,7 @@ class TestResultAccumulator:
         assert result.success is True
         assert "create_process" in result.actions_executed
 
-    async def test_creation_failure_is_overall_failure(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_creation_failure_is_overall_failure(self, lifecycle_config, mock_client):
         """Creation failure -> overall failure."""
         process = _make_mock_process(ProcessType.SALES)
         engine = _make_engine(
@@ -501,9 +487,7 @@ class TestResultAccumulator:
         assert result.success is False
         assert "Process creation failed" in result.error
 
-    async def test_exception_in_service_returns_failure(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_exception_in_service_returns_failure(self, lifecycle_config, mock_client):
         """Unhandled exception in pipeline -> overall failure."""
         process = _make_mock_process(ProcessType.SALES)
         services = _make_mock_services()
@@ -574,9 +558,7 @@ class TestResultAccumulator:
 class TestErrorHandling:
     """Error conditions and edge cases."""
 
-    async def test_invalid_stage_name_returns_error(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_invalid_stage_name_returns_error(self, lifecycle_config, mock_client):
         """Unknown process type -> error result."""
         process = _make_mock_process(ProcessType.UNKNOWN)
         engine = _make_engine(lifecycle_config, mock_client)
@@ -612,9 +594,7 @@ class TestErrorHandling:
         """Reopen service exception -> warning, not crash."""
         process = _make_mock_process(ProcessType.ONBOARDING)
         services = _make_mock_services()
-        services["reopen_service"].reopen_async = AsyncMock(
-            side_effect=RuntimeError("Reopen boom")
-        )
+        services["reopen_service"].reopen_async = AsyncMock(side_effect=RuntimeError("Reopen boom"))
         engine = _make_engine_with_services(lifecycle_config, mock_client, services)
 
         with patch("autom8_asana.lifecycle.engine.ResolutionContext") as MockCtx:
@@ -637,9 +617,7 @@ class TestErrorHandling:
 class TestPhaseOrdering:
     """Verify phase execution order: Create -> Configure -> Actions -> Wire."""
 
-    async def test_phase_order_create_before_configure(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_phase_order_create_before_configure(self, lifecycle_config, mock_client):
         """Phase 1 (Create) runs before Phase 2 (Configure)."""
         call_order = []
 
@@ -668,9 +646,7 @@ class TestPhaseOrdering:
             call_order.append("wire")
             return WiringResult(wired=["dep1"])
 
-        services["creation_service"].create_process_async = AsyncMock(
-            side_effect=track_creation
-        )
+        services["creation_service"].create_process_async = AsyncMock(side_effect=track_creation)
         services["section_service"].cascade_async = AsyncMock(side_effect=track_cascade)
         services["completion_service"].complete_source_async = AsyncMock(
             side_effect=track_completion
@@ -678,9 +654,7 @@ class TestPhaseOrdering:
         services["init_action_registry"].execute_actions_async = AsyncMock(
             side_effect=track_actions
         )
-        services["wiring_service"].wire_defaults_async = AsyncMock(
-            side_effect=track_wiring
-        )
+        services["wiring_service"].wire_defaults_async = AsyncMock(side_effect=track_wiring)
 
         engine = _make_engine_with_services(lifecycle_config, mock_client, services)
 
@@ -701,9 +675,7 @@ class TestPhaseOrdering:
         assert call_order.index("configure_sections") < call_order.index("actions")
         assert call_order.index("actions") < call_order.index("wire")
 
-    async def test_creation_failure_skips_later_phases(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_creation_failure_skips_later_phases(self, lifecycle_config, mock_client):
         """If Phase 1 fails, Phases 2-4 are skipped."""
         services = _make_mock_services(
             creation_success=False,
@@ -738,9 +710,7 @@ class TestPhaseOrdering:
 class TestTerminalTransitions:
     """Terminal state handling."""
 
-    async def test_implementation_converted_is_terminal(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_implementation_converted_is_terminal(self, lifecycle_config, mock_client):
         """Implementation CONVERTED has no target -> terminal result."""
         process = _make_mock_process(ProcessType.IMPLEMENTATION)
         engine = _make_engine(lifecycle_config, mock_client)
@@ -770,9 +740,7 @@ class TestTerminalTransitions:
         assert "auto_complete_source" in result.actions_executed
         assert "terminal" in result.actions_executed
         # D-LC-004: CompletionService is now actually called
-        services["completion_service"].complete_source_async.assert_called_once_with(
-            process
-        )
+        services["completion_service"].complete_source_async.assert_called_once_with(process)
         assert "src_123" in result.entities_updated
 
     async def test_month1_terminal(self, lifecycle_config, mock_client):
@@ -796,9 +764,7 @@ class TestTerminalTransitions:
 class TestDncCreateNewPipeline:
     """DNC create_new uses the same 4-phase pipeline as CONVERTED."""
 
-    async def test_dnc_create_new_runs_full_pipeline(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_dnc_create_new_runs_full_pipeline(self, lifecycle_config, mock_client):
         """Sales DNC -> Outreach runs all 4 phases."""
         services = _make_mock_services(
             cascade_updates=["offer1"],
@@ -852,9 +818,7 @@ class TestDncCreateNewPipeline:
 class TestInitActions:
     """Init action execution in Phase 3."""
 
-    async def test_init_actions_executed_for_onboarding(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_init_actions_executed_for_onboarding(self, lifecycle_config, mock_client):
         """Onboarding target has products_check and create_comment."""
         services = _make_mock_services(
             action_results=[
@@ -880,9 +844,7 @@ class TestInitActions:
         assert "init_create_comment" in result.actions_executed
         assert "vid_123" in result.entities_created
 
-    async def test_failed_init_action_produces_warning(
-        self, lifecycle_config, mock_client
-    ):
+    async def test_failed_init_action_produces_warning(self, lifecycle_config, mock_client):
         """Failed init action -> warning, not hard failure."""
         services = _make_mock_services(
             action_results=[

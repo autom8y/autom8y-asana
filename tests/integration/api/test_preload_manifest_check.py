@@ -44,9 +44,7 @@ def _make_mock_app(project_configs: list[_FakeEntityConfig]) -> MagicMock:
     """Build a mock FastAPI app whose entity_project_registry yields *configs*."""
     registry = MagicMock()
     registry.is_ready.return_value = True
-    registry.get_all_entity_types.return_value = [
-        c.entity_type for c in project_configs
-    ]
+    registry.get_all_entity_types.return_value = [c.entity_type for c in project_configs]
     registry.get_config.side_effect = lambda et: next(
         (c for c in project_configs if c.entity_type == et), None
     )
@@ -56,9 +54,7 @@ def _make_mock_app(project_configs: list[_FakeEntityConfig]) -> MagicMock:
     return app
 
 
-def _make_mock_settings(
-    *, bucket: str = "test-bucket", is_production: bool = True
-) -> MagicMock:
+def _make_mock_settings(*, bucket: str = "test-bucket", is_production: bool = True) -> MagicMock:
     """Build a mock Settings object with S3 config.
 
     Args:
@@ -191,9 +187,7 @@ class TestPreloadManifestCheckIntegration:
         mock_df_storage = _make_mock_df_storage(is_available=True)
         mock_build_result = _make_mock_builder_result()
         mock_builder_instance = AsyncMock()
-        mock_builder_instance.build_progressive_async = AsyncMock(
-            return_value=mock_build_result
-        )
+        mock_builder_instance.build_progressive_async = AsyncMock(return_value=mock_build_result)
 
         with (
             patch(_PATCHES_COMMON["bot_pat"], return_value="fake-pat"),
@@ -247,9 +241,7 @@ class TestPreloadManifestCheckIntegration:
         app = _make_mock_app([entity_config])
         mock_settings = _make_mock_settings()
         mock_persistence = _make_mock_persistence(manifest=None)
-        mock_df_storage = _make_mock_df_storage(
-            dataframe=None, watermark=None, is_available=True
-        )
+        mock_df_storage = _make_mock_df_storage(dataframe=None, watermark=None, is_available=True)
         mock_builder_instance = AsyncMock()
 
         with (
@@ -314,15 +306,11 @@ class TestPreloadManifestCheckIntegration:
         app = _make_mock_app([entity_config])
         mock_settings = _make_mock_settings()
         mock_persistence = _make_mock_persistence(manifest=None)
-        mock_df_storage = _make_mock_df_storage(
-            dataframe=None, watermark=None, is_available=True
-        )
+        mock_df_storage = _make_mock_df_storage(dataframe=None, watermark=None, is_available=True)
         mock_builder_instance = AsyncMock()
 
         # Build an env dict that definitely lacks CACHE_WARMER_LAMBDA_ARN.
-        env_without_lambda = {
-            k: v for k, v in os.environ.items() if k != "CACHE_WARMER_LAMBDA_ARN"
-        }
+        env_without_lambda = {k: v for k, v in os.environ.items() if k != "CACHE_WARMER_LAMBDA_ARN"}
 
         with (
             patch(_PATCHES_COMMON["bot_pat"], return_value="fake-pat"),
@@ -371,9 +359,7 @@ class TestPreloadManifestCheckIntegration:
             mock_invoke_lambda.assert_not_called()
 
             # Observable: warning logged about no manifest and no Lambda
-            warning_events = [
-                call.args[0] for call in mock_logger.warning.call_args_list
-            ]
+            warning_events = [call.args[0] for call in mock_logger.warning.call_args_list]
             assert "progressive_preload_no_manifest_no_lambda" in warning_events
 
             # Observable: cache_ready still set to True
@@ -385,21 +371,15 @@ class TestPreloadManifestCheckIntegration:
         app = _make_mock_app([entity_config])
         mock_settings = _make_mock_settings(is_production=False)
         mock_persistence = _make_mock_persistence(manifest=None)
-        mock_df_storage = _make_mock_df_storage(
-            dataframe=None, watermark=None, is_available=True
-        )
+        mock_df_storage = _make_mock_df_storage(dataframe=None, watermark=None, is_available=True)
         mock_build_result = _make_mock_builder_result(
             total_rows=25, sections_succeeded=2, sections_resumed=0
         )
         mock_builder_instance = AsyncMock()
-        mock_builder_instance.build_progressive_async = AsyncMock(
-            return_value=mock_build_result
-        )
+        mock_builder_instance.build_progressive_async = AsyncMock(return_value=mock_build_result)
 
         # Build an env dict that definitely lacks CACHE_WARMER_LAMBDA_ARN.
-        env_without_lambda = {
-            k: v for k, v in os.environ.items() if k != "CACHE_WARMER_LAMBDA_ARN"
-        }
+        env_without_lambda = {k: v for k, v in os.environ.items() if k != "CACHE_WARMER_LAMBDA_ARN"}
 
         with (
             patch(_PATCHES_COMMON["bot_pat"], return_value="fake-pat"),
@@ -454,9 +434,7 @@ class TestPreloadManifestCheckIntegration:
             assert "progressive_preload_cold_start_build" in info_events
 
             # Observable: no "skipping" warning
-            warning_events = [
-                call.args[0] for call in mock_logger.warning.call_args_list
-            ]
+            warning_events = [call.args[0] for call in mock_logger.warning.call_args_list]
             assert "progressive_preload_no_manifest_no_lambda" not in warning_events
 
             # Observable: cache_ready set to True

@@ -55,8 +55,7 @@ def validate_gid(gid: str, param_name: str = "gid") -> None:
     # Check length
     if len(gid) > 64:
         raise GidValidationError(
-            f"Invalid {param_name}: '{gid}' ({len(gid)} chars). "
-            f"GID length must be 1-64 characters."
+            f"Invalid {param_name}: '{gid}' ({len(gid)} chars). GID length must be 1-64 characters."
         )
 
 

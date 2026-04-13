@@ -148,11 +148,7 @@ def create_autom8_cache_provider(
     password = (
         redis_password
         if redis_password is not None
-        else (
-            redis_settings.password.get_secret_value()
-            if redis_settings.password
-            else None
-        )
+        else (redis_settings.password.get_secret_value() if redis_settings.password else None)
     )
     ssl = redis_ssl if redis_ssl is not None else redis_settings.ssl
 
@@ -269,12 +265,8 @@ async def migrate_task_collection_loading(
     fetch_errors = 0
 
     # Get cached task data for current GIDs
-    cached_entries = (
-        cache.get_batch(current_gids, EntryType.TASK) if current_gids else {}
-    )
-    cached_tasks = {
-        gid: entry.data for gid, entry in cached_entries.items() if entry is not None
-    }
+    cached_entries = cache.get_batch(current_gids, EntryType.TASK) if current_gids else {}
+    cached_tasks = {gid: entry.data for gid, entry in cached_entries.items() if entry is not None}
 
     # Fetch fresh data for stale tasks
     fresh_tasks_by_gid: dict[str, dict[str, Any]] = {}
@@ -383,11 +375,7 @@ async def warm_project_tasks(
 
         modified_at = task.get("modified_at")
         if modified_at:
-            version = (
-                _parse_version(modified_at)
-                if isinstance(modified_at, str)
-                else modified_at
-            )
+            version = _parse_version(modified_at) if isinstance(modified_at, str) else modified_at
         else:
             version = now
 

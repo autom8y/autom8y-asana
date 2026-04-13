@@ -265,9 +265,7 @@ class TestEntityCreationHandler:
 
         expected_result = CreationResult(success=True, entity_gid="new_entity_123")
 
-        with patch(
-            "autom8_asana.lifecycle.creation.EntityCreationService"
-        ) as MockService:
+        with patch("autom8_asana.lifecycle.creation.EntityCreationService") as MockService:
             mock_service = MockService.return_value
             mock_service.create_entity_async = AsyncMock(return_value=expected_result)
 
@@ -299,9 +297,7 @@ class TestEntityCreationHandler:
             holder_type="asset_edit_holder",
         )
 
-        with patch(
-            "autom8_asana.lifecycle.creation.EntityCreationService"
-        ) as MockService:
+        with patch("autom8_asana.lifecycle.creation.EntityCreationService") as MockService:
             mock_service = MockService.return_value
             mock_service.create_entity_async = AsyncMock(
                 return_value=CreationResult(success=True, entity_gid="e1")
@@ -338,9 +334,7 @@ class TestEntityCreationHandler:
             # holder_type omitted
         )
 
-        with patch(
-            "autom8_asana.lifecycle.creation.EntityCreationService"
-        ) as MockService:
+        with patch("autom8_asana.lifecycle.creation.EntityCreationService") as MockService:
             mock_service = MockService.return_value
             mock_service.create_entity_async = AsyncMock(
                 return_value=CreationResult(success=True, entity_gid="e1")
@@ -380,9 +374,7 @@ class TestEntityCreationHandler:
             warnings=["some warning"],
         )
 
-        with patch(
-            "autom8_asana.lifecycle.creation.EntityCreationService"
-        ) as MockService:
+        with patch("autom8_asana.lifecycle.creation.EntityCreationService") as MockService:
             mock_service = MockService.return_value
             mock_service.create_entity_async = AsyncMock(return_value=service_result)
 
@@ -411,9 +403,7 @@ class TestEntityCreationHandler:
             project_gid="proj_123",
         )
 
-        with patch(
-            "autom8_asana.lifecycle.creation.EntityCreationService"
-        ) as MockService:
+        with patch("autom8_asana.lifecycle.creation.EntityCreationService") as MockService:
             mock_service = MockService.return_value
             mock_service.create_entity_async = AsyncMock(
                 side_effect=ConnectionError("Service unavailable")
@@ -487,9 +477,7 @@ class TestProductsCheckHandler:
 
         expected_result = CreationResult(success=True, entity_gid="videographer_123")
 
-        with patch(
-            "autom8_asana.lifecycle.creation.EntityCreationService"
-        ) as MockService:
+        with patch("autom8_asana.lifecycle.creation.EntityCreationService") as MockService:
             mock_service = MockService.return_value
             mock_service.create_entity_async = AsyncMock(return_value=expected_result)
 
@@ -523,9 +511,7 @@ class TestProductsCheckHandler:
             # project_gid and holder_type omitted -- use defaults
         )
 
-        with patch(
-            "autom8_asana.lifecycle.creation.EntityCreationService"
-        ) as MockService:
+        with patch("autom8_asana.lifecycle.creation.EntityCreationService") as MockService:
             mock_service = MockService.return_value
             mock_service.create_entity_async = AsyncMock(
                 return_value=CreationResult(success=True, entity_gid="v1")
@@ -611,9 +597,7 @@ class TestProductsCheckHandler:
             action="request_source_videographer",
         )
 
-        with patch(
-            "autom8_asana.lifecycle.creation.EntityCreationService"
-        ) as MockService:
+        with patch("autom8_asana.lifecycle.creation.EntityCreationService") as MockService:
             mock_service = MockService.return_value
             mock_service.create_entity_async = AsyncMock(
                 return_value=CreationResult(success=True, entity_gid="v1")
@@ -647,9 +631,7 @@ class TestProductsCheckHandler:
             action="request_source_videographer",
         )
 
-        with patch(
-            "autom8_asana.lifecycle.creation.EntityCreationService"
-        ) as MockService:
+        with patch("autom8_asana.lifecycle.creation.EntityCreationService") as MockService:
             mock_service = MockService.return_value
             mock_service.create_entity_async = AsyncMock(
                 side_effect=ConnectionError("Network failure")
@@ -727,13 +709,9 @@ class TestPlayCreationHandler:
         # Mock template discovery
         mock_template = MagicMock()
         mock_template.gid = "template123"
-        with patch(
-            "autom8_asana.automation.templates.TemplateDiscovery"
-        ) as MockDiscovery:
+        with patch("autom8_asana.automation.templates.TemplateDiscovery") as MockDiscovery:
             mock_discovery = MockDiscovery.return_value
-            mock_discovery.find_template_task_async = AsyncMock(
-                return_value=mock_template
-            )
+            mock_discovery.find_template_task_async = AsyncMock(return_value=mock_template)
 
             # Mock duplicate
             mock_play = MagicMock()
@@ -777,9 +755,7 @@ class TestPlayCreationHandler:
         # so the dependency object itself carries memberships.
         mock_dep = MagicMock()
         mock_dep.gid = "dep123"
-        mock_dep.memberships = [
-            {"project": {"gid": "1207507299545000", "name": "Plays"}}
-        ]
+        mock_dep.memberships = [{"project": {"gid": "1207507299545000", "name": "Plays"}}]
         mock_task = MagicMock()
         mock_task.dependencies = [mock_dep]
 
@@ -816,9 +792,7 @@ class TestPlayCreationHandler:
         mock_task.dependencies = []
         mock_client.tasks.get_async = AsyncMock(return_value=mock_task)
 
-        with patch(
-            "autom8_asana.automation.templates.TemplateDiscovery"
-        ) as MockDiscovery:
+        with patch("autom8_asana.automation.templates.TemplateDiscovery") as MockDiscovery:
             mock_discovery = MockDiscovery.return_value
             mock_discovery.find_template_task_async = AsyncMock(return_value=None)
 
@@ -849,9 +823,7 @@ class TestPlayCreationHandler:
             condition="not_already_linked",
         )
 
-        mock_client.tasks.get_async = AsyncMock(
-            side_effect=ConnectionError("Network error")
-        )
+        mock_client.tasks.get_async = AsyncMock(side_effect=ConnectionError("Network error"))
 
         result = await handler.execute_async(
             mock_resolution_context, "created123", action_config, mock_process
@@ -903,9 +875,7 @@ class TestPlayCreationHandler:
         assert result.was_reopened is True
 
         # Verify it was reopened (marked incomplete)
-        mock_client.tasks.update_async.assert_called_once_with(
-            "reopened_play_456", completed=False
-        )
+        mock_client.tasks.update_async.assert_called_once_with("reopened_play_456", completed=False)
         # Verify dependency wiring
         mock_client.tasks.add_dependencies_async.assert_called_once_with(
             "created123", ["reopened_play_456"]
@@ -943,13 +913,9 @@ class TestPlayCreationHandler:
         # Template discovery for new creation
         mock_template = MagicMock()
         mock_template.gid = "template123"
-        with patch(
-            "autom8_asana.automation.templates.TemplateDiscovery"
-        ) as MockDiscovery:
+        with patch("autom8_asana.automation.templates.TemplateDiscovery") as MockDiscovery:
             mock_discovery = MockDiscovery.return_value
-            mock_discovery.find_template_task_async = AsyncMock(
-                return_value=mock_template
-            )
+            mock_discovery.find_template_task_async = AsyncMock(return_value=mock_template)
 
             mock_play = MagicMock()
             mock_play.gid = "new_play_789"
@@ -994,20 +960,14 @@ class TestPlayCreationHandler:
         mock_client.tasks.get_async = AsyncMock(return_value=mock_task)
 
         # Search raises an error
-        mock_client.tasks.search_async = AsyncMock(
-            side_effect=ConnectionError("Search API down")
-        )
+        mock_client.tasks.search_async = AsyncMock(side_effect=ConnectionError("Search API down"))
 
         # Template discovery for new creation
         mock_template = MagicMock()
         mock_template.gid = "template123"
-        with patch(
-            "autom8_asana.automation.templates.TemplateDiscovery"
-        ) as MockDiscovery:
+        with patch("autom8_asana.automation.templates.TemplateDiscovery") as MockDiscovery:
             mock_discovery = MockDiscovery.return_value
-            mock_discovery.find_template_task_async = AsyncMock(
-                return_value=mock_template
-            )
+            mock_discovery.find_template_task_async = AsyncMock(return_value=mock_template)
 
             mock_play = MagicMock()
             mock_play.gid = "fallback_play"
@@ -1053,13 +1013,9 @@ class TestPlayCreationHandler:
         # Template discovery
         mock_template = MagicMock()
         mock_template.gid = "template123"
-        with patch(
-            "autom8_asana.automation.templates.TemplateDiscovery"
-        ) as MockDiscovery:
+        with patch("autom8_asana.automation.templates.TemplateDiscovery") as MockDiscovery:
             mock_discovery = MockDiscovery.return_value
-            mock_discovery.find_template_task_async = AsyncMock(
-                return_value=mock_template
-            )
+            mock_discovery.find_template_task_async = AsyncMock(return_value=mock_template)
 
             mock_play = MagicMock()
             mock_play.gid = "direct_play"

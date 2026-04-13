@@ -39,8 +39,7 @@ class WorkflowRegistry:
         wid = workflow.workflow_id
         if wid in self._workflows:
             raise ValueError(
-                f"Workflow '{wid}' is already registered. "
-                f"Duplicate registration is not allowed."
+                f"Workflow '{wid}' is already registered. Duplicate registration is not allowed."
             )
         self._workflows[wid] = workflow
         logger.info("workflow_registered", workflow_id=wid)

@@ -99,10 +99,7 @@ class TestLooksSequential:
 
     def test_returns_false_for_two_element_non_consecutive(self) -> None:
         """Two GIDs with a gap > 1 are not sequential."""
-        assert (
-            _looks_sequential(frozenset({"1000000000000000", "1000000000000005"}))
-            is False
-        )
+        assert _looks_sequential(frozenset({"1000000000000000", "1000000000000005"})) is False
 
     def test_returns_false_for_invalid_non_numeric(self) -> None:
         """Non-numeric GIDs cannot be checked for sequence; returns False."""
@@ -166,11 +163,9 @@ class TestValidateGidSet:
         mock_logger.warning.assert_called_once()
         call_args = mock_logger.warning.call_args
         event_name = call_args[0][0]
-        assert (
-            "fabricated" in event_name
-            or "sequential" in event_name
-            or "appear" in event_name
-        ), f"Expected warning event about fabricated GIDs; got: {event_name!r}"
+        assert "fabricated" in event_name or "sequential" in event_name or "appear" in event_name, (
+            f"Expected warning event about fabricated GIDs; got: {event_name!r}"
+        )
 
     def test_sequential_gids_warning_passes_registry_name(self) -> None:
         """Warning call passes registry name in extra kwargs for diagnostic tracing."""

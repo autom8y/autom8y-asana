@@ -88,9 +88,7 @@ class TestSearchServiceInit:
         assert service._cache is not None
         assert service._df_integration is None
 
-    def test_init_with_dataframe_integration(
-        self, null_cache: NullCacheProvider
-    ) -> None:
+    def test_init_with_dataframe_integration(self, null_cache: NullCacheProvider) -> None:
         """Should initialize with DataFrame integration."""
         mock_integration = MagicMock()
         service = SearchService(
@@ -133,9 +131,7 @@ class TestFindAsync:
             {"Vertical": "Medical"},
         )
         assert result.total_count == 4
-        assert all(
-            hit.matched_fields.get("Vertical") == "Medical" for hit in result.hits
-        )
+        assert all(hit.matched_fields.get("Vertical") == "Medical" for hit in result.hits)
 
     @pytest.mark.asyncio
     async def test_find_compound_and(

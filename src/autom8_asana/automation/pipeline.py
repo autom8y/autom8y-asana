@@ -133,10 +133,7 @@ class PipelineConversionRule:
         Returns:
             Rule name in format "Pipeline: {Source} to {Target}".
         """
-        return (
-            f"Pipeline: {self._source_type.value.title()} "
-            f"to {self._target_type.value.title()}"
-        )
+        return f"Pipeline: {self._source_type.value.title()} to {self._target_type.value.title()}"
 
     @property
     def trigger(self) -> TriggerCondition:
@@ -178,9 +175,7 @@ class PipelineConversionRule:
         if hasattr(entity, "process_type"):
             process_type = entity.process_type
             # Handle enum value comparison
-            actual_type = (
-                process_type.value if hasattr(process_type, "value") else process_type
-            )
+            actual_type = process_type.value if hasattr(process_type, "value") else process_type
             if actual_type != self._source_type.value:
                 return False
 
@@ -264,10 +259,7 @@ class PipelineConversionRule:
                     triggered_by_gid=entity.gid,
                     triggered_by_type="Process",
                     success=False,
-                    error=(
-                        f"No target project configured for "
-                        f"{self._target_type.value} pipeline"
-                    ),
+                    error=(f"No target project configured for {self._target_type.value} pipeline"),
                     execution_time_ms=elapsed_ms(start_time),
                 )
 
@@ -495,7 +487,9 @@ class PipelineConversionRule:
                 post_validation=post_validation,
             )
 
-        except Exception as e:  # BROAD-CATCH: isolation -- catch-all for unexpected errors in rule execution
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: isolation -- catch-all for unexpected errors in rule execution
             return AutomationResult(
                 rule_id=self.id,
                 rule_name=self.name,
@@ -699,9 +693,7 @@ class PipelineConversionRule:
             True if assignee was set successfully, False otherwise.
         """
         config = assignee_config if assignee_config is not None else AssigneeConfig()
-        assignee_gid = self._resolve_assignee_gid(
-            source_process, unit, business, config
-        )
+        assignee_gid = self._resolve_assignee_gid(source_process, unit, business, config)
 
         # FR-ASSIGN-005: No rep found, log warning
         if assignee_gid is None:
@@ -857,9 +849,7 @@ class PipelineConversionRule:
                         source_project_gid = project.gid
                         break
 
-        source_link = (
-            f"https://app.asana.com/0/{source_project_gid}/{source_process.gid}"
-        )
+        source_link = f"https://app.asana.com/0/{source_project_gid}/{source_process.gid}"
 
         # Build comment text
         comment = f"""Pipeline Conversion
@@ -948,9 +938,7 @@ Business: {business_name}"""
 
         # Check if seeding was attempted but no fields were seeded
         if self._required_source_fields and not seeded_fields:
-            warnings.append(
-                "No fields were seeded to target despite required fields configured"
-            )
+            warnings.append("No fields were seeded to target despite required fields configured")
 
         # Check that required fields were included in seeded fields
         if seeded_fields:
@@ -964,9 +952,7 @@ Business: {business_name}"""
             logger.info(
                 "pipeline_post_validation_warnings",
                 source_gid=source_process.gid,
-                target_gid=target_task.gid
-                if hasattr(target_task, "gid")
-                else "unknown",
+                target_gid=target_task.gid if hasattr(target_task, "gid") else "unknown",
                 warnings=warnings,
             )
 

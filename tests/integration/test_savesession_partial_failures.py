@@ -206,9 +206,7 @@ class TestSaveAsyncWithPartialFailures:
         assert "client reference" in error_msg.lower()
 
     @pytest.mark.asyncio
-    async def test_save_async_success_returns_updated_task(
-        self, client: AsanaClient
-    ) -> None:
+    async def test_save_async_success_returns_updated_task(self, client: AsanaClient) -> None:
         """Task.save_async() returns updated task on success."""
         task = Task(gid="111", name="Original Name")
         task._client = client

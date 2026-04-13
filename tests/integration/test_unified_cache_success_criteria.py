@@ -86,9 +86,7 @@ def cascade_schema() -> DataFrameSchema:
         columns=[
             ColumnDef("gid", "Utf8", nullable=False, source=None),
             ColumnDef("name", "Utf8", nullable=False, source=None),
-            ColumnDef(
-                "office_phone", "Utf8", nullable=True, source="cascade:Office Phone"
-            ),
+            ColumnDef("office_phone", "Utf8", nullable=True, source="cascade:Office Phone"),
             ColumnDef("vertical", "Utf8", nullable=True, source="cascade:Vertical"),
         ],
         version="1.0.0",
@@ -188,9 +186,7 @@ class TestSC001SingleCacheEntryPerGID:
         assert mock_cache_provider.set_versioned.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_batch_put_deduplicates_gids(
-        self, mock_cache_provider: MagicMock
-    ) -> None:
+    async def test_batch_put_deduplicates_gids(self, mock_cache_provider: MagicMock) -> None:
         """Test batch put handles duplicate GIDs in input."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
@@ -274,9 +270,7 @@ class TestSC002ColdCacheNoFalseNotFound:
         assert result["gid"][0] == "unit-001"
 
     @pytest.mark.asyncio
-    async def test_cold_cache_hierarchy_preserved(
-        self, mock_cache_provider: MagicMock
-    ) -> None:
+    async def test_cold_cache_hierarchy_preserved(self, mock_cache_provider: MagicMock) -> None:
         """Test that hierarchy relationships are preserved in cold cache."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
@@ -325,9 +319,7 @@ class TestSC003CascadeReturnsCorrectParentValues:
     """SC-003: Cascade resolution returns correct parent values."""
 
     @pytest.mark.asyncio
-    async def test_cascade_parent_name_traversal(
-        self, mock_cache_provider: MagicMock
-    ) -> None:
+    async def test_cascade_parent_name_traversal(self, mock_cache_provider: MagicMock) -> None:
         """Test parent.name cascade traversal via hierarchy index."""
         # Test using HierarchyIndex directly (the underlying mechanism)
         index = HierarchyIndex()
@@ -551,9 +543,7 @@ class TestSC005FreshnessModeConfiguration:
         assert FreshnessIntent.EVENTUAL.value == "eventual"
         assert FreshnessIntent.IMMEDIATE.value == "immediate"
 
-    def test_unified_store_accepts_all_modes(
-        self, mock_cache_provider: MagicMock
-    ) -> None:
+    def test_unified_store_accepts_all_modes(self, mock_cache_provider: MagicMock) -> None:
         """Test UnifiedTaskStore accepts all freshness modes."""
         for mode in FreshnessIntent:
             store = UnifiedTaskStore(
@@ -639,9 +629,7 @@ class TestSC006ColdStartPerformance:
         assert len(hierarchy) == 1000
 
     @pytest.mark.asyncio
-    async def test_hierarchy_lookup_performance(
-        self, mock_cache_provider: MagicMock
-    ) -> None:
+    async def test_hierarchy_lookup_performance(self, mock_cache_provider: MagicMock) -> None:
         """Test hierarchy lookups are fast with realistic data."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
@@ -664,9 +652,7 @@ class TestSC006ColdStartPerformance:
         elapsed = time.perf_counter() - start
 
         # 1000 lookups should complete in under 100ms
-        assert elapsed < 0.1, (
-            f"1000 lookups took {elapsed * 1000:.2f}ms, expected < 100ms"
-        )
+        assert elapsed < 0.1, f"1000 lookups took {elapsed * 1000:.2f}ms, expected < 100ms"
 
 
 # =============================================================================
@@ -691,9 +677,7 @@ class TestEdgeCases:
         assert hierarchy.get_children_gids("non-existent") == set()
 
     @pytest.mark.asyncio
-    async def test_orphaned_subtask_parent_deleted(
-        self, mock_cache_provider: MagicMock
-    ) -> None:
+    async def test_orphaned_subtask_parent_deleted(self, mock_cache_provider: MagicMock) -> None:
         """Test handling of orphaned subtask when parent is deleted."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
@@ -737,9 +721,7 @@ class TestEdgeCases:
         assert len(chain) <= 10  # Should not infinite loop
 
     @pytest.mark.asyncio
-    async def test_concurrent_access_patterns(
-        self, mock_cache_provider: MagicMock
-    ) -> None:
+    async def test_concurrent_access_patterns(self, mock_cache_provider: MagicMock) -> None:
         """Test concurrent access doesn't cause race conditions."""
         import asyncio
 
@@ -761,9 +743,7 @@ class TestEdgeCases:
         assert len(hierarchy) == 100
 
     @pytest.mark.asyncio
-    async def test_cache_eviction_during_cascade(
-        self, mock_cache_provider: MagicMock
-    ) -> None:
+    async def test_cache_eviction_during_cascade(self, mock_cache_provider: MagicMock) -> None:
         """Test cascade resolution handles cache eviction gracefully."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
@@ -785,9 +765,7 @@ class TestEdgeCases:
         mock_unit.memberships = None
 
         # Simulate cache miss during parent lookup by patching
-        with patch.object(
-            store, "get_parent_chain_async", new=AsyncMock(return_value=[])
-        ):
+        with patch.object(store, "get_parent_chain_async", new=AsyncMock(return_value=[])):
             result = await cascade_plugin.resolve_async(mock_unit, "Office Phone")
 
         # Should return None gracefully, not error
@@ -811,9 +789,7 @@ class TestEdgeCases:
         assert hierarchy.contains("12345678901234567890")
 
     @pytest.mark.asyncio
-    async def test_task_with_empty_custom_fields_list(
-        self, mock_cache_provider: MagicMock
-    ) -> None:
+    async def test_task_with_empty_custom_fields_list(self, mock_cache_provider: MagicMock) -> None:
         """Test task with empty custom_fields list."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,
@@ -827,9 +803,7 @@ class TestEdgeCases:
         assert hierarchy.contains("task-001")
 
     @pytest.mark.asyncio
-    async def test_task_with_none_custom_fields(
-        self, mock_cache_provider: MagicMock
-    ) -> None:
+    async def test_task_with_none_custom_fields(self, mock_cache_provider: MagicMock) -> None:
         """Test task with None custom_fields."""
         store = UnifiedTaskStore(
             cache=mock_cache_provider,

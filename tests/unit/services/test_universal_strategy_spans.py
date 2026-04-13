@@ -114,9 +114,7 @@ class TestStrategyResolveSpan:
         df = _make_unit_df()
 
         # One resolved result via a real DynamicIndex lookup
-        index = DynamicIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = DynamicIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         mock_validation = _make_valid_validation(
             {"office_phone": "+11234567890", "vertical": "dental"}
@@ -129,9 +127,7 @@ class TestStrategyResolveSpan:
                 "autom8_asana.services.resolver.validate_criterion_for_entity",
                 return_value=mock_validation,
             ),
-            patch.object(
-                strategy, "_get_or_build_index", AsyncMock(return_value=index)
-            ),
+            patch.object(strategy, "_get_or_build_index", AsyncMock(return_value=index)),
             patch.object(strategy, "_get_dataframe", AsyncMock(return_value=None)),
         ):
             results = await strategy.resolve(
@@ -145,8 +141,7 @@ class TestStrategyResolveSpan:
         spans = exporter.get_finished_spans()
         resolve_spans = [s for s in spans if s.name == "strategy.resolution.resolve"]
         assert len(resolve_spans) == 1, (
-            f"Expected 1 'strategy.resolution.resolve' span, got "
-            f"{[s.name for s in spans]}"
+            f"Expected 1 'strategy.resolution.resolve' span, got {[s.name for s in spans]}"
         )
 
         span = resolve_spans[0]
@@ -200,9 +195,7 @@ class TestStrategyResolveSpan:
         attrs = dict(span.attributes)
 
         assert attrs["strategy.null_slot_count"] == 1
-        assert (
-            span.status.status_code == StatusCode.UNSET
-        )  # diagnostic, not a hard fail
+        assert span.status.status_code == StatusCode.UNSET  # diagnostic, not a hard fail
 
         null_slot_events = [e for e in span.events if e.name == "resolution.null_slot"]
         assert len(null_slot_events) == 1
@@ -235,9 +228,7 @@ class TestStrategyResolveGroupSpan:
                 "autom8_asana.services.resolver.validate_criterion_for_entity",
                 return_value=mock_validation,
             ),
-            patch.object(
-                strategy, "_get_or_build_index", AsyncMock(return_value=index)
-            ),
+            patch.object(strategy, "_get_or_build_index", AsyncMock(return_value=index)),
             patch.object(strategy, "_get_dataframe", AsyncMock(return_value=None)),
         ):
             await strategy.resolve(
@@ -247,9 +238,7 @@ class TestStrategyResolveGroupSpan:
             )
 
         spans = exporter.get_finished_spans()
-        resolve_span = next(
-            (s for s in spans if s.name == "strategy.resolution.resolve"), None
-        )
+        resolve_span = next((s for s in spans if s.name == "strategy.resolution.resolve"), None)
         group_span = next(
             (s for s in spans if s.name == "strategy.resolution.resolve_group"),
             None,
@@ -289,9 +278,7 @@ class TestStrategyResolveGroupSpan:
         assert results[0].error == "INDEX_UNAVAILABLE"
 
         spans = exporter.get_finished_spans()
-        group_spans = [
-            s for s in spans if s.name == "strategy.resolution.resolve_group"
-        ]
+        group_spans = [s for s in spans if s.name == "strategy.resolution.resolve_group"]
         assert len(group_spans) == 1
 
         span = group_spans[0]
@@ -354,9 +341,7 @@ class TestStrategyResolveGroupSpan:
                 "autom8_asana.services.resolver.validate_criterion_for_entity",
                 side_effect=validation_side_effect,
             ),
-            patch.object(
-                strategy, "_get_or_build_index", AsyncMock(return_value=index)
-            ),
+            patch.object(strategy, "_get_or_build_index", AsyncMock(return_value=index)),
             patch.object(strategy, "_get_dataframe", AsyncMock(return_value=None)),
         ):
             results = await strategy.resolve(
@@ -373,9 +358,7 @@ class TestStrategyResolveGroupSpan:
         assert results[1].error == "LOOKUP_ERROR"
 
         spans = exporter.get_finished_spans()
-        group_spans = [
-            s for s in spans if s.name == "strategy.resolution.resolve_group"
-        ]
+        group_spans = [s for s in spans if s.name == "strategy.resolution.resolve_group"]
         assert len(group_spans) == 1
 
         span = group_spans[0]
@@ -384,9 +367,7 @@ class TestStrategyResolveGroupSpan:
         assert attrs["strategy.lookup_error_count"] == 1
         assert span.status.status_code == StatusCode.UNSET  # partial failure
 
-        lookup_failed_events = [
-            e for e in span.events if e.name == "resolution.lookup_failed"
-        ]
+        lookup_failed_events = [e for e in span.events if e.name == "resolution.lookup_failed"]
         assert len(lookup_failed_events) == 1
 
         event_attrs = dict(lookup_failed_events[0].attributes)

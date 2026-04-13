@@ -162,9 +162,7 @@ class RuleCondition(BaseModel):
     def at_least_one_trigger_required(self) -> RuleCondition:
         """Validate that at least one trigger type is specified."""
         if self.stale is None and self.deadline is None and self.age is None:
-            raise ValueError(
-                "At least one trigger type (stale, deadline, or age) is required"
-            )
+            raise ValueError("At least one trigger type (stale, deadline, or age) is required")
         return self
 
 

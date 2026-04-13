@@ -102,9 +102,7 @@ class TestCheckpointRecord:
         assert parsed["invocation_id"] == "test-123"
         assert parsed["completed_entities"] == ["unit"]
         assert parsed["pending_entities"] == ["business", "offer"]
-        assert parsed["entity_results"] == [
-            {"entity_type": "unit", "result": "success"}
-        ]
+        assert parsed["entity_results"] == [{"entity_type": "unit", "result": "success"}]
         assert parsed["created_at"] == "2026-01-06T12:00:00+00:00"
         assert parsed["expires_at"] == "2026-01-06T13:00:00+00:00"
 
@@ -115,9 +113,7 @@ class TestCheckpointRecord:
                 "invocation_id": "test-456",
                 "completed_entities": ["unit", "business"],
                 "pending_entities": ["offer"],
-                "entity_results": [
-                    {"entity_type": "unit", "result": "success", "row_count": 500}
-                ],
+                "entity_results": [{"entity_type": "unit", "result": "success", "row_count": 500}],
                 "created_at": "2026-01-06T12:00:00+00:00",
                 "expires_at": "2026-01-06T13:00:00+00:00",
             }
@@ -362,9 +358,7 @@ class TestCheckpointManager:
         assert checkpoint.invocation_id == "test-123"
         assert checkpoint.completed_entities == ["unit"]
         assert checkpoint.pending_entities == ["business", "offer"]
-        assert checkpoint.entity_results == [
-            {"entity_type": "unit", "result": "success"}
-        ]
+        assert checkpoint.entity_results == [{"entity_type": "unit", "result": "success"}]
 
     @pytest.mark.asyncio
     async def test_load_missing_checkpoint_returns_none(
@@ -550,11 +544,7 @@ class TestCheckpointManager:
 
             mock_logger.info.assert_called()
             # Find the checkpoint_saved call
-            calls = [
-                c
-                for c in mock_logger.info.call_args_list
-                if c[0][0] == "checkpoint_saved"
-            ]
+            calls = [c for c in mock_logger.info.call_args_list if c[0][0] == "checkpoint_saved"]
             assert len(calls) == 1
             extra = calls[0][1]["extra"]
             assert extra["invocation_id"] == "log-test-123"
@@ -578,11 +568,7 @@ class TestCheckpointManager:
             await manager.load_async()
 
             mock_logger.info.assert_called()
-            calls = [
-                c
-                for c in mock_logger.info.call_args_list
-                if c[0][0] == "checkpoint_loaded"
-            ]
+            calls = [c for c in mock_logger.info.call_args_list if c[0][0] == "checkpoint_loaded"]
             assert len(calls) == 1
             extra = calls[0][1]["extra"]
             assert extra["invocation_id"] == "log-test-456"

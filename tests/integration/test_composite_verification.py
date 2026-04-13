@@ -202,9 +202,7 @@ class TestCQ01FullRoundTrip:
         data = response.json()
 
         # Find the 'vertical' field -- it should have enum_values
-        vertical_fields = [
-            f for f in data["queryable_fields"] if f["name"] == "vertical"
-        ]
+        vertical_fields = [f for f in data["queryable_fields"] if f["name"] == "vertical"]
         assert len(vertical_fields) == 1, (
             f"Expected 'vertical' field in unit schema, got fields: "
             f"{[f['name'] for f in data['queryable_fields']]}"
@@ -238,8 +236,7 @@ class TestCQ01FullRoundTrip:
         )
         store = idem_mw.kwargs.get("store")
         assert isinstance(store, InMemoryIdempotencyStore), (
-            f"Expected InMemoryIdempotencyStore in middleware kwargs, "
-            f"got {type(store).__name__}"
+            f"Expected InMemoryIdempotencyStore in middleware kwargs, got {type(store).__name__}"
         )
 
     def test_health_endpoint_through_full_stack(self, client) -> None:
@@ -486,8 +483,7 @@ class TestCQ04EnvironmentGate:
         store_found = _find_idempotency_store(app)
         assert store_found is not None, "IdempotencyMiddleware not found in stack"
         assert isinstance(store_found, NoopIdempotencyStore), (
-            f"Expected NoopIdempotencyStore for unknown backend, "
-            f"got {type(store_found).__name__}"
+            f"Expected NoopIdempotencyStore for unknown backend, got {type(store_found).__name__}"
         )
 
     def test_dynamodb_failure_degrades_to_noop(self) -> None:
@@ -517,8 +513,7 @@ class TestCQ04EnvironmentGate:
         store_found = _find_idempotency_store(app)
         assert store_found is not None, "IdempotencyMiddleware not found in stack"
         assert isinstance(store_found, NoopIdempotencyStore), (
-            f"Expected NoopIdempotencyStore as fallback, "
-            f"got {type(store_found).__name__}"
+            f"Expected NoopIdempotencyStore as fallback, got {type(store_found).__name__}"
         )
 
 
@@ -576,10 +571,7 @@ class TestCQ05CascadeExceptionLogging:
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                 if node.func.id == "isinstance" and len(node.args) >= 2:
                     type_arg = node.args[1]
-                    if (
-                        isinstance(type_arg, ast.Name)
-                        and type_arg.id == "BaseException"
-                    ):
+                    if isinstance(type_arg, ast.Name) and type_arg.id == "BaseException":
                         found_base_exception_check = True
 
         assert found_base_exception_check, (
@@ -632,14 +624,10 @@ class TestCQ06CascadeCycleDetection:
         ]
 
         mock_alpha_schema = MagicMock()
-        mock_alpha_schema.get_cascade_columns.return_value = [
-            ("beta_field", "BetaField")
-        ]
+        mock_alpha_schema.get_cascade_columns.return_value = [("beta_field", "BetaField")]
 
         mock_beta_schema = MagicMock()
-        mock_beta_schema.get_cascade_columns.return_value = [
-            ("alpha_field", "AlphaField")
-        ]
+        mock_beta_schema.get_cascade_columns.return_value = [("alpha_field", "AlphaField")]
 
         mock_schema_registry = MagicMock()
 
@@ -752,8 +740,7 @@ class TestCQ07MiddlewareReExport:
         actual_exports = set(mw_pkg.__all__)
         missing = expected_exports - actual_exports
         assert not missing, (
-            f"Expected exports missing from __all__: {missing}. "
-            f"Current __all__: {mw_pkg.__all__}"
+            f"Expected exports missing from __all__: {missing}. Current __all__: {mw_pkg.__all__}"
         )
 
 

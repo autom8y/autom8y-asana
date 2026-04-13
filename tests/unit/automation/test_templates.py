@@ -62,9 +62,7 @@ def create_mock_client(
     client = MagicMock()
 
     # Mock sections client
-    client.sections.list_for_project_async.return_value = MockPageIterator(
-        sections or []
-    )
+    client.sections.list_for_project_async.return_value = MockPageIterator(sections or [])
 
     # Mock tasks client
     client.tasks.list_async.return_value = MockPageIterator(tasks or [])
@@ -387,9 +385,7 @@ class TestTemplateSectionGidShortcut:
         client = create_mock_client(sections=sections, tasks=tasks)
         discovery = TemplateDiscovery(client)
 
-        result = await discovery.find_template_task_async(
-            "project_123", template_section_gid=None
-        )
+        result = await discovery.find_template_task_async("project_123", template_section_gid=None)
 
         assert result is not None
         assert result.gid == "task_1"

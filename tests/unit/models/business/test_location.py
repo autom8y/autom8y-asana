@@ -42,9 +42,7 @@ class TestLocationNewFields:
         """street_name returns text value."""
         location = Location(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Street Name", "text_value": "Main St"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Street Name", "text_value": "Main St"}],
         )
         assert location.street_name == "Main St"
 
@@ -82,9 +80,7 @@ class TestLocationNewFields:
         """country getter extracts name from enum dict per PRD-0024."""
         location = Location(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Country", "enum_value": {"name": "US"}}
-            ],
+            custom_fields=[{"gid": "456", "name": "Country", "enum_value": {"name": "US"}}],
         )
         assert location.country == "US"
 
@@ -106,9 +102,7 @@ class TestLocationNewFields:
         """neighborhood getter returns text value."""
         location = Location(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Neighborhood", "text_value": "Downtown"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Neighborhood", "text_value": "Downtown"}],
         )
         assert location.neighborhood == "Downtown"
 
@@ -116,9 +110,7 @@ class TestLocationNewFields:
         """office_location getter returns text value."""
         location = Location(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Office Location", "text_value": "2nd Floor"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Office Location", "text_value": "2nd Floor"}],
         )
         assert location.office_location == "2nd Floor"
 

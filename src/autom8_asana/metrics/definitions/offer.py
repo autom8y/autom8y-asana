@@ -54,9 +54,7 @@ ACTIVE_AD_SPEND = Metric(
         column="weekly_ad_spend",
         cast_dtype=pl.Float64,
         agg="sum",
-        filter_expr=(
-            pl.col("weekly_ad_spend").is_not_null() & (pl.col("weekly_ad_spend") > 0)
-        ),
+        filter_expr=(pl.col("weekly_ad_spend").is_not_null() & (pl.col("weekly_ad_spend") > 0)),
     ),
     scope=_ACTIVE_OFFER_SCOPE,
 )

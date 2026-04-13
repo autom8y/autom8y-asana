@@ -225,18 +225,15 @@ class TestSchemaContractAPI:
             if mtype == "RATE":
                 if actual_format not in ("rate", "percentage"):
                     mismatches.append(
-                        f"  {name}: type={mtype}, expected rate|percentage, "
-                        f"got '{actual_format}'"
+                        f"  {name}: type={mtype}, expected rate|percentage, got '{actual_format}'"
                     )
             elif actual_format != expected_format:
                 mismatches.append(
-                    f"  {name}: type={mtype}, expected '{expected_format}', "
-                    f"got '{actual_format}'"
+                    f"  {name}: type={mtype}, expected '{expected_format}', got '{actual_format}'"
                 )
 
-        assert not mismatches, (
-            f"_FIELD_FORMAT type mismatches ({len(mismatches)}):\n"
-            + "\n".join(mismatches)
+        assert not mismatches, f"_FIELD_FORMAT type mismatches ({len(mismatches)}):\n" + "\n".join(
+            mismatches
         )
 
     def test_coverage_all_formatted_metrics_have_entries(
@@ -303,12 +300,10 @@ class TestFieldFormatConsistency:
 
         for name, fmt in _FIELD_FORMAT.items():
             if fmt not in valid_categories:
-                invalid.append(
-                    f"  {name}: '{fmt}' (expected one of {valid_categories})"
-                )
+                invalid.append(f"  {name}: '{fmt}' (expected one of {valid_categories})")
 
-        assert not invalid, (
-            f"Invalid _FIELD_FORMAT categories ({len(invalid)}):\n" + "\n".join(invalid)
+        assert not invalid, f"Invalid _FIELD_FORMAT categories ({len(invalid)}):\n" + "\n".join(
+            invalid
         )
 
     def test_field_format_has_entries(self) -> None:
@@ -333,6 +328,4 @@ class TestFieldFormatConsistency:
 
         # Verify every category has at least one entry
         for category in ("currency", "rate", "percentage", "ratio", "per20k"):
-            assert category in by_category, (
-                f"No _FIELD_FORMAT entries for category '{category}'"
-            )
+            assert category in by_category, f"No _FIELD_FORMAT entries for category '{category}'"

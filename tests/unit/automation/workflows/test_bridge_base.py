@@ -224,9 +224,7 @@ class TestEnumerateAsync:
         """Limit is applied after full enumeration."""
 
         class _BigBridge(_TestBridge):
-            async def enumerate_entities(
-                self, scope: EntityScope
-            ) -> list[dict[str, Any]]:
+            async def enumerate_entities(self, scope: EntityScope) -> list[dict[str, Any]]:
                 return [{"gid": f"e{i}", "name": f"E{i}"} for i in range(10)]
 
         bridge = _BigBridge(

@@ -174,9 +174,7 @@ class AsanaHttpClient:
             )
         else:
             self._read_semaphore = FixedSemaphoreAdapter(config.concurrency.read_limit)
-            self._write_semaphore = FixedSemaphoreAdapter(
-                config.concurrency.write_limit
-            )
+            self._write_semaphore = FixedSemaphoreAdapter(config.concurrency.write_limit)
 
         # Platform HTTP client (created lazily with lock)
         self._platform_client: Autom8yHttpClient | None = None
@@ -453,9 +451,7 @@ class AsanaHttpClient:
                                 continue
 
                         # Check if retryable
-                        if self._should_retry(
-                            response.status_code, attempt, max_attempts
-                        ):
+                        if self._should_retry(response.status_code, attempt, max_attempts):
                             if isinstance(error, ServerError):
                                 await self._circuit_breaker.record_failure(error)
                             await self._wait_for_retry(attempt)
@@ -567,9 +563,7 @@ class AsanaHttpClient:
             await self._circuit_breaker.check()
 
         # Select semaphore based on method
-        semaphore = (
-            self._read_semaphore if method.upper() == "GET" else self._write_semaphore
-        )
+        semaphore = self._read_semaphore if method.upper() == "GET" else self._write_semaphore
         attempt = 0
         max_attempts = self._retry_policy.max_attempts if self._retry_policy else 1
 
@@ -614,9 +608,7 @@ class AsanaHttpClient:
                                 continue
 
                         # Check if retryable
-                        if self._should_retry(
-                            response.status_code, attempt, max_attempts
-                        ):
+                        if self._should_retry(response.status_code, attempt, max_attempts):
                             # Record 5xx as failure for circuit breaker before retry
                             if isinstance(error, ServerError):
                                 await self._circuit_breaker.record_failure(error)
@@ -706,9 +698,7 @@ class AsanaHttpClient:
                                 continue
 
                         # Check if retryable
-                        if self._should_retry(
-                            response.status_code, attempt, max_attempts
-                        ):
+                        if self._should_retry(response.status_code, attempt, max_attempts):
                             if isinstance(error, ServerError):
                                 await self._circuit_breaker.record_failure(error)
                             await self._wait_for_retry(attempt)

@@ -36,9 +36,7 @@ logger = get_logger(__name__)
 
 # Known Asana core fields accepted in the `fields` dict.
 # These map directly to top-level keys in the Asana PUT /tasks/{gid} body.
-CORE_FIELD_NAMES: frozenset[str] = frozenset(
-    {"name", "assignee", "due_on", "completed", "notes"}
-)
+CORE_FIELD_NAMES: frozenset[str] = frozenset({"name", "assignee", "due_on", "completed", "notes"})
 
 
 @dataclass(frozen=True, slots=True)

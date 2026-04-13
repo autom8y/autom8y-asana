@@ -111,9 +111,7 @@ class TestAssetEditFields:
         """asset_id getter returns text value."""
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Asset ID", "text_value": "ASSET-12345"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Asset ID", "text_value": "ASSET-12345"}],
         )
         assert asset_edit.asset_id == "ASSET-12345"
 
@@ -152,9 +150,7 @@ class TestAssetEditFields:
         """offer_id getter returns int value per PRD-0024."""
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Offer ID", "number_value": 1234567890}
-            ],
+            custom_fields=[{"gid": "1", "name": "Offer ID", "number_value": 1234567890}],
         )
         assert asset_edit.offer_id == 1234567890
 
@@ -182,9 +178,7 @@ class TestAssetEditFields:
         """review_all_ads returns True for 'Yes'."""
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Review All Ads", "enum_value": {"name": "Yes"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Review All Ads", "enum_value": {"name": "Yes"}}],
         )
         assert asset_edit.review_all_ads is True
 
@@ -192,9 +186,7 @@ class TestAssetEditFields:
         """review_all_ads returns False for 'No'."""
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Review All Ads", "enum_value": {"name": "No"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Review All Ads", "enum_value": {"name": "No"}}],
         )
         assert asset_edit.review_all_ads is False
 
@@ -341,9 +333,7 @@ class TestAssetEditResolution:
         client.tasks.get_async = AsyncMock()
         return client
 
-    async def test_resolve_unit_async_returns_result(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_unit_async_returns_result(self, mock_client: MagicMock) -> None:
         """resolve_unit_async returns ResolutionResult."""
         # Mock dependents returning no results
         mock_iterator = MagicMock()
@@ -359,9 +349,7 @@ class TestAssetEditResolution:
 
         assert isinstance(result, ResolutionResult)
 
-    async def test_resolve_unit_async_with_auto_strategy(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_unit_async_with_auto_strategy(self, mock_client: MagicMock) -> None:
         """AUTO strategy tries all strategies in order."""
         # Mock dependents returning no results
         mock_iterator = MagicMock()
@@ -378,9 +366,7 @@ class TestAssetEditResolution:
         # All strategies should be tried
         assert len(result.strategies_tried) >= 1
 
-    async def test_resolve_unit_via_dependents_success(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_unit_via_dependents_success(self, mock_client: MagicMock) -> None:
         """DEPENDENT_TASKS finds Unit in dependents."""
         from autom8_asana.models.task import Task
 
@@ -412,9 +398,7 @@ class TestAssetEditResolution:
         """CUSTOM_FIELD_MAPPING requires Business context."""
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}],
         )
         # No business context set
 
@@ -426,9 +410,7 @@ class TestAssetEditResolution:
         assert not result.success
         assert "Business context required" in result.error
 
-    async def test_resolve_unit_via_vertical_success(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_unit_via_vertical_success(self, mock_client: MagicMock) -> None:
         """CUSTOM_FIELD_MAPPING finds Unit by matching vertical."""
         # Set up Business with Units
         business = Business(gid="b1")
@@ -446,9 +428,7 @@ class TestAssetEditResolution:
 
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}],
         )
         asset_edit._business = business
 
@@ -461,9 +441,7 @@ class TestAssetEditResolution:
         assert result.entity is not None
         assert result.entity.gid == "u1"
 
-    async def test_resolve_unit_via_offer_id_no_offer_id(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_unit_via_offer_id_no_offer_id(self, mock_client: MagicMock) -> None:
         """EXPLICIT_OFFER_ID fails gracefully when no offer_id set."""
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
 
@@ -475,9 +453,7 @@ class TestAssetEditResolution:
         assert not result.success
         assert "no offer_id set" in result.error.lower()
 
-    async def test_resolve_offer_async_returns_result(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_offer_async_returns_result(self, mock_client: MagicMock) -> None:
         """resolve_offer_async returns ResolutionResult."""
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
 
@@ -488,9 +464,7 @@ class TestAssetEditResolution:
 
         assert isinstance(result, ResolutionResult)
 
-    async def test_resolve_offer_directly_via_offer_id(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_offer_directly_via_offer_id(self, mock_client: MagicMock) -> None:
         """resolve_offer_async can fetch Offer directly via offer_id."""
         from autom8_asana.models.task import Task
 
@@ -529,9 +503,7 @@ class TestAssetEditEdgeCases:
 
     # --- Edge Case 4: offer_id pointing to non-existent task ---
 
-    async def test_resolve_unit_via_offer_id_not_found(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_unit_via_offer_id_not_found(self, mock_client: MagicMock) -> None:
         """EXPLICIT_OFFER_ID handles NotFoundError gracefully.
 
         Per FR-STRATEGY-004: Handle NotFoundError gracefully when offer_id
@@ -561,9 +533,7 @@ class TestAssetEditEdgeCases:
 
     # --- Edge Case 5: Multiple Units matching vertical (ambiguity) ---
 
-    async def test_resolve_unit_via_vertical_multiple_matches(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_unit_via_vertical_multiple_matches(self, mock_client: MagicMock) -> None:
         """CUSTOM_FIELD_MAPPING returns ambiguous result when multiple Units match.
 
         Per FR-AMBIG-002 and ADR-0071: Return first match in entity,
@@ -586,9 +556,7 @@ class TestAssetEditEdgeCases:
 
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}],
         )
         asset_edit._business = business
 
@@ -645,9 +613,7 @@ class TestAssetEditEdgeCases:
 
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}],
         )
         asset_edit._business = business
 
@@ -666,9 +632,7 @@ class TestAssetEditEdgeCases:
 
     # --- Edge Case 7: All strategies fail ---
 
-    async def test_resolve_unit_auto_all_strategies_fail(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_unit_auto_all_strategies_fail(self, mock_client: MagicMock) -> None:
         """AUTO returns error result when all strategies fail.
 
         Per FR-AMBIG-001: entity=None, success=False, strategy_used=None.
@@ -707,9 +671,7 @@ class TestAssetEditEdgeCases:
         """
         # Simulate network error
         mock_iterator = MagicMock()
-        mock_iterator.collect = AsyncMock(
-            side_effect=Exception("Network connection failed")
-        )
+        mock_iterator.collect = AsyncMock(side_effect=Exception("Network connection failed"))
         mock_client.tasks.dependents_async.return_value = mock_iterator
 
         asset_edit = AssetEdit(gid="ae1", custom_fields=[])
@@ -746,9 +708,7 @@ class TestAssetEditEdgeCases:
 
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}],
         )
         asset_edit._business = business
 
@@ -764,9 +724,7 @@ class TestAssetEditEdgeCases:
 
     # --- Edge Case: AssetEdit with no vertical (CUSTOM_FIELD_MAPPING fails) ---
 
-    async def test_resolve_unit_via_vertical_no_vertical_set(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_unit_via_vertical_no_vertical_set(self, mock_client: MagicMock) -> None:
         """CUSTOM_FIELD_MAPPING fails gracefully when AssetEdit has no vertical.
 
         Per FR-STRATEGY-003: Returns None if AssetEdit has no vertical set.
@@ -785,9 +743,7 @@ class TestAssetEditEdgeCases:
 
     # --- Edge Case: CUSTOM_FIELD_MAPPING with no matching vertical ---
 
-    async def test_resolve_unit_via_vertical_no_matching_unit(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_unit_via_vertical_no_matching_unit(self, mock_client: MagicMock) -> None:
         """CUSTOM_FIELD_MAPPING fails when no Unit has matching vertical."""
         business = Business(gid="b1")
         unit = Unit(gid="u1", name="Unit 1")
@@ -801,9 +757,7 @@ class TestAssetEditEdgeCases:
 
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}],
         )
         asset_edit._business = business
 
@@ -860,9 +814,7 @@ class TestAssetEditEdgeCases:
 
     # --- Edge Case: resolve_offer_async when Unit has no Offers ---
 
-    async def test_resolve_offer_unit_has_no_offers(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_offer_unit_has_no_offers(self, mock_client: MagicMock) -> None:
         """resolve_offer_async handles Unit with no Offers.
 
         Per FR-RESOLVE-002: Handle case where Unit is resolved but Offer not found.
@@ -881,9 +833,7 @@ class TestAssetEditEdgeCases:
 
         asset_edit = AssetEdit(
             gid="ae1",
-            custom_fields=[
-                {"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}],
         )
         asset_edit._business = business
 

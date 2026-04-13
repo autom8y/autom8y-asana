@@ -331,9 +331,7 @@ class TestProjectsClientCreateAsync:
         """create_async returns Project model by default."""
         mock_http.post.return_value = {"gid": "newproj123", "name": "New Project"}
 
-        result = await projects_client.create_async(
-            name="New Project", workspace="ws123"
-        )
+        result = await projects_client.create_async(name="New Project", workspace="ws123")
 
         assert isinstance(result, Project)
         assert result.gid == "newproj123"
@@ -412,9 +410,7 @@ class TestProjectsClientMemberships:
         """add_members_async adds members to project."""
         mock_http.post.return_value = {"gid": "proj123", "name": "Project"}
 
-        result = await projects_client.add_members_async(
-            "proj123", members=["user1", "user2"]
-        )
+        result = await projects_client.add_members_async("proj123", members=["user1", "user2"])
 
         assert isinstance(result, Project)
         mock_http.post.assert_called_once_with(
@@ -428,9 +424,7 @@ class TestProjectsClientMemberships:
         """remove_members_async removes members from project."""
         mock_http.post.return_value = {"gid": "proj123", "name": "Project"}
 
-        result = await projects_client.remove_members_async(
-            "proj123", members=["user1"]
-        )
+        result = await projects_client.remove_members_async("proj123", members=["user1"])
 
         assert isinstance(result, Project)
         mock_http.post.assert_called_once_with(
@@ -572,9 +566,7 @@ class TestSectionsClientCreateAsync:
         """create_async returns Section model by default."""
         mock_http.post.return_value = {"gid": "newsec123", "name": "New Section"}
 
-        result = await sections_client.create_async(
-            name="New Section", project="proj123"
-        )
+        result = await sections_client.create_async(name="New Section", project="proj123")
 
         assert isinstance(result, Section)
         assert result.gid == "newsec123"
@@ -623,9 +615,7 @@ class TestSectionsClientTaskMovement:
         """add_task_async with positioning."""
         mock_http.post.return_value = {}
 
-        await sections_client.add_task_async(
-            "sec123", task="task456", insert_before="task_other"
-        )
+        await sections_client.add_task_async("sec123", task="task456", insert_before="task_other")
 
         call_args = mock_http.post.call_args
         data = call_args[1]["json"]["data"]
@@ -873,9 +863,7 @@ class TestCustomFieldsClientProjectSettings:
         """remove_from_project_async removes custom field from project."""
         mock_http.post.return_value = {}
 
-        await custom_fields_client.remove_from_project_async(
-            "proj123", custom_field="cf123"
-        )
+        await custom_fields_client.remove_from_project_async("proj123", custom_field="cf123")
 
         mock_http.post.assert_called_once_with(
             "/projects/proj123/removeCustomFieldSetting",
@@ -1068,9 +1056,7 @@ class TestAsanaClientThreadSafety:
             for t in threads:
                 t.join(timeout=10)
                 if t.is_alive():
-                    raise AssertionError(
-                        f"Thread {t.name} did not complete within timeout"
-                    )
+                    raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
             # No errors should have occurred
             assert len(errors) == 0

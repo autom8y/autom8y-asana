@@ -61,9 +61,7 @@ class ExcelFormatEngine:
         ws_summary.append(["Business Name", business_name or "Unknown"])
         ws_summary.append(["Vertical", vertical])
         ws_summary.append(["Phone", office_phone])
-        ws_summary.append(
-            ["Generated", datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")]
-        )
+        ws_summary.append(["Generated", datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")])
         ws_summary.append([])
 
         # Aggregate totals from row data

@@ -113,14 +113,9 @@ class TestSaveAndLoadRoundtrip:
                 assert reloaded_iv.classification == orig_iv.classification
                 assert reloaded_iv.exited_at == orig_iv.exited_at
                 # entered_at comparison: allow microsecond truncation from parquet
-                assert (
-                    abs((reloaded_iv.entered_at - orig_iv.entered_at).total_seconds())
-                    < 1.0
-                )
+                assert abs((reloaded_iv.entered_at - orig_iv.entered_at).total_seconds()) < 1.0
 
-    def test_roundtrip_with_nullable_fields(
-        self, tmp_path: pytest.TempPathFactory
-    ) -> None:
+    def test_roundtrip_with_nullable_fields(self, tmp_path: pytest.TempPathFactory) -> None:
         """Verify None values survive the parquet roundtrip."""
         store = TimelineStore(cache_dir=tmp_path)
         timelines = [

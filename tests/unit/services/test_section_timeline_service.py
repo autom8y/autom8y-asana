@@ -160,9 +160,7 @@ class TestBuildIntervalsFromStories:
     def test_chronological(self) -> None:
         """AC-2.5: Stories sorted and intervals built correctly."""
         stories = [
-            _make_story(
-                "s1", "2025-01-01T00:00:00.000Z", new_section_name="ACTIVATING"
-            ),
+            _make_story("s1", "2025-01-01T00:00:00.000Z", new_section_name="ACTIVATING"),
             _make_story("s2", "2025-01-05T00:00:00.000Z", new_section_name="ACTIVE"),
         ]
         intervals, count = _build_intervals_from_stories(stories)
@@ -174,9 +172,7 @@ class TestBuildIntervalsFromStories:
     def test_closes_previous(self) -> None:
         """AC-2.5: Previous interval exited_at set to current entered_at."""
         stories = [
-            _make_story(
-                "s1", "2025-01-01T00:00:00.000Z", new_section_name="ACTIVATING"
-            ),
+            _make_story("s1", "2025-01-01T00:00:00.000Z", new_section_name="ACTIVATING"),
             _make_story("s2", "2025-01-05T00:00:00.000Z", new_section_name="ACTIVE"),
         ]
         intervals, _ = _build_intervals_from_stories(stories)
@@ -194,13 +190,9 @@ class TestBuildIntervalsFromStories:
     def test_unknown_section_warning(self) -> None:
         """AC-2.3: WARNING logged for unknown sections."""
         stories = [
-            _make_story(
-                "s1", "2025-01-01T00:00:00.000Z", new_section_name="ZZZZ_UNKNOWN"
-            ),
+            _make_story("s1", "2025-01-01T00:00:00.000Z", new_section_name="ZZZZ_UNKNOWN"),
         ]
-        with patch(
-            "autom8_asana.services.section_timeline_service.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.services.section_timeline_service.logger") as mock_logger:
             intervals, _ = _build_intervals_from_stories(stories)
         assert intervals[0].classification is None
         mock_logger.warning.assert_called_once()
@@ -232,9 +224,7 @@ class TestBuildImputedInterval:
     def test_inactive(self) -> None:
         """AC-3.3: Imputed INACTIVE interval."""
         created = _utc(2025, 1, 1)
-        intervals = _build_imputed_interval(
-            created, AccountActivity.INACTIVE, "INACTIVE"
-        )
+        intervals = _build_imputed_interval(created, AccountActivity.INACTIVE, "INACTIVE")
         assert len(intervals) == 1
         assert intervals[0].classification == AccountActivity.INACTIVE
 
@@ -825,9 +815,7 @@ class TestScaleBoundary:
             )
             elapsed = time.perf_counter() - start
 
-        assert len(entries) == OFFER_COUNT, (
-            f"Expected {OFFER_COUNT} entries, got {len(entries)}"
-        )
+        assert len(entries) == OFFER_COUNT, f"Expected {OFFER_COUNT} entries, got {len(entries)}"
         assert elapsed < THRESHOLD_SECONDS, (
             f"SCAR-015 regression: {OFFER_COUNT} offers took {elapsed:.2f}s "
             f"(threshold: {THRESHOLD_SECONDS}s)"

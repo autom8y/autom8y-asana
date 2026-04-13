@@ -174,9 +174,7 @@ class TestModificationCheckCache:
 
     def test_run_id_uses_ecs_metadata(self) -> None:
         """Test run ID prefers ECS metadata when available."""
-        with patch.dict(
-            os.environ, {"ECS_CONTAINER_METADATA_URI_V4": "ecs://task/123"}
-        ):
+        with patch.dict(os.environ, {"ECS_CONTAINER_METADATA_URI_V4": "ecs://task/123"}):
             cache = ModificationCheckCache()
             assert cache.run_id == "ecs://task/123"
 
@@ -566,9 +564,7 @@ class TestLargeBatchHandling:
 
         gids = [str(i) for i in range(150)]
 
-        mock_api = AsyncMock(
-            return_value={str(i): f"fetched_{i}" for i in range(50, 150)}
-        )
+        mock_api = AsyncMock(return_value={str(i): f"fetched_{i}" for i in range(50, 150)})
 
         result = await fetch_task_modifications(gids, mock_api)
 

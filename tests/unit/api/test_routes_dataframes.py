@@ -766,9 +766,7 @@ class TestDynamicSchemaValidation:
 
         assert response.status_code == 422
 
-    def test_wildcard_schema_rejected(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_wildcard_schema_rejected(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Wildcard '*' is rejected as direct input."""
         client, _ = authed_client
 
@@ -779,9 +777,7 @@ class TestDynamicSchemaValidation:
 
         assert response.status_code == 422
 
-    def test_default_schema_unchanged(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_default_schema_unchanged(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Default schema remains 'base' when not specified."""
         client, mock_sdk = authed_client
         mock_sdk._http.get_paginated.return_value = ([], None)
@@ -945,9 +941,7 @@ class TestApiCallParameters:
         params = call_args[1]["params"]
         assert params["section"] == TEST_SECTION_GID
 
-    def test_limit_is_capped_at_max(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_limit_is_capped_at_max(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Limit is capped at MAX_LIMIT (100) even if valid range allows it."""
         client, mock_sdk = authed_client
 

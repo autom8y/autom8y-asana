@@ -145,9 +145,7 @@ class TestLoadDataframeCached:
         assert entry is not None
         assert not was_hit
         # Verify cached
-        assert (
-            cache.get_versioned("task123:project456", EntryType.DATAFRAME) is not None
-        )
+        assert cache.get_versioned("task123:project456", EntryType.DATAFRAME) is not None
 
     @pytest.mark.asyncio
     async def test_cache_hit_returns_cached(

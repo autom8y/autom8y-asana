@@ -137,9 +137,7 @@ class TestSI02IncludeSemanticTrueYAML:
                     if not col.description or YAML_DELIMITER not in col.description:
                         missing.append(key)
 
-        assert not missing, (
-            f"Annotated columns missing YAML block after enrichment: {missing}"
-        )
+        assert not missing, f"Annotated columns missing YAML block after enrichment: {missing}"
 
     def test_enriched_schema_is_different_object(self) -> None:
         """enrich_schema(include_semantic=True) returns a new DataFrameSchema."""
@@ -147,8 +145,7 @@ class TestSI02IncludeSemanticTrueYAML:
             enriched = enrich_schema(schema, include_semantic=True)
             # At least one annotated column should exist per schema we test
             has_annotations = any(
-                f"{schema_name}.{col.name}" in SEMANTIC_ANNOTATIONS
-                for col in schema.columns
+                f"{schema_name}.{col.name}" in SEMANTIC_ANNOTATIONS for col in schema.columns
             )
             if has_annotations:
                 assert enriched is not schema, (
@@ -201,8 +198,8 @@ class TestSI03HumanReadablePrefix:
                                 f"{schema_name}.{col.name}: prefix contains '{marker}'"
                             )
 
-        assert not violations, (
-            "Human-readable prefix contains YAML markers:\n" + "\n".join(violations)
+        assert not violations, "Human-readable prefix contains YAML markers:\n" + "\n".join(
+            violations
         )
 
 
@@ -225,9 +222,7 @@ class TestSI04YAMLParses:
                     try:
                         parsed = yaml.safe_load(parts[1])
                     except yaml.YAMLError as exc:
-                        failures.append(
-                            f"{schema_name}.{col.name}: YAML parse error: {exc}"
-                        )
+                        failures.append(f"{schema_name}.{col.name}: YAML parse error: {exc}")
                         continue
 
                     if not isinstance(parsed, dict):
@@ -300,9 +295,7 @@ class TestSI06CascadeBehaviorPresence:
             elif "cascade_behavior" not in annotation:
                 missing.append(f"{key}: annotation exists but no cascade_behavior")
 
-        assert not missing, "Cascade columns missing cascade_behavior:\n" + "\n".join(
-            missing
-        )
+        assert not missing, "Cascade columns missing cascade_behavior:\n" + "\n".join(missing)
 
 
 # ---------------------------------------------------------------------------
@@ -334,9 +327,7 @@ class TestSI07SourceEntityMatch:
             normalized = cascade_field.lower().strip()
             entry = cascade_registry.get(normalized)
             if entry is None:
-                mismatches.append(
-                    f"{key}: cascade field '{cascade_field}' not found in registry"
-                )
+                mismatches.append(f"{key}: cascade field '{cascade_field}' not found in registry")
                 continue
 
             owner_class, _field_def = entry
@@ -348,8 +339,8 @@ class TestSI07SourceEntityMatch:
                     f"registry says owner={actual_source!r}"
                 )
 
-        assert not mismatches, (
-            "cascade_behavior.source_entity mismatches:\n" + "\n".join(mismatches)
+        assert not mismatches, "cascade_behavior.source_entity mismatches:\n" + "\n".join(
+            mismatches
         )
 
 
@@ -391,8 +382,8 @@ class TestSI08AllowOverrideMatch:
                     f"CascadingFieldDef says allow_override={field_def.allow_override}"
                 )
 
-        assert not mismatches, (
-            "cascade_behavior.allow_override mismatches:\n" + "\n".join(mismatches)
+        assert not mismatches, "cascade_behavior.allow_override mismatches:\n" + "\n".join(
+            mismatches
         )
 
 
@@ -457,8 +448,7 @@ class TestSI10SemanticTypeFilter:
         enriched_desc = enrich_description(schema_name, col)
         result = get_semantic_type(enriched_desc)
         assert result == expected_type, (
-            f"{schema_name}.{col_name}: expected semantic_type={expected_type!r}, "
-            f"got {result!r}"
+            f"{schema_name}.{col_name}: expected semantic_type={expected_type!r}, got {result!r}"
         )
 
     def test_unenriched_returns_none(self) -> None:
@@ -586,12 +576,11 @@ class TestSI14UnannotatedColumnsPlain:
                 if key not in SEMANTIC_ANNOTATIONS:
                     if new_col.description != orig_col.description:
                         violations.append(
-                            f"{key}: expected {orig_col.description!r}, "
-                            f"got {new_col.description!r}"
+                            f"{key}: expected {orig_col.description!r}, got {new_col.description!r}"
                         )
 
-        assert not violations, (
-            "Unannotated columns were modified by enrichment:\n" + "\n".join(violations)
+        assert not violations, "Unannotated columns were modified by enrichment:\n" + "\n".join(
+            violations
         )
 
     def test_unannotated_column_has_no_yaml_delimiter(self) -> None:
@@ -653,6 +642,5 @@ class TestSI16HD02AnnotationCount:
     def test_total_is_19(self) -> None:
         """Total annotation count must be 12 + 7 = 19."""
         assert len(SEMANTIC_ANNOTATIONS) == 19, (
-            f"Expected 19 total annotations (12 cascade + 7 HD-02), "
-            f"got {len(SEMANTIC_ANNOTATIONS)}"
+            f"Expected 19 total annotations (12 cascade + 7 HD-02), got {len(SEMANTIC_ANNOTATIONS)}"
         )

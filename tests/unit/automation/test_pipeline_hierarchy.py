@@ -106,15 +106,11 @@ class TestPlaceInHierarchyAsync:
         new_task = MockTask("new_123")
         client = MagicMock()
 
-        with patch(
-            "autom8_asana.automation.pipeline.SaveSession"
-        ) as mock_session_class:
+        with patch("autom8_asana.automation.pipeline.SaveSession") as mock_session_class:
             mock_session = MagicMock()
             mock_session.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session.__aexit__ = AsyncMock(return_value=None)
-            mock_session.commit_async = AsyncMock(
-                return_value=MockSaveResult(success=True)
-            )
+            mock_session.commit_async = AsyncMock(return_value=MockSaveResult(success=True))
             mock_session.set_parent = MagicMock()
             mock_session_class.return_value = mock_session
 
@@ -143,15 +139,11 @@ class TestPlaceInHierarchyAsync:
         new_task = MockTask("new_123")
         client = MagicMock()
 
-        with patch(
-            "autom8_asana.automation.pipeline.SaveSession"
-        ) as mock_session_class:
+        with patch("autom8_asana.automation.pipeline.SaveSession") as mock_session_class:
             mock_session = MagicMock()
             mock_session.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session.__aexit__ = AsyncMock(return_value=None)
-            mock_session.commit_async = AsyncMock(
-                return_value=MockSaveResult(success=True)
-            )
+            mock_session.commit_async = AsyncMock(return_value=MockSaveResult(success=True))
             mock_session.set_parent = MagicMock()
             mock_session_class.return_value = mock_session
 
@@ -201,9 +193,7 @@ class TestPlaceInHierarchyAsync:
         new_task = MockTask("new_123")
         client = MagicMock()
 
-        with patch(
-            "autom8_asana.automation.pipeline.SaveSession"
-        ) as mock_session_class:
+        with patch("autom8_asana.automation.pipeline.SaveSession") as mock_session_class:
             mock_session = MagicMock()
             mock_session.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session.__aexit__ = AsyncMock(return_value=None)
@@ -238,15 +228,11 @@ class TestPlaceInHierarchyAsync:
         new_task = MockTask("new_123")
         client = MagicMock()
 
-        with patch(
-            "autom8_asana.automation.pipeline.SaveSession"
-        ) as mock_session_class:
+        with patch("autom8_asana.automation.pipeline.SaveSession") as mock_session_class:
             mock_session = MagicMock()
             mock_session.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session.__aexit__ = AsyncMock(return_value=None)
-            mock_session.commit_async = AsyncMock(
-                side_effect=ConnectionError("API Error")
-            )
+            mock_session.commit_async = AsyncMock(side_effect=ConnectionError("API Error"))
             mock_session.set_parent = MagicMock()
             mock_session_class.return_value = mock_session
 
@@ -318,15 +304,11 @@ class TestPlaceInHierarchyAsync:
             new_callable=AsyncMock,
             return_value=process_holder,
         ):
-            with patch(
-                "autom8_asana.automation.pipeline.SaveSession"
-            ) as mock_session_class:
+            with patch("autom8_asana.automation.pipeline.SaveSession") as mock_session_class:
                 mock_session = MagicMock()
                 mock_session.__aenter__ = AsyncMock(return_value=mock_session)
                 mock_session.__aexit__ = AsyncMock(return_value=None)
-                mock_session.commit_async = AsyncMock(
-                    return_value=MockSaveResult(success=True)
-                )
+                mock_session.commit_async = AsyncMock(return_value=MockSaveResult(success=True))
                 mock_session.set_parent = MagicMock()
                 mock_session_class.return_value = mock_session
 
@@ -355,15 +337,11 @@ class TestPlaceInHierarchyAsync:
         new_task = MockTask("new_123")
         client = MagicMock()
 
-        with patch(
-            "autom8_asana.automation.pipeline.SaveSession"
-        ) as mock_session_class:
+        with patch("autom8_asana.automation.pipeline.SaveSession") as mock_session_class:
             mock_session = MagicMock()
             mock_session.__aenter__ = AsyncMock(return_value=mock_session)
             mock_session.__aexit__ = AsyncMock(return_value=None)
-            mock_session.commit_async = AsyncMock(
-                return_value=MockSaveResult(success=True)
-            )
+            mock_session.commit_async = AsyncMock(return_value=MockSaveResult(success=True))
             mock_session.set_parent = MagicMock()
             mock_session_class.return_value = mock_session
 

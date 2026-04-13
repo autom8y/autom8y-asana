@@ -73,9 +73,7 @@ class MatchingConfig(Autom8yBaseSettings):
     phone_nonmatch: float = Field(default=-4.0, description="Phone non-match weight")
     name_nonmatch: float = Field(default=-3.0, description="Name non-match weight")
     domain_nonmatch: float = Field(default=-2.0, description="Domain non-match weight")
-    address_nonmatch: float = Field(
-        default=-2.0, description="Address non-match weight"
-    )
+    address_nonmatch: float = Field(default=-2.0, description="Address non-match weight")
 
     # Fuzzy thresholds (Jaro-Winkler similarity)
     fuzzy_exact_threshold: float = Field(

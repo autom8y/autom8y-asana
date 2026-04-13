@@ -66,9 +66,7 @@ def _make_manifest(
         project_gid="proj_1",
         entity_type="offer",
         total_sections=len(sections),
-        completed_sections=sum(
-            1 for s in sections.values() if s.status == SectionStatus.COMPLETE
-        ),
+        completed_sections=sum(1 for s in sections.values() if s.status == SectionStatus.COMPLETE),
         sections=sections,
         schema_version="v1",
     )
@@ -333,9 +331,7 @@ class TestSectionInfoFreshnessFields:
         """mark_section_complete passes through watermark and gid_hash."""
         manifest = _make_manifest({"sec_1": SectionInfo()})
         now = datetime.now(UTC)
-        manifest.mark_section_complete(
-            "sec_1", 10, watermark=now, gid_hash="deadbeef12345678"
-        )
+        manifest.mark_section_complete("sec_1", 10, watermark=now, gid_hash="deadbeef12345678")
 
         info = manifest.sections["sec_1"]
         assert info.status == SectionStatus.COMPLETE

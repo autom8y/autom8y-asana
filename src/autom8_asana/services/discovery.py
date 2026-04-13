@@ -134,9 +134,7 @@ async def discover_entity_projects_async() -> EntityProjectRegistry:
         await workspace_registry.discover_async(client)
 
         discovered_projects = workspace_registry.get_all_projects()
-        gid_to_name: dict[str, str] = {
-            gid: name for name, gid in discovered_projects.items()
-        }
+        gid_to_name: dict[str, str] = {gid: name for name, gid in discovered_projects.items()}
 
         # --- Phase 2: Model-Select (PRIMARY_PROJECT_GID selects from discovered) ---
         registered_from_model: set[str] = set()

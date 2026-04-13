@@ -438,9 +438,7 @@ class TestRedisCacheProviderIntegration:
         redis_provider.set_versioned("123", entry)
 
         # Same version should be fresh
-        assert (
-            redis_provider.check_freshness("123", EntryType.TASK, cached_time) is True
-        )
+        assert redis_provider.check_freshness("123", EntryType.TASK, cached_time) is True
 
         # Newer version should be stale
         newer = datetime(2025, 1, 1, 14, 0, 0, tzinfo=UTC)
@@ -509,12 +507,8 @@ class TestRedisCacheProviderIntegration:
         now = datetime.now(UTC)
 
         entries = {
-            "1": CacheEntry(
-                key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now
-            ),
-            "2": CacheEntry(
-                key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now
-            ),
+            "1": CacheEntry(key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now),
+            "2": CacheEntry(key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now),
         }
 
         redis_provider.set_batch(entries)

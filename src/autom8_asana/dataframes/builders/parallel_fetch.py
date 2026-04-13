@@ -270,8 +270,7 @@ class ParallelSectionFetcher:
             from autom8_asana.models.section import Section
 
             sections = [
-                Section(gid=s["gid"], name=s["name"])
-                for s in entry.data.get("sections", [])
+                Section(gid=s["gid"], name=s["name"]) for s in entry.data.get("sections", [])
             ]
 
             logger.debug(
@@ -545,9 +544,7 @@ class ParallelSectionFetcher:
             self._api_call_count += 1
             tasks: list[Task] = await self.tasks_client.list_async(
                 section=section_gid,
-                opt_fields=[
-                    "gid"
-                ],  # Minimal fields for efficiency - NOT cached as task data
+                opt_fields=["gid"],  # Minimal fields for efficiency - NOT cached as task data
             ).collect()
             return [task.gid for task in tasks if task.gid]
 
@@ -656,10 +653,7 @@ class ParallelSectionFetcher:
         semaphore = asyncio.Semaphore(self.max_concurrent)
 
         results = await asyncio.gather(
-            *[
-                self._fetch_section(section_gid, semaphore)
-                for section_gid in sections_to_fetch
-            ],
+            *[self._fetch_section(section_gid, semaphore) for section_gid in sections_to_fetch],
             return_exceptions=True,
         )
 

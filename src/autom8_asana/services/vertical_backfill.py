@@ -127,7 +127,9 @@ class VerticalBackfillService:
                     result.succeeded += 1
                 else:
                     result.skipped += 1
-            except Exception as e:  # BROAD-CATCH: isolation -- single task failure must not abort batch
+            except (
+                Exception
+            ) as e:  # BROAD-CATCH: isolation -- single task failure must not abort batch
                 result.failed += 1
                 result.errors.append((gid_str, str(e)))
                 self._log.warning(
@@ -206,9 +208,7 @@ class VerticalBackfillService:
         # Find the "Vertical" custom field entry (case-insensitive)
         vertical_cf = None
         for cf in custom_fields:
-            cf_name = (
-                cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
-            )
+            cf_name = cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
             if cf_name and cf_name.lower() == "vertical":
                 vertical_cf = cf
                 break
@@ -234,16 +234,10 @@ class VerticalBackfillService:
         # Match enum option by name (case-insensitive)
         enum_option_gid = None
         for opt in enum_options:
-            opt_name = (
-                opt.get("name", "")
-                if isinstance(opt, dict)
-                else getattr(opt, "name", "")
-            )
+            opt_name = opt.get("name", "") if isinstance(opt, dict) else getattr(opt, "name", "")
             if opt_name and opt_name.lower() == vertical.lower():
                 enum_option_gid = (
-                    opt.get("gid", "")
-                    if isinstance(opt, dict)
-                    else getattr(opt, "gid", "")
+                    opt.get("gid", "") if isinstance(opt, dict) else getattr(opt, "gid", "")
                 )
                 break
 

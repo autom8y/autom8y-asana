@@ -80,8 +80,7 @@ def resolve_metric_scope(metric: Metric, index: SectionIndex) -> Metric:
     gid = index.resolve(metric.scope.section_name)
     if gid is None:
         msg = (
-            f"Cannot resolve section name {metric.scope.section_name!r} "
-            f"for metric {metric.name!r}"
+            f"Cannot resolve section name {metric.scope.section_name!r} for metric {metric.name!r}"
         )
         raise ValueError(msg)
 

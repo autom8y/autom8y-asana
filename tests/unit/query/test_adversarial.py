@@ -355,18 +355,14 @@ class TestCoercionInNotIn:
 class TestOperatorTypeViolations:
     """Verify operator/dtype incompatibilities raise INVALID_OPERATOR."""
 
-    def test_gt_on_boolean(
-        self, compiler: PredicateCompiler, full_schema: DataFrameSchema
-    ) -> None:
+    def test_gt_on_boolean(self, compiler: PredicateCompiler, full_schema: DataFrameSchema) -> None:
         node = Comparison(field="is_active", op=Op.GT, value=True)
         with pytest.raises(InvalidOperatorError) as exc:
             compiler.compile(node, full_schema)
         assert exc.value.op == "gt"
         assert exc.value.dtype == "Boolean"
 
-    def test_lt_on_boolean(
-        self, compiler: PredicateCompiler, full_schema: DataFrameSchema
-    ) -> None:
+    def test_lt_on_boolean(self, compiler: PredicateCompiler, full_schema: DataFrameSchema) -> None:
         node = Comparison(field="is_active", op=Op.LT, value=False)
         with pytest.raises(InvalidOperatorError):
             compiler.compile(node, full_schema)
@@ -878,9 +874,7 @@ class TestSectionEdgeCases:
         assert result.data[0]["section"] == "Active"
 
     @pytest.mark.asyncio
-    async def test_section_case_sensitive_filter(
-        self, section_schema: DataFrameSchema
-    ) -> None:
+    async def test_section_case_sensitive_filter(self, section_schema: DataFrameSchema) -> None:
         """Section name filter on DataFrame is case-sensitive (per ADR-DQS-003)."""
         from autom8_asana.metrics.resolve import SectionIndex
 
@@ -953,9 +947,7 @@ class TestNullPropagation:
         result = df.filter(expr)
         assert result["age"].to_list() == [30]
 
-    def test_in_with_nulls(
-        self, compiler: PredicateCompiler, full_schema: DataFrameSchema
-    ) -> None:
+    def test_in_with_nulls(self, compiler: PredicateCompiler, full_schema: DataFrameSchema) -> None:
         node = Comparison(field="name", op=Op.IN, value=["Acme", "Beta"])
         expr = compiler.compile(node, full_schema)
         df = pl.DataFrame({"name": ["Acme", None, "Beta", None]})
@@ -966,9 +958,7 @@ class TestNullPropagation:
         self, compiler: PredicateCompiler, full_schema: DataFrameSchema
     ) -> None:
         """NOT(eq) with nulls: NOT(null) is null, so null rows excluded."""
-        node = NotGroup.model_validate(
-            {"not": {"field": "name", "op": "eq", "value": "Acme"}}
-        )
+        node = NotGroup.model_validate({"not": {"field": "name", "op": "eq", "value": "Acme"}})
         expr = compiler.compile(node, full_schema)
         df = pl.DataFrame({"name": ["Acme", None, "Beta"]})
         result = df.filter(expr)
@@ -1154,18 +1144,14 @@ class TestFlatArraySugar:
         assert req.where is None
 
     def test_single_element_array(self) -> None:
-        req = RowsRequest.model_validate(
-            {"where": [{"field": "name", "op": "eq", "value": "x"}]}
-        )
+        req = RowsRequest.model_validate({"where": [{"field": "name", "op": "eq", "value": "x"}]})
         assert isinstance(req.where, AndGroup)
         assert len(req.where.and_) == 1
 
     def test_nested_arrays_rejected(self) -> None:
         """Nested arrays should fail Pydantic validation."""
         with pytest.raises(ValidationError):
-            RowsRequest.model_validate(
-                {"where": [[{"field": "name", "op": "eq", "value": "x"}]]}
-            )
+            RowsRequest.model_validate({"where": [[{"field": "name", "op": "eq", "value": "x"}]]})
 
     def test_array_of_non_predicates_rejected(self) -> None:
         with pytest.raises(ValidationError):
@@ -1229,9 +1215,7 @@ class TestMalformedPayloads:
 
     def test_extra_field_on_comparison(self) -> None:
         with pytest.raises(ValidationError):
-            _adapter.validate_python(
-                {"field": "name", "op": "eq", "value": "x", "extra": True}
-            )
+            _adapter.validate_python({"field": "name", "op": "eq", "value": "x", "extra": True})
 
     def test_extra_field_on_and_group(self) -> None:
         with pytest.raises(ValidationError):
@@ -1296,17 +1280,13 @@ class TestMalformedPayloads:
         """Dict with both 'and' and 'field' -- discriminator picks 'and'.
         Should fail because extra='forbid' on AndGroup rejects 'field' key."""
         with pytest.raises(ValidationError):
-            _adapter.validate_python(
-                {"and": [_leaf], "field": "name", "op": "eq", "value": "x"}
-            )
+            _adapter.validate_python({"and": [_leaf], "field": "name", "op": "eq", "value": "x"})
 
     def test_ambiguous_dict_with_or_and_field(self) -> None:
         """Dict with both 'or' and 'field' -- discriminator picks 'or'.
         Should fail because extra='forbid' on OrGroup rejects 'field' key."""
         with pytest.raises(ValidationError):
-            _adapter.validate_python(
-                {"or": [_leaf], "field": "name", "op": "eq", "value": "x"}
-            )
+            _adapter.validate_python({"or": [_leaf], "field": "name", "op": "eq", "value": "x"})
 
     def test_ambiguous_dict_with_not_and_or(self) -> None:
         """Dict with both 'not' and 'or' -- discriminator checks 'and' first,
@@ -1358,9 +1338,7 @@ class TestMalformedPayloads:
     def test_nested_object_as_comparison_value(self) -> None:
         """Value is a nested dict -- should parse (value: Any) but fail at coercion."""
         # Pydantic allows Any for value, so this parses
-        node = _adapter.validate_python(
-            {"field": "name", "op": "eq", "value": {"nested": True}}
-        )
+        node = _adapter.validate_python({"field": "name", "op": "eq", "value": {"nested": True}})
         assert isinstance(node, Comparison)
         assert node.value == {"nested": True}
 
@@ -1394,9 +1372,7 @@ class TestStripSectionPredicates:
 
     def test_strip_all_section_returns_none(self) -> None:
         """If entire tree is section predicates, returns None."""
-        node = _adapter.validate_python(
-            {"field": "section", "op": "eq", "value": "Active"}
-        )
+        node = _adapter.validate_python({"field": "section", "op": "eq", "value": "Active"})
         result = strip_section_predicates(node)
         assert result is None
 
@@ -1494,9 +1470,7 @@ class TestErrorSerialization:
         assert d["available_fields"] == ["a", "b", "c"]  # sorted
 
     def test_invalid_operator_error(self) -> None:
-        err = InvalidOperatorError(
-            field="age", dtype="Int64", op="contains", allowed=["eq", "gt"]
-        )
+        err = InvalidOperatorError(field="age", dtype="Int64", op="contains", allowed=["eq", "gt"])
         d = err.to_dict()
         assert d["error"] == "INVALID_OPERATOR"
         assert d["field"] == "age"
@@ -1671,9 +1645,7 @@ class TestPaginationEdgeCases:
                 ColumnDef("section", "Utf8", nullable=True),
             ],
         )
-        df = pl.DataFrame(
-            {"gid": ["1", "2"], "name": ["A", "B"], "section": ["S", "S"]}
-        )
+        df = pl.DataFrame({"gid": ["1", "2"], "name": ["A", "B"], "section": ["S", "S"]})
         service = EntityQueryService()
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
         # Use custom limits with low max to test clamping
@@ -1900,13 +1872,9 @@ class TestEngineIntegrationAdversarial:
         return QueryEngine(provider=service)
 
     @pytest.mark.asyncio
-    async def test_response_query_ms_positive(
-        self, engine_schema: DataFrameSchema
-    ) -> None:
+    async def test_response_query_ms_positive(self, engine_schema: DataFrameSchema) -> None:
         """query_ms in response metadata should be >= 0."""
-        df = pl.DataFrame(
-            {"gid": ["1"], "name": ["A"], "section": ["S"], "score": [1.0]}
-        )
+        df = pl.DataFrame({"gid": ["1"], "name": ["A"], "section": ["S"], "score": [1.0]})
         engine = self._make_engine(df)
         request = RowsRequest.model_validate({})
         with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:
@@ -1923,9 +1891,7 @@ class TestEngineIntegrationAdversarial:
         assert result.meta.query_ms >= 0
 
     @pytest.mark.asyncio
-    async def test_depth_guard_fires_before_io(
-        self, engine_schema: DataFrameSchema
-    ) -> None:
+    async def test_depth_guard_fires_before_io(self, engine_schema: DataFrameSchema) -> None:
         """Depth guard should reject BEFORE loading DataFrame (fail-fast)."""
         service = EntityQueryService()
         service.get_dataframe = AsyncMock()  # type: ignore[method-assign]
@@ -1949,9 +1915,7 @@ class TestEngineIntegrationAdversarial:
         self, engine_schema: DataFrameSchema
     ) -> None:
         """Default select (None) returns gid, name, section."""
-        df = pl.DataFrame(
-            {"gid": ["1"], "name": ["A"], "section": ["S"], "score": [1.0]}
-        )
+        df = pl.DataFrame({"gid": ["1"], "name": ["A"], "section": ["S"], "score": [1.0]})
         engine = self._make_engine(df)
         request = RowsRequest.model_validate({})
         with patch("autom8_asana.query.engine.SchemaRegistry") as mock_reg_cls:

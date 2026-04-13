@@ -247,9 +247,7 @@ class TestRuleRegistrationEndToEnd:
 
                     @property
                     def trigger(self) -> TriggerCondition:
-                        return TriggerCondition(
-                            entity_type="Task", event=EventType.UPDATED
-                        )
+                        return TriggerCondition(entity_type="Task", event=EventType.UPDATED)
 
                     def should_trigger(
                         self, entity: Any, event: str, context: dict[str, Any]
@@ -473,9 +471,7 @@ class TestAutomationResultInSaveResult:
         )
 
         assert result.automation_skipped == 1
-        assert (
-            result.automation_succeeded == 1
-        )  # Skipped counts as success but separate
+        assert result.automation_succeeded == 1  # Skipped counts as success but separate
 
 
 class TestAutomationFailureIsolation:
@@ -573,9 +569,7 @@ class TestFullFlowIntegration:
         mock_tasks_client.add_to_project_async = AsyncMock(return_value=new_task)
         # Mock tasks used by pipeline post-creation steps
         mock_tasks_client.update_async = AsyncMock(return_value=None)
-        mock_tasks_client.get_async = AsyncMock(
-            return_value=MagicMock(custom_fields=[])
-        )
+        mock_tasks_client.get_async = AsyncMock(return_value=MagicMock(custom_fields=[]))
         mock_tasks_client.set_assignee_async = AsyncMock(return_value=None)
 
         # Mock stories client for onboarding comment
@@ -745,6 +739,4 @@ class TestPostCommitHook:
                         # Verify hook received results with automation
                         assert received_result is not None
                         assert len(received_result.automation_results) == 1
-                        assert (
-                            received_result.automation_results[0].rule_id == "test_rule"
-                        )
+                        assert received_result.automation_results[0].rule_id == "test_rule"

@@ -522,9 +522,7 @@ class TestCreateIntakeBusinessEndpoint:
             if call_name == expected_name:
                 unit_created = True
                 break
-        assert unit_created, (
-            f"Unit not created with expected default name: {expected_name}"
-        )
+        assert unit_created, f"Unit not created with expected default name: {expected_name}"
 
     def test_holders_dict_contains_all_seven(self, client: TestClient) -> None:
         """Response holders dict has all 7 holder types."""
@@ -796,9 +794,7 @@ class TestCreateBusinessHierarchyOrchestration:
                 )
             ]
         if with_address:
-            kwargs["address"] = IntakeAddress(
-                city="Springfield", postal_code="62701"
-            )
+            kwargs["address"] = IntakeAddress(city="Springfield", postal_code="62701")
         return IntakeBusinessCreateRequest(**kwargs)
 
     @pytest.mark.asyncio()
@@ -832,9 +828,7 @@ class TestCreateBusinessHierarchyOrchestration:
 
         mock_client = MagicMock()
         mock_client.tasks.create_async = AsyncMock(side_effect=create_side_effect)
-        mock_client.tasks.get_async = AsyncMock(
-            return_value={"gid": UNIT_GID, "custom_fields": []}
-        )
+        mock_client.tasks.get_async = AsyncMock(return_value={"gid": UNIT_GID, "custom_fields": []})
         mock_client.tasks.update_async = AsyncMock()
 
         with patch(
@@ -901,9 +895,7 @@ class TestCreateBusinessHierarchyOrchestration:
             with pytest.raises(RuntimeError, match="dna_holder"):
                 await service.create_business_hierarchy(self._make_request())
 
-        assert phase3_called is False, (
-            "Phase 3 must not execute when Phase 2 partially fails"
-        )
+        assert phase3_called is False, "Phase 3 must not execute when Phase 2 partially fails"
 
     @pytest.mark.asyncio()
     async def test_phase5_skipped_when_process_not_requested(self) -> None:
@@ -927,9 +919,7 @@ class TestCreateBusinessHierarchyOrchestration:
 
         mock_client = MagicMock()
         mock_client.tasks.create_async = AsyncMock(side_effect=create_side_effect)
-        mock_client.tasks.get_async = AsyncMock(
-            return_value={"gid": UNIT_GID, "custom_fields": []}
-        )
+        mock_client.tasks.get_async = AsyncMock(return_value={"gid": UNIT_GID, "custom_fields": []})
         mock_client.tasks.update_async = AsyncMock()
 
         service = IntakeCreateService(mock_client)

@@ -238,9 +238,7 @@ class TestUnitClassifierIgnoredNotUsed:
             ).AccountActivity.IGNORED,
         )
         # UNIT_CLASSIFIER.ignored sections mapped via classify -> IGNORED
-        assert "templates" in ignored, (
-            "UNIT_CLASSIFIER should classify 'Templates' as IGNORED"
-        )
+        assert "templates" in ignored, "UNIT_CLASSIFIER should classify 'Templates' as IGNORED"
         # Verify it does NOT include the other 3 excluded sections
         assert "next steps" not in ignored
         assert "account review" not in ignored

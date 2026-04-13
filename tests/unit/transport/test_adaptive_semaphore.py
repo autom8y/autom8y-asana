@@ -153,9 +153,7 @@ class TestAcquireAndReject:
 
         # Should have called warning for aimd_at_minimum
         warning_calls = [
-            c
-            for c in mock_logger.warning.call_args_list
-            if c[0][0] == "aimd_at_minimum"
+            c for c in mock_logger.warning.call_args_list if c[0][0] == "aimd_at_minimum"
         ]
         assert len(warning_calls) == 1
         assert warning_calls[0].kwargs["extra"]["floor"] == 1
@@ -576,9 +574,7 @@ class TestStructuredLogging:
             slot.reject()
 
         # Find the aimd_decrease call
-        decrease_calls = [
-            c for c in mock_logger.info.call_args_list if c[0][0] == "aimd_decrease"
-        ]
+        decrease_calls = [c for c in mock_logger.info.call_args_list if c[0][0] == "aimd_decrease"]
         assert len(decrease_calls) == 1
         extra = decrease_calls[0].kwargs["extra"]
         assert extra["name"] == "test"
@@ -609,9 +605,7 @@ class TestStructuredLogging:
         async with await sem.acquire() as slot:
             slot.succeed()
 
-        increase_calls = [
-            c for c in mock_logger.debug.call_args_list if c[0][0] == "aimd_increase"
-        ]
+        increase_calls = [c for c in mock_logger.debug.call_args_list if c[0][0] == "aimd_increase"]
         assert len(increase_calls) == 1
         extra = increase_calls[0].kwargs["extra"]
         assert extra["name"] == "test"
@@ -689,13 +683,9 @@ class TestConfigValidation:
 
     def test_config_validation_decrease_out_of_range(self):
         """multiplicative_decrease outside (0, 1) raises ConfigurationError."""
-        with pytest.raises(
-            ConfigurationError, match="multiplicative_decrease must be in"
-        ):
+        with pytest.raises(ConfigurationError, match="multiplicative_decrease must be in"):
             AIMDConfig(ceiling=50, multiplicative_decrease=1.5)
-        with pytest.raises(
-            ConfigurationError, match="multiplicative_decrease must be in"
-        ):
+        with pytest.raises(ConfigurationError, match="multiplicative_decrease must be in"):
             AIMDConfig(ceiling=50, multiplicative_decrease=0.0)
 
     def test_config_validation_increase_non_positive(self):

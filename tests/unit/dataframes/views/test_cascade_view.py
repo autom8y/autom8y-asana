@@ -106,9 +106,7 @@ class TestCascadeViewPluginResolve:
         assert cascade_plugin.get_stats()["field_not_found"] == 1
 
     @pytest.mark.asyncio
-    async def test_resolve_local_override_when_allowed(
-        self, mock_store: MagicMock
-    ) -> None:
+    async def test_resolve_local_override_when_allowed(self, mock_store: MagicMock) -> None:
         """Test local value is returned when allow_override=True."""
         from autom8_asana.models.business.fields import CascadingFieldDef
 
@@ -309,9 +307,7 @@ class TestCascadeViewPluginFieldExtraction:
 
         assert result == "Dental"
 
-    def test_extract_enum_field_none_value(
-        self, cascade_plugin: CascadeViewPlugin
-    ) -> None:
+    def test_extract_enum_field_none_value(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test enum field with None value."""
         cf_data = {
             "gid": "cf-3",
@@ -388,9 +384,7 @@ class TestCascadeViewPluginFieldExtraction:
 class TestCascadeViewPluginClassMapping:
     """Tests for entity type mapping."""
 
-    def test_class_to_entity_type_business(
-        self, cascade_plugin: CascadeViewPlugin
-    ) -> None:
+    def test_class_to_entity_type_business(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test Business class maps correctly."""
 
         class Business:
@@ -410,9 +404,7 @@ class TestCascadeViewPluginClassMapping:
 
         assert result == EntityType.UNIT
 
-    def test_class_to_entity_type_unknown(
-        self, cascade_plugin: CascadeViewPlugin
-    ) -> None:
+    def test_class_to_entity_type_unknown(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test unknown class maps to UNKNOWN."""
 
         class SomeOtherClass:
@@ -461,17 +453,13 @@ class TestCascadeViewPluginEdgeCases:
         self, cascade_plugin: CascadeViewPlugin, mock_task_no_custom_fields: MagicMock
     ) -> None:
         """Test task with None custom_fields."""
-        result = await cascade_plugin.resolve_async(
-            mock_task_no_custom_fields, "Office Phone"
-        )
+        result = await cascade_plugin.resolve_async(mock_task_no_custom_fields, "Office Phone")
 
         # Should handle gracefully
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_resolve_with_case_insensitive_field_name(
-        self, mock_store: MagicMock
-    ) -> None:
+    async def test_resolve_with_case_insensitive_field_name(self, mock_store: MagicMock) -> None:
         """Test field name lookup is case insensitive.
 
         Per TDD-CACHE-COMPLETENESS-001 Phase 3: Uses get_with_upgrade_async

@@ -638,9 +638,7 @@ class ActionBuilder:
                 if isinstance(target, str):
                     target_gid = NameGid(gid=target)
                 else:
-                    target_gid = NameGid(
-                        gid=target.gid, name=getattr(target, "name", None)
-                    )
+                    target_gid = NameGid(gid=target.gid, name=getattr(target, "name", None))
 
                 # Validate GID if required by config
                 if config.requires_validation:
@@ -696,9 +694,7 @@ class ActionBuilder:
                 if isinstance(target, str):
                     target_gid = NameGid(gid=target)
                 else:
-                    target_gid = NameGid(
-                        gid=target.gid, name=getattr(target, "name", None)
-                    )
+                    target_gid = NameGid(gid=target.gid, name=getattr(target, "name", None))
 
                 # Validate GID if required by config
                 if config.requires_validation:

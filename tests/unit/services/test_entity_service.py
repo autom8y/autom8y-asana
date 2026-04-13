@@ -70,9 +70,7 @@ def project_registry() -> MagicMock:
 
 
 @pytest.fixture()
-def service(
-    entity_registry: EntityRegistry, project_registry: MagicMock
-) -> EntityService:
+def service(entity_registry: EntityRegistry, project_registry: MagicMock) -> EntityService:
     return EntityService(
         entity_registry=entity_registry,
         project_registry=project_registry,

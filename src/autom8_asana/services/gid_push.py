@@ -207,9 +207,7 @@ async def _push_to_data_service(
         )
         return False
 
-    except (
-        Exception
-    ) as e:  # BROAD-CATCH: isolation -- push failure must never fail cache warmer
+    except Exception as e:  # BROAD-CATCH: isolation -- push failure must never fail cache warmer
         logger.error(
             f"{log_prefix}_error",
             extra={

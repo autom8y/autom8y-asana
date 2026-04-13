@@ -297,9 +297,7 @@ class TestConcurrentExtraction:
         _MODEL_CACHE.pop(test_type, None)
 
         extra_cols = [
-            ColumnDef(
-                name="concurrent_field", dtype="Utf8", nullable=True, source="cf:CF1"
-            ),
+            ColumnDef(name="concurrent_field", dtype="Utf8", nullable=True, source="cf:CF1"),
         ]
         schema = _make_schema("concurrent", test_type, extra_cols)
 
@@ -325,9 +323,7 @@ class TestConcurrentExtraction:
         # All should be the same cached model
         first = models[0]
         for m in models[1:]:
-            assert m is first, (
-                "Concurrent model building produced different model instances"
-            )
+            assert m is first, "Concurrent model building produced different model instances"
 
     def test_concurrent_extraction_from_multiple_schemas(self) -> None:
         """Multiple threads extracting from different schemas simultaneously."""
@@ -443,9 +439,7 @@ class TestSchemaExtractorWithSyntheticSchema:
     def test_schema_with_single_extra_column(self) -> None:
         """Schema with exactly 1 extra column beyond base 13."""
         _MODEL_CACHE.pop("SingleExtra", None)
-        extra = [
-            ColumnDef(name="one_extra", dtype="Utf8", nullable=True, source="cf:One")
-        ]
+        extra = [ColumnDef(name="one_extra", dtype="Utf8", nullable=True, source="cf:One")]
         schema = _make_schema("single_extra", "SingleExtra", extra)
         ext = SchemaExtractor(schema)
         task = make_mock_task()
@@ -458,9 +452,7 @@ class TestSchemaExtractorWithSyntheticSchema:
         """Schema with 50 extra columns (stress test)."""
         _MODEL_CACHE.pop("ManyExtra", None)
         extra = [
-            ColumnDef(
-                name=f"field_{i}", dtype="Utf8", nullable=True, source=f"cf:Field {i}"
-            )
+            ColumnDef(name=f"field_{i}", dtype="Utf8", nullable=True, source=f"cf:Field {i}")
             for i in range(50)
         ]
         schema = _make_schema("many_extra", "ManyExtra", extra)

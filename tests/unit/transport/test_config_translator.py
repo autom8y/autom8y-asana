@@ -161,17 +161,13 @@ class TestToCircuitBreakerConfig:
 
     def test_translates_recovery_timeout(self):
         """Recovery timeout is preserved."""
-        config = AsanaConfig(
-            circuit_breaker=CircuitBreakerConfig(recovery_timeout=120.0)
-        )
+        config = AsanaConfig(circuit_breaker=CircuitBreakerConfig(recovery_timeout=120.0))
         result = ConfigTranslator.to_circuit_breaker_config(config)
         assert result.recovery_timeout == 120.0
 
     def test_translates_half_open_max_calls(self):
         """Half-open max calls is preserved."""
-        config = AsanaConfig(
-            circuit_breaker=CircuitBreakerConfig(half_open_max_calls=3)
-        )
+        config = AsanaConfig(circuit_breaker=CircuitBreakerConfig(half_open_max_calls=3))
         result = ConfigTranslator.to_circuit_breaker_config(config)
         assert result.half_open_max_calls == 3
 

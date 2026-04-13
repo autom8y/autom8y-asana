@@ -104,9 +104,7 @@ class EntityService:
         project_gid = self._project_registry.get_project_gid(entity_type)
 
         if project_gid is None:
-            raise ServiceNotConfiguredError(
-                f"No project configured for entity type: {entity_type}"
-            )
+            raise ServiceNotConfiguredError(f"No project configured for entity type: {entity_type}")
 
         bot_pat = self._acquire_bot_pat()
 

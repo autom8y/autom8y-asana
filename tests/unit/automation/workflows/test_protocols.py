@@ -103,9 +103,7 @@ class TestFormatEngineProtocol:
         """A hypothetical Excel engine conforms."""
 
         class _ExcelEngine:
-            content_type = (
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             file_extension = ".xlsx"
 
             def render(self, data: dict[str, Any]) -> bytes:

@@ -199,9 +199,7 @@ class TestClassNameToEntityType:
         assert _class_name_to_entity_type("UnitHolder") == EntityType.UNIT_HOLDER
         assert _class_name_to_entity_type("OfferHolder") == EntityType.OFFER_HOLDER
         assert _class_name_to_entity_type("ProcessHolder") == EntityType.PROCESS_HOLDER
-        assert (
-            _class_name_to_entity_type("LocationHolder") == EntityType.LOCATION_HOLDER
-        )
+        assert _class_name_to_entity_type("LocationHolder") == EntityType.LOCATION_HOLDER
 
     def test_special_case_dna_holder(self) -> None:
         """DNAHolder special case is handled."""
@@ -210,23 +208,16 @@ class TestClassNameToEntityType:
     def test_special_case_reconciliation_holder(self) -> None:
         """ReconciliationHolder special case is handled."""
         assert (
-            _class_name_to_entity_type("ReconciliationHolder")
-            == EntityType.RECONCILIATIONS_HOLDER
+            _class_name_to_entity_type("ReconciliationHolder") == EntityType.RECONCILIATIONS_HOLDER
         )
 
     def test_asset_edit_holder(self) -> None:
         """AssetEditHolder converts correctly."""
-        assert (
-            _class_name_to_entity_type("AssetEditHolder")
-            == EntityType.ASSET_EDIT_HOLDER
-        )
+        assert _class_name_to_entity_type("AssetEditHolder") == EntityType.ASSET_EDIT_HOLDER
 
     def test_videography_holder(self) -> None:
         """VideographyHolder converts correctly."""
-        assert (
-            _class_name_to_entity_type("VideographyHolder")
-            == EntityType.VIDEOGRAPHY_HOLDER
-        )
+        assert _class_name_to_entity_type("VideographyHolder") == EntityType.VIDEOGRAPHY_HOLDER
 
     def test_unknown_class_name_returns_none(self) -> None:
         """Unknown class name returns None."""
@@ -350,9 +341,7 @@ class TestAutoRegistration:
     def test_unknown_entity_type_not_registered(self) -> None:
         """Unknown class names are not registered."""
         # Use type() to create class with correct __name__
-        SomeRandomClass = type(
-            "SomeRandomClass", (), {"PRIMARY_PROJECT_GID": "random_gid"}
-        )
+        SomeRandomClass = type("SomeRandomClass", (), {"PRIMARY_PROJECT_GID": "random_gid"})
 
         _register_entity_with_registry(SomeRandomClass)
 

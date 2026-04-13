@@ -92,9 +92,7 @@ def build_retry_callbacks(
 
     if log_event_retry is not None:
 
-        async def on_retry(
-            attempt: int, status_code: int, retry_after: int | None
-        ) -> None:
+        async def on_retry(attempt: int, status_code: int, retry_after: int | None) -> None:
             if log:
                 extra: dict[str, Any] = {
                     **_base_log_extras,

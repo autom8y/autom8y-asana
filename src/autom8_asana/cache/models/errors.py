@@ -77,9 +77,7 @@ def is_s3_retryable_error(error: Exception) -> bool:
     import asyncio
 
     # Specific exception types
-    if isinstance(
-        error, (ConnectionError, TimeoutError, asyncio.TimeoutError, OSError)
-    ):
+    if isinstance(error, (ConnectionError, TimeoutError, asyncio.TimeoutError, OSError)):
         return True
 
     # Check botocore error codes

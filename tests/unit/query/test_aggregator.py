@@ -86,9 +86,7 @@ class TestAggregationCompiler:
         result = df.group_by("vertical").agg(exprs).sort("vertical")
         assert result["total_amount"].to_list() == [300.0, 300.0]
 
-    def test_tc_ac002_sum_on_utf8_casts_to_float64(
-        self, offer_schema: DataFrameSchema
-    ) -> None:
+    def test_tc_ac002_sum_on_utf8_casts_to_float64(self, offer_schema: DataFrameSchema) -> None:
         """TC-AC002: sum on Utf8 column casts to Float64 (ADR-AGG-005)."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total_mrr")
@@ -104,9 +102,7 @@ class TestAggregationCompiler:
         result = df.group_by("vertical").agg(exprs).sort("vertical")
         assert result["total_mrr"].to_list() == [300.0, 300.0]
 
-    def test_utf8_sum_non_numeric_strings_become_null(
-        self, offer_schema: DataFrameSchema
-    ) -> None:
+    def test_utf8_sum_non_numeric_strings_become_null(self, offer_schema: DataFrameSchema) -> None:
         """Utf8 sum with non-numeric strings produces null (strict=False)."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total_mrr")
@@ -138,9 +134,7 @@ class TestAggregationCompiler:
         # count excludes nulls
         assert result["vert_count"].to_list() == [2]
 
-    def test_tc_ac004_count_distinct_utf8(
-        self, numeric_schema: DataFrameSchema
-    ) -> None:
+    def test_tc_ac004_count_distinct_utf8(self, numeric_schema: DataFrameSchema) -> None:
         """TC-AC004: count_distinct on Utf8 column counts unique values."""
         compiler = AggregationCompiler()
         spec = AggSpec(
@@ -174,9 +168,7 @@ class TestAggregationCompiler:
         result = df.group_by("vertical").agg(exprs)
         assert result["avg_amount"].to_list() == [150.0]
 
-    def test_tc_ac006_mean_on_boolean_raises(
-        self, numeric_schema: DataFrameSchema
-    ) -> None:
+    def test_tc_ac006_mean_on_boolean_raises(self, numeric_schema: DataFrameSchema) -> None:
         """TC-AC006: mean on Boolean column raises AggregationError."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="is_active", agg=AggFunction.MEAN)
@@ -227,9 +219,7 @@ class TestAggregationCompiler:
             compiler.compile([spec], offer_schema)
         assert "platforms" in str(exc_info.value.message)
 
-    def test_tc_ac010_nonexistent_column_raises(
-        self, numeric_schema: DataFrameSchema
-    ) -> None:
+    def test_tc_ac010_nonexistent_column_raises(self, numeric_schema: DataFrameSchema) -> None:
         """TC-AC010: Aggregation on non-existent column raises AggregationError."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="nonexistent", agg=AggFunction.SUM)
@@ -301,15 +291,11 @@ class TestAggregationCompiler:
         result = df.group_by("vertical").agg(exprs)
         assert result["avg_mrr"].to_list() == [150.0]
 
-    def test_tc_ac016_count_on_utf8_no_cast(
-        self, offer_schema: DataFrameSchema
-    ) -> None:
+    def test_tc_ac016_count_on_utf8_no_cast(self, offer_schema: DataFrameSchema) -> None:
         """TC-AC016: count/count_distinct on Utf8 do NOT cast (they count values, not numerics)."""
         compiler = AggregationCompiler()
         spec_count = AggSpec(column="mrr", agg=AggFunction.COUNT, alias="mrr_count")
-        spec_uniq = AggSpec(
-            column="mrr", agg=AggFunction.COUNT_DISTINCT, alias="mrr_uniq"
-        )
+        spec_uniq = AggSpec(column="mrr", agg=AggFunction.COUNT_DISTINCT, alias="mrr_uniq")
         exprs = compiler.compile([spec_count, spec_uniq], offer_schema)
 
         df = pl.DataFrame(
@@ -378,9 +364,7 @@ class TestBuildPostAggSchema:
         assert col is not None
         assert col.dtype == "Float64"
 
-    def test_sum_output_dtype_same_as_input(
-        self, numeric_schema: DataFrameSchema
-    ) -> None:
+    def test_sum_output_dtype_same_as_input(self, numeric_schema: DataFrameSchema) -> None:
         """sum retains source dtype."""
         spec = AggSpec(column="amount", agg=AggFunction.SUM, alias="total")
         schema = build_post_agg_schema(
@@ -419,9 +403,7 @@ class TestBuildPostAggSchema:
         assert col is not None
         assert col.dtype == "Utf8"
 
-    def test_tc_hs004_sum_utf8_output_dtype_float64(
-        self, offer_schema: DataFrameSchema
-    ) -> None:
+    def test_tc_hs004_sum_utf8_output_dtype_float64(self, offer_schema: DataFrameSchema) -> None:
         """TC-HS004: sum on Utf8 (cast) produces Float64 output dtype."""
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total_mrr")
         schema = build_post_agg_schema(
@@ -433,9 +415,7 @@ class TestBuildPostAggSchema:
         assert col is not None
         assert col.dtype == "Float64"
 
-    def test_sum_int64_output_dtype_int64(
-        self, numeric_schema: DataFrameSchema
-    ) -> None:
+    def test_sum_int64_output_dtype_int64(self, numeric_schema: DataFrameSchema) -> None:
         """sum on Int64 produces Int64 output dtype (not Float64)."""
         spec = AggSpec(column="quantity", agg=AggFunction.SUM, alias="total_qty")
         schema = build_post_agg_schema(
@@ -471,9 +451,7 @@ class TestBuildPostAggSchema:
         assert col is not None
         assert col.dtype == "Date"
 
-    def test_multiple_agg_columns_present(
-        self, numeric_schema: DataFrameSchema
-    ) -> None:
+    def test_multiple_agg_columns_present(self, numeric_schema: DataFrameSchema) -> None:
         """Multiple agg specs all present in post-agg schema."""
         specs = [
             AggSpec(column="amount", agg=AggFunction.SUM, alias="total"),
@@ -497,9 +475,7 @@ class TestBuildPostAggSchema:
 class TestHavingWithPredicateCompiler:
     """Test HAVING clause using PredicateCompiler on synthetic post-agg schema."""
 
-    def test_tc_ah001_having_on_agg_alias_gt(
-        self, numeric_schema: DataFrameSchema
-    ) -> None:
+    def test_tc_ah001_having_on_agg_alias_gt(self, numeric_schema: DataFrameSchema) -> None:
         """TC-AH001: HAVING on aggregated alias column (gt) filters groups correctly."""
         # Build aggregated DataFrame
         df = pl.DataFrame(
@@ -534,9 +510,7 @@ class TestHavingWithPredicateCompiler:
         assert len(result) == 1
         assert result["vertical"].to_list() == ["dental"]
 
-    def test_tc_ah002_having_on_group_by_column(
-        self, numeric_schema: DataFrameSchema
-    ) -> None:
+    def test_tc_ah002_having_on_group_by_column(self, numeric_schema: DataFrameSchema) -> None:
         """TC-AH002: HAVING on group_by column (eq) filters groups by group key."""
         df = pl.DataFrame(
             {
@@ -561,9 +535,7 @@ class TestHavingWithPredicateCompiler:
         from autom8_asana.query.models import PredicateNode
 
         adapter = TypeAdapter(PredicateNode)
-        parsed = adapter.validate_python(
-            {"field": "vertical", "op": "eq", "value": "dental"}
-        )
+        parsed = adapter.validate_python({"field": "vertical", "op": "eq", "value": "dental"})
         having_expr = pred_compiler.compile(parsed, post_schema)
         result = agg_df.filter(having_expr)
 
@@ -587,16 +559,12 @@ class TestHavingWithPredicateCompiler:
         from autom8_asana.query.models import PredicateNode
 
         adapter = TypeAdapter(PredicateNode)
-        parsed = adapter.validate_python(
-            {"field": "nonexistent_col", "op": "gt", "value": 100}
-        )
+        parsed = adapter.validate_python({"field": "nonexistent_col", "op": "gt", "value": 100})
         with pytest.raises(UnknownFieldError) as exc_info:
             pred_compiler.compile(parsed, post_schema)
         assert exc_info.value.field == "nonexistent_col"
 
-    def test_tc_ah004_having_with_and_group(
-        self, numeric_schema: DataFrameSchema
-    ) -> None:
+    def test_tc_ah004_having_with_and_group(self, numeric_schema: DataFrameSchema) -> None:
         """TC-AH004: HAVING with AND group applies both conditions."""
         df = pl.DataFrame(
             {
@@ -635,9 +603,7 @@ class TestHavingWithPredicateCompiler:
         assert len(result) == 1
         assert result["vertical"].to_list() == ["dental"]
 
-    def test_tc_ah005_having_invalid_operator_raises(
-        self, numeric_schema: DataFrameSchema
-    ) -> None:
+    def test_tc_ah005_having_invalid_operator_raises(self, numeric_schema: DataFrameSchema) -> None:
         """TC-AH005: HAVING with invalid operator for output dtype raises InvalidOperatorError."""
         spec = AggSpec(column="amount", agg=AggFunction.COUNT, alias="row_count")
         post_schema = build_post_agg_schema(
@@ -653,9 +619,7 @@ class TestHavingWithPredicateCompiler:
 
         adapter = TypeAdapter(PredicateNode)
         # 'contains' is not valid for Int64
-        parsed = adapter.validate_python(
-            {"field": "row_count", "op": "contains", "value": "5"}
-        )
+        parsed = adapter.validate_python({"field": "row_count", "op": "contains", "value": "5"})
         with pytest.raises(InvalidOperatorError):
             pred_compiler.compile(parsed, post_schema)
 

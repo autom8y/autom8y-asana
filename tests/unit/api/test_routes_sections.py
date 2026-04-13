@@ -23,9 +23,7 @@ from tests.unit.api.conftest import (
 class TestGetSection:
     """Tests for GET /api/v1/sections/{gid} endpoint."""
 
-    def test_get_section_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_get_section_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully returns section by GID."""
         client, mock_sdk = authed_client
 
@@ -54,9 +52,7 @@ class TestGetSection:
 class TestCreateSection:
     """Tests for POST /api/v1/sections endpoint."""
 
-    def test_create_section_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_create_section_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully creates a new section."""
         client, mock_sdk = authed_client
 
@@ -119,9 +115,7 @@ class TestCreateSection:
 class TestUpdateSection:
     """Tests for PUT /api/v1/sections/{gid} endpoint."""
 
-    def test_update_section_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_update_section_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully updates a section."""
         client, mock_sdk = authed_client
 
@@ -163,9 +157,7 @@ class TestUpdateSection:
 class TestDeleteSection:
     """Tests for DELETE /api/v1/sections/{gid} endpoint."""
 
-    def test_delete_section_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_delete_section_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully deletes a section."""
         client, mock_sdk = authed_client
 
@@ -181,9 +173,7 @@ class TestDeleteSection:
 class TestAddTaskToSection:
     """Tests for POST /api/v1/sections/{gid}/tasks endpoint."""
 
-    def test_add_task_to_section_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_add_task_to_section_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully adds a task to a section."""
         client, mock_sdk = authed_client
 

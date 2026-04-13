@@ -59,9 +59,7 @@ class Tag(AsanaResource):
     )
 
     # Timestamps
-    created_at: str | None = Field(
-        default=None, description="Created datetime (ISO 8601)"
-    )
+    created_at: str | None = Field(default=None, description="Created datetime (ISO 8601)")
 
     # URL
     permalink_url: str | None = Field(

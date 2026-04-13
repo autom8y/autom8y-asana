@@ -72,8 +72,7 @@ def main() -> None:
         classifier = CLASSIFIERS.get(metric.scope.entity_type)
         if classifier is None:
             print(
-                f"ERROR: Cannot resolve project GID for entity type "
-                f"'{metric.scope.entity_type}'",
+                f"ERROR: Cannot resolve project GID for entity type '{metric.scope.entity_type}'",
                 file=sys.stderr,
             )
             sys.exit(1)

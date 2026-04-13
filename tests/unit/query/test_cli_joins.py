@@ -115,9 +115,7 @@ class TestJoinParserArgs:
 class TestCLIJoinIntegration:
     """End-to-end CLI join tests with mocked QueryEngine."""
 
-    def test_cli_rows_with_join_integration(
-        self, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_cli_rows_with_join_integration(self, capsys: pytest.CaptureFixture) -> None:
         """Full flow: --join business:booking_type produces output with join columns."""
         from autom8_asana.query.models import RowsMeta, RowsResponse
 
@@ -257,9 +255,7 @@ class TestCLIJoinIntegration:
             assert request.join is not None
             assert request.join.on == "office_phone"
 
-    def test_cli_join_error_shows_available(
-        self, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_cli_join_error_shows_available(self, capsys: pytest.CaptureFixture) -> None:
         """When engine raises JoinError, CLI prints error with available join targets."""
         mock_provider = MagicMock()
         mock_provider.get_dataframe = AsyncMock()
@@ -299,14 +295,10 @@ class TestCLIJoinIntegration:
             assert "No relationship" in captured.err
             assert "Joinable types" in captured.err
 
-    def test_cli_join_invalid_format_exits_with_error(
-        self, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_cli_join_invalid_format_exits_with_error(self, capsys: pytest.CaptureFixture) -> None:
         """Invalid --join format (no colon) returns exit code 1 with helpful message."""
         capsys.readouterr()
-        exit_code = main(
-            ["rows", "offer", "--join", "business_no_colon", "--format", "json"]
-        )
+        exit_code = main(["rows", "offer", "--join", "business_no_colon", "--format", "json"])
         assert exit_code == 1
         captured = capsys.readouterr()
         assert "Invalid --join format" in captured.err

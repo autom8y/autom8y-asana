@@ -49,9 +49,7 @@ def sample_dataframe() -> pl.DataFrame:
 @pytest.fixture
 def sample_index(sample_dataframe: pl.DataFrame) -> GidLookupIndex:
     """Create a sample GidLookupIndex for testing."""
-    return GidLookupIndex.from_dataframe(
-        sample_dataframe, key_columns=["office_phone", "vertical"]
-    )
+    return GidLookupIndex.from_dataframe(sample_dataframe, key_columns=["office_phone", "vertical"])
 
 
 @pytest.fixture
@@ -106,18 +104,14 @@ class TestPreloadDataframeCacheFunction:
         assert is_cache_ready() is True
 
     @pytest.mark.asyncio
-    async def test_preload_skips_when_s3_unavailable(
-        self, mock_entity_registry: MagicMock
-    ) -> None:
+    async def test_preload_skips_when_s3_unavailable(self, mock_entity_registry: MagicMock) -> None:
         """Preload skips when S3 persistence is unavailable."""
         from autom8_asana.api.preload.legacy import _preload_dataframe_cache
 
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
 
-        with patch(
-            "autom8_asana.dataframes.storage.S3DataFrameStorage"
-        ) as mock_persistence_class:
+        with patch("autom8_asana.dataframes.storage.S3DataFrameStorage") as mock_persistence_class:
             mock_persistence = MagicMock()
             mock_persistence.is_available = False
             mock_persistence_class.return_value = mock_persistence
@@ -144,15 +138,11 @@ class TestPreloadDataframeCacheFunction:
 
         watermark = datetime.now(UTC)
 
-        with patch(
-            "autom8_asana.dataframes.storage.S3DataFrameStorage"
-        ) as mock_persistence_class:
+        with patch("autom8_asana.dataframes.storage.S3DataFrameStorage") as mock_persistence_class:
             mock_persistence = MagicMock()
             mock_persistence.is_available = True
             mock_persistence.load_index = AsyncMock(return_value=sample_index)
-            mock_persistence.load_dataframe = AsyncMock(
-                return_value=(sample_dataframe, watermark)
-            )
+            mock_persistence.load_dataframe = AsyncMock(return_value=(sample_dataframe, watermark))
             mock_persistence.save_dataframe = AsyncMock(return_value=True)
             mock_persistence.save_index = AsyncMock(return_value=True)
             mock_persistence_class.return_value = mock_persistence
@@ -194,9 +184,7 @@ class TestPreloadDataframeCacheFunction:
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
 
-        with patch(
-            "autom8_asana.dataframes.storage.S3DataFrameStorage"
-        ) as mock_persistence_class:
+        with patch("autom8_asana.dataframes.storage.S3DataFrameStorage") as mock_persistence_class:
             mock_persistence = MagicMock()
             mock_persistence.is_available = True
             # No persisted index or DataFrame
@@ -216,9 +204,7 @@ class TestPreloadDataframeCacheFunction:
                 mock_watermark_repo.set_persistence = MagicMock()
                 mock_watermark_repo_fn.return_value = mock_watermark_repo
 
-                with patch(
-                    "autom8_asana.api.preload.legacy._do_full_rebuild"
-                ) as mock_rebuild:
+                with patch("autom8_asana.api.preload.legacy._do_full_rebuild") as mock_rebuild:
                     new_watermark = datetime.now(UTC)
                     mock_rebuild.return_value = (sample_dataframe, new_watermark)
 
@@ -357,15 +343,11 @@ class TestGracefulDegradation:
         mock_app = MagicMock()
         mock_app.state.entity_project_registry = mock_entity_registry
 
-        with patch(
-            "autom8_asana.dataframes.storage.S3DataFrameStorage"
-        ) as mock_persistence_class:
+        with patch("autom8_asana.dataframes.storage.S3DataFrameStorage") as mock_persistence_class:
             mock_persistence = MagicMock()
             mock_persistence.is_available = True
             # First project fails, second succeeds
-            mock_persistence.load_index = AsyncMock(
-                side_effect=[Exception("S3 error"), None]
-            )
+            mock_persistence.load_index = AsyncMock(side_effect=[Exception("S3 error"), None])
             mock_persistence.load_dataframe = AsyncMock(
                 side_effect=[Exception("S3 error"), (None, None)]
             )
@@ -397,9 +379,7 @@ class TestGracefulDegradation:
         # Simulate exception by having getattr raise
         mock_app.state = MagicMock()
         mock_app.state.entity_project_registry = MagicMock()
-        mock_app.state.entity_project_registry.is_ready.side_effect = Exception(
-            "Unexpected error"
-        )
+        mock_app.state.entity_project_registry.is_ready.side_effect = Exception("Unexpected error")
 
         # Should complete without raising
         await _preload_dataframe_cache(mock_app)
@@ -428,15 +408,11 @@ class TestCacheIntegration:
 
         watermark = datetime.now(UTC)
 
-        with patch(
-            "autom8_asana.dataframes.storage.S3DataFrameStorage"
-        ) as mock_persistence_class:
+        with patch("autom8_asana.dataframes.storage.S3DataFrameStorage") as mock_persistence_class:
             mock_persistence = MagicMock()
             mock_persistence.is_available = True
             mock_persistence.load_index = AsyncMock(return_value=sample_index)
-            mock_persistence.load_dataframe = AsyncMock(
-                return_value=(sample_dataframe, watermark)
-            )
+            mock_persistence.load_dataframe = AsyncMock(return_value=(sample_dataframe, watermark))
             mock_persistence.save_dataframe = AsyncMock(return_value=True)
             mock_persistence.save_index = AsyncMock(return_value=True)
             mock_persistence_class.return_value = mock_persistence
@@ -486,15 +462,11 @@ class TestCacheIntegration:
             }
         )
 
-        with patch(
-            "autom8_asana.dataframes.storage.S3DataFrameStorage"
-        ) as mock_persistence_class:
+        with patch("autom8_asana.dataframes.storage.S3DataFrameStorage") as mock_persistence_class:
             mock_persistence = MagicMock()
             mock_persistence.is_available = True
             mock_persistence.load_index = AsyncMock(return_value=sample_index)
-            mock_persistence.load_dataframe = AsyncMock(
-                return_value=(sample_dataframe, watermark)
-            )
+            mock_persistence.load_dataframe = AsyncMock(return_value=(sample_dataframe, watermark))
             mock_persistence.save_dataframe = AsyncMock(return_value=True)
             mock_persistence.save_index = AsyncMock(return_value=True)
             mock_persistence_class.return_value = mock_persistence

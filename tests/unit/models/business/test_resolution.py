@@ -278,9 +278,7 @@ class TestBatchResolution:
 
         client = MagicMock()
         # Patch at class level - all calls return same result
-        with patch.object(
-            AssetEdit, "resolve_unit_async", new=AsyncMock(return_value=result)
-        ):
+        with patch.object(AssetEdit, "resolve_unit_async", new=AsyncMock(return_value=result)):
             results = await resolve_units_async([asset_edit1, asset_edit2], client)
 
         assert len(results) == 2
@@ -317,9 +315,7 @@ class TestBatchResolution:
         )
 
         client = MagicMock()
-        with patch.object(
-            AssetEdit, "resolve_unit_async", new=AsyncMock(return_value=result)
-        ):
+        with patch.object(AssetEdit, "resolve_unit_async", new=AsyncMock(return_value=result)):
             results = await resolve_units_async([asset_edit1, asset_edit2], client)
 
         assert len(results) == 2
@@ -456,9 +452,7 @@ class TestBatchResolution:
         )
 
         client = MagicMock()
-        with patch.object(
-            AssetEdit, "resolve_offer_async", new=AsyncMock(return_value=result)
-        ):
+        with patch.object(AssetEdit, "resolve_offer_async", new=AsyncMock(return_value=result)):
             results = await resolve_offers_async([asset_edit], client)
 
         assert len(results) == 1
@@ -507,9 +501,7 @@ class TestBatchResolution:
         )
 
         client = MagicMock()
-        with patch.object(
-            AssetEdit, "resolve_unit_async", new=AsyncMock(return_value=result)
-        ):
+        with patch.object(AssetEdit, "resolve_unit_async", new=AsyncMock(return_value=result)):
             results = await resolve_units_async([asset_edit1, asset_edit2], client)
 
         # Keys are GIDs, not indices
@@ -576,9 +568,7 @@ class TestBatchResolutionEdgeCases:
         with patch.object(
             AssetEdit, "resolve_unit_async", new=AsyncMock(return_value=failure_result)
         ):
-            results = await resolve_units_async(
-                [asset_edit1, asset_edit2, asset_edit3], client
-            )
+            results = await resolve_units_async([asset_edit1, asset_edit2, asset_edit3], client)
 
         # All three should have entries
         assert len(results) == 3
@@ -697,13 +687,9 @@ class TestBatchResolutionEdgeCases:
                 "autom8_asana.models.business.resolution._ensure_units_hydrated",
                 new=hydration_mock,
             ),
-            patch.object(
-                AssetEdit, "resolve_unit_async", new=AsyncMock(return_value=result)
-            ),
+            patch.object(AssetEdit, "resolve_unit_async", new=AsyncMock(return_value=result)),
         ):
-            results = await resolve_units_async(
-                [asset_edit1, asset_edit2, asset_edit3], client
-            )
+            results = await resolve_units_async([asset_edit1, asset_edit2, asset_edit3], client)
 
         # CRITICAL CHECK: Hydration called only ONCE (for one unique business)
         assert hydration_mock.call_count == 1
@@ -744,9 +730,7 @@ class TestBatchResolutionEdgeCases:
                 "autom8_asana.models.business.resolution._ensure_units_hydrated",
                 new=hydration_mock,
             ),
-            patch.object(
-                AssetEdit, "resolve_unit_async", new=AsyncMock(return_value=result)
-            ),
+            patch.object(AssetEdit, "resolve_unit_async", new=AsyncMock(return_value=result)),
         ):
             results = await resolve_units_async([ae1, ae2, ae3], client)
 
@@ -810,9 +794,7 @@ class TestBatchResolutionEdgeCases:
         client = MagicMock()
 
         with patch.object(AssetEdit, "resolve_unit_async", new=mock_resolve):
-            results = await resolve_units_async(
-                [ae_with_business, ae_without_business], client
-            )
+            results = await resolve_units_async([ae_with_business, ae_without_business], client)
 
         # Both have entries
         assert len(results) == 2

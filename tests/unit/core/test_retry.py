@@ -170,9 +170,7 @@ class TestDefaultRetryPolicy:
         policy = DefaultRetryPolicy(config)
         delays = [policy.delay_for(1) for _ in range(100)]
         # attempt=1: base * 2^0 = 1.0, with jitter: [0.5, 1.5]
-        assert all(0.5 <= d <= 1.5 for d in delays), (
-            f"Out of bounds: {min(delays)}-{max(delays)}"
-        )
+        assert all(0.5 <= d <= 1.5 for d in delays), f"Out of bounds: {min(delays)}-{max(delays)}"
         # Should have some variance (not all identical)
         assert len(set(round(d, 6) for d in delays)) > 1
 
@@ -336,18 +334,14 @@ class TestCircuitBreaker:
         assert cb.state == CBState.OPEN
 
     def test_open_rejects_requests(self) -> None:
-        config = CircuitBreakerConfig(
-            failure_threshold=1, recovery_timeout=999.0, name="test"
-        )
+        config = CircuitBreakerConfig(failure_threshold=1, recovery_timeout=999.0, name="test")
         cb = CircuitBreaker(config=config)
         cb.record_failure(TransportError("fail"))
         assert cb.state == CBState.OPEN
         assert cb.allow_request() is False
 
     def test_open_to_half_open_after_timeout(self) -> None:
-        config = CircuitBreakerConfig(
-            failure_threshold=1, recovery_timeout=0.1, name="test"
-        )
+        config = CircuitBreakerConfig(failure_threshold=1, recovery_timeout=0.1, name="test")
         cb = CircuitBreaker(config=config)
         cb.record_failure(TransportError("fail"))
         assert cb.state == CBState.OPEN
@@ -449,9 +443,7 @@ class TestCircuitBreakerOpenError:
     """Test CircuitBreakerOpenError attributes."""
 
     def test_attributes(self) -> None:
-        err = CircuitBreakerOpenError(
-            "circuit open", backend="s3", operation="get_object"
-        )
+        err = CircuitBreakerOpenError("circuit open", backend="s3", operation="get_object")
         assert str(err) == "circuit open"
         assert err.backend == "s3"
         assert err.operation == "get_object"
@@ -837,9 +829,7 @@ class TestRetryOrchestratorIntegration:
             RetryOrchestrator(
                 policy=policy,
                 budget=budget,
-                circuit_breaker=CircuitBreaker(
-                    config=CircuitBreakerConfig(name=f"s3_{i}")
-                ),
+                circuit_breaker=CircuitBreaker(config=CircuitBreakerConfig(name=f"s3_{i}")),
                 subsystem=Subsystem.S3,
             )
             for i in range(5)
@@ -857,9 +847,7 @@ class TestRetryOrchestratorIntegration:
         async def run_one(idx: int) -> None:
             op = await make_failing_op(idx)
             with pytest.raises((TransportError, CircuitBreakerOpenError)):
-                await orchestrators[idx].execute_with_retry_async(
-                    op, operation_name=f"op_{idx}"
-                )
+                await orchestrators[idx].execute_with_retry_async(op, operation_name=f"op_{idx}")
 
         await asyncio.gather(*[run_one(i) for i in range(5)])
 
@@ -1181,9 +1169,7 @@ class TestCBNotIncrementedForPermanentErrors:
         for _ in range(10):
             with pytest.raises(ClientError):
                 orch.execute_with_retry(
-                    lambda: (_ for _ in ()).throw(
-                        self._make_client_error("AccessDenied")
-                    ),
+                    lambda: (_ for _ in ()).throw(self._make_client_error("AccessDenied")),
                     operation_name="test",
                 )
 

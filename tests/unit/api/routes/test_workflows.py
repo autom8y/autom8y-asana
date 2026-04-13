@@ -175,9 +175,7 @@ def client(app) -> TestClient:
     The header value doesn't matter because get_auth_context is overridden,
     but the JWTAuthMiddleware still checks for its presence even in dev mode.
     """
-    with TestClient(
-        app, headers={"Authorization": "Bearer test_token_workflows"}
-    ) as tc:
+    with TestClient(app, headers={"Authorization": "Bearer test_token_workflows"}) as tc:
         yield tc
 
 

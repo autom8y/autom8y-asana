@@ -161,9 +161,7 @@ class PaymentReconciliationWorkflow(BridgeWorkflowAction):
 
         return entities
 
-    @trace_reconciliation(
-        "payment_reconciliation.process_entity", engine="autom8y-asana"
-    )
+    @trace_reconciliation("payment_reconciliation.process_entity", engine="autom8y-asana")
     async def process_entity(
         self,
         entity: dict[str, Any],
@@ -264,12 +262,8 @@ class PaymentReconciliationWorkflow(BridgeWorkflowAction):
             )
 
             # Step 5: Delete old matching attachments
-            attachment_pattern = params.get(
-                "attachment_pattern", DEFAULT_ATTACHMENT_PATTERN
-            )
-            await self._delete_old_attachments(
-                unit_gid, attachment_pattern, exclude_name=filename
-            )
+            attachment_pattern = params.get("attachment_pattern", DEFAULT_ATTACHMENT_PATTERN)
+            await self._delete_old_attachments(unit_gid, attachment_pattern, exclude_name=filename)
         else:
             logger.info(
                 "payment_reconciliation_dry_run_skip_write",
@@ -359,9 +353,7 @@ class PaymentReconciliationWorkflow(BridgeWorkflowAction):
             Metadata dict with total_excel_rows.
         """
         total_rows = sum(
-            o.excel_rows
-            for o in outcomes
-            if isinstance(o, _UnitOutcome) and o.excel_rows
+            o.excel_rows for o in outcomes if isinstance(o, _UnitOutcome) and o.excel_rows
         )
         return {"total_excel_rows": total_rows}
 

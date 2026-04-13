@@ -101,7 +101,9 @@ def _self_invoke_continuation(
             },
         )
         emit_metric("SelfContinuationInvoked", 1)
-    except Exception as e:  # BROAD-CATCH: isolation -- self-invoke failure must not fail current invocation
+    except (
+        Exception
+    ) as e:  # BROAD-CATCH: isolation -- self-invoke failure must not fail current invocation
         logger.error(
             "self_invoke_failed",
             extra={

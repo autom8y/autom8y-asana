@@ -152,9 +152,7 @@ class TestProjectLevelInvalidation:
 
         # Both project GIDs should be invalidated
         assert mock_df_cache.invalidate_project.call_count == 2
-        called_gids = {
-            c.args[0] for c in mock_df_cache.invalidate_project.call_args_list
-        }
+        called_gids = {c.args[0] for c in mock_df_cache.invalidate_project.call_args_list}
         assert called_gids == {PROJECT_GID_1, PROJECT_GID_2}
 
     @pytest.mark.asyncio

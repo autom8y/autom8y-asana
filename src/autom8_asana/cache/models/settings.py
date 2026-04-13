@@ -113,9 +113,7 @@ class TTLSettings:
             return self.project_ttls[project_gid]
 
         if entry_type:
-            type_key = (
-                entry_type.value if isinstance(entry_type, EntryType) else entry_type
-            )
+            type_key = entry_type.value if isinstance(entry_type, EntryType) else entry_type
             if type_key in self.entry_type_ttls:
                 return self.entry_type_ttls[type_key]
 

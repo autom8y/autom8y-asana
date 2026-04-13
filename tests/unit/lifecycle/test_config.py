@@ -31,9 +31,7 @@ from autom8_asana.lifecycle.config import (
 # Fixtures
 # ---------------------------------------------------------------------------
 
-YAML_CONFIG_PATH = (
-    Path(__file__).parent.parent.parent.parent / "config" / "lifecycle_stages.yaml"
-)
+YAML_CONFIG_PATH = Path(__file__).parent.parent.parent.parent / "config" / "lifecycle_stages.yaml"
 
 
 @pytest.fixture
@@ -138,9 +136,7 @@ class TestYamlLoadsSuccessfully:
         assert sales.cascading_sections.unit == "Next Steps"
         assert sales.cascading_sections.business == "OPPORTUNITY"
 
-    def test_partial_cascading_sections(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_partial_cascading_sections(self, lifecycle_config: LifecycleConfig) -> None:
         """Stages with partial cascading sections leave others as None."""
         retention = lifecycle_config.get_stage("retention")
         assert retention is not None
@@ -222,9 +218,7 @@ class TestNewFields:
             == "implementation_lead"
         )
 
-    def test_validation_config_onboarding(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_validation_config_onboarding(self, lifecycle_config: LifecycleConfig) -> None:
         """Onboarding has pre-transition validation."""
         onboarding = lifecycle_config.get_stage("onboarding")
         assert onboarding.validation is not None
@@ -248,9 +242,7 @@ class TestNewFields:
         assert sales.seeding.computed_fields == {}
         assert sales.seeding.exclude_fields == []
 
-    def test_implementation_init_actions_enhanced(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_implementation_init_actions_enhanced(self, lifecycle_config: LifecycleConfig) -> None:
         """Implementation init actions include new fields."""
         impl = lifecycle_config.get_stage("implementation")
         assert len(impl.init_actions) == 3
@@ -276,9 +268,7 @@ class TestNewFields:
         comment_action = impl.init_actions[2]
         assert comment_action.type == "create_comment"
 
-    def test_onboarding_init_actions_enhanced(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_onboarding_init_actions_enhanced(self, lifecycle_config: LifecycleConfig) -> None:
         """Onboarding products_check has holder_type."""
         onboarding = lifecycle_config.get_stage("onboarding")
         assert len(onboarding.init_actions) == 2
@@ -304,9 +294,7 @@ class TestImplementationDncCorrection:
         impl = lifecycle_config.get_stage("implementation")
         assert impl.transitions.did_not_convert == "outreach"
 
-    def test_implementation_converted_is_terminal(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_implementation_converted_is_terminal(self, lifecycle_config: LifecycleConfig) -> None:
         """Implementation converted is terminal (null) for stages 1-4."""
         impl = lifecycle_config.get_stage("implementation")
         assert impl.transitions.converted is None
@@ -345,17 +333,13 @@ class TestGetTargetStage:
     """Test all 8 transition paths (4 CONVERTED + 4 DNC) for stages 1-4."""
 
     # CONVERTED paths
-    def test_outreach_converted_to_sales(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_outreach_converted_to_sales(self, lifecycle_config: LifecycleConfig) -> None:
         """Outreach CONVERTED -> Sales."""
         target = lifecycle_config.get_target_stage("outreach", "converted")
         assert target is not None
         assert target.name == "sales"
 
-    def test_sales_converted_to_onboarding(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_sales_converted_to_onboarding(self, lifecycle_config: LifecycleConfig) -> None:
         """Sales CONVERTED -> Onboarding (PCR absorption)."""
         target = lifecycle_config.get_target_stage("sales", "converted")
         assert target is not None
@@ -369,9 +353,7 @@ class TestGetTargetStage:
         assert target is not None
         assert target.name == "implementation"
 
-    def test_implementation_converted_terminal(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_implementation_converted_terminal(self, lifecycle_config: LifecycleConfig) -> None:
         """Implementation CONVERTED -> None (terminal for stages 1-4)."""
         target = lifecycle_config.get_target_stage("implementation", "converted")
         assert target is None
@@ -395,31 +377,23 @@ class TestGetTargetStage:
         assert target is not None
         assert target.name == "sales"
 
-    def test_implementation_dnc_to_outreach(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_implementation_dnc_to_outreach(self, lifecycle_config: LifecycleConfig) -> None:
         """Implementation DNC -> Outreach (CORRECTED from sales)."""
         target = lifecycle_config.get_target_stage("implementation", "did_not_convert")
         assert target is not None
         assert target.name == "outreach"
 
     # Edge cases
-    def test_unknown_source_returns_none(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_unknown_source_returns_none(self, lifecycle_config: LifecycleConfig) -> None:
         """Unknown source stage returns None."""
         assert lifecycle_config.get_target_stage("nonexistent", "converted") is None
 
-    def test_terminal_stage_returns_none(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_terminal_stage_returns_none(self, lifecycle_config: LifecycleConfig) -> None:
         """Terminal transitions return None."""
         assert lifecycle_config.get_target_stage("month1", "converted") is None
         assert lifecycle_config.get_target_stage("month1", "did_not_convert") is None
 
-    def test_invalid_outcome_returns_none(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_invalid_outcome_returns_none(self, lifecycle_config: LifecycleConfig) -> None:
         """Invalid outcome attribute returns None (getattr fallback)."""
         assert lifecycle_config.get_target_stage("sales", "invalid_outcome") is None
 
@@ -444,9 +418,7 @@ class TestGetDncAction:
     def test_implementation_create_new(self, lifecycle_config: LifecycleConfig) -> None:
         assert lifecycle_config.get_dnc_action("implementation") == "create_new"
 
-    def test_unknown_stage_raises_key_error(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_unknown_stage_raises_key_error(self, lifecycle_config: LifecycleConfig) -> None:
         with pytest.raises(KeyError, match="nonexistent"):
             lifecycle_config.get_dnc_action("nonexistent")
 
@@ -466,9 +438,7 @@ class TestGetTransition:
         assert transition.did_not_convert == "outreach"
         assert transition.auto_complete_prior is True
 
-    def test_returns_none_for_unknown_stage(
-        self, lifecycle_config: LifecycleConfig
-    ) -> None:
+    def test_returns_none_for_unknown_stage(self, lifecycle_config: LifecycleConfig) -> None:
         assert lifecycle_config.get_transition("nonexistent", "converted") is None
 
 

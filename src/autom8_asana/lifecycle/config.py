@@ -110,9 +110,7 @@ class StageConfig(BaseModel):
     due_date_offset_days: int = 0
 
     transitions: TransitionConfig
-    cascading_sections: CascadingSectionConfig = Field(
-        default_factory=CascadingSectionConfig
-    )
+    cascading_sections: CascadingSectionConfig = Field(default_factory=CascadingSectionConfig)
     init_actions: list[InitActionConfig] = Field(default_factory=list)
     self_loop: SelfLoopConfig | None = None
     validation: ValidationConfig | None = None
@@ -143,10 +141,7 @@ class LifecycleConfigModel(BaseModel):
         stage_names = set(self.stages.keys())
         errors: list[str] = []
         for name, stage in self.stages.items():
-            if (
-                stage.transitions.converted
-                and stage.transitions.converted not in stage_names
-            ):
+            if stage.transitions.converted and stage.transitions.converted not in stage_names:
                 errors.append(
                     f"Stage '{name}' converted target "
                     f"'{stage.transitions.converted}' is not a defined stage"
@@ -256,9 +251,7 @@ class LifecycleConfig:
             return None
         return self.get_stage(target_name)
 
-    def get_transition(
-        self, source_stage: str, outcome: str
-    ) -> TransitionConfig | None:
+    def get_transition(self, source_stage: str, outcome: str) -> TransitionConfig | None:
         """Get transition config for a stage and outcome.
 
         Args:

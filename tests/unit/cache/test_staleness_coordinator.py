@@ -71,9 +71,7 @@ class TestStalenessCheckCoordinator:
     """Tests for StalenessCheckCoordinator."""
 
     @pytest.mark.asyncio
-    async def test_unchanged_extends_ttl(
-        self, coordinator: StalenessCheckCoordinator
-    ) -> None:
+    async def test_unchanged_extends_ttl(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test that unchanged entity gets TTL extended."""
         entry = make_entry("123", modified_at="2025-12-23T10:00:00.000Z")
 
@@ -92,9 +90,7 @@ class TestStalenessCheckCoordinator:
         assert result.metadata.get("extension_count") == 1
 
     @pytest.mark.asyncio
-    async def test_changed_returns_none(
-        self, coordinator: StalenessCheckCoordinator
-    ) -> None:
+    async def test_changed_returns_none(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test that changed entity returns None."""
         entry = make_entry("123", modified_at="2025-12-23T10:00:00.000Z")
 
@@ -211,9 +207,7 @@ class TestStalenessCheckCoordinator:
     ) -> None:
         """Test that cache update failure still returns extended entry."""
         entry = make_entry("123", modified_at="2025-12-23T10:00:00.000Z")
-        mock_cache_provider.set_versioned.side_effect = CacheConnectionError(
-            "Cache error"
-        )
+        mock_cache_provider.set_versioned.side_effect = CacheConnectionError("Cache error")
 
         with patch.object(
             coordinator._coalescer,
@@ -250,9 +244,7 @@ class TestTTLExtension:
     """Tests for TTL extension algorithm."""
 
     @pytest.mark.asyncio
-    async def test_first_extension(
-        self, coordinator: StalenessCheckCoordinator
-    ) -> None:
+    async def test_first_extension(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test first TTL extension (base * 2^1 = 600)."""
         entry = make_entry("123", ttl=300, extension_count=0)
 
@@ -268,9 +260,7 @@ class TestTTLExtension:
         assert result.metadata.get("extension_count") == 1
 
     @pytest.mark.asyncio
-    async def test_second_extension(
-        self, coordinator: StalenessCheckCoordinator
-    ) -> None:
+    async def test_second_extension(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test second TTL extension (base * 2^2 = 1200)."""
         entry = make_entry("123", ttl=600, extension_count=1)
 
@@ -286,9 +276,7 @@ class TestTTLExtension:
         assert result.metadata.get("extension_count") == 2
 
     @pytest.mark.asyncio
-    async def test_ttl_ceiling_enforced(
-        self, coordinator: StalenessCheckCoordinator
-    ) -> None:
+    async def test_ttl_ceiling_enforced(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test that max_ttl ceiling is enforced (FR-TTL-002)."""
         # At count 8: 300 * 2^9 = 153600, but ceiling is 86400
         entry = make_entry("123", ttl=76800, extension_count=8)
@@ -357,9 +345,7 @@ class TestTTLExtension:
         assert result.data == {"gid": "123", "name": "Original"}  # Preserved
 
     @pytest.mark.asyncio
-    async def test_entry_immutability(
-        self, coordinator: StalenessCheckCoordinator
-    ) -> None:
+    async def test_entry_immutability(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test that original entry is not mutated (FR-TTL-006)."""
         entry = make_entry("123", ttl=300, extension_count=0)
         original_ttl = entry.ttl
@@ -620,9 +606,7 @@ class TestCoordinatorGracefulDegradation:
     async def test_cache_write_failure_still_returns_result(self) -> None:
         """Cache write failure (RedisTransportError) doesn't prevent returning result."""
         mock_cache = MagicMock()
-        mock_cache.set_versioned = MagicMock(
-            side_effect=RedisTransportError("Redis down")
-        )
+        mock_cache.set_versioned = MagicMock(side_effect=RedisTransportError("Redis down"))
         mock_cache.invalidate = MagicMock()
 
         batch_client = MagicMock()

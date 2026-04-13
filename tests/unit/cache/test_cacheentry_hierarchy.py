@@ -112,9 +112,7 @@ class TestSubclassRegistration:
             assert CacheEntry._type_registry[et.value] is DataFrameMetaCacheEntry
 
     def test_detection_type_registered(self) -> None:
-        assert (
-            CacheEntry._type_registry[EntryType.DETECTION.value] is DetectionCacheEntry
-        )
+        assert CacheEntry._type_registry[EntryType.DETECTION.value] is DetectionCacheEntry
 
     def test_insights_not_registered(self) -> None:
         """INSIGHTS has no subclass; should not be in registry."""

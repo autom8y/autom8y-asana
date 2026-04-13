@@ -55,9 +55,7 @@ class TestRequestCoalescer:
     ) -> None:
         """Test that single request waits for coalescing window."""
         entry = make_entry("123")
-        mock_checker.check_batch_async.return_value = {
-            "123": "2025-12-23T10:30:00.000Z"
-        }
+        mock_checker.check_batch_async.return_value = {"123": "2025-12-23T10:30:00.000Z"}
 
         result = await coalescer.request_check_async(entry)
 
@@ -75,9 +73,7 @@ class TestRequestCoalescer:
         }
 
         # Submit all requests concurrently
-        results = await asyncio.gather(
-            *[coalescer.request_check_async(entry) for entry in entries]
-        )
+        results = await asyncio.gather(*[coalescer.request_check_async(entry) for entry in entries])
 
         # All should get results
         assert len(results) == 5
@@ -139,9 +135,7 @@ class TestRequestCoalescer:
 
         # All 5 requests should trigger immediate flush (not wait 5 seconds)
         start = asyncio.get_event_loop().time()
-        results = await asyncio.gather(
-            *[coalescer.request_check_async(entry) for entry in entries]
-        )
+        results = await asyncio.gather(*[coalescer.request_check_async(entry) for entry in entries])
         elapsed = asyncio.get_event_loop().time() - start
 
         # Should complete quickly (not wait for 5 second window)
@@ -191,9 +185,7 @@ class TestRequestCoalescer:
         entries = [make_entry(str(i)) for i in range(3)]
         mock_checker.check_batch_async.side_effect = ConnectionError("Network error")
 
-        results = await asyncio.gather(
-            *[coalescer.request_check_async(entry) for entry in entries]
-        )
+        results = await asyncio.gather(*[coalescer.request_check_async(entry) for entry in entries])
 
         # All results should be None
         assert results == [None, None, None]
@@ -208,9 +200,7 @@ class TestRequestCoalescer:
             str(i): "2025-12-23T10:00:00.000Z" for i in range(5)
         }
 
-        await asyncio.gather(
-            *[coalescer.request_check_async(entry) for entry in entries]
-        )
+        await asyncio.gather(*[coalescer.request_check_async(entry) for entry in entries])
 
         stats = coalescer.get_stats()
         assert stats["total_requests"] == 5
@@ -223,9 +213,7 @@ class TestRequestCoalescer:
     ) -> None:
         """Test that flush_pending forces immediate flush."""
         entry = make_entry("123")
-        mock_checker.check_batch_async.return_value = {
-            "123": "2025-12-23T10:30:00.000Z"
-        }
+        mock_checker.check_batch_async.return_value = {"123": "2025-12-23T10:30:00.000Z"}
 
         # Start a request but don't wait for it
         task = asyncio.create_task(coalescer.request_check_async(entry))
@@ -248,9 +236,7 @@ class TestRequestCoalescer:
         )
 
         entry = make_entry("123")
-        mock_checker.check_batch_async.return_value = {
-            "123": "2025-12-23T10:30:00.000Z"
-        }
+        mock_checker.check_batch_async.return_value = {"123": "2025-12-23T10:30:00.000Z"}
 
         start = asyncio.get_event_loop().time()
         await coalescer.request_check_async(entry)
@@ -266,9 +252,7 @@ class TestRequestCoalescer:
     ) -> None:
         """Test that concurrent callers for same GID share result."""
         entry = make_entry("123")
-        mock_checker.check_batch_async.return_value = {
-            "123": "2025-12-23T10:30:00.000Z"
-        }
+        mock_checker.check_batch_async.return_value = {"123": "2025-12-23T10:30:00.000Z"}
 
         # Many concurrent requests for same GID
         results = await asyncio.gather(
@@ -397,9 +381,7 @@ class TestTimerEdgeCasesCoalescer:
         import time
 
         mock_checker = MagicMock()
-        mock_checker.check_batch_async = AsyncMock(
-            return_value={"123": "2025-12-23T10:30:00.000Z"}
-        )
+        mock_checker.check_batch_async = AsyncMock(return_value={"123": "2025-12-23T10:30:00.000Z"})
 
         coalescer = RequestCoalescer(checker=mock_checker, window_ms=0, max_batch=100)
 

@@ -48,9 +48,7 @@ class SectionTimelinesResponse(BaseModel):
         timelines: List of timeline entries for all offers.
     """
 
-    timelines: list[OfferTimelineEntry] = Field(
-        ..., description="Timeline entries for all offers"
-    )
+    timelines: list[OfferTimelineEntry] = Field(..., description="Timeline entries for all offers")
 
     model_config = ConfigDict(
         extra="forbid",
@@ -95,10 +93,7 @@ async def get_offer_section_timelines(
     classification: Annotated[
         str | None,
         Query(
-            description=(
-                "Filter by current classification "
-                "(active, activating, inactive, ignored)"
-            )
+            description=("Filter by current classification (active, activating, inactive, ignored)")
         ),
     ] = None,
 ) -> SuccessResponse[SectionTimelinesResponse]:

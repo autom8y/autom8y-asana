@@ -36,9 +36,7 @@ def _make_key(project: str = "proj-1", entity: str = "unit") -> CoalescingKey:
     return make_coalescing_key(project, entity)
 
 
-async def _slow_build(
-    delay: float = 0.1, rows: int = 5
-) -> tuple[pl.DataFrame, datetime]:
+async def _slow_build(delay: float = 0.1, rows: int = 5) -> tuple[pl.DataFrame, datetime]:
     """Simulate a build that takes time."""
     await asyncio.sleep(delay)
     return _make_df(rows), datetime.now(UTC)
@@ -77,9 +75,7 @@ class TestBuildCoordinatorBasic:
     """Basic functionality tests."""
 
     @pytest.mark.asyncio
-    async def test_single_build_no_coalescing(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_single_build_no_coalescing(self, coordinator: BuildCoordinator) -> None:
         """One caller, no contention: outcome is BUILT."""
         key = _make_key()
         result = await coordinator.build_or_wait_async(key, _instant_build)
@@ -115,9 +111,7 @@ class TestBuildCoordinatorBasic:
             assert r.dataframe.shape[0] == 5
 
     @pytest.mark.asyncio
-    async def test_different_keys_independent(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_different_keys_independent(self, coordinator: BuildCoordinator) -> None:
         """Two callers with different keys: both BUILT independently."""
         key1 = _make_key("proj-1", "unit")
         key2 = _make_key("proj-2", "offer")
@@ -139,9 +133,7 @@ class TestBuildCoordinatorBasic:
         assert build_count == 2
 
     @pytest.mark.asyncio
-    async def test_is_building_during_build(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_is_building_during_build(self, coordinator: BuildCoordinator) -> None:
         """is_building returns True during build, False after."""
         key = _make_key()
         build_started = asyncio.Event()
@@ -163,9 +155,7 @@ class TestBuildCoordinatorBasic:
         assert coordinator.is_building(key) is False
 
     @pytest.mark.asyncio
-    async def test_cleanup_after_completion(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_cleanup_after_completion(self, coordinator: BuildCoordinator) -> None:
         """After build completes, key is removed from _in_flight."""
         key = _make_key()
         await coordinator.build_or_wait_async(key, _instant_build)
@@ -190,9 +180,7 @@ class TestBuildCoordinatorTimeout:
     """Timeout behavior tests."""
 
     @pytest.mark.asyncio
-    async def test_timeout_returns_timed_out(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_timeout_returns_timed_out(self, coordinator: BuildCoordinator) -> None:
         """Waiter that exceeds timeout gets TIMED_OUT outcome."""
         key = _make_key()
         build_started = asyncio.Event()
@@ -224,9 +212,7 @@ class TestBuildCoordinatorTimeout:
         assert builder_result.outcome == BuildOutcome.BUILT
 
     @pytest.mark.asyncio
-    async def test_timeout_does_not_cancel_build(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_timeout_does_not_cancel_build(self, coordinator: BuildCoordinator) -> None:
         """Timed-out waiter does not cancel the in-flight build."""
         key = _make_key()
         build_completed = asyncio.Event()
@@ -255,9 +241,7 @@ class TestBuildCoordinatorTimeout:
     @pytest.mark.asyncio
     async def test_timeout_under_slow_build(self) -> None:
         """build_fn sleeps 2s, waiter timeout 0.2s: waiter gets TIMED_OUT, builder completes."""
-        coordinator = BuildCoordinator(
-            default_timeout_seconds=5.0, max_concurrent_builds=4
-        )
+        coordinator = BuildCoordinator(default_timeout_seconds=5.0, max_concurrent_builds=4)
         key = _make_key()
         build_started = asyncio.Event()
 
@@ -289,9 +273,7 @@ class TestBuildCoordinatorErrors:
     """Error propagation tests."""
 
     @pytest.mark.asyncio
-    async def test_build_failure_propagates_to_builder(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_build_failure_propagates_to_builder(self, coordinator: BuildCoordinator) -> None:
         """Build that raises returns FAILED outcome to the builder."""
         key = _make_key()
         result = await coordinator.build_or_wait_async(key, _failing_build)
@@ -303,9 +285,7 @@ class TestBuildCoordinatorErrors:
         assert result.dataframe is None
 
     @pytest.mark.asyncio
-    async def test_build_failure_propagates_to_waiters(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_build_failure_propagates_to_waiters(self, coordinator: BuildCoordinator) -> None:
         """Build failure propagates FAILED result to all coalesced waiters."""
         key = _make_key()
         build_started = asyncio.Event()
@@ -322,9 +302,7 @@ class TestBuildCoordinatorErrors:
 
         # Let the second caller join before failure
         await asyncio.sleep(0.05)
-        waiter_result = await coordinator.build_or_wait_async(
-            key, delayed_failure, caller="waiter"
-        )
+        waiter_result = await coordinator.build_or_wait_async(key, delayed_failure, caller="waiter")
 
         builder_result = await builder_task
 
@@ -334,9 +312,7 @@ class TestBuildCoordinatorErrors:
         assert waiter_result.error is not None
 
     @pytest.mark.asyncio
-    async def test_failure_cleans_up_in_flight(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_failure_cleans_up_in_flight(self, coordinator: BuildCoordinator) -> None:
         """After build failure, key is removed from _in_flight."""
         key = _make_key()
         await coordinator.build_or_wait_async(key, _failing_build)
@@ -367,9 +343,7 @@ class TestBuildCoordinatorStaleness:
     """Staleness-aware coalescing tests."""
 
     @pytest.mark.asyncio
-    async def test_mark_invalidated_during_build(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_mark_invalidated_during_build(self, coordinator: BuildCoordinator) -> None:
         """mark_invalidated causes new callers to start fresh builds."""
         key = _make_key("proj-1", "unit")
         build_started = asyncio.Event()
@@ -396,9 +370,7 @@ class TestBuildCoordinatorStaleness:
         assert marked == 1
 
         # New caller should start a fresh build (not coalesce)
-        second_result = await coordinator.build_or_wait_async(
-            key, tracked_build, caller="second"
-        )
+        second_result = await coordinator.build_or_wait_async(key, tracked_build, caller="second")
         assert second_result.outcome == BuildOutcome.BUILT
         assert build_call_count == 2
 
@@ -408,9 +380,7 @@ class TestBuildCoordinatorStaleness:
         assert first_result.outcome == BuildOutcome.BUILT
 
     @pytest.mark.asyncio
-    async def test_mark_invalidated_all_entity_types(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_mark_invalidated_all_entity_types(self, coordinator: BuildCoordinator) -> None:
         """mark_invalidated with entity_type=None marks all entity types."""
         build_events = {}
         proceeds = {}
@@ -493,17 +463,13 @@ class TestBuildCoordinatorStaleness:
         assert waiter_result.dataframe.shape[0] == 10
 
     @pytest.mark.asyncio
-    async def test_mark_invalidated_no_match(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_mark_invalidated_no_match(self, coordinator: BuildCoordinator) -> None:
         """mark_invalidated returns 0 when no in-flight builds match."""
         result = coordinator.mark_invalidated("nonexistent-project")
         assert result == 0
 
     @pytest.mark.asyncio
-    async def test_concurrent_mark_invalidated(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_concurrent_mark_invalidated(self, coordinator: BuildCoordinator) -> None:
         """Multiple concurrent mark_invalidated calls are safe."""
         key = _make_key("proj-1", "unit")
         build_started = asyncio.Event()
@@ -559,9 +525,7 @@ class TestBuildCoordinatorStaleness:
         assert stats["builds_stale_rejected"] == 1
 
     @pytest.mark.asyncio
-    async def test_build_fn_raises_after_invalidation(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_build_fn_raises_after_invalidation(self, coordinator: BuildCoordinator) -> None:
         """Build marked stale, then build_fn raises: new build can start cleanly."""
         key = _make_key("proj-1", "unit")
         build_started = asyncio.Event()
@@ -582,9 +546,7 @@ class TestBuildCoordinatorStaleness:
         assert result.outcome == BuildOutcome.FAILED
 
         # Should be able to start a fresh build
-        result2 = await coordinator.build_or_wait_async(
-            key, _instant_build, caller="second"
-        )
+        result2 = await coordinator.build_or_wait_async(key, _instant_build, caller="second")
         assert result2.outcome == BuildOutcome.BUILT
         assert result2.dataframe is not None
 
@@ -661,9 +623,7 @@ class TestBuildCoordinatorCancellation:
     """Cancellation isolation tests (asyncio.shield)."""
 
     @pytest.mark.asyncio
-    async def test_shield_prevents_waiter_cancellation(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_shield_prevents_waiter_cancellation(self, coordinator: BuildCoordinator) -> None:
         """Cancel one waiter; other waiters still receive the result."""
         key = _make_key()
         build_started = asyncio.Event()
@@ -764,9 +724,7 @@ class TestBuildCoordinatorForceCleanup:
     """force_cleanup tests."""
 
     @pytest.mark.asyncio
-    async def test_force_cleanup_removes_in_flight(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_force_cleanup_removes_in_flight(self, coordinator: BuildCoordinator) -> None:
         """force_cleanup removes key from _in_flight and cancels future."""
         key = _make_key()
         build_started = asyncio.Event()
@@ -792,9 +750,7 @@ class TestBuildCoordinatorForceCleanup:
             await task
 
     @pytest.mark.asyncio
-    async def test_force_cleanup_nonexistent_key(
-        self, coordinator: BuildCoordinator
-    ) -> None:
+    async def test_force_cleanup_nonexistent_key(self, coordinator: BuildCoordinator) -> None:
         """force_cleanup on nonexistent key is a no-op."""
         key = _make_key("nonexistent")
         await coordinator.force_cleanup(key)
@@ -823,10 +779,7 @@ class TestBuildCoordinatorStress:
             return _make_df(rows=42), datetime.now(UTC)
 
         results = await asyncio.gather(
-            *[
-                coordinator.build_or_wait_async(key, build, caller=f"caller-{i}")
-                for i in range(100)
-            ]
+            *[coordinator.build_or_wait_async(key, build, caller=f"caller-{i}") for i in range(100)]
         )
 
         built = [r for r in results if r.outcome == BuildOutcome.BUILT]
@@ -869,9 +822,7 @@ class TestBuildCoordinatorStress:
 
             # Start build
             task = asyncio.create_task(
-                coordinator.build_or_wait_async(
-                    key, cycle_build, caller=f"cycle-{cycle}"
-                )
+                coordinator.build_or_wait_async(key, cycle_build, caller=f"cycle-{cycle}")
             )
             await build_started.wait()
 
@@ -910,11 +861,7 @@ class TestBuildCoordinatorStress:
         tasks = []
         for key in keys:
             for j in range(10):
-                tasks.append(
-                    coordinator.build_or_wait_async(
-                        key, build, caller=f"k{key[0]}-c{j}"
-                    )
-                )
+                tasks.append(coordinator.build_or_wait_async(key, build, caller=f"k{key[0]}-c{j}"))
 
         results = await asyncio.gather(*tasks)
 
@@ -922,9 +869,7 @@ class TestBuildCoordinatorStress:
         for i, key in enumerate(keys):
             key_results = results[i * 10 : (i + 1) * 10]
             built = sum(1 for r in key_results if r.outcome == BuildOutcome.BUILT)
-            coalesced = sum(
-                1 for r in key_results if r.outcome == BuildOutcome.COALESCED
-            )
+            coalesced = sum(1 for r in key_results if r.outcome == BuildOutcome.COALESCED)
             assert built == 1, f"Key {key}: expected 1 BUILT, got {built}"
             assert coalesced == 9, f"Key {key}: expected 9 COALESCED, got {coalesced}"
 

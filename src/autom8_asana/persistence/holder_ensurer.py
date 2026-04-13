@@ -206,9 +206,7 @@ class HolderEnsurer:
         parent_gid = parent.gid or f"temp_{id(parent)}"
 
         # Determine which holder types are missing
-        needed_holder_keys = self._find_needed_holders(
-            parent, holder_key_map, dirty_set
-        )
+        needed_holder_keys = self._find_needed_holders(parent, holder_key_map, dirty_set)
 
         if not needed_holder_keys:
             return []

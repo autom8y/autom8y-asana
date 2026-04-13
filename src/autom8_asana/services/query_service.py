@@ -306,14 +306,10 @@ class EntityQueryService:
         47
     """
 
-    strategy_factory: Callable[[str], UniversalResolutionStrategy] | None = field(
-        default=None
-    )
+    strategy_factory: Callable[[str], UniversalResolutionStrategy] | None = field(default=None)
 
     # Freshness info from last get_dataframe() call
-    _last_freshness_info: FreshnessInfo | None = field(
-        default=None, init=False, repr=False
-    )
+    _last_freshness_info: FreshnessInfo | None = field(default=None, init=False, repr=False)
 
     @property
     def last_freshness_info(self) -> FreshnessInfo | None:

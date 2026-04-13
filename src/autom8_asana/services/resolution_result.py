@@ -165,9 +165,7 @@ class ResolutionResult:
             gids=tuple(gids),
             match_count=len(gids),
             match_context=tuple(context) if context else None,
-            status_annotations=tuple(status_annotations)
-            if status_annotations
-            else None,
+            status_annotations=tuple(status_annotations) if status_annotations else None,
             total_match_count=total_match_count,
         )
 

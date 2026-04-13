@@ -25,23 +25,17 @@ class TestWarmCacheAsync:
         return InMemoryCacheProvider(default_ttl=300)
 
     @pytest.fixture
-    def client_with_cache(
-        self, mock_cache_provider: InMemoryCacheProvider
-    ) -> AsanaClient:
+    def client_with_cache(self, mock_cache_provider: InMemoryCacheProvider) -> AsanaClient:
         """Create a client with in-memory cache."""
         return AsanaClient(
             token="test-token",
             cache_provider=mock_cache_provider,
         )
 
-    async def test_warm_returns_warm_result(
-        self, client_with_cache: AsanaClient
-    ) -> None:
+    async def test_warm_returns_warm_result(self, client_with_cache: AsanaClient) -> None:
         """warm_cache_async() returns a WarmResult instance."""
         # Patch the tasks client to avoid actual API calls
-        with patch.object(
-            client_with_cache.tasks, "get_async", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(client_with_cache.tasks, "get_async", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = MagicMock(gid="123")
 
             result = await client_with_cache.warm_cache_async(
@@ -55,9 +49,7 @@ class TestWarmCacheAsync:
         self, client_with_cache: AsanaClient
     ) -> None:
         """Uncached entries are fetched and counted as warmed."""
-        with patch.object(
-            client_with_cache.tasks, "get_async", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(client_with_cache.tasks, "get_async", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = MagicMock(gid="123")
 
             result = await client_with_cache.warm_cache_async(
@@ -84,9 +76,7 @@ class TestWarmCacheAsync:
         )
         mock_cache_provider.set_versioned("123", cache_entry)
 
-        with patch.object(
-            client_with_cache.tasks, "get_async", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(client_with_cache.tasks, "get_async", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = MagicMock(gid="456")
 
             result = await client_with_cache.warm_cache_async(
@@ -106,9 +96,7 @@ class TestWarmCacheAsync:
         self, client_with_cache: AsanaClient
     ) -> None:
         """API errors increment failed count without stopping processing."""
-        with patch.object(
-            client_with_cache.tasks, "get_async", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(client_with_cache.tasks, "get_async", new_callable=AsyncMock) as mock_get:
             # First call succeeds, second fails, third succeeds
             mock_get.side_effect = [
                 MagicMock(gid="123"),
@@ -139,9 +127,7 @@ class TestWarmCacheAsync:
         )
         mock_cache_provider.set_versioned("cached_gid", cache_entry)
 
-        with patch.object(
-            client_with_cache.tasks, "get_async", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(client_with_cache.tasks, "get_async", new_callable=AsyncMock) as mock_get:
             # uncached_ok succeeds, uncached_fail fails
             mock_get.side_effect = [
                 MagicMock(gid="uncached_ok"),
@@ -165,9 +151,7 @@ class TestWarmCacheAsync:
             cache_provider=NullCacheProvider(),
         )
 
-        with patch.object(
-            client.tasks, "get_async", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(client.tasks, "get_async", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = MagicMock(gid="123")
 
             result = await client.warm_cache_async(
@@ -195,9 +179,7 @@ class TestWarmCacheEntryTypes:
 
     async def test_warm_task_entry_type(self, client: AsanaClient) -> None:
         """TASK entry type uses tasks.get_async()."""
-        with patch.object(
-            client.tasks, "get_async", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(client.tasks, "get_async", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = MagicMock(gid="123")
 
             result = await client.warm_cache_async(
@@ -210,9 +192,7 @@ class TestWarmCacheEntryTypes:
 
     async def test_warm_project_entry_type(self, client: AsanaClient) -> None:
         """PROJECT entry type uses projects.get_async()."""
-        with patch.object(
-            client.projects, "get_async", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(client.projects, "get_async", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = MagicMock(gid="123")
 
             result = await client.warm_cache_async(
@@ -225,9 +205,7 @@ class TestWarmCacheEntryTypes:
 
     async def test_warm_section_entry_type(self, client: AsanaClient) -> None:
         """SECTION entry type uses sections.get_async()."""
-        with patch.object(
-            client.sections, "get_async", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(client.sections, "get_async", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = MagicMock(gid="123")
 
             result = await client.warm_cache_async(
@@ -240,9 +218,7 @@ class TestWarmCacheEntryTypes:
 
     async def test_warm_user_entry_type(self, client: AsanaClient) -> None:
         """USER entry type uses users.get_async()."""
-        with patch.object(
-            client.users, "get_async", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(client.users, "get_async", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = MagicMock(gid="123")
 
             result = await client.warm_cache_async(
@@ -255,9 +231,7 @@ class TestWarmCacheEntryTypes:
 
     async def test_warm_custom_field_entry_type(self, client: AsanaClient) -> None:
         """CUSTOM_FIELD entry type uses custom_fields.get_async()."""
-        with patch.object(
-            client.custom_fields, "get_async", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(client.custom_fields, "get_async", new_callable=AsyncMock) as mock_get:
             mock_get.return_value = MagicMock(gid="123")
 
             result = await client.warm_cache_async(
@@ -310,9 +284,7 @@ class TestWarmCacheEdgeCases:
         )
 
         # Mock the first call (warming)
-        with patch.object(
-            client.tasks, "get_async", new_callable=AsyncMock
-        ) as mock_get:
+        with patch.object(client.tasks, "get_async", new_callable=AsyncMock) as mock_get:
             # Simulate what TasksClient.get_async does - it caches the data
             mock_data = {"gid": "123", "name": "Test Task", "resource_type": "task"}
             mock_get.return_value = MagicMock(**mock_data)

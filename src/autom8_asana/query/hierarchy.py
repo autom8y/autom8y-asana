@@ -83,9 +83,7 @@ def _build_relationships_from_registry() -> list[EntityRelationship]:
         for target, key in desc.join_keys:
             target_desc = registry.get(target)
             if target_desc is not None:
-                cardinality = _derive_cardinality(
-                    desc.category.value, target_desc.category.value
-                )
+                cardinality = _derive_cardinality(desc.category.value, target_desc.category.value)
             else:
                 cardinality = "unknown"
             relationships.append(
@@ -93,9 +91,7 @@ def _build_relationships_from_registry() -> list[EntityRelationship]:
                     parent_type=desc.name,
                     child_type=target,
                     default_join_key=key,
-                    description=(
-                        f"Auto-derived: {desc.pascal_name} -> {target} via {key}"
-                    ),
+                    description=(f"Auto-derived: {desc.pascal_name} -> {target} via {key}"),
                     cardinality=cardinality,
                 )
             )

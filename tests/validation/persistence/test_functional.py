@@ -91,9 +91,7 @@ class TestBasicSaveScenarios:
     async def test_update_single_entity(self) -> None:
         """Track existing entity, modify it, commit updates (FR-UOW-003)."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result(gid="123")]
-        )
+        mock_client.batch.execute_async = AsyncMock(return_value=[create_success_result(gid="123")])
 
         task = Task(gid="123", name="Original Name")
 
@@ -114,9 +112,7 @@ class TestBasicSaveScenarios:
     async def test_update_only_sends_changed_fields(self) -> None:
         """Update sends minimal payload with only changed fields."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result(gid="123")]
-        )
+        mock_client.batch.execute_async = AsyncMock(return_value=[create_success_result(gid="123")])
 
         task = Task(gid="123", name="Original", notes="Some notes")
 
@@ -137,9 +133,7 @@ class TestBasicSaveScenarios:
         """Mark entity for deletion, commit deletes (FR-CHANGE-004)."""
         mock_client = create_mock_client()
         mock_client.batch.execute_async = AsyncMock(
-            return_value=[
-                BatchResult(status_code=200, body={"data": {}}, request_index=0)
-            ]
+            return_value=[BatchResult(status_code=200, body={"data": {}}, request_index=0)]
         )
 
         task = Task(gid="123", name="To Delete")
@@ -187,9 +181,7 @@ class TestBasicSaveScenarios:
             return_value=[
                 create_success_result(gid="new_id", request_index=0),  # Create
                 create_success_result(gid="existing", request_index=1),  # Update
-                BatchResult(
-                    status_code=200, body={"data": {}}, request_index=2
-                ),  # Delete
+                BatchResult(status_code=200, body={"data": {}}, request_index=2),  # Delete
             ]
         )
 
@@ -296,9 +288,7 @@ class TestEventHooks:
     async def test_pre_save_hook_called(self) -> None:
         """Pre-save hook receives entity and operation type (FR-EVENT-001)."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result(gid="123")]
-        )
+        mock_client.batch.execute_async = AsyncMock(return_value=[create_success_result(gid="123")])
 
         hook_calls: list[tuple[Task, OperationType]] = []
 
@@ -320,9 +310,7 @@ class TestEventHooks:
     async def test_pre_save_hook_async(self) -> None:
         """Pre-save hook can be async (FR-EVENT-005)."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result(gid="123")]
-        )
+        mock_client.batch.execute_async = AsyncMock(return_value=[create_success_result(gid="123")])
 
         hook_calls: list[tuple[Task, OperationType]] = []
 
@@ -388,18 +376,14 @@ class TestEventHooks:
     async def test_post_save_hook_async(self) -> None:
         """Post-save hook can be async (FR-EVENT-005)."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result(gid="123")]
-        )
+        mock_client.batch.execute_async = AsyncMock(return_value=[create_success_result(gid="123")])
 
         hook_calls: list[tuple[Task, OperationType, Any]] = []
 
         async with SaveSession(mock_client) as session:
 
             @session.on_post_save
-            async def post_save(
-                entity: Task, op_type: OperationType, data: Any
-            ) -> None:
+            async def post_save(entity: Task, op_type: OperationType, data: Any) -> None:
                 hook_calls.append((entity, op_type, data))
 
             task = Task(gid="123", name="Test")
@@ -413,9 +397,7 @@ class TestEventHooks:
     async def test_post_save_exception_swallowed(self) -> None:
         """Post-save hook exceptions are swallowed (FR-EVENT-002)."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result(gid="123")]
-        )
+        mock_client.batch.execute_async = AsyncMock(return_value=[create_success_result(gid="123")])
 
         async with SaveSession(mock_client) as session:
 
@@ -445,9 +427,7 @@ class TestEventHooks:
         async with SaveSession(mock_client) as session:
 
             @session.on_error
-            def on_error(
-                entity: Task, op_type: OperationType, error: Exception
-            ) -> None:
+            def on_error(entity: Task, op_type: OperationType, error: Exception) -> None:
                 hook_calls.append((entity, op_type, error))
 
             task = Task(gid="123", name="Test")
@@ -472,9 +452,7 @@ class TestEventHooks:
         async with SaveSession(mock_client) as session:
 
             @session.on_error
-            async def on_error(
-                entity: Task, op_type: OperationType, err: Exception
-            ) -> None:
+            async def on_error(entity: Task, op_type: OperationType, err: Exception) -> None:
                 hook_calls.append((entity, op_type, err))
 
             task = Task(gid="123", name="Test")
@@ -512,9 +490,7 @@ class TestEventHooks:
     async def test_multiple_hooks_called_in_order(self) -> None:
         """Multiple registered hooks are called in registration order."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result(gid="123")]
-        )
+        mock_client.batch.execute_async = AsyncMock(return_value=[create_success_result(gid="123")])
 
         call_order: list[int] = []
 
@@ -600,9 +576,7 @@ class TestEntityStateTracking:
     async def test_entity_state_after_successful_commit(self) -> None:
         """Entity transitions to CLEAN after successful commit."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result(gid="123")]
-        )
+        mock_client.batch.execute_async = AsyncMock(return_value=[create_success_result(gid="123")])
 
         async with SaveSession(mock_client) as session:
             task = Task(gid="123", name="Original")

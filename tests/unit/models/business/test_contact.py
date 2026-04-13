@@ -161,9 +161,7 @@ class TestContactCustomFields:
         """contact_phone getter returns value."""
         contact = Contact(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Contact Phone", "text_value": "555-1234"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Contact Phone", "text_value": "555-1234"}],
         )
         assert contact.contact_phone == "555-1234"
 
@@ -248,16 +246,12 @@ class TestContactHolder:
         owner_contact = Contact(
             gid="c1",
             name="John",
-            custom_fields=[
-                {"gid": "1", "name": "Position", "enum_value": {"name": "Owner"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Position", "enum_value": {"name": "Owner"}}],
         )
         employee_contact = Contact(
             gid="c2",
             name="Jane",
-            custom_fields=[
-                {"gid": "2", "name": "Position", "enum_value": {"name": "Manager"}}
-            ],
+            custom_fields=[{"gid": "2", "name": "Position", "enum_value": {"name": "Manager"}}],
         )
         holder._contacts = [employee_contact, owner_contact]
         assert holder.owner is owner_contact
@@ -268,9 +262,7 @@ class TestContactHolder:
         holder._contacts = [
             Contact(
                 gid="c1",
-                custom_fields=[
-                    {"gid": "1", "name": "Position", "enum_value": {"name": "Manager"}}
-                ],
+                custom_fields=[{"gid": "1", "name": "Position", "enum_value": {"name": "Manager"}}],
             )
         ]
         assert holder.owner is None

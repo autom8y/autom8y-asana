@@ -139,9 +139,7 @@ class TestSectionTimelinesClassificationParam:
 class TestSectionTimelinesResponseFields:
     """S-3: current_section and current_classification appear in response."""
 
-    def test_current_fields_in_response(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_current_fields_in_response(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Response includes current_section and current_classification fields."""
         client, _ = authed_client
         entries = _mock_entries()
@@ -166,9 +164,7 @@ class TestSectionTimelinesResponseFields:
         assert active_entry["current_section"] == "ACTIVE"
         assert active_entry["current_classification"] == "active"
 
-        activating_entry = next(
-            t for t in timelines if t["offer_gid"] == "activating_1"
-        )
+        activating_entry = next(t for t in timelines if t["offer_gid"] == "activating_1")
         assert activating_entry["current_section"] == "ACTIVATING"
         assert activating_entry["current_classification"] == "activating"
 
@@ -210,9 +206,7 @@ class TestSectionTimelinesResponseFields:
 class TestSectionTimelinesOfferIdField:
     """SC-6: offer_id appears in API response."""
 
-    def test_offer_id_in_response(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_offer_id_in_response(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """offer_id appears in response JSON for each timeline entry."""
         client, _ = authed_client
         entries = _mock_entries()
@@ -236,9 +230,7 @@ class TestSectionTimelinesOfferIdField:
         active_entry = next(t for t in timelines if t["offer_gid"] == "active_1")
         assert active_entry["offer_id"] == "OFR-001"
 
-    def test_offer_id_null_in_response(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_offer_id_null_in_response(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """offer_id: null for entries without offer_id."""
         client, _ = authed_client
         entries = _mock_entries()
@@ -259,7 +251,5 @@ class TestSectionTimelinesOfferIdField:
         assert response.status_code == 200
         timelines = response.json()["data"]["timelines"]
 
-        activating_entry = next(
-            t for t in timelines if t["offer_gid"] == "activating_1"
-        )
+        activating_entry = next(t for t in timelines if t["offer_gid"] == "activating_1")
         assert activating_entry["offer_id"] is None

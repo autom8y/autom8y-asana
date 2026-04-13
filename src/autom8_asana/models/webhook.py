@@ -40,9 +40,7 @@ class WebhookFilter(AsanaResource):
     action: str | None = Field(
         default=None, description="Action to filter (changed, added, removed, etc.)"
     )
-    fields: list[str] | None = Field(
-        default=None, description="Fields that trigger the webhook"
-    )
+    fields: list[str] | None = Field(default=None, description="Fields that trigger the webhook")
 
 
 class Webhook(AsanaResource):
@@ -62,31 +60,17 @@ class Webhook(AsanaResource):
     resource_type: str | None = Field(default="webhook")
 
     # Webhook configuration
-    target: str | None = Field(
-        default=None, description="URL to receive webhook events"
-    )
-    active: bool | None = Field(
-        default=None, description="Whether the webhook is active"
-    )
+    target: str | None = Field(default=None, description="URL to receive webhook events")
+    active: bool | None = Field(default=None, description="Whether the webhook is active")
 
     # Resource being watched
     resource: NameGid | None = Field(default=None, description="Resource being watched")
 
     # Filters
-    filters: list[WebhookFilter] | None = Field(
-        default=None, description="Event filters"
-    )
+    filters: list[WebhookFilter] | None = Field(default=None, description="Event filters")
 
     # Timestamps
-    created_at: str | None = Field(
-        default=None, description="Created datetime (ISO 8601)"
-    )
-    last_failure_at: str | None = Field(
-        default=None, description="Last failure datetime"
-    )
-    last_failure_content: str | None = Field(
-        default=None, description="Last failure message"
-    )
-    last_success_at: str | None = Field(
-        default=None, description="Last success datetime"
-    )
+    created_at: str | None = Field(default=None, description="Created datetime (ISO 8601)")
+    last_failure_at: str | None = Field(default=None, description="Last failure datetime")
+    last_failure_content: str | None = Field(default=None, description="Last failure message")
+    last_success_at: str | None = Field(default=None, description="Last success datetime")

@@ -68,8 +68,7 @@ class MetricRegistry:
             existing = self._metrics[metric.name]
             if existing is not metric:
                 raise ValueError(
-                    f"Metric '{metric.name}' already registered. "
-                    f"Existing: {existing.description}"
+                    f"Metric '{metric.name}' already registered. Existing: {existing.description}"
                 )
             return  # Idempotent
 

@@ -101,9 +101,7 @@ class TestTieredConfigDefaults:
         assert provider._config.s3_enabled is False
         assert provider._cold is None
 
-    def test_s3_enabled_via_config(
-        self, mock_hot_tier: Mock, mock_cold_tier: Mock
-    ) -> None:
+    def test_s3_enabled_via_config(self, mock_hot_tier: Mock, mock_cold_tier: Mock) -> None:
         """Test S3 cold tier can be enabled via configuration."""
         from autom8_asana.cache.providers.tiered import (
             TieredCacheProvider,
@@ -301,9 +299,7 @@ class TestReadPathS3Enabled:
 class TestWritePath:
     """Tests for write path operations."""
 
-    def test_set_versioned_s3_disabled(
-        self, mock_hot_tier: Mock, sample_entry: CacheEntry
-    ) -> None:
+    def test_set_versioned_s3_disabled(self, mock_hot_tier: Mock, sample_entry: CacheEntry) -> None:
         """Test set_versioned only writes to hot tier when S3 is disabled."""
         from autom8_asana.cache.providers.tiered import (
             TieredCacheProvider,
@@ -428,12 +424,8 @@ class TestBatchOperations:
 
         now = datetime.now(UTC)
         entries = {
-            "1": CacheEntry(
-                key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now
-            ),
-            "2": CacheEntry(
-                key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now
-            ),
+            "1": CacheEntry(key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now),
+            "2": CacheEntry(key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now),
         }
 
         config = TieredConfig(s3_enabled=True, write_through=True)
@@ -673,9 +665,7 @@ class TestGracefulDegradation:
         )
 
         mock_hot_tier.get_versioned.return_value = None
-        mock_cold_tier.get_versioned.side_effect = S3TransportError(
-            "S3 connection error"
-        )
+        mock_cold_tier.get_versioned.side_effect = S3TransportError("S3 connection error")
         config = TieredConfig(s3_enabled=True)
         provider = TieredCacheProvider(
             hot_tier=mock_hot_tier,
@@ -728,9 +718,7 @@ class TestGracefulDegradation:
         )
 
         now = datetime.now(UTC)
-        hot_entry = CacheEntry(
-            key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now
-        )
+        hot_entry = CacheEntry(key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now)
 
         mock_hot_tier.get_batch.return_value = {"1": hot_entry, "2": None}
         mock_cold_tier.get_batch.side_effect = S3TransportError("S3 connection error")
@@ -851,9 +839,7 @@ class TestCheckFreshness:
         result = provider.check_freshness("123456", EntryType.TASK, version)
 
         assert result is True
-        mock_hot_tier.check_freshness.assert_called_once_with(
-            "123456", EntryType.TASK, version
-        )
+        mock_hot_tier.check_freshness.assert_called_once_with("123456", EntryType.TASK, version)
 
 
 # ============================================================================

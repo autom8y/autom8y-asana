@@ -143,9 +143,7 @@ def serialize_timeline(timeline: SectionTimeline) -> dict[str, Any]:
         "intervals": [
             {
                 "section_name": iv.section_name,
-                "classification": iv.classification.value
-                if iv.classification
-                else None,
+                "classification": iv.classification.value if iv.classification else None,
                 "entered_at": iv.entered_at.isoformat(),
                 "exited_at": iv.exited_at.isoformat() if iv.exited_at else None,
             }
@@ -194,8 +192,6 @@ def deserialize_timeline(data: dict[str, Any]) -> SectionTimeline:
         office_phone=data.get("office_phone"),
         offer_id=data.get("offer_id"),
         intervals=tuple(intervals),
-        task_created_at=(
-            datetime.fromisoformat(task_created_at) if task_created_at else None
-        ),
+        task_created_at=(datetime.fromisoformat(task_created_at) if task_created_at else None),
         story_count=data.get("story_count", 0),
     )

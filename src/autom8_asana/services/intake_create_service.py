@@ -138,9 +138,7 @@ class IntakeCreateService:
         """
         project_gid = resolve_business_project_gid()
         if not project_gid:
-            raise LookupError(
-                "Business project not configured in EntityProjectRegistry"
-            )
+            raise LookupError("Business project not configured in EntityProjectRegistry")
 
         # Phase 1: Create Business task
         business_gid = await self._phase1_create_business(request, project_gid)
@@ -199,9 +197,7 @@ class IntakeCreateService:
 
         # Phase 6: Write social profiles as custom fields on Business
         if request.social_profiles:
-            await self._phase6_write_social_profiles(
-                business_gid, request.social_profiles
-            )
+            await self._phase6_write_social_profiles(business_gid, request.social_profiles)
             logger.info(
                 "intake_create_phase6_complete",
                 extra={
@@ -212,9 +208,7 @@ class IntakeCreateService:
 
         # Phase 7: Write address fields to location_holder
         if request.address is not None:
-            await self._phase7_write_address(
-                holders["location_holder"], request.address
-            )
+            await self._phase7_write_address(holders["location_holder"], request.address)
             logger.info(
                 "intake_create_phase7_complete",
                 extra={"business_gid": business_gid},
@@ -281,9 +275,7 @@ class IntakeCreateService:
             )
             return holder_name, self._extract_gid(result)
 
-        holder_results = await asyncio.gather(
-            *[create_holder(name) for name in HOLDER_TYPES]
-        )
+        holder_results = await asyncio.gather(*[create_holder(name) for name in HOLDER_TYPES])
         return dict(holder_results)
 
     async def _phase3_create_unit(
@@ -336,9 +328,7 @@ class IntakeCreateService:
         # Find the "Vertical" custom field entry
         vertical_cf = None
         for cf in custom_fields:
-            cf_name = (
-                cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
-            )
+            cf_name = cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
             if cf_name and cf_name.lower() == "vertical":
                 vertical_cf = cf
                 break
@@ -364,16 +354,10 @@ class IntakeCreateService:
         # Match enum option by name (case-insensitive)
         enum_option_gid = None
         for opt in enum_options:
-            opt_name = (
-                opt.get("name", "")
-                if isinstance(opt, dict)
-                else getattr(opt, "name", "")
-            )
+            opt_name = opt.get("name", "") if isinstance(opt, dict) else getattr(opt, "name", "")
             if opt_name and opt_name.lower() == vertical.lower():
                 enum_option_gid = (
-                    opt.get("gid", "")
-                    if isinstance(opt, dict)
-                    else getattr(opt, "gid", "")
+                    opt.get("gid", "") if isinstance(opt, dict) else getattr(opt, "gid", "")
                 )
                 break
 
@@ -434,12 +418,8 @@ class IntakeCreateService:
         # Build name -> GID mapping
         field_name_to_gid: dict[str, str] = {}
         for cf in custom_fields:
-            cf_name = (
-                cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
-            )
-            cf_gid = (
-                cf.get("gid", "") if isinstance(cf, dict) else getattr(cf, "gid", "")
-            )
+            cf_name = cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
+            cf_gid = cf.get("gid", "") if isinstance(cf, dict) else getattr(cf, "gid", "")
             if cf_name and cf_gid:
                 field_name_to_gid[cf_name.lower()] = cf_gid
 
@@ -447,9 +427,7 @@ class IntakeCreateService:
         custom_fields_payload: dict[str, str] = {}
         for profile in social_profiles:
             platform = (
-                profile.platform
-                if hasattr(profile, "platform")
-                else profile.get("platform", "")
+                profile.platform if hasattr(profile, "platform") else profile.get("platform", "")
             )
             url = profile.url if hasattr(profile, "url") else profile.get("url", "")
             field_name = SOCIAL_FIELD_MAP.get(platform.lower(), "")
@@ -491,19 +469,13 @@ class IntakeCreateService:
 
         field_name_to_gid: dict[str, str] = {}
         for cf in custom_fields:
-            cf_name = (
-                cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
-            )
-            cf_gid = (
-                cf.get("gid", "") if isinstance(cf, dict) else getattr(cf, "gid", "")
-            )
+            cf_name = cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
+            cf_gid = cf.get("gid", "") if isinstance(cf, dict) else getattr(cf, "gid", "")
             if cf_name and cf_gid:
                 field_name_to_gid[cf_name.lower()] = cf_gid
 
         custom_fields_payload: dict[str, str] = {}
-        address_dict = (
-            address.model_dump() if hasattr(address, "model_dump") else address
-        )
+        address_dict = address.model_dump() if hasattr(address, "model_dump") else address
         for field_attr, display_name in ADDRESS_FIELD_MAP.items():
             value = address_dict.get(field_attr)
             if value is not None:
@@ -561,9 +533,7 @@ class IntakeCreateService:
         existing = await self._find_existing_process(unit_gid, process_type)
         if existing is not None:
             existing_gid = (
-                existing.get("gid")
-                if isinstance(existing, dict)
-                else getattr(existing, "gid", "")
+                existing.get("gid") if isinstance(existing, dict) else getattr(existing, "gid", "")
             )
             logger.info(
                 "intake_route_existing_process",
@@ -658,9 +628,7 @@ class IntakeCreateService:
 
         process_name_lower = f"{process_type.title()} Process".lower()
         for st in subtasks:
-            st_name = (
-                st.get("name", "") if isinstance(st, dict) else getattr(st, "name", "")
-            )
+            st_name = st.get("name", "") if isinstance(st, dict) else getattr(st, "name", "")
             st_completed = (
                 st.get("completed", False)
                 if isinstance(st, dict)
@@ -688,16 +656,10 @@ class IntakeCreateService:
             assignee_lower = assignee_name.lower()
             for user in users:
                 user_name = (
-                    user.get("name", "")
-                    if isinstance(user, dict)
-                    else getattr(user, "name", "")
+                    user.get("name", "") if isinstance(user, dict) else getattr(user, "name", "")
                 )
                 if user_name and assignee_lower in user_name.lower():
-                    return (
-                        user.get("gid")
-                        if isinstance(user, dict)
-                        else getattr(user, "gid", None)
-                    )
+                    return user.get("gid") if isinstance(user, dict) else getattr(user, "gid", None)
         except Exception as exc:
             logger.warning(
                 "assignee_resolution_failed",

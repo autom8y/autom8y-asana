@@ -222,17 +222,12 @@ class TestKeyFormatting:
     def test_watermark_key(self) -> None:
         """Watermark key matches the established key format."""
         storage = _make_storage()
-        assert (
-            storage._watermark_key("proj_123") == "dataframes/proj_123/watermark.json"
-        )
+        assert storage._watermark_key("proj_123") == "dataframes/proj_123/watermark.json"
 
     def test_index_key(self) -> None:
         """Index key matches the established key format."""
         storage = _make_storage()
-        assert (
-            storage._index_key("proj_123")
-            == "dataframes/proj_123/gid_lookup_index.json"
-        )
+        assert storage._index_key("proj_123") == "dataframes/proj_123/gid_lookup_index.json"
 
     def test_section_key(self) -> None:
         """Section key matches SectionPersistence key format."""
@@ -255,10 +250,7 @@ class TestKeyFormatting:
             retry_orchestrator=_make_orchestrator(),
         )
         assert storage._df_key("proj_123") == "custom/prefix/proj_123/dataframe.parquet"
-        assert (
-            storage._watermark_key("proj_123")
-            == "custom/prefix/proj_123/watermark.json"
-        )
+        assert storage._watermark_key("proj_123") == "custom/prefix/proj_123/watermark.json"
 
 
 # ---------------------------------------------------------------------------
@@ -337,9 +329,7 @@ class TestPermanentlyDisabledMode:
     async def test_save_dataframe_skips_when_disabled(
         self, disabled_storage: S3DataFrameStorage
     ) -> None:
-        result = await disabled_storage.save_dataframe(
-            "proj_123", _make_df(), _make_watermark()
-        )
+        result = await disabled_storage.save_dataframe("proj_123", _make_df(), _make_watermark())
         assert result is False
 
     @pytest.mark.asyncio()
@@ -921,13 +911,9 @@ class TestLoadAllWatermarks:
             key = kwargs["Key"]
             body = MagicMock()
             if "proj_a" in key:
-                body.read.return_value = json.dumps(
-                    {"watermark": wm1.isoformat()}
-                ).encode()
+                body.read.return_value = json.dumps({"watermark": wm1.isoformat()}).encode()
             else:
-                body.read.return_value = json.dumps(
-                    {"watermark": wm2.isoformat()}
-                ).encode()
+                body.read.return_value = json.dumps({"watermark": wm2.isoformat()}).encode()
             return {"Body": body}
 
         mock_s3.get_object.side_effect = mock_get
@@ -1107,9 +1093,7 @@ class TestDeleteOperations:
         assert result is True
         assert mock_s3.delete_object.call_count == 3
 
-        deleted_keys = [
-            call.kwargs["Key"] for call in mock_s3.delete_object.call_args_list
-        ]
+        deleted_keys = [call.kwargs["Key"] for call in mock_s3.delete_object.call_args_list]
         assert "dataframes/proj_123/dataframe.parquet" in deleted_keys
         assert "dataframes/proj_123/watermark.json" in deleted_keys
         assert "dataframes/proj_123/gid_lookup_index.json" in deleted_keys
@@ -1121,9 +1105,7 @@ class TestDeleteOperations:
         """delete_object accepts raw S3 key."""
         result = await storage_with_mock.delete_object("custom/key.json")
         assert result is True
-        mock_s3.delete_object.assert_called_once_with(
-            Bucket=BUCKET, Key="custom/key.json"
-        )
+        mock_s3.delete_object.assert_called_once_with(Bucket=BUCKET, Key="custom/key.json")
 
 
 # ---------------------------------------------------------------------------
@@ -1220,9 +1202,7 @@ class TestDegradationModelFix:
         Verifies: B3 fix -- no permanent latch, CB recovery works.
         """
         budget = RetryBudget(BudgetConfig(per_subsystem_max=100, global_max=200))
-        policy = DefaultRetryPolicy(
-            RetryPolicyConfig(max_attempts=1, base_delay=0.0, jitter=False)
-        )
+        policy = DefaultRetryPolicy(RetryPolicyConfig(max_attempts=1, base_delay=0.0, jitter=False))
         cb = CircuitBreaker(
             CircuitBreakerConfig(
                 failure_threshold=3,
@@ -1297,9 +1277,7 @@ class TestDegradationModelFix:
         Verifies: B3 fix -- CB open is not permanent death.
         """
         budget = RetryBudget(BudgetConfig(per_subsystem_max=100, global_max=200))
-        policy = DefaultRetryPolicy(
-            RetryPolicyConfig(max_attempts=1, base_delay=0.0, jitter=False)
-        )
+        policy = DefaultRetryPolicy(RetryPolicyConfig(max_attempts=1, base_delay=0.0, jitter=False))
         cb = CircuitBreaker(
             CircuitBreakerConfig(
                 failure_threshold=2,

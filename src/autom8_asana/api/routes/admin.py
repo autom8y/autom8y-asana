@@ -63,9 +63,7 @@ class CacheRefreshResponse(BaseModel):
         force_full_rebuild: Whether full rebuild was requested.
     """
 
-    status: str = Field(
-        default="accepted", description="Always 'accepted' for 202 responses."
-    )
+    status: str = Field(default="accepted", description="Always 'accepted' for 202 responses.")
     message: str = Field(description="Human-readable description of the action taken.")
     entity_types: list[str] = Field(description="Entity types being refreshed.")
     refresh_id: str = Field(description="Unique identifier for this refresh operation.")
@@ -290,9 +288,7 @@ async def _perform_incremental_rebuild(
                     )
 
             # Incremental rebuild via parallel fetch (resumes from manifest)
-            async with AsanaClient(
-                token=bot_pat, workspace_gid=workspace_gid
-            ) as client:
+            async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
                 task_type = to_pascal_case(entity_type)
                 schema = get_schema(task_type)
                 resolver = DefaultCustomFieldResolver()
@@ -317,9 +313,7 @@ async def _perform_incremental_rebuild(
 
                 # Update cache and watermark
                 if dataframe_cache is not None and df is not None and len(df) > 0:
-                    await dataframe_cache.put_async(
-                        project_gid, entity_type, df, watermark
-                    )
+                    await dataframe_cache.put_async(project_gid, entity_type, df, watermark)
                 watermark_repo.set_watermark(project_gid, watermark)
 
                 logger.info(
@@ -434,8 +428,7 @@ async def refresh_cache(
             request_id,
             400,
             "INVALID_ENTITY_TYPE",
-            f"Invalid entity_type: '{body.entity_type}'. "
-            f"Valid types: {sorted(VALID_ENTITY_TYPES)}",
+            f"Invalid entity_type: '{body.entity_type}'. Valid types: {sorted(VALID_ENTITY_TYPES)}",
         )
 
     # Check cache system is initialized

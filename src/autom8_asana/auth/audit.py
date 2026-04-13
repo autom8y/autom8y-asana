@@ -153,9 +153,7 @@ class S2SAuditLogger:
         Returns:
             ISO 8601 timestamp with UTC timezone (Z suffix).
         """
-        return (
-            datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-        )
+        return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
     def log_request(
         self,

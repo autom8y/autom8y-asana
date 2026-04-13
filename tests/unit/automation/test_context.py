@@ -76,18 +76,14 @@ class TestAutomationContext:
 
         assert context.can_continue("entity_1", "rule_1") is False
 
-    def test_can_continue_same_entity_different_rule(
-        self, context: AutomationContext
-    ) -> None:
+    def test_can_continue_same_entity_different_rule(self, context: AutomationContext) -> None:
         """Test that same entity with different rule can continue."""
         context.mark_visited("entity_1", "rule_1")
 
         # Different rule is allowed
         assert context.can_continue("entity_1", "rule_2") is True
 
-    def test_can_continue_different_entity_same_rule(
-        self, context: AutomationContext
-    ) -> None:
+    def test_can_continue_different_entity_same_rule(self, context: AutomationContext) -> None:
         """Test that different entity with same rule can continue."""
         context.mark_visited("entity_1", "rule_1")
 
@@ -142,9 +138,7 @@ class TestAutomationContext:
 
         assert child.config is context.config
 
-    def test_child_context_preserves_save_result(
-        self, context: AutomationContext
-    ) -> None:
+    def test_child_context_preserves_save_result(self, context: AutomationContext) -> None:
         """Test that child_context preserves save_result reference."""
         mock_result = MagicMock()
         context.save_result = mock_result

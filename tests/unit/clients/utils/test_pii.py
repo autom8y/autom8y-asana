@@ -42,9 +42,7 @@ class TestPublicPiiImports:
             pytest.param("7705753103", "7705753103", id="non-e164-unchanged"),
         ],
     )
-    def test_mask_phone_number_produces_expected_output(
-        self, phone: str, expected: str
-    ) -> None:
+    def test_mask_phone_number_produces_expected_output(self, phone: str, expected: str) -> None:
         """Public mask_phone_number produces same output as private _pii module."""
         assert mask_phone_number(phone) == expected
 

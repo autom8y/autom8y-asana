@@ -219,10 +219,7 @@ class DependencyWiringService:
             )
             result.wired.append(created_gid)
         except (ConnectionError, TimeoutError, OSError) as e:
-            msg = (
-                f"Failed to wire '{created_gid}' as dependency "
-                f"of '{target_entity_gid}': {e}"
-            )
+            msg = f"Failed to wire '{created_gid}' as dependency of '{target_entity_gid}': {e}"
             logger.warning(
                 "lifecycle_wire_entity_dependency_failed",
                 created_gid=created_gid,

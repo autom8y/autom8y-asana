@@ -223,9 +223,7 @@ class UnifiedTaskStore:
             return result
 
         # Check freshness for found entries
-        freshness_results = await self._freshness.check_batch_async(
-            found_entries, mode=mode
-        )
+        freshness_results = await self._freshness.check_batch_async(found_entries, mode=mode)
 
         # Map results
         gid_to_freshness = {r.gid: r for r in freshness_results}
@@ -311,17 +309,13 @@ class UnifiedTaskStore:
             Task dict at required completeness, or None if fetch failed.
         """
         # Try cache first
-        result = await self.get_async(
-            gid, freshness=freshness, required_level=required_level
-        )
+        result = await self.get_async(gid, freshness=freshness, required_level=required_level)
         if result is not None:
             return result
 
         # Upgrade if we have a client
         if tasks_client is not None:
-            return await self.upgrade_async(
-                gid, required_level, tasks_client=tasks_client
-            )
+            return await self.upgrade_async(gid, required_level, tasks_client=tasks_client)
 
         return None
 
@@ -366,9 +360,7 @@ class UnifiedTaskStore:
 
         for gid in insufficient_gids:
             try:
-                task = await tasks_client.get_async(
-                    gid, opt_fields=opt_fields, raw=True
-                )
+                task = await tasks_client.get_async(gid, opt_fields=opt_fields, raw=True)
                 if task:
                     await self.put_async(task, opt_fields=opt_fields)
                     upgraded[gid] = task
@@ -533,9 +525,7 @@ class UnifiedTaskStore:
         immediate_parents_fetched = 0
         ancestors_warmed = 0
         if warm_hierarchy and tasks_client is not None:
-            immediate_parents_fetched = await self._fetch_immediate_parents(
-                tasks, tasks_client
-            )
+            immediate_parents_fetched = await self._fetch_immediate_parents(tasks, tasks_client)
             ancestors_warmed = await self._warm_ancestors(tasks, tasks_client)
 
         logger.debug(
@@ -603,9 +593,7 @@ class UnifiedTaskStore:
                         if parent_task:
                             parent_dict = parent_task.model_dump(exclude_none=True)
                             self._hierarchy.register(parent_dict)
-                            await self.put_async(
-                                parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS
-                            )
+                            await self.put_async(parent_dict, opt_fields=_HIERARCHY_OPT_FIELDS)
                             return True
                         return False
                     except CACHE_TRANSIENT_ERRORS as e:
@@ -649,15 +637,11 @@ class UnifiedTaskStore:
 
         if not pacing_enabled:
             all_results = list(
-                await asyncio.gather(
-                    *[_fetch_immediate_parent(gid) for gid in parent_gid_list]
-                )
+                await asyncio.gather(*[_fetch_immediate_parent(gid) for gid in parent_gid_list])
             )
         else:
             for batch_start in range(0, len(parent_gid_list), HIERARCHY_BATCH_SIZE):
-                batch = parent_gid_list[
-                    batch_start : batch_start + HIERARCHY_BATCH_SIZE
-                ]
+                batch = parent_gid_list[batch_start : batch_start + HIERARCHY_BATCH_SIZE]
                 batch_results = await asyncio.gather(
                     *[_fetch_immediate_parent(gid) for gid in batch]
                 )

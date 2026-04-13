@@ -306,9 +306,7 @@ class WebhooksClient(BaseClient):
             if offset:
                 params["offset"] = offset
 
-            data, next_offset = await self._http.get_paginated(
-                "/webhooks", params=params
-            )
+            data, next_offset = await self._http.get_paginated("/webhooks", params=params)
             webhooks = [Webhook.model_validate(w) for w in data]
             return webhooks, next_offset
 

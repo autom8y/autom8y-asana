@@ -76,9 +76,7 @@ def to_dict(field_obj: Any) -> dict[str, Any]:
             # Recursively convert nested objects (like enum_options)
             if isinstance(value, list):
                 result[attr] = [
-                    to_dict(v)
-                    if not isinstance(v, (str, int, float, bool, type(None)))
-                    else v
+                    to_dict(v) if not isinstance(v, (str, int, float, bool, type(None))) else v
                     for v in value
                 ]
             elif isinstance(value, dict):

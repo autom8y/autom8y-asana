@@ -55,9 +55,7 @@ def _setup_sections(
         result.collect = AsyncMock(return_value=sections)
         return result
 
-    mock_client.sections.list_for_project_async = MagicMock(
-        side_effect=_list_for_project
-    )
+    mock_client.sections.list_for_project_async = MagicMock(side_effect=_list_for_project)
 
 
 # --- Test: All 3 section types updated ---
@@ -112,9 +110,7 @@ async def test_cascade_all_three_entities(mock_client, mock_resolution_context):
 
 
 @pytest.mark.asyncio
-async def test_cascade_skips_unconfigured_entities(
-    mock_client, mock_resolution_context
-):
+async def test_cascade_skips_unconfigured_entities(mock_client, mock_resolution_context):
     """When only some sections are configured, only those entities
     are resolved and updated. Others are skipped entirely."""
     unit = _make_entity("unit1", "unit_proj")
@@ -158,9 +154,7 @@ async def test_cascade_empty_config_does_nothing(mock_client, mock_resolution_co
 
 
 @pytest.mark.asyncio
-async def test_cascade_section_not_found_logs_warning(
-    mock_client, mock_resolution_context
-):
+async def test_cascade_section_not_found_logs_warning(mock_client, mock_resolution_context):
     """When the target section name does not exist in the entity's project,
     a warning is recorded and the entity is not moved."""
     offer = _make_entity("offer1", "offer_proj")
@@ -215,9 +209,7 @@ async def test_cascade_entity_resolution_error(mock_client, mock_resolution_cont
     """When entity resolution fails, a warning is logged and remaining
     entities are still processed (fail-forward)."""
     # Offer resolution fails
-    mock_resolution_context.offer_async = AsyncMock(
-        side_effect=ConnectionError("Entity not found")
-    )
+    mock_resolution_context.offer_async = AsyncMock(side_effect=ConnectionError("Entity not found"))
 
     # Unit resolves successfully
     unit = _make_entity("unit1", "unit_proj")
@@ -281,9 +273,7 @@ async def test_cascade_add_task_api_error(mock_client, mock_resolution_context):
 
 
 @pytest.mark.asyncio
-async def test_cascade_case_insensitive_section_match(
-    mock_client, mock_resolution_context
-):
+async def test_cascade_case_insensitive_section_match(mock_client, mock_resolution_context):
     """Section names are matched case-insensitively."""
     business = _make_entity("biz1", "biz_proj")
     mock_resolution_context.business_async = AsyncMock(return_value=business)
@@ -374,9 +364,7 @@ async def test_cascade_onboarding_stage_sections(mock_client, mock_resolution_co
     mock_client.sections.add_task_async = AsyncMock()
 
     service = CascadingSectionService(mock_client)
-    config = CascadingSectionConfig(
-        offer="ACTIVATING", unit="Onboarding", business="ONBOARDING"
-    )
+    config = CascadingSectionConfig(offer="ACTIVATING", unit="Onboarding", business="ONBOARDING")
 
     result = await service.cascade_async(config, mock_resolution_context)
 

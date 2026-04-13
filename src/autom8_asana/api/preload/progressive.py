@@ -101,9 +101,7 @@ def _dataframe_to_task_dicts(
     return task_dicts
 
 
-def _invoke_cache_warmer_lambda_from_preload(
-    function_arn: str, entity_types: list[str]
-) -> None:
+def _invoke_cache_warmer_lambda_from_preload(function_arn: str, entity_types: list[str]) -> None:
     """Invoke cache warmer Lambda for entities missing S3 data."""
     import json
 
@@ -368,9 +366,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                 try:
                     async with (
                         persistence,
-                        AsanaClient(
-                            token=bot_pat, workspace_gid=workspace_gid
-                        ) as client,
+                        AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client,
                     ):
                         task_type = to_pascal_case(entity_type)
                         schema = get_schema(task_type)
@@ -426,9 +422,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                         "entity_type": entity_type,
                                         "rows": len(s3_df),
                                         "watermark": (
-                                            s3_watermark.isoformat()
-                                            if s3_watermark
-                                            else None
+                                            s3_watermark.isoformat() if s3_watermark else None
                                         ),
                                     },
                                 )
@@ -440,14 +434,9 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                     is_cascade_provider,
                                 )
 
-                                if (
-                                    is_cascade_provider(entity_type)
-                                    and shared_store is not None
-                                ):
+                                if is_cascade_provider(entity_type) and shared_store is not None:
                                     try:
-                                        mapping = cascade_provider_field_mapping(
-                                            entity_type
-                                        )
+                                        mapping = cascade_provider_field_mapping(entity_type)
                                         if mapping:
                                             task_dicts = _dataframe_to_task_dicts(
                                                 s3_df,
@@ -480,9 +469,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 # that have cascade fields. Entities without
                                 # cascade columns (e.g., Business) naturally
                                 # skip via _has_cascade_fields check.
-                                if shared_store is not None and _has_cascade_fields(
-                                    schema
-                                ):
+                                if shared_store is not None and _has_cascade_fields(schema):
                                     try:
                                         from autom8_asana.dataframes.builders.cascade_validator import (
                                             validate_cascade_fields_async,
@@ -547,13 +534,8 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                         )
 
                                 if s3_watermark is not None:
-                                    watermark_repo.set_watermark(
-                                        project_gid, s3_watermark
-                                    )
-                                if (
-                                    dataframe_cache is not None
-                                    and s3_watermark is not None
-                                ):
+                                    watermark_repo.set_watermark(project_gid, s3_watermark)
+                                if dataframe_cache is not None and s3_watermark is not None:
                                     await dataframe_cache.put_async(
                                         project_gid,
                                         entity_type,
@@ -612,10 +594,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                             watermark_repo.set_watermark(project_gid, result.watermark)
 
                             # Store in DataFrameCache singleton
-                            if (
-                                dataframe_cache is not None
-                                and result.dataframe is not None
-                            ):
+                            if dataframe_cache is not None and result.dataframe is not None:
                                 await dataframe_cache.put_async(
                                     project_gid,
                                     entity_type,
@@ -659,9 +638,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         completed_entities: set[str] = set()
 
         for phase_idx, phase_types in enumerate(phases):
-            phase_configs = [
-                (config_map[et], et) for et in phase_types if et in config_map
-            ]
+            phase_configs = [(config_map[et], et) for et in phase_types if et in config_map]
             if phase_configs:
                 # L2 pre-phase gate: verify all cascade providers for
                 # entities in this phase have already completed.
@@ -714,9 +691,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         if projects_needing_lambda:
             lambda_arn = os.environ.get("CACHE_WARMER_LAMBDA_ARN")
             if lambda_arn:
-                _invoke_cache_warmer_lambda_from_preload(
-                    lambda_arn, projects_needing_lambda
-                )
+                _invoke_cache_warmer_lambda_from_preload(lambda_arn, projects_needing_lambda)
 
     except WarmupOrderingError:
         # WarmupOrderingError is a safety-critical invariant violation

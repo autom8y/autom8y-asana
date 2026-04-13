@@ -37,9 +37,7 @@ class TestEntityDescriptor:
 
     def test_effective_schema_key_default(self) -> None:
         """Returns pascal_name when schema_key is None."""
-        desc = EntityDescriptor(
-            name="test", pascal_name="TestEntity", display_name="Test"
-        )
+        desc = EntityDescriptor(name="test", pascal_name="TestEntity", display_name="Test")
         assert desc.effective_schema_key == "TestEntity"
 
     def test_effective_schema_key_override(self) -> None:
@@ -200,9 +198,7 @@ class TestEntityRegistry:
         )
 
     @pytest.fixture
-    def registry(
-        self, sample_descriptors: tuple[EntityDescriptor, ...]
-    ) -> EntityRegistry:
+    def registry(self, sample_descriptors: tuple[EntityDescriptor, ...]) -> EntityRegistry:
         """Create a test registry."""
         return EntityRegistry(sample_descriptors)
 
@@ -213,9 +209,7 @@ class TestEntityRegistry:
         assert desc.name == "alpha"
         assert desc.display_name == "Alpha Entity"
 
-    def test_get_by_name_returns_none_for_unknown(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_get_by_name_returns_none_for_unknown(self, registry: EntityRegistry) -> None:
         """Unknown name returns None."""
         assert registry.get("nonexistent") is None
 
@@ -235,9 +229,7 @@ class TestEntityRegistry:
         assert desc is not None
         assert desc.name == "alpha"
 
-    def test_get_by_gid_returns_none_for_unknown(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_get_by_gid_returns_none_for_unknown(self, registry: EntityRegistry) -> None:
         """Unknown GID returns None."""
         assert registry.get_by_gid("unknown_gid") is None
 
@@ -251,9 +243,7 @@ class TestEntityRegistry:
         assert desc is not None
         assert desc.name == "unit"
 
-    def test_get_by_type_returns_none_for_unknown(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_get_by_type_returns_none_for_unknown(self, registry: EntityRegistry) -> None:
         """Unknown EntityType returns None (test registry has no types)."""
         assert registry.get_by_type("fake_type") is None
 
@@ -297,9 +287,7 @@ class TestEntityRegistry:
         # Unknown pair
         assert registry.get_join_key("alpha", "gamma_holder") is None
 
-    def test_get_entity_ttl_returns_correct_value(
-        self, registry: EntityRegistry
-    ) -> None:
+    def test_get_entity_ttl_returns_correct_value(self, registry: EntityRegistry) -> None:
         """TTL lookup matches descriptor."""
         assert registry.get_entity_ttl("alpha") == 600
         assert registry.get_entity_ttl("beta") == 120
@@ -684,9 +672,7 @@ class TestEntityDescriptorData:
     def test_project_gids_are_unique_where_set(self) -> None:
         """All non-None project GIDs are unique."""
         gids = [
-            d.primary_project_gid
-            for d in ENTITY_DESCRIPTORS
-            if d.primary_project_gid is not None
+            d.primary_project_gid for d in ENTITY_DESCRIPTORS if d.primary_project_gid is not None
         ]
         assert len(gids) == len(set(gids))
 
@@ -750,9 +736,7 @@ class TestDataFrameLayerPopulation:
         assert desc.extractor_class_path == (
             "autom8_asana.dataframes.extractors.business.BusinessExtractor"
         )
-        assert desc.row_model_class_path == (
-            "autom8_asana.dataframes.models.task_row.BusinessRow"
-        )
+        assert desc.row_model_class_path == ("autom8_asana.dataframes.models.task_row.BusinessRow")
         assert desc.cascading_field_provider is True
         assert desc.custom_field_resolver_class_path == (
             "autom8_asana.dataframes.resolver.DefaultCustomFieldResolver"
@@ -761,15 +745,11 @@ class TestDataFrameLayerPopulation:
     def test_unit_descriptor_fields(self) -> None:
         """Unit has full triad (schema, extractor, row) and cascading=True."""
         desc = get_registry().require("unit")
-        assert desc.schema_module_path == (
-            "autom8_asana.dataframes.schemas.unit.UNIT_SCHEMA"
-        )
+        assert desc.schema_module_path == ("autom8_asana.dataframes.schemas.unit.UNIT_SCHEMA")
         assert desc.extractor_class_path == (
             "autom8_asana.dataframes.extractors.unit.UnitExtractor"
         )
-        assert desc.row_model_class_path == (
-            "autom8_asana.dataframes.models.task_row.UnitRow"
-        )
+        assert desc.row_model_class_path == ("autom8_asana.dataframes.models.task_row.UnitRow")
         assert desc.cascading_field_provider is True
         assert desc.custom_field_resolver_class_path == (
             "autom8_asana.dataframes.resolver.DefaultCustomFieldResolver"
@@ -778,29 +758,21 @@ class TestDataFrameLayerPopulation:
     def test_contact_descriptor_fields(self) -> None:
         """Contact has full triad, no cascading."""
         desc = get_registry().require("contact")
-        assert desc.schema_module_path == (
-            "autom8_asana.dataframes.schemas.contact.CONTACT_SCHEMA"
-        )
+        assert desc.schema_module_path == ("autom8_asana.dataframes.schemas.contact.CONTACT_SCHEMA")
         assert desc.extractor_class_path == (
             "autom8_asana.dataframes.extractors.contact.ContactExtractor"
         )
-        assert desc.row_model_class_path == (
-            "autom8_asana.dataframes.models.task_row.ContactRow"
-        )
+        assert desc.row_model_class_path == ("autom8_asana.dataframes.models.task_row.ContactRow")
         assert desc.cascading_field_provider is False
 
     def test_offer_descriptor_fields(self) -> None:
         """Offer has full triad (schema, extractor, row)."""
         desc = get_registry().require("offer")
-        assert desc.schema_module_path == (
-            "autom8_asana.dataframes.schemas.offer.OFFER_SCHEMA"
-        )
+        assert desc.schema_module_path == ("autom8_asana.dataframes.schemas.offer.OFFER_SCHEMA")
         assert desc.extractor_class_path == (
             "autom8_asana.dataframes.extractors.offer.OfferExtractor"
         )
-        assert desc.row_model_class_path == (
-            "autom8_asana.dataframes.models.task_row.OfferRow"
-        )
+        assert desc.row_model_class_path == ("autom8_asana.dataframes.models.task_row.OfferRow")
         assert desc.cascading_field_provider is False
         assert desc.custom_field_resolver_class_path == (
             "autom8_asana.dataframes.resolver.DefaultCustomFieldResolver"
@@ -815,9 +787,7 @@ class TestDataFrameLayerPopulation:
         assert desc.extractor_class_path == (
             "autom8_asana.dataframes.extractors.asset_edit.AssetEditExtractor"
         )
-        assert desc.row_model_class_path == (
-            "autom8_asana.dataframes.models.task_row.AssetEditRow"
-        )
+        assert desc.row_model_class_path == ("autom8_asana.dataframes.models.task_row.AssetEditRow")
 
     def test_asset_edit_holder_descriptor_fields(self) -> None:
         """AssetEditHolder has full triad (schema, extractor, row)."""
@@ -860,9 +830,7 @@ class TestDataFrameLayerPopulation:
     def test_cascading_field_provider_only_business_and_unit(self) -> None:
         """Only business and unit have cascading_field_provider=True."""
         registry = get_registry()
-        providers = [
-            d.name for d in registry.all_descriptors() if d.cascading_field_provider
-        ]
+        providers = [d.name for d in registry.all_descriptors() if d.cascading_field_provider]
         assert sorted(providers) == ["business", "unit"]
 
 
@@ -881,16 +849,12 @@ class TestResolveDottedPath:
 
     def test_resolves_constant(self) -> None:
         """Resolves a dotted path to a module-level constant."""
-        result = _resolve_dotted_path(
-            "autom8_asana.core.entity_registry.ENTITY_DESCRIPTORS"
-        )
+        result = _resolve_dotted_path("autom8_asana.core.entity_registry.ENTITY_DESCRIPTORS")
         assert result is ENTITY_DESCRIPTORS
 
     def test_resolves_enum(self) -> None:
         """Resolves a dotted path to an enum class."""
-        result = _resolve_dotted_path(
-            "autom8_asana.core.entity_registry.EntityCategory"
-        )
+        result = _resolve_dotted_path("autom8_asana.core.entity_registry.EntityCategory")
         assert result is EntityCategory
 
     def test_raises_import_error_for_bad_module(self) -> None:
@@ -978,9 +942,7 @@ class TestTriadValidation:
             ),
         )
         registry = EntityRegistry(descriptors)
-        with pytest.raises(
-            ValueError, match="schema_module_path.*not a valid dotted path"
-        ):
+        with pytest.raises(ValueError, match="schema_module_path.*not a valid dotted path"):
             _validate_registry_integrity(registry)
 
     def test_check_6b_bad_extractor_path_syntax(self) -> None:
@@ -995,9 +957,7 @@ class TestTriadValidation:
             ),
         )
         registry = EntityRegistry(descriptors)
-        with pytest.raises(
-            ValueError, match="extractor_class_path.*not a valid dotted path"
-        ):
+        with pytest.raises(ValueError, match="extractor_class_path.*not a valid dotted path"):
             _validate_registry_integrity(registry)
 
     def test_check_6c_bad_row_model_path_syntax(self) -> None:
@@ -1012,9 +972,7 @@ class TestTriadValidation:
             ),
         )
         registry = EntityRegistry(descriptors)
-        with pytest.raises(
-            ValueError, match="row_model_class_path.*not a valid dotted path"
-        ):
+        with pytest.raises(ValueError, match="row_model_class_path.*not a valid dotted path"):
             _validate_registry_integrity(registry)
 
     def test_check_6d_schema_without_extractor_does_not_raise(self) -> None:
@@ -1057,9 +1015,7 @@ class TestTriadValidation:
             ),
         )
         registry = EntityRegistry(descriptors)
-        with pytest.raises(
-            ValueError, match="has extractor_class_path but no schema_module_path"
-        ):
+        with pytest.raises(ValueError, match="has extractor_class_path but no schema_module_path"):
             _validate_registry_integrity(registry)
 
     def test_check_7_cascading_provider_without_model_raises(self) -> None:
@@ -1281,9 +1237,7 @@ class TestImportResolutionCoverage:
         #   asset_edit, asset_edit_holder)
         # 6 entities with row_model_class_path (business, unit, contact, offer,
         #   asset_edit, asset_edit_holder)
-        assert len(schema_paths) >= 6, (
-            f"Expected at least 6 schema paths, got {len(schema_paths)}"
-        )
+        assert len(schema_paths) >= 6, f"Expected at least 6 schema paths, got {len(schema_paths)}"
         assert len(extractor_paths) >= 6, (
             f"Expected at least 6 extractor paths, got {len(extractor_paths)}"
         )
@@ -1349,9 +1303,7 @@ class TestSchemaColumnCountSmoke:
     def test_all_schema_entities_have_baselines(self) -> None:
         """Every entity with a schema has a baseline entry in EXPECTED_SCHEMA_COLUMN_COUNTS."""
         schema_entities = {
-            desc.name
-            for desc in get_registry().all_descriptors()
-            if desc.schema_module_path
+            desc.name for desc in get_registry().all_descriptors() if desc.schema_module_path
         }
         baseline_entities = {name for name, _ in EXPECTED_SCHEMA_COLUMN_COUNTS}
         missing = schema_entities - baseline_entities
@@ -1382,8 +1334,7 @@ class TestEntityTypeBindingRegression:
         desc = registry.get("asset_edit")
         assert desc is not None, "asset_edit descriptor not found in registry"
         assert desc.entity_type == EntityType.ASSET_EDIT, (
-            f"Expected asset_edit.entity_type == EntityType.ASSET_EDIT, "
-            f"got {desc.entity_type!r}"
+            f"Expected asset_edit.entity_type == EntityType.ASSET_EDIT, got {desc.entity_type!r}"
         )
 
     def test_asset_edit_resolvable_via_get_by_type(self) -> None:

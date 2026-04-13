@@ -30,9 +30,7 @@ def mock_cache_provider() -> MagicMock:
 
 
 @pytest.fixture
-def store(
-    mock_cache_provider: MagicMock, mock_batch_client: MagicMock
-) -> UnifiedTaskStore:
+def store(mock_cache_provider: MagicMock, mock_batch_client: MagicMock) -> UnifiedTaskStore:
     """Create a UnifiedTaskStore with mocks."""
     return UnifiedTaskStore(
         cache=mock_cache_provider,
@@ -139,9 +137,7 @@ class TestUnifiedTaskStoreGet:
         result = await store.get_async("task-123")
 
         assert result is None
-        mock_cache_provider.get_versioned.assert_called_once_with(
-            "task-123", EntryType.TASK
-        )
+        mock_cache_provider.get_versioned.assert_called_once_with("task-123", EntryType.TASK)
 
     @pytest.mark.asyncio
     async def test_get_immediate_returns_cached(
@@ -533,9 +529,7 @@ class TestUnifiedTaskStoreInvalidate:
         """Test invalidating single task."""
         store.invalidate("task-123")
 
-        mock_cache_provider.invalidate.assert_called_once_with(
-            "task-123", [EntryType.TASK]
-        )
+        mock_cache_provider.invalidate.assert_called_once_with("task-123", [EntryType.TASK])
 
     @pytest.mark.asyncio
     async def test_invalidate_cascade(
@@ -553,9 +547,7 @@ class TestUnifiedTaskStoreInvalidate:
         assert mock_cache_provider.invalidate.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_invalidate_removes_from_hierarchy(
-        self, store: UnifiedTaskStore
-    ) -> None:
+    async def test_invalidate_removes_from_hierarchy(self, store: UnifiedTaskStore) -> None:
         """Test that invalidate removes task from hierarchy index."""
         await store.put_async(make_task("task-123"))
 
@@ -894,9 +886,7 @@ class TestUnifiedTaskStoreCompleteness:
 
         call_args = mock_cache_provider.set_versioned.call_args
         entry = call_args[0][1]
-        assert (
-            entry.metadata.get("completeness_level") == CompletenessLevel.MINIMAL.value
-        )
+        assert entry.metadata.get("completeness_level") == CompletenessLevel.MINIMAL.value
         assert entry.metadata.get("opt_fields_used") == ["gid"]
 
     @pytest.mark.asyncio
@@ -914,9 +904,7 @@ class TestUnifiedTaskStoreCompleteness:
 
         call_args = mock_cache_provider.set_versioned.call_args
         entry = call_args[0][1]
-        assert (
-            entry.metadata.get("completeness_level") == CompletenessLevel.STANDARD.value
-        )
+        assert entry.metadata.get("completeness_level") == CompletenessLevel.STANDARD.value
 
     @pytest.mark.asyncio
     async def test_put_async_without_opt_fields_stores_unknown_level(
@@ -932,9 +920,7 @@ class TestUnifiedTaskStoreCompleteness:
 
         call_args = mock_cache_provider.set_versioned.call_args
         entry = call_args[0][1]
-        assert (
-            entry.metadata.get("completeness_level") == CompletenessLevel.UNKNOWN.value
-        )
+        assert entry.metadata.get("completeness_level") == CompletenessLevel.UNKNOWN.value
 
     @pytest.mark.asyncio
     async def test_put_batch_async_with_opt_fields_stores_completeness(
@@ -951,10 +937,7 @@ class TestUnifiedTaskStoreCompleteness:
         entries = call_args[0][0]
 
         for gid, entry in entries.items():
-            assert (
-                entry.metadata.get("completeness_level")
-                == CompletenessLevel.MINIMAL.value
-            )
+            assert entry.metadata.get("completeness_level") == CompletenessLevel.MINIMAL.value
 
     @pytest.mark.asyncio
     async def test_get_batch_async_filters_insufficient_entries(

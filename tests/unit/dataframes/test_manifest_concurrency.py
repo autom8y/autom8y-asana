@@ -159,9 +159,7 @@ async def test_concurrent_mixed_statuses() -> None:
     ]
 
     tasks = [
-        persistence.update_manifest_section_async(
-            "proj_1", gid, status, rows=rows, error=error
-        )
+        persistence.update_manifest_section_async("proj_1", gid, status, rows=rows, error=error)
         for gid, status, rows, error in updates
     ]
     await asyncio.gather(*tasks)
@@ -192,9 +190,7 @@ async def test_storage_write_called_per_update() -> None:
     persistence._storage.save_json.reset_mock()
 
     tasks = [
-        persistence.update_manifest_section_async(
-            "proj_1", gid, SectionStatus.COMPLETE, rows=10
-        )
+        persistence.update_manifest_section_async("proj_1", gid, SectionStatus.COMPLETE, rows=10)
         for gid in section_gids
     ]
     await asyncio.gather(*tasks)

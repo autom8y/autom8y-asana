@@ -172,9 +172,7 @@ def resolver_test_client(
         )
         app.state.entity_project_registry = registry
 
-    mock_resolve = _make_mock_strategy_resolve(
-        sample_unit_dataframe, ["office_phone", "vertical"]
-    )
+    mock_resolve = _make_mock_strategy_resolve(sample_unit_dataframe, ["office_phone", "vertical"])
 
     with (
         patch.dict(

@@ -56,11 +56,7 @@ BUSINESS_SCHEMA = DataFrameSchema(
     task_type="Business",
     columns=[
         *BASE_COLUMNS,
-        *[
-            c
-            for c in BUSINESS_COLUMNS
-            if c.name not in {col.name for col in BASE_COLUMNS}
-        ],
+        *[c for c in BUSINESS_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
     version="1.2.0",  # parent_gid column added for hierarchy reconstruction on resume
 )

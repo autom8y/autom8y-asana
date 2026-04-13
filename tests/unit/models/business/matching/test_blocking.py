@@ -192,9 +192,7 @@ class TestCompositeBlockingRule:
     def test_filter_candidates(self) -> None:
         """filter_candidates filters correctly."""
         rule = CompositeBlockingRule()
-        query = BusinessData(
-            name="Joe's Pizza", domain="joespizza.com", phone="+15551234567"
-        )
+        query = BusinessData(name="Joe's Pizza", domain="joespizza.com", phone="+15551234567")
 
         candidates = [
             # Shares "pizza" token with query

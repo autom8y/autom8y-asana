@@ -125,7 +125,5 @@ def compute_metric(
             print(result)
         print()
 
-    _span.set_attribute(
-        "computation.duration_ms", (time.perf_counter() - _metric_start) * 1000
-    )
+    _span.set_attribute("computation.duration_ms", (time.perf_counter() - _metric_start) * 1000)
     return result

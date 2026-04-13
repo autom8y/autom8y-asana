@@ -82,9 +82,7 @@ class DefaultLogProvider:
         if not self._logger.handlers:
             handler = logging.StreamHandler()
             handler.setFormatter(
-                logging.Formatter(
-                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                )
+                logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             )
             self._logger.addHandler(handler)
         self._logger.setLevel(level)

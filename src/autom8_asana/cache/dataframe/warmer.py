@@ -236,9 +236,7 @@ class CacheWarmer:
                     self._stats["warm_failures"] += 1
 
                     if self.strict:
-                        raise RuntimeError(
-                            f"Cache warm failed for {entity_type}: {status.error}"
-                        )
+                        raise RuntimeError(f"Cache warm failed for {entity_type}: {status.error}")
 
             except RuntimeError:
                 # Re-raise RuntimeError from strict mode
@@ -268,9 +266,7 @@ class CacheWarmer:
                 )
 
                 if self.strict:
-                    raise RuntimeError(
-                        f"Cache warm failed for {entity_type}: {e}"
-                    ) from e
+                    raise RuntimeError(f"Cache warm failed for {entity_type}: {e}") from e
 
         # Log summary
         total_elapsed = (time.monotonic() - total_start) * 1000

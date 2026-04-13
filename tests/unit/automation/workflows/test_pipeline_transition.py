@@ -101,9 +101,7 @@ def _setup_section_targeted_mocks(
         _make_section_mock("sec-dnc", "DID NOT CONVERT"),
         _make_section_mock("sec-other", "IN PROGRESS"),
     ]
-    mock_client.sections.list_for_project_async.return_value = _AsyncIterator(
-        mock_sections
-    )
+    mock_client.sections.list_for_project_async.return_value = _AsyncIterator(mock_sections)
 
     if section_tasks is None:
         section_tasks = {"sec-converted": [], "sec-dnc": []}
@@ -417,9 +415,7 @@ async def test_execute_async_transition_exception(lifecycle_config, mock_client)
     # Mock engine with exception
     with patch("autom8_asana.lifecycle.engine.LifecycleEngine") as MockEngine:
         mock_engine = MockEngine.return_value
-        mock_engine.handle_transition_async = AsyncMock(
-            side_effect=Exception("Network error")
-        )
+        mock_engine.handle_transition_async = AsyncMock(side_effect=Exception("Network error"))
 
         # Execute via enumerate -> execute
         result = await _enumerate_and_execute(
@@ -450,9 +446,7 @@ async def test_execute_async_multiple_projects(lifecycle_config, mock_client):
         _make_section_mock("sec-converted", "CONVERTED"),
         _make_section_mock("sec-dnc", "DID NOT CONVERT"),
     ]
-    mock_client.sections.list_for_project_async.return_value = _AsyncIterator(
-        mock_sections
-    )
+    mock_client.sections.list_for_project_async.return_value = _AsyncIterator(mock_sections)
 
     # Dispatch tasks by section GID; project 1 task in converted, project 2 in converted
     # Since both projects resolve the same section GIDs, we need to track
@@ -637,9 +631,7 @@ async def test_enumerate_section_targeted_happy_path(lifecycle_config, mock_clie
 
 
 @pytest.mark.asyncio
-async def test_enumerate_fallback_on_section_resolution_failure(
-    lifecycle_config, mock_client
-):
+async def test_enumerate_fallback_on_section_resolution_failure(lifecycle_config, mock_client):
     """Fallback: section resolution raises, falls back to project-level fetch.
 
     Verifies that tasks.list_async is called with project= kwarg (not section=).
@@ -647,9 +639,7 @@ async def test_enumerate_fallback_on_section_resolution_failure(
     workflow = PipelineTransitionWorkflow(mock_client, lifecycle_config)
 
     # Section resolution fails
-    mock_client.sections.list_for_project_async.side_effect = ConnectionError(
-        "Sections API down"
-    )
+    mock_client.sections.list_for_project_async.side_effect = ConnectionError("Sections API down")
 
     # Fallback: project-level fetch with membership data
     task1 = _make_task("task1", "Sales Process", "CONVERTED")
@@ -686,9 +676,7 @@ async def test_enumerate_fallback_on_empty_resolution(lifecycle_config, mock_cli
         _make_section_mock("sec-opp", "OPPORTUNITY"),
         _make_section_mock("sec-active", "ACTIVE"),
     ]
-    mock_client.sections.list_for_project_async.return_value = _AsyncIterator(
-        mock_sections
-    )
+    mock_client.sections.list_for_project_async.return_value = _AsyncIterator(mock_sections)
 
     # Fallback path: project-level fetch
     task1 = _make_task("task1", "Sales Process", "CONVERTED")
@@ -709,9 +697,7 @@ async def test_enumerate_fallback_on_empty_resolution(lifecycle_config, mock_cli
 
 
 @pytest.mark.asyncio
-async def test_enumerate_section_targeted_one_section_missing(
-    lifecycle_config, mock_client
-):
+async def test_enumerate_section_targeted_one_section_missing(lifecycle_config, mock_client):
     """Primary path with partial resolution: only CONVERTED section exists.
 
     When DID NOT CONVERT section is missing, resolution returns only the
@@ -724,9 +710,7 @@ async def test_enumerate_section_targeted_one_section_missing(
         _make_section_mock("sec-converted", "CONVERTED"),
         _make_section_mock("sec-opp", "OPPORTUNITY"),
     ]
-    mock_client.sections.list_for_project_async.return_value = _AsyncIterator(
-        mock_sections
-    )
+    mock_client.sections.list_for_project_async.return_value = _AsyncIterator(mock_sections)
 
     task_conv = _make_task("task-c1", "Converted Process")
 

@@ -49,9 +49,7 @@ T = TypeVar("T")
 _pending_fields: dict[int, dict[str, str]] = {}
 
 
-def _register_custom_field(
-    owner: type[Any], descriptor: CustomFieldDescriptor[Any]
-) -> None:
+def _register_custom_field(owner: type[Any], descriptor: CustomFieldDescriptor[Any]) -> None:
     """Register a custom field descriptor for Fields class generation.
 
     Called during descriptor.__set_name__() to register field for Fields generation.
@@ -201,11 +199,7 @@ class ParentRef(Generic[T]):
         setattr(obj, self.private_name, value)
 
         # Auto-invalidate on actual change (not just re-assignment of same value)
-        if (
-            self.auto_invalidate
-            and old_value is not value
-            and hasattr(obj, "_invalidate_refs")
-        ):
+        if self.auto_invalidate and old_value is not value and hasattr(obj, "_invalidate_refs"):
             # Don't re-invalidate the attr we just set
             logger.debug(
                 "auto_invalidating_refs",

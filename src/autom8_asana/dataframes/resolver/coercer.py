@@ -161,9 +161,7 @@ class TypeCoercer:
         """
         return [value]
 
-    def _to_numeric(
-        self, value: Any, target_dtype: str
-    ) -> Decimal | float | int | None:
+    def _to_numeric(self, value: Any, target_dtype: str) -> Decimal | float | int | None:
         """Convert value to numeric type.
 
         Args:

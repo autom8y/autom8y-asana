@@ -20,9 +20,7 @@ class TestDetectTokenType:
     def test_detect_jwt_with_two_dots(self) -> None:
         """JWT tokens have exactly 2 dots (header.payload.signature)."""
         # Arrange
-        jwt_token = (
-            "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature"
-        )
+        jwt_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature"
 
         # Act
         result = detect_token_type(jwt_token)
@@ -161,9 +159,7 @@ class TestGetAuthMode:
     @pytest.mark.asyncio
     async def test_valid_jwt_returns_jwt_mode(self) -> None:
         """Valid JWT token should return (AuthMode.JWT, token)."""
-        jwt_token = (
-            "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature"
-        )
+        jwt_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature"
         auth_mode, token = await get_auth_mode(authorization=f"Bearer {jwt_token}")
 
         assert auth_mode == AuthMode.JWT

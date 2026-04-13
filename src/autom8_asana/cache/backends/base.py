@@ -221,9 +221,7 @@ class CacheBackendBase(DegradedModeMixin, abc.ABC):
             self._metrics.record_write(latency, key=key, entry_type=entry_type_str)
 
         except self._transport_errors as e:
-            self._metrics.record_error(
-                key=key, entry_type=entry_type_str, error_message=str(e)
-            )
+            self._metrics.record_error(key=key, entry_type=entry_type_str, error_message=str(e))
             self._handle_transport_error(e, operation="set_versioned", key=key)
 
     # --- Shared Utility Methods ---

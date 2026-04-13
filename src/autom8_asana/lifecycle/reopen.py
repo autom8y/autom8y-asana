@@ -177,9 +177,7 @@ class ReopenService:
         """
         cfs = getattr(task, "custom_fields", None) or []
         for cf in cfs:
-            name = (
-                cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
-            )
+            name = cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
             if name.lower() in ("process type", "processtype"):
                 display = (
                     cf.get("display_value", "")

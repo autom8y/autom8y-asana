@@ -166,9 +166,7 @@ class TestBackfillFromDataframe:
         assert result.succeeded == 2
 
     @pytest.mark.asyncio
-    async def test_skips_tasks_with_existing_vertical(
-        self, service, mock_client
-    ) -> None:
+    async def test_skips_tasks_with_existing_vertical(self, service, mock_client) -> None:
         """Rows with non-empty vertical are skipped entirely."""
         unit_df = pl.DataFrame(
             {
@@ -226,9 +224,7 @@ class TestBackfillFromDataframe:
         )
 
     @pytest.mark.asyncio
-    async def test_notes_without_vertical_prefix_skipped(
-        self, service, mock_client
-    ) -> None:
+    async def test_notes_without_vertical_prefix_skipped(self, service, mock_client) -> None:
         """Tasks with notes lacking 'Vertical: ' prefix are skipped."""
         mock_client.tasks.get_async.return_value = _make_task_response(
             notes="This task has no vertical info",
@@ -290,9 +286,7 @@ class TestBackfillFromDataframe:
         assert result.errors[0][0] == "task_3"
 
     @pytest.mark.asyncio
-    async def test_individual_task_failure_does_not_stop_batch(
-        self, service, mock_client
-    ) -> None:
+    async def test_individual_task_failure_does_not_stop_batch(self, service, mock_client) -> None:
         """A failure on one task does not prevent processing of subsequent tasks."""
         responses = [
             Exception("API error on task_1"),
@@ -352,9 +346,7 @@ class TestBackfillFromDataframe:
         assert result.attempted == 0
 
     @pytest.mark.asyncio
-    async def test_no_vertical_custom_field_on_task_skipped(
-        self, service, mock_client
-    ) -> None:
+    async def test_no_vertical_custom_field_on_task_skipped(self, service, mock_client) -> None:
         """Task with no 'Vertical' custom field is skipped."""
         mock_client.tasks.get_async.return_value = _make_task_response(
             notes="Vertical: Dental",

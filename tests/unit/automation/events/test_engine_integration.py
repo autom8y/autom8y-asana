@@ -60,9 +60,7 @@ class CountingRule:
         self.trigger_count += 1
         return True
 
-    async def execute_async(
-        self, entity: Any, context: AutomationContext
-    ) -> AutomationResult:
+    async def execute_async(self, entity: Any, context: AutomationContext) -> AutomationResult:
         self.execute_count += 1
         return AutomationResult(
             rule_id=self.id,

@@ -179,9 +179,7 @@ class TestDisplayNameResolution:
         assert rf.value == 750
         assert rf.status == "resolved"
 
-    def test_resolve_display_name_case_insensitive(
-        self, resolver: FieldResolver
-    ) -> None:
+    def test_resolve_display_name_case_insensitive(self, resolver: FieldResolver) -> None:
         """'weekly ad spend' (all lowercase) resolves via case-insensitive scan."""
         results = resolver.resolve_fields({"weekly ad spend": 800})
         assert len(results) == 1
@@ -292,18 +290,14 @@ class TestMultiEnumResolution:
         """Append mode: merges with existing multi_enum_values."""
         # Existing: [Facebook (OPT_FB)]. Appending: [Google, Facebook].
         # Result should be: [OPT_FB, OPT_GOOG] (deduped, FB not duplicated).
-        results = resolver.resolve_fields(
-            {"platforms": ["Google", "Facebook"]}, list_mode="append"
-        )
+        results = resolver.resolve_fields({"platforms": ["Google", "Facebook"]}, list_mode="append")
         assert len(results) == 1
         rf = results[0]
         assert rf.status == "resolved"
         # Existing OPT_FB first, then newly added OPT_GOOG
         assert rf.value == ["OPT_FB", "OPT_GOOG"]
 
-    def test_resolve_multi_enum_all_unresolved_skipped(
-        self, resolver: FieldResolver
-    ) -> None:
+    def test_resolve_multi_enum_all_unresolved_skipped(self, resolver: FieldResolver) -> None:
         """All values unresolved -> skipped with error and suggestions.
 
         Per WS-4 hardening: prevents silent field-clear when all option names
@@ -343,13 +337,9 @@ class TestMultiEnumResolution:
         assert rf.value == ["OPT_FB"]
         # Partial success -- one matched, one dropped
 
-    def test_resolve_multi_enum_single_string_all_unresolved(
-        self, resolver: FieldResolver
-    ) -> None:
+    def test_resolve_multi_enum_single_string_all_unresolved(self, resolver: FieldResolver) -> None:
         """Single string value (not list) that fails resolution -> skipped."""
-        results = resolver.resolve_fields(
-            {"platforms": "NotARealPlatform"}, list_mode="replace"
-        )
+        results = resolver.resolve_fields({"platforms": "NotARealPlatform"}, list_mode="replace")
         assert len(results) == 1
         rf = results[0]
         assert rf.status == "skipped"
@@ -368,9 +358,7 @@ class TestTextAppend:
     def test_resolve_text_append_new(self, resolver: FieldResolver) -> None:
         """Append on empty text field sets the new value."""
         # "Notes Field" (CF_006) has text_value=""
-        results = resolver.resolve_fields(
-            {"Notes Field": "first-item"}, list_mode="append"
-        )
+        results = resolver.resolve_fields({"Notes Field": "first-item"}, list_mode="append")
         assert len(results) == 1
         rf = results[0]
         assert rf.status == "resolved"
@@ -442,9 +430,7 @@ class TestNullClears:
 class TestTypeValidation:
     """Type validation: number rejects string, text rejects number."""
 
-    def test_type_validation_number_rejects_string(
-        self, resolver: FieldResolver
-    ) -> None:
+    def test_type_validation_number_rejects_string(self, resolver: FieldResolver) -> None:
         """Number field with string value returns type error."""
         results = resolver.resolve_fields({"weekly_ad_spend": "not-a-number"})
         assert len(results) == 1

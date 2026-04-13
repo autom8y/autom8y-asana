@@ -153,10 +153,7 @@ class AutomationEngine:
         from autom8_asana.persistence.models import ActionType
 
         for action_result in save_result.action_results:
-            if (
-                action_result.success
-                and action_result.action.action == ActionType.MOVE_TO_SECTION
-            ):
+            if action_result.success and action_result.action.action == ActionType.MOVE_TO_SECTION:
                 task = action_result.action.task
                 if task.gid not in seen_gids:
                     entities_to_evaluate.append(task)

@@ -40,9 +40,7 @@ def _create_test_app() -> FastAPI:
     async def override_request_id() -> str:
         return "test-request-id"
 
-    app.dependency_overrides[AsanaClientDualMode.__metadata__[0].dependency] = (
-        override_client  # type: ignore[index]
-    )
+    app.dependency_overrides[AsanaClientDualMode.__metadata__[0].dependency] = override_client  # type: ignore[index]
     app.dependency_overrides[RequestId.__metadata__[0].dependency] = override_request_id  # type: ignore[index]
 
     app.include_router(router)

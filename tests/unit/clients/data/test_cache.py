@@ -287,9 +287,7 @@ class TestStaleFallback:
             pytest.param(504, "Gateway timeout", id="504-gateway-timeout"),
         ],
     )
-    async def test_stale_fallback_on_server_error(
-        self, status_code: int, error_msg: str
-    ) -> None:
+    async def test_stale_fallback_on_server_error(self, status_code: int, error_msg: str) -> None:
         """Returns stale cache on server error (502/503/504)."""
         import respx
 

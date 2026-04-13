@@ -83,9 +83,7 @@ class TestResolveOrderNoConstraints:
 
     def test_no_constraints_single_tier(self) -> None:
         """5 independent tag actions -> single tier with all 5."""
-        actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(5)
-        ]
+        actions = [_make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(5)]
         tiers = resolve_order(actions)
 
         assert len(tiers) == 1
@@ -93,10 +91,7 @@ class TestResolveOrderNoConstraints:
 
     def test_no_constraints_preserves_order(self) -> None:
         """Actions in single tier maintain input list order."""
-        actions = [
-            _make_action(f"task_{i}", ActionType.REMOVE_TAG, f"tag_{i}")
-            for i in range(10)
-        ]
+        actions = [_make_action(f"task_{i}", ActionType.REMOVE_TAG, f"tag_{i}") for i in range(10)]
         tiers = resolve_order(actions)
 
         assert len(tiers) == 1
@@ -146,9 +141,7 @@ class TestResolveOrderMixed:
 
     def test_mixed_independent_and_dependent(self) -> None:
         """EC-008: 15 tags + ADD_TO_PROJECT in tier 0, MOVE_TO_SECTION in tier 1."""
-        tag_actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(15)
-        ]
+        tag_actions = [_make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(15)]
         add_proj = _make_action("task_x", ActionType.ADD_TO_PROJECT, "proj_1")
         move_sect = _make_action("task_x", ActionType.MOVE_TO_SECTION, "section_1")
 
@@ -179,13 +172,9 @@ class TestResolveOrderMixed:
         """3 ADD_TO_PROJECT + 3 MOVE_TO_SECTION (pairwise same task) -> 2 tiers."""
         actions = []
         for i in range(3):
-            actions.append(
-                _make_action(f"task_{i}", ActionType.ADD_TO_PROJECT, f"proj_{i}")
-            )
+            actions.append(_make_action(f"task_{i}", ActionType.ADD_TO_PROJECT, f"proj_{i}"))
         for i in range(3):
-            actions.append(
-                _make_action(f"task_{i}", ActionType.MOVE_TO_SECTION, f"section_{i}")
-            )
+            actions.append(_make_action(f"task_{i}", ActionType.MOVE_TO_SECTION, f"section_{i}"))
 
         tiers = resolve_order(actions)
 
@@ -320,10 +309,7 @@ class TestResolveOrderScale:
 
     def test_1000_independent_actions(self) -> None:
         """1000 independent actions should resolve into 1 tier quickly."""
-        actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(1000)
-        ]
+        actions = [_make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(1000)]
 
         tiers = resolve_order(actions)
 
@@ -334,13 +320,9 @@ class TestResolveOrderScale:
         """500 actions: 250 ADD_TO_PROJECT + 250 MOVE_TO_SECTION for same tasks."""
         actions = []
         for i in range(250):
-            actions.append(
-                _make_action(f"task_{i}", ActionType.ADD_TO_PROJECT, f"proj_{i}")
-            )
+            actions.append(_make_action(f"task_{i}", ActionType.ADD_TO_PROJECT, f"proj_{i}"))
         for i in range(250):
-            actions.append(
-                _make_action(f"task_{i}", ActionType.MOVE_TO_SECTION, f"sect_{i}")
-            )
+            actions.append(_make_action(f"task_{i}", ActionType.MOVE_TO_SECTION, f"sect_{i}"))
 
         tiers = resolve_order(actions)
 
@@ -350,9 +332,7 @@ class TestResolveOrderScale:
 
     def test_ordering_constraint_100_actions(self) -> None:
         """100 actions with ordering constraints should work correctly."""
-        tag_actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(98)
-        ]
+        tag_actions = [_make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(98)]
         add_proj = _make_action("task_x", ActionType.ADD_TO_PROJECT, "proj_1")
         move_sect = _make_action("task_x", ActionType.MOVE_TO_SECTION, "sect_1")
 

@@ -150,8 +150,7 @@ class TestFieldSeeder:
         assert seeder._business_cascade_fields == ["Custom Only"]
         assert seeder._unit_cascade_fields == FieldSeeder.DEFAULT_UNIT_CASCADE_FIELDS
         assert (
-            seeder._process_carry_through_fields
-            == FieldSeeder.DEFAULT_PROCESS_CARRY_THROUGH_FIELDS
+            seeder._process_carry_through_fields == FieldSeeder.DEFAULT_PROCESS_CARRY_THROUGH_FIELDS
         )
 
 
@@ -583,18 +582,9 @@ class TestResolveEnumValue:
         }
 
         # Test various case variations
-        assert (
-            seeder._resolve_enum_value(field_def, "dental", "Vertical", "task_123")
-            == "123"
-        )
-        assert (
-            seeder._resolve_enum_value(field_def, "DENTAL", "Vertical", "task_123")
-            == "123"
-        )
-        assert (
-            seeder._resolve_enum_value(field_def, "DenTaL", "Vertical", "task_123")
-            == "123"
-        )
+        assert seeder._resolve_enum_value(field_def, "dental", "Vertical", "task_123") == "123"
+        assert seeder._resolve_enum_value(field_def, "DENTAL", "Vertical", "task_123") == "123"
+        assert seeder._resolve_enum_value(field_def, "DenTaL", "Vertical", "task_123") == "123"
 
     def test_validates_existing_gid(self) -> None:
         """Test that existing GIDs are validated against options."""
@@ -630,9 +620,7 @@ class TestResolveEnumValue:
             ],
         }
 
-        result = seeder._resolve_enum_value(
-            field_def, "InvalidOption", "Vertical", "task_123"
-        )
+        result = seeder._resolve_enum_value(field_def, "InvalidOption", "Vertical", "task_123")
         assert result is None
 
     def test_returns_none_for_empty_enum_options(self) -> None:
@@ -896,9 +884,7 @@ class TestResolveEnumValueWithObjects:
                 ]
 
         field_def = MockFieldDef()
-        result = seeder._resolve_enum_value(
-            field_def, "Medical", "Vertical", "task_123"
-        )
+        result = seeder._resolve_enum_value(field_def, "Medical", "Vertical", "task_123")
         assert result == "222"
 
     def test_validates_gid_with_object_options(self) -> None:

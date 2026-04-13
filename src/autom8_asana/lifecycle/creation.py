@@ -188,8 +188,7 @@ class EntityCreationService:
                     project_gid=stage_config.project_gid,
                 )
                 warnings.append(
-                    f"Template not found in project "
-                    f"{stage_config.project_gid}; created blank task"
+                    f"Template not found in project {stage_config.project_gid}; created blank task"
                 )
                 new_task = await self._client.tasks.create_async(
                     name=new_name,
@@ -230,9 +229,7 @@ class EntityCreationService:
                 warnings=warnings,
             )
 
-        except (
-            Exception
-        ) as e:  # BROAD-CATCH: boundary -- top-level creation must return result
+        except Exception as e:  # BROAD-CATCH: boundary -- top-level creation must return result
             logger.error(
                 "lifecycle_creation_error",
                 stage=stage_config.name,
@@ -304,9 +301,7 @@ class EntityCreationService:
                     project_gid=project_gid,
                     holder_type=holder_type,
                 )
-                warnings.append(
-                    f"Template not found in project {project_gid}; created blank task"
-                )
+                warnings.append(f"Template not found in project {project_gid}; created blank task")
                 new_task = await self._client.tasks.create_async(
                     name=new_name,
                 )
@@ -343,9 +338,7 @@ class EntityCreationService:
                 warnings=warnings,
             )
 
-        except (
-            Exception
-        ) as e:  # BROAD-CATCH: boundary -- entity creation must return result
+        except Exception as e:  # BROAD-CATCH: boundary -- entity creation must return result
             logger.error(
                 "lifecycle_entity_creation_error",
                 holder_type=holder_type,
@@ -428,9 +421,7 @@ class EntityCreationService:
             fields_seeded = seeding_result.fields_seeded
             fields_skipped = seeding_result.fields_skipped
             warnings.extend(seeding_result.warnings)
-        except (
-            Exception
-        ) as e:  # BROAD-CATCH: non-fatal -- seeding failure does not block creation
+        except Exception as e:  # BROAD-CATCH: non-fatal -- seeding failure does not block creation
             logger.warning(
                 "lifecycle_field_seeding_failed",
                 task_gid=new_task.gid,
@@ -537,9 +528,7 @@ class EntityCreationService:
                 if self._matches_process_type(task, target_stage_name):
                     return task.gid
 
-        except (
-            Exception
-        ) as e:  # BROAD-CATCH: non-fatal -- duplicate check failure means create new
+        except Exception as e:  # BROAD-CATCH: non-fatal -- duplicate check failure means create new
             logger.warning(
                 "lifecycle_duplicate_check_failed",
                 error=str(e),
@@ -576,12 +565,8 @@ class EntityCreationService:
         # Map holder_type string to class for non-process entities
         holder_class_map: dict[str, str] = {
             "dna_holder": ("autom8_asana.models.business.dna.DNAHolder"),
-            "asset_edit_holder": (
-                "autom8_asana.models.business.asset_edit.AssetEditHolder"
-            ),
-            "videography_holder": (
-                "autom8_asana.models.business.videography.VideographyHolder"
-            ),
+            "asset_edit_holder": ("autom8_asana.models.business.asset_edit.AssetEditHolder"),
+            "videography_holder": ("autom8_asana.models.business.videography.VideographyHolder"),
         }
         class_path = holder_class_map.get(holder_type)
         if class_path:
@@ -666,9 +651,7 @@ class EntityCreationService:
         Returns:
             Warning string if no assignee found or API failed, None on success.
         """
-        assignee_gid = self._resolve_assignee_gid(
-            source_process, unit, business, assignee_config
-        )
+        assignee_gid = self._resolve_assignee_gid(source_process, unit, business, assignee_config)
 
         # Apply or warn
         if assignee_gid:
@@ -723,9 +706,7 @@ class EntityCreationService:
         """Check if task's ProcessType custom field matches stage_name."""
         cfs = getattr(task, "custom_fields", None) or []
         for cf in cfs:
-            name = (
-                cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
-            )
+            name = cf.get("name", "") if isinstance(cf, dict) else getattr(cf, "name", "")
             if name.lower() in ("process type", "processtype"):
                 display = (
                     cf.get("display_value", "")

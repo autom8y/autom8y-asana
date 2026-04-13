@@ -253,9 +253,7 @@ class TestCacheWarmer:
 
         # Mock strategy that fails
         mock_strategy = MagicMock()
-        mock_strategy._build_dataframe = AsyncMock(
-            side_effect=ConnectionError("Build failed")
-        )
+        mock_strategy._build_dataframe = AsyncMock(side_effect=ConnectionError("Build failed"))
 
         with patch.object(
             warmer,
@@ -456,9 +454,7 @@ class TestCacheWarmer:
         )
 
         mock_strategy = MagicMock()
-        mock_strategy._build_dataframe = AsyncMock(
-            return_value=(None, datetime.now(UTC))
-        )
+        mock_strategy._build_dataframe = AsyncMock(return_value=(None, datetime.now(UTC)))
 
         with patch.object(
             warmer,

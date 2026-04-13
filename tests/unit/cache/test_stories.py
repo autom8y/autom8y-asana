@@ -156,9 +156,7 @@ class TestLoadStoriesIncremental:
         assert result[1]["gid"] == "s2"
 
     @pytest.mark.asyncio
-    async def test_merge_dedupes_by_gid(
-        self, cache: MockCacheProvider, fetcher: AsyncMock
-    ) -> None:
+    async def test_merge_dedupes_by_gid(self, cache: MockCacheProvider, fetcher: AsyncMock) -> None:
         """Test that merge deduplicates stories by GID."""
         # Pre-populate cache
         cached_entry = CacheEntry(

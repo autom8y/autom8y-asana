@@ -160,9 +160,7 @@ class TestSectionEdgeCases:
         assert result.data[0]["section"] == "Active"
 
     @pytest.mark.asyncio
-    async def test_section_case_sensitive_filter(
-        self, section_schema: DataFrameSchema
-    ) -> None:
+    async def test_section_case_sensitive_filter(self, section_schema: DataFrameSchema) -> None:
         """Section name filter on DataFrame is case-sensitive (per ADR-DQS-003)."""
         from autom8_asana.metrics.resolve import SectionIndex
 

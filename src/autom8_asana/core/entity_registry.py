@@ -933,9 +933,7 @@ def _validate_registry_integrity(registry: EntityRegistry) -> None:
     # Check 2: Holder references valid leaf entity
     for desc in registry.holders():
         if desc.holder_for and desc.holder_for not in names:
-            raise ValueError(
-                f"Holder {desc.name!r} references unknown entity {desc.holder_for!r}"
-            )
+            raise ValueError(f"Holder {desc.name!r} references unknown entity {desc.holder_for!r}")
 
     # Check 3: No duplicate pascal_names
     pascal_names: dict[str, str] = {}
@@ -943,8 +941,7 @@ def _validate_registry_integrity(registry: EntityRegistry) -> None:
         pn = desc.pascal_name
         if pn in pascal_names:
             raise ValueError(
-                f"Duplicate pascal_name {pn!r}: {desc.name!r} "
-                f"conflicts with {pascal_names[pn]!r}"
+                f"Duplicate pascal_name {pn!r}: {desc.name!r} conflicts with {pascal_names[pn]!r}"
             )
         pascal_names[pn] = desc.name
 
@@ -952,9 +949,7 @@ def _validate_registry_integrity(registry: EntityRegistry) -> None:
     for desc in registry.all_descriptors():
         for target, _key in desc.join_keys:
             if target not in names:
-                raise ValueError(
-                    f"Entity {desc.name!r} has join_key to unknown target {target!r}"
-                )
+                raise ValueError(f"Entity {desc.name!r} has join_key to unknown target {target!r}")
 
     # Check 5: Parent entity references exist
     for desc in registry.all_descriptors():

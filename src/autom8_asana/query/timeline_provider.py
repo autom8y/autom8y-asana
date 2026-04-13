@@ -177,9 +177,7 @@ def _reconstruct_timelines(df: pl.DataFrame) -> list[SectionTimeline]:
         for row in group_sorted.iter_rows(named=True):
             classification_str = row["classification"]
             classification = (
-                AccountActivity(classification_str)
-                if classification_str is not None
-                else None
+                AccountActivity(classification_str) if classification_str is not None else None
             )
             intervals.append(
                 SectionInterval(

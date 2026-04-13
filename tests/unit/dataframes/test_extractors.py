@@ -484,9 +484,7 @@ class TestBaseExtractor:
             source="cascade:Office Phone",
         )
 
-        with pytest.raises(
-            ValueError, match="cascade: sources require async extraction"
-        ):
+        with pytest.raises(ValueError, match="cascade: sources require async extraction"):
             extractor._extract_column(minimal_task, col)
 
     def test_cascade_source_requires_client(self, minimal_task: Task) -> None:
@@ -504,9 +502,7 @@ class TestBaseExtractor:
             source="cascade:Office Phone",
         )
 
-        with pytest.raises(
-            ValueError, match="AsanaClient required for cascade: sources"
-        ):
+        with pytest.raises(ValueError, match="AsanaClient required for cascade: sources"):
             # Try to get cascading resolver when client is None
             extractor._get_cascading_resolver()
 
@@ -545,9 +541,7 @@ class TestBaseExtractor:
             resolver = extractor._get_cascading_resolver()
 
             # Should create resolver with cascade_plugin=None (no unified store)
-            mock_resolver_class.assert_called_once_with(
-                mock_client, cascade_plugin=None
-            )
+            mock_resolver_class.assert_called_once_with(mock_client, cascade_plugin=None)
             assert resolver == mock_resolver_instance
 
     def test_cascading_resolver_cached(self) -> None:
@@ -582,9 +576,7 @@ class TestCascadeAsyncExtraction:
     """Tests for async cascade: prefix extraction."""
 
     @pytest.mark.asyncio
-    async def test_extract_column_async_handles_cascade_source(
-        self, minimal_task: Task
-    ) -> None:
+    async def test_extract_column_async_handles_cascade_source(self, minimal_task: Task) -> None:
         """Test that _extract_column_async handles cascade: sources."""
         from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -606,14 +598,10 @@ class TestCascadeAsyncExtraction:
             result = await extractor._extract_column_async(minimal_task, col)
 
             assert result == "555-1234"
-            mock_resolver.resolve_async.assert_called_once_with(
-                minimal_task, "Office Phone"
-            )
+            mock_resolver.resolve_async.assert_called_once_with(minimal_task, "Office Phone")
 
     @pytest.mark.asyncio
-    async def test_extract_column_async_case_insensitive_prefix(
-        self, minimal_task: Task
-    ) -> None:
+    async def test_extract_column_async_case_insensitive_prefix(self, minimal_task: Task) -> None:
         """Test that cascade: prefix matching is case-insensitive."""
         from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -636,9 +624,7 @@ class TestCascadeAsyncExtraction:
             result = await extractor._extract_column_async(minimal_task, col)
 
             assert result == "555-9999"
-            mock_resolver.resolve_async.assert_called_once_with(
-                minimal_task, "Office Phone"
-            )
+            mock_resolver.resolve_async.assert_called_once_with(minimal_task, "Office Phone")
 
     @pytest.mark.asyncio
     async def test_extract_async_full_extraction(self, full_task: Task) -> None:
@@ -788,9 +774,7 @@ class TestUnitExtractor:
         mock_cascade_resolver = MagicMock()
         mock_cascade_resolver.resolve_async = AsyncMock(side_effect=mock_resolve)
 
-        with patch.object(
-            extractor, "_get_cascading_resolver", return_value=mock_cascade_resolver
-        ):
+        with patch.object(extractor, "_get_cascading_resolver", return_value=mock_cascade_resolver):
             row = await extractor.extract_async(unit_task)
 
             assert isinstance(row, UnitRow)
@@ -820,9 +804,7 @@ class TestUnitExtractor:
         mock_cascade_resolver = MagicMock()
         mock_cascade_resolver.resolve_async = AsyncMock(return_value=None)
 
-        with patch.object(
-            extractor, "_get_cascading_resolver", return_value=mock_cascade_resolver
-        ):
+        with patch.object(extractor, "_get_cascading_resolver", return_value=mock_cascade_resolver):
             row = await extractor.extract_async(unit_task)
 
             assert row.office is None

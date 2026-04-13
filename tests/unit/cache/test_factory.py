@@ -370,9 +370,7 @@ class TestCacheProviderFactoryCreateUnifiedStore:
         config = CacheConfig(enabled=True, provider="memory")
         mock_batch_client = MagicMock()
 
-        store = CacheProviderFactory.create_unified_store(
-            config, batch_client=mock_batch_client
-        )
+        store = CacheProviderFactory.create_unified_store(config, batch_client=mock_batch_client)
 
         assert isinstance(store, UnifiedTaskStore)
         assert store.batch_client is mock_batch_client

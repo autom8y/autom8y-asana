@@ -243,9 +243,7 @@ class TestCascadingFieldResolverUnifiedIntegration:
         # Create resolver with plugin
         cascade_plugin = CascadeViewPlugin(store=mock_unified_store)
         client = MagicMock()
-        resolver_with_plugin = CascadingFieldResolver(
-            client=client, cascade_plugin=cascade_plugin
-        )
+        resolver_with_plugin = CascadingFieldResolver(client=client, cascade_plugin=cascade_plugin)
 
         # Create resolver without plugin
         resolver_without_plugin = CascadingFieldResolver(client=client)
@@ -256,12 +254,8 @@ class TestCascadingFieldResolverUnifiedIntegration:
         task.custom_fields = []
 
         # Both should return None for unregistered field
-        result_with = await resolver_with_plugin.resolve_async(
-            task, "Nonexistent Field"
-        )
-        result_without = await resolver_without_plugin.resolve_async(
-            task, "Nonexistent Field"
-        )
+        result_with = await resolver_with_plugin.resolve_async(task, "Nonexistent Field")
+        result_without = await resolver_without_plugin.resolve_async(task, "Nonexistent Field")
 
         assert result_with is None
         assert result_without is None
@@ -512,9 +506,7 @@ class TestPerformanceTiming:
 
         # Log timing (informational, no assertion)
         print(f"\n100 unified store lookups: {elapsed_ms:.2f}ms")
-        assert elapsed_ms < 1000.0, (
-            f"100 lookups took {elapsed_ms:.2f}ms, expected < 1000ms"
-        )
+        assert elapsed_ms < 1000.0, f"100 lookups took {elapsed_ms:.2f}ms, expected < 1000ms"
 
     @pytest.mark.asyncio
     async def test_legacy_coordinator_lookup_timing(
@@ -545,6 +537,4 @@ class TestPerformanceTiming:
 
         # Log timing (informational, no assertion)
         print(f"\n100 legacy coordinator lookups: {elapsed_ms:.2f}ms")
-        assert elapsed_ms < 1000.0, (
-            f"100 lookups took {elapsed_ms:.2f}ms, expected < 1000ms"
-        )
+        assert elapsed_ms < 1000.0, f"100 lookups took {elapsed_ms:.2f}ms, expected < 1000ms"

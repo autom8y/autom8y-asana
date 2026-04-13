@@ -283,7 +283,9 @@ async def hydrate_from_gid_async(
             opt_fields=_BUSINESS_FULL_OPT_FIELDS,
         )
         api_calls += 1
-    except Exception as e:  # BROAD-CATCH: boundary -- wraps diverse API+model failures into HydrationError
+    except (
+        Exception
+    ) as e:  # BROAD-CATCH: boundary -- wraps diverse API+model failures into HydrationError
         # Cannot proceed without the entry task
         raise HydrationError(
             f"Failed to fetch entry task {gid}: {e}",
@@ -362,7 +364,9 @@ async def hydrate_from_gid_async(
         except HydrationError:
             # Re-raise traversal errors - cannot continue without Business
             raise
-        except Exception as e:  # BROAD-CATCH: boundary -- wraps diverse traversal failures into HydrationError
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: boundary -- wraps diverse traversal failures into HydrationError
             raise HydrationError(
                 f"Upward traversal failed from {gid}: {e}",
                 entity_gid=gid,
@@ -716,8 +720,7 @@ async def _traverse_upward_async(
 
     # Max depth exceeded
     raise HydrationError(
-        f"Max traversal depth ({max_depth}) exceeded. "
-        f"Path so far: {[e.gid for e in path]}",
+        f"Max traversal depth ({max_depth}) exceeded. Path so far: {[e.gid for e in path]}",
         entity_gid=entity.gid,
         entity_type=None,
         phase="upward",

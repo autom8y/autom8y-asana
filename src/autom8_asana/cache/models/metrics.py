@@ -355,9 +355,7 @@ class CacheMetrics:
             correlation_id: Optional correlation ID for tracing.
         """
         with self._lock:
-            self._overflow_skips[entry_type] = (
-                self._overflow_skips.get(entry_type, 0) + 1
-            )
+            self._overflow_skips[entry_type] = self._overflow_skips.get(entry_type, 0) + 1
 
         metadata: dict[str, Any] = {}
         if count is not None:
@@ -575,7 +573,9 @@ class CacheMetrics:
             for callback in callbacks:
                 try:
                     callback(event)
-                except Exception:  # BROAD-CATCH: hook -- metrics callbacks must not break cache operations
+                except (
+                    Exception
+                ):  # BROAD-CATCH: hook -- metrics callbacks must not break cache operations
                     logger.warning("Metrics callback failed", exc_info=True)
         finally:
             self._emitting.active = False

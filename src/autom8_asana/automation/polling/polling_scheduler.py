@@ -299,9 +299,7 @@ class PollingScheduler:
             utc_time=utc_end.isoformat(),
         )
 
-    def _evaluate_rules(
-        self, tasks_by_project: dict[str, list[Any]] | None = None
-    ) -> None:
+    def _evaluate_rules(self, tasks_by_project: dict[str, list[Any]] | None = None) -> None:
         """Internal: evaluate all enabled rules and execute actions on matches.
 
         Iterates through all rules in the configuration, evaluating each
@@ -371,9 +369,7 @@ class PollingScheduler:
             # Execute actions on matched tasks if executor is available
             if matched_tasks and self._action_executor:
                 # Run async action execution in sync context
-                asyncio.run(
-                    self._execute_actions_async(matched_tasks, rule, structured_log)
-                )
+                asyncio.run(self._execute_actions_async(matched_tasks, rule, structured_log))
             elif matched_tasks:
                 # Dry-run mode: log matches without executing actions
                 for task in matched_tasks:
@@ -431,9 +427,7 @@ class PollingScheduler:
         if workflow_id and self._workflow_registry:
             workflow = self._workflow_registry.get(workflow_id)
             if workflow:
-                asyncio.run(
-                    self._execute_workflow_async(workflow, rule, structured_log)
-                )
+                asyncio.run(self._execute_workflow_async(workflow, rule, structured_log))
             else:
                 structured_log.error(
                     "workflow_not_found",
@@ -562,7 +556,9 @@ class PollingScheduler:
                 skipped=result.skipped,
                 duration_seconds=round(result.duration_seconds, 2),
             )
-        except Exception as exc:  # BROAD-CATCH: isolation -- workflow failure must not abort evaluation cycle
+        except (
+            Exception
+        ) as exc:  # BROAD-CATCH: isolation -- workflow failure must not abort evaluation cycle
             structured_log.error(
                 "workflow_execution_error",
                 rule_id=rule.rule_id,

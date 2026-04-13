@@ -17,11 +17,11 @@ from autom8_asana.clients.name_resolver import NameResolver
 from autom8_asana.persistence.action_executor import ActionExecutor
 from autom8_asana.persistence.actions import ActionBuilder
 from autom8_asana.persistence.cache_invalidator import CacheInvalidator
-from autom8_asana.persistence.events import EventSystem
 from autom8_asana.persistence.errors import (
     PositioningConflictError,
     SessionClosedError,
 )
+from autom8_asana.persistence.events import EventSystem
 from autom8_asana.persistence.graph import DependencyGraph
 from autom8_asana.persistence.healing import HealingManager
 from autom8_asana.persistence.models import (
@@ -243,9 +243,7 @@ class SaveSession:
                 HolderConcurrencyManager,
             )
 
-            self._holder_concurrency: HolderConcurrencyManager | None = (
-                HolderConcurrencyManager()
-            )
+            self._holder_concurrency: HolderConcurrencyManager | None = HolderConcurrencyManager()
         else:
             self._holder_concurrency = None
 
@@ -464,9 +462,7 @@ class SaveSession:
                         "session_queue_healing",
                         entity_type=type(entity).__name__,
                         entity_gid=entity.gid,
-                        expected_project_gid=detection.expected_project_gid
-                        if detection
-                        else None,
+                        expected_project_gid=detection.expected_project_gid if detection else None,
                         tier_used=detection.tier_used if detection else None,
                     )
 
@@ -550,9 +546,7 @@ class SaveSession:
         # TDD-DEBT-003: Full operation under lock
         with self._require_open():
             if not entity.gid or entity.gid.startswith("temp_"):
-                raise ValueError(
-                    f"Cannot delete entity without GID: {type(entity).__name__}"
-                )
+                raise ValueError(f"Cannot delete entity without GID: {type(entity).__name__}")
 
             self._tracker.mark_deleted(entity)
 
@@ -888,9 +882,7 @@ class SaveSession:
                 concurrency=self._holder_concurrency,
                 log=self._log,
             )
-            dirty_entities = await holder_ensurer.ensure_holders_for_entities(
-                dirty_entities
-            )
+            dirty_entities = await holder_ensurer.ensure_holders_for_entities(dirty_entities)
         return dirty_entities
 
     async def _execute_crud_and_actions(
@@ -964,9 +956,7 @@ class SaveSession:
         """
         healing_report: HealingReport | None = None
         if self._healing_manager.queue:
-            healing_report = await self._healing_manager.execute_async(
-                self._client.http
-            )
+            healing_report = await self._healing_manager.execute_async(self._client.http)
             if self._log:
                 for result in healing_report.results:
                     if result.success:
@@ -1046,9 +1036,7 @@ class SaveSession:
                 # TypeError can come from mock/plugin configuration issues
                 from autom8y_log import get_logger
 
-                get_logger(__name__).warning(
-                    "automation_evaluation_failed", error=str(e)
-                )
+                get_logger(__name__).warning("automation_evaluation_failed", error=str(e))
 
         return automation_results
 
@@ -1081,9 +1069,7 @@ class SaveSession:
         healing_failures = healing_report.failed if healing_report else 0
 
         # Count automation metrics for logging
-        automation_succeeded = sum(
-            1 for r in automation_results if r.success and not r.was_skipped
-        )
+        automation_succeeded = sum(1 for r in automation_results if r.success and not r.was_skipped)
         automation_failed = sum(1 for r in automation_results if not r.success)
         automation_skipped = sum(1 for r in automation_results if r.was_skipped)
 
@@ -1191,9 +1177,7 @@ class SaveSession:
         self,
         func: (
             Callable[[AsanaResource, OperationType, Exception], None]
-            | Callable[
-                [AsanaResource, OperationType, Exception], Coroutine[Any, Any, None]
-            ]
+            | Callable[[AsanaResource, OperationType, Exception], Coroutine[Any, Any, None]]
         ),
     ) -> Callable[..., Any]:
         """Register error hook (decorator).
@@ -1219,10 +1203,7 @@ class SaveSession:
 
     def on_post_commit(
         self,
-        func: (
-            Callable[[SaveResult], None]
-            | Callable[[SaveResult], Coroutine[Any, Any, None]]
-        ),
+        func: (Callable[[SaveResult], None] | Callable[[SaveResult], Coroutine[Any, Any, None]]),
     ) -> Callable[..., Any]:
         """Register post-commit hook (decorator).
 
@@ -1389,9 +1370,7 @@ class SaveSession:
         with self._require_open():
             # Validate that at least one text field is provided
             if not text and not html_text:
-                raise ValueError(
-                    "add_comment requires either text or html_text to be non-empty"
-                )
+                raise ValueError("add_comment requires either text or html_text to be non-empty")
 
             # Per ADR-0046: Store text in extra_params
             extra_params: dict[str, str] = {"text": text}
@@ -1466,14 +1445,8 @@ class SaveSession:
         with self._require_open():
             # Per ADR-0047: Fail-fast validation for positioning conflict
             if insert_before is not None and insert_after is not None:
-                before_gid = (
-                    insert_before
-                    if isinstance(insert_before, str)
-                    else insert_before.gid
-                )
-                after_gid = (
-                    insert_after if isinstance(insert_after, str) else insert_after.gid
-                )
+                before_gid = insert_before if isinstance(insert_before, str) else insert_before.gid
+                after_gid = insert_after if isinstance(insert_after, str) else insert_after.gid
                 raise PositioningConflictError(before_gid, after_gid)
 
             # Resolve parent GID (None means promote to top-level)
@@ -1485,9 +1458,7 @@ class SaveSession:
             extra_params: dict[str, Any] = {"parent": parent_gid}
             if insert_before is not None:
                 extra_params["insert_before"] = (
-                    insert_before
-                    if isinstance(insert_before, str)
-                    else insert_before.gid
+                    insert_before if isinstance(insert_before, str) else insert_before.gid
                 )
             if insert_after is not None:
                 extra_params["insert_after"] = (
@@ -1550,8 +1521,7 @@ class SaveSession:
         # Per FR-PAR-007: Task must have a parent to be reordered
         if not hasattr(task, "parent") or task.parent is None:
             raise ValueError(
-                f"Task {task.gid} has no parent. "
-                "reorder_subtask() only works on subtasks."
+                f"Task {task.gid} has no parent. reorder_subtask() only works on subtasks."
             )
 
         return self.set_parent(
@@ -1692,9 +1662,7 @@ class SaveSession:
                     entity_type=type(entity).__name__,
                     entity_gid=entity.gid,
                     field_name=field_name,
-                    target_types=[t.__name__ for t in target_types]
-                    if target_types
-                    else None,
+                    target_types=[t.__name__ for t in target_types] if target_types else None,
                 )
 
             return self
@@ -1793,8 +1761,7 @@ class SaveSession:
         self._pending_actions = [
             action
             for action in self._pending_actions
-            if (action.task.gid, action.action, action.target)
-            not in successful_identities
+            if (action.task.gid, action.action, action.target) not in successful_identities
         ]
 
     # --- Cache Invalidation Support (ADR-0059) ---

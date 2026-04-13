@@ -279,15 +279,11 @@ def check_targets(results: list[BatchBenchmarkResult]) -> None:
     for result in results:
         if result.operation == "staleness_check" and result.batch_size == 100:
             status = "PASS" if result.avg_latency_ms < 500 else "FAIL"
-            print(
-                f"NFR-PERF-004 (100 GIDs < 500ms): {status} ({result.avg_latency_ms:.3f} ms)"
-            )
+            print(f"NFR-PERF-004 (100 GIDs < 500ms): {status} ({result.avg_latency_ms:.3f} ms)")
 
         if result.operation == "staleness_check" and result.batch_size == 1000:
             status = "PASS" if result.avg_latency_ms < 5000 else "FAIL"
-            print(
-                f"Batch check 1000 GIDs < 5s:      {status} ({result.avg_latency_ms:.3f} ms)"
-            )
+            print(f"Batch check 1000 GIDs < 5s:      {status} ({result.avg_latency_ms:.3f} ms)")
 
 
 def main() -> None:
@@ -356,9 +352,7 @@ def main() -> None:
     print("\n" + "=" * 60)
     print("SUMMARY TABLE")
     print("=" * 60)
-    print(
-        f"{'Operation':<30} {'Size':>6} {'Avg(ms)':>10} {'P99(ms)':>10} {'Items/s':>12}"
-    )
+    print(f"{'Operation':<30} {'Size':>6} {'Avg(ms)':>10} {'P99(ms)':>10} {'Items/s':>12}")
     print("-" * 70)
     for result in all_results:
         print(

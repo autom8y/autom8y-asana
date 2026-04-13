@@ -73,9 +73,7 @@ class QueryEngine:
     limits: QueryLimits = field(default_factory=QueryLimits)
     data_client: DataServiceClient | None = None  # For cross-service joins
 
-    @trace_computation(
-        "entity.query_rows", record_dataframe_shape=True, engine="autom8y-asana"
-    )
+    @trace_computation("entity.query_rows", record_dataframe_shape=True, engine="autom8y-asana")
     async def execute_rows(
         self,
         entity_type: str,
@@ -122,14 +120,10 @@ class QueryEngine:
             self.limits.check_depth(depth)
 
         # 2. Resolve classification to section IN predicate
-        classification_sections = self._resolve_classification(
-            request.classification, entity_type
-        )
+        classification_sections = self._resolve_classification(request.classification, entity_type)
 
         # 3. Resolve section
-        section_name_filter = self._resolve_section(
-            request.section, entity_type, section_index
-        )
+        section_name_filter = self._resolve_section(request.section, entity_type, section_index)
 
         # 4. Load DataFrame
         df = await self.provider.get_dataframe(
@@ -150,9 +144,7 @@ class QueryEngine:
         # 7. Apply classification filter (case-insensitive IN predicate)
         if classification_sections is not None:
             classification_expr = (
-                pl.col("section")
-                .str.to_lowercase()
-                .is_in(list(classification_sections))
+                pl.col("section").str.to_lowercase().is_in(list(classification_sections))
             )
             if filter_expr is not None:
                 filter_expr = classification_expr & filter_expr
@@ -305,9 +297,7 @@ class QueryEngine:
             self.limits.check_depth(depth)
 
         # 3. Resolve section (same pattern as execute_rows)
-        section_name_filter = self._resolve_section(
-            request.section, entity_type, section_index
-        )
+        section_name_filter = self._resolve_section(request.section, entity_type, section_index)
 
         # 4. Load DataFrame
         df = await self.provider.get_dataframe(
@@ -430,8 +420,7 @@ class QueryEngine:
         except ValueError:
             valid_values = [a.value for a in AccountActivity]
             raise ClassificationError(
-                f"Invalid classification value: '{classification}'. "
-                f"Valid values: {valid_values}"
+                f"Invalid classification value: '{classification}'. Valid values: {valid_values}"
             ) from None
 
         sections = classifier.sections_for(activity)
@@ -525,13 +514,9 @@ class QueryEngine:
         if entity_project_registry is None:
             raise JoinError("entity_project_registry is required for join operations")
 
-        target_project_gid = entity_project_registry.get_project_gid(
-            join_spec.entity_type
-        )
+        target_project_gid = entity_project_registry.get_project_gid(join_spec.entity_type)
         if target_project_gid is None:
-            raise JoinError(
-                f"No project configured for join target: {join_spec.entity_type}"
-            )
+            raise JoinError(f"No project configured for join target: {join_spec.entity_type}")
 
         target_df = await self.provider.get_dataframe(
             join_spec.entity_type,
@@ -540,9 +525,7 @@ class QueryEngine:
         )
 
         if join_key is None:
-            raise JoinError(
-                f"No join key found between {entity_type} and {join_spec.entity_type}"
-            )
+            raise JoinError(f"No join key found between {entity_type} and {join_spec.entity_type}")
 
         # Execute join
         join_result = execute_join(

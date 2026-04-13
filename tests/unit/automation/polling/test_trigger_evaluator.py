@@ -50,9 +50,7 @@ class TestTriggerEvaluatorStaleTrigger:
             rule_id="stale-check",
             name="Stale Check",
             project_gid="123",
-            conditions=[
-                RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
-            ],
+            conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))],
             action=ActionConfig(type="add_tag", params={"tag": "stale"}),
         )
 
@@ -557,9 +555,7 @@ class TestTriggerEvaluatorEmptyConditions:
             rule_id="test",
             name="Test",
             project_gid="123",
-            conditions=[
-                RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
-            ],
+            conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))],
             action=ActionConfig(type="add_tag", params={"tag": "test"}),
         )
 
@@ -586,9 +582,7 @@ class TestTriggerEvaluatorEdgeCases:
             rule_id="test",
             name="Test",
             project_gid="123",
-            conditions=[
-                RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
-            ],
+            conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))],
             action=ActionConfig(type="add_tag", params={"tag": "test"}),
         )
 
@@ -613,9 +607,7 @@ class TestTriggerEvaluatorEdgeCases:
             rule_id="test",
             name="Test",
             project_gid="123",
-            conditions=[
-                RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
-            ],
+            conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))],
             action=ActionConfig(type="add_tag", params={"tag": "test"}),
         )
 
@@ -639,9 +631,7 @@ class TestTriggerEvaluatorEdgeCases:
             rule_id="test",
             name="Test",
             project_gid="123",
-            conditions=[
-                RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
-            ],
+            conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))],
             action=ActionConfig(type="add_tag", params={"tag": "test"}),
         )
 
@@ -667,9 +657,7 @@ class TestTriggerEvaluatorEdgeCases:
             rule_id="test",
             name="Test",
             project_gid="123",
-            conditions=[
-                RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
-            ],
+            conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))],
             action=ActionConfig(type="add_tag", params={"tag": "test"}),
         )
 

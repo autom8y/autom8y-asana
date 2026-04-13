@@ -300,8 +300,7 @@ class TestComplexGraphs:
         """Root with 10 children at same level."""
         root = Task(gid="root", name="Root")
         children = [
-            Task(gid=f"child_{i}", name=f"Child {i}", parent=NameGid(gid="root"))
-            for i in range(10)
+            Task(gid=f"child_{i}", name=f"Child {i}", parent=NameGid(gid="root")) for i in range(10)
         ]
 
         graph = DependencyGraph()

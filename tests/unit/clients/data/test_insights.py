@@ -142,14 +142,10 @@ class TestGetInsightsAsyncHTTPContract:
         """Request is POST to /api/v1/data-service/insights."""
         import respx
 
-        client = DataServiceClient(
-            config=DataServiceConfig(base_url="https://data.example.com")
-        )
+        client = DataServiceClient(config=DataServiceConfig(base_url="https://data.example.com"))
 
         with respx.mock:
-            route = respx.post(
-                "https://data.example.com/api/v1/data-service/insights"
-            ).respond(
+            route = respx.post("https://data.example.com/api/v1/data-service/insights").respond(
                 json={
                     "data": [],
                     "metadata": {
@@ -199,9 +195,7 @@ class TestGetInsightsAsyncHTTPContract:
             )
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").mock(
-                side_effect=capture_request
-            )
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             async with client:
                 await client.get_insights_async(
@@ -245,9 +239,7 @@ class TestGetInsightsAsyncHTTPContract:
             )
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").mock(
-                side_effect=capture_request
-            )
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             async with client:
                 from datetime import date
@@ -301,9 +293,7 @@ class TestGetInsightsAsyncHTTPContract:
             )
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").mock(
-                side_effect=capture_request
-            )
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             async with client:
                 await client.get_insights_async(
@@ -705,9 +695,7 @@ class TestGetInsightsAsyncIntegration:
         client = DataServiceClient(config=config)
 
         with respx.mock:
-            respx.post(
-                "https://data.test.autom8.io/api/v1/data-service/insights"
-            ).respond(
+            respx.post("https://data.test.autom8.io/api/v1/data-service/insights").respond(
                 json={
                     "data": [
                         {"spend": 2500.00, "leads": 75, "cpl": 33.33, "roas": 3.5},
@@ -763,9 +751,7 @@ class TestGetInsightsAsyncIntegration:
             ("Campaigns", "campaigns"),
         ],
     )
-    async def test_factory_case_insensitive(
-        self, input_case: str, expected: str
-    ) -> None:
+    async def test_factory_case_insensitive(self, input_case: str, expected: str) -> None:
         """Factory name validation is case-insensitive (e.g., ACCOUNT, Account work)."""
         import respx
 
@@ -827,9 +813,7 @@ class TestGetInsightsAsyncIntegration:
             )
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").mock(
-                side_effect=capture_request
-            )
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             async with client:
                 await client.get_insights_async(

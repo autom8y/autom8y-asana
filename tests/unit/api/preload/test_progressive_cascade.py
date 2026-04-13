@@ -65,9 +65,7 @@ def _make_entity_registry(
     def _get_config(etype: str) -> EntityProjectConfig | None:
         for et, gid, name in entity_types:
             if et == etype:
-                return EntityProjectConfig(
-                    entity_type=et, project_gid=gid, project_name=name
-                )
+                return EntityProjectConfig(entity_type=et, project_gid=gid, project_name=name)
         return None
 
     registry.get_config.side_effect = _get_config
@@ -188,9 +186,7 @@ def _build_patch_stack(  # noqa: PLR0913
         )
     )
 
-    stack.enter_context(
-        patch("autom8_asana.auth.bot_pat.get_bot_pat", return_value="test-pat")
-    )
+    stack.enter_context(patch("autom8_asana.auth.bot_pat.get_bot_pat", return_value="test-pat"))
     stack.enter_context(
         patch(
             "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
@@ -209,9 +205,7 @@ def _build_patch_stack(  # noqa: PLR0913
             side_effect=_get_schema,
         )
     )
-    stack.enter_context(
-        patch("autom8_asana.dataframes.resolver.DefaultCustomFieldResolver")
-    )
+    stack.enter_context(patch("autom8_asana.dataframes.resolver.DefaultCustomFieldResolver"))
 
     # Patch CacheProviderFactory to return our mock store
     mock_factory = MagicMock()
@@ -303,13 +297,9 @@ class TestDataframeToTaskDicts:
         assert len(result) == 2
         assert result[0]["gid"] == "biz-1"
         assert result[0]["parent"] is None
-        assert result[0]["custom_fields"] == [
-            {"name": "Office Phone", "display_value": "555-1234"}
-        ]
+        assert result[0]["custom_fields"] == [{"name": "Office Phone", "display_value": "555-1234"}]
         assert result[1]["gid"] == "biz-2"
-        assert result[1]["custom_fields"] == [
-            {"name": "Office Phone", "display_value": "555-5678"}
-        ]
+        assert result[1]["custom_fields"] == [{"name": "Office Phone", "display_value": "555-5678"}]
 
     def test_skips_null_gids(self) -> None:
         df = pl.DataFrame(
@@ -396,9 +386,7 @@ class TestBusinessFastPathPopulatesStore:
             _preload_dataframe_cache_progressive,
         )
 
-        registry = _make_entity_registry(
-            entity_types=[("business", "proj_biz", "Business")]
-        )
+        registry = _make_entity_registry(entity_types=[("business", "proj_biz", "Business")])
         app = _make_mock_app(registry)
 
         mock_persistence = MagicMock()
@@ -457,9 +445,7 @@ class TestBusinessFastPathSkipsCascadeValidation:
             _preload_dataframe_cache_progressive,
         )
 
-        registry = _make_entity_registry(
-            entity_types=[("business", "proj_biz", "Business")]
-        )
+        registry = _make_entity_registry(entity_types=[("business", "proj_biz", "Business")])
         app = _make_mock_app(registry)
 
         mock_persistence = MagicMock()
@@ -474,9 +460,7 @@ class TestBusinessFastPathSkipsCascadeValidation:
         )
 
         mock_df_storage = MagicMock()
-        mock_df_storage.load_dataframe = AsyncMock(
-            return_value=(biz_df, datetime.now(UTC))
-        )
+        mock_df_storage.load_dataframe = AsyncMock(return_value=(biz_df, datetime.now(UTC)))
 
         mock_cache = MagicMock()
         mock_cache.put_async = AsyncMock()
@@ -507,9 +491,7 @@ class TestUnitFastPathRunsCascadeValidation:
             _preload_dataframe_cache_progressive,
         )
 
-        registry = _make_entity_registry(
-            entity_types=[("unit", "proj_unit", "Business Units")]
-        )
+        registry = _make_entity_registry(entity_types=[("unit", "proj_unit", "Business Units")])
         app = _make_mock_app(registry)
 
         mock_persistence = MagicMock()
@@ -533,9 +515,7 @@ class TestUnitFastPathRunsCascadeValidation:
         mock_cache = MagicMock()
         mock_cache.put_async = AsyncMock()
 
-        cascade_result = CascadeValidationResult(
-            rows_checked=1, rows_stale=0, rows_corrected=0
-        )
+        cascade_result = CascadeValidationResult(rows_checked=1, rows_stale=0, rows_corrected=0)
 
         with _build_patch_stack(
             mock_persistence,
@@ -578,9 +558,7 @@ class TestFastPathCascadeSelfHeals:
             _preload_dataframe_cache_progressive,
         )
 
-        registry = _make_entity_registry(
-            entity_types=[("unit", "proj_unit", "Business Units")]
-        )
+        registry = _make_entity_registry(entity_types=[("unit", "proj_unit", "Business Units")])
         app = _make_mock_app(registry)
 
         mock_persistence = MagicMock()
@@ -600,17 +578,13 @@ class TestFastPathCascadeSelfHeals:
         s3_watermark = datetime.now(UTC) - timedelta(hours=1)
 
         mock_df_storage = MagicMock()
-        mock_df_storage.load_dataframe = AsyncMock(
-            return_value=(original_df, s3_watermark)
-        )
+        mock_df_storage.load_dataframe = AsyncMock(return_value=(original_df, s3_watermark))
         mock_df_storage.save_dataframe = AsyncMock(return_value=True)
 
         mock_cache = MagicMock()
         mock_cache.put_async = AsyncMock()
 
-        cascade_result = CascadeValidationResult(
-            rows_checked=1, rows_stale=1, rows_corrected=1
-        )
+        cascade_result = CascadeValidationResult(rows_checked=1, rows_stale=1, rows_corrected=1)
 
         with _build_patch_stack(
             mock_persistence,
@@ -655,9 +629,7 @@ class TestFastPathCascadeGracefulDegradation:
             _preload_dataframe_cache_progressive,
         )
 
-        registry = _make_entity_registry(
-            entity_types=[("unit", "proj_unit", "Business Units")]
-        )
+        registry = _make_entity_registry(entity_types=[("unit", "proj_unit", "Business Units")])
         app = _make_mock_app(registry)
 
         mock_persistence = MagicMock()
@@ -680,9 +652,7 @@ class TestFastPathCascadeGracefulDegradation:
         mock_cache.put_async = AsyncMock()
 
         # Zero corrections (empty store, no ancestors)
-        cascade_result = CascadeValidationResult(
-            rows_checked=1, rows_stale=0, rows_corrected=0
-        )
+        cascade_result = CascadeValidationResult(rows_checked=1, rows_stale=0, rows_corrected=0)
 
         with _build_patch_stack(
             mock_persistence,
@@ -719,9 +689,7 @@ class TestFastPathCascadeGracefulDegradation:
             _preload_dataframe_cache_progressive,
         )
 
-        registry = _make_entity_registry(
-            entity_types=[("unit", "proj_unit", "Business Units")]
-        )
+        registry = _make_entity_registry(entity_types=[("unit", "proj_unit", "Business Units")])
         app = _make_mock_app(registry)
 
         mock_persistence = MagicMock()
@@ -781,9 +749,7 @@ class TestUnitFastPathPopulatesStore:
             _preload_dataframe_cache_progressive,
         )
 
-        registry = _make_entity_registry(
-            entity_types=[("unit", "proj_unit", "Business Units")]
-        )
+        registry = _make_entity_registry(entity_types=[("unit", "proj_unit", "Business Units")])
         app = _make_mock_app(registry)
 
         mock_persistence = MagicMock()
@@ -811,9 +777,7 @@ class TestUnitFastPathPopulatesStore:
         mock_store = MagicMock()
         mock_store.put_batch_async = AsyncMock(return_value=2)
 
-        cascade_result = CascadeValidationResult(
-            rows_checked=0, rows_stale=0, rows_corrected=0
-        )
+        cascade_result = CascadeValidationResult(rows_checked=0, rows_stale=0, rows_corrected=0)
 
         with _build_patch_stack(
             mock_persistence,
@@ -856,9 +820,7 @@ class TestUnitFastPathPopulatesStore:
             _preload_dataframe_cache_progressive,
         )
 
-        registry = _make_entity_registry(
-            entity_types=[("unit", "proj_unit", "Business Units")]
-        )
+        registry = _make_entity_registry(entity_types=[("unit", "proj_unit", "Business Units")])
         app = _make_mock_app(registry)
 
         mock_persistence = MagicMock()
@@ -890,9 +852,7 @@ class TestUnitFastPathPopulatesStore:
         mock_store = MagicMock()
         mock_store.put_batch_async = AsyncMock(return_value=1)
 
-        cascade_result = CascadeValidationResult(
-            rows_checked=1, rows_stale=0, rows_corrected=0
-        )
+        cascade_result = CascadeValidationResult(rows_checked=1, rows_stale=0, rows_corrected=0)
 
         with _build_patch_stack(
             mock_persistence,
@@ -935,9 +895,7 @@ class TestCascadeValidationPassesSchema:
             _preload_dataframe_cache_progressive,
         )
 
-        registry = _make_entity_registry(
-            entity_types=[("unit", "proj_unit", "Business Units")]
-        )
+        registry = _make_entity_registry(entity_types=[("unit", "proj_unit", "Business Units")])
         app = _make_mock_app(registry)
 
         mock_persistence = MagicMock()
@@ -960,9 +918,7 @@ class TestCascadeValidationPassesSchema:
 
         unit_schema = _make_schema(has_cascade=True)
 
-        cascade_result = CascadeValidationResult(
-            rows_checked=1, rows_stale=0, rows_corrected=0
-        )
+        cascade_result = CascadeValidationResult(rows_checked=1, rows_stale=0, rows_corrected=0)
 
         with _build_patch_stack(
             mock_persistence,

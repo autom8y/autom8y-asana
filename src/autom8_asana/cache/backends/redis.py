@@ -310,9 +310,7 @@ class RedisCacheProvider(CacheBackendBase):
 
             entry_type = EntryType(entry_type_str)
             version = parse_version(version_str) if version_str else datetime.now(UTC)
-            cached_at = (
-                parse_version(cached_at_str) if cached_at_str else datetime.now(UTC)
-            )
+            cached_at = parse_version(cached_at_str) if cached_at_str else datetime.now(UTC)
             ttl = int(ttl_str) if ttl_str else None
             metadata = json.loads(metadata_str) if metadata_str else {}
 
@@ -416,25 +414,19 @@ class RedisCacheProvider(CacheBackendBase):
                 latency = (time.perf_counter() - start) * 1000
 
                 if not data:
-                    self._metrics.record_miss(
-                        latency, key=key, entry_type=entry_type_str
-                    )
+                    self._metrics.record_miss(latency, key=key, entry_type=entry_type_str)
                     return None
 
                 entry = self._deserialize_entry(data, key)
                 if entry is None:
-                    self._metrics.record_miss(
-                        latency, key=key, entry_type=entry_type_str
-                    )
+                    self._metrics.record_miss(latency, key=key, entry_type=entry_type_str)
                     return None
 
                 # Check TTL expiration
                 if entry.is_expired():
                     # Delete expired entry
                     conn.delete(redis_key)
-                    self._metrics.record_miss(
-                        latency, key=key, entry_type=entry_type_str
-                    )
+                    self._metrics.record_miss(latency, key=key, entry_type=entry_type_str)
                     return None
 
                 # For STRICT freshness, caller must validate against source
@@ -445,9 +437,7 @@ class RedisCacheProvider(CacheBackendBase):
                 conn.close()
         except REDIS_TRANSPORT_ERRORS as e:
             latency = (time.perf_counter() - start) * 1000
-            self._metrics.record_error(
-                key=key, entry_type=entry_type_str, error_message=str(e)
-            )
+            self._metrics.record_error(key=key, entry_type=entry_type_str, error_message=str(e))
             self._handle_transport_error(e, operation="get_versioned")
             return None
 
@@ -554,9 +544,7 @@ class RedisCacheProvider(CacheBackendBase):
 
                     # Update metadata
                     meta_key = self._make_meta_key(key)
-                    pipe.hset(
-                        meta_key, entry.entry_type.value, format_version(entry.version)
-                    )
+                    pipe.hset(meta_key, entry.entry_type.value, format_version(entry.version))
 
                 pipe.execute()
             finally:
@@ -712,9 +700,7 @@ class RedisCacheProvider(CacheBackendBase):
 
         extra_types: tuple[type[Exception], ...] = ()
         if self._redis_module is not None:
-            redis_connection_error = getattr(
-                self._redis_module, "ConnectionError", Exception
-            )
+            redis_connection_error = getattr(self._redis_module, "ConnectionError", Exception)
             redis_timeout_error = getattr(self._redis_module, "TimeoutError", Exception)
             redis_error = getattr(self._redis_module, "RedisError", Exception)
             extra_types = (redis_connection_error, redis_timeout_error, redis_error)

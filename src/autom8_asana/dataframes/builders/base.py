@@ -394,9 +394,7 @@ class DataFrameBuilder(ABC):
         rows = [self._extract_row(task) for task in tasks]
         coerced_rows = coerce_rows_to_schema(rows, self._schema)
         try:
-            lazy_frame = pl.LazyFrame(
-                coerced_rows, schema=self._schema.to_polars_schema()
-            )
+            lazy_frame = pl.LazyFrame(coerced_rows, schema=self._schema.to_polars_schema())
             return lazy_frame.collect()
         except (
             pl.exceptions.SchemaError,
@@ -426,9 +424,7 @@ class DataFrameBuilder(ABC):
         """
         # Per TDD-GID-RESOLUTION-SERVICE: Use gather_with_limit for bounded
         # parallel extraction instead of sequential awaits
-        rows = await gather_with_limit(
-            [self._extract_row_async(task) for task in tasks]
-        )
+        rows = await gather_with_limit([self._extract_row_async(task) for task in tasks])
         return safe_dataframe_construct(rows, self._schema)
 
     async def _build_lazy_async(self, tasks: list[Task]) -> pl.DataFrame:
@@ -450,14 +446,10 @@ class DataFrameBuilder(ABC):
 
         # Per TDD-GID-RESOLUTION-SERVICE: Use gather_with_limit for bounded
         # parallel extraction instead of sequential awaits
-        rows = await gather_with_limit(
-            [self._extract_row_async(task) for task in tasks]
-        )
+        rows = await gather_with_limit([self._extract_row_async(task) for task in tasks])
         coerced_rows = coerce_rows_to_schema(rows, self._schema)
         try:
-            lazy_frame = pl.LazyFrame(
-                coerced_rows, schema=self._schema.to_polars_schema()
-            )
+            lazy_frame = pl.LazyFrame(coerced_rows, schema=self._schema.to_polars_schema())
             return lazy_frame.collect()
         except (
             pl.exceptions.SchemaError,
@@ -701,9 +693,7 @@ class DataFrameBuilder(ABC):
                 extracted_rows[idx] = row
                 # Queue for caching if we have project context and modified_at
                 if task_project_gid is not None and task_modified_at is not None:
-                    rows_to_cache.append(
-                        (task.gid, task_project_gid, row, task_modified_at)
-                    )
+                    rows_to_cache.append((task.gid, task_project_gid, row, task_modified_at))
 
         # Phase 3: Combine rows in original order
         rows: list[dict[str, Any]] = []
@@ -728,9 +718,7 @@ class DataFrameBuilder(ABC):
         use_lazy = self._should_use_lazy(len(rows), lazy)
         coerced_rows = coerce_rows_to_schema(rows, self._schema)
         if use_lazy:
-            lazy_frame = pl.LazyFrame(
-                coerced_rows, schema=self._schema.to_polars_schema()
-            )
+            lazy_frame = pl.LazyFrame(coerced_rows, schema=self._schema.to_polars_schema())
             return lazy_frame.collect()
         else:
             return pl.DataFrame(coerced_rows, schema=self._schema.to_polars_schema())

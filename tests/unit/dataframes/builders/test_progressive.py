@@ -65,9 +65,7 @@ class _FakePageIterator:
     """Fake PageIterator that yields a configurable number of tasks."""
 
     def __init__(self, total_tasks: int, start_gid: int = 0) -> None:
-        self._tasks = [
-            _make_mock_task(str(i)) for i in range(start_gid, start_gid + total_tasks)
-        ]
+        self._tasks = [_make_mock_task(str(i)) for i in range(start_gid, start_gid + total_tasks)]
         self._index = 0
 
     def __aiter__(self) -> _FakePageIterator:
@@ -117,9 +115,7 @@ def _make_builder(
     # Mock DataFrameView to return rows based on task dicts
     mock_view = MagicMock()
     mock_view._extract_rows_async = AsyncMock(
-        side_effect=lambda dicts, **kw: [
-            {"gid": d["gid"], "name": d["name"]} for d in dicts
-        ]
+        side_effect=lambda dicts, **kw: [{"gid": d["gid"], "name": d["name"]} for d in dicts]
     )
     builder._dataframe_view = mock_view
 
@@ -518,9 +514,7 @@ class TestWarmHierarchyGapsAsync:
         """
         mock_cache = MagicMock()
         # h1 is cached, h2 is not
-        mock_cache.get_versioned.side_effect = lambda gid, _: (
-            MagicMock() if gid == "h1" else None
-        )
+        mock_cache.get_versioned.side_effect = lambda gid, _: MagicMock() if gid == "h1" else None
 
         mock_store = MagicMock()
         mock_store.cache = mock_cache

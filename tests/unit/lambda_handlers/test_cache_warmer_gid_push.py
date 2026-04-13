@@ -157,9 +157,7 @@ class TestPushGidMappingsForCompletedEntities:
 
         # Should emit GidPushFailure metric
         metric_calls = [
-            call
-            for call in mock_emit.call_args_list
-            if call.args[0] == "GidPushFailure"
+            call for call in mock_emit.call_args_list if call.args[0] == "GidPushFailure"
         ]
         assert len(metric_calls) == 1
 
@@ -256,9 +254,7 @@ class TestPushGidMappingsForCompletedEntities:
         offer_entry = MagicMock()
         offer_entry.dataframe = offer_dataframe
 
-        async def mock_get_async(
-            project_gid: str, entity_type: str
-        ) -> MagicMock | None:
+        async def mock_get_async(project_gid: str, entity_type: str) -> MagicMock | None:
             if entity_type == "unit":
                 return unit_entry
             elif entity_type == "offer":

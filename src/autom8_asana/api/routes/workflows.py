@@ -70,8 +70,7 @@ class WorkflowInvokeRequest(BaseModel):
     entity_ids: list[str] = Field(
         ...,
         description=(
-            "Asana GIDs of entities to process. Must be non-empty numeric strings "
-            "(1–100 items)."
+            "Asana GIDs of entities to process. Must be non-empty numeric strings (1–100 items)."
         ),
         examples=[["1234567890123456", "1234567890123457"]],
     )
@@ -95,9 +94,7 @@ class WorkflowInvokeRequest(BaseModel):
             raise ValueError("entity_ids must contain at most 100 items")
         for gid in v:
             if not gid.isdigit():
-                raise ValueError(
-                    f"Invalid entity_id '{gid}': must be numeric (Asana GID format)"
-                )
+                raise ValueError(f"Invalid entity_id '{gid}': must be numeric (Asana GID format)")
         return v
 
 

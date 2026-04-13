@@ -40,9 +40,7 @@ class QueryTooComplexError(QueryEngineError):
     def to_dict(self) -> dict[str, Any]:
         return {
             "error": "QUERY_TOO_COMPLEX",
-            "message": (
-                f"Predicate tree depth {self.depth} exceeds maximum of {self.max_depth}"
-            ),
+            "message": (f"Predicate tree depth {self.depth} exceeds maximum of {self.max_depth}"),
             "max_depth": self.max_depth,
         }
 
@@ -75,8 +73,7 @@ class InvalidOperatorError(QueryEngineError):
         return {
             "error": "INVALID_OPERATOR",
             "message": (
-                f"Operator '{self.op}' not supported for "
-                f"{self.dtype} field '{self.field}'"
+                f"Operator '{self.op}' not supported for {self.dtype} field '{self.field}'"
             ),
             "field": self.field,
             "field_dtype": self.dtype,
@@ -97,9 +94,7 @@ class CoercionError(QueryEngineError):
     def to_dict(self) -> dict[str, Any]:
         return {
             "error": "COERCION_FAILED",
-            "message": (
-                f"Cannot coerce {self.value!r} to {self.dtype} for field '{self.field}'"
-            ),
+            "message": (f"Cannot coerce {self.value!r} to {self.dtype} for field '{self.field}'"),
             "field": self.field,
             "field_dtype": self.dtype,
             "value": self.value,

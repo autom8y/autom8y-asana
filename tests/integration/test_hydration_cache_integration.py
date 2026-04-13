@@ -110,8 +110,7 @@ class TestTraversalUsesStandardFields:
         detection_set = set(DETECTION_OPT_FIELDS)
         standard_set = set(STANDARD_TASK_OPT_FIELDS)
         assert detection_set.issubset(standard_set), (
-            f"Detection fields not subset of standard. "
-            f"Missing: {detection_set - standard_set}"
+            f"Detection fields not subset of standard. Missing: {detection_set - standard_set}"
         )
 
 
@@ -208,10 +207,7 @@ class TestParentGidFromCachedTasks:
         with pytest.raises(HydrationError) as exc_info:
             await _traverse_upward_async(orphan_task, mock_client)
 
-        assert (
-            "root" in str(exc_info.value).lower()
-            or "parent" in str(exc_info.value).lower()
-        )
+        assert "root" in str(exc_info.value).lower() or "parent" in str(exc_info.value).lower()
 
 
 # =============================================================================
@@ -254,9 +250,7 @@ class TestCustomFieldsFromCachedBusiness:
             make_subtask("holder_001", "Contacts"),
             make_subtask("holder_002", "Units"),
         ]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
         with patch.object(Business, "_fetch_holders_async", new_callable=AsyncMock):
             result = await hydrate_from_gid_async(mock_client, "bus_001")

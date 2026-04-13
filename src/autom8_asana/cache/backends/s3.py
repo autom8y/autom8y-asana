@@ -143,9 +143,7 @@ class S3CacheProvider(CacheBackendBase):
             if not resolved_bucket:
                 logger.warning(
                     "s3_bucket_not_configured",
-                    extra={
-                        "message": "Set ASANA_CACHE_S3_BUCKET or pass bucket parameter"
-                    },
+                    extra={"message": "Set ASANA_CACHE_S3_BUCKET or pass bucket parameter"},
                 )
 
             config = S3Config(
@@ -359,9 +357,7 @@ class S3CacheProvider(CacheBackendBase):
             entry_data = data.get("data", {})
 
             version = parse_version(version_str) if version_str else datetime.now(UTC)
-            cached_at = (
-                parse_version(cached_at_str) if cached_at_str else datetime.now(UTC)
-            )
+            cached_at = parse_version(cached_at_str) if cached_at_str else datetime.now(UTC)
 
             # Deserialize freshness stamp if present
             raw_stamp = data.get("freshness_stamp")
@@ -515,9 +511,7 @@ class S3CacheProvider(CacheBackendBase):
             if self._is_not_found_error(e):
                 self._metrics.record_miss(latency, key=key, entry_type=entry_type_str)
                 return None
-            self._metrics.record_error(
-                key=key, entry_type=entry_type_str, error_message=str(e)
-            )
+            self._metrics.record_error(key=key, entry_type=entry_type_str, error_message=str(e))
             self._handle_transport_error(e, operation="get_versioned", key=key)
             return None
 
@@ -760,19 +754,13 @@ class S3CacheProvider(CacheBackendBase):
         # Check for boto3-specific errors
         if self._botocore_module is not None:
             # Common boto3/botocore exceptions
-            no_credentials = getattr(
-                self._botocore_module, "NoCredentialsError", Exception
-            )
+            no_credentials = getattr(self._botocore_module, "NoCredentialsError", Exception)
             partial_credentials = getattr(
                 self._botocore_module, "PartialCredentialsError", Exception
             )
             client_error = getattr(self._botocore_module, "ClientError", Exception)
-            endpoint_error = getattr(
-                self._botocore_module, "EndpointConnectionError", Exception
-            )
-            connect_timeout = getattr(
-                self._botocore_module, "ConnectTimeoutError", Exception
-            )
+            endpoint_error = getattr(self._botocore_module, "EndpointConnectionError", Exception)
+            connect_timeout = getattr(self._botocore_module, "ConnectTimeoutError", Exception)
             read_timeout = getattr(self._botocore_module, "ReadTimeoutError", Exception)
 
             extra_types = (

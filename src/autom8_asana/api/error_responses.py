@@ -34,15 +34,11 @@ _AuthEnvelope = ErrorResponse | AuthTebError
 STANDARD_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {
         "model": _AuthEnvelope,
-        "description": (
-            "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
-        ),
+        "description": ("Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"),
     },
     403: {
         "model": _AuthEnvelope,
-        "description": (
-            "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
-        ),
+        "description": ("Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"),
     },
     404: {
         "model": ErrorResponse,
@@ -53,9 +49,7 @@ STANDARD_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     },
     429: {
         "model": ErrorResponse,
-        "description": (
-            "Rate limited -- retry after the duration in the Retry-After header"
-        ),
+        "description": ("Rate limited -- retry after the duration in the Retry-After header"),
     },
     500: {
         "model": ErrorResponse,

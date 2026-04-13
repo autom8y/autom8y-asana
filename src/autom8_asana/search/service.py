@@ -132,8 +132,7 @@ class SearchService:
         # Normalize criteria to SearchCriteria
         if isinstance(criteria, dict):
             conditions = [
-                FieldCondition(field=k, value=v, operator="eq")
-                for k, v in criteria.items()
+                FieldCondition(field=k, value=v, operator="eq") for k, v in criteria.items()
             ]
             search_criteria = SearchCriteria(
                 conditions=conditions,
@@ -145,9 +144,7 @@ class SearchService:
             search_criteria = criteria
             # Override with explicit parameters if provided
             if entity_type is not None:
-                search_criteria = search_criteria.model_copy(
-                    update={"entity_type": entity_type}
-                )
+                search_criteria = search_criteria.model_copy(update={"entity_type": entity_type})
             if limit is not None:
                 search_criteria = search_criteria.model_copy(update={"limit": limit})
 
@@ -183,9 +180,7 @@ class SearchService:
 
             # Apply entity type filter if specified
             if search_criteria.entity_type:
-                type_filter = self._build_entity_type_filter(
-                    search_criteria.entity_type, df
-                )
+                type_filter = self._build_entity_type_filter(search_criteria.entity_type, df)
                 if type_filter is not None:
                     filter_expr = filter_expr & type_filter
 
@@ -197,9 +192,7 @@ class SearchService:
                 filtered = filtered.head(search_criteria.limit)
 
             # Extract results (reuse col_index -- filtered has same columns)
-            hits = self._extract_hits(
-                filtered, search_criteria.conditions, col_index=col_index
-            )
+            hits = self._extract_hits(filtered, search_criteria.conditions, col_index=col_index)
 
             query_time_ms = (time.perf_counter() - start) * 1000
 
@@ -620,11 +613,7 @@ class SearchService:
                 return col.str.contains(condition.value)
 
             case "in":
-                values = (
-                    condition.value
-                    if isinstance(condition.value, list)
-                    else [condition.value]
-                )
+                values = condition.value if isinstance(condition.value, list) else [condition.value]
                 return col.is_in(values)
 
             case _:

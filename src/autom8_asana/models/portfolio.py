@@ -83,9 +83,7 @@ class Portfolio(AsanaResource):
     # Dates
     due_on: str | None = Field(default=None, description="Due date (YYYY-MM-DD)")
     start_on: str | None = Field(default=None, description="Start date (YYYY-MM-DD)")
-    created_at: str | None = Field(
-        default=None, description="Created datetime (ISO 8601)"
-    )
+    created_at: str | None = Field(default=None, description="Created datetime (ISO 8601)")
 
     # URLs
     permalink_url: str | None = Field(

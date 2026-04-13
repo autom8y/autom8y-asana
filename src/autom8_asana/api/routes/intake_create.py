@@ -50,9 +50,7 @@ __all__ = ["router"]
 
 logger = get_logger(__name__)
 
-router = s2s_router(
-    prefix="/v1/intake", tags=["intake-create"], include_in_schema=False
-)
+router = s2s_router(prefix="/v1/intake", tags=["intake-create"], include_in_schema=False)
 
 
 # ---------------------------------------------------------------------------
@@ -131,10 +129,7 @@ async def create_intake_business(
         )
 
     # Validate process_type if provided
-    if (
-        body.process is not None
-        and body.process.process_type not in VALID_PROCESS_TYPES
-    ):
+    if body.process is not None and body.process.process_type not in VALID_PROCESS_TYPES:
         raise_api_error(
             request_id,
             422,

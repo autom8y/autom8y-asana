@@ -98,9 +98,7 @@ class TestProcessCustomFields:
         """status extracts name from enum dict."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Status", "enum_value": {"name": "In Progress"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Status", "enum_value": {"name": "In Progress"}}],
         )
         assert process.status == "In Progress"
 
@@ -114,9 +112,7 @@ class TestProcessCustomFields:
         """priority extracts name from enum dict."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Priority", "enum_value": {"name": "High"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Priority", "enum_value": {"name": "High"}}],
         )
         assert process.priority == "High"
 
@@ -149,9 +145,7 @@ class TestProcessCustomFields:
         """process_due_date getter/setter works."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Due Date", "text_value": "2024-12-31"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Due Date", "text_value": "2024-12-31"}],
         )
         assert process.process_due_date == "2024-12-31"
 
@@ -183,9 +177,7 @@ class TestProcessCustomFields:
         """process_notes getter/setter works."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Process Notes", "text_value": "Process notes"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Process Notes", "text_value": "Process notes"}],
         )
         assert process.process_notes == "Process notes"
 
@@ -193,9 +185,7 @@ class TestProcessCustomFields:
         """vertical extracts name from enum dict."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}],
         )
         assert process.vertical == "Healthcare"
 
@@ -359,39 +349,21 @@ class TestProcessSectionFromName:
 
     def test_from_name_with_spaces(self) -> None:
         """from_name() handles space-separated names."""
-        assert (
-            ProcessSection.from_name("did not convert")
-            == ProcessSection.DID_NOT_CONVERT
-        )
-        assert (
-            ProcessSection.from_name("Did Not Convert")
-            == ProcessSection.DID_NOT_CONVERT
-        )
-        assert (
-            ProcessSection.from_name("DID NOT CONVERT")
-            == ProcessSection.DID_NOT_CONVERT
-        )
+        assert ProcessSection.from_name("did not convert") == ProcessSection.DID_NOT_CONVERT
+        assert ProcessSection.from_name("Did Not Convert") == ProcessSection.DID_NOT_CONVERT
+        assert ProcessSection.from_name("DID NOT CONVERT") == ProcessSection.DID_NOT_CONVERT
 
     def test_from_name_with_hyphens(self) -> None:
         """from_name() handles hyphen-separated names."""
-        assert (
-            ProcessSection.from_name("did-not-convert")
-            == ProcessSection.DID_NOT_CONVERT
-        )
+        assert ProcessSection.from_name("did-not-convert") == ProcessSection.DID_NOT_CONVERT
 
     def test_from_name_aliases(self) -> None:
         """from_name() handles aliases for DID_NOT_CONVERT."""
-        assert (
-            ProcessSection.from_name("didnt_convert") == ProcessSection.DID_NOT_CONVERT
-        )
-        assert (
-            ProcessSection.from_name("not_converted") == ProcessSection.DID_NOT_CONVERT
-        )
+        assert ProcessSection.from_name("didnt_convert") == ProcessSection.DID_NOT_CONVERT
+        assert ProcessSection.from_name("not_converted") == ProcessSection.DID_NOT_CONVERT
         assert ProcessSection.from_name("lost") == ProcessSection.DID_NOT_CONVERT
         assert ProcessSection.from_name("dnc") == ProcessSection.DID_NOT_CONVERT
-        assert (
-            ProcessSection.from_name("didnotconvert") == ProcessSection.DID_NOT_CONVERT
-        )
+        assert ProcessSection.from_name("didnotconvert") == ProcessSection.DID_NOT_CONVERT
 
     def test_from_name_unknown_returns_other(self) -> None:
         """from_name() returns OTHER for unrecognized sections.
@@ -597,9 +569,7 @@ class TestSalesPipelineFields:
         """close_date returns Arrow from date string."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Close Date", "text_value": "2024-12-31"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Close Date", "text_value": "2024-12-31"}],
         )
         assert process.close_date is not None
         assert process.close_date.year == 2024
@@ -632,9 +602,7 @@ class TestSalesPipelineFields:
         """score extracts name from enum dict."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Score", "enum_value": {"name": "Hot"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Score", "enum_value": {"name": "Hot"}}],
         )
         assert process.score == "Hot"
 
@@ -652,9 +620,7 @@ class TestSalesPipelineFields:
         """lead_name returns text value."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Lead Name", "text_value": "John Smith"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Lead Name", "text_value": "John Smith"}],
         )
         assert process.lead_name == "John Smith"
 
@@ -662,9 +628,7 @@ class TestSalesPipelineFields:
         """lead_email returns text value."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Lead Email", "text_value": "john@example.com"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Lead Email", "text_value": "john@example.com"}],
         )
         assert process.lead_email == "john@example.com"
 
@@ -680,9 +644,7 @@ class TestSalesPipelineFields:
         """campaign returns text value for UTM tracking."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Campaign", "text_value": "summer_promo"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Campaign", "text_value": "summer_promo"}],
         )
         assert process.campaign == "summer_promo"
 
@@ -690,9 +652,7 @@ class TestSalesPipelineFields:
         """booking_type extracts name from enum dict."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Booking Type", "enum_value": {"name": "Demo"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Booking Type", "enum_value": {"name": "Demo"}}],
         )
         assert process.booking_type == "Demo"
 
@@ -727,9 +687,7 @@ class TestOnboardingPipelineFields:
         """go_live_date returns Arrow from date string."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Go Live Date", "text_value": "2025-01-15"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Go Live Date", "text_value": "2025-01-15"}],
         )
         assert process.go_live_date is not None
         assert process.go_live_date.year == 2025
@@ -740,9 +698,7 @@ class TestOnboardingPipelineFields:
         """kickoff_date returns Arrow from date string."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Kickoff Date", "text_value": "2024-12-01"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Kickoff Date", "text_value": "2024-12-01"}],
         )
         assert process.kickoff_date is not None
         assert process.kickoff_date.year == 2024
@@ -828,9 +784,7 @@ class TestImplementationPipelineFields:
         """delivery_date returns Arrow from date string."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Delivery Date", "text_value": "2025-02-28"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Delivery Date", "text_value": "2025-02-28"}],
         )
         assert process.delivery_date is not None
         assert process.delivery_date.year == 2025
@@ -841,9 +795,7 @@ class TestImplementationPipelineFields:
         """launch_date returns Arrow from date string."""
         process = Process(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Launch Date", "text_value": "2025-03-01"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Launch Date", "text_value": "2025-03-01"}],
         )
         assert process.launch_date is not None
         assert process.launch_date.year == 2025

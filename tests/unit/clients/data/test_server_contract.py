@@ -258,10 +258,7 @@ class TestClientParsesServerWireFormat:
         result = _parse_fixture(WIRE_FORMAT_FIXTURE)
 
         # InsightsResponse model does not have a metric_types field
-        assert (
-            not hasattr(result, "metric_types")
-            or "metric_types" not in result.model_fields
-        )
+        assert not hasattr(result, "metric_types") or "metric_types" not in result.model_fields
 
 
 class TestClientParsesEmptyResponse:

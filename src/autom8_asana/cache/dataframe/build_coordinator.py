@@ -131,9 +131,7 @@ class BuildCoordinator:
     max_concurrent_builds: int = 4
 
     # Internal state -- not exposed via init
-    _in_flight: dict[CoalescingKey, _InFlightBuild] = field(
-        default_factory=dict, init=False
-    )
+    _in_flight: dict[CoalescingKey, _InFlightBuild] = field(default_factory=dict, init=False)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
     _build_semaphore: asyncio.Semaphore | None = field(default=None, init=False)
     _stats: dict[str, int] = field(default_factory=dict, init=False)
@@ -180,11 +178,7 @@ class BuildCoordinator:
         Returns:
             BuildResult with outcome, DataFrame, and metadata.
         """
-        timeout = (
-            timeout_seconds
-            if timeout_seconds is not None
-            else self.default_timeout_seconds
-        )
+        timeout = timeout_seconds if timeout_seconds is not None else self.default_timeout_seconds
         future: asyncio.Future[BuildResult] | None = None
 
         async with self._lock:

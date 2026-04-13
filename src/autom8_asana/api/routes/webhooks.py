@@ -430,9 +430,7 @@ async def receive_inbound_webhook(
 
     # Get cache provider from app state (may be None)
     mutation_invalidator = getattr(request.app.state, "mutation_invalidator", None)
-    cache_provider = (
-        getattr(mutation_invalidator, "_cache", None) if mutation_invalidator else None
-    )
+    cache_provider = getattr(mutation_invalidator, "_cache", None) if mutation_invalidator else None
 
     # Enqueue background processing (per FR-05 / SC-004)
     background_tasks.add_task(_process_inbound_task, task, cache_provider)

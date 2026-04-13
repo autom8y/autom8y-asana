@@ -181,9 +181,7 @@ def construct_holder(
         object.__setattr__(holder, "_business", parent_entity)
     else:
         # For Unit-level holders, propagate _business from parent
-        object.__setattr__(
-            holder, "_business", getattr(parent_entity, "_business", None)
-        )
+        object.__setattr__(holder, "_business", getattr(parent_entity, "_business", None))
 
     # Project assignment (FR-008, TDD Section 5.3)
     primary_project_gid = getattr(holder_class, "PRIMARY_PROJECT_GID", None)

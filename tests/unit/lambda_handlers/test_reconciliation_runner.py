@@ -46,9 +46,7 @@ class TestFeatureFlagGuard:
 
             os.environ.pop("ASANA_RECONCILIATION_SHADOW_ENABLED", None)
 
-            with patch(
-                "autom8_asana.reconciliation.engine.run_reconciliation"
-            ) as mock_engine:
+            with patch("autom8_asana.reconciliation.engine.run_reconciliation") as mock_engine:
                 await _run_reconciliation_shadow(
                     completed_entities=["unit", "offer"],
                     get_project_gid=_get_project_gid,
@@ -64,9 +62,7 @@ class TestFeatureFlagGuard:
             "os.environ",
             {"ASANA_RECONCILIATION_SHADOW_ENABLED": "false"},
         ):
-            with patch(
-                "autom8_asana.reconciliation.engine.run_reconciliation"
-            ) as mock_engine:
+            with patch("autom8_asana.reconciliation.engine.run_reconciliation") as mock_engine:
                 await _run_reconciliation_shadow(
                     completed_entities=["unit", "offer"],
                     get_project_gid=_get_project_gid,
@@ -87,9 +83,7 @@ class TestFeatureFlagGuard:
             {"ASANA_RECONCILIATION_SHADOW_ENABLED": "true"},
         ):
             with (
-                patch(
-                    "autom8_asana.reconciliation.engine.run_reconciliation"
-                ) as mock_engine,
+                patch("autom8_asana.reconciliation.engine.run_reconciliation") as mock_engine,
                 patch(
                     "autom8_asana.reconciliation.executor.execute_actions",
                     new_callable=AsyncMock,
@@ -123,9 +117,7 @@ class TestFeatureFlagGuard:
             {"ASANA_RECONCILIATION_SHADOW_ENABLED": "1"},
         ):
             with (
-                patch(
-                    "autom8_asana.reconciliation.engine.run_reconciliation"
-                ) as mock_engine,
+                patch("autom8_asana.reconciliation.engine.run_reconciliation") as mock_engine,
                 patch(
                     "autom8_asana.reconciliation.executor.execute_actions",
                     new_callable=AsyncMock,
@@ -163,9 +155,7 @@ class TestEntityGuard:
             "os.environ",
             {"ASANA_RECONCILIATION_SHADOW_ENABLED": "true"},
         ):
-            with patch(
-                "autom8_asana.reconciliation.engine.run_reconciliation"
-            ) as mock_engine:
+            with patch("autom8_asana.reconciliation.engine.run_reconciliation") as mock_engine:
                 await _run_reconciliation_shadow(
                     completed_entities=["offer"],
                     get_project_gid=_get_project_gid,
@@ -181,9 +171,7 @@ class TestEntityGuard:
             "os.environ",
             {"ASANA_RECONCILIATION_SHADOW_ENABLED": "true"},
         ):
-            with patch(
-                "autom8_asana.reconciliation.engine.run_reconciliation"
-            ) as mock_engine:
+            with patch("autom8_asana.reconciliation.engine.run_reconciliation") as mock_engine:
                 await _run_reconciliation_shadow(
                     completed_entities=["unit"],
                     get_project_gid=_get_project_gid,
@@ -199,9 +187,7 @@ class TestEntityGuard:
             "os.environ",
             {"ASANA_RECONCILIATION_SHADOW_ENABLED": "true"},
         ):
-            with patch(
-                "autom8_asana.reconciliation.engine.run_reconciliation"
-            ) as mock_engine:
+            with patch("autom8_asana.reconciliation.engine.run_reconciliation") as mock_engine:
                 await _run_reconciliation_shadow(
                     completed_entities=[],
                     get_project_gid=_get_project_gid,
@@ -233,9 +219,7 @@ class TestDataFrameAvailability:
             "os.environ",
             {"ASANA_RECONCILIATION_SHADOW_ENABLED": "true"},
         ):
-            with patch(
-                "autom8_asana.reconciliation.engine.run_reconciliation"
-            ) as mock_engine:
+            with patch("autom8_asana.reconciliation.engine.run_reconciliation") as mock_engine:
                 await _run_reconciliation_shadow(
                     completed_entities=["unit", "offer"],
                     get_project_gid=_get_project_gid,
@@ -260,9 +244,7 @@ class TestDataFrameAvailability:
             "os.environ",
             {"ASANA_RECONCILIATION_SHADOW_ENABLED": "true"},
         ):
-            with patch(
-                "autom8_asana.reconciliation.engine.run_reconciliation"
-            ) as mock_engine:
+            with patch("autom8_asana.reconciliation.engine.run_reconciliation") as mock_engine:
                 await _run_reconciliation_shadow(
                     completed_entities=["unit", "offer"],
                     get_project_gid=_get_project_gid,
@@ -285,9 +267,7 @@ class TestDataFrameAvailability:
             "os.environ",
             {"ASANA_RECONCILIATION_SHADOW_ENABLED": "true"},
         ):
-            with patch(
-                "autom8_asana.reconciliation.engine.run_reconciliation"
-            ) as mock_engine:
+            with patch("autom8_asana.reconciliation.engine.run_reconciliation") as mock_engine:
                 await _run_reconciliation_shadow(
                     completed_entities=["unit", "offer"],
                     get_project_gid=_get_project_gid,
@@ -312,9 +292,7 @@ class TestDataFrameAvailability:
             "os.environ",
             {"ASANA_RECONCILIATION_SHADOW_ENABLED": "true"},
         ):
-            with patch(
-                "autom8_asana.reconciliation.engine.run_reconciliation"
-            ) as mock_engine:
+            with patch("autom8_asana.reconciliation.engine.run_reconciliation") as mock_engine:
                 await _run_reconciliation_shadow(
                     completed_entities=["unit", "offer"],
                     get_project_gid=_get_project_gid,
@@ -413,9 +391,7 @@ class TestHappyPath:
             {"ASANA_RECONCILIATION_SHADOW_ENABLED": "true"},
         ):
             with (
-                patch(
-                    "autom8_asana.reconciliation.engine.run_reconciliation"
-                ) as mock_engine,
+                patch("autom8_asana.reconciliation.engine.run_reconciliation") as mock_engine,
                 patch(
                     "autom8_asana.reconciliation.executor.execute_actions",
                     new_callable=AsyncMock,

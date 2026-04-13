@@ -70,11 +70,7 @@ class MatchResult:
             "score": round(self.score, 3),
             "threshold": self.threshold,
             "fields_compared": self.fields_compared,
-            "weights": {
-                c.field_name: c.weight_applied
-                for c in self.comparisons
-                if c.contributed
-            },
+            "weights": {c.field_name: c.weight_applied for c in self.comparisons if c.contributed},
             "candidate_gid": self.candidate_gid,
         }
 

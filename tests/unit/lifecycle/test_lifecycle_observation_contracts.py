@@ -655,9 +655,7 @@ class TestLO18DryRunMode:
     def test_dry_run_does_not_dispatch(self) -> None:
         """LO-18: dry_run=True -> dispatch_async NOT called."""
         dispatcher, mock_dispatch = self._make_dispatcher(dry_run=True)
-        result = asyncio.run(
-            dispatcher.handle_event("section_changed", "Process", "gid-dry", {})
-        )
+        result = asyncio.run(dispatcher.handle_event("section_changed", "Process", "gid-dry", {}))
         assert result["dispatched"] is False
         assert result["reason"] == "dry_run"
         mock_dispatch.dispatch_async.assert_not_called()
@@ -665,9 +663,7 @@ class TestLO18DryRunMode:
     def test_non_dry_run_does_dispatch(self) -> None:
         """LO-18: dry_run=False -> dispatch_async IS called."""
         dispatcher, mock_dispatch = self._make_dispatcher(dry_run=False)
-        result = asyncio.run(
-            dispatcher.handle_event("section_changed", "Process", "gid-live", {})
-        )
+        result = asyncio.run(dispatcher.handle_event("section_changed", "Process", "gid-live", {}))
         assert result["dispatched"] is True
         assert result["reason"] == "live"
         mock_dispatch.dispatch_async.assert_called_once()
@@ -699,9 +695,7 @@ class TestLO19EntityTypeNotInAllowlist:
             loop_detector=loop_detector,
         )
 
-        result = asyncio.run(
-            dispatcher.handle_event("section_changed", "Offer", "gid-offer", {})
-        )
+        result = asyncio.run(dispatcher.handle_event("section_changed", "Offer", "gid-offer", {}))
         assert result["dispatched"] is False
         assert result["reason"] == "entity_type_not_allowed"
         mock_dispatch.dispatch_async.assert_not_called()
@@ -724,9 +718,7 @@ class TestLO19EntityTypeNotInAllowlist:
             loop_detector=loop_detector,
         )
 
-        result = asyncio.run(
-            dispatcher.handle_event("section_changed", "Business", "gid-biz", {})
-        )
+        result = asyncio.run(dispatcher.handle_event("section_changed", "Business", "gid-biz", {}))
         assert result["dispatched"] is True
         mock_dispatch.dispatch_async.assert_called_once()
 

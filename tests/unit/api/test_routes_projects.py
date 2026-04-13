@@ -61,9 +61,7 @@ SAMPLE_SECTION_2 = {
 class TestListProjects:
     """Tests for GET /api/v1/projects endpoint."""
 
-    def test_list_projects_success_empty(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_projects_success_empty(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully returns empty list when workspace has no projects."""
         client, mock_sdk = authed_client
 
@@ -142,9 +140,7 @@ class TestListProjects:
             params={"workspace": TEST_WORKSPACE_GID, "limit": 1},
         )
 
-    def test_list_projects_with_offset(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_projects_with_offset(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully handles offset parameter for pagination."""
         client, mock_sdk = authed_client
 
@@ -200,9 +196,7 @@ class TestListProjects:
 
         assert response.status_code == 422
 
-    def test_list_projects_invalid_limit(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_projects_invalid_limit(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """List projects with invalid limit returns 422."""
         client, _ = authed_client
 
@@ -217,9 +211,7 @@ class TestListProjects:
 class TestGetProject:
     """Tests for GET /api/v1/projects/{gid} endpoint."""
 
-    def test_get_project_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_get_project_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully returns project by GID."""
         client, mock_sdk = authed_client
 
@@ -243,9 +235,7 @@ class TestGetProject:
             TEST_PROJECT_GID, opt_fields=None, raw=True
         )
 
-    def test_get_project_with_opt_fields(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_get_project_with_opt_fields(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully returns project with specified opt_fields."""
         client, mock_sdk = authed_client
 
@@ -294,9 +284,7 @@ class TestGetProject:
 class TestCreateProject:
     """Tests for POST /api/v1/projects endpoint."""
 
-    def test_create_project_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_create_project_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully creates a new project."""
         client, mock_sdk = authed_client
 
@@ -324,9 +312,7 @@ class TestCreateProject:
             raw=True,
         )
 
-    def test_create_project_with_team(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_create_project_with_team(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully creates a project with team."""
         client, mock_sdk = authed_client
 
@@ -432,9 +418,7 @@ class TestCreateProject:
 class TestUpdateProject:
     """Tests for PUT /api/v1/projects/{gid} endpoint."""
 
-    def test_update_project_name_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_update_project_name_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully updates project name."""
         client, mock_sdk = authed_client
 
@@ -588,9 +572,7 @@ class TestUpdateProject:
 class TestDeleteProject:
     """Tests for DELETE /api/v1/projects/{gid} endpoint."""
 
-    def test_delete_project_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_delete_project_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully deletes a project."""
         client, mock_sdk = authed_client
 
@@ -606,9 +588,7 @@ class TestDeleteProject:
 class TestListProjectSections:
     """Tests for GET /api/v1/projects/{gid}/sections endpoint."""
 
-    def test_list_sections_success_empty(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_sections_success_empty(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully returns empty list when project has no sections."""
         client, mock_sdk = authed_client
 
@@ -678,9 +658,7 @@ class TestListProjectSections:
         assert data["meta"]["pagination"]["next_offset"] == "section_cursor"
         assert data["meta"]["pagination"]["limit"] == 1
 
-    def test_list_sections_with_offset(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_sections_with_offset(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully handles offset parameter for pagination."""
         client, mock_sdk = authed_client
 
@@ -698,9 +676,7 @@ class TestListProjectSections:
             params={"limit": 100, "offset": "cursor_xyz"},
         )
 
-    def test_list_sections_invalid_limit(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_sections_invalid_limit(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """List sections with invalid limit returns 422."""
         client, _ = authed_client
 
@@ -728,9 +704,7 @@ class TestListProjectSections:
 class TestAddMembers:
     """Tests for POST /api/v1/projects/{gid}/members endpoint."""
 
-    def test_add_members_success_single(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_add_members_success_single(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully adds a single member to project."""
         client, mock_sdk = authed_client
 

@@ -322,9 +322,7 @@ class DynamicIndexCache:
         self.ttl_seconds = ttl_seconds
 
         # Internal state
-        self._cache: OrderedDict[IndexCacheKey, tuple[DynamicIndex, datetime]] = (
-            OrderedDict()
-        )
+        self._cache: OrderedDict[IndexCacheKey, tuple[DynamicIndex, datetime]] = OrderedDict()
         self._entity_counts: dict[str, int] = {}
         self._lock = threading.RLock()
 

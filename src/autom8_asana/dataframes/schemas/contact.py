@@ -101,11 +101,7 @@ CONTACT_SCHEMA = DataFrameSchema(
     task_type="Contact",
     columns=[
         *BASE_COLUMNS,
-        *[
-            c
-            for c in CONTACT_COLUMNS
-            if c.name not in {col.name for col in BASE_COLUMNS}
-        ],
+        *[c for c in CONTACT_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
     version="1.4.0",  # parent_gid column added for hierarchy reconstruction on resume
 )

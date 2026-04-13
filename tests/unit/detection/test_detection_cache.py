@@ -179,9 +179,7 @@ class TestGetCachedDetection:
         # Create an expired entry (cached 10 minutes ago with 5 minute TTL)
         past = datetime.now(UTC) - timedelta(minutes=10)
         expected_result = make_detection_result()
-        cache_entry = make_cache_entry(
-            "task_123", expected_result, cached_at=past, ttl=300
-        )
+        cache_entry = make_cache_entry("task_123", expected_result, cached_at=past, ttl=300)
         mock_cache.get.return_value = cache_entry
 
         result = _get_cached_detection("task_123", mock_cache)
@@ -221,9 +219,7 @@ class TestGetCachedDetection:
 class TestCacheDetectionResult:
     """Tests for _cache_detection_result helper."""
 
-    def test_stores_entry_with_correct_key_and_type(
-        self, mock_cache: MagicMock
-    ) -> None:
+    def test_stores_entry_with_correct_key_and_type(self, mock_cache: MagicMock) -> None:
         """FR-CACHE-002: Stores entry with correct key and EntryType."""
         task = make_task(gid="task_123")
         result = make_detection_result()
@@ -533,9 +529,7 @@ class TestDetectEntityTypeAsyncCacheIntegration:
             return_value=[mock_subtask]
         )
 
-        result = await detect_entity_type_async(
-            task, mock_client, allow_structure_inspection=True
-        )
+        result = await detect_entity_type_async(task, mock_client, allow_structure_inspection=True)
 
         assert result.entity_type == EntityType.BUSINESS
         assert result.tier_used == 4

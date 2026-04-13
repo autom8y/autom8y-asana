@@ -74,9 +74,7 @@ def workspace_gid(asana_client: AsanaClient) -> str:
 
     workspace_gid = os.environ.get("ASANA_WORKSPACE_GID")
     if not workspace_gid:
-        pytest.skip(
-            "No workspace GID available (auto-detect failed, no ASANA_WORKSPACE_GID)"
-        )
+        pytest.skip("No workspace GID available (auto-detect failed, no ASANA_WORKSPACE_GID)")
 
     return workspace_gid
 

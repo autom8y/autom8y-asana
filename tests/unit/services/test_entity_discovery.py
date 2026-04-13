@@ -146,9 +146,7 @@ class TestIsEntityResolvable:
 
     def test_returns_true_for_resolvable_entity(self) -> None:
         """Returns True for entity in resolvable set."""
-        with patch(
-            "autom8_asana.services.resolver.get_resolvable_entities"
-        ) as mock_get:
+        with patch("autom8_asana.services.resolver.get_resolvable_entities") as mock_get:
             mock_get.return_value = {"unit", "contact"}
 
             assert is_entity_resolvable("unit") is True
@@ -156,9 +154,7 @@ class TestIsEntityResolvable:
 
     def test_returns_false_for_non_resolvable_entity(self) -> None:
         """Returns False for entity not in resolvable set."""
-        with patch(
-            "autom8_asana.services.resolver.get_resolvable_entities"
-        ) as mock_get:
+        with patch("autom8_asana.services.resolver.get_resolvable_entities") as mock_get:
             mock_get.return_value = {"unit"}
 
             assert is_entity_resolvable("unknown") is False
@@ -166,9 +162,7 @@ class TestIsEntityResolvable:
 
     def test_lowercases_entity_type(self) -> None:
         """Lowercases entity type before checking."""
-        with patch(
-            "autom8_asana.services.resolver.get_resolvable_entities"
-        ) as mock_get:
+        with patch("autom8_asana.services.resolver.get_resolvable_entities") as mock_get:
             mock_get.return_value = {"unit"}
 
             assert is_entity_resolvable("UNIT") is True

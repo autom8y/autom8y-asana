@@ -450,9 +450,7 @@ def validate_criterion_for_entity(
         if field_name in available_set:
             column_def = schema.get_column(field_name)
             if column_def is not None:
-                coercion_error = _validate_field_type(
-                    field_name, value, column_def.dtype
-                )
+                coercion_error = _validate_field_type(field_name, value, column_def.dtype)
                 if coercion_error:
                     errors.append(coercion_error)
 
@@ -661,9 +659,7 @@ def filter_result_fields(
     # Check for invalid fields
     invalid = set(requested_fields) - valid_fields - {"gid"}
     if invalid:
-        raise ValueError(
-            f"Invalid fields: {sorted(invalid)}. Available: {sorted(valid_fields)}"
-        )
+        raise ValueError(f"Invalid fields: {sorted(invalid)}. Available: {sorted(valid_fields)}")
 
     # Always include gid
     fields_to_include = set(requested_fields) | {"gid"}

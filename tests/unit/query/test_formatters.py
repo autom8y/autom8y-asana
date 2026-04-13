@@ -165,9 +165,7 @@ class TestCsvFormatter:
         assert "Beta" in content
         assert "300" in content
 
-    def test_format_aggregate_csv(
-        self, sample_aggregate_response: AggregateResponse
-    ) -> None:
+    def test_format_aggregate_csv(self, sample_aggregate_response: AggregateResponse) -> None:
         """Aggregate CSV output has correct structure."""
         buf = io.StringIO()
         CsvFormatter().format_aggregate(sample_aggregate_response, buf)
@@ -184,9 +182,7 @@ class TestCsvFormatter:
 class TestTableFormatter:
     """Table output correctness."""
 
-    def test_format_rows_contains_headers(
-        self, sample_rows_response: RowsResponse
-    ) -> None:
+    def test_format_rows_contains_headers(self, sample_rows_response: RowsResponse) -> None:
         """Table output must contain column headers."""
         buf = io.StringIO()
         TableFormatter().format_rows(sample_rows_response, buf)
@@ -195,9 +191,7 @@ class TestTableFormatter:
         assert "name" in output
         assert "section" in output
 
-    def test_format_rows_contains_values(
-        self, sample_rows_response: RowsResponse
-    ) -> None:
+    def test_format_rows_contains_values(self, sample_rows_response: RowsResponse) -> None:
         """Table output must contain data values."""
         buf = io.StringIO()
         TableFormatter().format_rows(sample_rows_response, buf)
@@ -211,9 +205,7 @@ class TestTableFormatter:
         TableFormatter().format_rows(empty_rows_response, buf)
         assert "empty result set" in buf.getvalue()
 
-    def test_format_discovery(
-        self, sample_discovery_rows: list[dict[str, object]]
-    ) -> None:
+    def test_format_discovery(self, sample_discovery_rows: list[dict[str, object]]) -> None:
         """Discovery table contains entity type names."""
         buf = io.StringIO()
         TableFormatter().format_discovery(sample_discovery_rows, buf)
@@ -256,9 +248,7 @@ class TestJsonlFormatter:
         JsonlFormatter().format_rows(empty_rows_response, buf)
         assert buf.getvalue() == ""
 
-    def test_format_discovery(
-        self, sample_discovery_rows: list[dict[str, object]]
-    ) -> None:
+    def test_format_discovery(self, sample_discovery_rows: list[dict[str, object]]) -> None:
         """Discovery JSONL has one line per entry."""
         buf = io.StringIO()
         JsonlFormatter().format_discovery(sample_discovery_rows, buf)

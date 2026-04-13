@@ -113,9 +113,7 @@ class TestHierarchyContainsVsCache:
 
         # But business-1 is NOT cached (no task data fetched)
         cached = store.cache.get_versioned("business-1", EntryType.TASK)
-        assert cached is None, (
-            "Business task should not be cached - only relationship is known"
-        )
+        assert cached is None, "Business task should not be cached - only relationship is known"
 
         # The ancestor chain returns the parent GID (we know the relationship)
         chain = store._hierarchy.get_ancestor_chain("unit-1")
@@ -253,9 +251,7 @@ class TestCascadeResolution:
         office_phone_nulls = df["office_phone"].null_count()
         total_rows = len(df)
 
-        assert office_phone_nulls == 0, (
-            f"office_phone has {office_phone_nulls}/{total_rows} nulls"
-        )
+        assert office_phone_nulls == 0, f"office_phone has {office_phone_nulls}/{total_rows} nulls"
         # vertical is now a direct custom field (cf:Vertical), not cascade
         # Since UNIT_TASKS have empty custom_fields, vertical will be null
         # This is expected behavior per schema change
@@ -302,9 +298,7 @@ class TestWarmAncestorsAsync:
         )
 
         # Verify: Business was fetched
-        assert "business-001" in mock_client.fetched_gids, (
-            "Business should have been fetched"
-        )
+        assert "business-001" in mock_client.fetched_gids, "Business should have been fetched"
         assert warmed >= 1, "At least one ancestor should have been warmed"
 
         # Verify: Business is now cached

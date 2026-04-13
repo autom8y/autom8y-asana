@@ -144,17 +144,13 @@ class TestS3TransportError:
         assert err.transient is True
 
     def test_context_includes_bucket_and_key(self) -> None:
-        err = S3TransportError(
-            "fail", bucket="my-bucket", key="my-key", operation="get"
-        )
+        err = S3TransportError("fail", bucket="my-bucket", key="my-key", operation="get")
         assert err.context["bucket"] == "my-bucket"
         assert err.context["key"] == "my-key"
 
     def test_from_boto_error_basic(self) -> None:
         original = RuntimeError("connection reset")
-        wrapped = S3TransportError.from_boto_error(
-            original, operation="get", bucket="b", key="k"
-        )
+        wrapped = S3TransportError.from_boto_error(original, operation="get", bucket="b", key="k")
         assert wrapped.__cause__ is original
         assert wrapped.operation == "get"
         assert wrapped.bucket == "b"

@@ -412,9 +412,7 @@ class TestDetectByStructureAsync:
             self._make_subtask("Units"),
             self._make_subtask("Location"),
         ]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
         result = await detect_by_structure_async(task, mock_client)
 
@@ -437,9 +435,7 @@ class TestDetectByStructureAsync:
             self._make_subtask("Offers"),
             self._make_subtask("Processes"),
         ]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
         result = await detect_by_structure_async(task, mock_client)
 
@@ -462,9 +458,7 @@ class TestDetectByStructureAsync:
             self._make_subtask("Subtask A"),
             self._make_subtask("Subtask B"),
         ]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
         result = await detect_by_structure_async(task, mock_client)
 
@@ -480,9 +474,7 @@ class TestDetectByStructureAsync:
 
         # Only has "contacts" - still enough to detect Business
         subtasks = [self._make_subtask("Contacts")]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
         result = await detect_by_structure_async(task, mock_client)
 
@@ -609,9 +601,7 @@ class TestDetectEntityTypeAsync:
         # Mock subtasks for Business detection
         subtask = MagicMock()
         subtask.name = "Contacts"
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=[subtask]
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=[subtask])
 
         result = await detect_entity_type_async(
             task,
@@ -634,9 +624,7 @@ class TestDetectEntityTypeAsync:
         # Mock subtasks with no indicators
         subtask = MagicMock()
         subtask.name = "Subtask A"
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=[subtask]
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=[subtask])
 
         result = await detect_entity_type_async(
             task,
@@ -805,9 +793,7 @@ class TestAsyncTier1WithLazyDiscovery:
             memberships=[{"project": {"gid": "static_gid"}}],
         )
 
-        result = await _detect_tier1_project_membership_async(
-            task, mock_client_with_workspace
-        )
+        result = await _detect_tier1_project_membership_async(task, mock_client_with_workspace)
 
         assert result is not None
         assert result.entity_type == EntityType.BUSINESS
@@ -839,9 +825,7 @@ class TestAsyncTier1WithLazyDiscovery:
             memberships=[{"project": {"gid": "sales_pipeline_gid"}}],
         )
 
-        result = await _detect_tier1_project_membership_async(
-            task, mock_client_with_workspace
-        )
+        result = await _detect_tier1_project_membership_async(task, mock_client_with_workspace)
 
         # Should discover and detect as PROCESS
         assert result is not None
@@ -862,9 +846,7 @@ class TestAsyncTier1WithLazyDiscovery:
         """Async Tier 1 discovery registers all pipeline projects."""
         # Mock multiple pipeline projects
         sales_project = self._make_mock_project("sales_gid", "Sales Pipeline")
-        onboarding_project = self._make_mock_project(
-            "onboarding_gid", "Client Onboarding"
-        )
+        onboarding_project = self._make_mock_project("onboarding_gid", "Client Onboarding")
         retention_project = self._make_mock_project("retention_gid", "Retention")
         non_pipeline = self._make_mock_project("other_gid", "Other Project")
 
@@ -884,9 +866,7 @@ class TestAsyncTier1WithLazyDiscovery:
             memberships=[{"project": {"gid": "onboarding_gid"}}],
         )
 
-        result = await _detect_tier1_project_membership_async(
-            task, mock_client_with_workspace
-        )
+        result = await _detect_tier1_project_membership_async(task, mock_client_with_workspace)
 
         # Should detect as PROCESS
         assert result is not None
@@ -922,9 +902,7 @@ class TestAsyncTier1WithLazyDiscovery:
             memberships=[{"project": {"gid": "unknown_gid"}}],
         )
 
-        result = await _detect_tier1_project_membership_async(
-            task, mock_client_with_workspace
-        )
+        result = await _detect_tier1_project_membership_async(task, mock_client_with_workspace)
 
         # Should return None (project not a pipeline)
         assert result is None
@@ -944,9 +922,7 @@ class TestAsyncTier1WithLazyDiscovery:
             memberships=None,
         )
 
-        result = await _detect_tier1_project_membership_async(
-            task, mock_client_with_workspace
-        )
+        result = await _detect_tier1_project_membership_async(task, mock_client_with_workspace)
 
         assert result is None
         mock_client_with_workspace.projects.list_async.assert_not_called()
@@ -963,9 +939,7 @@ class TestAsyncTier1WithLazyDiscovery:
             memberships=[],
         )
 
-        result = await _detect_tier1_project_membership_async(
-            task, mock_client_with_workspace
-        )
+        result = await _detect_tier1_project_membership_async(task, mock_client_with_workspace)
 
         assert result is None
         mock_client_with_workspace.projects.list_async.assert_not_called()
@@ -1134,11 +1108,5 @@ class TestDetectEntityTypeAsyncWithLazyDiscovery:
         # Check ProcessType lookup
         workspace_registry = get_workspace_registry()
         assert workspace_registry.get_process_type("sales_gid") == ProcessType.SALES
-        assert (
-            workspace_registry.get_process_type("onboarding_gid")
-            == ProcessType.ONBOARDING
-        )
-        assert (
-            workspace_registry.get_process_type("retention_gid")
-            == ProcessType.RETENTION
-        )
+        assert workspace_registry.get_process_type("onboarding_gid") == ProcessType.ONBOARDING
+        assert workspace_registry.get_process_type("retention_gid") == ProcessType.RETENTION

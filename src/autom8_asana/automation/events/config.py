@@ -51,9 +51,7 @@ class EventRoutingConfig:
     enabled: bool = False
     subscriptions: list[SubscriptionEntry] = field(default_factory=list)
 
-    def matching_subscriptions(
-        self, event_type: str, entity_type: str
-    ) -> list[SubscriptionEntry]:
+    def matching_subscriptions(self, event_type: str, entity_type: str) -> list[SubscriptionEntry]:
         """Find all subscriptions matching the given event.
 
         Args:
@@ -94,8 +92,7 @@ class EventRoutingConfig:
             for i, entry in enumerate(raw):
                 if "destination" not in entry:
                     raise ValueError(
-                        f"EVENTS_SUBSCRIPTIONS entry {i} missing required "
-                        f"'destination' field"
+                        f"EVENTS_SUBSCRIPTIONS entry {i} missing required 'destination' field"
                     )
                 subscriptions.append(
                     SubscriptionEntry(

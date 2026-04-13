@@ -240,9 +240,7 @@ class SavePipeline:
                             object.__setattr__(entity, "gid", real_gid)
 
                     # Emit post-save hook
-                    await self._events.emit_post_save(
-                        entity, op_type, batch_result.data
-                    )
+                    await self._events.emit_post_save(entity, op_type, batch_result.data)
                 else:
                     # Find the payload for this entity
                     payload = self._find_payload_for_entity(entity, operations)

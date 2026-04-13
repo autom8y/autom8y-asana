@@ -292,9 +292,7 @@ class RetryBudget:
         self._config = config or BudgetConfig()
         self._lock = threading.Lock()
         # Per-subsystem deques of timestamps
-        self._subsystem_tokens: dict[Subsystem, deque[float]] = {
-            sub: deque() for sub in Subsystem
-        }
+        self._subsystem_tokens: dict[Subsystem, deque[float]] = {sub: deque() for sub in Subsystem}
         # Global deque of timestamps
         self._global_tokens: deque[float] = deque()
         # Track budget denials for metrics
@@ -437,9 +435,7 @@ class CircuitBreaker:
         if self._state == CBState.OPEN:
             elapsed = time.monotonic() - self._opened_at
             if elapsed >= self._config.recovery_timeout:
-                self._transition_to(
-                    CBState.HALF_OPEN, reason="recovery_timeout_elapsed"
-                )
+                self._transition_to(CBState.HALF_OPEN, reason="recovery_timeout_elapsed")
         return self._state
 
     def allow_request(self) -> bool:
@@ -472,9 +468,7 @@ class CircuitBreaker:
                     max_probes=self._config.half_open_max_probes,
                 )
                 if self._success_probe_count >= self._config.half_open_max_probes:
-                    self._transition_to(
-                        CBState.CLOSED, reason="half_open_probes_succeeded"
-                    )
+                    self._transition_to(CBState.CLOSED, reason="half_open_probes_succeeded")
             elif effective == CBState.CLOSED:
                 self._failure_count = 0
 
@@ -616,9 +610,7 @@ class RetryOrchestrator:
     def get_metrics(self) -> RetryMetrics:
         """Snapshot of current retry state for health endpoints."""
         return RetryMetrics(
-            budget_utilization={
-                sub.value: self._budget.utilization(sub) for sub in Subsystem
-            },
+            budget_utilization={sub.value: self._budget.utilization(sub) for sub in Subsystem},
             global_budget_utilization=self._budget.global_utilization(),
             circuit_breaker_states={
                 self._circuit_breaker._config.name: self._circuit_breaker.state.value,

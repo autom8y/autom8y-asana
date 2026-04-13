@@ -176,9 +176,7 @@ class TestUniversalResolutionStrategy:
         strategy._cached_dataframe = contact_dataframe
 
         # Mock validation to pass (schema may not have contact_email in test env)
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 errors=[],
@@ -311,9 +309,7 @@ class TestUniversalResolutionStrategy:
         )
 
         # Mock validate_criterion_for_entity to return valid result
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 errors=[],
@@ -413,9 +409,7 @@ class TestCriterionValidationIntegration:
     """Tests for criterion validation integration."""
 
     @pytest.mark.asyncio
-    async def test_invalid_criterion_returns_error(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    async def test_invalid_criterion_returns_error(self, index_cache: DynamicIndexCache) -> None:
         """Test that invalid criterion returns INVALID_CRITERIA error."""
         strategy = UniversalResolutionStrategy(
             entity_type="unit",
@@ -423,9 +417,7 @@ class TestCriterionValidationIntegration:
         )
 
         # Use unknown field that won't validate
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=False,
                 errors=["Unknown field: invalid_field"],
@@ -459,9 +451,7 @@ class TestIndexUnavailable:
         strategy._cached_dataframe = None
 
         # Mock validate to pass
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 errors=[],
@@ -503,9 +493,7 @@ class TestFactoryFunctions:
     def test_get_universal_strategy_returns_strategy(self) -> None:
         """Test get_universal_strategy factory function."""
         # Mock is_entity_resolvable to return True
-        with patch(
-            "autom8_asana.services.resolver.is_entity_resolvable", return_value=True
-        ):
+        with patch("autom8_asana.services.resolver.is_entity_resolvable", return_value=True):
             strategy = get_universal_strategy("unit")
 
         assert strategy is not None
@@ -517,9 +505,7 @@ class TestFactoryFunctions:
         from autom8_asana.services.resolver import get_strategy
 
         # Mock is_entity_resolvable to return False
-        with patch(
-            "autom8_asana.services.resolver.is_entity_resolvable", return_value=False
-        ):
+        with patch("autom8_asana.services.resolver.is_entity_resolvable", return_value=False):
             strategy = get_strategy("unknown_entity")
 
         assert strategy is None
@@ -639,9 +625,7 @@ class TestDynamicIndexBuilding:
         strategy._cached_dataframe = contact_dataframe
 
         # Mock validation to pass for different column combinations
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             # First call: contact_email lookup
             mock_validate.return_value = MagicMock(
                 is_valid=True,
@@ -686,9 +670,7 @@ class TestEnrichFromDataframe:
     Per TDD-FIELDS-ENRICHMENT-001: Post-lookup enrichment from DataFrame.
     """
 
-    def test_enrichment_returns_requested_fields(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    def test_enrichment_returns_requested_fields(self, index_cache: DynamicIndexCache) -> None:
         """Enrichment returns only requested fields plus gid."""
         strategy = UniversalResolutionStrategy(
             entity_type="unit",
@@ -716,9 +698,7 @@ class TestEnrichFromDataframe:
         # mrr not included (not requested)
         assert "mrr" not in result[0]
 
-    def test_enrichment_always_includes_gid(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    def test_enrichment_always_includes_gid(self, index_cache: DynamicIndexCache) -> None:
         """GID is always included even if not in requested fields."""
         strategy = UniversalResolutionStrategy(
             entity_type="unit",
@@ -741,9 +721,7 @@ class TestEnrichFromDataframe:
         assert "gid" in result[0]
         assert result[0]["gid"] == "123"
 
-    def test_enrichment_preserves_gid_order(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    def test_enrichment_preserves_gid_order(self, index_cache: DynamicIndexCache) -> None:
         """Results returned in same order as input GIDs."""
         strategy = UniversalResolutionStrategy(
             entity_type="unit",
@@ -768,9 +746,7 @@ class TestEnrichFromDataframe:
         assert result[1]["gid"] == "123"
         assert result[2]["gid"] == "456"
 
-    def test_enrichment_handles_missing_gid(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    def test_enrichment_handles_missing_gid(self, index_cache: DynamicIndexCache) -> None:
         """Missing GID returns dict with just gid."""
         strategy = UniversalResolutionStrategy(
             entity_type="unit",
@@ -826,9 +802,7 @@ class TestEnrichFromDataframe:
 
         assert result == []
 
-    def test_enrichment_skips_missing_columns(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    def test_enrichment_skips_missing_columns(self, index_cache: DynamicIndexCache) -> None:
         """Missing columns in DataFrame are skipped gracefully."""
         strategy = UniversalResolutionStrategy(
             entity_type="unit",
@@ -943,9 +917,7 @@ class TestResolveWithFields:
         strategy._cached_dataframe = contact_dataframe
 
         # Mock validation to pass
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 errors=[],
@@ -983,9 +955,7 @@ class TestBatchParallelization:
     """
 
     @pytest.mark.asyncio
-    async def test_multi_group_parallel_execution(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    async def test_multi_group_parallel_execution(self, index_cache: DynamicIndexCache) -> None:
         """Criteria with different key_columns produce distinct groups.
 
         Submits criteria mixing phone+vertical lookups with offer_id lookups.
@@ -1010,17 +980,13 @@ class TestBatchParallelization:
         build_calls: list[list[str]] = []
         original_get_or_build = strategy._get_or_build_index
 
-        async def tracking_get_or_build(
-            project_gid: str, key_columns: list[str], client: object
-        ):
+        async def tracking_get_or_build(project_gid: str, key_columns: list[str], client: object):
             build_calls.append(key_columns)
             return await original_get_or_build(
                 project_gid=project_gid, key_columns=key_columns, client=client
             )
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             # Return different normalized criteria to produce 2 groups
             mock_validate.side_effect = [
                 MagicMock(
@@ -1046,9 +1012,7 @@ class TestBatchParallelization:
                 ),
             ]
 
-            with patch.object(
-                strategy, "_get_or_build_index", side_effect=tracking_get_or_build
-            ):
+            with patch.object(strategy, "_get_or_build_index", side_effect=tracking_get_or_build):
                 results = await strategy.resolve(
                     criteria=[
                         {"office_phone": "+11111111111", "vertical": "dental"},
@@ -1070,9 +1034,7 @@ class TestBatchParallelization:
         assert len(results) == 3
 
     @pytest.mark.asyncio
-    async def test_result_ordering_preserved(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    async def test_result_ordering_preserved(self, index_cache: DynamicIndexCache) -> None:
         """Results match input order regardless of group execution order.
 
         Submits 5 criteria with alternating key_columns patterns and verifies
@@ -1093,9 +1055,7 @@ class TestBatchParallelization:
         )
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             # Alternating: phone+vertical, offer_id, phone+vertical, offer_id, phone+vertical
             mock_validate.side_effect = [
                 MagicMock(
@@ -1146,9 +1106,7 @@ class TestBatchParallelization:
         assert results[4].gid == "g-4"
 
     @pytest.mark.asyncio
-    async def test_per_criterion_error_isolation(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    async def test_per_criterion_error_isolation(self, index_cache: DynamicIndexCache) -> None:
         """One criterion's lookup error does not affect others in same group.
 
         Uses a mock index where one lookup raises an exception, verifying
@@ -1186,9 +1144,7 @@ class TestBatchParallelization:
 
         real_index.lookup = failing_lookup  # type: ignore[method-assign]
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.side_effect = [
                 MagicMock(
                     is_valid=True,
@@ -1235,9 +1191,7 @@ class TestBatchParallelization:
         assert results[1].gid is None
 
     @pytest.mark.asyncio
-    async def test_cross_group_error_isolation(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    async def test_cross_group_error_isolation(self, index_cache: DynamicIndexCache) -> None:
         """One group's index build failure does not affect other groups.
 
         Mocks _get_or_build_index to raise for one key_columns group
@@ -1267,16 +1221,12 @@ class TestBatchParallelization:
             value_column="gid",
         )
 
-        async def selective_build(
-            project_gid: str, key_columns: list[str], client: object
-        ):
+        async def selective_build(project_gid: str, key_columns: list[str], client: object):
             if sorted(key_columns) == ["offer_id"]:
                 raise ConnectionError("Simulated index build failure")
             return phone_index
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.side_effect = [
                 MagicMock(
                     is_valid=True,
@@ -1290,9 +1240,7 @@ class TestBatchParallelization:
                 ),
             ]
 
-            with patch.object(
-                strategy, "_get_or_build_index", side_effect=selective_build
-            ):
+            with patch.object(strategy, "_get_or_build_index", side_effect=selective_build):
                 results = await strategy.resolve(
                     criteria=[
                         {"office_phone": "p0", "vertical": "v0"},
@@ -1339,9 +1287,7 @@ class TestBatchParallelization:
         assert results[0].is_unique
 
     @pytest.mark.asyncio
-    async def test_all_same_key_columns_single_group(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    async def test_all_same_key_columns_single_group(self, index_cache: DynamicIndexCache) -> None:
         """Homogeneous batch creates single group with 1 index build.
 
         Submits 10 criteria all with same key_columns (office_phone+vertical).
@@ -1365,18 +1311,14 @@ class TestBatchParallelization:
         build_call_count = 0
         original_get_or_build = strategy._get_or_build_index
 
-        async def counting_get_or_build(
-            project_gid: str, key_columns: list[str], client: object
-        ):
+        async def counting_get_or_build(project_gid: str, key_columns: list[str], client: object):
             nonlocal build_call_count
             build_call_count += 1
             return await original_get_or_build(
                 project_gid=project_gid, key_columns=key_columns, client=client
             )
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.side_effect = [
                 MagicMock(
                     is_valid=True,
@@ -1386,14 +1328,9 @@ class TestBatchParallelization:
                 for i in range(10)
             ]
 
-            with patch.object(
-                strategy, "_get_or_build_index", side_effect=counting_get_or_build
-            ):
+            with patch.object(strategy, "_get_or_build_index", side_effect=counting_get_or_build):
                 results = await strategy.resolve(
-                    criteria=[
-                        {"office_phone": f"p{i}", "vertical": f"v{i}"}
-                        for i in range(10)
-                    ],
+                    criteria=[{"office_phone": f"p{i}", "vertical": f"v{i}"} for i in range(10)],
                     project_gid="test-project",
                     client=MagicMock(),
                     active_only=False,
@@ -1431,9 +1368,7 @@ class TestBatchParallelization:
         )
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.side_effect = [
                 # criteria[0]: valid  # noqa: ERA001
                 MagicMock(

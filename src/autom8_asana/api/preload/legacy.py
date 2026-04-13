@@ -262,9 +262,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                     if updated_df is not df:
                         # DataFrame was updated - rebuild index
                         try:
-                            index = GidLookupIndex.from_dataframe(
-                                updated_df, key_columns=key_cols
-                            )
+                            index = GidLookupIndex.from_dataframe(updated_df, key_columns=key_cols)
                         except KeyError as e:
                             logger.warning(
                                 "dataframe_preload_index_rebuild_failed",
@@ -282,9 +280,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                         # For full rebuild fallback (was_incremental=False),
                         # builder already persisted via _persist_dataframe_async.
                         if was_incremental:
-                            await persistence.save_dataframe(
-                                project_gid, updated_df, new_watermark
-                            )
+                            await persistence.save_dataframe(project_gid, updated_df, new_watermark)
                         await persistence.save_index(project_gid, index.serialize())
                         watermark_repo.set_watermark(project_gid, new_watermark)
 
@@ -335,14 +331,10 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
 
                     if new_df is not None and len(new_df) > 0:
                         try:
-                            new_index = GidLookupIndex.from_dataframe(
-                                new_df, key_columns=key_cols
-                            )
+                            new_index = GidLookupIndex.from_dataframe(new_df, key_columns=key_cols)
 
                             # Persist new index (DataFrame saved by builder)
-                            await persistence.save_index(
-                                project_gid, new_index.serialize()
-                            )
+                            await persistence.save_index(project_gid, new_index.serialize())
                             watermark_repo.set_watermark(project_gid, new_watermark)
 
                             # Store in DataFrameCache singleton for @dataframe_cache decorator
@@ -356,9 +348,7 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                             loaded_count += 1
                             total_rows += len(new_df)
 
-                            project_elapsed = (
-                                time.perf_counter() - project_start
-                            ) * 1000
+                            project_elapsed = (time.perf_counter() - project_start) * 1000
                             logger.info(
                                 "dataframe_preload_project_complete",
                                 extra={

@@ -151,9 +151,7 @@ class TestProgressiveTierGet:
         wm_meta = make_watermark_metadata()
 
         storage = make_mock_storage()
-        storage.load_dataframe_with_metadata = AsyncMock(
-            return_value=(df, watermark, wm_meta)
-        )
+        storage.load_dataframe_with_metadata = AsyncMock(return_value=(df, watermark, wm_meta))
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
@@ -173,9 +171,7 @@ class TestProgressiveTierGet:
     async def test_get_async_returns_none_on_missing(self) -> None:
         """Get returns None when DataFrame doesn't exist."""
         storage = make_mock_storage()
-        storage.load_dataframe_with_metadata = AsyncMock(
-            return_value=(None, None, None)
-        )
+        storage.load_dataframe_with_metadata = AsyncMock(return_value=(None, None, None))
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
@@ -241,9 +237,7 @@ class TestProgressiveTierGet:
         }
 
         storage = make_mock_storage()
-        storage.load_dataframe_with_metadata = AsyncMock(
-            return_value=(df, watermark, wm_meta)
-        )
+        storage.load_dataframe_with_metadata = AsyncMock(return_value=(df, watermark, wm_meta))
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
@@ -267,9 +261,7 @@ class TestProgressiveTierGet:
     async def test_get_async_handles_storage_error(self) -> None:
         """Get returns None on storage read error."""
         storage = make_mock_storage()
-        storage.load_dataframe_with_metadata = AsyncMock(
-            side_effect=ConnectionError("S3 timeout")
-        )
+        storage.load_dataframe_with_metadata = AsyncMock(side_effect=ConnectionError("S3 timeout"))
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)
@@ -372,9 +364,7 @@ class TestProgressiveTierPut:
     async def test_put_async_handles_exception(self) -> None:
         """Put returns False on exception."""
         persistence = make_mock_persistence()
-        persistence.write_final_artifacts_async.side_effect = ConnectionError(
-            "S3 error"
-        )
+        persistence.write_final_artifacts_async.side_effect = ConnectionError("S3 error")
 
         tier = ProgressiveTier(persistence=persistence)
 
@@ -509,9 +499,7 @@ class TestProgressiveTierStats:
         wm_meta = make_watermark_metadata()
 
         storage = make_mock_storage()
-        storage.load_dataframe_with_metadata = AsyncMock(
-            return_value=(df, watermark, wm_meta)
-        )
+        storage.load_dataframe_with_metadata = AsyncMock(return_value=(df, watermark, wm_meta))
 
         persistence = make_mock_persistence(storage=storage)
         tier = ProgressiveTier(persistence=persistence)

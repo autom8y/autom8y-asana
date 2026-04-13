@@ -189,9 +189,7 @@ class TestPushGidMappingsToDataService:
         )
 
     @pytest.mark.asyncio
-    async def test_push_disabled_returns_false(
-        self, sample_index: GidLookupIndex
-    ) -> None:
+    async def test_push_disabled_returns_false(self, sample_index: GidLookupIndex) -> None:
         """Returns False when push is disabled via feature flag."""
         with patch.dict("os.environ", {GID_PUSH_ENABLED_ENV_VAR: "false"}):
             result = await push_gid_mappings_to_data_service(
@@ -202,9 +200,7 @@ class TestPushGidMappingsToDataService:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_skips_when_no_data_service_url(
-        self, sample_index: GidLookupIndex
-    ) -> None:
+    async def test_skips_when_no_data_service_url(self, sample_index: GidLookupIndex) -> None:
         """Returns False when AUTOM8Y_DATA_URL is not configured."""
         with patch.dict("os.environ", {}, clear=True):
             result = await push_gid_mappings_to_data_service(
@@ -217,9 +213,7 @@ class TestPushGidMappingsToDataService:
     @pytest.mark.asyncio
     async def test_skips_when_no_auth_token(self, sample_index: GidLookupIndex) -> None:
         """Returns False when auth token is not available."""
-        with patch.dict(
-            "os.environ", {"AUTOM8Y_DATA_URL": "http://localhost:8000"}, clear=True
-        ):
+        with patch.dict("os.environ", {"AUTOM8Y_DATA_URL": "http://localhost:8000"}, clear=True):
             result = await push_gid_mappings_to_data_service(
                 project_gid="1201081073731555",
                 index=sample_index,
@@ -284,9 +278,7 @@ class TestPushGidMappingsToDataService:
 
         captured_payload: dict | None = None
 
-        async def capture_post(
-            url: str, *, json: dict, headers: dict
-        ) -> httpx.Response:
+        async def capture_post(url: str, *, json: dict, headers: dict) -> httpx.Response:
             nonlocal captured_payload
             captured_payload = json
             return mock_response
@@ -347,9 +339,7 @@ class TestPushGidMappingsToDataService:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_unexpected_exception_returns_false(
-        self, sample_index: GidLookupIndex
-    ) -> None:
+    async def test_unexpected_exception_returns_false(self, sample_index: GidLookupIndex) -> None:
         """Returns False on unexpected exceptions (non-blocking)."""
         with patch("autom8_asana.services.gid_push.Autom8yHttpClient") as mock_http_cls:
             _make_push_mocks(
@@ -385,9 +375,7 @@ class TestPushGidMappingsToDataService:
         assert "custom-url.example.com" in call_args.args[0]
 
     @pytest.mark.asyncio
-    async def test_trailing_slash_in_url_handled(
-        self, sample_index: GidLookupIndex
-    ) -> None:
+    async def test_trailing_slash_in_url_handled(self, sample_index: GidLookupIndex) -> None:
         """Trailing slash in base URL does not cause double-slash."""
         mock_response = httpx.Response(status_code=200, json={"accepted": 2})
 
@@ -420,9 +408,7 @@ class TestPiiMaskingInLogs:
 
         logged_extra: dict | None = None
 
-        def capture_warning(
-            event: str, extra: dict | None = None, **kwargs: object
-        ) -> None:
+        def capture_warning(event: str, extra: dict | None = None, **kwargs: object) -> None:
             nonlocal logged_extra
             if event == "gid_push_failed":
                 logged_extra = extra or {}
@@ -653,9 +639,7 @@ class TestExtractStatusFromDataframe:
         with (
             patch(
                 "autom8_asana.models.business.activity.get_classifier",
-                return_value=_make_classifier(
-                    {"Onboarding": AccountActivity.ACTIVATING}
-                ),
+                return_value=_make_classifier({"Onboarding": AccountActivity.ACTIVATING}),
             ),
             patch(
                 "autom8_asana.models.business.activity.extract_section_name",

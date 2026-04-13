@@ -106,9 +106,7 @@ class TestHolderRegistryCompleteness:
         registered_names = set(class_map.keys())
 
         extra = registered_names - entity_holder_names
-        assert not extra, (
-            f"Holder types in HOLDER_REGISTRY but absent from EntityRegistry: {extra}"
-        )
+        assert not extra, f"Holder types in HOLDER_REGISTRY but absent from EntityRegistry: {extra}"
 
 
 # ---------------------------------------------------------------------------
@@ -157,9 +155,7 @@ class TestConstructHolder:
         """ContactHolder constructed with correct class and name."""
         from autom8_asana.models.business.contact import ContactHolder
 
-        holder = construct_holder(
-            "contact_holder", business_holder_key_map, business_with_real_gid
-        )
+        holder = construct_holder("contact_holder", business_holder_key_map, business_with_real_gid)
         assert isinstance(holder, ContactHolder)
         assert holder.name == "Contacts"
         assert holder.resource_type == "task"
@@ -172,9 +168,7 @@ class TestConstructHolder:
         """UnitHolder constructed with correct class and name."""
         from autom8_asana.models.business.unit import UnitHolder
 
-        holder = construct_holder(
-            "unit_holder", business_holder_key_map, business_with_real_gid
-        )
+        holder = construct_holder("unit_holder", business_holder_key_map, business_with_real_gid)
         assert isinstance(holder, UnitHolder)
         assert holder.name == "Business Units"
 
@@ -200,9 +194,7 @@ class TestConstructHolder:
         """DNAHolder constructed with correct class and name."""
         from autom8_asana.models.business.business import DNAHolder
 
-        holder = construct_holder(
-            "dna_holder", business_holder_key_map, business_with_real_gid
-        )
+        holder = construct_holder("dna_holder", business_holder_key_map, business_with_real_gid)
         assert isinstance(holder, DNAHolder)
         assert holder.name == "DNA"
 
@@ -254,9 +246,7 @@ class TestConstructHolder:
         business_holder_key_map: dict[str, tuple[str, str]],
     ) -> None:
         """Constructed holder gets temp_{id()} GID."""
-        holder = construct_holder(
-            "contact_holder", business_holder_key_map, business_with_real_gid
-        )
+        holder = construct_holder("contact_holder", business_holder_key_map, business_with_real_gid)
         assert holder.gid.startswith("temp_")
         assert holder.gid == f"temp_{id(holder)}"
 
@@ -266,9 +256,7 @@ class TestConstructHolder:
         business_holder_key_map: dict[str, tuple[str, str]],
     ) -> None:
         """Parent with real GID produces NameGid with that GID."""
-        holder = construct_holder(
-            "contact_holder", business_holder_key_map, business_with_real_gid
-        )
+        holder = construct_holder("contact_holder", business_holder_key_map, business_with_real_gid)
         assert isinstance(holder.parent, NameGid)
         assert holder.parent.gid == business_with_real_gid.gid
 
@@ -278,9 +266,7 @@ class TestConstructHolder:
         business_holder_key_map: dict[str, tuple[str, str]],
     ) -> None:
         """Parent with temp GID produces NameGid with temp_{id(parent)}."""
-        holder = construct_holder(
-            "contact_holder", business_holder_key_map, business_with_temp_gid
-        )
+        holder = construct_holder("contact_holder", business_holder_key_map, business_with_temp_gid)
         assert isinstance(holder.parent, NameGid)
         assert holder.parent.gid == f"temp_{id(business_with_temp_gid)}"
 
@@ -290,9 +276,7 @@ class TestConstructHolder:
         business_holder_key_map: dict[str, tuple[str, str]],
     ) -> None:
         """Holder's _business reference is set to parent Business."""
-        holder = construct_holder(
-            "contact_holder", business_holder_key_map, business_with_real_gid
-        )
+        holder = construct_holder("contact_holder", business_holder_key_map, business_with_real_gid)
         assert holder._business is business_with_real_gid
 
     def test_project_assignment_with_primary_project_gid(
@@ -303,9 +287,7 @@ class TestConstructHolder:
         """Holders with PRIMARY_PROJECT_GID get projects list set."""
         from autom8_asana.models.business.contact import ContactHolder
 
-        holder = construct_holder(
-            "contact_holder", business_holder_key_map, business_with_real_gid
-        )
+        holder = construct_holder("contact_holder", business_holder_key_map, business_with_real_gid)
         # ContactHolder has PRIMARY_PROJECT_GID = "1201500116978260"
         assert ContactHolder.PRIMARY_PROJECT_GID is not None
         assert holder.projects is not None
@@ -402,29 +384,21 @@ class TestDetectExistingHolders:
         # Create subtasks matching all holder types
         subtasks = [
             self._make_holder_task("Contacts", "h1", ContactHolder.PRIMARY_PROJECT_GID),
-            self._make_holder_task(
-                "Business Units", "h2", UnitHolder.PRIMARY_PROJECT_GID
-            ),
+            self._make_holder_task("Business Units", "h2", UnitHolder.PRIMARY_PROJECT_GID),
             self._make_holder_task("Location", "h3"),  # No project GID
             self._make_holder_task("DNA", "h4", DNAHolder.PRIMARY_PROJECT_GID),
             self._make_holder_task(
                 "Reconciliations", "h5", ReconciliationHolder.PRIMARY_PROJECT_GID
             ),
-            self._make_holder_task(
-                "Asset Edits", "h6", AssetEditHolder.PRIMARY_PROJECT_GID
-            ),
-            self._make_holder_task(
-                "Videography", "h7", VideographyHolder.PRIMARY_PROJECT_GID
-            ),
+            self._make_holder_task("Asset Edits", "h6", AssetEditHolder.PRIMARY_PROJECT_GID),
+            self._make_holder_task("Videography", "h7", VideographyHolder.PRIMARY_PROJECT_GID),
         ]
 
         mock_iterator = MagicMock()
         mock_iterator.collect = AsyncMock(return_value=subtasks)
         mock_client.tasks.subtasks_async = MagicMock(return_value=mock_iterator)
 
-        result = await detect_existing_holders(
-            mock_client, "parent_gid", business_holder_key_map
-        )
+        result = await detect_existing_holders(mock_client, "parent_gid", business_holder_key_map)
 
         assert len(result) == 7
 
@@ -440,9 +414,7 @@ class TestDetectExistingHolders:
         mock_iterator.collect = AsyncMock(return_value=[])
         mock_client.tasks.subtasks_async = MagicMock(return_value=mock_iterator)
 
-        result = await detect_existing_holders(
-            mock_client, "parent_gid", business_holder_key_map
-        )
+        result = await detect_existing_holders(mock_client, "parent_gid", business_holder_key_map)
 
         assert len(result) == 0
 
@@ -466,9 +438,7 @@ class TestDetectExistingHolders:
         mock_iterator.collect = AsyncMock(return_value=subtasks)
         mock_client.tasks.subtasks_async = MagicMock(return_value=mock_iterator)
 
-        result = await detect_existing_holders(
-            mock_client, "parent_gid", business_holder_key_map
-        )
+        result = await detect_existing_holders(mock_client, "parent_gid", business_holder_key_map)
 
         assert len(result) == 2
         assert "contact_holder" in result
@@ -491,9 +461,7 @@ class TestDetectExistingHolders:
         mock_iterator.collect = AsyncMock(return_value=subtasks)
         mock_client.tasks.subtasks_async = MagicMock(return_value=mock_iterator)
 
-        result = await detect_existing_holders(
-            mock_client, "parent_gid", business_holder_key_map
-        )
+        result = await detect_existing_holders(mock_client, "parent_gid", business_holder_key_map)
 
         assert len(result) == 0
 

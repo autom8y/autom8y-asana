@@ -49,9 +49,7 @@ class Story(AsanaResource):
     )
 
     # Timestamps
-    created_at: str | None = Field(
-        default=None, description="Created datetime (ISO 8601)"
-    )
+    created_at: str | None = Field(default=None, description="Created datetime (ISO 8601)")
 
     # Editing
     is_editable: bool | None = Field(

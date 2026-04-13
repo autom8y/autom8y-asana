@@ -41,9 +41,7 @@ class MockCacheProviderWithDataFrame(_SDKMockCacheProvider):
         self.fail_on_invalidate: bool = False
         self.fail_on_dataframe_invalidate: bool = False
 
-    def get_versioned(
-        self, key: str, entry_type: EntryType, freshness: object = None
-    ) -> None:
+    def get_versioned(self, key: str, entry_type: EntryType, freshness: object = None) -> None:
         """Get entry from cache (always returns None for invalidation tests)."""
         return None
 
@@ -55,11 +53,7 @@ class MockCacheProviderWithDataFrame(_SDKMockCacheProvider):
         """Invalidate cache entry with fail simulation."""
         if self.fail_on_invalidate:
             raise ConnectionError("Cache invalidation failed")
-        if (
-            self.fail_on_dataframe_invalidate
-            and entry_types
-            and EntryType.DATAFRAME in entry_types
-        ):
+        if self.fail_on_dataframe_invalidate and entry_types and EntryType.DATAFRAME in entry_types:
             raise ConnectionError("DataFrame cache invalidation failed")
         self.invalidate_calls.append((key, entry_types))
 
@@ -68,9 +62,7 @@ class MockCacheProviderWithDataFrame(_SDKMockCacheProvider):
     ) -> list[tuple[str, list[EntryType] | None]]:
         """Get invalidation calls that include a specific entry type."""
         return [
-            (key, types)
-            for key, types in self.invalidate_calls
-            if types and entry_type in types
+            (key, types) for key, types in self.invalidate_calls if types and entry_type in types
         ]
 
 
@@ -310,9 +302,7 @@ class TestDataFrameInvalidation:
         mock_log.warning.assert_called()
         # Check that dataframe_cache_invalidation_failed was logged
         warning_calls = [str(call) for call in mock_log.warning.call_args_list]
-        assert any(
-            "dataframe_cache_invalidation_failed" in call for call in warning_calls
-        )
+        assert any("dataframe_cache_invalidation_failed" in call for call in warning_calls)
 
     @pytest.mark.asyncio
     async def test_invalidation_all_operation_types(self) -> None:

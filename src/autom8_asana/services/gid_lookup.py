@@ -208,17 +208,13 @@ class GidLookupIndex:
         # Validate version
         version = data["version"]
         if version != "1.0":
-            raise ValueError(
-                f"Unsupported serialization version: {version}. Expected '1.0'."
-            )
+            raise ValueError(f"Unsupported serialization version: {version}. Expected '1.0'.")
 
         # Parse datetime (raises ValueError if invalid format)
         try:
             created_at = datetime.fromisoformat(data["created_at"])
         except (TypeError, ValueError) as e:
-            raise ValueError(
-                f"Invalid created_at datetime format: {data['created_at']}"
-            ) from e
+            raise ValueError(f"Invalid created_at datetime format: {data['created_at']}") from e
 
         # Validate entry count
         lookup = data["lookup"]

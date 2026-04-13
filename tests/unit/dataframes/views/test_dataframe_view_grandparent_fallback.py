@@ -36,9 +36,7 @@ def cascade_schema() -> DataFrameSchema:
         columns=[
             ColumnDef("gid", "Utf8", nullable=False, source=None),
             ColumnDef("name", "Utf8", nullable=False, source=None),
-            ColumnDef(
-                "office_phone", "Utf8", nullable=True, source="cascade:Office Phone"
-            ),
+            ColumnDef("office_phone", "Utf8", nullable=True, source="cascade:Office Phone"),
         ],
         version="1.0.0",
     )

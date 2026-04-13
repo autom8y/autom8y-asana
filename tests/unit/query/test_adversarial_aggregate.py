@@ -133,9 +133,7 @@ class TestAggSpecModelEdgeCases:
         with pytest.raises(AggregationError, match="Duplicate alias"):
             validate_alias_uniqueness(specs, ["vertical"])
 
-    def test_all_six_agg_functions_on_same_column(
-        self, offer_schema: DataFrameSchema
-    ) -> None:
+    def test_all_six_agg_functions_on_same_column(self, offer_schema: DataFrameSchema) -> None:
         """All 6 agg functions applied to a single Float64 column compiles successfully."""
         compiler = AggregationCompiler()
         specs = [
@@ -233,9 +231,7 @@ class TestGroupByEdgeCases:
         with pytest.raises(AggregationError, match="List"):
             limits.check_group_by(["platforms"], offer_schema)
 
-    def test_group_by_nonexistent_column_rejected(
-        self, offer_schema: DataFrameSchema
-    ) -> None:
+    def test_group_by_nonexistent_column_rejected(self, offer_schema: DataFrameSchema) -> None:
         """GROUP BY on column not in schema raises UnknownFieldError."""
         limits = QueryLimits()
         with pytest.raises(UnknownFieldError) as exc_info:
@@ -729,9 +725,7 @@ class TestAggregationCompilationEdgeCases:
             with pytest.raises(AggregationError):
                 compiler.compile([spec], offer_schema)
 
-    def test_sum_utf8_all_nulls_returns_zero(
-        self, offer_schema: DataFrameSchema
-    ) -> None:
+    def test_sum_utf8_all_nulls_returns_zero(self, offer_schema: DataFrameSchema) -> None:
         """sum on Utf8 column where all values are null returns 0.0."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total_mrr")
@@ -793,9 +787,7 @@ class TestAggregationCompilationEdgeCases:
         result = df.group_by("vertical").agg(exprs)
         assert len(result) == 0
 
-    def test_empty_string_column_not_in_schema(
-        self, offer_schema: DataFrameSchema
-    ) -> None:
+    def test_empty_string_column_not_in_schema(self, offer_schema: DataFrameSchema) -> None:
         """AggSpec with empty string column name fails at compile time."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="", agg=AggFunction.SUM, alias="total")
@@ -1163,9 +1155,7 @@ class TestAPIEndpointEdgeCases:
 class TestNumericCastingAdversarial:
     """Adversarial tests for Utf8 -> Float64 casting in aggregation."""
 
-    def test_utf8_mix_numeric_and_nonnumeric(
-        self, offer_schema: DataFrameSchema
-    ) -> None:
+    def test_utf8_mix_numeric_and_nonnumeric(self, offer_schema: DataFrameSchema) -> None:
         """Utf8 column with mix of numeric and non-numeric strings:
         non-numeric become null, sum ignores nulls."""
         compiler = AggregationCompiler()
@@ -1198,9 +1188,7 @@ class TestNumericCastingAdversarial:
         # All cast to null, sum of nulls = 0.0
         assert result["total"].to_list() == [0.0]
 
-    def test_utf8_empty_strings_become_null(
-        self, offer_schema: DataFrameSchema
-    ) -> None:
+    def test_utf8_empty_strings_become_null(self, offer_schema: DataFrameSchema) -> None:
         """Utf8 column with empty strings: empty strings become null after cast."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total")
@@ -1265,9 +1253,7 @@ class TestNumericCastingAdversarial:
         # count counts non-null: "100" and "bad" are non-null, None is excluded
         assert result["cnt"].to_list() == [2]
 
-    def test_utf8_count_distinct_does_not_cast(
-        self, offer_schema: DataFrameSchema
-    ) -> None:
+    def test_utf8_count_distinct_does_not_cast(self, offer_schema: DataFrameSchema) -> None:
         """count_distinct on Utf8 column does NOT cast -- counts unique string values."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.COUNT_DISTINCT, alias="uniq")
@@ -1283,9 +1269,7 @@ class TestNumericCastingAdversarial:
         # "100", "bad", null = 3 distinct
         assert result["uniq"].to_list() == [3]
 
-    def test_utf8_sum_preserves_decimal_precision(
-        self, offer_schema: DataFrameSchema
-    ) -> None:
+    def test_utf8_sum_preserves_decimal_precision(self, offer_schema: DataFrameSchema) -> None:
         """Utf8 sum preserves decimal precision within Float64 limits."""
         compiler = AggregationCompiler()
         spec = AggSpec(column="mrr", agg=AggFunction.SUM, alias="total")

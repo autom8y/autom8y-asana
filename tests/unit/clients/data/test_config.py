@@ -491,9 +491,7 @@ class TestDataServiceConfigFromEnv:
         mock_settings = MagicMock()
         mock_settings.data_service.cache_ttl = 300  # Default when TTL is invalid
 
-        with patch(
-            "autom8_asana.clients.data.config.get_settings", return_value=mock_settings
-        ):
+        with patch("autom8_asana.clients.data.config.get_settings", return_value=mock_settings):
             config = DataServiceConfig.from_env()
 
         assert config.cache_ttl == 300  # Default from settings
@@ -542,8 +540,6 @@ class TestDataServiceConfigFromEnv:
         mock_settings.data_service.url = "https://custom.example.com"
         mock_settings.data_service.cache_ttl = 300
 
-        with patch(
-            "autom8_asana.clients.data.config.get_settings", return_value=mock_settings
-        ):
+        with patch("autom8_asana.clients.data.config.get_settings", return_value=mock_settings):
             env_config = DataServiceConfig.from_env()
             assert env_config.base_url == "https://custom.example.com"

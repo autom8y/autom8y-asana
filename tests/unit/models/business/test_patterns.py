@@ -278,9 +278,7 @@ class TestTier2DetectionWithWordBoundaries:
             ("Asset Edits", EntityType.ASSET_EDIT_HOLDER),
         ],
     )
-    def test_standard_name_patterns_match(
-        self, name: str, expected_type: EntityType
-    ) -> None:
+    def test_standard_name_patterns_match(self, name: str, expected_type: EntityType) -> None:
         """Name containing pattern at word boundary matches correctly."""
         task = make_task(gid="task1", name=name)
 

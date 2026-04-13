@@ -37,9 +37,7 @@ class MockCacheProviderWithDetection(_SDKMockCacheProvider):
         self.invalidate_calls: list[tuple[str, list[EntryType] | None]] = []
         self.fail_on_invalidate: bool = False
 
-    def get_versioned(
-        self, key: str, entry_type: EntryType, freshness: object = None
-    ) -> None:
+    def get_versioned(self, key: str, entry_type: EntryType, freshness: object = None) -> None:
         """Get entry from cache (always returns None for invalidation tests)."""
         return None
 
@@ -58,9 +56,7 @@ class MockCacheProviderWithDetection(_SDKMockCacheProvider):
     ) -> list[tuple[str, list[EntryType] | None]]:
         """Get invalidation calls that include a specific entry type."""
         return [
-            (key, types)
-            for key, types in self.invalidate_calls
-            if types and entry_type in types
+            (key, types) for key, types in self.invalidate_calls if types and entry_type in types
         ]
 
 

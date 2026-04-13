@@ -75,9 +75,7 @@ class TestTeamsClientGetAsyncOptFields:
             "description": "Eng team",
         }
 
-        result = await teams_client.get_async(
-            "team123", opt_fields=["name", "description"]
-        )
+        result = await teams_client.get_async("team123", opt_fields=["name", "description"])
 
         assert isinstance(result, Team)
         mock_http.get.assert_called_once_with(
@@ -440,10 +438,7 @@ class TestStoriesClientUpdateAsync:
         )
 
         call_args = mock_http.put.call_args
-        assert (
-            call_args[1]["json"]["data"]["html_text"]
-            == "<body><strong>Bold</strong></body>"
-        )
+        assert call_args[1]["json"]["data"]["html_text"] == "<body><strong>Bold</strong></body>"
 
 
 class TestStoriesClientUpdateSync:
@@ -600,9 +595,7 @@ class TestStoriesClientCreateCommentSync:
         """create_comment() sync with raw=True returns dict."""
         mock_http.post.return_value = {"gid": "story123", "text": "New comment"}
 
-        result = stories_client.create_comment(
-            task="task1", text="New comment", raw=True
-        )
+        result = stories_client.create_comment(task="task1", text="New comment", raw=True)
 
         assert isinstance(result, dict)
 
@@ -677,9 +670,7 @@ class TestTagsClientCreateAsyncRaw:
         """create_async with raw=True returns dict."""
         mock_http.post.return_value = {"gid": "tag123", "name": "Priority"}
 
-        result = await tags_client.create_async(
-            workspace="ws1", name="Priority", raw=True
-        )
+        result = await tags_client.create_async(workspace="ws1", name="Priority", raw=True)
 
         assert isinstance(result, dict)
         assert result["name"] == "Priority"

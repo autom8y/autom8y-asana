@@ -125,8 +125,7 @@ class AsanaResponseHandler:
         except json.JSONDecodeError as e:
             request_id = response.headers.get("X-Request-Id", "unknown")
             raise AsanaError(
-                f"Invalid JSON response (HTTP {response.status_code}, "
-                f"request_id={request_id}): {e}"
+                f"Invalid JSON response (HTTP {response.status_code}, request_id={request_id}): {e}"
             ) from e
 
         data: list[dict[str, Any]] = []

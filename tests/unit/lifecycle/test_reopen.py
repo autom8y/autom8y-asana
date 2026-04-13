@@ -677,16 +677,12 @@ class TestProcessTypeMatching:
 
     def test_object_custom_fields_match(self) -> None:
         """Object-style custom field (attributes, not dict keys)."""
-        task = _make_task(
-            "t3", process_type_value="Sales", use_dict_custom_fields=False
-        )
+        task = _make_task("t3", process_type_value="Sales", use_dict_custom_fields=False)
         assert ReopenService._matches_process_type(task, "sales") is True
 
     def test_object_custom_fields_case_insensitive(self) -> None:
         """Object-style custom field with different case."""
-        task = _make_task(
-            "t4", process_type_value="ONBOARDING", use_dict_custom_fields=False
-        )
+        task = _make_task("t4", process_type_value="ONBOARDING", use_dict_custom_fields=False)
         assert ReopenService._matches_process_type(task, "onboarding") is True
 
     def test_no_match_returns_false(self) -> None:

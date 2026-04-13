@@ -97,9 +97,7 @@ class TestAnnotationPresence:
             if key not in SEMANTIC_ANNOTATIONS:
                 missing.append(key)
 
-        assert not missing, (
-            f"Cascade columns missing from SEMANTIC_ANNOTATIONS: {missing}"
-        )
+        assert not missing, f"Cascade columns missing from SEMANTIC_ANNOTATIONS: {missing}"
 
     def test_every_cascade_annotation_has_cascade_behavior(self) -> None:
         """Every cascade column annotation contains a cascade_behavior block."""
@@ -117,16 +115,13 @@ class TestAnnotationPresence:
     def test_annotation_count_matches_scope(self) -> None:
         """Verify we have annotations for all 19 column-schema combinations."""
         assert len(SEMANTIC_ANNOTATIONS) == 19, (
-            f"Expected 19 annotations (12 cascade + 7 HD-02), "
-            f"got {len(SEMANTIC_ANNOTATIONS)}"
+            f"Expected 19 annotations (12 cascade + 7 HD-02), got {len(SEMANTIC_ANNOTATIONS)}"
         )
 
     def test_all_annotations_have_required_fields(self) -> None:
         """Every annotation has business_meaning and data_type_semantic."""
         for key, annotation in SEMANTIC_ANNOTATIONS.items():
-            assert "business_meaning" in annotation, (
-                f"Annotation {key} missing business_meaning"
-            )
+            assert "business_meaning" in annotation, f"Annotation {key} missing business_meaning"
             assert "data_type_semantic" in annotation, (
                 f"Annotation {key} missing data_type_semantic"
             )
@@ -178,12 +173,11 @@ class TestCascadeConsistency:
 
             if annotated_source != actual_source:
                 mismatches.append(
-                    f"{key}: annotation says {annotated_source!r}, "
-                    f"registry says {actual_source!r}"
+                    f"{key}: annotation says {annotated_source!r}, registry says {actual_source!r}"
                 )
 
-        assert not mismatches, (
-            "cascade_behavior.source_entity mismatches:\n" + "\n".join(mismatches)
+        assert not mismatches, "cascade_behavior.source_entity mismatches:\n" + "\n".join(
+            mismatches
         )
 
     def test_cascade_allow_override_matches_registry(self) -> None:
@@ -217,8 +211,8 @@ class TestCascadeConsistency:
                     f"registry says allow_override={field_def.allow_override}"
                 )
 
-        assert not mismatches, (
-            "cascade_behavior.allow_override mismatches:\n" + "\n".join(mismatches)
+        assert not mismatches, "cascade_behavior.allow_override mismatches:\n" + "\n".join(
+            mismatches
         )
 
     def test_key_cascade_columns_have_critical_resolution_impact(self) -> None:
@@ -239,9 +233,7 @@ class TestCascadeConsistency:
 
             impact = annotation.get("resolution_impact", "")
             if "CRITICAL" not in impact:
-                missing_critical.append(
-                    f"{key}: resolution_impact does not contain 'CRITICAL'"
-                )
+                missing_critical.append(f"{key}: resolution_impact does not contain 'CRITICAL'")
 
         assert not missing_critical, (
             "Key cascade columns without CRITICAL resolution_impact:\n"
@@ -265,8 +257,7 @@ class TestBackwardCompatibility:
                 if col.description and YAML_DELIMITER in col.description:
                     prefix = col.description.split("---")[0].strip()
                     assert prefix, (
-                        f"{schema_name}.{col.name}: human-readable prefix "
-                        f"is empty after enrichment"
+                        f"{schema_name}.{col.name}: human-readable prefix is empty after enrichment"
                     )
 
     def test_human_readable_prefix_contains_no_yaml(self) -> None:
@@ -298,17 +289,14 @@ class TestBackwardCompatibility:
                         f"{schema_name}.{col.name}: YAML block did not parse to a dict"
                     )
                     assert "semantic" in parsed, (
-                        f"{schema_name}.{col.name}: YAML block missing "
-                        f"top-level 'semantic' key"
+                        f"{schema_name}.{col.name}: YAML block missing top-level 'semantic' key"
                     )
 
     def test_enrichment_does_not_modify_original_schema(self) -> None:
         """enrich_schema returns a NEW schema; original is untouched."""
         for schema_name, schema in _all_schemas().items():
             # Capture original descriptions
-            original_descriptions = {
-                col.name: col.description for col in schema.columns
-            }
+            original_descriptions = {col.name: col.description for col in schema.columns}
 
             # Enrich
             enriched = enrich_schema(schema, include_semantic=True)
@@ -316,14 +304,11 @@ class TestBackwardCompatibility:
             # Verify original is unchanged
             for col in schema.columns:
                 assert col.description == original_descriptions[col.name], (
-                    f"{schema_name}.{col.name}: original schema was mutated "
-                    f"by enrichment"
+                    f"{schema_name}.{col.name}: original schema was mutated by enrichment"
                 )
 
             # Verify enriched is a different object
-            assert enriched is not schema, (
-                f"{schema_name}: enrich_schema returned the same object"
-            )
+            assert enriched is not schema, f"{schema_name}: enrich_schema returned the same object"
 
     def test_include_semantic_false_returns_original(self) -> None:
         """enrich_schema with include_semantic=False returns schema unchanged."""

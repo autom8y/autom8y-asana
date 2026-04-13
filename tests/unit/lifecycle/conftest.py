@@ -12,9 +12,7 @@ from autom8_asana.models.business.process import Process, ProcessType
 @pytest.fixture
 def lifecycle_config() -> LifecycleConfig:
     """Lifecycle configuration loaded from YAML."""
-    config_path = (
-        Path(__file__).parent.parent.parent.parent / "config" / "lifecycle_stages.yaml"
-    )
+    config_path = Path(__file__).parent.parent.parent.parent / "config" / "lifecycle_stages.yaml"
     return LifecycleConfig(config_path)
 
 

@@ -69,9 +69,7 @@ class TestGetAsync:
             "notes": "Notes",
         }
 
-        result = await tasks_client.get_async(
-            "123", opt_fields=["name", "notes", "completed"]
-        )
+        result = await tasks_client.get_async("123", opt_fields=["name", "notes", "completed"])
 
         assert isinstance(result, Task)
         assert result.gid == "123"
@@ -127,9 +125,7 @@ class TestGetSync:
         assert isinstance(result, dict)
         assert result == {"gid": "456", "name": "Sync Task"}
 
-    async def test_get_sync_fails_in_async_context(
-        self, tasks_client: TasksClient
-    ) -> None:
+    async def test_get_sync_fails_in_async_context(self, tasks_client: TasksClient) -> None:
         """get() raises SyncInAsyncContextError when called from async."""
         with pytest.raises(SyncInAsyncContextError) as exc_info:
             tasks_client.get("123")
@@ -163,9 +159,7 @@ class TestCreateAsync:
         """create_async with raw=True returns dict."""
         mock_http.post.return_value = {"gid": "5123", "name": "New Task"}
 
-        result = await tasks_client.create_async(
-            name="New Task", workspace="9123", raw=True
-        )
+        result = await tasks_client.create_async(name="New Task", workspace="9123", raw=True)
 
         assert isinstance(result, dict)
         assert result == {"gid": "5123", "name": "New Task"}

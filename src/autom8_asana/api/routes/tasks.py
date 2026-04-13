@@ -391,9 +391,7 @@ async def list_subtasks(
         404: Parent task not found or not accessible.
     """
     try:
-        result = await task_service.list_subtasks(
-            client, gid, limit=limit, offset=offset
-        )
+        result = await task_service.list_subtasks(client, gid, limit=limit, offset=offset)
     except ServiceError as e:
         raise_service_error(request_id, e)
 
@@ -450,9 +448,7 @@ async def list_dependents(
         404: Task not found or not accessible.
     """
     try:
-        result = await task_service.list_dependents(
-            client, gid, limit=limit, offset=offset
-        )
+        result = await task_service.list_dependents(client, gid, limit=limit, offset=offset)
     except ServiceError as e:
         raise_service_error(request_id, e)
 

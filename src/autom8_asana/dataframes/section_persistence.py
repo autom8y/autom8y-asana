@@ -129,9 +129,7 @@ class SectionManifest(BaseModel):
             return False  # Legacy manifest - force rebuild
         return self.schema_version == current_schema_version
 
-    def get_incomplete_section_gids(
-        self, *, stale_timeout_seconds: int = 300
-    ) -> list[str]:
+    def get_incomplete_section_gids(self, *, stale_timeout_seconds: int = 300) -> list[str]:
         """Get list of section GIDs that need to be fetched.
 
         Includes PENDING, FAILED, and IN_PROGRESS sections that have been
@@ -151,8 +149,7 @@ class SectionManifest(BaseModel):
                 or info.status == SectionStatus.IN_PROGRESS
                 and (
                     info.in_progress_since is None
-                    or (now - info.in_progress_since).total_seconds()
-                    > stale_timeout_seconds
+                    or (now - info.in_progress_since).total_seconds() > stale_timeout_seconds
                 )
             ):
                 result.append(gid)
@@ -160,11 +157,7 @@ class SectionManifest(BaseModel):
 
     def get_complete_section_gids(self) -> list[str]:
         """Get list of section GIDs that are complete."""
-        return [
-            gid
-            for gid, info in self.sections.items()
-            if info.status == SectionStatus.COMPLETE
-        ]
+        return [gid for gid, info in self.sections.items() if info.status == SectionStatus.COMPLETE]
 
     def mark_section_complete(
         self,
@@ -213,9 +206,7 @@ class SectionManifest(BaseModel):
 
     def get_section_name_index(self) -> dict[str, str]:
         """Return a ``{name.lower(): gid}`` mapping for sections with names."""
-        return {
-            info.name.lower(): gid for gid, info in self.sections.items() if info.name
-        }
+        return {info.name.lower(): gid for gid, info in self.sections.items() if info.name}
 
 
 class SectionPersistence:
@@ -672,9 +663,7 @@ class SectionPersistence:
         try:
             # Use how="diagonal_relaxed" to handle type mismatches between sections
             # (e.g., Null vs String when one section has empty values for a column)
-            merged: pl.DataFrame = self._polars_module.concat(
-                section_dfs, how="diagonal_relaxed"
-            )
+            merged: pl.DataFrame = self._polars_module.concat(section_dfs, how="diagonal_relaxed")
 
             logger.info(
                 "sections_merged",

@@ -752,9 +752,7 @@ class S3DataFrameStorage:
             raise ValueError("Watermark timestamp must be timezone-aware")
 
         if self._permanently_disabled:
-            logger.debug(
-                "s3_storage_skip", operation="save_dataframe", project_gid=project_gid
-            )
+            logger.debug("s3_storage_skip", operation="save_dataframe", project_gid=project_gid)
             return False
 
         # Serialize DataFrame to Parquet
@@ -808,9 +806,7 @@ class S3DataFrameStorage:
             (None, None, None) otherwise.
         """
         if self._permanently_disabled:
-            logger.debug(
-                "s3_storage_skip", operation="load_dataframe", project_gid=project_gid
-            )
+            logger.debug("s3_storage_skip", operation="load_dataframe", project_gid=project_gid)
             return None, None, None
 
         # Load watermark first (fast existence check)

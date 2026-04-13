@@ -72,9 +72,7 @@ logger = get_logger(__name__)
 # Two routers share the same prefix. The introspection router is visible in the
 # OpenAPI spec (include_in_schema=True) while the query execution router stays
 # hidden (include_in_schema=False) to avoid exposing POST endpoints.
-query_introspection_router = s2s_router(
-    prefix="/v1/query", tags=["query"], include_in_schema=True
-)
+query_introspection_router = s2s_router(prefix="/v1/query", tags=["query"], include_in_schema=True)
 router = s2s_router(prefix="/v1/query", tags=["query"], include_in_schema=False)
 
 
@@ -417,9 +415,7 @@ async def query_rows(
         raise_service_error(request_id, e)
 
     # 2. Build section index (manifest-first, enum fallback)
-    section_index = await resolve_section_index(
-        request_body.section, entity_type, ctx.project_gid
-    )
+    section_index = await resolve_section_index(request_body.section, entity_type, ctx.project_gid)
 
     # 3. Execute query
     query_service = EntityQueryService()
@@ -454,9 +450,7 @@ async def query_rows(
             "returned_count": result.meta.returned_count,
             "query_ms": result.meta.query_ms,
             "caller_service": claims.service_name,
-            "predicate_depth": (
-                predicate_depth(request_body.where) if request_body.where else 0
-            ),
+            "predicate_depth": (predicate_depth(request_body.where) if request_body.where else 0),
             "section": request_body.section,
             "classification": request_body.classification,
         },
@@ -493,9 +487,7 @@ async def query_aggregate(
         raise_service_error(request_id, e)
 
     # 2. Build section index
-    section_index = await resolve_section_index(
-        request_body.section, entity_type, ctx.project_gid
-    )
+    section_index = await resolve_section_index(request_body.section, entity_type, ctx.project_gid)
 
     # 3. Execute aggregate query
     query_service = EntityQueryService()
@@ -530,12 +522,8 @@ async def query_aggregate(
             "group_by": result.meta.group_by,
             "query_ms": result.meta.query_ms,
             "caller_service": claims.service_name,
-            "predicate_depth": (
-                predicate_depth(request_body.where) if request_body.where else 0
-            ),
-            "having_depth": (
-                predicate_depth(request_body.having) if request_body.having else 0
-            ),
+            "predicate_depth": (predicate_depth(request_body.where) if request_body.where else 0),
+            "having_depth": (predicate_depth(request_body.having) if request_body.having else 0),
             "section": request_body.section,
         },
     )
@@ -669,9 +657,7 @@ async def query_entities(
     response_obj = JSONResponse(content=envelope.model_dump(mode="json"))
     response_obj.headers["Deprecation"] = "true"
     response_obj.headers["Sunset"] = "2026-06-01"
-    response_obj.headers["Link"] = (
-        f'</v1/query/{entity_type}/rows>; rel="successor-version"'
-    )
+    response_obj.headers["Link"] = f'</v1/query/{entity_type}/rows>; rel="successor-version"'
 
     logger.info(
         "deprecated_query_endpoint_used",

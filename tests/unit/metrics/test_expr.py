@@ -60,9 +60,7 @@ class TestMetricExprToPolars:
         assert result["sum_val"][0] == 6
 
     def test_sum_with_cast(self) -> None:
-        expr = MetricExpr(
-            name="sum_mrr", column="mrr", cast_dtype=pl.Float64, agg="sum"
-        )
+        expr = MetricExpr(name="sum_mrr", column="mrr", cast_dtype=pl.Float64, agg="sum")
         df = pl.DataFrame({"mrr": ["100", "200", "300"]})
         result = df.select(expr.to_polars_expr())
         assert result["sum_mrr"][0] == 600.0
@@ -89,9 +87,7 @@ class TestMetricExprToPolars:
 
     def test_cast_strict_false_handles_non_numeric(self) -> None:
         """Non-numeric strings become null with strict=False."""
-        expr = MetricExpr(
-            name="sum_mrr", column="mrr", cast_dtype=pl.Float64, agg="sum"
-        )
+        expr = MetricExpr(name="sum_mrr", column="mrr", cast_dtype=pl.Float64, agg="sum")
         df = pl.DataFrame({"mrr": ["100", "not_a_number", "200"]})
         result = df.select(expr.to_polars_expr())
         assert result["sum_mrr"][0] == 300.0
@@ -111,9 +107,7 @@ class TestMetricExprToPolars:
 
     def test_quantile_with_value(self) -> None:
         """LO-10: MetricExpr agg='quantile' requires quantile_value parameter."""
-        expr = MetricExpr(
-            name="p95_val", column="val", agg="quantile", quantile_value=0.95
-        )
+        expr = MetricExpr(name="p95_val", column="val", agg="quantile", quantile_value=0.95)
         assert expr.quantile_value == 0.95
         df = pl.DataFrame({"val": list(range(1, 101))})
         result = df.select(expr.to_polars_expr())

@@ -433,9 +433,7 @@ class CascadeViewPlugin:
             },
         )
 
-    def _get_custom_field_value_from_dict(
-        self, task_data: dict[str, Any], field_name: str
-    ) -> Any:
+    def _get_custom_field_value_from_dict(self, task_data: dict[str, Any], field_name: str) -> Any:
         """Extract custom field value from task dict by name.
 
         Thin wrapper around ``get_custom_field_value`` for backward

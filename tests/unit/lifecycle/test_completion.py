@@ -78,9 +78,7 @@ async def test_complete_source_api_failure_returns_empty(mock_client):
     """When the Asana API call fails, logs a warning and returns
     an empty result (fail-forward)."""
     process = _make_process(gid="proc1", completed=False)
-    mock_client.tasks.update_async = AsyncMock(
-        side_effect=ConnectionError("API timeout")
-    )
+    mock_client.tasks.update_async = AsyncMock(side_effect=ConnectionError("API timeout"))
 
     service = CompletionService(mock_client)
     result = await service.complete_source_async(process)

@@ -73,9 +73,7 @@ class TestBootstrapRegistration:
         registry = get_registry()
         assert registry.lookup("1200653012566782") == EntityType.BUSINESS
 
-    def test_is_bootstrap_complete_tracks_state(
-        self, clean_registry_and_bootstrap: None
-    ) -> None:
+    def test_is_bootstrap_complete_tracks_state(self, clean_registry_and_bootstrap: None) -> None:
         """is_bootstrap_complete() correctly tracks registration state."""
         assert not is_bootstrap_complete()
 
@@ -181,9 +179,7 @@ class TestHolderGIDs:
 
         assert registry.lookup("1167650840134033") == EntityType.DNA_HOLDER
 
-    def test_reconciliation_holder_gid(
-        self, clean_registry_and_bootstrap: None
-    ) -> None:
+    def test_reconciliation_holder_gid(self, clean_registry_and_bootstrap: None) -> None:
         """ReconciliationHolder maps to expected GID."""
         register_all_models()
         registry = get_registry()
@@ -248,9 +244,7 @@ class TestRegistryWorksThroughModuleImport:
 class TestProcessAndLocationHoldersWithoutGID:
     """Tests for entities without PRIMARY_PROJECT_GID."""
 
-    def test_process_without_dedicated_project(
-        self, clean_registry_and_bootstrap: None
-    ) -> None:
+    def test_process_without_dedicated_project(self, clean_registry_and_bootstrap: None) -> None:
         """Process entity has no dedicated project GID (uses pipeline detection).
 
         Per design: Process uses WorkspaceProjectRegistry for pipeline detection,

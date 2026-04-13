@@ -45,8 +45,7 @@ def test_openapi_endpoint_returns_valid_schema() -> None:
     response = client.get("/openapi.json")
 
     assert response.status_code == 200, (
-        f"/openapi.json returned {response.status_code}; expected 200. "
-        f"Body: {response.text[:200]}"
+        f"/openapi.json returned {response.status_code}; expected 200. Body: {response.text[:200]}"
     )
 
     spec = response.json()

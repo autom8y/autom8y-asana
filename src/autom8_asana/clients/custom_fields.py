@@ -319,9 +319,7 @@ class CustomFieldsClient(BaseClient):
             CustomField model by default, or dict if raw=True
         """
         self._log_operation("update_async", custom_field_gid)
-        result = await self._http.put(
-            f"/custom_fields/{custom_field_gid}", json={"data": kwargs}
-        )
+        result = await self._http.put(f"/custom_fields/{custom_field_gid}", json={"data": kwargs})
         if raw:
             return result
         return CustomField.model_validate(result)
@@ -546,9 +544,7 @@ class CustomFieldsClient(BaseClient):
             CustomFieldEnumOption model by default, or dict if raw=True
         """
         self._log_operation("update_enum_option_async", enum_option_gid)
-        result = await self._http.put(
-            f"/enum_options/{enum_option_gid}", json={"data": kwargs}
-        )
+        result = await self._http.put(f"/enum_options/{enum_option_gid}", json={"data": kwargs})
         if raw:
             return result
         return CustomFieldEnumOption.model_validate(result)

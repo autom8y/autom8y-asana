@@ -195,9 +195,7 @@ class WatermarkRepository:
         """
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(
-                self._persist_watermark(project_gid, timestamp, persistence)
-            )
+            loop.create_task(self._persist_watermark(project_gid, timestamp, persistence))
         except RuntimeError:
             # No running event loop - log and skip
             logger.debug(

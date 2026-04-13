@@ -46,9 +46,7 @@ class _FakePageIterator:
     """Fake PageIterator yielding a configurable number of tasks."""
 
     def __init__(self, total_tasks: int, start_gid: int = 0) -> None:
-        self._tasks = [
-            _make_mock_task(str(i)) for i in range(start_gid, start_gid + total_tasks)
-        ]
+        self._tasks = [_make_mock_task(str(i)) for i in range(start_gid, start_gid + total_tasks)]
         self._index = 0
 
     def __aiter__(self) -> _FakePageIterator:
@@ -95,9 +93,7 @@ def _make_builder(
         checkpoint_results = [
             r.success if hasattr(r, "success") else bool(r) for r in s3_put_side_effect
         ]
-        mock_persistence.write_checkpoint_async = AsyncMock(
-            side_effect=checkpoint_results
-        )
+        mock_persistence.write_checkpoint_async = AsyncMock(side_effect=checkpoint_results)
     else:
         mock_persistence.write_checkpoint_async = AsyncMock(return_value=s3_put_success)
 
@@ -122,9 +118,7 @@ def _make_builder(
 
     mock_view = MagicMock()
     mock_view._extract_rows_async = AsyncMock(
-        side_effect=lambda dicts, **kw: [
-            {"gid": d["gid"], "name": d["name"]} for d in dicts
-        ]
+        side_effect=lambda dicts, **kw: [{"gid": d["gid"], "name": d["name"]} for d in dicts]
     )
     builder._dataframe_view = mock_view
 
@@ -192,9 +186,7 @@ class TestSectionSizeBoundaries:
         builder = _make_builder(manifest=manifest)
         builder._client.tasks.list_async.return_value = _FakePageIterator(1)
 
-        with patch(
-            "autom8_asana.dataframes.builders.progressive.asyncio.sleep"
-        ) as mock_sleep:
+        with patch("autom8_asana.dataframes.builders.progressive.asyncio.sleep") as mock_sleep:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -213,9 +205,7 @@ class TestSectionSizeBoundaries:
         builder = _make_builder(manifest=manifest)
         builder._client.tasks.list_async.return_value = _FakePageIterator(99)
 
-        with patch(
-            "autom8_asana.dataframes.builders.progressive.asyncio.sleep"
-        ) as mock_sleep:
+        with patch("autom8_asana.dataframes.builders.progressive.asyncio.sleep") as mock_sleep:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -427,9 +417,7 @@ class TestRowExtractionExceptionAtCheckpoint:
                 raise ConnectionError("Extract rows failed at checkpoint")
             return original_side_effect(dicts, **kw)
 
-        builder._dataframe_view._extract_rows_async = AsyncMock(
-            side_effect=flaky_extract
-        )
+        builder._dataframe_view._extract_rows_async = AsyncMock(side_effect=flaky_extract)
 
         sleep_mock, pacing_env = _patch_pacing(pace_pages=25, checkpoint_pages=50)
         with sleep_mock, pacing_env:
@@ -473,9 +461,7 @@ class TestConcurrentLargeSections:
         # Section 1: 300 tasks (3 pages, enters pacing)
         # Section 2: 500 tasks (5 pages, enters pacing)
         builder1._client.tasks.list_async.return_value = _FakePageIterator(300)
-        builder2._client.tasks.list_async.return_value = _FakePageIterator(
-            500, start_gid=300
-        )
+        builder2._client.tasks.list_async.return_value = _FakePageIterator(500, start_gid=300)
 
         sleep_mock, pacing_env = _patch_pacing(pace_pages=2, checkpoint_pages=3)
         with sleep_mock, pacing_env:
@@ -615,9 +601,7 @@ class TestConfigurationBoundaries:
         # Pacing loop: pages 2 and 3. With pace=1, sleep at page 2 and page 3.
         builder._client.tasks.list_async.return_value = _FakePageIterator(300)
 
-        sleep_mock, pacing_env = _patch_pacing(
-            pace_pages=1, checkpoint_pages=1000, delay=0.1
-        )
+        sleep_mock, pacing_env = _patch_pacing(pace_pages=1, checkpoint_pages=1000, delay=0.1)
         with sleep_mock as mock_sleep, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
@@ -657,9 +641,7 @@ class TestConfigurationBoundaries:
         builder = _make_builder(manifest=manifest)
         builder._client.tasks.list_async.return_value = _FakePageIterator(300)
 
-        sleep_mock, pacing_env = _patch_pacing(
-            pace_pages=1, checkpoint_pages=1000, delay=0.0
-        )
+        sleep_mock, pacing_env = _patch_pacing(pace_pages=1, checkpoint_pages=1000, delay=0.0)
         with sleep_mock as mock_sleep, pacing_env:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 

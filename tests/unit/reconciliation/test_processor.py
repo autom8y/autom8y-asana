@@ -31,9 +31,7 @@ from autom8_asana.reconciliation.section_registry import (
 class TestProcessorColumnContract:
     """P0-A: Verify processor uses "section" column, not "section_name"."""
 
-    def test_process_with_section_column_succeeds(
-        self, make_unit_df, make_offer_df
-    ) -> None:
+    def test_process_with_section_column_succeeds(self, make_unit_df, make_offer_df) -> None:
         """Processor works correctly with canonical "section" column."""
         unit_df = make_unit_df(
             gids=["unit_1"],
@@ -130,9 +128,7 @@ class TestNameExclusion:
     """P0-B: Name-based exclusion fallback when GID unavailable."""
 
     @pytest.mark.parametrize("section_name", sorted(EXCLUDED_SECTION_NAMES))
-    def test_all_four_excluded_names_are_excluded(
-        self, section_name: str, make_offer_df
-    ) -> None:
+    def test_all_four_excluded_names_are_excluded(self, section_name: str, make_offer_df) -> None:
         """Each of the 4 EXCLUDED_SECTION_NAMES triggers exclusion.
 
         This test covers the TC-2 fix-path trap: UNIT_CLASSIFIER.ignored
@@ -212,9 +208,7 @@ class TestNoSectionExclusion:
         assert result.excluded_count == 1
         assert result.skipped_no_section == 1
 
-    def test_mixed_sections_partial_exclusion(
-        self, make_unit_df, make_offer_df
-    ) -> None:
+    def test_mixed_sections_partial_exclusion(self, make_unit_df, make_offer_df) -> None:
         """Mix of valid and null sections produces correct counts.
 
         unit_1 "Active" matches offer "ACTIVE" (classified ACTIVE) and
@@ -272,9 +266,7 @@ class TestEdgeCases:
 
     def test_empty_dataframes(self, make_unit_df, make_offer_df) -> None:
         """Empty DataFrames produce zero-count result."""
-        unit_df = pl.DataFrame(
-            {"gid": [], "section": [], "office_phone": [], "vertical": []}
-        )
+        unit_df = pl.DataFrame({"gid": [], "section": [], "office_phone": [], "vertical": []})
         offer_df = pl.DataFrame({"gid": [], "section": []})
 
         processor = ReconciliationBatchProcessor(unit_df, offer_df)
@@ -472,10 +464,7 @@ class TestPhoneOnlyFallback:
         processor.process()
 
         assert processor._offer_composite_index[("+15551111111", "dental")] == "ACTIVE"
-        assert (
-            processor._offer_composite_index[("+15552222222", "chiropractic")]
-            == "STAGING"
-        )
+        assert processor._offer_composite_index[("+15552222222", "chiropractic")] == "STAGING"
 
     def test_phone_only_index_first_occurrence_wins(self) -> None:
         """Phone-only index keeps first occurrence when multiple offers share phone."""

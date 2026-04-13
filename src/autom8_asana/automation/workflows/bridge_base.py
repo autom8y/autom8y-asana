@@ -135,9 +135,7 @@ class BridgeWorkflowAction(AttachmentReplacementMixin, WorkflowAction):
         # (1) Kill-switch check
         env_value = os.environ.get(self.feature_flag_env_var, "").lower()
         if env_value in {"false", "0", "no"}:
-            errors.append(
-                f"Workflow disabled via {self.feature_flag_env_var}={env_value}"
-            )
+            errors.append(f"Workflow disabled via {self.feature_flag_env_var}={env_value}")
             return errors  # Short-circuit
 
         # (2) Data source health check
@@ -150,8 +148,7 @@ class BridgeWorkflowAction(AttachmentReplacementMixin, WorkflowAction):
                 await self._data_client.is_healthy()
             except SdkCBOpen:
                 errors.append(
-                    "DataServiceClient circuit breaker is open. "
-                    "autom8_data may be degraded."
+                    "DataServiceClient circuit breaker is open. autom8_data may be degraded."
                 )
             except (ConnectionError, TimeoutError, OSError):
                 pass  # Non-circuit-breaker errors are not pre-flight failures
@@ -224,9 +221,7 @@ class BridgeWorkflowAction(AttachmentReplacementMixin, WorkflowAction):
             async with semaphore:
                 try:
                     return await self.process_entity(entity, params)
-                except (
-                    Exception
-                ) as exc:  # BROAD-CATCH: boundary -- per-entity isolation
+                except Exception as exc:  # BROAD-CATCH: boundary -- per-entity isolation
                     return BridgeOutcome(
                         gid=entity.get("gid", "unknown"),
                         status="failed",
@@ -239,9 +234,7 @@ class BridgeWorkflowAction(AttachmentReplacementMixin, WorkflowAction):
                         ),
                     )
 
-        outcomes: list[BridgeOutcome] = list(
-            await asyncio.gather(*[_run_one(e) for e in entities])
-        )
+        outcomes: list[BridgeOutcome] = list(await asyncio.gather(*[_run_one(e) for e in entities]))
 
         succeeded = sum(1 for o in outcomes if o.status == "succeeded")
         failed = sum(1 for o in outcomes if o.status == "failed")

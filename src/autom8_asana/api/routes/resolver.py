@@ -453,8 +453,7 @@ async def resolve_entities(
                 available_fields = [
                     col.name
                     for col in schema.columns
-                    if col.source is not None
-                    or col.name in {"gid", "name", "parent_gid"}
+                    if col.source is not None or col.name in {"gid", "name", "parent_gid"}
                 ]
         except (KeyError, AttributeError, RuntimeError):  # non-critical metadata
             # If schema lookup fails, leave available_fields empty

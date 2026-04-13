@@ -413,9 +413,7 @@ class TestRowsPagination:
         assert data["meta"]["limit"] == 2
         assert data["meta"]["offset"] == 1
 
-    def test_tc_i012_select_fields_gid_always_included(
-        self, client: TestClient
-    ) -> None:
+    def test_tc_i012_select_fields_gid_always_included(self, client: TestClient) -> None:
         """TC-I012: /rows select fields with gid always included."""
         mock_df = _create_mock_dataframe()
 

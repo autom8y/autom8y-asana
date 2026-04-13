@@ -298,9 +298,7 @@ class TestSaveSessionError:
         action = ActionOperation(
             task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
         )
-        action_result = ActionResult(
-            action=action, success=False, error=Exception("Tag not found")
-        )
+        action_result = ActionResult(action=action, success=False, error=Exception("Tag not found"))
         result = SaveResult(action_results=[action_result])
 
         error = SaveSessionError(result)
@@ -313,9 +311,7 @@ class TestSaveSessionError:
         action = ActionOperation(
             task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
         )
-        action_result = ActionResult(
-            action=action, success=False, error=Exception("Tag not found")
-        )
+        action_result = ActionResult(action=action, success=False, error=Exception("Tag not found"))
         result = SaveResult(action_results=[action_result])
 
         error = SaveSessionError(result)
@@ -330,9 +326,7 @@ class TestSaveSessionError:
         action = ActionOperation(
             task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
         )
-        action_result = ActionResult(
-            action=action, success=False, error=Exception("Tag not found")
-        )
+        action_result = ActionResult(action=action, success=False, error=Exception("Tag not found"))
         result = SaveResult(action_results=[action_result])
 
         error = SaveSessionError(result)
@@ -367,9 +361,7 @@ class TestSaveSessionError:
                 task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
             )
             action_results.append(
-                ActionResult(
-                    action=action, success=False, error=Exception(f"Error {i}")
-                )
+                ActionResult(action=action, success=False, error=Exception(f"Error {i}"))
             )
         result = SaveResult(action_results=action_results)
 
@@ -395,9 +387,7 @@ class TestSaveSessionError:
         action = ActionOperation(
             task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_456")
         )
-        action_result = ActionResult(
-            action=action, success=False, error=Exception("Remove failed")
-        )
+        action_result = ActionResult(action=action, success=False, error=Exception("Remove failed"))
 
         result = SaveResult(failed=[save_error], action_results=[action_result])
 
@@ -414,9 +404,7 @@ class TestSaveSessionError:
         action = ActionOperation(
             task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
         )
-        action_result = ActionResult(
-            action=action, success=False, error=Exception("Tag error")
-        )
+        action_result = ActionResult(action=action, success=False, error=Exception("Tag error"))
         result = SaveResult(action_results=[action_result])
 
         error = SaveSessionError(result)
@@ -546,9 +534,7 @@ class TestExceptionHierarchy:
         action = ActionOperation(
             task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
         )
-        action_result = ActionResult(
-            action=action, success=False, error=Exception("Test")
-        )
+        action_result = ActionResult(action=action, success=False, error=Exception("Test"))
         exceptions_to_test = [
             SessionClosedError(),
             CyclicDependencyError([task]),

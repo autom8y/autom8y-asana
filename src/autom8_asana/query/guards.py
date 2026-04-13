@@ -90,8 +90,7 @@ class QueryLimits:
 
         if len(columns) > self.max_group_by_columns:
             raise AggregationError(
-                f"Too many group_by columns ({len(columns)}). "
-                f"Maximum: {self.max_group_by_columns}"
+                f"Too many group_by columns ({len(columns)}). Maximum: {self.max_group_by_columns}"
             )
 
         for col_name in columns:
@@ -117,6 +116,5 @@ class QueryLimits:
 
         if count > self.max_aggregations:
             raise AggregationError(
-                f"Too many aggregation specs ({count}). "
-                f"Maximum: {self.max_aggregations}"
+                f"Too many aggregation specs ({count}). Maximum: {self.max_aggregations}"
             )

@@ -5,9 +5,7 @@ from __future__ import annotations
 from typing import Any, Literal, Protocol
 
 # Valid cache event types for log_cache_event
-CacheEventType = Literal[
-    "hit", "miss", "write", "evict", "expire", "error", "overflow_skip"
-]
+CacheEventType = Literal["hit", "miss", "write", "evict", "expire", "error", "overflow_skip"]
 
 
 class LogProvider(Protocol):

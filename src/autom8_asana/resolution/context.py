@@ -142,9 +142,7 @@ class ResolutionContext:
                 diagnostics=["No source entity for resolution"],
             )
 
-        strategies = chain or (
-            BUSINESS_CHAIN if target_type is Business else DEFAULT_CHAIN
-        )
+        strategies = chain or (BUSINESS_CHAIN if target_type is Business else DEFAULT_CHAIN)
         budget = ApiBudget(max_calls=self._max_api_calls)
         diagnostics: list[str] = []
 
@@ -153,8 +151,7 @@ class ResolutionContext:
                 return ResolutionResult(
                     status=ResolutionStatus.BUDGET_EXHAUSTED,
                     api_calls_used=budget.used,
-                    diagnostics=diagnostics
-                    + [f"Budget exhausted after {budget.used} API calls"],
+                    diagnostics=diagnostics + [f"Budget exhausted after {budget.used} API calls"],
                 )
 
             result = await strategy.resolve_async(
@@ -350,9 +347,7 @@ class ResolutionContext:
             return None
 
         # Get holder's PRIMARY_PROJECT_GID for matching
-        holder_project_gid: str | None = getattr(
-            holder_type, "PRIMARY_PROJECT_GID", None
-        )
+        holder_project_gid: str | None = getattr(holder_type, "PRIMARY_PROJECT_GID", None)
         if holder_project_gid is None:
             logger.warning(
                 "resolve_holder_no_project_gid",
@@ -432,9 +427,7 @@ class ResolutionContext:
             else "_children_cache"
         )
         if holder is not None and not getattr(holder, children_attr, None):
-            await business._fetch_holder_children_async(
-                self._client, holder, children_attr
-            )
+            await business._fetch_holder_children_async(self._client, holder, children_attr)
 
 
 class ResolutionError(Exception):

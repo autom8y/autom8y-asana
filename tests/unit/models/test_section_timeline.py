@@ -271,9 +271,7 @@ class TestDayCountingEdgeCases:
                     section_name="ACTIVE",
                     classification=AccountActivity.ACTIVE,
                     entered_at=_utc(2025, 1, 1),
-                    exited_at=_utc(
-                        2025, 1, 4
-                    ),  # transitions out Jan 4 → Jan 3 is last ACTIVE
+                    exited_at=_utc(2025, 1, 4),  # transitions out Jan 4 → Jan 3 is last ACTIVE
                 ),
             ),
         )

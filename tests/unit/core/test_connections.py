@@ -135,13 +135,9 @@ class TestConnectionManagerProtocol:
                 return ConnectionState.HEALTHY
 
             def health_check(self, *, force: bool = False) -> HealthCheckResult:
-                return HealthCheckResult(
-                    state=ConnectionState.HEALTHY, checked_at=time.monotonic()
-                )
+                return HealthCheckResult(state=ConnectionState.HEALTHY, checked_at=time.monotonic())
 
-            async def health_check_async(
-                self, *, force: bool = False
-            ) -> HealthCheckResult:
+            async def health_check_async(self, *, force: bool = False) -> HealthCheckResult:
                 return self.health_check(force=force)
 
             def close(self) -> None:

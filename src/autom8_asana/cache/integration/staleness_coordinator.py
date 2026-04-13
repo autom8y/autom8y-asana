@@ -286,9 +286,7 @@ class StalenessCheckCoordinator:
                 "staleness_result": staleness_result,
                 "previous_ttl": entry.ttl,
                 "new_ttl": result.ttl if result else None,
-                "extension_count": (
-                    result.metadata.get("extension_count", 0) if result else None
-                ),
+                "extension_count": (result.metadata.get("extension_count", 0) if result else None),
                 "check_duration_ms": round(duration_ms, 2),
             },
         )

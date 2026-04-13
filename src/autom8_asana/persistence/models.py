@@ -113,10 +113,7 @@ class SaveError(RetryableErrorMixin):
         entity_type = type(self.entity).__name__
         entity_gid = self.entity.gid
         error_type = type(self.error).__name__
-        return (
-            f"SaveError({self.operation.value}, "
-            f"{entity_type}(gid={entity_gid}), {error_type})"
-        )
+        return f"SaveError({self.operation.value}, {entity_type}(gid={entity_gid}), {error_type})"
 
     def _get_error(self) -> Exception | None:
         """Return the error for classification.
@@ -232,9 +229,7 @@ class SaveResult:
         Returns:
             Number of automation rules that executed successfully (not skipped).
         """
-        return sum(
-            1 for r in self.automation_results if r.success and not r.was_skipped
-        )
+        return sum(1 for r in self.automation_results if r.success and not r.was_skipped)
 
     @property
     def automation_failed(self) -> int:
@@ -332,17 +327,13 @@ class SaveResult:
             lines.append(f"\nRetryable ({len(retryable)}):")
             for err in retryable:
                 entity_type = type(err.entity).__name__
-                lines.append(
-                    f"  - {entity_type}(gid={err.entity.gid}): {err.recovery_hint}"
-                )
+                lines.append(f"  - {entity_type}(gid={err.entity.gid}): {err.recovery_hint}")
 
         if non_retryable:
             lines.append(f"\nNon-retryable ({len(non_retryable)}):")
             for err in non_retryable:
                 entity_type = type(err.entity).__name__
-                lines.append(
-                    f"  - {entity_type}(gid={err.entity.gid}): {err.recovery_hint}"
-                )
+                lines.append(f"  - {entity_type}(gid={err.entity.gid}): {err.recovery_hint}")
 
         return "\n".join(lines)
 
@@ -408,7 +399,9 @@ class HealingResult:
         status = "success" if self.success else f"failed: {self.error}"
         if self.dry_run:
             status = f"dry_run: {status}"
-        return f"HealingResult({self.entity_type}, {self.entity_gid} -> {self.project_gid}, {status})"
+        return (
+            f"HealingResult({self.entity_type}, {self.entity_gid} -> {self.project_gid}, {status})"
+        )
 
 
 @dataclass
@@ -735,12 +728,8 @@ class AutomationResult:
     execution_time_ms: float = 0.0
     skipped_reason: str | None = None
     enhancement_results: dict[str, bool | int] = field(default_factory=dict)
-    pre_validation: Any | None = (
-        None  # ValidationResult, using Any to avoid circular import
-    )
-    post_validation: Any | None = (
-        None  # ValidationResult, using Any to avoid circular import
-    )
+    pre_validation: Any | None = None  # ValidationResult, using Any to avoid circular import
+    post_validation: Any | None = None  # ValidationResult, using Any to avoid circular import
 
     def __repr__(self) -> str:
         """Return string representation."""

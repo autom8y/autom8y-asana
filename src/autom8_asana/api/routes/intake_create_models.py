@@ -42,12 +42,8 @@ class IntakeAddress(BaseModel):
         description="Suite, unit, or apartment number.",
         examples=["Suite 200"],
     )
-    city: str | None = Field(
-        default=None, description="City name.", examples=["Walnut Creek"]
-    )
-    state: str | None = Field(
-        default=None, description="State or province code.", examples=["CA"]
-    )
+    city: str | None = Field(default=None, description="City name.", examples=["Walnut Creek"])
+    state: str | None = Field(default=None, description="State or province code.", examples=["CA"])
     postal_code: str | None = Field(
         default=None,
         description="Postal or ZIP code. Canonical field name (never 'zip').",
@@ -170,9 +166,7 @@ class IntakeBusinessCreateRequest(BaseModel):
     )
 
     # Address (postal_code canonical -- ZIP-MISMATCH fix)
-    address: IntakeAddress | None = Field(
-        default=None, description="Business street address."
-    )
+    address: IntakeAddress | None = Field(default=None, description="Business street address.")
 
     # Social profiles (SOCIAL-PROFILES-ORPHANED fix)
     social_profiles: list[IntakeSocialProfile] = Field(
@@ -181,9 +175,7 @@ class IntakeBusinessCreateRequest(BaseModel):
     )
 
     # Contact (primary invitee)
-    contact: IntakeContact = Field(
-        description="Primary contact to create under the business."
-    )
+    contact: IntakeContact = Field(description="Primary contact to create under the business.")
 
     # Unit configuration
     vertical: str = Field(

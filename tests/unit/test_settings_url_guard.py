@@ -80,9 +80,7 @@ class TestProductionUrlGuard:
         settings = Settings()
         assert settings.data_service.url == "https://data.api.autom8y.io"
 
-    def test_staging_env_with_production_urls_passes(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_staging_env_with_production_urls_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Production URLs in staging environment must not trigger the guard."""
         monkeypatch.setenv("AUTOM8Y_ENV", "staging")
         monkeypatch.setenv("AUTOM8Y_DATA_URL", "https://data.api.autom8y.io")
@@ -106,9 +104,7 @@ class TestProductionUrlGuard:
         assert settings.autom8y_env == "local"
         assert "autom8y.io" not in settings.data_service.url
 
-    def test_unset_env_with_production_urls_passes(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_unset_env_with_production_urls_passes(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Production URLs with AUTOM8Y_ENV *unset* must NOT fire the guard.
 
         This is the host-based smoke test scenario: sourcing .env/production

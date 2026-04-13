@@ -103,9 +103,7 @@ class ConfigurationLoader:
         try:
             content = path.read_text(encoding="utf-8")
         except OSError as e:
-            raise ConfigurationError(
-                f"Failed to read configuration file {file_path}: {e}"
-            ) from e
+            raise ConfigurationError(f"Failed to read configuration file {file_path}: {e}") from e
 
         # Parse YAML
         try:
@@ -158,9 +156,7 @@ class ConfigurationLoader:
             substituted = ConfigurationLoader.substitute_env_vars(raw)
             # substituted = {"api_key": "actual_token_value"}
         """
-        result: dict[str, Any] = ConfigurationLoader._substitute_recursive(
-            raw_yaml, _path
-        )
+        result: dict[str, Any] = ConfigurationLoader._substitute_recursive(raw_yaml, _path)
         return result
 
     @staticmethod
@@ -190,9 +186,7 @@ class ConfigurationLoader:
             return ConfigurationLoader._substitute_string(value, path)
         elif isinstance(value, dict):
             return {
-                k: ConfigurationLoader._substitute_recursive(
-                    v, f"{path}.{k}" if path else k
-                )
+                k: ConfigurationLoader._substitute_recursive(v, f"{path}.{k}" if path else k)
                 for k, v in value.items()
             }
         elif isinstance(value, list):

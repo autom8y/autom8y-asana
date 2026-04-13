@@ -221,10 +221,7 @@ def _check_pipeline_type_registry(
             # Accept the match if entity name == pipeline_type OR
             # entity name == f"process_{pipeline_type}".
             entity_name = desc.name
-            names_match = (
-                entity_name == pipeline_type
-                or entity_name == f"process_{pipeline_type}"
-            )
+            names_match = entity_name == pipeline_type or entity_name == f"process_{pipeline_type}"
             if not names_match:
                 # GID exists in both registries but with inconsistent names.
                 result.errors.append(

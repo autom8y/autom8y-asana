@@ -48,9 +48,7 @@ class TemporalFilter:
                 return True
         return False
 
-    def _interval_matches(
-        self, interval: SectionInterval, timeline: SectionTimeline
-    ) -> bool:
+    def _interval_matches(self, interval: SectionInterval, timeline: SectionTimeline) -> bool:
         """Check if a single interval satisfies all filter criteria."""
         # Check moved_to (entered this section or classification)
         if self.moved_to is not None:

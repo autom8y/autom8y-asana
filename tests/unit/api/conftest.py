@@ -347,9 +347,7 @@ def authed_client(
         yield mock_asana_client
 
     # Use FastAPI's dependency override mechanism
-    app.dependency_overrides[get_asana_client_from_context] = (
-        mock_get_asana_client_from_context
-    )
+    app.dependency_overrides[get_asana_client_from_context] = mock_get_asana_client_from_context
 
     try:
         yield _module_client, mock_asana_client

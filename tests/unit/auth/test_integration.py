@@ -100,9 +100,7 @@ class TestPATPassThrough:
 class TestJWTMode:
     """Test JWT authentication (S2S mode)."""
 
-    def test_valid_jwt_accepted(
-        self, app: FastAPI, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_valid_jwt_accepted(self, app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
         """Valid JWT tokens are accepted and bot PAT is used."""
         # Arrange
         client = TestClient(app)
@@ -122,9 +120,7 @@ class TestJWTMode:
             return_value=mock_claims,
         ):
             # Act
-            response = client.get(
-                "/test", headers={"Authorization": f"Bearer {jwt_token}"}
-            )
+            response = client.get("/test", headers={"Authorization": f"Bearer {jwt_token}"})
 
         # Assert
         assert response.status_code == 200
@@ -133,9 +129,7 @@ class TestJWTMode:
         assert data["caller_service"] == "autom8_data"
         assert data["has_pat"] is True
 
-    def test_expired_jwt_returns_401(
-        self, app: FastAPI, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_expired_jwt_returns_401(self, app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
         """Expired JWT tokens return 401."""
         # Arrange
         client = TestClient(app)
@@ -149,9 +143,7 @@ class TestJWTMode:
             side_effect=TokenExpiredError("Token has expired"),
         ):
             # Act
-            response = client.get(
-                "/test", headers={"Authorization": f"Bearer {jwt_token}"}
-            )
+            response = client.get("/test", headers={"Authorization": f"Bearer {jwt_token}"})
 
         # Assert
         assert response.status_code == 401
@@ -174,9 +166,7 @@ class TestJWTMode:
             side_effect=InvalidSignatureError("Signature verification failed"),
         ):
             # Act
-            response = client.get(
-                "/test", headers={"Authorization": f"Bearer {jwt_token}"}
-            )
+            response = client.get("/test", headers={"Authorization": f"Bearer {jwt_token}"})
 
         # Assert
         assert response.status_code == 401
@@ -204,9 +194,7 @@ class TestJWTMode:
             return_value=mock_claims,
         ):
             # Act
-            response = client.get(
-                "/test", headers={"Authorization": f"Bearer {jwt_token}"}
-            )
+            response = client.get("/test", headers={"Authorization": f"Bearer {jwt_token}"})
 
         # Assert
         assert response.status_code == 503
@@ -273,9 +261,7 @@ class TestMissingAuth:
 class TestCircuitOpenError:
     """Test CircuitOpenError in JWT path returns 503."""
 
-    def test_circuit_open_returns_503(
-        self, app: FastAPI, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_circuit_open_returns_503(self, app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
         """CircuitOpenError returns 503, not 401."""
         client = TestClient(app)
         jwt_token = "header.payload.signature"
@@ -287,9 +273,7 @@ class TestCircuitOpenError:
             new_callable=AsyncMock,
             side_effect=CircuitOpenError("Circuit breaker is open"),
         ):
-            response = client.get(
-                "/test", headers={"Authorization": f"Bearer {jwt_token}"}
-            )
+            response = client.get("/test", headers={"Authorization": f"Bearer {jwt_token}"})
 
         assert response.status_code == 503
         data = response.json()
@@ -330,17 +314,13 @@ class TestTransientVsPermanentErrors:
             new_callable=AsyncMock,
             side_effect=JWKSFetchError("JWKS endpoint unreachable"),
         ):
-            response = client.get(
-                "/test", headers={"Authorization": f"Bearer {jwt_token}"}
-            )
+            response = client.get("/test", headers={"Authorization": f"Bearer {jwt_token}"})
 
         assert response.status_code == 503
         data = response.json()
         assert data["error"]["code"] == "JWKS_FETCH_ERROR"
 
-    def test_expired_token_returns_401(
-        self, app: FastAPI, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_expired_token_returns_401(self, app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
         """TokenExpiredError (permanent) returns 401."""
         client = TestClient(app)
         jwt_token = "header.payload.signature"
@@ -352,9 +332,7 @@ class TestTransientVsPermanentErrors:
             new_callable=AsyncMock,
             side_effect=TokenExpiredError("Token has expired"),
         ):
-            response = client.get(
-                "/test", headers={"Authorization": f"Bearer {jwt_token}"}
-            )
+            response = client.get("/test", headers={"Authorization": f"Bearer {jwt_token}"})
 
         assert response.status_code == 401
         data = response.json()
@@ -364,9 +342,7 @@ class TestTransientVsPermanentErrors:
 class TestBotPatSecurity:
     """Test that bot PAT is never exposed."""
 
-    def test_bot_pat_not_in_response(
-        self, app: FastAPI, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_bot_pat_not_in_response(self, app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
         """Bot PAT value never appears in response body."""
         # Arrange
         client = TestClient(app)
@@ -386,9 +362,7 @@ class TestBotPatSecurity:
             return_value=mock_claims,
         ):
             # Act
-            response = client.get(
-                "/test", headers={"Authorization": f"Bearer {jwt_token}"}
-            )
+            response = client.get("/test", headers={"Authorization": f"Bearer {jwt_token}"})
 
         # Assert
         assert response.status_code == 200
@@ -419,9 +393,7 @@ class TestBotPatSecurity:
             return_value=mock_claims,
         ):
             # Act
-            response = client.get(
-                "/test", headers={"Authorization": f"Bearer {jwt_token}"}
-            )
+            response = client.get("/test", headers={"Authorization": f"Bearer {jwt_token}"})
 
         # Assert
         assert response.status_code == 503

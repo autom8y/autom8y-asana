@@ -567,8 +567,7 @@ class TestComplexHierarchy:
         # Root with 5 children, each with 2 grandchildren
         root = Task(gid="root", name="Root")
         children = [
-            Task(gid=f"child_{i}", name=f"Child {i}", parent=NameGid(gid="root"))
-            for i in range(5)
+            Task(gid=f"child_{i}", name=f"Child {i}", parent=NameGid(gid="root")) for i in range(5)
         ]
         grandchildren = [
             Task(

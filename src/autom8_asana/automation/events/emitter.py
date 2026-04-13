@@ -100,7 +100,9 @@ class EventEmitter:
                     latency_ms=round(elapsed_ms, 2),
                 )
 
-            except Exception as e:  # BROAD-CATCH: isolation -- transport failure must not propagate to commit path
+            except (
+                Exception
+            ) as e:  # BROAD-CATCH: isolation -- transport failure must not propagate to commit path
                 elapsed_ms = (time.perf_counter() - start) * 1000
                 failed += 1
 

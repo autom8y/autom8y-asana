@@ -116,9 +116,7 @@ class TestCacheHitFlow:
         """When cache hit, return cached CustomField without HTTP call."""
         # Arrange: Pre-populate cache
         cache_entry = make_cache_entry(gid=CUSTOM_FIELD_GID, name="Cached Field")
-        cache_provider._cache[f"{CUSTOM_FIELD_GID}:{EntryType.CUSTOM_FIELD.value}"] = (
-            cache_entry
-        )
+        cache_provider._cache[f"{CUSTOM_FIELD_GID}:{EntryType.CUSTOM_FIELD.value}"] = cache_entry
 
         # Act
         result = await custom_fields_client.get_async(CUSTOM_FIELD_GID)
@@ -140,9 +138,7 @@ class TestCacheHitFlow:
         """When cache hit with raw=True, return cached dict."""
         # Arrange
         cache_entry = make_cache_entry(gid=CUSTOM_FIELD_GID, name="Cached Field")
-        cache_provider._cache[f"{CUSTOM_FIELD_GID}:{EntryType.CUSTOM_FIELD.value}"] = (
-            cache_entry
-        )
+        cache_provider._cache[f"{CUSTOM_FIELD_GID}:{EntryType.CUSTOM_FIELD.value}"] = cache_entry
 
         # Act
         result = await custom_fields_client.get_async(CUSTOM_FIELD_GID, raw=True)
@@ -167,9 +163,7 @@ class TestCacheMissFlow:
     ) -> None:
         """When cache miss, fetch from API."""
         # Arrange: Empty cache, mock HTTP response
-        mock_http.get.return_value = make_custom_field_data(
-            gid=CUSTOM_FIELD_GID, name="API Field"
-        )
+        mock_http.get.return_value = make_custom_field_data(gid=CUSTOM_FIELD_GID, name="API Field")
 
         # Act
         result = await custom_fields_client.get_async(CUSTOM_FIELD_GID)
@@ -191,9 +185,7 @@ class TestCacheMissFlow:
     ) -> None:
         """After cache miss, store API result in cache."""
         # Arrange
-        mock_http.get.return_value = make_custom_field_data(
-            gid=CUSTOM_FIELD_GID, name="API Field"
-        )
+        mock_http.get.return_value = make_custom_field_data(gid=CUSTOM_FIELD_GID, name="API Field")
 
         # Act
         await custom_fields_client.get_async(CUSTOM_FIELD_GID)
@@ -213,9 +205,7 @@ class TestCacheMissFlow:
     ) -> None:
         """Cache miss stores with 1800s (30 min) TTL per TDD-CACHE-UTILIZATION."""
         # Arrange
-        mock_http.get.return_value = make_custom_field_data(
-            gid=CUSTOM_FIELD_GID, name="API Field"
-        )
+        mock_http.get.return_value = make_custom_field_data(gid=CUSTOM_FIELD_GID, name="API Field")
 
         # Act
         await custom_fields_client.get_async(CUSTOM_FIELD_GID)
@@ -233,9 +223,7 @@ class TestCacheMissFlow:
     ) -> None:
         """Cache miss with raw=True stores data and returns dict."""
         # Arrange
-        mock_http.get.return_value = make_custom_field_data(
-            gid=CUSTOM_FIELD_GID, name="API Field"
-        )
+        mock_http.get.return_value = make_custom_field_data(gid=CUSTOM_FIELD_GID, name="API Field")
 
         # Act
         result = await custom_fields_client.get_async(CUSTOM_FIELD_GID, raw=True)
@@ -267,9 +255,7 @@ class TestCacheExpiration:
             cached_at=datetime.now(UTC) - timedelta(hours=1),
             ttl=1800,  # 30 min TTL, but cached 1 hour ago
         )
-        cache_provider._cache[f"{CUSTOM_FIELD_GID}:{EntryType.CUSTOM_FIELD.value}"] = (
-            expired_entry
-        )
+        cache_provider._cache[f"{CUSTOM_FIELD_GID}:{EntryType.CUSTOM_FIELD.value}"] = expired_entry
 
         mock_http.get.return_value = make_custom_field_data(
             gid=CUSTOM_FIELD_GID, name="Fresh Field"
@@ -295,9 +281,7 @@ class TestNoCacheProvider:
     ) -> None:
         """Without cache provider, always fetch from API."""
         # Arrange
-        mock_http.get.return_value = make_custom_field_data(
-            gid=CUSTOM_FIELD_GID, name="API Field"
-        )
+        mock_http.get.return_value = make_custom_field_data(gid=CUSTOM_FIELD_GID, name="API Field")
 
         # Act
         result = await custom_fields_client_no_cache.get_async(CUSTOM_FIELD_GID)
@@ -355,9 +339,7 @@ class TestGracefulDegradation:
             cache_provider=failing_cache,  # type: ignore[arg-type]
         )
 
-        mock_http.get.return_value = make_custom_field_data(
-            gid=CUSTOM_FIELD_GID, name="API Field"
-        )
+        mock_http.get.return_value = make_custom_field_data(gid=CUSTOM_FIELD_GID, name="API Field")
 
         # Act: Should not raise despite cache set failure
         result = await custom_fields_client.get_async(CUSTOM_FIELD_GID)
@@ -402,9 +384,7 @@ class TestOptFields:
         """Cache hit returns cached data regardless of opt_fields."""
         # Arrange: Pre-populate cache
         cache_entry = make_cache_entry(gid=CUSTOM_FIELD_GID, name="Cached Field")
-        cache_provider._cache[f"{CUSTOM_FIELD_GID}:{EntryType.CUSTOM_FIELD.value}"] = (
-            cache_entry
-        )
+        cache_provider._cache[f"{CUSTOM_FIELD_GID}:{EntryType.CUSTOM_FIELD.value}"] = cache_entry
 
         # Act
         result = await custom_fields_client.get_async(
@@ -428,9 +408,7 @@ class TestOptFields:
         )
 
         # Act
-        await custom_fields_client.get_async(
-            CUSTOM_FIELD_GID, opt_fields=["name", "description"]
-        )
+        await custom_fields_client.get_async(CUSTOM_FIELD_GID, opt_fields=["name", "description"])
 
         # Assert: opt_fields passed to HTTP
         mock_http.get.assert_called_once()

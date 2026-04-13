@@ -16,9 +16,7 @@ from tests.unit.api.conftest import TEST_USER_GID, TEST_WORKSPACE_GID
 class TestGetCurrentUser:
     """Tests for GET /api/v1/users/me endpoint."""
 
-    def test_get_current_user_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_get_current_user_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully returns current authenticated user."""
         client, mock_sdk = authed_client
 
@@ -68,9 +66,7 @@ class TestGetCurrentUser:
 class TestGetUserByGid:
     """Tests for GET /api/v1/users/{gid} endpoint."""
 
-    def test_get_user_by_gid_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_get_user_by_gid_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully returns user by GID."""
         client, mock_sdk = authed_client
 
@@ -128,9 +124,7 @@ class TestListUsers:
         # FastAPI validation error for missing required param
         assert response.status_code == 422
 
-    def test_list_users_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_users_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully lists users in workspace."""
         client, mock_sdk = authed_client
 
@@ -159,9 +153,7 @@ class TestListUsers:
         assert "pagination" in data["meta"]
         assert data["meta"]["pagination"]["has_more"] is False
 
-    def test_list_users_with_pagination(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_users_with_pagination(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """List users returns pagination metadata when more pages exist."""
         client, mock_sdk = authed_client
 
@@ -182,9 +174,7 @@ class TestListUsers:
         assert pagination["next_offset"] == "next_cursor_token"
         assert pagination["limit"] == 1
 
-    def test_list_users_with_offset(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_users_with_offset(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """List users passes offset parameter to SDK."""
         client, mock_sdk = authed_client
 
@@ -201,9 +191,7 @@ class TestListUsers:
         call_args = mock_sdk._http.get_paginated.call_args
         assert call_args[1]["params"]["offset"] == "cursor123"
 
-    def test_list_users_limit_bounds(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_users_limit_bounds(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """List users enforces limit bounds (1-100)."""
         client, mock_sdk = authed_client
 

@@ -74,9 +74,7 @@ class NotGroup(BaseModel):
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    not_: PredicateNode = Field(
-        alias="not", description="Child predicate that must not match."
-    )
+    not_: PredicateNode = Field(alias="not", description="Child predicate that must not match.")
 
 
 def _predicate_discriminator(v: Any) -> str:
@@ -147,9 +145,7 @@ class AggSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    column: str = Field(
-        description="Column to aggregate (must exist in SchemaRegistry)."
-    )
+    column: str = Field(description="Column to aggregate (must exist in SchemaRegistry).")
     agg: AggFunction = Field(description="Aggregation function to apply.")
     alias: str | None = Field(
         default=None, description="Output column name. Defaults to '{agg}_{column}'."
@@ -210,9 +206,7 @@ class AggregateMeta(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     group_count: int = Field(description="Number of groups in the result.")
-    aggregation_count: int = Field(
-        description="Number of aggregation columns computed."
-    )
+    aggregation_count: int = Field(description="Number of aggregation columns computed.")
     group_by: list[str] = Field(description="Columns used for grouping.")
     entity_type: str = Field(description="Entity type that was aggregated.")
     project_gid: str = Field(description="Asana project GID the query ran against.")
@@ -237,9 +231,7 @@ class AggregateResponse(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    data: list[dict[str, Any]] = Field(
-        description="Aggregated result rows, one dict per group."
-    )
+    data: list[dict[str, Any]] = Field(description="Aggregated result rows, one dict per group.")
     meta: AggregateMeta = Field(description="Query execution metadata.")
 
 

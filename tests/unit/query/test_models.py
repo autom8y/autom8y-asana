@@ -28,9 +28,7 @@ class TestComparisonParsing:
     """Test Comparison leaf node parsing."""
 
     def test_eq_comparison(self) -> None:
-        node = _predicate_adapter.validate_python(
-            {"field": "name", "op": "eq", "value": "Acme"}
-        )
+        node = _predicate_adapter.validate_python({"field": "name", "op": "eq", "value": "Acme"})
         assert isinstance(node, Comparison)
         assert node.field == "name"
         assert node.op == Op.EQ
@@ -38,9 +36,7 @@ class TestComparisonParsing:
 
     def test_all_operators(self) -> None:
         for op in Op:
-            node = _predicate_adapter.validate_python(
-                {"field": "x", "op": op.value, "value": "v"}
-            )
+            node = _predicate_adapter.validate_python({"field": "x", "op": op.value, "value": "v"})
             assert isinstance(node, Comparison)
             assert node.op == op
 
@@ -165,9 +161,7 @@ class TestRowsRequestSugar:
         assert req.where is None
 
     def test_dict_passthrough(self) -> None:
-        req = RowsRequest.model_validate(
-            {"where": {"field": "a", "op": "eq", "value": 1}}
-        )
+        req = RowsRequest.model_validate({"where": {"field": "a", "op": "eq", "value": 1}})
         assert isinstance(req.where, Comparison)
 
     def test_none_where(self) -> None:
@@ -232,9 +226,7 @@ class TestAggSpec:
     def test_tc_as004_extra_fields_rejected(self) -> None:
         """TC-AS004: AggSpec with extra fields rejected."""
         with pytest.raises(ValidationError):
-            AggSpec.model_validate(
-                {"column": "amount", "agg": "sum", "extra_field": True}
-            )
+            AggSpec.model_validate({"column": "amount", "agg": "sum", "extra_field": True})
 
     def test_all_agg_functions(self) -> None:
         """All AggFunction enum values can be used in AggSpec."""

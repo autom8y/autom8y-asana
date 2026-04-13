@@ -69,7 +69,9 @@ def emit_metric(
                 }
             ],
         )
-    except Exception as e:  # BROAD-CATCH: metrics -- CloudWatch metric emission must not fail the handler
+    except (
+        Exception
+    ) as e:  # BROAD-CATCH: metrics -- CloudWatch metric emission must not fail the handler
         logger.warning(
             "metric_emit_error",
             extra={"metric": metric_name, "error": str(e)},

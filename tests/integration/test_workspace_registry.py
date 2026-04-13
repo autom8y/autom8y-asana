@@ -64,9 +64,7 @@ class TestWorkspaceDiscovery:
             make_mock_project("gid_002", "Project Beta"),
             make_mock_project("gid_003", "Project Gamma"),
         ]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
         await registry.discover_async(mock_client)
@@ -81,9 +79,7 @@ class TestWorkspaceDiscovery:
     ) -> None:
         """Name lookup is case-insensitive after discovery."""
         projects = [make_mock_project("gid_001", "Sales Pipeline")]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
         await registry.discover_async(mock_client)
@@ -98,9 +94,7 @@ class TestWorkspaceDiscovery:
     ) -> None:
         """Name lookup handles whitespace in names."""
         projects = [make_mock_project("gid_001", "  Sales Pipeline  ")]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
         await registry.discover_async(mock_client)
@@ -126,9 +120,7 @@ class TestWorkspaceDiscovery:
         mock_client: MagicMock,
     ) -> None:
         """Discovery sets is_discovered() to True."""
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=[]
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=[])
 
         registry = get_workspace_registry()
         assert registry.is_discovered() is False
@@ -165,9 +157,7 @@ class TestPipelineProjectIdentification:
     ) -> None:
         """Exact pipeline names are identified correctly."""
         projects = [make_mock_project("pipeline_gid", project_name)]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
         await registry.discover_async(mock_client)
@@ -195,9 +185,7 @@ class TestPipelineProjectIdentification:
     ) -> None:
         """Pipeline names containing keywords are identified correctly."""
         projects = [make_mock_project("pipeline_gid", project_name)]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
         await registry.discover_async(mock_client)
@@ -213,9 +201,7 @@ class TestPipelineProjectIdentification:
             make_mock_project("sales_gid", "Sales Pipeline"),
             make_mock_project("onboarding_gid", "Onboarding"),
         ]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
         await registry.discover_async(mock_client)
@@ -234,9 +220,7 @@ class TestPipelineProjectIdentification:
             make_mock_project("other_gid", "Random Project"),
             make_mock_project("internal_gid", "Internal Tasks"),
         ]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
         await registry.discover_async(mock_client)
@@ -256,9 +240,7 @@ class TestPipelineProjectIdentification:
             make_mock_project("review_gid", "Onboarding/Review Calls"),
             make_mock_project("main_gid", "Onboarding"),  # Exact match
         ]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
         await registry.discover_async(mock_client)
@@ -288,9 +270,7 @@ class TestStaticRegistryIntegration:
 
         # Discovery finds a pipeline project with same GID (unlikely but tests behavior)
         projects = [make_mock_project("preregistered_gid", "Sales Pipeline")]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         workspace_registry = get_workspace_registry()
         await workspace_registry.discover_async(mock_client)
@@ -329,9 +309,7 @@ class TestLazyDiscovery:
     ) -> None:
         """First call triggers discovery."""
         projects = [make_mock_project("sales_gid", "Sales Pipeline")]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
         assert registry.is_discovered() is False
@@ -348,9 +326,7 @@ class TestLazyDiscovery:
     ) -> None:
         """Subsequent calls use cached registry, no additional discovery."""
         projects = [make_mock_project("sales_gid", "Sales Pipeline")]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
 
@@ -373,9 +349,7 @@ class TestLazyDiscovery:
         static_registry.register("static_gid", EntityType.BUSINESS)
 
         workspace_registry = get_workspace_registry()
-        result = await workspace_registry.lookup_or_discover_async(
-            "static_gid", mock_client
-        )
+        result = await workspace_registry.lookup_or_discover_async("static_gid", mock_client)
 
         assert result == EntityType.BUSINESS
         # No discovery triggered
@@ -388,9 +362,7 @@ class TestLazyDiscovery:
     ) -> None:
         """Returns None for unknown GID after discovery."""
         projects = [make_mock_project("known_gid", "Known Project")]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
         result = await registry.lookup_or_discover_async("unknown_gid", mock_client)
@@ -416,9 +388,7 @@ class TestProcessTypeLookup:
             make_mock_project("onboarding_gid", "Onboarding"),
             make_mock_project("retention_gid", "Customer Retention"),
         ]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
         await registry.discover_async(mock_client)
@@ -435,9 +405,7 @@ class TestProcessTypeLookup:
         projects = [
             make_mock_project("other_gid", "Random Project"),
         ]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects)
 
         registry = get_workspace_registry()
         await registry.discover_async(mock_client)
@@ -512,9 +480,7 @@ class TestEdgeCases:
         mock_client: MagicMock,
     ) -> None:
         """Empty workspace discovery completes without error."""
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=[]
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=[])
 
         registry = get_workspace_registry()
         await registry.discover_async(mock_client)
@@ -555,9 +521,7 @@ class TestEdgeCases:
         """Repeated discovery clears and refreshes state."""
         # First discovery
         projects_v1 = [make_mock_project("old_gid", "Old Project")]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects_v1
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects_v1)
 
         registry = get_workspace_registry()
         await registry.discover_async(mock_client)
@@ -566,9 +530,7 @@ class TestEdgeCases:
 
         # Second discovery with different projects
         projects_v2 = [make_mock_project("new_gid", "New Project")]
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=projects_v2
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=projects_v2)
 
         await registry.discover_async(mock_client)
 

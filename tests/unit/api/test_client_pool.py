@@ -68,9 +68,7 @@ class TestPoolMiss:
     """New token creates new client."""
 
     @pytest.mark.asyncio
-    async def test_different_tokens_create_different_clients(
-        self, pool, mock_asana_client
-    ):
+    async def test_different_tokens_create_different_clients(self, pool, mock_asana_client):
         """Different tokens create separate clients."""
         client1 = await pool.get_or_create("token-abc")
         client2 = await pool.get_or_create("token-xyz")
@@ -390,9 +388,7 @@ class TestConcurrency:
         pool = ClientPool()
 
         # Launch 10 concurrent requests for the same token
-        results = await asyncio.gather(
-            *[pool.get_or_create("token-shared") for _ in range(10)]
-        )
+        results = await asyncio.gather(*[pool.get_or_create("token-shared") for _ in range(10)])
 
         # All should reference the same underlying client
         underlying_clients = {r._client for r in results}

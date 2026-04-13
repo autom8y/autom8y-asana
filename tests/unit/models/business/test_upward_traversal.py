@@ -471,9 +471,7 @@ class TestMaxDepthEnforcement:
         def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             if gid == "b1":
-                mock.collect = AsyncMock(
-                    return_value=[Task(gid="ch1", name="Contacts")]
-                )
+                mock.collect = AsyncMock(return_value=[Task(gid="ch1", name="Contacts")])
             else:
                 mock.collect = AsyncMock(return_value=[])
             return mock
@@ -579,9 +577,7 @@ class TestTypeDetectionDuringTraversal:
             mock = AsyncMock()
             # Only Business detection needs subtasks
             if gid == "b1":
-                mock.collect = AsyncMock(
-                    return_value=[Task(gid="ch1", name="Contacts")]
-                )
+                mock.collect = AsyncMock(return_value=[Task(gid="ch1", name="Contacts")])
             else:
                 mock.collect = AsyncMock(return_value=[])
             return mock
@@ -808,9 +804,7 @@ class TestEntityToBusinessAsync:
         def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             if gid == "b1":
-                mock.collect = AsyncMock(
-                    return_value=[Task(gid="ch1", name="Contacts")]
-                )
+                mock.collect = AsyncMock(return_value=[Task(gid="ch1", name="Contacts")])
             else:
                 mock.collect = AsyncMock(return_value=[])
             return mock
@@ -853,9 +847,7 @@ class TestEntityToBusinessAsync:
             call_count += 1
             mock = AsyncMock()
             if call_count == 1:
-                mock.collect = AsyncMock(
-                    return_value=[Task(gid="ch1", name="Contacts")]
-                )
+                mock.collect = AsyncMock(return_value=[Task(gid="ch1", name="Contacts")])
             else:
                 mock.collect = AsyncMock(side_effect=RuntimeError("API error"))
             return mock

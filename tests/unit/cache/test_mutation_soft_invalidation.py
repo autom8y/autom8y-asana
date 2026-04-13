@@ -124,9 +124,7 @@ class TestSoftInvalidationMarksStamp:
         marked_entry = set_call[0][1]
         assert marked_entry.freshness_stamp is not None
         assert marked_entry.freshness_stamp.staleness_hint is not None
-        assert (
-            "mutation:task:update:123456" in marked_entry.freshness_stamp.staleness_hint
-        )
+        assert "mutation:task:update:123456" in marked_entry.freshness_stamp.staleness_hint
         # Source should be preserved
         assert marked_entry.freshness_stamp.source == VerificationSource.API_FETCH
 

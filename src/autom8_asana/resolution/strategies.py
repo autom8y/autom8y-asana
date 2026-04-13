@@ -181,10 +181,7 @@ class DependencyShortcutStrategy(ResolutionStrategy):
             from autom8_asana.models.business.detection import detect_entity_type
 
             detection_result = detect_entity_type(task)
-            if (
-                not detection_result
-                or detection_result.entity_type != EntityType.BUSINESS
-            ):
+            if not detection_result or detection_result.entity_type != EntityType.BUSINESS:
                 return None
 
         try:

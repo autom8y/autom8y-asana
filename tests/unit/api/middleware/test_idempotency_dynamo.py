@@ -121,9 +121,7 @@ class TestDynamoDBIdempotencyStoreClaim:
         )
         store = self._make_store(mock_client)
 
-        result = await store.claim(
-            "svc#key1", "POST#/v1/intake/business", "fingerprint123"
-        )
+        result = await store.claim("svc#key1", "POST#/v1/intake/business", "fingerprint123")
         assert result is True
 
         # Verify PutItem was called with condition expression
@@ -140,9 +138,7 @@ class TestDynamoDBIdempotencyStoreClaim:
         mock_client.put_item.side_effect = exc_class("Key already exists")
         store = self._make_store(mock_client)
 
-        result = await store.claim(
-            "svc#key1", "POST#/v1/intake/business", "fingerprint123"
-        )
+        result = await store.claim("svc#key1", "POST#/v1/intake/business", "fingerprint123")
         assert result is False
 
     async def test_claim_returns_false_on_unexpected_error(self) -> None:
@@ -154,9 +150,7 @@ class TestDynamoDBIdempotencyStoreClaim:
         mock_client.put_item.side_effect = RuntimeError("Network error")
         store = self._make_store(mock_client)
 
-        result = await store.claim(
-            "svc#key1", "POST#/v1/intake/business", "fingerprint123"
-        )
+        result = await store.claim("svc#key1", "POST#/v1/intake/business", "fingerprint123")
         assert result is False
 
 

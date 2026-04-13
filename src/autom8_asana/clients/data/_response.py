@@ -36,9 +36,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-def validate_factory(
-    factory: str, request_id: str, valid_factories: frozenset[str]
-) -> None:
+def validate_factory(factory: str, request_id: str, valid_factories: frozenset[str]) -> None:
     """Validate factory name against allowed set.
 
     Args:
@@ -51,8 +49,7 @@ def validate_factory(
     """
     if factory not in valid_factories:
         raise InsightsValidationError(
-            f"Invalid factory: '{factory}'. "
-            f"Valid factories: {', '.join(sorted(valid_factories))}",
+            f"Invalid factory: '{factory}'. Valid factories: {', '.join(sorted(valid_factories))}",
             field="factory",
             request_id=request_id,
         )

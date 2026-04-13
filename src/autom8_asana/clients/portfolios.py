@@ -253,9 +253,7 @@ class PortfoliosClient(BaseClient):
             Portfolio model by default, or dict if raw=True
         """
         self._log_operation("update_async", portfolio_gid)
-        result = await self._http.put(
-            f"/portfolios/{portfolio_gid}", json={"data": kwargs}
-        )
+        result = await self._http.put(f"/portfolios/{portfolio_gid}", json={"data": kwargs})
         if raw:
             return result
         return Portfolio.model_validate(result)
@@ -302,9 +300,7 @@ class PortfoliosClient(BaseClient):
             if offset:
                 params["offset"] = offset
 
-            data, next_offset = await self._http.get_paginated(
-                "/portfolios", params=params
-            )
+            data, next_offset = await self._http.get_paginated("/portfolios", params=params)
             portfolios = [Portfolio.model_validate(p) for p in data]
             return portfolios, next_offset
 
@@ -371,9 +367,7 @@ class PortfoliosClient(BaseClient):
         if insert_after is not None:
             data["insert_after"] = insert_after
 
-        await self._http.post(
-            f"/portfolios/{portfolio_gid}/addItem", json={"data": data}
-        )
+        await self._http.post(f"/portfolios/{portfolio_gid}/addItem", json={"data": data})
 
     @async_method
     async def remove_item(

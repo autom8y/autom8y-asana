@@ -582,9 +582,7 @@ class TestHealingExecution:
 
         mock_client.batch.execute_async = AsyncMock(
             return_value=[
-                BatchResult(
-                    status_code=200, body={"data": {"gid": "123"}}, request_index=0
-                )
+                BatchResult(status_code=200, body={"data": {"gid": "123"}}, request_index=0)
             ]
         )
 

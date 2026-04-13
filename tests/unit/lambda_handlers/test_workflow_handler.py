@@ -260,9 +260,7 @@ class TestCreateWorkflowHandler:
         handler({}, MagicMock())
 
         # Find the WorkflowExecutionCount call
-        calls = [
-            c for c in mock_emit.call_args_list if c[0][0] == "WorkflowExecutionCount"
-        ]
+        calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowExecutionCount"]
         assert len(calls) == 1
         assert calls[0][0] == ("WorkflowExecutionCount", 1)
         assert calls[0][1]["dimensions"] == {"workflow_id": "my-wf"}
@@ -292,9 +290,7 @@ class TestCreateWorkflowHandler:
         handler = create_workflow_handler(config)
         handler({}, MagicMock())
 
-        duration_calls = [
-            c for c in mock_emit.call_args_list if c[0][0] == "WorkflowDuration"
-        ]
+        duration_calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowDuration"]
         assert len(duration_calls) == 1
         assert duration_calls[0][0][1] == 42.5  # duration_seconds
         assert duration_calls[0][1]["unit"] == "Seconds"
@@ -313,9 +309,7 @@ class TestCreateWorkflowHandler:
         handler = create_workflow_handler(config)
         handler({}, MagicMock())
 
-        error_calls = [
-            c for c in mock_emit.call_args_list if c[0][0] == "WorkflowExecutionError"
-        ]
+        error_calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowExecutionError"]
         assert len(error_calls) == 1
         assert error_calls[0][1]["dimensions"] == {"workflow_id": "fail-wf"}
 
@@ -344,11 +338,7 @@ class TestCreateWorkflowHandler:
         handler = create_workflow_handler(config)
         handler({}, MagicMock())
 
-        skip_calls = [
-            c
-            for c in mock_emit.call_args_list
-            if c[0][0] == "WorkflowValidationSkipped"
-        ]
+        skip_calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowValidationSkipped"]
         assert len(skip_calls) == 1
         assert skip_calls[0][1]["dimensions"] == {"workflow_id": "skip-wf"}
 
@@ -818,9 +808,7 @@ class TestFleetObservability:
         handler = create_workflow_handler(config)
         handler({}, MagicMock())
 
-        fleet_calls = [
-            c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"
-        ]
+        fleet_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
         assert len(fleet_calls) == 1
         assert fleet_calls[0][0] == ("BridgeFleetHealth", 1.0)
         assert fleet_calls[0][1]["unit"] == "Count"
@@ -895,9 +883,7 @@ class TestFleetObservability:
         body = json.loads(result["body"])
         assert body["status"] == "skipped"
 
-        fleet_calls = [
-            c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"
-        ]
+        fleet_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
         assert len(fleet_calls) == 1
         assert fleet_calls[0][0] == ("BridgeFleetHealth", 0.0)
         assert fleet_calls[0][1]["unit"] == "Count"
@@ -941,9 +927,7 @@ class TestFleetObservability:
         handler({}, MagicMock())
 
         # No BridgeFleetHealth metric should be emitted
-        fleet_calls = [
-            c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"
-        ]
+        fleet_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
         assert len(fleet_calls) == 0
 
         # No fleet DMS should be emitted
@@ -980,9 +964,7 @@ class TestFleetObservability:
         handler = create_workflow_handler(config)
         handler({}, MagicMock())
 
-        fleet_calls = [
-            c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"
-        ]
+        fleet_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
         assert len(fleet_calls) == 0
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
@@ -1060,9 +1042,7 @@ _FLEET_BRIDGES = [
     },
 ]
 
-_CIRCUIT_BREAKER_ERROR = (
-    "DataServiceClient circuit breaker is open. autom8_data may be degraded."
-)
+_CIRCUIT_BREAKER_ERROR = "DataServiceClient circuit breaker is open. autom8_data may be degraded."
 
 
 def _invoke_fleet(
@@ -1114,9 +1094,7 @@ def _invoke_fleet(
         # Patch AsanaClient and DataServiceClient for each handler invocation
         with (
             patch("autom8_asana.client.AsanaClient") as mock_asana_class,
-            patch(
-                "autom8_asana.clients.data.client.DataServiceClient"
-            ) as mock_ds_class,
+            patch("autom8_asana.clients.data.client.DataServiceClient") as mock_ds_class,
         ):
             mock_asana_class.return_value = MagicMock()
             mock_ds = AsyncMock()
@@ -1171,24 +1149,18 @@ class TestSPOF1Detection:
         """BridgeFleetHealth=0.0 emitted for all 3 bridges on SPOF-1."""
         _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
 
-        fleet_health_calls = [
-            c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"
-        ]
+        fleet_health_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
 
         # Exactly 3 fleet health emissions (one per bridge)
         assert len(fleet_health_calls) == 3
 
         # All values are 0.0
         for call in fleet_health_calls:
-            assert call[0][1] == 0.0, (
-                f"BridgeFleetHealth should be 0.0 but got {call[0][1]}"
-            )
+            assert call[0][1] == 0.0, f"BridgeFleetHealth should be 0.0 but got {call[0][1]}"
             assert call[1]["namespace"] == "Autom8y/AsanaBridgeFleet"
 
         # Each bridge's workflow_id is represented
-        emitted_workflow_ids = {
-            call[1]["dimensions"]["workflow_id"] for call in fleet_health_calls
-        }
+        emitted_workflow_ids = {call[1]["dimensions"]["workflow_id"] for call in fleet_health_calls}
         expected_workflow_ids = {b["workflow_id"] for b in _FLEET_BRIDGES}
         assert emitted_workflow_ids == expected_workflow_ids
 
@@ -1204,8 +1176,7 @@ class TestSPOF1Detection:
 
         ts_namespaces = [c[0][0] for c in mock_emit_ts.call_args_list]
         assert "Autom8y/AsanaBridgeFleet" not in ts_namespaces, (
-            "Fleet DMS should NOT be refreshed during SPOF-1 -- "
-            "staleness is the detection signal"
+            "Fleet DMS should NOT be refreshed during SPOF-1 -- staleness is the detection signal"
         )
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
@@ -1222,8 +1193,7 @@ class TestSPOF1Detection:
 
         for bridge in _FLEET_BRIDGES:
             assert bridge["dms_namespace"] not in ts_namespaces, (
-                f"Per-bridge DMS for {bridge['workflow_id']} should NOT "
-                f"be refreshed during SPOF-1"
+                f"Per-bridge DMS for {bridge['workflow_id']} should NOT be refreshed during SPOF-1"
             )
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
@@ -1236,17 +1206,11 @@ class TestSPOF1Detection:
         """WorkflowValidationSkipped=1 emitted for all 3 bridges."""
         _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
 
-        skip_calls = [
-            c
-            for c in mock_emit.call_args_list
-            if c[0][0] == "WorkflowValidationSkipped"
-        ]
+        skip_calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowValidationSkipped"]
 
         assert len(skip_calls) == 3
 
-        skipped_workflow_ids = {
-            call[1]["dimensions"]["workflow_id"] for call in skip_calls
-        }
+        skipped_workflow_ids = {call[1]["dimensions"]["workflow_id"] for call in skip_calls}
         expected_workflow_ids = {b["workflow_id"] for b in _FLEET_BRIDGES}
         assert skipped_workflow_ids == expected_workflow_ids
 
@@ -1326,16 +1290,13 @@ class TestSPOF1FalsePositive:
             validation_error="Workflow disabled via AUTOM8_EXPORT_ENABLED=false",
         )
 
-        fleet_health_calls = [
-            c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"
-        ]
+        fleet_health_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
 
         # 3 fleet health emissions (one per bridge)
         assert len(fleet_health_calls) == 3
 
         health_by_wf = {
-            call[1]["dimensions"]["workflow_id"]: call[0][1]
-            for call in fleet_health_calls
+            call[1]["dimensions"]["workflow_id"]: call[0][1] for call in fleet_health_calls
         }
 
         # Skipped bridge emits 0.0
@@ -1403,9 +1364,7 @@ class TestSPOF1Recovery:
 
         with (
             patch("autom8_asana.client.AsanaClient") as mock_asana_class,
-            patch(
-                "autom8_asana.clients.data.client.DataServiceClient"
-            ) as mock_ds_class,
+            patch("autom8_asana.clients.data.client.DataServiceClient") as mock_ds_class,
         ):
             mock_asana_class.return_value = MagicMock()
             mock_ds = AsyncMock()
@@ -1417,9 +1376,7 @@ class TestSPOF1Recovery:
 
         # Verify recovery
         body = json.loads(result["body"])
-        assert body["status"] == "completed", (
-            "Recovered bridge should complete successfully"
-        )
+        assert body["status"] == "completed", "Recovered bridge should complete successfully"
 
         # Fleet DMS should be refreshed
         ts_namespaces_phase2 = [c[0][0] for c in mock_emit_ts.call_args_list]
@@ -1434,9 +1391,7 @@ class TestSPOF1Recovery:
         )
 
         # BridgeFleetHealth=1.0 for recovered bridge
-        fleet_health_calls = [
-            c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"
-        ]
+        fleet_health_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
         assert len(fleet_health_calls) == 1
         assert fleet_health_calls[0][0][1] == 1.0, (
             "Recovered bridge should emit BridgeFleetHealth=1.0"

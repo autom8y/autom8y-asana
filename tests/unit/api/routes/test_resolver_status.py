@@ -343,9 +343,7 @@ class TestResolverStatusRoutes:
         assert r["match_count"] == 1  # Post-filter count
         assert r["total_match_count"] == 4  # Pre-filter count
 
-    def test_resolve_completed_task_excluded_active_only(
-        self, client: TestClient
-    ) -> None:
+    def test_resolve_completed_task_excluded_active_only(self, client: TestClient) -> None:
         """EC-4 end-to-end: completed task excluded from active_only.
 
         Per FR-6: is_completed=True maps to INACTIVE, excluded by active_only.

@@ -429,9 +429,7 @@ class TestPreviewActions:
 
         task = Task(gid="123", name="Test", memberships=[])
         session.track(task)
-        task.memberships = [
-            {"project": {"gid": "proj_1"}, "section": {"gid": "sect_1"}}
-        ]
+        task.memberships = [{"project": {"gid": "proj_1"}, "section": {"gid": "sect_1"}}]
 
         with pytest.raises(UnsupportedOperationError) as exc:
             session.preview()
@@ -742,9 +740,7 @@ class TestEdgeCases:
         # Note: Order depends on graph internals, so check both possibilities
         states = [session.get_state(task1), session.get_state(task2)]
         assert EntityState.CLEAN in states, "One entity should be CLEAN after success"
-        assert EntityState.MODIFIED in states, (
-            "One entity should remain MODIFIED after failure"
-        )
+        assert EntityState.MODIFIED in states, "One entity should remain MODIFIED after failure"
 
 
 # ---------------------------------------------------------------------------
@@ -877,9 +873,7 @@ class TestActionMethods:
         task = Task(gid="task_123")
 
         # Chain multiple actions
-        session.add_tag(task, "1001").add_tag(task, "1002").move_to_section(
-            task, "3001"
-        )
+        session.add_tag(task, "1001").add_tag(task, "1002").move_to_section(task, "3001")
 
         actions = session.get_pending_actions()
         assert len(actions) == 3
@@ -1428,8 +1422,7 @@ class TestCommentMethods:
         assert len(actions) == 1
         assert actions[0].extra_params["text"] == "Plain text"
         assert (
-            actions[0].extra_params["html_text"]
-            == "<body>Rich <strong>HTML</strong> text</body>"
+            actions[0].extra_params["html_text"] == "<body>Rich <strong>HTML</strong> text</body>"
         )
 
     def test_add_comment_stores_text_in_extra_params(self) -> None:
@@ -2055,13 +2048,9 @@ class TestCustomFieldTrackingReset:
         # Verify invariant: exactly one accessor should be reset, one should retain changes
         # Note: Order depends on DependencyGraph internals, so check both possibilities
         has_changes_list = [accessor1.has_changes(), accessor2.has_changes()]
-        assert True in has_changes_list, (
-            "Failed entity should retain custom field changes"
-        )
+        assert True in has_changes_list, "Failed entity should retain custom field changes"
         assert False in has_changes_list, "Successful entity should have changes reset"
-        assert has_changes_list.count(True) == 1, (
-            "Exactly one entity should retain changes"
-        )
+        assert has_changes_list.count(True) == 1, "Exactly one entity should retain changes"
         assert has_changes_list.count(False) == 1, "Exactly one entity should be reset"
 
     @pytest.mark.asyncio

@@ -228,9 +228,7 @@ def _build_intervals_from_stories(
     story_count = len(stories)
 
     for story in stories:
-        section_name = (
-            story.new_section.name if story.new_section else None
-        ) or "UNKNOWN"
+        section_name = (story.new_section.name if story.new_section else None) or "UNKNOWN"
         classification = classifier.classify(section_name)
 
         if classification is None:
@@ -521,9 +519,7 @@ async def get_or_compute_timelines(
             # Re-read batch after population
             stories_by_gid = read_stories_batch(task_gids, cache)
 
-            fetched_count = sum(
-                1 for gid in misses if stories_by_gid.get(gid) is not None
-            )
+            fetched_count = sum(1 for gid in misses if stories_by_gid.get(gid) is not None)
             logger.info(
                 "inline_story_fetch_complete",
                 extra={
@@ -554,9 +550,7 @@ async def get_or_compute_timelines(
 
             task_created_at = _parse_datetime(task.created_at)
             section_name = extract_section_name(task, project_gid=project_gid)
-            account_activity = (
-                classifier.classify(section_name) if section_name else None
-            )
+            account_activity = classifier.classify(section_name) if section_name else None
             task_data = task.model_dump()
             office_phone = _extract_office_phone(task_data)
             offer_id = _extract_offer_id(task_data)
@@ -573,9 +567,7 @@ async def get_or_compute_timelines(
 
                 # Filter cross-project noise using the parameterized classifier
                 filtered_stories = [
-                    s
-                    for s in section_stories
-                    if not _is_cross_project_noise(s, classifier)
+                    s for s in section_stories if not _is_cross_project_noise(s, classifier)
                 ]
 
                 # Sort by created_at ascending
@@ -726,10 +718,7 @@ def _compute_day_counts(
                 current_classification = last_interval.classification.value
 
         # Apply classification filter (O(n) post-cache filtering)
-        if (
-            classification_filter is not None
-            and current_classification != classification_filter
-        ):
+        if classification_filter is not None and current_classification != classification_filter:
             continue
 
         active_days = timeline.active_days_in_period(period_start, period_end)

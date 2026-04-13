@@ -67,13 +67,9 @@ def make_custom_field(
         case "number":
             cf["number_value"] = value
         case "enum":
-            cf["enum_value"] = (
-                {"gid": f"enum_{value}", "name": value} if value else None
-            )
+            cf["enum_value"] = {"gid": f"enum_{value}", "name": value} if value else None
         case "multi_enum":
-            cf["multi_enum_values"] = [
-                {"gid": f"me_{v}", "name": v} for v in (value or [])
-            ]
+            cf["multi_enum_values"] = [{"gid": f"me_{v}", "name": v} for v in (value or [])]
 
     return cf
 
@@ -96,9 +92,7 @@ class TestResolveUnknownField:
     """Test that resolving unknown fields returns None."""
 
     @pytest.mark.asyncio
-    async def test_resolve_returns_none_for_unknown_field(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_returns_none_for_unknown_field(self, mock_client: MagicMock) -> None:
         """Test resolve returns None for field not in registry."""
         resolver = CascadingFieldResolver(mock_client)
 
@@ -112,9 +106,7 @@ class TestResolveUnknownField:
         mock_client.tasks.get_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_resolve_returns_none_for_empty_field_name(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_returns_none_for_empty_field_name(self, mock_client: MagicMock) -> None:
         """Test resolve returns None for empty field name."""
         resolver = CascadingFieldResolver(mock_client)
 
@@ -134,9 +126,7 @@ class TestResolveImmediateParent:
     """Test resolving field values from immediate parent."""
 
     @pytest.mark.asyncio
-    async def test_resolve_finds_value_on_immediate_parent(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_finds_value_on_immediate_parent(self, mock_client: MagicMock) -> None:
         """Test resolve finds field value on immediate parent."""
         resolver = CascadingFieldResolver(mock_client)
 
@@ -162,9 +152,7 @@ class TestResolveImmediateParent:
         mock_client.tasks.get_async.return_value = business_task
 
         # Patch detect_entity_type to return expected types
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             # First call for unit_task returns UNIT
             # Second call for business_task returns BUSINESS
             mock_detect.side_effect = [
@@ -223,9 +211,7 @@ class TestResolveGrandparent:
     """Test resolving field values from grandparent (2 levels up)."""
 
     @pytest.mark.asyncio
-    async def test_resolve_finds_value_on_grandparent(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_finds_value_on_grandparent(self, mock_client: MagicMock) -> None:
         """Test resolve finds field value on grandparent (2 levels up)."""
         resolver = CascadingFieldResolver(mock_client)
 
@@ -254,9 +240,7 @@ class TestResolveGrandparent:
         mock_client.tasks.get_async.side_effect = [unit_holder_task, business_task]
 
         # Patch detection
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             mock_detect.side_effect = [
                 MagicMock(entity_type=EntityType.UNIT),
                 MagicMock(entity_type=EntityType.UNIT_HOLDER),
@@ -279,9 +263,7 @@ class TestMaxDepthLimit:
     """Test that max_depth limit is respected."""
 
     @pytest.mark.asyncio
-    async def test_resolve_respects_max_depth_limit(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_respects_max_depth_limit(self, mock_client: MagicMock) -> None:
         """Test resolve returns None when max_depth is exceeded."""
         resolver = CascadingFieldResolver(mock_client)
 
@@ -295,9 +277,7 @@ class TestMaxDepthLimit:
         mock_client.tasks.get_async.side_effect = [task2, task3, task4]
 
         # Patch detection to return UNIT for all (never reaching owner)
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             mock_detect.return_value = MagicMock(entity_type=EntityType.UNIT)
 
             result = await resolver.resolve_async(
@@ -319,9 +299,7 @@ class TestAllowOverrideBehavior:
     """Test allow_override=True and allow_override=False behaviors."""
 
     @pytest.mark.asyncio
-    async def test_resolve_respects_allow_override_true(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_respects_allow_override_true(self, mock_client: MagicMock) -> None:
         """Test resolve keeps local value when allow_override=True."""
         resolver = CascadingFieldResolver(mock_client)
 
@@ -352,9 +330,7 @@ class TestAllowOverrideBehavior:
         mock_client.tasks.get_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_resolve_respects_allow_override_false(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_resolve_respects_allow_override_false(self, mock_client: MagicMock) -> None:
         """Test resolve uses parent value when allow_override=False."""
         resolver = CascadingFieldResolver(mock_client)
 
@@ -385,9 +361,7 @@ class TestAllowOverrideBehavior:
             patch(
                 "autom8_asana.dataframes.resolver.cascading.get_cascading_field"
             ) as mock_get_field,
-            patch(
-                "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-            ) as mock_detect,
+            patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect,
         ):
             mock_field_def = MagicMock(source_field=None)
             mock_field_def.name = "Office Phone"
@@ -417,9 +391,7 @@ class TestParentCache:
     """Test parent task caching behavior."""
 
     @pytest.mark.asyncio
-    async def test_parent_cache_is_populated_on_traversal(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_parent_cache_is_populated_on_traversal(self, mock_client: MagicMock) -> None:
         """Test parent cache is populated when fetching parents."""
         resolver = CascadingFieldResolver(mock_client)
 
@@ -439,9 +411,7 @@ class TestParentCache:
 
         mock_client.tasks.get_async.return_value = business_task
 
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             mock_detect.side_effect = [
                 MagicMock(entity_type=EntityType.UNIT),
                 MagicMock(entity_type=EntityType.BUSINESS),
@@ -454,9 +424,7 @@ class TestParentCache:
         assert "business_123" in resolver._parent_cache
 
     @pytest.mark.asyncio
-    async def test_parent_cache_prevents_duplicate_fetches(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_parent_cache_prevents_duplicate_fetches(self, mock_client: MagicMock) -> None:
         """Test parent cache prevents duplicate API calls."""
         resolver = CascadingFieldResolver(mock_client)
 
@@ -482,9 +450,7 @@ class TestParentCache:
 
         mock_client.tasks.get_async.return_value = business_task
 
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             mock_detect.side_effect = [
                 MagicMock(entity_type=EntityType.UNIT),
                 MagicMock(entity_type=EntityType.BUSINESS),
@@ -510,9 +476,7 @@ class TestBrokenParentChain:
     """Test handling of broken parent chains."""
 
     @pytest.mark.asyncio
-    async def test_broken_parent_chain_returns_none(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_broken_parent_chain_returns_none(self, mock_client: MagicMock) -> None:
         """Test resolve returns None when parent chain is broken."""
         resolver = CascadingFieldResolver(mock_client)
 
@@ -546,9 +510,7 @@ class TestBrokenParentChain:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_parent_fetch_failure_returns_none(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_parent_fetch_failure_returns_none(self, mock_client: MagicMock) -> None:
         """Test resolve returns None when parent fetch fails."""
         resolver = CascadingFieldResolver(mock_client)
 
@@ -565,9 +527,7 @@ class TestBrokenParentChain:
             patch(
                 "autom8_asana.dataframes.resolver.cascading.get_cascading_field"
             ) as mock_get_field,
-            patch(
-                "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-            ) as mock_detect,
+            patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect,
         ):
             mock_field_def = MagicMock(source_field=None)
             mock_field_def.name = "Office Phone"
@@ -617,9 +577,7 @@ class TestCircularReferenceDetection:
             patch(
                 "autom8_asana.dataframes.resolver.cascading.get_cascading_field"
             ) as mock_get_field,
-            patch(
-                "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-            ) as mock_detect,
+            patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect,
         ):
             mock_field_def = MagicMock(source_field=None)
             mock_field_def.name = "Office Phone"
@@ -727,9 +685,7 @@ class TestCustomFieldValueExtraction:
         """Test extraction of multi-enum field value."""
         task = MockTask(
             gid="123",
-            custom_fields=[
-                make_custom_field("Platforms", ["Google", "Facebook"], "multi_enum")
-            ],
+            custom_fields=[make_custom_field("Platforms", ["Google", "Facebook"], "multi_enum")],
         )
 
         result = get_custom_field_value(task, "Platforms")
@@ -874,9 +830,7 @@ class TestGetFieldValueSourceField:
 
         mock_client.tasks.get_async.return_value = business_task
 
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             mock_detect.side_effect = [
                 MagicMock(entity_type=EntityType.UNIT),
                 MagicMock(entity_type=EntityType.BUSINESS),
@@ -922,9 +876,7 @@ class TestIntegrationWithRegistry:
         mock_client.tasks.get_async.side_effect = [unit_holder_task, business_task]
 
         # Use real detection
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             mock_detect.side_effect = [
                 MagicMock(entity_type=EntityType.UNIT),
                 MagicMock(entity_type=EntityType.UNIT_HOLDER),

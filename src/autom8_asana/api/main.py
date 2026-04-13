@@ -233,9 +233,7 @@ def create_app() -> FastAPI:
     )
 
     idempotency_backend = os.environ.get("IDEMPOTENCY_STORE_BACKEND", "dynamodb")
-    idempotency_store: (
-        DynamoDBIdempotencyStore | InMemoryIdempotencyStore | NoopIdempotencyStore
-    )
+    idempotency_store: DynamoDBIdempotencyStore | InMemoryIdempotencyStore | NoopIdempotencyStore
     if idempotency_backend == "dynamodb":
         table_name = os.environ.get("IDEMPOTENCY_TABLE_NAME", "autom8-idempotency-keys")
         table_region = os.environ.get("IDEMPOTENCY_TABLE_REGION", "us-east-1")
@@ -542,17 +540,14 @@ def create_app() -> FastAPI:
                     operation["parameters"] = [
                         p
                         for p in operation["parameters"]
-                        if not (
-                            p.get("name") == "authorization" and p.get("in") == "header"
-                        )
+                        if not (p.get("name") == "authorization" and p.get("in") == "header")
                     ]
                     if not operation["parameters"]:
                         del operation["parameters"]
 
         # 4. Seed tag descriptions
         spec["tags"] = [
-            {"name": tag, "description": desc}
-            for tag, desc in _TAG_DESCRIPTIONS.items()
+            {"name": tag, "description": desc} for tag, desc in _TAG_DESCRIPTIONS.items()
         ]
 
         # Sprint-6 (Lexicon Ascension): Annotate QUERY method candidates.
@@ -605,9 +600,7 @@ def create_app() -> FastAPI:
             "FastAPI has no @app.query() decorator",
             "Swagger UI and ReDoc cannot render QUERY operations",
         ]
-        spec["x-query-method-ready-when"] = (
-            "FastAPI ships @app.query() with httptools support"
-        )
+        spec["x-query-method-ready-when"] = "FastAPI ships @app.query() with httptools support"
 
         # Annotate visible query introspection GET endpoints as safe reads.
         # These are already GET (inherently safe/idempotent) but the extension
@@ -629,9 +622,7 @@ def create_app() -> FastAPI:
         # top-level ``webhooks`` object per OpenAPI 3.1+/3.2.0.
         from autom8_asana.models.task import Task as _TaskModel
 
-        task_schema = _TaskModel.model_json_schema(
-            ref_template="#/components/schemas/{model}"
-        )
+        task_schema = _TaskModel.model_json_schema(ref_template="#/components/schemas/{model}")
 
         # Extract $defs (nested models like NameGid, AsanaResource) and merge
         # into components/schemas so $ref pointers resolve correctly.
@@ -657,9 +648,7 @@ def create_app() -> FastAPI:
         )
 
         for _registry_model in (SuccessResponse, ErrorResponse, ErrorDetail):
-            _schema = _registry_model.model_json_schema(
-                ref_template="#/components/schemas/{model}"
-            )
+            _schema = _registry_model.model_json_schema(ref_template="#/components/schemas/{model}")
             _defs = _schema.pop("$defs", {})
             for _def_name, _def_schema in _defs.items():
                 components.setdefault("schemas", {})[_def_name] = _def_schema
@@ -681,9 +670,7 @@ def create_app() -> FastAPI:
                     "requestBody": {
                         "required": True,
                         "content": {
-                            "application/json": {
-                                "schema": {"$ref": "#/components/schemas/Task"}
-                            }
+                            "application/json": {"schema": {"$ref": "#/components/schemas/Task"}}
                         },
                     },
                     "responses": {

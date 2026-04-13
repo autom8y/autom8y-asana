@@ -183,9 +183,7 @@ class FieldSeeder:
 
         return fields
 
-    async def carry_through_from_process_async(
-        self, source_process: Process
-    ) -> dict[str, Any]:
+    async def carry_through_from_process_async(self, source_process: Process) -> dict[str, Any]:
         """Collect carry-through field values from source Process.
 
         Per FR-005: Carries through fields from the source process.
@@ -276,9 +274,7 @@ class FieldSeeder:
         fields.update(cascade_fields)
 
         # Layer 3: Carry-through from source process
-        carry_through_fields = await self.carry_through_from_process_async(
-            source_process
-        )
+        carry_through_fields = await self.carry_through_from_process_async(source_process)
         logger.info("seeding_carry_through_collected", fields=carry_through_fields)
         fields.update(carry_through_fields)
 
@@ -392,9 +388,7 @@ class FieldSeeder:
             for cf in custom_fields_list:
                 cf_name = cf.get("name", "")
                 if cf_name:
-                    _subtype_by_name[cf_name.lower().strip()] = cf.get(
-                        "resource_subtype", ""
-                    )
+                    _subtype_by_name[cf_name.lower().strip()] = cf.get("resource_subtype", "")
 
             # Resolve fields via shared FieldResolver (ADR-EW-003)
             from autom8_asana.resolution.field_resolver import FieldResolver
@@ -420,9 +414,7 @@ class FieldSeeder:
                         fields_skipped.append(rf.input_name)
                         continue
 
-                    assert (
-                        rf.matched_name is not None
-                    )  # guaranteed when status == "resolved"
+                    assert rf.matched_name is not None  # guaranteed when status == "resolved"
                     accessor.set(rf.matched_name, rf.value)
                     fields_to_write.append(rf.matched_name)
                 else:
@@ -695,9 +687,7 @@ class FieldSeeder:
             if value_str in name_to_gid:
                 return value_str
             gid_event = (
-                "seeding_multi_enum_gid_not_found"
-                if multi
-                else "seeding_enum_gid_not_found"
+                "seeding_multi_enum_gid_not_found" if multi else "seeding_enum_gid_not_found"
             )
             logger.warning(
                 gid_event,
@@ -726,9 +716,7 @@ class FieldSeeder:
             if get_field_attr(opt, "enabled", True)
         ]
         not_found_event = (
-            "seeding_multi_enum_value_not_found"
-            if multi
-            else "seeding_enum_value_not_found"
+            "seeding_multi_enum_value_not_found" if multi else "seeding_enum_value_not_found"
         )
         logger.warning(
             not_found_event,

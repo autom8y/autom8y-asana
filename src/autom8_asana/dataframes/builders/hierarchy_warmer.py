@@ -183,9 +183,7 @@ class HierarchyWarmer:
 
             async def _fetch_gap_parent(gid: str) -> dict[str, Any] | None:
                 try:
-                    task = await self._client.tasks.get_async(
-                        gid, opt_fields=BASE_OPT_FIELDS
-                    )
+                    task = await self._client.tasks.get_async(gid, opt_fields=BASE_OPT_FIELDS)
                     if task is not None:
                         return self._task_to_dict(task)
                     return None

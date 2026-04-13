@@ -291,9 +291,7 @@ class TestIntakeBusinessCreateRequest:
         """model_dump -> model_validate preserves structure."""
         payload = self._minimal_payload()
         payload["address"] = {"city": "SF", "postal_code": "94105"}
-        payload["social_profiles"] = [
-            {"platform": "linkedin", "url": "https://linkedin.com/acme"}
-        ]
+        payload["social_profiles"] = [{"platform": "linkedin", "url": "https://linkedin.com/acme"}]
         req = IntakeBusinessCreateRequest.model_validate(payload)
         restored = IntakeBusinessCreateRequest.model_validate(req.model_dump())
         assert restored.name == req.name
@@ -365,9 +363,7 @@ class TestIntakeRouteRequest:
 
     def test_triggered_by_override(self) -> None:
         """triggered_by can be overridden."""
-        req = IntakeRouteRequest(
-            unit_gid="U123", process_type="sales", triggered_by="manual"
-        )
+        req = IntakeRouteRequest(unit_gid="U123", process_type="sales", triggered_by="manual")
         assert req.triggered_by == "manual"
 
     def test_missing_unit_gid_raises(self) -> None:
@@ -409,15 +405,11 @@ class TestIntakeRouteResponse:
 
     def test_assignee_name_optional(self) -> None:
         """assignee_name defaults to None."""
-        resp = IntakeRouteResponse(
-            process_gid="P999", process_type="sales", is_new=False
-        )
+        resp = IntakeRouteResponse(process_gid="P999", process_type="sales", is_new=False)
         assert resp.assignee_name is None
 
     def test_frozen(self) -> None:
         """IntakeRouteResponse is frozen."""
-        resp = IntakeRouteResponse(
-            process_gid="P999", process_type="sales", is_new=True
-        )
+        resp = IntakeRouteResponse(process_gid="P999", process_type="sales", is_new=True)
         with pytest.raises(ValidationError):
             resp.is_new = False  # type: ignore[misc]

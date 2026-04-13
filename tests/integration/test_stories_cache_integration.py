@@ -241,22 +241,14 @@ class TestIncrementalMergeBehavior:
         """
         # First call: Initial story
         mock_http.get_paginated.return_value = (
-            [
-                make_story_data(
-                    "s1", text="Original text", created_at="2025-01-01T10:00:00Z"
-                )
-            ],
+            [make_story_data("s1", text="Original text", created_at="2025-01-01T10:00:00Z")],
             None,
         )
         await stories_client.list_for_task_cached_async(TASK_GID)
 
         # Second call: Same GID with updated text
         mock_http.get_paginated.return_value = (
-            [
-                make_story_data(
-                    "s1", text="Updated text", created_at="2025-01-01T10:00:00Z"
-                )
-            ],
+            [make_story_data("s1", text="Updated text", created_at="2025-01-01T10:00:00Z")],
             None,
         )
         result = await stories_client.list_for_task_cached_async(TASK_GID)

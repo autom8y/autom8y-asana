@@ -159,18 +159,14 @@ class TestTaskRowValidation:
             TaskRow(**data)
         assert any(e["loc"] == ("gid",) for e in exc_info.value.errors())
 
-    def test_extra_forbid_rejects_unknown_fields(
-        self, base_task_data: dict[str, Any]
-    ) -> None:
+    def test_extra_forbid_rejects_unknown_fields(self, base_task_data: dict[str, Any]) -> None:
         """Test that extra='forbid' rejects unknown fields."""
         data = {**base_task_data, "unknown_field": "value"}
         with pytest.raises(ValidationError) as exc_info:
             TaskRow(**data)
         assert "extra_forbidden" in str(exc_info.value)
 
-    def test_strict_prevents_type_coercion(
-        self, base_task_data: dict[str, Any]
-    ) -> None:
+    def test_strict_prevents_type_coercion(self, base_task_data: dict[str, Any]) -> None:
         """Test that strict=True prevents silent type coercion."""
         data = {**base_task_data, "is_completed": "true"}  # str instead of bool
         with pytest.raises(ValidationError):
@@ -265,9 +261,7 @@ class TestUnitRowCreation:
 class TestUnitRowDecimalHandling:
     """Tests for UnitRow Decimal field handling."""
 
-    def test_decimal_fields_accept_decimal(
-        self, base_task_data: dict[str, Any]
-    ) -> None:
+    def test_decimal_fields_accept_decimal(self, base_task_data: dict[str, Any]) -> None:
         """Test Decimal fields accept Decimal values."""
         data = {
             **base_task_data,
@@ -278,9 +272,7 @@ class TestUnitRowDecimalHandling:
         assert row.mrr == Decimal("9999.99")
         assert isinstance(row.mrr, Decimal)
 
-    def test_to_dict_converts_decimal_to_float(
-        self, base_task_data: dict[str, Any]
-    ) -> None:
+    def test_to_dict_converts_decimal_to_float(self, base_task_data: dict[str, Any]) -> None:
         """Test to_dict converts Decimal values to float for Polars."""
         data = {
             **base_task_data,
@@ -334,9 +326,7 @@ class TestContactRowCreation:
         row = ContactRow(**data)
         assert row.type == "Contact"
 
-    def test_optional_contact_fields_default_to_none(
-        self, base_task_data: dict[str, Any]
-    ) -> None:
+    def test_optional_contact_fields_default_to_none(self, base_task_data: dict[str, Any]) -> None:
         """Test ContactRow optional fields default to None."""
         data = {k: v for k, v in base_task_data.items() if k != "type"}
         row = ContactRow(**data)
@@ -430,9 +420,7 @@ class TestDateTimeHandling:
 class TestModelDumpCompatibility:
     """Tests for Pydantic model_dump compatibility."""
 
-    def test_model_dump_equals_to_dict_for_base_row(
-        self, base_task_data: dict[str, Any]
-    ) -> None:
+    def test_model_dump_equals_to_dict_for_base_row(self, base_task_data: dict[str, Any]) -> None:
         """Test model_dump and to_dict produce equivalent results for base row."""
         row = TaskRow(**base_task_data)
         dump = row.model_dump()

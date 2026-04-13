@@ -143,12 +143,8 @@ class Unit(
     excluded_zips = TextField()
 
     # Form / Lead Settings fields (8)
-    form_questions = (
-        MultiEnumField()
-    )  # Per PRD-0024: Multi-enum for question selections
-    disabled_questions = (
-        MultiEnumField()
-    )  # Per PRD-0024: Multi-enum for question selections
+    form_questions = MultiEnumField()  # Per PRD-0024: Multi-enum for question selections
+    disabled_questions = MultiEnumField()  # Per PRD-0024: Multi-enum for question selections
     disclaimers = MultiEnumField()  # Per PRD-0024: Multi-enum for disclaimer selections
     custom_disclaimer = TextField()
     internal_notes = TextField()  # Per PRD-0024: New field for internal notes
@@ -339,9 +335,7 @@ class Unit(
                 offer_holder._business = self._business
                 self._offer_holder = offer_holder
             elif holder_key == "process_holder":
-                process_holder = ProcessHolder.model_validate(
-                    subtask, from_attributes=True
-                )
+                process_holder = ProcessHolder.model_validate(subtask, from_attributes=True)
                 process_holder._unit = self
                 process_holder._business = self._business
                 self._process_holder = process_holder
@@ -399,17 +393,13 @@ class Unit(
         # OfferHolder children
         if self._offer_holder:
             fetch_tasks.append(
-                asyncio.create_task(
-                    self._fetch_holder_children_async(client, self._offer_holder)
-                )
+                asyncio.create_task(self._fetch_holder_children_async(client, self._offer_holder))
             )
 
         # ProcessHolder children
         if self._process_holder:
             fetch_tasks.append(
-                asyncio.create_task(
-                    self._fetch_holder_children_async(client, self._process_holder)
-                )
+                asyncio.create_task(self._fetch_holder_children_async(client, self._process_holder))
             )
 
         # Step 4: Execute all holder child fetches concurrently

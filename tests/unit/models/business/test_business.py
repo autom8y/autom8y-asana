@@ -246,9 +246,7 @@ class TestBusinessCustomFields:
         """company_id getter returns value."""
         business = Business(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Company ID", "text_value": "ACME-001"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Company ID", "text_value": "ACME-001"}],
         )
         assert business.company_id == "ACME-001"
 
@@ -372,9 +370,7 @@ class TestBusinessFieldsClass:
             "WEEKLY_AD_SPEND",
         }
         actual_fields = {
-            name
-            for name in dir(Business.Fields)
-            if not name.startswith("_") and name.isupper()
+            name for name in dir(Business.Fields) if not name.startswith("_") and name.isupper()
         }
         assert actual_fields == expected_fields
 

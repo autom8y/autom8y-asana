@@ -152,9 +152,7 @@ class TestBuildIndexData:
             }
         )
 
-        with patch(
-            "autom8_asana.services.gid_lookup.GidLookupIndex"
-        ) as mock_index_class:
+        with patch("autom8_asana.services.gid_lookup.GidLookupIndex") as mock_index_class:
             mock_index = MagicMock()
             mock_index.serialize.return_value = {"entries": {}}
             mock_index_class.from_dataframe.return_value = mock_index
@@ -182,9 +180,7 @@ class TestBuildIndexData:
 
         df = pl.DataFrame({"gid": ["1", "2"]})
 
-        with patch(
-            "autom8_asana.services.gid_lookup.GidLookupIndex"
-        ) as mock_index_class:
+        with patch("autom8_asana.services.gid_lookup.GidLookupIndex") as mock_index_class:
             mock_index_class.from_dataframe.side_effect = KeyError("missing column")
 
             result = builder._build_index_data(df)
@@ -292,12 +288,8 @@ class TestProgressiveBuild:
         mock_task = MagicMock()
         mock_task.gid = "task_1"
         mock_task.name = "Test Task"
-        mock_task.model_dump = MagicMock(
-            return_value={"gid": "task_1", "name": "Test Task"}
-        )
-        mock_client.tasks.list_async.return_value.collect = AsyncMock(
-            return_value=[mock_task]
-        )
+        mock_task.model_dump = MagicMock(return_value={"gid": "task_1", "name": "Test Task"})
+        mock_client.tasks.list_async.return_value.collect = AsyncMock(return_value=[mock_task])
 
         mock_schema = MagicMock()
 
@@ -312,9 +304,7 @@ class TestProgressiveBuild:
             sections={"sec_1": SectionInfo()},
         )
         mock_persistence.create_manifest_async = AsyncMock(return_value=new_manifest)
-        mock_persistence.update_manifest_section_async = AsyncMock(
-            return_value=new_manifest
-        )
+        mock_persistence.update_manifest_section_async = AsyncMock(return_value=new_manifest)
         mock_persistence.write_section_async = AsyncMock(return_value=True)
         mock_persistence.merge_sections_to_dataframe_async = AsyncMock(
             return_value=pl.DataFrame({"gid": ["task_1"]})

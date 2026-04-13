@@ -177,9 +177,7 @@ async def load_batch_dataframes_cached(
     modifications = modifications or {}
 
     # Inner function for concurrent loading
-    async def load_single(
-        task_gid: str, project_gid: str
-    ) -> tuple[str, dict[str, Any], bool]:
+    async def load_single(task_gid: str, project_gid: str) -> tuple[str, dict[str, Any], bool]:
         key = make_dataframe_key(task_gid, project_gid)
         current_modified_at = modifications.get(task_gid)
 

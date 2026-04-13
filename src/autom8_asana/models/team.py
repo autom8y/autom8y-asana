@@ -75,9 +75,7 @@ class Team(AsanaResource):
     )
 
     # Relationships
-    organization: NameGid | None = Field(
-        default=None, description="Organization workspace"
-    )
+    organization: NameGid | None = Field(default=None, description="Organization workspace")
 
     # Visibility
     visibility: str | None = Field(

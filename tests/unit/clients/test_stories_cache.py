@@ -341,9 +341,7 @@ class TestMakeStoriesFetcher:
         """Fetcher propagates opt_fields to HTTP request."""
         # Arrange
         mock_http.get_paginated.return_value = ([], None)
-        fetcher = stories_client._make_stories_fetcher(
-            opt_fields=["gid", "text", "created_at"]
-        )
+        fetcher = stories_client._make_stories_fetcher(opt_fields=["gid", "text", "created_at"])
 
         # Act
         await fetcher(TASK_GID, None)
@@ -469,9 +467,7 @@ class TestTaskModifiedAtVersioning:
         modified_at = "2025-01-15T10:00:00Z"
 
         # Act
-        await stories_client.list_for_task_cached_async(
-            TASK_GID, task_modified_at=modified_at
-        )
+        await stories_client.list_for_task_cached_async(TASK_GID, task_modified_at=modified_at)
 
         # Assert: Cache entry was set with proper version
         assert len(cache_provider.set_versioned_calls) == 1

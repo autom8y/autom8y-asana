@@ -497,9 +497,7 @@ class TestJoinSpecAdversarial:
 
     def test_on_field_optional(self) -> None:
         """on field defaults to None when not provided."""
-        spec = JoinSpec.model_validate(
-            {"entity_type": "business", "select": ["booking_type"]}
-        )
+        spec = JoinSpec.model_validate({"entity_type": "business", "select": ["booking_type"]})
         assert spec.on is None
 
 
@@ -829,8 +827,7 @@ class TestErrorSerialization:
     def test_join_error_no_relationship_format(self) -> None:
         """Error message for no relationship includes joinable types hint."""
         err = JoinError(
-            "No relationship between 'offer' and 'contact'. "
-            "Joinable types: ['business', 'unit']"
+            "No relationship between 'offer' and 'contact'. Joinable types: ['business', 'unit']"
         )
         d = err.to_dict()
         assert "Joinable types" in d["message"]

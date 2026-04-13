@@ -51,9 +51,7 @@ class TestHandlerConfig:
     def test_config_default_params_attachment_pattern(self) -> None:
         from autom8_asana.lambda_handlers.conversation_audit import _config
 
-        assert (
-            _config.default_params["attachment_pattern"] == DEFAULT_ATTACHMENT_PATTERN
-        )
+        assert _config.default_params["attachment_pattern"] == DEFAULT_ATTACHMENT_PATTERN
 
     def test_config_default_params_date_range_days(self) -> None:
         from autom8_asana.lambda_handlers.conversation_audit import _config

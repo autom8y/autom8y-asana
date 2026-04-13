@@ -43,9 +43,7 @@ class TestGetBotPat:
         # Assert
         assert result == test_pat
 
-    def test_get_bot_pat_missing_raises_error(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_bot_pat_missing_raises_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Raises BotPATError when ASANA_PAT is not set."""
         # Arrange
         monkeypatch.delenv("ASANA_PAT", raising=False)
@@ -57,9 +55,7 @@ class TestGetBotPat:
 
         assert "ASANA_PAT environment variable is required" in str(exc_info.value)
 
-    def test_get_bot_pat_empty_raises_error(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_bot_pat_empty_raises_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Raises BotPATError when ASANA_PAT is empty."""
         # Arrange
         monkeypatch.setenv("ASANA_PAT", "")
@@ -71,9 +67,7 @@ class TestGetBotPat:
 
         assert "ASANA_PAT environment variable is required" in str(exc_info.value)
 
-    def test_get_bot_pat_too_short_raises_error(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_get_bot_pat_too_short_raises_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Raises BotPATError when ASANA_PAT is too short."""
         # Arrange
         monkeypatch.setenv("ASANA_PAT", "short")
@@ -124,9 +118,7 @@ class TestGetBotPat:
 class TestBotPATError:
     """Test BotPATError exception."""
 
-    def test_error_message_no_credential_leak(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_error_message_no_credential_leak(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Error messages never contain credential material."""
         # Arrange
         monkeypatch.delenv("ASANA_PAT", raising=False)
@@ -162,9 +154,7 @@ class TestGetBotPatExtensionResolution:
     ) -> None:
         """Resolves PAT via Lambda extension when ASANA_PAT_ARN is set."""
         test_pat = "0/resolved_from_extension_1234567890"
-        monkeypatch.setenv(
-            "ASANA_PAT_ARN", "arn:aws:secretsmanager:us-east-1:123:secret:pat"
-        )
+        monkeypatch.setenv("ASANA_PAT_ARN", "arn:aws:secretsmanager:us-east-1:123:secret:pat")
         monkeypatch.delenv("ASANA_PAT", raising=False)
         clear_bot_pat_cache()
 

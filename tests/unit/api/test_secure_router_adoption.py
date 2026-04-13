@@ -86,8 +86,7 @@ def _iter_route_module_files() -> list[pathlib.Path]:
     """
     if not _ROUTES_DIR.is_dir():
         pytest.fail(
-            f"Routes directory not found at {_ROUTES_DIR}. "
-            f"Test environment may be misconfigured.",
+            f"Routes directory not found at {_ROUTES_DIR}. Test environment may be misconfigured.",
         )
     files: list[pathlib.Path] = []
     for path in sorted(_ROUTES_DIR.rglob("*.py")):

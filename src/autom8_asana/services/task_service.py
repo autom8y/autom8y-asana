@@ -151,13 +151,9 @@ class TaskService:
             InvalidParameterError: Neither or both of project/section provided.
         """
         if project is None and section is None:
-            raise InvalidParameterError(
-                "Either 'project' or 'section' query parameter is required"
-            )
+            raise InvalidParameterError("Either 'project' or 'section' query parameter is required")
         if project is not None and section is not None:
-            raise InvalidParameterError(
-                "Only one of 'project' or 'section' may be specified"
-            )
+            raise InvalidParameterError("Only one of 'project' or 'section' may be specified")
 
         params: dict[str, Any] = {"limit": min(limit, 100)}
         if offset:
@@ -217,9 +213,7 @@ class TaskService:
             InvalidParameterError: Neither projects nor workspace provided.
         """
         if params.projects is None and params.workspace is None:
-            raise InvalidParameterError(
-                "Either 'projects' or 'workspace' must be provided"
-            )
+            raise InvalidParameterError("Either 'projects' or 'workspace' must be provided")
 
         kwargs: dict[str, Any] = {}
         if params.notes:
@@ -280,9 +274,7 @@ class TaskService:
             kwargs["due_on"] = params.due_on
 
         if not kwargs:
-            raise InvalidParameterError(
-                "At least one field must be provided for update"
-            )
+            raise InvalidParameterError("At least one field must be provided for update")
 
         task = await client.tasks.update_async(gid, raw=True, **kwargs)
 

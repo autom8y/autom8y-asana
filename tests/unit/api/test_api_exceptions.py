@@ -178,9 +178,7 @@ class TestApiDataFrameBuildError:
             ("DATAFRAME_BUILD_ERROR", "Build failed: ValueError", 30),
         ],
     )
-    def test_all_dataframe_error_codes(
-        self, code: str, message: str, retry: int | None
-    ) -> None:
+    def test_all_dataframe_error_codes(self, code: str, message: str, retry: int | None) -> None:
         """All dataframe error codes from the codebase can be represented."""
         exc = ApiDataFrameBuildError(code, message, retry_after_seconds=retry)
         assert exc.code == code

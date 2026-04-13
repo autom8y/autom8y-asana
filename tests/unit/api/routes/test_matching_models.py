@@ -142,26 +142,20 @@ class TestMatchFieldComparison:
 
     def test_fuzzy_field(self) -> None:
         """Fuzzy field with similarity score."""
-        comp = MatchFieldComparison(
-            field_name="name", similarity=0.92, contributed=True
-        )
+        comp = MatchFieldComparison(field_name="name", similarity=0.92, contributed=True)
         assert comp.field_name == "name"
         assert comp.similarity == 0.92
         assert comp.contributed is True
 
     def test_exact_field_null_similarity(self) -> None:
         """Exact match field has null similarity."""
-        comp = MatchFieldComparison(
-            field_name="email", similarity=None, contributed=True
-        )
+        comp = MatchFieldComparison(field_name="email", similarity=None, contributed=True)
         assert comp.similarity is None
         assert comp.contributed is True
 
     def test_non_contributing_field(self) -> None:
         """Field that did not contribute to score."""
-        comp = MatchFieldComparison(
-            field_name="domain", similarity=0.5, contributed=False
-        )
+        comp = MatchFieldComparison(field_name="domain", similarity=0.5, contributed=False)
         assert comp.contributed is False
 
     def test_frozen(self) -> None:
@@ -186,12 +180,8 @@ class TestMatchCandidate:
             score=0.87,
             is_match=True,
             field_comparisons=[
-                MatchFieldComparison(
-                    field_name="name", similarity=0.92, contributed=True
-                ),
-                MatchFieldComparison(
-                    field_name="phone", similarity=None, contributed=True
-                ),
+                MatchFieldComparison(field_name="name", similarity=0.92, contributed=True),
+                MatchFieldComparison(field_name="phone", similarity=None, contributed=True),
             ],
         )
         assert candidate.candidate_gid == "123456"

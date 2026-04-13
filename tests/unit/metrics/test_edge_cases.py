@@ -290,9 +290,7 @@ class TestComputeAdversarial:
         assert len(result) == 1
         assert result["val"][0] == 20.0
 
-    def test_verbose_does_not_affect_result(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_verbose_does_not_affect_result(self, capsys: pytest.CaptureFixture[str]) -> None:
         """verbose=True prints but returns same data as verbose=False."""
         df = pl.DataFrame({"name": ["a", "b"], "val": [10, 20]})
         m = _metric("val")
@@ -633,29 +631,18 @@ class TestBackwardCompatibilityDeep:
         new_total = new["mrr"].sum()
         new_count = len(new)
 
-        assert new_total == old_total, (
-            f"MRR mismatch: new={new_total} vs old={old_total}"
-        )
-        assert new_count == old_count, (
-            f"Row count mismatch: new={new_count} vs old={old_count}"
-        )
+        assert new_total == old_total, f"MRR mismatch: new={new_total} vs old={old_total}"
+        assert new_count == old_count, f"Row count mismatch: new={new_count} vs old={old_count}"
 
     def test_ad_spend_parity_realistic(self, realistic_offer_df: pl.DataFrame) -> None:
         """Ad spend totals match between old and new logic on realistic data."""
         # Old script logic (from calc_ad_spend.py)
         old = (
-            realistic_offer_df.select(
-                "name", "office_phone", "vertical", "weekly_ad_spend"
-            )
+            realistic_offer_df.select("name", "office_phone", "vertical", "weekly_ad_spend")
             .with_columns(
-                pl.col("weekly_ad_spend")
-                .cast(pl.Float64, strict=False)
-                .alias("weekly_ad_spend")
+                pl.col("weekly_ad_spend").cast(pl.Float64, strict=False).alias("weekly_ad_spend")
             )
-            .filter(
-                pl.col("weekly_ad_spend").is_not_null()
-                & (pl.col("weekly_ad_spend") > 0)
-            )
+            .filter(pl.col("weekly_ad_spend").is_not_null() & (pl.col("weekly_ad_spend") > 0))
             .unique(subset=["office_phone", "vertical"], keep="first")
         )
         old_total = old["weekly_ad_spend"].sum()
@@ -665,22 +652,15 @@ class TestBackwardCompatibilityDeep:
         m = _metric(
             "weekly_ad_spend",
             cast_dtype=pl.Float64,
-            filter_expr=(
-                pl.col("weekly_ad_spend").is_not_null()
-                & (pl.col("weekly_ad_spend") > 0)
-            ),
+            filter_expr=(pl.col("weekly_ad_spend").is_not_null() & (pl.col("weekly_ad_spend") > 0)),
             dedup_keys=["office_phone", "vertical"],
         )
         new = compute_metric(m, realistic_offer_df)
         new_total = new["weekly_ad_spend"].sum()
         new_count = len(new)
 
-        assert new_total == old_total, (
-            f"Ad spend mismatch: new={new_total} vs old={old_total}"
-        )
-        assert new_count == old_count, (
-            f"Row count mismatch: new={new_count} vs old={old_count}"
-        )
+        assert new_total == old_total, f"Ad spend mismatch: new={new_total} vs old={old_total}"
+        assert new_count == old_count, f"Row count mismatch: new={new_count} vs old={old_count}"
 
     def test_zero_values_filtered_by_gt_zero(self) -> None:
         """Zero values are correctly excluded by > 0 filter (matching old scripts)."""

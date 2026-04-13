@@ -68,9 +68,7 @@ class TestMetricExprQuantile:
     def test_quantile_p50_equals_median(self) -> None:
         """P50 quantile should produce the same result as median."""
         vals = [1.0, 2.0, 3.0, 4.0, 5.0]
-        expr_q50 = MetricExpr(
-            name="p50", column="val", agg="quantile", quantile_value=0.5
-        )
+        expr_q50 = MetricExpr(name="p50", column="val", agg="quantile", quantile_value=0.5)
         expr_med = MetricExpr(name="med", column="val", agg="median")
         df = pl.DataFrame({"val": vals})
         q50 = df.select(expr_q50.to_polars_expr())["p50"][0]
@@ -309,8 +307,6 @@ class TestLifecycleMetricComputation:
             },
         )
         cutoff = now - timedelta(days=30)
-        stalled = df.filter(
-            pl.col("exited_at").is_null() & (pl.col("entered_at") < cutoff)
-        )
+        stalled = df.filter(pl.col("exited_at").is_null() & (pl.col("entered_at") < cutoff))
         assert len(stalled) == 2
         assert set(stalled["entity_gid"].to_list()) == {"gid1", "gid3"}

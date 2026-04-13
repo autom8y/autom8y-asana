@@ -139,10 +139,7 @@ class BaseExtractor(ABC):
             data: Mutable dict of column_name -> extracted value (modified in-place)
         """
         for col in self._schema.columns:
-            if (
-                col.dtype in ("List[Utf8]", "List[String]")
-                and data.get(col.name) is None
-            ):
+            if col.dtype in ("List[Utf8]", "List[String]") and data.get(col.name) is None:
                 data[col.name] = []
 
     def extract(self, task: Task, project_gid: str | None = None) -> TaskRow:
@@ -180,9 +177,7 @@ class BaseExtractor(ABC):
         row = self._create_row(data)
         return row
 
-    async def extract_async(
-        self, task: Task, project_gid: str | None = None
-    ) -> TaskRow:
+    async def extract_async(self, task: Task, project_gid: str | None = None) -> TaskRow:
         """Extract a TaskRow from a Task using async resolution for cascade fields.
 
         Per TDD-CASCADING-FIELD-RESOLUTION-001: Async extraction supporting
@@ -274,9 +269,7 @@ class BaseExtractor(ABC):
         if col.source.startswith("cf:") or col.source.startswith("gid:"):
             # Custom field extraction via resolver with schema-aware coercion
             if self._resolver is None:
-                raise ValueError(
-                    f"Resolver required for custom field extraction: {col.source}"
-                )
+                raise ValueError(f"Resolver required for custom field extraction: {col.source}")
             # Pass column_def for schema-aware coercion
             return self._resolver.get_value(task, col.source, column_def=col)
 
@@ -334,18 +327,14 @@ class BaseExtractor(ABC):
         if col.source.startswith("cf:") or col.source.startswith("gid:"):
             # Custom field extraction via resolver with schema-aware coercion
             if self._resolver is None:
-                raise ValueError(
-                    f"Resolver required for custom field extraction: {col.source}"
-                )
+                raise ValueError(f"Resolver required for custom field extraction: {col.source}")
             # Pass column_def for schema-aware coercion
             return self._resolver.get_value(task, col.source, column_def=col)
 
         # Direct attribute access with dtype-aware parsing
         return self._extract_attribute(task, col.source, col)
 
-    def _extract_attribute(
-        self, task: Task, source: str, col: ColumnDef | None = None
-    ) -> Any:
+    def _extract_attribute(self, task: Task, source: str, col: ColumnDef | None = None) -> Any:
         """Extract a direct attribute from a task.
 
         Handles simple attribute names, datetime parsing, and type coercion.

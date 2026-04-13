@@ -92,9 +92,7 @@ def dataframe_cache(
                         "project_gid": project_gid,
                     },
                 )
-                result: list[Any] = await original_resolve(
-                    self, criteria, project_gid, client
-                )
+                result: list[Any] = await original_resolve(self, criteria, project_gid, client)
                 return result
             return None
 
@@ -112,9 +110,7 @@ def dataframe_cache(
             entry = await cache.get_async(project_gid, entity_type)
             if entry is not None:
                 self._cached_dataframe = entry.dataframe  # type: ignore[attr-defined]
-                result: list[Any] = await original_resolve(
-                    self, criteria, project_gid, client
-                )
+                result: list[Any] = await original_resolve(self, criteria, project_gid, client)
                 return result
             return None
 
@@ -138,9 +134,7 @@ def dataframe_cache(
 
             if entry is not None:
                 self._cached_dataframe = entry.dataframe  # type: ignore[attr-defined]
-                result: list[Any] = await original_resolve(
-                    self, criteria, project_gid, client
-                )
+                result: list[Any] = await original_resolve(self, criteria, project_gid, client)
                 return result
 
             logger.warning(
@@ -186,9 +180,7 @@ def dataframe_cache(
                             "build_method": build_method,
                         },
                     )
-                    await cache.release_build_lock_async(
-                        project_gid, entity_type, success=False
-                    )
+                    await cache.release_build_lock_async(project_gid, entity_type, success=False)
                     from autom8_asana.api.exception_types import (
                         ApiDataFrameBuildError,  # noqa: E501 -- lazy import avoids circular dependency
                     )
@@ -208,9 +200,7 @@ def dataframe_cache(
                     watermark = datetime.now(UTC)
 
                 if df is None:
-                    await cache.release_build_lock_async(
-                        project_gid, entity_type, success=False
-                    )
+                    await cache.release_build_lock_async(project_gid, entity_type, success=False)
                     from autom8_asana.api.exception_types import (
                         ApiDataFrameBuildError,  # noqa: E501 -- lazy import avoids circular dependency
                     )
@@ -223,14 +213,10 @@ def dataframe_cache(
 
                 await cache.put_async(project_gid, entity_type, df, watermark)
 
-                await cache.release_build_lock_async(
-                    project_gid, entity_type, success=True
-                )
+                await cache.release_build_lock_async(project_gid, entity_type, success=True)
 
                 self._cached_dataframe = df  # type: ignore[attr-defined]
-                result: list[Any] = await original_resolve(
-                    self, criteria, project_gid, client
-                )
+                result: list[Any] = await original_resolve(self, criteria, project_gid, client)
                 return result
 
             except Exception as e:  # BROAD-CATCH: boundary -- catch-all converts to typed exception at API boundary
@@ -241,9 +227,7 @@ def dataframe_cache(
                 if isinstance(e, ApiDataFrameBuildError):
                     raise
 
-                await cache.release_build_lock_async(
-                    project_gid, entity_type, success=False
-                )
+                await cache.release_build_lock_async(project_gid, entity_type, success=False)
 
                 logger.error(
                     "dataframe_cache_build_failed",
@@ -283,15 +267,11 @@ def dataframe_cache(
                         "project_gid": project_gid,
                     },
                 )
-                result: list[Any] = await original_resolve(
-                    self, criteria, project_gid, client
-                )
+                result: list[Any] = await original_resolve(self, criteria, project_gid, client)
                 return result
 
             # Try cache hit
-            hit_result = await _try_cache_hit(
-                self, cache, criteria, project_gid, client
-            )
+            hit_result = await _try_cache_hit(self, cache, criteria, project_gid, client)
             if hit_result is not None:
                 return hit_result
 
@@ -302,9 +282,7 @@ def dataframe_cache(
                 return await _wait_for_build(self, cache, criteria, project_gid, client)
 
             # This request should build
-            return await _execute_build_and_cache(
-                self, cache, criteria, project_gid, client
-            )
+            return await _execute_build_and_cache(self, cache, criteria, project_gid, client)
 
         cls.resolve = cached_resolve  # type: ignore[attr-defined]
         return cls

@@ -56,17 +56,13 @@ class StalenessCheckSettings:
         if self.max_ttl <= 0:
             raise ValueError(f"max_ttl must be positive, got {self.max_ttl}")
         if self.max_ttl < self.base_ttl:
-            raise ValueError(
-                f"max_ttl ({self.max_ttl}) must be >= base_ttl ({self.base_ttl})"
-            )
+            raise ValueError(f"max_ttl ({self.max_ttl}) must be >= base_ttl ({self.base_ttl})")
         if self.coalesce_window_ms < 0:
             raise ValueError(
                 f"coalesce_window_ms must be non-negative, got {self.coalesce_window_ms}"
             )
         if self.max_batch_size <= 0:
-            raise ValueError(
-                f"max_batch_size must be positive, got {self.max_batch_size}"
-            )
+            raise ValueError(f"max_batch_size must be positive, got {self.max_batch_size}")
 
     def calculate_extended_ttl(self, extension_count: int) -> int:
         """Calculate TTL after N extensions using exponential doubling.
@@ -91,9 +87,7 @@ class StalenessCheckSettings:
             86400
         """
         if extension_count < 0:
-            raise ValueError(
-                f"extension_count must be non-negative, got {extension_count}"
-            )
+            raise ValueError(f"extension_count must be non-negative, got {extension_count}")
         # Exponential doubling: base * 2^count, capped at max
         calculated: int = self.base_ttl * (2**extension_count)
         return min(calculated, self.max_ttl)

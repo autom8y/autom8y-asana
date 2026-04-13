@@ -273,9 +273,7 @@ class TestDepsEndpoint:
 
     def test_bot_pat_configured(self, client: TestClient) -> None:
         """Reports ok when bot PAT is configured."""
-        with patch.dict(
-            os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
-        ):
+        with patch.dict(os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False):
             data = client.get("/health/deps").json()
             pat_check = data["checks"]["bot_pat"]
             assert pat_check["status"] == "ok"
@@ -287,9 +285,7 @@ class TestDepsEndpoint:
             200,
             json={"keys": [{"kid": "test-key", "kty": "RSA"}]},
         )
-        with patch.dict(
-            os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
-        ):
+        with patch.dict(os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False):
             with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
                 mock_raw_client = AsyncMock()
                 mock_raw_client.get = AsyncMock(return_value=mock_response)
@@ -311,14 +307,10 @@ class TestDepsEndpoint:
 
     def test_jwks_timeout_returns_degraded(self, client: TestClient) -> None:
         """Returns 'degraded' when JWKS times out."""
-        with patch.dict(
-            os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
-        ):
+        with patch.dict(os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False):
             with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
                 mock_raw_client = AsyncMock()
-                mock_raw_client.get = AsyncMock(
-                    side_effect=httpx.TimeoutException("timeout")
-                )
+                mock_raw_client.get = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
                 raw_ctx = AsyncMock()
                 raw_ctx.__aenter__ = AsyncMock(return_value=mock_raw_client)
                 raw_ctx.__aexit__ = AsyncMock(return_value=None)
@@ -337,14 +329,10 @@ class TestDepsEndpoint:
 
     def test_jwks_connection_error_returns_degraded(self, client: TestClient) -> None:
         """Returns 'degraded' when JWKS connection fails."""
-        with patch.dict(
-            os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
-        ):
+        with patch.dict(os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False):
             with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
                 mock_raw_client = AsyncMock()
-                mock_raw_client.get = AsyncMock(
-                    side_effect=httpx.ConnectError("connection failed")
-                )
+                mock_raw_client.get = AsyncMock(side_effect=httpx.ConnectError("connection failed"))
                 raw_ctx = AsyncMock()
                 raw_ctx.__aenter__ = AsyncMock(return_value=mock_raw_client)
                 raw_ctx.__aexit__ = AsyncMock(return_value=None)
@@ -363,9 +351,7 @@ class TestDepsEndpoint:
     def test_jwks_invalid_response(self, client: TestClient) -> None:
         """Reports degraded when JWKS response is invalid."""
         mock_response = httpx.Response(200, json={"error": "not a jwks"})
-        with patch.dict(
-            os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
-        ):
+        with patch.dict(os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False):
             with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
                 mock_raw_client = AsyncMock()
                 mock_raw_client.get = AsyncMock(return_value=mock_response)
@@ -386,9 +372,7 @@ class TestDepsEndpoint:
         with patch.dict(os.environ, {"ASANA_PAT": ""}, clear=False):
             with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
                 mock_raw_client = AsyncMock()
-                mock_raw_client.get = AsyncMock(
-                    side_effect=httpx.TimeoutException("timeout")
-                )
+                mock_raw_client.get = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
                 raw_ctx = AsyncMock()
                 raw_ctx.__aenter__ = AsyncMock(return_value=mock_raw_client)
                 raw_ctx.__aexit__ = AsyncMock(return_value=None)
@@ -459,9 +443,7 @@ class TestDeepReadinessChecks:
     def test_ready_includes_bot_pat_check(self, client: TestClient) -> None:
         """Bot PAT check is now present in /ready (promoted from /health/deps)."""
         data = client.get("/ready").json()
-        assert "bot_pat" in data["checks"], (
-            "bot_pat check missing from /ready (SP-L3-1)"
-        )
+        assert "bot_pat" in data["checks"], "bot_pat check missing from /ready (SP-L3-1)"
 
     def test_ready_bot_pat_degraded_when_missing(self, client: TestClient) -> None:
         """Bot PAT not configured -> degraded status in /ready."""
@@ -472,9 +454,7 @@ class TestDeepReadinessChecks:
 
     def test_ready_bot_pat_ok_when_configured(self, client: TestClient) -> None:
         """Bot PAT configured -> ok status in /ready."""
-        with patch.dict(
-            os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False
-        ):
+        with patch.dict(os.environ, {"ASANA_PAT": "0/test_pat_value_long_enough"}, clear=False):
             data = client.get("/ready").json()
             assert data["checks"]["bot_pat"]["status"] == "ok"
 
@@ -482,9 +462,7 @@ class TestDeepReadinessChecks:
         """JWKS timeout -> degraded status in /ready."""
         with patch("autom8_asana.api.routes.health.Autom8yHttpClient") as mock_cls:
             mock_raw_client = AsyncMock()
-            mock_raw_client.get = AsyncMock(
-                side_effect=httpx.TimeoutException("timeout")
-            )
+            mock_raw_client.get = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
             raw_ctx = AsyncMock()
             raw_ctx.__aenter__ = AsyncMock(return_value=mock_raw_client)
             raw_ctx.__aexit__ = AsyncMock(return_value=None)

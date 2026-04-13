@@ -171,9 +171,7 @@ class TestDataFrameConversion:
     def test_empty_dataframe(self) -> None:
         """Empty DataFrame returns empty candidate list."""
         service = MatchingService()
-        df = pl.DataFrame({"gid": [], "name": []}).cast(
-            {"gid": pl.Utf8, "name": pl.Utf8}
-        )
+        df = pl.DataFrame({"gid": [], "name": []}).cast({"gid": pl.Utf8, "name": pl.Utf8})
         candidates = service._dataframe_to_candidates(df)
         assert candidates == []
 
@@ -227,15 +225,11 @@ class TestResultProjection:
         result = _make_match_result()
         candidate = MatchingService._project_result(result, threshold=0.80)
 
-        email_fc = next(
-            fc for fc in candidate.field_comparisons if fc.field_name == "email"
-        )
+        email_fc = next(fc for fc in candidate.field_comparisons if fc.field_name == "email")
         assert email_fc.similarity is None  # exact match
         assert email_fc.contributed is True
 
-        name_fc = next(
-            fc for fc in candidate.field_comparisons if fc.field_name == "name"
-        )
+        name_fc = next(fc for fc in candidate.field_comparisons if fc.field_name == "name")
         assert name_fc.similarity == 0.92
         assert name_fc.contributed is True
 
@@ -350,9 +344,7 @@ class TestQueryIntegration:
         """total_candidates_evaluated reflects post-blocking count."""
         mock_engine = MagicMock(spec=MatchingEngine)
         mock_engine.config = MatchingConfig(match_threshold=0.80)
-        mock_engine.compute_match.return_value = _make_match_result(
-            score=0.5, is_match=False
-        )
+        mock_engine.compute_match.return_value = _make_match_result(score=0.5, is_match=False)
 
         service = MatchingService(engine=mock_engine)
         response = service.query(
@@ -369,9 +361,7 @@ class TestQueryIntegration:
         mock_engine.config = MatchingConfig(match_threshold=0.80)
 
         service = MatchingService(engine=mock_engine)
-        df = pl.DataFrame({"gid": [], "name": []}).cast(
-            {"gid": pl.Utf8, "name": pl.Utf8}
-        )
+        df = pl.DataFrame({"gid": [], "name": []}).cast({"gid": pl.Utf8, "name": pl.Utf8})
         response = service.query(
             name="Test",
             dataframe=df,

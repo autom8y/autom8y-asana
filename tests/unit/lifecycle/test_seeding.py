@@ -191,9 +191,7 @@ class TestSeedAsyncTargetTaskPassthrough:
         # Return a task with no matching fields (no custom fields at all)
         empty_task = MagicMock()
         empty_task.gid = "task_123"
-        empty_task.custom_fields = (
-            None  # None triggers early return in _normalize_custom_fields
-        )
+        empty_task.custom_fields = None  # None triggers early return in _normalize_custom_fields
         client.tasks.get_async.return_value = empty_task
         process = _make_mock_process()
 

@@ -108,9 +108,7 @@ class TestSaveSessionCommitBatchesActions:
             body={"data": {"gid": "123456", "name": "Updated Task"}},
         )
         # Action batch response for tags
-        tag_batch_results = [
-            _make_batch_result(True, f"{900000 + i}") for i in range(3)
-        ]
+        tag_batch_results = [_make_batch_result(True, f"{900000 + i}") for i in range(3)]
 
         # Configure CRUD batch executor (used by SavePipeline)
         # The SavePipeline uses BatchExecutor which calls batch.execute_async

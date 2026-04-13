@@ -265,9 +265,7 @@ class TestRule:
             rule_id="escalate-stale",
             name="Escalate Stale Tasks",
             project_gid="1234567890123",
-            conditions=[
-                RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
-            ],
+            conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))],
             action=ActionConfig(type="add_tag", params={"tag": "escalate"}),
             enabled=True,
         )
@@ -285,9 +283,7 @@ class TestRule:
             rule_id="test-rule",
             name="Test Rule",
             project_gid="123",
-            conditions=[
-                RuleCondition(stale=TriggerStaleConfig(field="Section", days=1))
-            ],
+            conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=1))],
             action=ActionConfig(type="add_tag", params={"tag": "test"}),
         )
 
@@ -300,9 +296,7 @@ class TestRule:
                 rule_id="",
                 name="Test Rule",
                 project_gid="123",
-                conditions=[
-                    RuleCondition(stale=TriggerStaleConfig(field="Section", days=1))
-                ],
+                conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=1))],
                 action=ActionConfig(type="add_tag", params={"tag": "test"}),
             )
 
@@ -315,9 +309,7 @@ class TestRule:
                 rule_id="   ",
                 name="Test Rule",
                 project_gid="123",
-                conditions=[
-                    RuleCondition(stale=TriggerStaleConfig(field="Section", days=1))
-                ],
+                conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=1))],
                 action=ActionConfig(type="add_tag", params={"tag": "test"}),
             )
 
@@ -345,9 +337,7 @@ class TestRule:
                 rule_id="test-rule",
                 name="Test Rule",
                 project_gid="123",
-                conditions=[
-                    RuleCondition(stale=TriggerStaleConfig(field="Section", days=1))
-                ],
+                conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=1))],
                 action=ActionConfig(type="add_tag", params={"tag": "test"}),
                 priority=1,  # Extra field
             )
@@ -409,9 +399,7 @@ class TestAutomationRulesConfig:
                     rule_id="test-rule",
                     name="Test Rule",
                     project_gid="123",
-                    conditions=[
-                        RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
-                    ],
+                    conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))],
                     action=ActionConfig(type="add_tag", params={"tag": "test"}),
                 )
             ],
@@ -440,9 +428,7 @@ class TestAutomationRulesConfig:
                         name="Test Rule",
                         project_gid="123",
                         conditions=[
-                            RuleCondition(
-                                stale=TriggerStaleConfig(field="Section", days=1)
-                            )
+                            RuleCondition(stale=TriggerStaleConfig(field="Section", days=1))
                         ],
                         action=ActionConfig(type="add_tag", params={"tag": "test"}),
                     )
@@ -614,9 +600,7 @@ class TestRuleValidateCompleteness:
             rule_id="dual-rule",
             name="Dual Rule",
             project_gid="123",
-            conditions=[
-                RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
-            ],
+            conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))],
             action=ActionConfig(
                 type="workflow",
                 params={"workflow_id": "conversation-audit"},

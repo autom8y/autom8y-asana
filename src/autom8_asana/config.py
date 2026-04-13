@@ -119,23 +119,15 @@ class RateLimitConfig:
     Default: 1500 requests per 60 seconds (Asana's limit).
     """
 
-    max_requests: int = field(
-        default_factory=lambda: get_settings().rate_limit.max_requests
-    )
-    window_seconds: int = field(
-        default_factory=lambda: get_settings().rate_limit.window_seconds
-    )
+    max_requests: int = field(default_factory=lambda: get_settings().rate_limit.max_requests)
+    window_seconds: int = field(default_factory=lambda: get_settings().rate_limit.window_seconds)
 
     def __post_init__(self) -> None:
         """Validate configuration values."""
         if self.max_requests <= 0:
-            raise ConfigurationError(
-                f"max_requests must be positive, got {self.max_requests}"
-            )
+            raise ConfigurationError(f"max_requests must be positive, got {self.max_requests}")
         if self.window_seconds <= 0:
-            raise ConfigurationError(
-                f"window_seconds must be positive, got {self.window_seconds}"
-            )
+            raise ConfigurationError(f"window_seconds must be positive, got {self.window_seconds}")
 
 
 @dataclass(frozen=True)
@@ -163,17 +155,11 @@ class RetryConfig:
     def __post_init__(self) -> None:
         """Validate configuration values."""
         if self.max_retries < 0:
-            raise ConfigurationError(
-                f"max_retries must be non-negative, got {self.max_retries}"
-            )
+            raise ConfigurationError(f"max_retries must be non-negative, got {self.max_retries}")
         if self.base_delay < 0:
-            raise ConfigurationError(
-                f"base_delay must be non-negative, got {self.base_delay}"
-            )
+            raise ConfigurationError(f"base_delay must be non-negative, got {self.base_delay}")
         if self.max_delay <= 0:
-            raise ConfigurationError(
-                f"max_delay must be positive, got {self.max_delay}"
-            )
+            raise ConfigurationError(f"max_delay must be positive, got {self.max_delay}")
         if self.exponential_base < 1:
             raise ConfigurationError(
                 f"exponential_base must be at least 1, got {self.exponential_base}"
@@ -209,13 +195,9 @@ class ConcurrencyConfig:
     def __post_init__(self) -> None:
         """Validate configuration values."""
         if self.read_limit <= 0:
-            raise ConfigurationError(
-                f"read_limit must be positive, got {self.read_limit}"
-            )
+            raise ConfigurationError(f"read_limit must be positive, got {self.read_limit}")
         if self.write_limit <= 0:
-            raise ConfigurationError(
-                f"write_limit must be positive, got {self.write_limit}"
-            )
+            raise ConfigurationError(f"write_limit must be positive, got {self.write_limit}")
         # AIMD-specific validation
         if self.aimd_floor < 1:
             raise ConfigurationError("aimd_floor must be >= 1")
@@ -244,15 +226,11 @@ class TimeoutConfig:
     def __post_init__(self) -> None:
         """Validate configuration values."""
         if self.connect <= 0:
-            raise ConfigurationError(
-                f"connect timeout must be positive, got {self.connect}"
-            )
+            raise ConfigurationError(f"connect timeout must be positive, got {self.connect}")
         if self.read <= 0:
             raise ConfigurationError(f"read timeout must be positive, got {self.read}")
         if self.write <= 0:
-            raise ConfigurationError(
-                f"write timeout must be positive, got {self.write}"
-            )
+            raise ConfigurationError(f"write timeout must be positive, got {self.write}")
         if self.pool <= 0:
             raise ConfigurationError(f"pool timeout must be positive, got {self.pool}")
 
@@ -472,9 +450,7 @@ class CacheConfig:
     enabled: bool = True
     provider: str | None = None  # None = auto-detect
     dataframe_caching: bool = True
-    entity_ttls: dict[str, int] = field(
-        default_factory=lambda: DEFAULT_ENTITY_TTLS.copy()
-    )
+    entity_ttls: dict[str, int] = field(default_factory=lambda: DEFAULT_ENTITY_TTLS.copy())
 
     # These use factory functions to avoid circular imports at module load
     # The actual TTLSettings/OverflowSettings/FreshnessIntent are created lazily
@@ -698,9 +674,7 @@ def validate_project_env_vars(strict: bool = False) -> list[str]:
             logger.warning(msg)
 
     if strict and warnings_list:
-        raise ConfigurationError(
-            f"Invalid ASANA_PROJECT_* environment variables: {warnings_list}"
-        )
+        raise ConfigurationError(f"Invalid ASANA_PROJECT_* environment variables: {warnings_list}")
 
     return warnings_list
 

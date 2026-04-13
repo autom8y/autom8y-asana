@@ -246,9 +246,7 @@ def test_deadline_trigger_due_at_preferred_over_due_on(now: datetime) -> None:
         gid="both-dates",
         name="Has both dates",
         due_at=(now + timedelta(days=2)).isoformat(),
-        due_on=(now + timedelta(days=10)).strftime(
-            "%Y-%m-%d"
-        ),  # Would be outside threshold
+        due_on=(now + timedelta(days=10)).strftime("%Y-%m-%d"),  # Would be outside threshold
     )
 
     rule = Rule(

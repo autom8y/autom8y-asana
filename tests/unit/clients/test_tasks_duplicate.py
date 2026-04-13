@@ -61,9 +61,7 @@ class TestDuplicateAsync:
         """duplicate_async returns Task model by default."""
         mock_http.post.return_value = make_job_response(NEW_TASK_GID, "Duplicated Task")
 
-        result = await tasks_client.duplicate_async(
-            TEMPLATE_GID, name="Duplicated Task"
-        )
+        result = await tasks_client.duplicate_async(TEMPLATE_GID, name="Duplicated Task")
 
         assert isinstance(result, Task)
         assert result.gid == NEW_TASK_GID
@@ -75,9 +73,7 @@ class TestDuplicateAsync:
         """duplicate_async returns raw dict when raw=True."""
         mock_http.post.return_value = make_job_response(NEW_TASK_GID, "Duplicated Task")
 
-        result = await tasks_client.duplicate_async(
-            TEMPLATE_GID, name="Duplicated Task", raw=True
-        )
+        result = await tasks_client.duplicate_async(TEMPLATE_GID, name="Duplicated Task", raw=True)
 
         assert isinstance(result, dict)
         assert result["gid"] == NEW_TASK_GID

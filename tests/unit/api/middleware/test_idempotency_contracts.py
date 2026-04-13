@@ -81,9 +81,7 @@ def _create_test_app(
 
     # Eligible endpoint: PATCH /api/v1/entity/{entity_type}/{gid}
     @app.patch("/api/v1/entity/{entity_type}/{gid}")
-    async def write_entity_fields(
-        entity_type: str, gid: str, request: Request
-    ) -> JSONResponse:
+    async def write_entity_fields(entity_type: str, gid: str, request: Request) -> JSONResponse:
         return JSONResponse(
             status_code=200,
             content={"entity_type": entity_type, "gid": gid, "fields_written": 2},
@@ -275,12 +273,8 @@ class TestID04DifferentKeys:
         """Two requests with different keys both execute the handler."""
         body = _BUSINESS_BODY
 
-        resp1 = await _make_request(
-            app, headers={"Idempotency-Key": "key-aaaaaaaa"}, content=body
-        )
-        resp2 = await _make_request(
-            app, headers={"Idempotency-Key": "key-bbbbbbbb"}, content=body
-        )
+        resp1 = await _make_request(app, headers={"Idempotency-Key": "key-aaaaaaaa"}, content=body)
+        resp2 = await _make_request(app, headers={"Idempotency-Key": "key-bbbbbbbb"}, content=body)
 
         assert resp1.status_code == 201
         assert resp2.status_code == 201

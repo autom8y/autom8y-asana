@@ -136,9 +136,7 @@ class TestErrorHandler:
         return MagicMock()
 
     @pytest.mark.asyncio
-    async def test_decorator_logs_start_and_completion(
-        self, mock_log_provider: MagicMock
-    ) -> None:
+    async def test_decorator_logs_start_and_completion(self, mock_log_provider: MagicMock) -> None:
         """Decorator should log operation start and completion."""
 
         class TestClient:
@@ -170,9 +168,7 @@ class TestErrorHandler:
         assert "ms" in complete_msg
 
     @pytest.mark.asyncio
-    async def test_decorator_logs_error_on_exception(
-        self, mock_log_provider: MagicMock
-    ) -> None:
+    async def test_decorator_logs_error_on_exception(self, mock_log_provider: MagicMock) -> None:
         """Decorator should log error when exception occurs."""
 
         class TestClient:
@@ -198,9 +194,7 @@ class TestErrorHandler:
         assert "Task not found" in error_msg
 
     @pytest.mark.asyncio
-    async def test_decorator_enriches_exception(
-        self, mock_log_provider: MagicMock
-    ) -> None:
+    async def test_decorator_enriches_exception(self, mock_log_provider: MagicMock) -> None:
         """Decorator should add correlation_id and operation to exceptions."""
 
         class TestClient:
@@ -257,9 +251,7 @@ class TestErrorHandler:
         assert client.get_async.__doc__ == "Get a task by GID."
 
     @pytest.mark.asyncio
-    async def test_decorator_measures_timing(
-        self, mock_log_provider: MagicMock
-    ) -> None:
+    async def test_decorator_measures_timing(self, mock_log_provider: MagicMock) -> None:
         """Decorator should measure elapsed time."""
 
         class TestClient:

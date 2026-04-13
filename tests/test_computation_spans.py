@@ -118,9 +118,7 @@ class TestQueryEngineExecuteRows:
 
         spans = exporter.get_finished_spans()
         span = find_span(spans, "computation.entity.query_rows")
-        assert span is not None, (
-            "Expected span 'computation.entity.query_rows' not found"
-        )
+        assert span is not None, "Expected span 'computation.entity.query_rows' not found"
 
         attrs = dict(span.attributes)
         assert attrs["computation.operation"] == "entity.query_rows"
@@ -197,9 +195,7 @@ class TestQueryEngineExecuteAggregate:
                 ColumnDef("section", "Utf8", nullable=True),
             ],
         )
-        sample_df = pl.DataFrame(
-            {"gid": ["1", "2", "3"], "section": ["Active", "Won", "Active"]}
-        )
+        sample_df = pl.DataFrame({"gid": ["1", "2", "3"], "section": ["Active", "Won", "Active"]})
 
         mock_provider = MagicMock()
         mock_provider.get_dataframe = AsyncMock(return_value=sample_df)
@@ -229,9 +225,7 @@ class TestQueryEngineExecuteAggregate:
 
         spans = exporter.get_finished_spans()
         span = find_span(spans, "computation.entity.query_aggregate")
-        assert span is not None, (
-            "Expected span 'computation.entity.query_aggregate' not found"
-        )
+        assert span is not None, "Expected span 'computation.entity.query_aggregate' not found"
 
         attrs = dict(span.attributes)
         assert attrs["computation.operation"] == "entity.query_aggregate"
@@ -268,9 +262,7 @@ class TestPredicateCompilerCompile:
 
         spans = exporter.get_finished_spans()
         span = find_span(spans, "computation.predicate.compile")
-        assert span is not None, (
-            "Expected span 'computation.predicate.compile' not found"
-        )
+        assert span is not None, "Expected span 'computation.predicate.compile' not found"
 
         attrs = dict(span.attributes)
         assert attrs["computation.operation"] == "predicate.compile"
@@ -305,9 +297,7 @@ class TestComputeMetric:
 
         expr = MetricExpr(name="sum_mrr", column="mrr", agg="sum")
         scope = Scope(entity_type="offer", dedup_keys=["gid"])
-        metric = Metric(
-            name="mrr", description="MRR test metric", expr=expr, scope=scope
-        )
+        metric = Metric(name="mrr", description="MRR test metric", expr=expr, scope=scope)
 
         result = compute_metric(metric, df)
         assert result.height == 5
@@ -383,9 +373,7 @@ class TestProgressiveProjectBuilderBuildProgressiveAsync:
 
         spans = exporter.get_finished_spans()
         span = find_span(spans, "computation.progressive.build")
-        assert span is not None, (
-            "Expected span 'computation.progressive.build' not found"
-        )
+        assert span is not None, "Expected span 'computation.progressive.build' not found"
 
         attrs = dict(span.attributes)
         assert attrs["computation.operation"] == "progressive.build"
@@ -458,9 +446,7 @@ class TestExecuteJoin:
         target_df = pl.DataFrame({"office_phone": ["+1111"], "spend": [100.0]})
 
         test_tracer = trace.get_tracer("test.join")
-        with test_tracer.start_as_current_span(
-            "computation.entity.query_rows"
-        ) as parent:
+        with test_tracer.start_as_current_span("computation.entity.query_rows") as parent:
             execute_join(
                 primary_df=primary_df,
                 target_df=target_df,
@@ -655,9 +641,7 @@ class TestDataServiceJoinFetcherFetchForJoin:
 
         spans = exporter.get_finished_spans()
         span = find_span(spans, "computation.data_service.fetch_join")
-        assert span is not None, (
-            "Expected span 'computation.data_service.fetch_join' not found"
-        )
+        assert span is not None, "Expected span 'computation.data_service.fetch_join' not found"
 
         attrs = dict(span.attributes)
         assert attrs["computation.operation"] == "data_service.fetch_join"
@@ -721,9 +705,7 @@ class TestDataServiceClientGetInsightsBatchAsync:
 
         batch_response = BatchInsightsResponse(
             results={
-                pvp.canonical_key: BatchInsightsResult(
-                    pvp=pvp, error=None, response=None
-                ),
+                pvp.canonical_key: BatchInsightsResult(pvp=pvp, error=None, response=None),
             },
             request_id="req-test",
             total_count=1,
@@ -744,9 +726,7 @@ class TestDataServiceClientGetInsightsBatchAsync:
         )
         client._emit_metric = MagicMock()
 
-        bound = DataServiceClient.get_insights_batch_async.__get__(
-            client, DataServiceClient
-        )
+        bound = DataServiceClient.get_insights_batch_async.__get__(client, DataServiceClient)
         result = await bound(
             pairs=[pvp],
             factory="spend",
@@ -785,9 +765,7 @@ class TestEntityQueryServiceGetDataframe:
 
         from autom8_asana.services.query_service import EntityQueryService
 
-        known_df = pl.DataFrame(
-            {"gid": ["1", "2", "3"], "section": ["Active", "Won", "Active"]}
-        )
+        known_df = pl.DataFrame({"gid": ["1", "2", "3"], "section": ["Active", "Won", "Active"]})
 
         mock_strategy = MagicMock()
         mock_strategy._get_dataframe = AsyncMock(return_value=known_df)
@@ -806,9 +784,7 @@ class TestEntityQueryServiceGetDataframe:
 
         spans = exporter.get_finished_spans()
         span = find_span(spans, "computation.entity_query.get_dataframe")
-        assert span is not None, (
-            "Expected span 'computation.entity_query.get_dataframe' not found"
-        )
+        assert span is not None, "Expected span 'computation.entity_query.get_dataframe' not found"
 
         attrs = dict(span.attributes)
         assert attrs["computation.operation"] == "entity_query.get_dataframe"
@@ -830,9 +806,7 @@ class TestEntityQueryServiceGetDataframe:
         mock_strategy._get_dataframe = AsyncMock(return_value=known_df)
         mock_strategy._last_freshness_info = None
 
-        service = EntityQueryService(
-            strategy_factory=MagicMock(return_value=mock_strategy)
-        )
+        service = EntityQueryService(strategy_factory=MagicMock(return_value=mock_strategy))
         await service.get_dataframe("offer", "proj-123", MagicMock())
 
         spans = exporter.get_finished_spans()

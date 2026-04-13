@@ -85,16 +85,10 @@ def make_cache(
     for empty cache, making it falsy in boolean context.
     """
     return DataFrameCache(
-        memory_tier=memory_tier
-        if memory_tier is not None
-        else MemoryTier(max_entries=100),
-        progressive_tier=progressive_tier
-        if progressive_tier is not None
-        else AsyncMock(),
+        memory_tier=memory_tier if memory_tier is not None else MemoryTier(max_entries=100),
+        progressive_tier=progressive_tier if progressive_tier is not None else AsyncMock(),
         coalescer=coalescer if coalescer is not None else DataFrameCacheCoalescer(),
-        circuit_breaker=circuit_breaker
-        if circuit_breaker is not None
-        else CircuitBreaker(),
+        circuit_breaker=circuit_breaker if circuit_breaker is not None else CircuitBreaker(),
         schema_version=schema_version,
     )
 
@@ -186,9 +180,7 @@ class TestDataFrameCache:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch(
-            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-        ):
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
             result = await cache.get_async("proj-1", "unit")
 
         # Should be served as LKG
@@ -418,9 +410,7 @@ class TestEntityTTLAndSWR:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch(
-            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-        ):
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
             result = await cache.get_async("proj-1", "unit")
 
         # Should be served as LKG
@@ -441,9 +431,7 @@ class TestEntityTTLAndSWR:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch(
-            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-        ):
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
             result = await cache.get_async("proj-1", "offer")
 
         assert result is entry
@@ -460,9 +448,7 @@ class TestEntityTTLAndSWR:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch(
-            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-        ):
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
             result = await cache.get_async("proj-1", "offer")
 
         # Should be served as LKG
@@ -522,9 +508,7 @@ class TestEntityTTLAndSWR:
 
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
-        with patch(
-            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-        ):
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
             result = await cache.get_async("proj-1", "unit")
 
         assert result is entry
@@ -541,10 +525,7 @@ class TestEntityTTLAndSWR:
 
         # Approaching stale: 1200s old, unit TTL = 900s, grace = 2700s
         stale_entry = make_entry(entity_type="unit", created_seconds_ago=1200)
-        assert (
-            cache._check_freshness(stale_entry, None)
-            == FreshnessState.APPROACHING_STALE
-        )
+        assert cache._check_freshness(stale_entry, None) == FreshnessState.APPROACHING_STALE
 
         # Stale (LKG): 3600s old, unit TTL = 900s, grace = 2700s
         expired_entry = make_entry(entity_type="unit", created_seconds_ago=3600)
@@ -561,10 +542,7 @@ class TestEntityTTLAndSWR:
         cache = make_cache()
         entry = make_entry(entity_type="unit", created_seconds_ago=0)
         future_watermark = datetime.now(UTC) + timedelta(minutes=5)
-        assert (
-            cache._check_freshness(entry, future_watermark)
-            == FreshnessState.WATERMARK_BEHIND
-        )
+        assert cache._check_freshness(entry, future_watermark) == FreshnessState.WATERMARK_BEHIND
 
 
 class TestLKGCacheFallback:
@@ -580,9 +558,7 @@ class TestLKGCacheFallback:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch(
-            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-        ):
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
             result = await cache.get_async("proj-1", "unit")
 
         # Should serve the entry
@@ -671,9 +647,7 @@ class TestLKGCacheFallback:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch(
-            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-        ):
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
             # Serve LKG twice
             await cache.get_async("proj-1", "unit")
             await cache.get_async("proj-1", "unit")
@@ -697,9 +671,7 @@ class TestLKGCacheFallback:
 
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
 
-        with patch(
-            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-        ):
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
             result = await cache.get_async("proj-1", "unit")
 
         # Should serve entry
@@ -724,9 +696,7 @@ class TestSWRCallbackWiring:
         reset_dataframe_cache()
 
     @patch("autom8_asana.settings.get_settings")
-    def test_initialize_registers_build_callback(
-        self, mock_settings: MagicMock
-    ) -> None:
+    def test_initialize_registers_build_callback(self, mock_settings: MagicMock) -> None:
         """After initialize_dataframe_cache(), _build_callback is not None."""
         from autom8_asana.cache.dataframe.factory import initialize_dataframe_cache
 
@@ -922,9 +892,7 @@ class TestMaxStalenessEnforcement:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch(
-            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-        ):
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
             result = await cache.get_async("proj-1", "unit")
 
         assert result is entry
@@ -940,9 +908,7 @@ class TestMaxStalenessEnforcement:
         cache = make_cache(memory_tier=memory)
 
         with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 10.0):
-            with patch(
-                "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-            ):
+            with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
                 result = await cache.get_async("proj-1", "unit")
 
         assert result is entry
@@ -1006,9 +972,7 @@ class TestMaxStalenessEnforcement:
         # With a very restrictive multiplier (1.0 = only serve up to 1x TTL)
         with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 1.0):
             fresh_result = await cache.get_async("proj-fresh", "unit")
-            with patch(
-                "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-            ):
+            with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
                 swr_result = await cache.get_async("proj-swr", "unit")
 
         # Both should still be served (staleness cap only applies to STALE/LKG entries)
@@ -1072,9 +1036,7 @@ class TestFreshnessInfoSideChannel:
         memory.put("unit:proj-1", entry)
 
         cache = make_cache(memory_tier=memory)
-        with patch(
-            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-        ):
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
             await cache.get_async("proj-1", "unit")
 
         info = cache.get_freshness_info("proj-1", "unit")
@@ -1091,9 +1053,7 @@ class TestFreshnessInfoSideChannel:
         memory.put("unit:proj-1", entry)
 
         cache = make_cache(memory_tier=memory)
-        with patch(
-            "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
-        ):
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
             await cache.get_async("proj-1", "unit")
 
         info = cache.get_freshness_info("proj-1", "unit")

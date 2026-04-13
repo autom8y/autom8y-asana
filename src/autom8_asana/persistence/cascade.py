@@ -160,9 +160,7 @@ class CascadeExecutor:
 
         # Filter by target_types if specified
         if operation.target_types:
-            descendants = [
-                d for d in descendants if isinstance(d, operation.target_types)
-            ]
+            descendants = [d for d in descendants if isinstance(d, operation.target_types)]
 
         # Filter by allow_override
         updates: list[tuple[Task, Any]] = []
@@ -189,9 +187,7 @@ class CascadeExecutor:
 
         return result
 
-    def _get_field_def(
-        self, entity: BusinessEntity, field_name: str
-    ) -> CascadingFieldDef | None:
+    def _get_field_def(self, entity: BusinessEntity, field_name: str) -> CascadingFieldDef | None:
         """Get cascading field definition from entity.
 
         Args:
@@ -207,9 +203,7 @@ class CascadeExecutor:
             return result
         return None
 
-    def _collect_descendants(
-        self, entity: Task, field_def: CascadingFieldDef
-    ) -> list[Task]:
+    def _collect_descendants(self, entity: Task, field_def: CascadingFieldDef) -> list[Task]:
         """Collect all descendants that should receive the cascade.
 
         Args:

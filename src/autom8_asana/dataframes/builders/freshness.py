@@ -311,9 +311,7 @@ class SectionFreshnessProber:
         section_info = self._manifest.sections.get(section_gid)
 
         # For NO_BASELINE or missing parquet, do a full re-fetch
-        existing_df = await self._persistence.read_section_async(
-            self._project_gid, section_gid
-        )
+        existing_df = await self._persistence.read_section_async(self._project_gid, section_gid)
 
         if existing_df is None or result.verdict == ProbeVerdict.NO_BASELINE:
             return await self._full_section_refetch(section_gid, result, view)
@@ -356,9 +354,7 @@ class SectionFreshnessProber:
             async def _fetch_one(gid: str) -> tuple[str, Any]:
                 """Fetch a single added GID with bounded concurrency."""
                 async with sem:
-                    return gid, await self._client.tasks.get_async(
-                        gid, opt_fields=BASE_OPT_FIELDS
-                    )
+                    return gid, await self._client.tasks.get_async(gid, opt_fields=BASE_OPT_FIELDS)
 
             fetch_results = await asyncio.gather(
                 *[_fetch_one(g) for g in unfetched_added],
@@ -404,9 +400,7 @@ class SectionFreshnessProber:
                 else:
                     task_dicts.append({"gid": t.gid, "name": getattr(t, "name", "")})
 
-            rows = await view._extract_rows_async(
-                task_dicts, project_gid=self._project_gid
-            )
+            rows = await view._extract_rows_async(task_dicts, project_gid=self._project_gid)
 
             from autom8_asana.dataframes.builders.fields import coerce_rows_to_schema
 

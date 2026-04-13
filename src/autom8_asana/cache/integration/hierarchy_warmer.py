@@ -243,9 +243,7 @@ async def warm_ancestors_async(
         if unified_store and tasks_to_cache:
             # Use the store's internal cache directly (skip warming recursion)
             for task_dict in tasks_to_cache:
-                await unified_store.put_async(
-                    task_dict, opt_fields=_HIERARCHY_OPT_FIELDS
-                )
+                await unified_store.put_async(task_dict, opt_fields=_HIERARCHY_OPT_FIELDS)
 
         logger.debug(
             "hierarchy_warm_level",

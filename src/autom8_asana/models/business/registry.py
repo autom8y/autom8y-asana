@@ -516,9 +516,7 @@ class WorkspaceProjectRegistry:
 
             process_type = self._match_process_type_exact(project.name)
             if process_type is not None and process_type not in matched_process_types:
-                self._register_pipeline_project(
-                    project.gid, project.name, process_type, EntityType
-                )
+                self._register_pipeline_project(project.gid, project.name, process_type, EntityType)
                 matched_process_types.add(process_type)
 
         # Pass 2: Contains matches for unmatched ProcessTypes
@@ -528,9 +526,7 @@ class WorkspaceProjectRegistry:
 
             process_type = self._match_process_type_contains(project.name)
             if process_type is not None and process_type not in matched_process_types:
-                self._register_pipeline_project(
-                    project.gid, project.name, process_type, EntityType
-                )
+                self._register_pipeline_project(project.gid, project.name, process_type, EntityType)
                 matched_process_types.add(process_type)
 
     def _register_pipeline_project(

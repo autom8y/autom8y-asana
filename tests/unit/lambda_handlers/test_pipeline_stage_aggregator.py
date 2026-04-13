@@ -415,9 +415,7 @@ class TestGroupingPicksMostRecent:
             "process_reactivation": df_reactivation,
         }
         cache = _make_mock_cache(entity_dfs)
-        mock_registry = _mock_entity_registry(
-            ["process_retention", "process_reactivation"]
-        )
+        mock_registry = _mock_entity_registry(["process_retention", "process_reactivation"])
 
         with stdlib_patch(_REGISTRY_PATCH_TARGET, return_value=mock_registry):
             result = await _aggregate_pipeline_stages(
@@ -580,9 +578,7 @@ class TestErrorIsolation:
     @pytest.mark.asyncio
     async def test_registry_exception_returns_none(self) -> None:
         """Exception in entity registry -> returns None, no crash."""
-        with stdlib_patch(
-            _REGISTRY_PATCH_TARGET, side_effect=RuntimeError("registry boom")
-        ):
+        with stdlib_patch(_REGISTRY_PATCH_TARGET, side_effect=RuntimeError("registry boom")):
             result = await _aggregate_pipeline_stages(
                 completed_entities=["process_sales"],
                 cache=MagicMock(),

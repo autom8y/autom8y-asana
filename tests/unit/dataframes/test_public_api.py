@@ -58,17 +58,13 @@ def _make_build_result(df: pl.DataFrame) -> BuildResult:
     )
 
 
-def _patch_builder_and_persistence(
-    mocker: MockerFixture, sample_df: pl.DataFrame
-) -> MagicMock:
+def _patch_builder_and_persistence(mocker: MockerFixture, sample_df: pl.DataFrame) -> MagicMock:
     """Patch ProgressiveProjectBuilder and create_section_persistence for tests.
 
     Patches at the service module level since build_for_project imports these
     at module level via autom8_asana.services.dataframe_service.
     """
-    mock_builder = mocker.patch(
-        "autom8_asana.services.dataframe_service.ProgressiveProjectBuilder"
-    )
+    mock_builder = mocker.patch("autom8_asana.services.dataframe_service.ProgressiveProjectBuilder")
     mock_builder.return_value.build_progressive_async = AsyncMock(
         return_value=_make_build_result(sample_df)
     )
@@ -204,9 +200,7 @@ class TestBuildForProject:
         """build_for_project() should return a Polars DataFrame."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df = await build_for_project(
-            project_with_tasks, task_type="Unit", client=mock_client
-        )
+        df = await build_for_project(project_with_tasks, task_type="Unit", client=mock_client)
         assert isinstance(df, pl.DataFrame)
 
     @pytest.mark.asyncio
@@ -220,9 +214,7 @@ class TestBuildForProject:
         """build_for_project() should have base schema columns."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df = await build_for_project(
-            project_with_tasks, task_type="Unit", client=mock_client
-        )
+        df = await build_for_project(project_with_tasks, task_type="Unit", client=mock_client)
 
         assert "gid" in df.columns
         assert "name" in df.columns
@@ -239,9 +231,7 @@ class TestBuildForProject:
         """build_for_project() should extract task data correctly."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df = await build_for_project(
-            project_with_tasks, task_type="Unit", client=mock_client
-        )
+        df = await build_for_project(project_with_tasks, task_type="Unit", client=mock_client)
 
         assert len(df) == 1
         assert df["gid"][0] == "unit-001"
@@ -294,9 +284,7 @@ class TestBuildForProject:
         """asyncio.run(build_for_project()) matches async call result."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df = await build_for_project(
-            project_with_tasks, task_type="Unit", client=mock_client
-        )
+        df = await build_for_project(project_with_tasks, task_type="Unit", client=mock_client)
         assert isinstance(df, pl.DataFrame)
         assert len(df) == 1
         assert df["gid"][0] == "unit-001"
@@ -416,9 +404,7 @@ class TestPublicAPIIntegration:
         """build_for_project() async should produce correct data."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df = await build_for_project(
-            project_with_tasks, task_type="Unit", client=mock_client
-        )
+        df = await build_for_project(project_with_tasks, task_type="Unit", client=mock_client)
 
         assert isinstance(df, pl.DataFrame)
         assert len(df) == 1
@@ -435,9 +421,7 @@ class TestPublicAPIIntegration:
         """Unit schema should include type-specific columns."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
-        df = await build_for_project(
-            project_with_tasks, task_type="Unit", client=mock_client
-        )
+        df = await build_for_project(project_with_tasks, task_type="Unit", client=mock_client)
 
         assert "gid" in df.columns
         assert "name" in df.columns

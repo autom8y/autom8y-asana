@@ -495,6 +495,5 @@ class TestDerivedTimelineRegistration:
     def test_registered_in_type_registry(self) -> None:
         """DERIVED_TIMELINE is registered via __init_subclass__."""
         assert (
-            CacheEntry._type_registry[EntryType.DERIVED_TIMELINE.value]
-            is DerivedTimelineCacheEntry
+            CacheEntry._type_registry[EntryType.DERIVED_TIMELINE.value] is DerivedTimelineCacheEntry
         )

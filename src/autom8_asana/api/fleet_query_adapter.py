@@ -131,9 +131,7 @@ def fleet_query_to_dispatch_kwargs(query: FleetQuery) -> FleetQueryDispatchKwarg
             "FleetQuery.filters must include 'entity_type' for asana dispatch"
         )
     if not isinstance(raw_entity_type, str) or not raw_entity_type.strip():
-        raise AdapterValidationError(
-            "FleetQuery.filters['entity_type'] must be a non-empty string"
-        )
+        raise AdapterValidationError("FleetQuery.filters['entity_type'] must be a non-empty string")
 
     raw_select = query.filters.get("select")
     select: list[str] | None

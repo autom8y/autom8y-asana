@@ -100,8 +100,7 @@ class BatchClient(BaseClient):
         for chunk_num, chunk in enumerate(chunks, 1):
             if self._log:
                 self._log.debug(
-                    f"BatchClient.execute: Chunk {chunk_num}/{len(chunks)}: "
-                    f"{len(chunk)} actions"
+                    f"BatchClient.execute: Chunk {chunk_num}/{len(chunks)}: {len(chunk)} actions"
                 )
 
             chunk_results = await self._execute_chunk(chunk, base_index)
@@ -120,8 +119,7 @@ class BatchClient(BaseClient):
         total_succeeded = sum(1 for r in all_results if r.success)
         if self._log:
             self._log.info(
-                f"BatchClient.execute: Batch complete: "
-                f"{total_succeeded}/{len(requests)} succeeded"
+                f"BatchClient.execute: Batch complete: {total_succeeded}/{len(requests)} succeeded"
             )
 
         return all_results
@@ -295,9 +293,7 @@ class BatchClient(BaseClient):
         return self._execute_with_summary_sync(requests)
 
     @sync_wrapper("execute_with_summary_async")
-    async def _execute_with_summary_sync(
-        self, requests: list[BatchRequest]
-    ) -> BatchSummary:
+    async def _execute_with_summary_sync(self, requests: list[BatchRequest]) -> BatchSummary:
         """Internal sync wrapper implementation."""
         return await self.execute_with_summary_async(requests)
 
@@ -421,10 +417,7 @@ def _chunk_requests(
     if not requests:
         return []
 
-    return [
-        requests[i : i + BATCH_SIZE_LIMIT]
-        for i in range(0, len(requests), BATCH_SIZE_LIMIT)
-    ]
+    return [requests[i : i + BATCH_SIZE_LIMIT] for i in range(0, len(requests), BATCH_SIZE_LIMIT)]
 
 
 def _count_chunks(request_count: int) -> int:

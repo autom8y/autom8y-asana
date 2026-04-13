@@ -156,9 +156,7 @@ class TestOfferCustomFields:
         """weekly_ad_spend getter/setter works."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Weekly Ad Spend", "number_value": 500.00}
-            ],
+            custom_fields=[{"gid": "1", "name": "Weekly Ad Spend", "number_value": 500.00}],
         )
         assert offer.weekly_ad_spend == Decimal("500.00")
 
@@ -166,9 +164,7 @@ class TestOfferCustomFields:
         """voucher_value getter/setter works."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Voucher Value", "number_value": 50.00}
-            ],
+            custom_fields=[{"gid": "1", "name": "Voucher Value", "number_value": 50.00}],
         )
         assert offer.voucher_value == Decimal("50.00")
 
@@ -176,9 +172,7 @@ class TestOfferCustomFields:
         """budget_allocation getter/setter works."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Budget Allocation", "number_value": 0.25}
-            ],
+            custom_fields=[{"gid": "1", "name": "Budget Allocation", "number_value": 0.25}],
         )
         assert offer.budget_allocation == Decimal("0.25")
 
@@ -204,9 +198,7 @@ class TestOfferCustomFields:
         """campaign_id getter/setter works."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Campaign ID", "text_value": "camp001"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Campaign ID", "text_value": "camp001"}],
         )
         assert offer.campaign_id == "camp001"
 
@@ -264,9 +256,7 @@ class TestOfferCustomFields:
         """offer_headline getter/setter works."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Offer Headline", "text_value": "50% Off!"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Offer Headline", "text_value": "50% Off!"}],
         )
         assert offer.offer_headline == "50% Off!"
 
@@ -334,9 +324,7 @@ class TestOfferCustomFields:
         """language extracts name from enum dict."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Language", "enum_value": {"name": "English"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Language", "enum_value": {"name": "English"}}],
         )
         assert offer.language == "English"
 
@@ -344,9 +332,7 @@ class TestOfferCustomFields:
         """specialty extracts name from enum dict."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Specialty", "enum_value": {"name": "Dental"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Specialty", "enum_value": {"name": "Dental"}}],
         )
         assert offer.specialty == "Dental"
 
@@ -354,9 +340,7 @@ class TestOfferCustomFields:
         """vertical extracts name from enum dict."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Vertical", "enum_value": {"name": "Healthcare"}}],
         )
         assert offer.vertical == "Healthcare"
 
@@ -404,9 +388,7 @@ class TestOfferCustomFields:
         """office_phone getter/setter works."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Office Phone", "text_value": "555-1234"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Office Phone", "text_value": "555-1234"}],
         )
         assert offer.office_phone == "555-1234"
 
@@ -424,9 +406,7 @@ class TestOfferCustomFields:
         """calendar_duration returns integer value."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Calendar Duration", "number_value": 60}
-            ],
+            custom_fields=[{"gid": "1", "name": "Calendar Duration", "number_value": 60}],
         )
         assert offer.calendar_duration == 60
 
@@ -434,9 +414,7 @@ class TestOfferCustomFields:
         """custom_cal_url getter/setter works."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Custom Cal URL", "text_value": "https://cal.com"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Custom Cal URL", "text_value": "https://cal.com"}],
         )
         assert offer.custom_cal_url == "https://cal.com"
 
@@ -446,9 +424,7 @@ class TestOfferCustomFields:
         """internal_notes getter/setter works."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Internal Notes", "text_value": "Internal memo"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Internal Notes", "text_value": "Internal memo"}],
         )
         assert offer.internal_notes == "Internal memo"
 
@@ -456,9 +432,7 @@ class TestOfferCustomFields:
         """external_notes getter/setter works."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "External Notes", "text_value": "Client-facing"}
-            ],
+            custom_fields=[{"gid": "1", "name": "External Notes", "text_value": "Client-facing"}],
         )
         assert offer.external_notes == "Client-facing"
 
@@ -484,9 +458,7 @@ class TestOfferCustomFields:
         """triggered_by getter/setter works."""
         offer = Offer(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Triggered By", "text_value": "automation"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Triggered By", "text_value": "automation"}],
         )
         assert offer.triggered_by == "automation"
 

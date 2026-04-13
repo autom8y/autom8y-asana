@@ -464,9 +464,7 @@ class TestCRUDOperationsAllClients:
 
         # POST (Create)  # noqa: ERA001
         mock_http.post.return_value = {"gid": "newcf", "name": "New Field"}
-        await client.create_async(
-            workspace="ws123", name="New Field", resource_subtype="text"
-        )
+        await client.create_async(workspace="ws123", name="New Field", resource_subtype="text")
         mock_http.post.assert_called_with(
             "/custom_fields",
             json={
@@ -614,9 +612,7 @@ class TestRawModeAllClients:
         assert isinstance(result, dict)
 
         mock_http.post.return_value = {"gid": "1234567890124", "extra": "enum"}
-        result = await client.create_enum_option_async(
-            "1234567890123", name="Opt", raw=True
-        )
+        result = await client.create_enum_option_async("1234567890123", name="Opt", raw=True)
         assert isinstance(result, dict)
 
 
@@ -1339,9 +1335,7 @@ class TestAsanaClientThreadSafety:
             for t in threads:
                 t.join(timeout=10)
                 if t.is_alive():
-                    raise AssertionError(
-                        f"Thread {t.name} did not complete within timeout"
-                    )
+                    raise AssertionError(f"Thread {t.name} did not complete within timeout")
 
             # No errors should have occurred
             assert len(errors) == 0
@@ -1615,9 +1609,7 @@ class TestOptFieldsParameter:
         )
         mock_http.get.return_value = {"gid": "1234567890123", "name": "Test"}
 
-        await client.get_async(
-            "1234567890123", opt_fields=["name", "email", "workspaces"]
-        )
+        await client.get_async("1234567890123", opt_fields=["name", "email", "workspaces"])
 
         call_args = mock_http.get.call_args
         assert "opt_fields" in call_args[1]["params"]

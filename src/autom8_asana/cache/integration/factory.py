@@ -128,8 +128,7 @@ class CacheProviderFactory:
             return CacheProviderFactory._create_tiered_provider(config)
 
         raise ConfigurationError(
-            f"Unknown cache provider: '{provider_name}'. "
-            f"Valid options: memory, redis, tiered, none"
+            f"Unknown cache provider: '{provider_name}'. Valid options: memory, redis, tiered, none"
         )
 
     @staticmethod

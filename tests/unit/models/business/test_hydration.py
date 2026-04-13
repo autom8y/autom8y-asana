@@ -102,9 +102,7 @@ class TestDetectEntityTypeAsync:
         client.tasks.subtasks_async.return_value = mock_iterator
 
         # Must enable structure inspection for Tier 4
-        result = await detect_entity_type_async(
-            task, client, allow_structure_inspection=True
-        )
+        result = await detect_entity_type_async(task, client, allow_structure_inspection=True)
 
         assert result.entity_type == EntityType.BUSINESS
         assert result.tier_used == 4  # Structure inspection
@@ -126,9 +124,7 @@ class TestDetectEntityTypeAsync:
         client.tasks.subtasks_async.return_value = mock_iterator
 
         # Must enable structure inspection for Tier 4
-        result = await detect_entity_type_async(
-            task, client, allow_structure_inspection=True
-        )
+        result = await detect_entity_type_async(task, client, allow_structure_inspection=True)
 
         assert result.entity_type == EntityType.UNIT
         assert result.tier_used == 4
@@ -149,9 +145,7 @@ class TestDetectEntityTypeAsync:
         client.tasks.subtasks_async.return_value = mock_iterator
 
         # Even with structure inspection enabled, no match
-        result = await detect_entity_type_async(
-            task, client, allow_structure_inspection=True
-        )
+        result = await detect_entity_type_async(task, client, allow_structure_inspection=True)
 
         assert result.entity_type == EntityType.UNKNOWN
         assert result.tier_used == 5
@@ -1020,9 +1014,7 @@ class TestContactToBusinessAsync:
         def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             if gid == "b1":
-                mock.collect = AsyncMock(
-                    return_value=[Task(gid="ch1", name="Contacts")]
-                )
+                mock.collect = AsyncMock(return_value=[Task(gid="ch1", name="Contacts")])
             else:
                 mock.collect = AsyncMock(return_value=[])
             return mock
@@ -1441,12 +1433,8 @@ class TestHydrationResult:
             entry_type=EntityType.CONTACT,
             api_calls=10,
             succeeded=[
-                HydrationBranch(
-                    holder_type="contact_holder", holder_gid="ch1", child_count=2
-                ),
-                HydrationBranch(
-                    holder_type="unit_holder", holder_gid="uh1", child_count=1
-                ),
+                HydrationBranch(holder_type="contact_holder", holder_gid="ch1", child_count=2),
+                HydrationBranch(holder_type="unit_holder", holder_gid="uh1", child_count=1),
             ],
         )
 
@@ -1635,9 +1623,7 @@ class TestHydrateFromGidAsync:
         def subtasks_side_effect(gid: str, **kwargs) -> AsyncMock:
             mock = AsyncMock()
             if gid == "b1":
-                mock.collect = AsyncMock(
-                    return_value=[Task(gid="ch1", name="Contacts")]
-                )
+                mock.collect = AsyncMock(return_value=[Task(gid="ch1", name="Contacts")])
             else:
                 mock.collect = AsyncMock(return_value=[])
             return mock
@@ -1819,9 +1805,7 @@ class TestPartialOkParameter:
             mock = AsyncMock()
             if call_count == 1:
                 # Detection call
-                mock.collect = AsyncMock(
-                    return_value=[Task(gid="ch1", name="Contacts")]
-                )
+                mock.collect = AsyncMock(return_value=[Task(gid="ch1", name="Contacts")])
             else:
                 mock.collect = AsyncMock(side_effect=RuntimeError("API error"))
             return mock

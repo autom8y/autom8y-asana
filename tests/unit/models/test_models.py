@@ -221,10 +221,7 @@ class TestTaskSerialization:
         assert task.resource_type == "task"
         assert task.name == "Complete SDK Hardening"
         assert task.notes == "Implement comprehensive test coverage for models"
-        assert (
-            task.html_notes
-            == "<body>Implement comprehensive test coverage for models</body>"
-        )
+        assert task.html_notes == "<body>Implement comprehensive test coverage for models</body>"
 
         # Status fields
         assert task.completed is False
@@ -1172,9 +1169,7 @@ class TestPageIteratorMemoryEfficiency:
             pages_fetched.append(page_num)
 
             if page_num < 10:
-                return list(
-                    range(page_num * 100, (page_num + 1) * 100)
-                ), f"page{page_num + 1}"
+                return list(range(page_num * 100, (page_num + 1) * 100)), f"page{page_num + 1}"
             return [], None
 
         iterator = PageIterator(fetch_page)
@@ -1336,9 +1331,7 @@ class TestListAsyncPagination:
         assert len(tasks) == 2
         assert mock_http_for_tasks.get_paginated.call_count == 2
 
-        second_call_params = mock_http_for_tasks.get_paginated.call_args_list[1][1][
-            "params"
-        ]
+        second_call_params = mock_http_for_tasks.get_paginated.call_args_list[1][1]["params"]
         assert second_call_params.get("offset") == "offset_abc"
 
     async def test_empty_page_stops_iteration(

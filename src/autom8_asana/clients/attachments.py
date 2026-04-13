@@ -331,9 +331,7 @@ class AttachmentsClient(BaseClient):
 
         f = io.BytesIO(file_bytes)
         if raw:
-            return await self.upload_async(
-                parent=parent, file=f, name=filename, raw=True
-            )
+            return await self.upload_async(parent=parent, file=f, name=filename, raw=True)
         return await self.upload_async(parent=parent, file=f, name=filename, raw=False)
 
     # --- External Attachments ---
@@ -457,9 +455,7 @@ class AttachmentsClient(BaseClient):
         self._log_operation("download_async", attachment_gid)
 
         # Get attachment info to get download URL
-        attachment = await self.get_async(
-            attachment_gid, opt_fields=["download_url", "name"]
-        )
+        attachment = await self.get_async(attachment_gid, opt_fields=["download_url", "name"])
 
         if not attachment.download_url:
             raise AsanaError(

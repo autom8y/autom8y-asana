@@ -321,9 +321,7 @@ class TestPascalCaseSchemaLookup:
             pat_patch,
             pat_patch_deps,
             supported_patch,
-            patch(
-                "autom8_asana.dataframes.models.registry.SchemaRegistry"
-            ) as mock_registry_cls,
+            patch("autom8_asana.dataframes.models.registry.SchemaRegistry") as mock_registry_cls,
         ):
             mock_registry = MagicMock()
             mock_registry.get_schema.return_value = mock_schema
@@ -346,9 +344,7 @@ class TestPascalCaseSchemaLookup:
 class TestExceptChain:
     """EE-003/004/005: Three-clause exception handling at resolver boundary."""
 
-    def test_ee003_service_error_returns_structured_response(
-        self, client: TestClient
-    ) -> None:
+    def test_ee003_service_error_returns_structured_response(self, client: TestClient) -> None:
         """ServiceError -> raise_service_error preserving error_code and status_hint.
 
         Per ADR-error-taxonomy-resolution Tier 1.
@@ -397,9 +393,7 @@ class TestExceptChain:
         assert response.status_code == 500
         assert response.json()["error"]["code"] == "SERVICE_ERROR"
 
-    def test_ee004_asana_error_propagates_to_global_handler(
-        self, client: TestClient
-    ) -> None:
+    def test_ee004_asana_error_propagates_to_global_handler(self, client: TestClient) -> None:
         """AsanaError -> re-raised, handled by FastAPI's global exception handlers.
 
         Per ADR-error-taxonomy-resolution Tier 2.
@@ -424,9 +418,7 @@ class TestExceptChain:
         # RateLimitError -> 429 via global handler
         assert response.status_code == 429
 
-    def test_ee005_unexpected_exception_returns_resolution_error(
-        self, client: TestClient
-    ) -> None:
+    def test_ee005_unexpected_exception_returns_resolution_error(self, client: TestClient) -> None:
         """Unexpected Exception -> RESOLUTION_ERROR / 500.
 
         Per ADR-error-taxonomy-resolution Tier 3.
@@ -450,7 +442,4 @@ class TestExceptChain:
         assert response.status_code == 500
         body = response.json()
         assert body["error"]["code"] == "RESOLUTION_ERROR"
-        assert (
-            body["error"]["message"]
-            == "An unexpected error occurred during resolution."
-        )
+        assert body["error"]["message"] == "An unexpected error occurred during resolution."

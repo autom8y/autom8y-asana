@@ -97,9 +97,7 @@ class TemplateDiscovery:
             return Section(gid=template_section_gid, name=section_name or "Template")
 
         # List all sections in the project
-        sections = await self._client.sections.list_for_project_async(
-            project_gid
-        ).collect()
+        sections = await self._client.sections.list_for_project_async(project_gid).collect()
 
         # If exact name provided, find exact match (case-insensitive)
         if section_name:

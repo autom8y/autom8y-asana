@@ -247,7 +247,9 @@ async def _invalidate_cache_async(
             invocation_id=invocation_id,
         )
 
-    except Exception as e:  # BROAD-CATCH: boundary -- async function top-level catch, returns error response
+    except (
+        Exception
+    ) as e:  # BROAD-CATCH: boundary -- async function top-level catch, returns error response
         duration_ms = (time.monotonic() - start_time) * 1000
         emit_metric("InvalidateFailure", 1)
         emit_metric("InvalidateDuration", duration_ms, unit="Milliseconds")

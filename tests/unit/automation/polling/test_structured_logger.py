@@ -337,9 +337,7 @@ class TestStructuredLoggerLogAutomationResult:
         mock_result.entities_updated = []
         mock_result.success = True
         mock_result.error = None
-        mock_result.skipped_reason = (
-            "Loop prevention: task recently modified by automation"
-        )
+        mock_result.skipped_reason = "Loop prevention: task recently modified by automation"
         mock_result.execution_time_ms = 5.0
         mock_result.was_skipped = True
         mock_result.enhancement_results = None

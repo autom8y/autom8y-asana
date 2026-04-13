@@ -154,9 +154,7 @@ class TestEntityTypeMismatchError:
         assert issubclass(EntityTypeMismatchError, ServiceError)
 
     def test_attributes(self) -> None:
-        err = EntityTypeMismatchError(
-            "1234567890", "proj_expected", ["proj_a", "proj_b"]
-        )
+        err = EntityTypeMismatchError("1234567890", "proj_expected", ["proj_a", "proj_b"])
         assert err.gid == "1234567890"
         assert err.expected_project == "proj_expected"
         assert err.actual_projects == ["proj_a", "proj_b"]
@@ -177,9 +175,7 @@ class TestEntityTypeMismatchError:
         assert "proj_actual" in msg
 
     def test_to_dict(self) -> None:
-        err = EntityTypeMismatchError(
-            "1234567890", "proj_expected", ["proj_a", "proj_b"]
-        )
+        err = EntityTypeMismatchError("1234567890", "proj_expected", ["proj_a", "proj_b"])
         result = err.to_dict()
         assert result["error"] == "ENTITY_TYPE_MISMATCH"
         assert "1234567890" in result["message"]

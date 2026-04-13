@@ -190,9 +190,7 @@ class TestTaskCacheResult:
         # Should return 0.0, not raise ZeroDivisionError
         assert result.hit_rate == 0.0
 
-    def test_total_tasks(
-        self, sample_task: Task, sample_task_2: Task, sample_task_3: Task
-    ) -> None:
+    def test_total_tasks(self, sample_task: Task, sample_task_2: Task, sample_task_3: Task) -> None:
         """Test total_tasks property."""
         result = TaskCacheResult(
             all_tasks=[sample_task, sample_task_2, sample_task_3],
@@ -317,9 +315,7 @@ class TestTaskCacheCoordinatorLookup:
         """Test lookup handles cache errors gracefully."""
         # Create a failing cache
         failing_cache = MagicMock()
-        failing_cache.get_batch = MagicMock(
-            side_effect=RedisTransportError("Redis down")
-        )
+        failing_cache.get_batch = MagicMock(side_effect=RedisTransportError("Redis down"))
 
         coordinator = TaskCacheCoordinator(cache_provider=failing_cache)
 
@@ -397,9 +393,7 @@ class TestTaskCacheCoordinatorPopulate:
     async def test_populate_graceful_degradation(self, sample_task: Task) -> None:
         """Test populate handles cache errors gracefully."""
         failing_cache = MagicMock()
-        failing_cache.set_batch = MagicMock(
-            side_effect=RedisTransportError("Redis down")
-        )
+        failing_cache.set_batch = MagicMock(side_effect=RedisTransportError("Redis down"))
 
         coordinator = TaskCacheCoordinator(cache_provider=failing_cache)
 
@@ -428,9 +422,7 @@ class TestTaskCacheCoordinatorPopulate:
         assert count == 1
 
     @pytest.mark.asyncio
-    async def test_populate_minimal_task(
-        self, coordinator: TaskCacheCoordinator
-    ) -> None:
+    async def test_populate_minimal_task(self, coordinator: TaskCacheCoordinator) -> None:
         """Test populate handles minimal task with only GID."""
         # Task with only required GID field
         minimal_task = Task(gid="minimal123")
@@ -604,9 +596,7 @@ class TestTaskCacheCoordinatorTTL:
         result = await coordinator.lookup_tasks_async(["task123"])
         assert result["task123"] is not None
 
-    def test_resolve_entity_ttl_business(
-        self, coordinator: TaskCacheCoordinator
-    ) -> None:
+    def test_resolve_entity_ttl_business(self, coordinator: TaskCacheCoordinator) -> None:
         """Test TTL resolution for business entity."""
         # This tests internal method - could be refactored to integration test
         data = {"gid": "123", "name": "Test Business"}
@@ -630,15 +620,11 @@ class TestTaskCacheCoordinatorEdgeCases:
         """Test cache_provider property returns provider."""
         assert coordinator.cache_provider is not None
 
-    def test_cache_provider_property_none(
-        self, coordinator_no_cache: TaskCacheCoordinator
-    ) -> None:
+    def test_cache_provider_property_none(self, coordinator_no_cache: TaskCacheCoordinator) -> None:
         """Test cache_provider property returns None when no provider."""
         assert coordinator_no_cache.cache_provider is None
 
-    def test_parse_modified_at_with_z_suffix(
-        self, coordinator: TaskCacheCoordinator
-    ) -> None:
+    def test_parse_modified_at_with_z_suffix(self, coordinator: TaskCacheCoordinator) -> None:
         """Test parsing ISO datetime with Z suffix."""
         result = coordinator._parse_modified_at("2025-01-15T10:30:00.000Z")
 
@@ -647,9 +633,7 @@ class TestTaskCacheCoordinatorEdgeCases:
         assert result.month == 1
         assert result.day == 15
 
-    def test_parse_modified_at_with_timezone(
-        self, coordinator: TaskCacheCoordinator
-    ) -> None:
+    def test_parse_modified_at_with_timezone(self, coordinator: TaskCacheCoordinator) -> None:
         """Test parsing ISO datetime with timezone offset."""
         result = coordinator._parse_modified_at("2025-01-15T10:30:00+00:00")
 
@@ -842,9 +826,7 @@ class TestTaskCacheCoordinatorIntegration:
         """Test workflow continues when cache fails."""
         # Create a cache that fails on lookup but not populate
         failing_cache = MagicMock()
-        failing_cache.get_batch = MagicMock(
-            side_effect=RedisTransportError("Lookup failed")
-        )
+        failing_cache.get_batch = MagicMock(side_effect=RedisTransportError("Lookup failed"))
         failing_cache.set_batch = MagicMock()  # Works fine
 
         coordinator = TaskCacheCoordinator(cache_provider=failing_cache)

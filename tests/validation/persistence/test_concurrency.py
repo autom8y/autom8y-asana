@@ -444,9 +444,7 @@ class TestRaceConditions:
     async def test_commit_during_modifications(self) -> None:
         """Commit captures consistent state even during modifications."""
         client = create_mock_client()
-        client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result(gid="123")]
-        )
+        client.batch.execute_async = AsyncMock(return_value=[create_success_result(gid="123")])
 
         task = Task(gid="123", name="Original")
 

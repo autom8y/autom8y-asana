@@ -63,9 +63,7 @@ async def test_add_tag_real_api(
         opt_fields=["tags.gid"],
     )
     tag_gids = [t.gid for t in updated_task.tags] if updated_task.tags else []
-    assert test_tag_gid in tag_gids, (
-        f"Tag {test_tag_gid} not found in task tags: {tag_gids}"
-    )
+    assert test_tag_gid in tag_gids, f"Tag {test_tag_gid} not found in task tags: {tag_gids}"
 
 
 @pytest.mark.integration
@@ -148,9 +146,7 @@ async def test_add_comment_real_api(
     # Filter for comments
     comments = [s for s in stories if s.resource_subtype == "comment_added"]
     comment_texts = [s.text for s in comments if s.text]
-    assert comment_text in comment_texts, (
-        f"Comment not found in stories: {comment_texts}"
-    )
+    assert comment_text in comment_texts, f"Comment not found in stories: {comment_texts}"
 
 
 @pytest.mark.integration
@@ -209,9 +205,7 @@ async def test_change_section_real_api(
     Moves a task to a different section and verifies the move.
     """
     executor = ActionExecutor(asana_client)
-    action = ActionConfig(
-        type="change_section", params={"section_gid": test_section_gid}
-    )
+    action = ActionConfig(type="change_section", params={"section_gid": test_section_gid})
 
     # Execute the action
     result = await executor.execute_async(test_task.gid, action)
@@ -231,9 +225,7 @@ async def test_change_section_real_api(
 
     if updated_task.memberships:
         section_gids = [
-            m.section.gid
-            for m in updated_task.memberships
-            if m.section and m.section.gid
+            m.section.gid for m in updated_task.memberships if m.section and m.section.gid
         ]
         assert test_section_gid in section_gids, (
             f"Section {test_section_gid} not found in task memberships: {section_gids}"
@@ -250,9 +242,7 @@ async def test_change_section_invalid_section_gid(
     The action should fail gracefully and return success=False.
     """
     executor = ActionExecutor(asana_client)
-    action = ActionConfig(
-        type="change_section", params={"section_gid": "invalid_section_12345"}
-    )
+    action = ActionConfig(type="change_section", params={"section_gid": "invalid_section_12345"})
 
     result = await executor.execute_async(test_task.gid, action)
 

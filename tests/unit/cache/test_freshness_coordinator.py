@@ -59,9 +59,7 @@ def make_entry(
     )
 
 
-def make_batch_result(
-    gid: str, modified_at: str | None, success: bool = True
-) -> BatchResult:
+def make_batch_result(gid: str, modified_at: str | None, success: bool = True) -> BatchResult:
     """Create a test BatchResult.
 
     BatchResult uses status_code to derive success (2xx = success).
@@ -125,9 +123,7 @@ class TestFreshnessCoordinatorImmediate:
         """Test that IMMEDIATE mode returns fresh without API call."""
         entries = [make_entry("123"), make_entry("456")]
 
-        results = await coordinator.check_batch_async(
-            entries, mode=FreshnessIntent.IMMEDIATE
-        )
+        results = await coordinator.check_batch_async(entries, mode=FreshnessIntent.IMMEDIATE)
 
         # Should not call API
         mock_batch_client.execute_async.assert_not_called()
@@ -140,9 +136,7 @@ class TestFreshnessCoordinatorImmediate:
             assert result.current_version is None
 
     @pytest.mark.asyncio
-    async def test_immediate_stats_tracking(
-        self, coordinator: FreshnessCoordinator
-    ) -> None:
+    async def test_immediate_stats_tracking(self, coordinator: FreshnessCoordinator) -> None:
         """Test that IMMEDIATE mode tracks stats correctly."""
         entries = [make_entry("123"), make_entry("456"), make_entry("789")]
 
@@ -165,9 +159,7 @@ class TestFreshnessCoordinatorEventual:
         # Entry cached just now with 300s TTL - not expired
         entry = make_entry("123", ttl=300, cached_ago_seconds=0)
 
-        results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessIntent.EVENTUAL
-        )
+        results = await coordinator.check_batch_async([entry], mode=FreshnessIntent.EVENTUAL)
 
         # Should not call API
         mock_batch_client.execute_async.assert_not_called()
@@ -188,9 +180,7 @@ class TestFreshnessCoordinatorEventual:
             make_batch_result("123", "2025-12-23T10:00:00.000Z")
         ]
 
-        results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessIntent.EVENTUAL
-        )
+        results = await coordinator.check_batch_async([entry], mode=FreshnessIntent.EVENTUAL)
 
         # Should call API
         mock_batch_client.execute_async.assert_called_once()
@@ -246,9 +236,7 @@ class TestFreshnessCoordinatorStrict:
             make_batch_result("123", "2025-12-23T10:00:00.000Z")
         ]
 
-        results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessIntent.STRICT
-        )
+        results = await coordinator.check_batch_async([entry], mode=FreshnessIntent.STRICT)
 
         # Should call API
         mock_batch_client.execute_async.assert_called_once()
@@ -268,9 +256,7 @@ class TestFreshnessCoordinatorStrict:
             make_batch_result("123", "2025-12-23T12:00:00.000Z")  # 2 hours later
         ]
 
-        results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessIntent.STRICT
-        )
+        results = await coordinator.check_batch_async([entry], mode=FreshnessIntent.STRICT)
 
         assert len(results) == 1
         assert results[0].is_fresh is False
@@ -286,9 +272,7 @@ class TestFreshnessCoordinatorBatching:
     ) -> None:
         """Test that requests are chunked by Asana batch limit (10)."""
         # Create 25 expired entries to force batching
-        entries = [
-            make_entry(f"task-{i}", ttl=1, cached_ago_seconds=100) for i in range(25)
-        ]
+        entries = [make_entry(f"task-{i}", ttl=1, cached_ago_seconds=100) for i in range(25)]
 
         # Mock successful responses
         def create_results(requests: list) -> list[BatchResult]:
@@ -334,9 +318,7 @@ class TestFreshnessCoordinatorErrorHandling:
 
         mock_batch_client.execute_async.side_effect = ConnectionError("Network error")
 
-        results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessIntent.STRICT
-        )
+        results = await coordinator.check_batch_async([entry], mode=FreshnessIntent.STRICT)
 
         assert len(results) == 1
         assert results[0].is_fresh is False
@@ -353,9 +335,7 @@ class TestFreshnessCoordinatorErrorHandling:
             make_batch_result("123", None, success=False)
         ]
 
-        results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessIntent.STRICT
-        )
+        results = await coordinator.check_batch_async([entry], mode=FreshnessIntent.STRICT)
 
         assert len(results) == 1
         assert results[0].is_fresh is False
@@ -373,9 +353,7 @@ class TestFreshnessCoordinatorErrorHandling:
             make_batch_result("123", None, success=True)
         ]
 
-        results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessIntent.STRICT
-        )
+        results = await coordinator.check_batch_async([entry], mode=FreshnessIntent.STRICT)
 
         assert len(results) == 1
         assert results[0].is_fresh is False
@@ -387,9 +365,7 @@ class TestFreshnessCoordinatorErrorHandling:
         coordinator = FreshnessCoordinator(batch_client=None)
         entry = make_entry("123", ttl=1, cached_ago_seconds=100)
 
-        results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessIntent.STRICT
-        )
+        results = await coordinator.check_batch_async([entry], mode=FreshnessIntent.STRICT)
 
         assert len(results) == 1
         assert results[0].is_fresh is False
@@ -559,9 +535,7 @@ class TestFreshnessCoordinatorVersionComparison:
             make_batch_result("123", "2025-12-23T10:00:00.000Z")
         ]
 
-        results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessIntent.STRICT
-        )
+        results = await coordinator.check_batch_async([entry], mode=FreshnessIntent.STRICT)
 
         assert results[0].is_fresh is True
 
@@ -579,9 +553,7 @@ class TestFreshnessCoordinatorVersionComparison:
             make_batch_result("123", "2025-12-23T10:00:00.000Z")  # API says older
         ]
 
-        results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessIntent.STRICT
-        )
+        results = await coordinator.check_batch_async([entry], mode=FreshnessIntent.STRICT)
 
         # Cached is newer or equal, so fresh
         assert results[0].is_fresh is True
@@ -599,9 +571,7 @@ class TestFreshnessCoordinatorVersionComparison:
             make_batch_result("123", "2025-12-23T14:00:00.000Z")  # 4 hours newer
         ]
 
-        results = await coordinator.check_batch_async(
-            [entry], mode=FreshnessIntent.STRICT
-        )
+        results = await coordinator.check_batch_async([entry], mode=FreshnessIntent.STRICT)
 
         assert results[0].is_fresh is False
         assert results[0].current_version is not None

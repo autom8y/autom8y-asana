@@ -300,10 +300,7 @@ class TestDataServiceClientGetClient:
 
             await client._get_client()
 
-            assert (
-                mock_instance._client.headers["Authorization"]
-                == "Bearer test-jwt-token"
-            )
+            assert mock_instance._client.headers["Authorization"] == "Bearer test-jwt-token"
 
     @pytest.mark.asyncio
     async def test_no_auth_header_when_no_token(self) -> None:
@@ -487,9 +484,7 @@ class TestDataServiceClientGetAuthToken:
         with (
             patch.dict(
                 os.environ,
-                {
-                    "AUTOM8Y_DATA_API_KEY_ARN": "arn:aws:secretsmanager:us-east-1:123:secret:key"
-                },
+                {"AUTOM8Y_DATA_API_KEY_ARN": "arn:aws:secretsmanager:us-east-1:123:secret:key"},
                 clear=False,
             ),
             patch(

@@ -141,12 +141,8 @@ class Task(AsanaResource):
     )
 
     # Metadata
-    created_at: str | None = Field(
-        default=None, description="Created datetime (ISO 8601)"
-    )
-    modified_at: str | None = Field(
-        default=None, description="Modified datetime (ISO 8601)"
-    )
+    created_at: str | None = Field(default=None, description="Created datetime (ISO 8601)")
+    modified_at: str | None = Field(default=None, description="Modified datetime (ISO 8601)")
     created_by: NameGid | None = Field(
         default=None,
         description="User who created the task.",
@@ -304,9 +300,7 @@ class Task(AsanaResource):
             CustomFieldAccessor instance (cached for this task).
         """
         if self._custom_fields_accessor is None:
-            self._custom_fields_accessor = CustomFieldAccessor(
-                self.custom_fields, strict=False
-            )
+            self._custom_fields_accessor = CustomFieldAccessor(self.custom_fields, strict=False)
         return self._custom_fields_accessor
 
     def custom_fields_editor(self) -> CustomFieldAccessor:
@@ -349,8 +343,7 @@ class Task(AsanaResource):
 
         # Check for accessor changes
         accessor_changes = (
-            self._custom_fields_accessor is not None
-            and self._custom_fields_accessor.has_changes()
+            self._custom_fields_accessor is not None and self._custom_fields_accessor.has_changes()
         )
 
         # Check for direct modifications

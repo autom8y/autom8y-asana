@@ -30,12 +30,8 @@ class CustomFieldWriteResponse(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     task_gid: str = Field(description="Asana GID of the task that was written to.")
-    fields_written: int = Field(
-        description="Number of custom fields successfully written."
-    )
-    errors: list[str] = Field(
-        default_factory=list, description="Field names that failed to write."
-    )
+    fields_written: int = Field(description="Number of custom fields successfully written.")
+    errors: list[str] = Field(default_factory=list, description="Field names that failed to write.")
 
 
 __all__ = [

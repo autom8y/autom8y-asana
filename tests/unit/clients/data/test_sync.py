@@ -101,9 +101,7 @@ class TestSyncWrapper:
             )
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").mock(
-                side_effect=capture_request
-            )
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             with client:
                 client.get_insights(

@@ -281,9 +281,7 @@ class TestGidLookupHappyPath:
         assert data["results"][0]["gid"] == "1111111111111111"
         assert data["results"][2]["gid"] == "3333333333333333"
 
-    def test_ct003_not_found_returns_null_gid_and_error(
-        self, client: TestClient
-    ) -> None:
+    def test_ct003_not_found_returns_null_gid_and_error(self, client: TestClient) -> None:
         """CT-003: Criterion that matches nothing returns gid=null, error=NOT_FOUND."""
         jwt_p, jwt_cp, pat_p, pat_dp, cli_p, strat_p = _resolve_patches()
 
@@ -507,9 +505,7 @@ class TestGidLookupValidation:
 
     def test_ct011_batch_over_1000_returns_422(self, client: TestClient) -> None:
         """CT-011: 1001 criteria returns 422 with batch size error."""
-        criteria = [
-            {"phone": f"+1555{i:07d}", "vertical": "dental"} for i in range(1001)
-        ]
+        criteria = [{"phone": f"+1555{i:07d}", "vertical": "dental"} for i in range(1001)]
 
         with (
             patch(
@@ -579,9 +575,7 @@ class TestGidLookupEdgeCases:
 
         jwt_p, jwt_cp, pat_p, pat_dp, cli_p, strat_p = _resolve_patches(mock_df=big_df)
 
-        criteria = [
-            {"phone": f"+1555{i:07d}", "vertical": "dental"} for i in range(1000)
-        ]
+        criteria = [{"phone": f"+1555{i:07d}", "vertical": "dental"} for i in range(1000)]
 
         with jwt_p, jwt_cp, pat_p, pat_dp, cli_p as mock_cli, strat_p:
             _make_async_client_mock(mock_cli)

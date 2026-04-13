@@ -165,8 +165,7 @@ class TestAdminRefreshValidatesEntityType:
                 )
 
             assert response.status_code == 202, (
-                f"Expected 202 for entity_type={entity_type}, "
-                f"got {response.status_code}"
+                f"Expected 202 for entity_type={entity_type}, got {response.status_code}"
             )
 
 

@@ -54,12 +54,9 @@ def list_fields(entity_type: str) -> list[dict[str, object]]:
     registry = SchemaRegistry.get_instance()
 
     if not registry.has_schema(pascal_name):
-        available = sorted(
-            d.name for d in get_er().all_descriptors() if d.schema_module_path
-        )
+        available = sorted(d.name for d in get_er().all_descriptors() if d.schema_module_path)
         raise ValueError(
-            f"No schema available for '{entity_type}'. "
-            f"Queryable entities: {', '.join(available)}"
+            f"No schema available for '{entity_type}'. Queryable entities: {', '.join(available)}"
         )
 
     schema = registry.get_schema(pascal_name)
@@ -97,8 +94,7 @@ def list_sections(entity_type: str) -> list[dict[str, object]]:
     if classifier is None:
         available = sorted(CLASSIFIERS.keys())
         raise ValueError(
-            f"No section classifier for '{entity_type}'. "
-            f"Available: {', '.join(available)}"
+            f"No section classifier for '{entity_type}'. Available: {', '.join(available)}"
         )
 
     rows: list[dict[str, object]] = []

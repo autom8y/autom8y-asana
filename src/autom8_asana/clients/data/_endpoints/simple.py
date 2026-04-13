@@ -33,9 +33,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-def _cb_error_factory(
-    e: CircuitBreakerOpenError, request: SimpleRequestDescriptor
-) -> Any:
+def _cb_error_factory(e: CircuitBreakerOpenError, request: SimpleRequestDescriptor) -> Any:
     """Convert CB open error to InsightsServiceError (always raises)."""
     raise InsightsServiceError(
         f"Circuit breaker open. Retry in {e.time_remaining:.1f}s.",
@@ -162,12 +160,8 @@ async def get_appointments(
             execute_with_retry=client._execute_with_retry,
             cb_error_factory=_cb_error_factory,
             request_builder=_request_builder,
-            error_handler=lambda resp, req, ms: _error_handler(
-                resp, req, ms, client=client
-            ),
-            success_handler=lambda resp, req, ms: _success_handler(
-                resp, req, ms, client=client
-            ),
+            error_handler=lambda resp, req, ms: _error_handler(resp, req, ms, client=client),
+            success_handler=lambda resp, req, ms: _success_handler(resp, req, ms, client=client),
         )
     )
 
@@ -267,12 +261,8 @@ async def get_leads(
             execute_with_retry=client._execute_with_retry,
             cb_error_factory=_cb_error_factory,
             request_builder=_request_builder,
-            error_handler=lambda resp, req, ms: _error_handler(
-                resp, req, ms, client=client
-            ),
-            success_handler=lambda resp, req, ms: _success_handler(
-                resp, req, ms, client=client
-            ),
+            error_handler=lambda resp, req, ms: _error_handler(resp, req, ms, client=client),
+            success_handler=lambda resp, req, ms: _success_handler(resp, req, ms, client=client),
         )
     )
 

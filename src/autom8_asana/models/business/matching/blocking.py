@@ -121,9 +121,7 @@ class PhonePrefixBlockingRule:
         )
 
         # Compare prefixes of the 10-digit numbers
-        return (
-            query_suffix[: self.PREFIX_LENGTH] == candidate_suffix[: self.PREFIX_LENGTH]
-        )
+        return query_suffix[: self.PREFIX_LENGTH] == candidate_suffix[: self.PREFIX_LENGTH]
 
 
 class NameTokenBlockingRule:

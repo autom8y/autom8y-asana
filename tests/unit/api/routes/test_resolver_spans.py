@@ -225,9 +225,7 @@ def _call_resolve(test_client, resolve_results_or_error):
 class TestResolverSpanHappyPath:
     """T-G01: resolver.entities.resolve on success."""
 
-    def test_span_emitted_with_creation_and_output_attributes(
-        self, otel_provider, test_client
-    ):
+    def test_span_emitted_with_creation_and_output_attributes(self, otel_provider, test_client):
         """Happy path emits span with entity_type, counts, project_gid, caller_service."""
         _, exporter = otel_provider
 
@@ -237,8 +235,7 @@ class TestResolverSpanHappyPath:
         spans = exporter.get_finished_spans()
         resolver_spans = [s for s in spans if s.name == "resolver.entities.resolve"]
         assert len(resolver_spans) == 1, (
-            f"Expected 1 span named 'resolver.entities.resolve', got "
-            f"{[s.name for s in spans]}"
+            f"Expected 1 span named 'resolver.entities.resolve', got {[s.name for s in spans]}"
         )
 
         span = resolver_spans[0]
@@ -311,9 +308,7 @@ class TestResolverSpanServiceError:
 class TestResolverSpanUnexpectedError:
     """T-G03: Tier 3 Exception sets RESOLUTION_ERROR and unexpected tier."""
 
-    def test_unexpected_exception_sets_span_attributes(
-        self, otel_provider, test_client
-    ):
+    def test_unexpected_exception_sets_span_attributes(self, otel_provider, test_client):
         """RuntimeError sets error_code=RESOLUTION_ERROR, error_tier=unexpected."""
         _, exporter = otel_provider
 
@@ -346,9 +341,7 @@ class TestResolverSpanUnexpectedError:
 class TestResolverSpanAsanaError:
     """T-G07: Tier 2 AsanaError sets asana_error tier, no record_exception."""
 
-    def test_asana_error_sets_tier_and_type_no_exception_event(
-        self, otel_provider, test_client
-    ):
+    def test_asana_error_sets_tier_and_type_no_exception_event(self, otel_provider, test_client):
         """AsanaError sets error_tier=asana_error, error.type, no exception event."""
         _, exporter = otel_provider
 

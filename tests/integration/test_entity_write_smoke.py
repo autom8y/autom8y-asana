@@ -141,9 +141,7 @@ def _get_custom_field_value(task_data: dict[str, Any], display_name: str) -> Any
     return None
 
 
-def _get_custom_field_def(
-    task_data: dict[str, Any], display_name: str
-) -> dict[str, Any] | None:
+def _get_custom_field_def(task_data: dict[str, Any], display_name: str) -> dict[str, Any] | None:
     """Get the full custom field definition dict by display name.
 
     Uses case-insensitive matching.
@@ -165,9 +163,7 @@ async def _refetch_task_fresh(gid: str) -> dict[str, Any]:
     from autom8_asana import AsanaClient
 
     async with AsanaClient(token=ASANA_PAT) as fresh_client:
-        return await fresh_client.tasks.get_async(
-            gid, raw=True, opt_fields=_READ_OPT_FIELDS
-        )
+        return await fresh_client.tasks.get_async(gid, raw=True, opt_fields=_READ_OPT_FIELDS)
 
 
 def _make_resolver(
@@ -198,9 +194,7 @@ class TestRegistryDiscovery:
             "EntityWriteRegistry did not discover 'offer' as writable"
         )
 
-    def test_offer_project_gid_correct(
-        self, write_registry: EntityWriteRegistry
-    ) -> None:
+    def test_offer_project_gid_correct(self, write_registry: EntityWriteRegistry) -> None:
         """Offer info should have the correct project GID."""
         info = write_registry.get("offer")
         assert info is not None
@@ -241,8 +235,7 @@ class TestRegistryDiscovery:
             f"asset_id mapped to {idx.get('asset_id')!r}, expected 'Asset ID'"
         )
         assert idx.get("weekly_ad_spend") == "Weekly AD Spend", (
-            f"weekly_ad_spend mapped to {idx.get('weekly_ad_spend')!r}, "
-            "expected 'Weekly AD Spend'"
+            f"weekly_ad_spend mapped to {idx.get('weekly_ad_spend')!r}, expected 'Weekly AD Spend'"
         )
 
     def test_process_is_not_writable(self, write_registry: EntityWriteRegistry) -> None:
@@ -257,18 +250,14 @@ class TestRegistryDiscovery:
         """is_writable should return False for unknown types."""
         assert not write_registry.is_writable("nonexistent_entity_type_xyz")
 
-    def test_writable_types_returns_sorted_list(
-        self, write_registry: EntityWriteRegistry
-    ) -> None:
+    def test_writable_types_returns_sorted_list(self, write_registry: EntityWriteRegistry) -> None:
         """writable_types() should return a sorted list including offer."""
         types = write_registry.writable_types()
         assert isinstance(types, list)
         assert types == sorted(types), "writable_types() not sorted"
         assert "offer" in types
 
-    def test_core_fields_on_offer_info(
-        self, write_registry: EntityWriteRegistry
-    ) -> None:
+    def test_core_fields_on_offer_info(self, write_registry: EntityWriteRegistry) -> None:
         """Offer WritableEntityInfo should expose CORE_FIELD_NAMES."""
         info = write_registry.get("offer")
         assert info is not None
@@ -316,9 +305,7 @@ class TestFieldNameResolution:
         for variant in variations:
             results = resolver.resolve_fields({variant: "test"})
             rf = results[0]
-            assert rf.status == "resolved", (
-                f"Case variation {variant!r} failed: {rf.error}"
-            )
+            assert rf.status == "resolved", f"Case variation {variant!r} failed: {rf.error}"
 
     async def test_snake_case_descriptor_maps_correctly(
         self, offer_task_data: dict, write_registry: EntityWriteRegistry
@@ -337,9 +324,7 @@ class TestFieldNameResolution:
         resolver = _make_resolver(offer_task_data, write_registry)
         results = resolver.resolve_fields({"name": "test", "notes": "test"})
         for rf in results:
-            assert rf.status == "resolved", (
-                f"Core field {rf.input_name} failed: {rf.error}"
-            )
+            assert rf.status == "resolved", f"Core field {rf.input_name} failed: {rf.error}"
             assert rf.is_core
 
     async def test_invalid_field_returns_skipped_with_suggestions(
@@ -445,8 +430,7 @@ class TestLiveWrites:
                 "D-EW-001 regression: include_updated weekly_ad_spend is None"
             )
             assert abs(float(cached_spend) - 999.99) < 1.0, (
-                f"D-EW-001 regression: include_updated returned {cached_spend}, "
-                f"expected ~999.99"
+                f"D-EW-001 regression: include_updated returned {cached_spend}, expected ~999.99"
             )
         finally:
             restore_val = float(original_value) if original_value is not None else None
@@ -554,22 +538,16 @@ class TestLiveWrites:
 
             # Verify via fresh client (bypasses cache)
             updated_task = await _refetch_task_fresh(OFFER_GID)
-            assert (
-                _get_custom_field_value(updated_task, "Asset ID") == "MIXED-SMOKE-001"
-            )
+            assert _get_custom_field_value(updated_task, "Asset ID") == "MIXED-SMOKE-001"
             assert updated_task.get("notes") == "[SMOKE TEST] Mixed write test."
             spend_val = _get_custom_field_value(updated_task, "Weekly AD Spend")
             # Asana may round to integer precision depending on field config
-            assert spend_val is not None, (
-                "Weekly AD Spend should have a value after write"
-            )
+            assert spend_val is not None, "Weekly AD Spend should have a value after write"
             assert abs(float(spend_val) - 777.77) < 1.0, (
                 f"Expected ~777.77 (within rounding), got {spend_val}"
             )
         finally:
-            restore_spend = (
-                float(original_spend) if original_spend is not None else None
-            )
+            restore_spend = float(original_spend) if original_spend is not None else None
             await write_service.write_async(
                 entity_type="offer",
                 gid=OFFER_GID,
@@ -589,9 +567,7 @@ class TestLiveWrites:
 class TestEnumResolution:
     """Test enum and multi_enum resolution with real Asana data."""
 
-    async def test_enum_options_discoverable(
-        self, offer_task_data: dict[str, Any]
-    ) -> None:
+    async def test_enum_options_discoverable(self, offer_task_data: dict[str, Any]) -> None:
         """Verify we can inspect enum options on language, specialty, etc."""
         enum_fields = ["Language", "Specialty", "Optimize For", "Campaign Type"]
         for field_name in enum_fields:
@@ -599,14 +575,8 @@ class TestEnumResolution:
             if cf is None:
                 continue
             options = cf.get("enum_options", [])
-            enabled = [
-                o.get("name")
-                for o in options
-                if o.get("enabled", True) and o.get("name")
-            ]
-            assert len(enabled) > 0, (
-                f"No enabled options found for enum field {field_name!r}"
-            )
+            enabled = [o.get("name") for o in options if o.get("enabled", True) and o.get("name")]
+            assert len(enabled) > 0, f"No enabled options found for enum field {field_name!r}"
 
     async def test_enum_write_by_name(
         self, write_service: FieldWriteService, asana_client: Any
@@ -646,9 +616,7 @@ class TestEnumResolution:
 
             updated = await _refetch_task_fresh(OFFER_GID)
             updated_lang = _get_custom_field_value(updated, "Language")
-            assert updated_lang == test_option, (
-                f"Expected {test_option!r}, got {updated_lang!r}"
-            )
+            assert updated_lang == test_option, f"Expected {test_option!r}, got {updated_lang!r}"
         finally:
             if original_value is not None:
                 await write_service.write_async(
@@ -712,9 +680,7 @@ class TestEnumResolution:
     ) -> None:
         """Invalid enum value should produce 'skipped' result with suggestions."""
         resolver = _make_resolver(offer_task_data, write_registry)
-        results = resolver.resolve_fields(
-            {"language": "TOTALLY_INVALID_ENUM_VALUE_XYZ"}
-        )
+        results = resolver.resolve_fields({"language": "TOTALLY_INVALID_ENUM_VALUE_XYZ"})
         rf = results[0]
         assert rf.status == "skipped", (
             f"Expected 'skipped' for invalid enum, got {rf.status}: {rf.error}"
@@ -795,9 +761,7 @@ class TestErrorPaths:
             )
         assert OFFER_GID in str(exc_info.value)
 
-    async def test_nonexistent_gid_raises_not_found(
-        self, write_service: FieldWriteService
-    ) -> None:
+    async def test_nonexistent_gid_raises_not_found(self, write_service: FieldWriteService) -> None:
         """Using a fake GID should raise TaskNotFoundError."""
         with pytest.raises(TaskNotFoundError):
             await write_service.write_async(
@@ -833,9 +797,7 @@ class TestErrorPaths:
         resolver = _make_resolver(offer_task_data, write_registry)
         results = resolver.resolve_fields({"weekly_ad_spend": "not-a-number"})
         rf = results[0]
-        assert rf.status == "error", (
-            f"Expected 'error' for string in number field, got {rf.status}"
-        )
+        assert rf.status == "error", f"Expected 'error' for string in number field, got {rf.status}"
         assert "number" in rf.error.lower()
 
     async def test_wrong_type_for_text_field(
@@ -847,9 +809,7 @@ class TestErrorPaths:
         resolver = _make_resolver(offer_task_data, write_registry)
         results = resolver.resolve_fields({"asset_id": 12345})
         rf = results[0]
-        assert rf.status == "error", (
-            f"Expected 'error' for int in text field, got {rf.status}"
-        )
+        assert rf.status == "error", f"Expected 'error' for int in text field, got {rf.status}"
         assert "text" in rf.error.lower() or "str" in rf.error.lower()
 
     async def test_wrong_type_for_enum_field(
@@ -861,9 +821,7 @@ class TestErrorPaths:
         resolver = _make_resolver(offer_task_data, write_registry)
         results = resolver.resolve_fields({"language": 999})
         rf = results[0]
-        assert rf.status == "error", (
-            f"Expected 'error' for int in enum field, got {rf.status}"
-        )
+        assert rf.status == "error", f"Expected 'error' for int in enum field, got {rf.status}"
 
     async def test_unwritable_entity_type_raises_value_error(
         self, write_service: FieldWriteService
@@ -910,19 +868,13 @@ class TestPartialSuccess:
                 f"Expected at least 1 field skipped, got {result.fields_skipped}"
             )
 
-            written_names = [
-                r.input_name for r in result.field_results if r.status == "resolved"
-            ]
-            skipped_names = [
-                r.input_name for r in result.field_results if r.status == "skipped"
-            ]
+            written_names = [r.input_name for r in result.field_results if r.status == "resolved"]
+            skipped_names = [r.input_name for r in result.field_results if r.status == "skipped"]
             assert "asset_id" in written_names
             assert "nonexistent_field_abc" in skipped_names
 
             updated_task = await _refetch_task_fresh(OFFER_GID)
-            assert (
-                _get_custom_field_value(updated_task, "Asset ID") == "PARTIAL-SMOKE-001"
-            )
+            assert _get_custom_field_value(updated_task, "Asset ID") == "PARTIAL-SMOKE-001"
         finally:
             await write_service.write_async(
                 entity_type="offer",
@@ -967,16 +919,12 @@ class TestPartialSuccess:
 class TestProcessEdgeCase:
     """Verify Process entity behavior in write registry."""
 
-    def test_process_excluded_from_writable(
-        self, write_registry: EntityWriteRegistry
-    ) -> None:
+    def test_process_excluded_from_writable(self, write_registry: EntityWriteRegistry) -> None:
         """Process (PRIMARY_PROJECT_GID=None) is excluded from writable types."""
         assert not write_registry.is_writable("process")
         assert "process" not in write_registry.writable_types()
 
-    def test_process_get_returns_none(
-        self, write_registry: EntityWriteRegistry
-    ) -> None:
+    def test_process_get_returns_none(self, write_registry: EntityWriteRegistry) -> None:
         """get('process') should return None."""
         assert write_registry.get("process") is None
 
@@ -998,8 +946,7 @@ class TestProcessEdgeCase:
                 descriptors.append(attr_name)
 
         assert len(descriptors) > 10, (
-            f"Expected Process to have many descriptors, found {len(descriptors)}: "
-            f"{descriptors}"
+            f"Expected Process to have many descriptors, found {len(descriptors)}: {descriptors}"
         )
 
 
@@ -1185,9 +1132,7 @@ class TestDiscoveredDefects:
         assert cf is not None, "Algo Version should exist on the offer task"
 
         actual_type = cf.get("resource_subtype")
-        assert actual_type == "enum", (
-            f"Algo Version is {actual_type!r} in Asana (expected 'enum')"
-        )
+        assert actual_type == "enum", f"Algo Version is {actual_type!r} in Asana (expected 'enum')"
 
         # The model declares it as TextField -- verify the mismatch
         from autom8_asana.models.business.descriptors import TextField

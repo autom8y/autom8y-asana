@@ -172,9 +172,7 @@ class TestHealEntityAsync:
         self, mock_client: MagicMock, mock_entity_needs_healing: MagicMock
     ) -> None:
         """Dry run returns success without making API call."""
-        result = await heal_entity_async(
-            mock_entity_needs_healing, mock_client, dry_run=True
-        )
+        result = await heal_entity_async(mock_entity_needs_healing, mock_client, dry_run=True)
 
         assert result.success is True
         assert result.dry_run is True
@@ -191,9 +189,7 @@ class TestHealEntityAsync:
         self, mock_client: MagicMock, mock_entity_needs_healing: MagicMock
     ) -> None:
         """Actual healing calls API and returns success."""
-        result = await heal_entity_async(
-            mock_entity_needs_healing, mock_client, dry_run=False
-        )
+        result = await heal_entity_async(mock_entity_needs_healing, mock_client, dry_run=False)
 
         assert result.success is True
         assert result.dry_run is False
@@ -216,9 +212,7 @@ class TestHealEntityAsync:
         api_error = RuntimeError("API error")
         mock_client.tasks.add_to_project_async.side_effect = api_error
 
-        result = await heal_entity_async(
-            mock_entity_needs_healing, mock_client, dry_run=False
-        )
+        result = await heal_entity_async(mock_entity_needs_healing, mock_client, dry_run=False)
 
         assert result.success is False
         assert result.dry_run is False
@@ -241,9 +235,7 @@ class TestHealEntityAsync:
             await heal_entity_async(mock_entity_no_healing_needed, mock_client)
 
     @pytest.mark.asyncio
-    async def test_raises_for_no_expected_project_gid(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_raises_for_no_expected_project_gid(self, mock_client: MagicMock) -> None:
         """Raises ValueError if expected_project_gid is None."""
         entity = MagicMock()
         entity.gid = "entity_123"
@@ -305,9 +297,7 @@ class TestHealEntitiesAsync:
         self, mock_client: MagicMock, mock_entities_mixed: list[MagicMock]
     ) -> None:
         """Only entities that need healing are processed."""
-        results = await heal_entities_async(
-            mock_entities_mixed, mock_client, dry_run=True
-        )
+        results = await heal_entities_async(mock_entities_mixed, mock_client, dry_run=True)
 
         # Should only process 2 entities (entity1 and entity3)
         assert len(results) == 2
@@ -327,16 +317,12 @@ class TestHealEntitiesAsync:
         self, mock_client: MagicMock, mock_entity_no_healing_needed: MagicMock
     ) -> None:
         """List with no entities needing healing returns empty."""
-        results = await heal_entities_async(
-            [mock_entity_no_healing_needed], mock_client
-        )
+        results = await heal_entities_async([mock_entity_no_healing_needed], mock_client)
 
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_concurrent_healing_respects_semaphore(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_concurrent_healing_respects_semaphore(self, mock_client: MagicMock) -> None:
         """Batch healing respects max_concurrent limit."""
         # Create 10 entities needing healing
         entities = []
@@ -352,9 +338,7 @@ class TestHealEntitiesAsync:
             )
             entities.append(entity)
 
-        results = await heal_entities_async(
-            entities, mock_client, dry_run=True, max_concurrent=3
-        )
+        results = await heal_entities_async(entities, mock_client, dry_run=True, max_concurrent=3)
 
         # All should be healed
         assert len(results) == 10
@@ -365,18 +349,14 @@ class TestHealEntitiesAsync:
         self, mock_client: MagicMock, mock_entities_mixed: list[MagicMock]
     ) -> None:
         """Actual healing calls API for each entity needing healing."""
-        results = await heal_entities_async(
-            mock_entities_mixed, mock_client, dry_run=False
-        )
+        results = await heal_entities_async(mock_entities_mixed, mock_client, dry_run=False)
 
         # 2 entities need healing
         assert len(results) == 2
         assert mock_client.tasks.add_to_project_async.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_partial_failure_returns_all_results(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_partial_failure_returns_all_results(self, mock_client: MagicMock) -> None:
         """Partial failures still return results for all attempts."""
         # Create 3 entities needing healing
         entities = []

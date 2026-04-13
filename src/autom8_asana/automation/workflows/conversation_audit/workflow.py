@@ -198,9 +198,7 @@ class ConversationAuditWorkflow(BridgeWorkflowAction):
             holder_gid=entity["gid"],
             holder_name=entity.get("name"),
             parent_gid=entity.get("parent_gid"),
-            attachment_pattern=params.get(
-                "attachment_pattern", DEFAULT_ATTACHMENT_PATTERN
-            ),
+            attachment_pattern=params.get("attachment_pattern", DEFAULT_ATTACHMENT_PATTERN),
             start_date=start_date,
             end_date=end_date,
             dry_run=params.get("dry_run", False),
@@ -268,14 +266,11 @@ class ConversationAuditWorkflow(BridgeWorkflowAction):
 
         Also includes dry-run CSV row counts when applicable.
         """
-        truncated_count = sum(
-            1 for o in outcomes if isinstance(o, _HolderOutcome) and o.truncated
-        )
+        truncated_count = sum(1 for o in outcomes if isinstance(o, _HolderOutcome) and o.truncated)
         activity_skipped = sum(
             1
             for o in outcomes
-            if o.status == "skipped"
-            and o.reason in ("business_not_active", "activity_unknown")
+            if o.status == "skipped" and o.reason in ("business_not_active", "activity_unknown")
         )
 
         metadata: dict[str, Any] = {
@@ -382,7 +377,9 @@ class ConversationAuditWorkflow(BridgeWorkflowAction):
                 activity = getattr(result.business, "max_unit_activity", None)
             else:
                 activity = None
-        except Exception:  # BROAD-CATCH: boundary -- activity resolution failure returns None (soft-fail)
+        except (
+            Exception
+        ):  # BROAD-CATCH: boundary -- activity resolution failure returns None (soft-fail)
             logger.warning(
                 "conversation_audit_activity_resolution_failed",
                 business_gid=business_gid,
@@ -423,11 +420,7 @@ class ConversationAuditWorkflow(BridgeWorkflowAction):
             if parent_gid:
                 activity = await self._resolve_business_activity(parent_gid)
                 if activity != AccountActivity.ACTIVE:
-                    reason = (
-                        "activity_unknown"
-                        if activity is None
-                        else "business_not_active"
-                    )
+                    reason = "activity_unknown" if activity is None else "business_not_active"
                     logger.info(
                         "holder_skipped_inactive_business",
                         holder_gid=holder_gid,
@@ -442,9 +435,7 @@ class ConversationAuditWorkflow(BridgeWorkflowAction):
                     )
 
             # Step A: Resolve office_phone via parent Business
-            office_phone = await self._resolve_office_phone(
-                holder_gid, parent_gid=parent_gid
-            )
+            office_phone = await self._resolve_office_phone(holder_gid, parent_gid=parent_gid)
             if not office_phone:
                 logger.warning(
                     "holder_skipped_no_phone",
@@ -533,7 +524,9 @@ class ConversationAuditWorkflow(BridgeWorkflowAction):
                 csv_row_count=export.row_count,
             )
 
-        except Exception as exc:  # BROAD-CATCH: boundary -- holder processing failure returns failed outcome
+        except (
+            Exception
+        ) as exc:  # BROAD-CATCH: boundary -- holder processing failure returns failed outcome
             logger.error(
                 "holder_processing_error",
                 holder_gid=holder_gid,

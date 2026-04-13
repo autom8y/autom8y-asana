@@ -78,9 +78,7 @@ class TestNavigationRefStrategy:
         strategy = NavigationRefStrategy()
         budget = ApiBudget()
 
-        result = await strategy.resolve_async(
-            Business, context, from_entity=contact, budget=budget
-        )
+        result = await strategy.resolve_async(Business, context, from_entity=contact, budget=budget)
 
         assert result is not None
         assert result.entity == business
@@ -97,9 +95,7 @@ class TestNavigationRefStrategy:
         strategy = NavigationRefStrategy()
         budget = ApiBudget()
 
-        result = await strategy.resolve_async(
-            Business, context, from_entity=contact, budget=budget
-        )
+        result = await strategy.resolve_async(Business, context, from_entity=contact, budget=budget)
 
         assert result is None
 
@@ -135,9 +131,7 @@ class TestDependencyShortcutStrategy:
         assert result.strategy_used == "dependency_shortcut"
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_budget_too_low(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_returns_none_when_budget_too_low(self, mock_client: MagicMock) -> None:
         """Test returns None when budget < 2."""
         from_entity = make_business_entity("source-123", "Source")
         context = ResolutionContext(mock_client)
@@ -189,9 +183,7 @@ class TestHierarchyTraversalStrategy:
         assert result is not None
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_budget_too_low(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_returns_none_when_budget_too_low(self, mock_client: MagicMock) -> None:
         """Test returns None when budget < 3."""
         from_entity = make_business_entity("child-123", "Child")
         context = ResolutionContext(mock_client)

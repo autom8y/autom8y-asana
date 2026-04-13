@@ -76,9 +76,7 @@ def cascade_schema() -> DataFrameSchema:
         columns=[
             ColumnDef("gid", "Utf8", nullable=False, source=None),
             ColumnDef("name", "Utf8", nullable=False, source=None),
-            ColumnDef(
-                "office_phone", "Utf8", nullable=True, source="cascade:Office Phone"
-            ),
+            ColumnDef("office_phone", "Utf8", nullable=True, source="cascade:Office Phone"),
         ],
         version="1.0.0",
     )
@@ -125,9 +123,7 @@ def sample_task_data() -> dict[str, Any]:
 
 
 @pytest.fixture
-def dataframe_plugin(
-    mock_store: MagicMock, simple_schema: DataFrameSchema
-) -> DataFrameViewPlugin:
+def dataframe_plugin(mock_store: MagicMock, simple_schema: DataFrameSchema) -> DataFrameViewPlugin:
     """Create a DataFrameViewPlugin with mock store and simple schema."""
     return DataFrameViewPlugin(store=mock_store, schema=simple_schema)
 
@@ -151,9 +147,7 @@ class TestDataFrameViewPluginInit:
     ) -> None:
         """Test plugin initialization with resolver."""
         mock_resolver = MagicMock()
-        plugin = DataFrameViewPlugin(
-            store=mock_store, schema=simple_schema, resolver=mock_resolver
-        )
+        plugin = DataFrameViewPlugin(store=mock_store, schema=simple_schema, resolver=mock_resolver)
 
         assert plugin.resolver is mock_resolver
 
@@ -170,9 +164,7 @@ class TestDataFrameViewPluginMaterialize:
     """Tests for DataFrameViewPlugin.materialize_async()."""
 
     @pytest.mark.asyncio
-    async def test_materialize_empty_gids(
-        self, dataframe_plugin: DataFrameViewPlugin
-    ) -> None:
+    async def test_materialize_empty_gids(self, dataframe_plugin: DataFrameViewPlugin) -> None:
         """Test materialize with empty GID list."""
         result = await dataframe_plugin.materialize_async([])
 
@@ -199,9 +191,7 @@ class TestDataFrameViewPluginMaterialize:
         sample_task_data: dict[str, Any],
     ) -> None:
         """Test materialize with single task."""
-        mock_store.get_batch_async = AsyncMock(
-            return_value={"task-123": sample_task_data}
-        )
+        mock_store.get_batch_async = AsyncMock(return_value={"task-123": sample_task_data})
         mock_store.get_parent_chain_async = AsyncMock(return_value=[])
 
         plugin = DataFrameViewPlugin(store=mock_store, schema=simple_schema)
@@ -257,9 +247,7 @@ class TestDataFrameViewPluginMaterialize:
 
         await plugin.materialize_async(["task-1"], freshness=FreshnessIntent.STRICT)
 
-        mock_store.get_batch_async.assert_called_with(
-            ["task-1"], freshness=FreshnessIntent.STRICT
-        )
+        mock_store.get_batch_async.assert_called_with(["task-1"], freshness=FreshnessIntent.STRICT)
 
     @pytest.mark.asyncio
     async def test_materialize_with_project_gid(
@@ -269,9 +257,7 @@ class TestDataFrameViewPluginMaterialize:
         sample_task_data: dict[str, Any],
     ) -> None:
         """Test materialize with project_gid context."""
-        mock_store.get_batch_async = AsyncMock(
-            return_value={"task-123": sample_task_data}
-        )
+        mock_store.get_batch_async = AsyncMock(return_value={"task-123": sample_task_data})
         mock_store.get_parent_chain_async = AsyncMock(return_value=[])
 
         plugin = DataFrameViewPlugin(store=mock_store, schema=simple_schema)
@@ -315,9 +301,7 @@ class TestDataFrameViewPluginExtraction:
         assert result["due_on"][0] is not None
 
     @pytest.mark.asyncio
-    async def test_extract_tags(
-        self, mock_store: MagicMock, full_schema: DataFrameSchema
-    ) -> None:
+    async def test_extract_tags(self, mock_store: MagicMock, full_schema: DataFrameSchema) -> None:
         """Test tags extraction."""
         task_data = {
             "gid": "task-1",
@@ -704,9 +688,7 @@ class TestDataFrameViewPluginStats:
         sample_task_data: dict[str, Any],
     ) -> None:
         """Test that statistics are tracked correctly."""
-        mock_store.get_batch_async = AsyncMock(
-            return_value={"task-123": sample_task_data}
-        )
+        mock_store.get_batch_async = AsyncMock(return_value={"task-123": sample_task_data})
         mock_store.get_parent_chain_async = AsyncMock(return_value=[])
 
         plugin = DataFrameViewPlugin(store=mock_store, schema=simple_schema)
@@ -802,9 +784,7 @@ class TestDataFrameViewPluginEdgeCases:
             "tags": [],
             "custom_fields": [],
         }
-        mock_store.get_batch_async = AsyncMock(
-            return_value={"12345678901234567": task_data}
-        )
+        mock_store.get_batch_async = AsyncMock(return_value={"12345678901234567": task_data})
         mock_store.get_parent_chain_async = AsyncMock(return_value=[])
 
         plugin = DataFrameViewPlugin(store=mock_store, schema=full_schema)
@@ -833,9 +813,7 @@ class TestDataFrameViewPluginMixedTypes:
                 ColumnDef("gid", "Utf8", nullable=False, source=None),
                 ColumnDef("name", "Utf8", nullable=False, source=None),
                 ColumnDef("discount", "Float64", nullable=True, source="cf:Discount"),
-                ColumnDef(
-                    "commission", "Float64", nullable=True, source="cf:Commission"
-                ),
+                ColumnDef("commission", "Float64", nullable=True, source="cf:Commission"),
             ],
             version="1.0.0",
         )
@@ -1044,9 +1022,7 @@ class TestDataFrameViewPluginMultiEnumCoercion:
             columns=[
                 ColumnDef("gid", "Utf8", nullable=False, source=None),
                 ColumnDef("name", "Utf8", nullable=False, source=None),
-                ColumnDef(
-                    "platforms", "List[Utf8]", nullable=True, source="cf:Platforms"
-                ),
+                ColumnDef("platforms", "List[Utf8]", nullable=True, source="cf:Platforms"),
             ],
             version="1.0.0",
         )

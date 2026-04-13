@@ -171,9 +171,7 @@ class TestAC001StateTransitionsAtomic:
 
             if len(exceptions) > 0:
                 errors.append(f"Run {i}: Unexpected exceptions: {exceptions}")
-            if not (
-                "exited" in results and ("tracked" in results or "closed" in results)
-            ):
+            if not ("exited" in results and ("tracked" in results or "closed" in results)):
                 errors.append(f"Run {i}: Invalid results: {results}")
 
         assert len(errors) == 0, "\n".join(errors)
@@ -253,8 +251,7 @@ class TestAC002NoLostTracks:
         async def counting_execute(requests: list[Any]) -> list[BatchResult]:
             call_count[0] += 1
             return [
-                create_success_result(gid=f"gid_{call_count[0]}_{i}")
-                for i in range(len(requests))
+                create_success_result(gid=f"gid_{call_count[0]}_{i}") for i in range(len(requests))
             ]
 
         mock_client.batch.execute_async = counting_execute
@@ -271,9 +268,7 @@ class TestAC002NoLostTracks:
         async def slow_execute(requests: list[Any]) -> list[BatchResult]:
             commit_started.set()
             await asyncio.sleep(0.05)
-            return [
-                create_success_result(gid=f"real_gid_{i}") for i in range(len(requests))
-            ]
+            return [create_success_result(gid=f"real_gid_{i}") for i in range(len(requests))]
 
         mock_client.batch.execute_async = slow_execute
 
@@ -411,9 +406,7 @@ class TestAC004StateInspectionAccuracy:
         Once CLOSED, should stay CLOSED.
         """
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result()]
-        )
+        mock_client.batch.execute_async = AsyncMock(return_value=[create_success_result()])
 
         session = SaveSession(mock_client)
         states_seen: list[str] = []
@@ -486,9 +479,7 @@ class TestAC005BackwardCompatibility:
     def test_single_threaded_track_commit(self) -> None:
         """Single-threaded track/commit works as before."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result(gid="123")]
-        )
+        mock_client.batch.execute_async = AsyncMock(return_value=[create_success_result(gid="123")])
 
         with SaveSession(mock_client) as session:
             task = Task(gid="123", name="Original")
@@ -503,9 +494,7 @@ class TestAC005BackwardCompatibility:
     async def test_async_context_manager(self) -> None:
         """Async context manager works as before."""
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result(gid="123")]
-        )
+        mock_client.batch.execute_async = AsyncMock(return_value=[create_success_result(gid="123")])
 
         async with SaveSession(mock_client) as session:
             task = Task(gid="123", name="Test")
@@ -602,9 +591,7 @@ class TestAC006PerformanceTolerance:
                 errors.append(e)
 
         # 5 concurrent threads
-        threads = [
-            threading.Thread(target=contended_operations, args=(i,)) for i in range(5)
-        ]
+        threads = [threading.Thread(target=contended_operations, args=(i,)) for i in range(5)]
         for t in threads:
             t.start()
         for t in threads:
@@ -615,9 +602,7 @@ class TestAC006PerformanceTolerance:
         # Even under contention, average should be < 1ms
         avg_ns = sum(times) / len(times)
         avg_ms = avg_ns / 1_000_000
-        assert avg_ms < 1.0, (
-            f"Average contended operation {avg_ms:.3f}ms exceeds 1ms budget"
-        )
+        assert avg_ms < 1.0, f"Average contended operation {avg_ms:.3f}ms exceeds 1ms budget"
 
 
 # ---------------------------------------------------------------------------
@@ -719,9 +704,7 @@ class TestRLockReentrance:
         commit. This is documented behavior.
         """
         mock_client = create_mock_client()
-        mock_client.batch.execute_async = AsyncMock(
-            return_value=[create_success_result(gid="123")]
-        )
+        mock_client.batch.execute_async = AsyncMock(return_value=[create_success_result(gid="123")])
 
         session = SaveSession(mock_client)
         hook_called = [False]

@@ -226,9 +226,7 @@ class TestQueryEndpoint:
         assert "name" in data["data"][0]
         assert "vertical" in data["data"][0]
         # section should NOT be present (not in select)
-        assert (
-            "section" not in data["data"][0] or data["data"][0].get("section") is None
-        )
+        assert "section" not in data["data"][0] or data["data"][0].get("section") is None
 
     def test_pagination_limit(self, client: TestClient) -> None:
         """TC-004a: Limit parameter controls result count."""
@@ -676,10 +674,8 @@ class TestQueryProjectNotConfigured:
 
             # Mock EntityService to raise ServiceNotConfiguredError
             mock_entity_svc = MagicMock(spec=EntityService)
-            mock_entity_svc.validate_entity_type.side_effect = (
-                ServiceNotConfiguredError(
-                    "No project configured for entity type: offer"
-                )
+            mock_entity_svc.validate_entity_type.side_effect = ServiceNotConfiguredError(
+                "No project configured for entity type: offer"
             )
 
             # Use FastAPI's dependency override for the EntityService

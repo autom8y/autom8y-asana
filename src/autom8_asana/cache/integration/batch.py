@@ -224,9 +224,7 @@ class ModificationCheckCache:
         removed = 0
         with self._lock:
             expired_gids = [
-                gid
-                for gid, check in self._cache.items()
-                if now - check.checked_at > self._ttl
+                gid for gid, check in self._cache.items() if now - check.checked_at > self._ttl
             ]
             for gid in expired_gids:
                 del self._cache[gid]

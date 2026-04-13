@@ -153,10 +153,7 @@ class TestCreateOnboardingCommentAsync:
         comment_text = call_kwargs["text"]
 
         # Check link format
-        assert (
-            "https://app.asana.com/0/source_project_gid/source_process_gid"
-            in comment_text
-        )
+        assert "https://app.asana.com/0/source_project_gid/source_process_gid" in comment_text
 
     @pytest.mark.asyncio
     async def test_create_comment_async_fails_returns_false_gracefully(
@@ -259,9 +256,7 @@ class TestBuildOnboardingComment:
         assert "Source:" in comment
         assert "Business:" in comment
 
-    def test_uses_unknown_for_missing_source_name(
-        self, rule: PipelineConversionRule
-    ) -> None:
+    def test_uses_unknown_for_missing_source_name(self, rule: PipelineConversionRule) -> None:
         """Test that 'Unknown' is used when source process name is None."""
         source_process = MockProcess(
             gid="source_123",
@@ -294,9 +289,7 @@ class TestBuildOnboardingComment:
 
         assert "https://app.asana.com/0/project_456/source_123" in comment
 
-    def test_fallback_project_gid_for_no_memberships(
-        self, rule: PipelineConversionRule
-    ) -> None:
+    def test_fallback_project_gid_for_no_memberships(self, rule: PipelineConversionRule) -> None:
         """Test that fallback '0' is used when no memberships available."""
         source_process = MockProcess(
             gid="source_123",

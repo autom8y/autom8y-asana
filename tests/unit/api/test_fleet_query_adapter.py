@@ -255,9 +255,7 @@ def _patch_query_path() -> Any:
 class TestFleetQueryRoutesDualNamespace:
     """Both /v1/query/entities and /api/v1/query/entities accept FleetQuery."""
 
-    def test_post_returns_success_envelope(
-        self, client: TestClient, route_path: str
-    ) -> None:
+    def test_post_returns_success_envelope(self, client: TestClient, route_path: str) -> None:
         jwt_token = "header.payload.signature"
         patches = _patch_query_path()
 
@@ -296,9 +294,7 @@ class TestFleetQueryRoutesDualNamespace:
         for row in data["rows"]:
             assert row["section"] == "ACTIVE"
 
-    def test_pagination_meta_round_trips(
-        self, client: TestClient, route_path: str
-    ) -> None:
+    def test_pagination_meta_round_trips(self, client: TestClient, route_path: str) -> None:
         # Section 7.3 invariant: FleetQuery(limit=L, offset=O) round-trips
         # into the response envelope's PaginationMeta.
         jwt_token = "header.payload.signature"
@@ -337,9 +333,7 @@ class TestFleetQueryRoutesDualNamespace:
         assert pagination["has_more"] is False
         assert pagination["next_offset"] is None
 
-    def test_missing_entity_type_returns_400(
-        self, client: TestClient, route_path: str
-    ) -> None:
+    def test_missing_entity_type_returns_400(self, client: TestClient, route_path: str) -> None:
         jwt_token = "header.payload.signature"
         with (
             patch(
@@ -386,9 +380,7 @@ class TestLegacyQuerySurfacePreserved:
         )
 
         v1_paths = {getattr(r, "path", None) for r in fleet_query_router_v1.routes}
-        api_v1_paths = {
-            getattr(r, "path", None) for r in fleet_query_router_api_v1.routes
-        }
+        api_v1_paths = {getattr(r, "path", None) for r in fleet_query_router_api_v1.routes}
         # The fleet router defines exactly /entities under its prefix.
         # SecureRouter prepends the prefix, so route.path is the full path.
         assert any("/entities" in (p or "") for p in v1_paths)

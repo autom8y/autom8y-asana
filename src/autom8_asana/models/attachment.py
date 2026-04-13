@@ -44,12 +44,8 @@ class Attachment(AsanaResource):
         description="Host type (asana, dropbox, gdrive, onedrive, box, vimeo, external)",
     )
     view_url: str | None = Field(default=None, description="URL to view the attachment")
-    download_url: str | None = Field(
-        default=None, description="URL to download the file"
-    )
-    permanent_url: str | None = Field(
-        default=None, description="Permanent URL for the file"
-    )
+    download_url: str | None = Field(default=None, description="URL to download the file")
+    permanent_url: str | None = Field(default=None, description="Permanent URL for the file")
 
     # File metadata
     size: int | None = Field(default=None, description="File size in bytes")
@@ -62,6 +58,4 @@ class Attachment(AsanaResource):
     )
 
     # Timestamps
-    created_at: str | None = Field(
-        default=None, description="Created datetime (ISO 8601)"
-    )
+    created_at: str | None = Field(default=None, description="Created datetime (ISO 8601)")

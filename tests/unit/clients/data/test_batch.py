@@ -39,9 +39,7 @@ class TestGetInsightsBatchAsync:
 
         with respx.mock:
             # Single batched response for all PVPs (IMP-20)
-            route = respx.post("/api/v1/data-service/insights").respond(
-                json=response_body
-            )
+            route = respx.post("/api/v1/data-service/insights").respond(json=response_body)
 
             async with client:
                 result = await client.get_insights_batch_async(
@@ -73,9 +71,7 @@ class TestGetInsightsBatchAsync:
 
         client = DataServiceClient()
         # First PVP fails, others succeed -- returned as HTTP 207
-        response_body, status_code = make_batch_insights_response(
-            sample_pvps, failed_indices=[0]
-        )
+        response_body, status_code = make_batch_insights_response(sample_pvps, failed_indices=[0])
 
         with respx.mock:
             route = respx.post("/api/v1/data-service/insights").respond(
@@ -111,9 +107,7 @@ class TestGetInsightsBatchAsync:
             assert success_result.response is not None
 
     @pytest.mark.asyncio
-    async def test_batch_size_exceeds_max_raises_validation_error(
-        self, sample_pvps: list
-    ) -> None:
+    async def test_batch_size_exceeds_max_raises_validation_error(self, sample_pvps: list) -> None:
         """Batch size validation - exceeds max_batch_size raises InsightsValidationError."""
         from autom8_asana.errors import InsightsValidationError
 
@@ -136,9 +130,7 @@ class TestGetInsightsBatchAsync:
         assert exc.value.request_id is not None
 
     @pytest.mark.asyncio
-    async def test_invalid_factory_raises_validation_error(
-        self, sample_pvps: list
-    ) -> None:
+    async def test_invalid_factory_raises_validation_error(self, sample_pvps: list) -> None:
         """Invalid factory - raises InsightsValidationError."""
         from autom8_asana.errors import InsightsValidationError
 
@@ -156,9 +148,7 @@ class TestGetInsightsBatchAsync:
         assert exc.value.field == "factory"
 
     @pytest.mark.asyncio
-    async def test_feature_flag_disabled_raises_service_error(
-        self, sample_pvps: list
-    ) -> None:
+    async def test_feature_flag_disabled_raises_service_error(self, sample_pvps: list) -> None:
         """Feature flag disabled - raises InsightsServiceError with reason='feature_disabled'.
 
         Per Story 2.7: Feature is now enabled by default. Must explicitly disable.
@@ -193,9 +183,7 @@ class TestGetInsightsBatchAsync:
         response_body, _status = make_batch_insights_response(sample_pvps, spend=100.0)
 
         with respx.mock:
-            route = respx.post("/api/v1/data-service/insights").respond(
-                json=response_body
-            )
+            route = respx.post("/api/v1/data-service/insights").respond(json=response_body)
 
             async with client:
                 result = await client.get_insights_batch_async(
@@ -227,9 +215,7 @@ class TestGetInsightsBatchAsync:
 
         with patch.object(client, "_emit_metric", side_effect=capture_metric):
             # HTTP 207 partial response: first PVP fails, others succeed
-            response_body, _status = make_batch_insights_response(
-                sample_pvps, failed_indices=[0]
-            )
+            response_body, _status = make_batch_insights_response(sample_pvps, failed_indices=[0])
 
             with respx.mock:
                 respx.post("/api/v1/data-service/insights").respond(
@@ -259,14 +245,10 @@ class TestGetInsightsBatchAsync:
         batch_size = next(m for m in emitted_metrics if m[0] == "insights_batch_size")
         assert batch_size[1] == 3.0
 
-        success_count = next(
-            m for m in emitted_metrics if m[0] == "insights_batch_success_count"
-        )
+        success_count = next(m for m in emitted_metrics if m[0] == "insights_batch_success_count")
         assert success_count[1] == 2.0
 
-        failure_count = next(
-            m for m in emitted_metrics if m[0] == "insights_batch_failure_count"
-        )
+        failure_count = next(m for m in emitted_metrics if m[0] == "insights_batch_failure_count")
         assert failure_count[1] == 1.0
 
     @pytest.mark.asyncio
@@ -356,9 +338,7 @@ class TestGetInsightsBatchAsync:
         assert result.success_count == 3
 
     @pytest.mark.asyncio
-    async def test_batch_with_custom_period_and_refresh(
-        self, sample_pvps: list
-    ) -> None:
+    async def test_batch_with_custom_period_and_refresh(self, sample_pvps: list) -> None:
         """Batch passes period and refresh parameters in single request."""
         import json
 
@@ -373,9 +353,7 @@ class TestGetInsightsBatchAsync:
             return httpx.Response(200, json=response_body)
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").mock(
-                side_effect=capture_request
-            )
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             async with client:
                 await client.get_insights_batch_async(
@@ -408,9 +386,7 @@ class TestGetInsightsBatchAsync:
             return httpx.Response(200, json=response_body)
 
         with respx.mock:
-            respx.post("/api/v1/data-service/insights").mock(
-                side_effect=capture_request
-            )
+            respx.post("/api/v1/data-service/insights").mock(side_effect=capture_request)
 
             async with client:
                 await client.get_insights_batch_async(
@@ -428,9 +404,7 @@ class TestGetInsightsBatchAsync:
         assert actual_pvps == expected_pvps
 
     @pytest.mark.asyncio
-    async def test_total_server_error_marks_all_pvps_failed(
-        self, sample_pvps: list
-    ) -> None:
+    async def test_total_server_error_marks_all_pvps_failed(self, sample_pvps: list) -> None:
         """IMP-20: HTTP 500 from server marks all PVPs as failed."""
         import respx
 
@@ -536,9 +510,7 @@ class TestGetInsightsBatchAsync:
         assert result.failure_count == 0
 
     @pytest.mark.asyncio
-    async def test_circuit_breaker_open_marks_all_failed(
-        self, sample_pvps: list
-    ) -> None:
+    async def test_circuit_breaker_open_marks_all_failed(self, sample_pvps: list) -> None:
         """IMP-20: Circuit breaker open marks all PVPs as failed without HTTP."""
         import respx
 

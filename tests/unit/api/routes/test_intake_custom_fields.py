@@ -111,9 +111,7 @@ def _make_mock_asana_client(
     if raise_on_get:
         mock_client.tasks.get_async = AsyncMock(side_effect=raise_on_get)
     else:
-        mock_client.tasks.get_async = AsyncMock(
-            return_value=task_data or MOCK_TASK_DATA
-        )
+        mock_client.tasks.get_async = AsyncMock(return_value=task_data or MOCK_TASK_DATA)
 
     if raise_on_update:
         mock_client.tasks.update_async = AsyncMock(side_effect=raise_on_update)

@@ -164,9 +164,7 @@ class TestDefaultCustomFieldResolver:
         resolver = DefaultCustomFieldResolver()
         custom_fields = [
             MockCustomField(gid="123", name="MRR", resource_subtype="number"),
-            MockCustomField(
-                gid="456", name="Weekly Ad Spend", resource_subtype="number"
-            ),
+            MockCustomField(gid="456", name="Weekly Ad Spend", resource_subtype="number"),
             MockCustomField(gid="789", name="Products", resource_subtype="multi_enum"),
         ]
         resolver.build_index(custom_fields)  # type: ignore[arg-type]
@@ -180,9 +178,7 @@ class TestDefaultCustomFieldResolver:
         resolver = DefaultCustomFieldResolver()
         custom_fields = [
             MockCustomField(gid="123", name="MRR", resource_subtype="number"),
-            MockCustomField(
-                gid="456", name="Weekly Ad Spend", resource_subtype="number"
-            ),
+            MockCustomField(gid="456", name="Weekly Ad Spend", resource_subtype="number"),
         ]
         resolver.build_index(custom_fields)  # type: ignore[arg-type]
 
@@ -928,9 +924,7 @@ class TestAdversarialMockResolverConsistency:
 
     def test_mock_coerces_list_to_string_with_column_def(self) -> None:
         """Test MockCustomFieldResolver coerces list to string via column_def."""
-        resolver = MockCustomFieldResolver(
-            {"products": ["Product A", "Product B", "Product C"]}
-        )
+        resolver = MockCustomFieldResolver({"products": ["Product A", "Product B", "Product C"]})
 
         column_def = ColumnDef(
             name="products",
@@ -1046,9 +1040,7 @@ class TestAdversarialMockResolverConsistency:
         )
 
         # Setup MockCustomFieldResolver with same data
-        mock_resolver = MockCustomFieldResolver(
-            {"products": ["Product A", "Product B"]}
-        )
+        mock_resolver = MockCustomFieldResolver({"products": ["Product A", "Product B"]})
 
         column_def = ColumnDef(
             name="products",
@@ -1108,9 +1100,7 @@ class TestAdversarialMockResolverConsistency:
 
     def test_mock_handles_unicode_in_coercion(self) -> None:
         """Test MockCustomFieldResolver handles Unicode during coercion."""
-        resolver = MockCustomFieldResolver(
-            {"products": ["Product ", "Produkt Müller", ""]}
-        )
+        resolver = MockCustomFieldResolver({"products": ["Product ", "Produkt Müller", ""]})
 
         column_def = ColumnDef(
             name="products",

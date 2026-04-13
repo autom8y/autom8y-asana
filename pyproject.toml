@@ -192,7 +192,7 @@ ignore_missing_imports = true
 # All ignore_errors overrides removed — mypy strict enforced on all modules
 
 [tool.ruff]
-line-length = 88
+line-length = 100
 target-version = "py312"
 src = ["src"]
 

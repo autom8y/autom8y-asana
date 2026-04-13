@@ -32,9 +32,7 @@ __all__ = [
 logger = get_logger(__name__)
 
 
-def detect_by_parent_inference(
-    task: Task, parent_type: EntityType
-) -> DetectionResult | None:
+def detect_by_parent_inference(task: Task, parent_type: EntityType) -> DetectionResult | None:
     """Tier 3: Detect entity type by parent type inference.
 
     Per TDD-DETECTION: Infer child type from known parent type.

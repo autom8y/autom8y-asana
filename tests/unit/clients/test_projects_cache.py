@@ -162,9 +162,7 @@ class TestCacheMissFlow:
     ) -> None:
         """When cache miss, fetch from API."""
         # Arrange: Empty cache, mock HTTP response
-        mock_http.get.return_value = make_project_data(
-            gid=PROJECT_GID, name="API Project"
-        )
+        mock_http.get.return_value = make_project_data(gid=PROJECT_GID, name="API Project")
 
         # Act
         result = await projects_client.get_async(PROJECT_GID)
@@ -186,9 +184,7 @@ class TestCacheMissFlow:
     ) -> None:
         """After cache miss, store API result in cache."""
         # Arrange
-        mock_http.get.return_value = make_project_data(
-            gid=PROJECT_GID, name="API Project"
-        )
+        mock_http.get.return_value = make_project_data(gid=PROJECT_GID, name="API Project")
 
         # Act
         await projects_client.get_async(PROJECT_GID)
@@ -208,9 +204,7 @@ class TestCacheMissFlow:
     ) -> None:
         """Cache miss stores with 900s (15 min) TTL per TDD-CACHE-UTILIZATION."""
         # Arrange
-        mock_http.get.return_value = make_project_data(
-            gid=PROJECT_GID, name="API Project"
-        )
+        mock_http.get.return_value = make_project_data(gid=PROJECT_GID, name="API Project")
 
         # Act
         await projects_client.get_async(PROJECT_GID)
@@ -228,9 +222,7 @@ class TestCacheMissFlow:
     ) -> None:
         """Cache miss with raw=True stores data and returns dict."""
         # Arrange
-        mock_http.get.return_value = make_project_data(
-            gid=PROJECT_GID, name="API Project"
-        )
+        mock_http.get.return_value = make_project_data(gid=PROJECT_GID, name="API Project")
 
         # Act
         result = await projects_client.get_async(PROJECT_GID, raw=True)
@@ -262,13 +254,9 @@ class TestCacheExpiration:
             cached_at=datetime.now(UTC) - timedelta(hours=1),
             ttl=900,  # 15 min TTL, but cached 1 hour ago
         )
-        cache_provider._cache[f"{PROJECT_GID}:{EntryType.PROJECT.value}"] = (
-            expired_entry
-        )
+        cache_provider._cache[f"{PROJECT_GID}:{EntryType.PROJECT.value}"] = expired_entry
 
-        mock_http.get.return_value = make_project_data(
-            gid=PROJECT_GID, name="Fresh Project"
-        )
+        mock_http.get.return_value = make_project_data(gid=PROJECT_GID, name="Fresh Project")
 
         # Act
         result = await projects_client.get_async(PROJECT_GID)
@@ -290,9 +278,7 @@ class TestNoCacheProvider:
     ) -> None:
         """Without cache provider, always fetch from API."""
         # Arrange
-        mock_http.get.return_value = make_project_data(
-            gid=PROJECT_GID, name="API Project"
-        )
+        mock_http.get.return_value = make_project_data(gid=PROJECT_GID, name="API Project")
 
         # Act
         result = await projects_client_no_cache.get_async(PROJECT_GID)
@@ -322,9 +308,7 @@ class TestGracefulDegradation:
             cache_provider=failing_cache,  # type: ignore[arg-type]
         )
 
-        mock_http.get.return_value = make_project_data(
-            gid=PROJECT_GID, name="Fallback Project"
-        )
+        mock_http.get.return_value = make_project_data(gid=PROJECT_GID, name="Fallback Project")
 
         # Act: Should not raise, should fall back to API
         result = await projects_client.get_async(PROJECT_GID)
@@ -350,9 +334,7 @@ class TestGracefulDegradation:
             cache_provider=failing_cache,  # type: ignore[arg-type]
         )
 
-        mock_http.get.return_value = make_project_data(
-            gid=PROJECT_GID, name="API Project"
-        )
+        mock_http.get.return_value = make_project_data(gid=PROJECT_GID, name="API Project")
 
         # Act: Should not raise despite cache set failure
         result = await projects_client.get_async(PROJECT_GID)
@@ -400,9 +382,7 @@ class TestOptFields:
         cache_provider._cache[f"{PROJECT_GID}:{EntryType.PROJECT.value}"] = cache_entry
 
         # Act
-        result = await projects_client.get_async(
-            PROJECT_GID, opt_fields=["name", "notes"]
-        )
+        result = await projects_client.get_async(PROJECT_GID, opt_fields=["name", "notes"])
 
         # Assert: Got cached data without HTTP call
         assert result.name == "Cached Project"

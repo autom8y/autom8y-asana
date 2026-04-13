@@ -186,9 +186,7 @@ class AssetEdit(Process):
         if value is None:
             self.custom_fields_editor().set(self.Fields.REVIEW_ALL_ADS, None)
         else:
-            self.custom_fields_editor().set(
-                self.Fields.REVIEW_ALL_ADS, "Yes" if value else "No"
-            )
+            self.custom_fields_editor().set(self.Fields.REVIEW_ALL_ADS, "Yes" if value else "No")
 
     @property  # type: ignore[override]
     def score(self) -> Decimal | None:
@@ -431,9 +429,7 @@ class AssetEdit(Process):
 
     # --- Private Resolution Strategy Implementations ---
 
-    async def _resolve_unit_auto_async(
-        self, client: AsanaClient
-    ) -> ResolutionResult[Unit]:
+    async def _resolve_unit_auto_async(self, client: AsanaClient) -> ResolutionResult[Unit]:
         """Execute AUTO resolution: try strategies in priority order.
 
         Per FR-STRATEGY-005: Stops at first non-ambiguous success.
@@ -557,9 +553,7 @@ class AssetEdit(Process):
                 strategies_tried=[ResolutionStrategy.DEPENDENT_TASKS],
             )
 
-    async def _resolve_unit_via_vertical_async(
-        self, client: AsanaClient
-    ) -> ResolutionResult[Unit]:
+    async def _resolve_unit_via_vertical_async(self, client: AsanaClient) -> ResolutionResult[Unit]:
         """CUSTOM_FIELD_MAPPING strategy: Match vertical field to Unit.
 
         Per FR-STRATEGY-003:
@@ -612,9 +606,7 @@ class AssetEdit(Process):
                 strategies_tried=[ResolutionStrategy.CUSTOM_FIELD_MAPPING],
             )
 
-    async def _resolve_unit_via_offer_id_async(
-        self, client: AsanaClient
-    ) -> ResolutionResult[Unit]:
+    async def _resolve_unit_via_offer_id_async(self, client: AsanaClient) -> ResolutionResult[Unit]:
         """EXPLICIT_OFFER_ID strategy: Navigate via offer_id field.
 
         Per FR-STRATEGY-004:
@@ -683,9 +675,7 @@ class AssetEdit(Process):
                 strategies_tried=[ResolutionStrategy.EXPLICIT_OFFER_ID],
             )
 
-    async def _resolve_offer_directly_async(
-        self, client: AsanaClient
-    ) -> ResolutionResult[Offer]:
+    async def _resolve_offer_directly_async(self, client: AsanaClient) -> ResolutionResult[Offer]:
         """Fetch Offer directly via offer_id field.
 
         Per PRD-0024: offer_id is now int, convert to str for API calls.

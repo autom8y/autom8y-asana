@@ -460,10 +460,7 @@ def _detect_regressions(results: list[dict], baselines: dict | None) -> list[dic
             effective_threshold = REGRESSION_THRESHOLD
             if cross_platform:
                 effective_threshold *= 30.0
-            if (
-                baseline_delta > 0.1
-                and rss_delta > baseline_delta * effective_threshold
-            ):
+            if baseline_delta > 0.1 and rss_delta > baseline_delta * effective_threshold:
                 regressions.append(
                     {
                         "endpoint": endpoint_key,
@@ -493,10 +490,7 @@ def _write_baselines(results: list[dict]) -> None:
         "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
         "platform": platform.system().lower(),
         "spec_path": str(
-            Path(__file__).parent.parent.parent
-            / "docs"
-            / "api-reference"
-            / "openapi.json"
+            Path(__file__).parent.parent.parent / "docs" / "api-reference" / "openapi.json"
         ),
         "total_operations": len(results),
         "baselines": baselines,
@@ -542,11 +536,7 @@ def coverage_summary() -> None:
         f"  EXPECTED-5xx:     {expected_5xx} ({100 * expected_5xx // total}%)",
         f"  SKIPPED:          {skipped} ({100 * skipped // total}%)",
         f"  FAILED:           {failed} ({100 * failed // total}%)",
-        (
-            f"  Effective coverage (passed+expected+skipped): "
-            f"{active_count}/{total} "
-            f"({active_pct}%)"
-        ),
+        (f"  Effective coverage (passed+expected+skipped): {active_count}/{total} ({active_pct}%)"),
         "",
         f"  Schema validation: {schema_checked} checked, "
         f"{schema_valid_count} valid, {schema_invalid_count} invalid",
@@ -576,9 +566,7 @@ def coverage_summary() -> None:
         elif outcome.startswith("SKIPPED"):
             categories[cat]["skipped"] += 1
 
-    lines.append(
-        f"  {'Category':<30} {'Total':>5} {'Pass':>5} {'Exp5':>5} {'Skip':>5} {'Fail':>5}"
-    )
+    lines.append(f"  {'Category':<30} {'Total':>5} {'Pass':>5} {'Exp5':>5} {'Skip':>5} {'Fail':>5}")
     lines.append(f"  {'-' * 30} {'-' * 5} {'-' * 5} {'-' * 5} {'-' * 5} {'-' * 5}")
     for cat, counts in sorted(categories.items()):
         lines.append(
@@ -631,10 +619,7 @@ def coverage_summary() -> None:
     report = {
         "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         "spec_path": str(
-            Path(__file__).parent.parent.parent
-            / "docs"
-            / "api-reference"
-            / "openapi.json"
+            Path(__file__).parent.parent.parent / "docs" / "api-reference" / "openapi.json"
         ),
         "total_operations": total,
         "coverage": {

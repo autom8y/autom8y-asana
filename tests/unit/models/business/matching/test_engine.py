@@ -100,9 +100,7 @@ class TestMatchingEngine:
         assert name_comp.similarity is not None
         assert name_comp.similarity > 0.5
 
-    def test_compute_match_minimum_fields_required(
-        self, engine: MatchingEngine
-    ) -> None:
+    def test_compute_match_minimum_fields_required(self, engine: MatchingEngine) -> None:
         """Minimum fields requirement enforced."""
         # Only name available - not enough for match
         query = BusinessData(name="Acme Corp")
@@ -120,9 +118,7 @@ class TestMatchingEngine:
         engine = MatchingEngine(config)
 
         query = BusinessData(name="Acme Corp", email="info@acme.com")
-        candidate = Candidate(
-            gid="123", name="Acme Corporation", email="other@acme.com"
-        )
+        candidate = Candidate(gid="123", name="Acme Corporation", email="other@acme.com")
 
         result = engine.compute_match(query, candidate)
 
@@ -142,9 +138,7 @@ class TestMatchingEngine:
 
     def test_find_best_match_returns_highest(self, engine: MatchingEngine) -> None:
         """find_best_match returns highest scoring match."""
-        query = BusinessData(
-            name="Acme Corp", email="info@acme.com", phone="+15551234567"
-        )
+        query = BusinessData(name="Acme Corp", email="info@acme.com", phone="+15551234567")
 
         candidates = [
             Candidate(gid="1", name="Some Other Business"),

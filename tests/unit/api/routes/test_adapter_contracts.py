@@ -263,9 +263,7 @@ class TestTaskResponseContract:
             "custom_fields must be a list (adapter re-indexes to dict)"
         )
         if data["custom_fields"]:
-            assert isinstance(data["custom_fields"][0], dict), (
-                "Each custom field must be a dict"
-            )
+            assert isinstance(data["custom_fields"][0], dict), "Each custom field must be a dict"
 
     def test_dates_are_strings(self, task_client: TestClient) -> None:
         """due_on, created_at, modified_at are strings (not datetime objects).

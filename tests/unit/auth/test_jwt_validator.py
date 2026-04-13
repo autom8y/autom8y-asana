@@ -105,8 +105,7 @@ class TestAuthClientUsesSettings:
             deprecation_warnings = [
                 x
                 for x in w
-                if issubclass(x.category, DeprecationWarning)
-                and "AuthConfig" in str(x.message)
+                if issubclass(x.category, DeprecationWarning) and "AuthConfig" in str(x.message)
             ]
             assert len(deprecation_warnings) == 0, (
                 "AuthConfig deprecation warning detected -- "

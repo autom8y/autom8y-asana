@@ -33,13 +33,10 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-def _cb_error_factory(
-    e: CircuitBreakerOpenError, request: InsightsRequestDescriptor
-) -> Any:
+def _cb_error_factory(e: CircuitBreakerOpenError, request: InsightsRequestDescriptor) -> Any:
     """Convert CB open error to InsightsServiceError (always raises)."""
     raise InsightsServiceError(
-        f"Circuit breaker open. Service appears degraded. "
-        f"Retry in {e.time_remaining:.1f}s.",
+        f"Circuit breaker open. Service appears degraded. Retry in {e.time_remaining:.1f}s.",
         request_id=request.request_id,
         reason="circuit_breaker",
     ) from e
@@ -64,9 +61,7 @@ def _make_pre_execute_error_handler(
     Returns a callable: (Exception, InsightsRequestDescriptor) -> InsightsResponse | None
     """
 
-    def handler(
-        exc: Exception, request: InsightsRequestDescriptor
-    ) -> InsightsResponse | None:
+    def handler(exc: Exception, request: InsightsRequestDescriptor) -> InsightsResponse | None:
         if isinstance(exc, InsightsServiceError):
             stale_response = client._get_stale_response(cache_key, request_id)
             if stale_response is not None:
@@ -280,12 +275,8 @@ async def execute_insights_request(
             execute_with_retry=client._execute_with_retry,
             cb_error_factory=_cb_error_factory,
             request_builder=_request_builder,
-            error_handler=lambda resp, req, ms: _error_handler(
-                resp, req, ms, client=client
-            ),
-            success_handler=lambda resp, req, ms: _success_handler(
-                resp, req, ms, client=client
-            ),
+            error_handler=lambda resp, req, ms: _error_handler(resp, req, ms, client=client),
+            success_handler=lambda resp, req, ms: _success_handler(resp, req, ms, client=client),
             pre_execute_error_handler=_make_pre_execute_error_handler(
                 client, cache_key, request_id
             ),

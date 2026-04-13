@@ -151,9 +151,7 @@ def extract_section_name(
     """
     # Duck-type: support both Task model (.memberships) and dict (.get("memberships"))
     memberships = (
-        task.get("memberships")
-        if isinstance(task, dict)
-        else getattr(task, "memberships", None)
+        task.get("memberships") if isinstance(task, dict) else getattr(task, "memberships", None)
     )
     if not memberships:
         return None

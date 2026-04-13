@@ -108,9 +108,7 @@ def _make_mock_asana_client(
     return mock_client
 
 
-def _resolve_patches(
-    mock_client: MagicMock | None = None, index_gid: str | None = None
-):
+def _resolve_patches(mock_client: MagicMock | None = None, index_gid: str | None = None):
     """Create context manager patches for JWT, bot PAT, AsanaClient, and index."""
     jwt_patch = patch(
         "autom8_asana.api.routes.internal.validate_service_token",

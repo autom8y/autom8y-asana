@@ -51,8 +51,8 @@ def _make_mock_store(
     parent_chains = parent_chains or {}
 
     mock_hierarchy = MagicMock()
-    mock_hierarchy.get_ancestor_chain.side_effect = lambda gid, max_depth=5: (
-        ancestor_chains.get(gid, [])
+    mock_hierarchy.get_ancestor_chain.side_effect = lambda gid, max_depth=5: ancestor_chains.get(
+        gid, []
     )
 
     mock_store = MagicMock()
@@ -115,9 +115,7 @@ async def test_validation_corrects_null_office_phone() -> None:
                 {"gid": "holder-1", "custom_fields": []},
                 {
                     "gid": "business-1",
-                    "custom_fields": [
-                        {"name": "Office Phone", "display_value": "555-1234"}
-                    ],
+                    "custom_fields": [{"name": "Office Phone", "display_value": "555-1234"}],
                 },
             ]
         },
@@ -589,9 +587,7 @@ class TestAuditCascadeKeyNulls:
         )
         schema = self._make_schema([("office_phone", "Office Phone")])
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_key_nulls(
                 df=df,
                 entity_type="unit",
@@ -620,9 +616,7 @@ class TestAuditCascadeKeyNulls:
         )
         schema = self._make_schema([("office_phone", "Office Phone")])
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_key_nulls(
                 df=df,
                 entity_type="unit",
@@ -646,9 +640,7 @@ class TestAuditCascadeKeyNulls:
         )
         schema = self._make_schema([("office_phone", "Office Phone")])
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_key_nulls(
                 df=df,
                 entity_type="unit",
@@ -673,9 +665,7 @@ class TestAuditCascadeKeyNulls:
         )
         schema = self._make_schema([("office_phone", "Office Phone")])
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_key_nulls(
                 df=df,
                 entity_type="unit",
@@ -706,9 +696,7 @@ class TestAuditCascadeKeyNulls:
             ]
         )
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_key_nulls(
                 df=df,
                 entity_type="offer",
@@ -742,9 +730,7 @@ class TestAuditCascadeKeyNulls:
             ]
         )
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_key_nulls(
                 df=df,
                 entity_type="offer",
@@ -767,9 +753,7 @@ class TestAuditCascadeKeyNulls:
         )
         schema = self._make_schema([("office_phone", "Office Phone")])
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_key_nulls(
                 df=df,
                 entity_type="unit",
@@ -789,9 +773,7 @@ class TestAuditCascadeKeyNulls:
             schema={"office_phone": pl.Utf8},
         )
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_key_nulls(
                 df=df,
                 entity_type="unit",
@@ -812,9 +794,7 @@ class TestAuditCascadeKeyNulls:
         )
         schema = self._make_schema([("office_phone", "Office Phone")])
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_key_nulls(
                 df=df,
                 entity_type="unit",
@@ -824,14 +804,8 @@ class TestAuditCascadeKeyNulls:
             )
 
             extra = mock_logger.error.call_args[1]["extra"]
-            assert (
-                extra["cascade_key_nulls"]["office_phone"]["source_entity"]
-                == "business"
-            )
-            assert (
-                extra["cascade_key_nulls"]["office_phone"]["cascade_source"]
-                == "Office Phone"
-            )
+            assert extra["cascade_key_nulls"]["office_phone"]["source_entity"] == "business"
+            assert extra["cascade_key_nulls"]["office_phone"]["cascade_source"] == "Office Phone"
 
     def test_thresholds_match_adr_calibration(self) -> None:
         """Verify threshold constants match ADR-cascade-contract-policy specification."""
@@ -1012,9 +986,7 @@ class TestAuditCascadeDisplayNulls:
             ("office_phone", "Office Phone"),
         ]
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_display_nulls(
                 df=df,
                 entity_type="offer",
@@ -1042,9 +1014,7 @@ class TestAuditCascadeDisplayNulls:
         schema = MagicMock()
         schema.get_cascade_columns.return_value = [("office_phone", "Office Phone")]
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_display_nulls(
                 df=df,
                 entity_type="offer",
@@ -1075,9 +1045,7 @@ class TestAuditPhoneE164Compliance:
             }
         )
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_phone_e164_compliance(
                 df=df,
                 entity_type="offer",
@@ -1098,9 +1066,7 @@ class TestAuditPhoneE164Compliance:
 
         df = pl.DataFrame({"name": ["Test"]})
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_phone_e164_compliance(
                 df=df,
                 entity_type="contact",
@@ -1118,9 +1084,7 @@ class TestAuditPhoneE164Compliance:
             {"office_phone": ["+15551234567", "+16146362433"]},
         )
 
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_phone_e164_compliance(
                 df=df,
                 entity_type="offer",

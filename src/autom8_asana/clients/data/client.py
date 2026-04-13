@@ -160,9 +160,7 @@ class DataServiceClient:
             jitter=retry_cfg.jitter,
             retryable_status_codes=retry_cfg.retryable_status_codes,
         )
-        self._retry_handler = ExponentialBackoffRetry(
-            config=sdk_retry_config, logger=self._log
-        )
+        self._retry_handler = ExponentialBackoffRetry(config=sdk_retry_config, logger=self._log)
 
     # --- Health Check (ADR-bridge-validate-extraction Decision 1) ---
 
@@ -443,8 +441,7 @@ class DataServiceClient:
 
             if self._log:
                 self._log.debug(
-                    f"DataServiceClient: HTTP client created "
-                    f"(base_url={self._config.base_url})"
+                    f"DataServiceClient: HTTP client created (base_url={self._config.base_url})"
                 )
 
             return self._client
@@ -616,9 +613,7 @@ class DataServiceClient:
 
         Delegates to _cache.get_stale_response with instance state.
         """
-        return _cache_mod.get_stale_response(
-            self._cache, cache_key, request_id, self._log
-        )
+        return _cache_mod.get_stale_response(self._cache, cache_key, request_id, self._log)
 
     # --- Public API (Story 1.6) ---
 
@@ -948,9 +943,7 @@ class DataServiceClient:
         else:
             # Chunk PVPs into groups of 1000 (autom8_data's max_length)
             chunk_size = self._AUTOM8Y_DATA_MAX_PVP_PER_REQUEST
-            chunks = [
-                pairs[i : i + chunk_size] for i in range(0, len(pairs), chunk_size)
-            ]
+            chunks = [pairs[i : i + chunk_size] for i in range(0, len(pairs), chunk_size)]
 
             if len(chunks) == 1:
                 # Single chunk: direct execution (common case)
@@ -1075,9 +1068,7 @@ class DataServiceClient:
         """
         from autom8_asana.clients.data._endpoints import batch as _batch_ep
 
-        return _batch_ep.build_entity_response(
-            rows, response_metadata, request_id, warnings
-        )
+        return _batch_ep.build_entity_response(rows, response_metadata, request_id, warnings)
 
     def _normalize_period(self, insights_period: str | None) -> str:
         """Normalize insights_period to autom8_data's period format.
@@ -1212,9 +1203,7 @@ class DataServiceClient:
         """
         from autom8_asana.clients.data._endpoints import simple as _simple_ep
 
-        return await _simple_ep.get_appointments(
-            self, office_phone, days=days, limit=limit
-        )
+        return await _simple_ep.get_appointments(self, office_phone, days=days, limit=limit)
 
     async def get_reconciliation_async(
         self,

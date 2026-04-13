@@ -5,9 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 
-def parse_iso_datetime(
-    value: str | None, *, default_now: bool = True
-) -> datetime | None:
+def parse_iso_datetime(value: str | None, *, default_now: bool = True) -> datetime | None:
     """Parse ISO datetime string with Z-suffix handling.
 
     Args:

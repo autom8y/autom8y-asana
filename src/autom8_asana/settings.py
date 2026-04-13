@@ -107,17 +107,13 @@ class AsanaSettings(Autom8yBaseSettings):
         case_sensitive=False,
     )
 
-    pat: SecretStr | None = Field(
-        default=None, description="Asana Personal Access Token"
-    )
+    pat: SecretStr | None = Field(default=None, description="Asana Personal Access Token")
     workspace_gid: str | None = Field(default=None, description="Default workspace GID")
     base_url: str = Field(
         default="https://app.asana.com/api/1.0",
         description="Asana API base URL",
     )
-    strict_config: bool = Field(
-        default=False, description="Enable strict configuration validation"
-    )
+    strict_config: bool = Field(default=False, description="Enable strict configuration validation")
 
 
 class CacheSettings(Autom8yBaseSettings):
@@ -147,9 +143,7 @@ class CacheSettings(Autom8yBaseSettings):
         default=None, description="Cache provider (memory, redis, tiered, none)"
     )
     ttl_default: int = Field(default=300, description="Default TTL in seconds")
-    memory_max_size: int = Field(
-        default=10000, description="Maximum entries in in-memory cache"
-    )
+    memory_max_size: int = Field(default=10000, description="Maximum entries in in-memory cache")
     dataframe_heap_percent: float = Field(
         default=0.3,
         description="Max fraction of container memory for DataFrame cache (0.0-1.0)",
@@ -313,12 +307,8 @@ class RedisSettings(Autom8yBaseSettings):
     port: int = Field(default=6379, description="Redis port")
     password: SecretStr | None = Field(default=None, description="Redis password")
     ssl: bool = Field(default=True, description="Enable Redis SSL/TLS")
-    socket_timeout: float = Field(
-        default=2.0, description="Redis socket timeout in seconds"
-    )
-    connect_timeout: float = Field(
-        default=5.0, description="Redis connection timeout in seconds"
-    )
+    socket_timeout: float = Field(default=2.0, description="Redis socket timeout in seconds")
+    connect_timeout: float = Field(default=5.0, description="Redis connection timeout in seconds")
 
     @field_validator("ssl", mode="before")
     @classmethod
@@ -356,9 +346,7 @@ class S3Settings(Autom8yBaseSettings):
     )
 
     bucket: str = Field(default="", description="S3 bucket name for cache storage")
-    prefix: str = Field(
-        default="asana-cache", description="Key prefix for cached objects"
-    )
+    prefix: str = Field(default="asana-cache", description="Key prefix for cached objects")
     region: str = Field(default="us-east-1", description="AWS region for S3 bucket")
     endpoint_url: str | None = Field(
         default=None, description="Custom S3 endpoint (for LocalStack)"
@@ -762,16 +750,13 @@ class ProjectOverrideSettings(Autom8yBaseSettings):
                 continue
             if not gid_pattern.match(value.strip()):
                 msg = (
-                    f"Invalid GID format for {key}: '{value}' "
-                    "(expected numeric string, 10+ digits)"
+                    f"Invalid GID format for {key}: '{value}' (expected numeric string, 10+ digits)"
                 )
                 invalid_vars.append(msg)
                 logger.warning(msg)
 
         if strict_config and invalid_vars:
-            raise ValueError(
-                f"Invalid ASANA_PROJECT_* environment variables: {invalid_vars}"
-            )
+            raise ValueError(f"Invalid ASANA_PROJECT_* environment variables: {invalid_vars}")
 
         return self
 
@@ -831,9 +816,7 @@ class Settings(Autom8yBaseSettings):
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     runtime: RuntimeSettings = Field(default_factory=RuntimeSettings)
     # Validation-only settings (triggers validation at startup)
-    project_overrides: ProjectOverrideSettings = Field(
-        default_factory=ProjectOverrideSettings
-    )
+    project_overrides: ProjectOverrideSettings = Field(default_factory=ProjectOverrideSettings)
 
     @property
     def is_production(self) -> bool:

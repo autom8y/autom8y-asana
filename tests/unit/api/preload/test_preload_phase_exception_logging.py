@@ -47,9 +47,7 @@ def _make_entity_registry(
     def _get_config(etype: str) -> EntityProjectConfig | None:
         for et, gid, name in entity_types:
             if et == etype:
-                return EntityProjectConfig(
-                    entity_type=et, project_gid=gid, project_name=name
-                )
+                return EntityProjectConfig(entity_type=et, project_gid=gid, project_name=name)
         return None
 
     registry.get_config.side_effect = _get_config
@@ -102,9 +100,7 @@ def _build_patch_stack(
             return_value=[["business"]],
         )
     )
-    stack.enter_context(
-        patch("autom8_asana.auth.bot_pat.get_bot_pat", return_value="test-pat")
-    )
+    stack.enter_context(patch("autom8_asana.auth.bot_pat.get_bot_pat", return_value="test-pat"))
     stack.enter_context(
         patch(
             "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
@@ -123,9 +119,7 @@ def _build_patch_stack(
             return_value=schema,
         )
     )
-    stack.enter_context(
-        patch("autom8_asana.dataframes.resolver.DefaultCustomFieldResolver")
-    )
+    stack.enter_context(patch("autom8_asana.dataframes.resolver.DefaultCustomFieldResolver"))
 
     mock_factory = MagicMock()
     mock_factory.create_unified_store.return_value = mock_shared_store
@@ -227,9 +221,7 @@ class TestPreloadPhaseExceptionLogging:
                 "asyncio.gather",
                 side_effect=fake_gather,
             ):
-                with patch(
-                    "autom8_asana.api.preload.progressive.logger"
-                ) as mock_logger:
+                with patch("autom8_asana.api.preload.progressive.logger") as mock_logger:
                     await _preload_dataframe_cache_progressive(app)
 
         # Verify the error was logged (upgraded from warning: escaped BaseException requires operator attention)
@@ -275,9 +267,7 @@ class TestPreloadPhaseExceptionLogging:
 
         with _build_patch_stack(mock_persistence, mock_df_storage):
             with patch("asyncio.gather", side_effect=fake_gather):
-                with patch(
-                    "autom8_asana.api.preload.progressive.logger"
-                ) as mock_logger:
+                with patch("autom8_asana.api.preload.progressive.logger") as mock_logger:
                     await _preload_dataframe_cache_progressive(app)
 
         error_calls = [
@@ -315,9 +305,7 @@ class TestPreloadPhaseExceptionLogging:
 
         with _build_patch_stack(mock_persistence, mock_df_storage):
             with patch("asyncio.gather", side_effect=fake_gather):
-                with patch(
-                    "autom8_asana.api.preload.progressive.logger"
-                ) as mock_logger:
+                with patch("autom8_asana.api.preload.progressive.logger") as mock_logger:
                     await _preload_dataframe_cache_progressive(app)
 
         warning_calls = [

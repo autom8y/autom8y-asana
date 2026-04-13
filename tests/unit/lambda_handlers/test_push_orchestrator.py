@@ -39,9 +39,7 @@ class TestPushOrchestratorModuleInterface:
         from autom8_asana.lambda_handlers import push_orchestrator
 
         assert "_push_gid_mappings_for_completed_entities" in push_orchestrator.__all__
-        assert (
-            "_push_account_status_for_completed_entities" in push_orchestrator.__all__
-        )
+        assert "_push_account_status_for_completed_entities" in push_orchestrator.__all__
 
 
 class TestPushGidMappingsDispatch:

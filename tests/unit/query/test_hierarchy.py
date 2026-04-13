@@ -103,8 +103,7 @@ class TestAutoWiredRelationships:
     def test_tc_h010_derived_is_superset_of_original_four(self) -> None:
         """TC-H010: Derived relationships contain all original 4 entries."""
         derived_tuples = {
-            (r.parent_type, r.child_type, r.default_join_key)
-            for r in ENTITY_RELATIONSHIPS
+            (r.parent_type, r.child_type, r.default_join_key) for r in ENTITY_RELATIONSHIPS
         }
         for parent, child, key in self.ORIGINAL_FOUR:
             assert (parent, child, key) in derived_tuples, (

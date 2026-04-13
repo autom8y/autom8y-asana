@@ -67,12 +67,8 @@ class SchemaFieldInfo(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(
-        description="Column name used in query predicates and select clauses."
-    )
-    type: str = Field(
-        description="Data type of the column (e.g., 'Utf8', 'Float64', 'Boolean')."
-    )
+    name: str = Field(description="Column name used in query predicates and select clauses.")
+    type: str = Field(description="Data type of the column (e.g., 'Utf8', 'Float64', 'Boolean').")
     description: str | None = Field(
         default=None,
         description="Human-readable explanation of the field's domain meaning.",
@@ -275,11 +271,7 @@ async def get_entity_schema(
                         col_enum_values = valid_values
 
         # Apply semantic_type filter if specified
-        if (
-            semantic_type is not None
-            and include_semantic
-            and col_semantic_type != semantic_type
-        ):
+        if semantic_type is not None and include_semantic and col_semantic_type != semantic_type:
             continue
 
         queryable_fields.append(
@@ -320,9 +312,7 @@ async def get_entity_schema(
             holder_for = getattr(entity_desc, "holder_for", None)
             parent_entity = getattr(entity_desc, "parent_entity", None)
     except Exception:
-        logger.debug(
-            "entity_descriptor_lookup_failed", extra={"entity_type": entity_type}
-        )
+        logger.debug("entity_descriptor_lookup_failed", extra={"entity_type": entity_type})
 
     return EntitySchemaResponse(
         entity_type=entity_type,

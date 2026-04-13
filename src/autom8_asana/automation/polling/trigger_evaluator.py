@@ -151,9 +151,7 @@ class TriggerEvaluator:
         ):
             return False
 
-        return condition.age is None or self._evaluate_age_trigger(
-            task, condition.age, now
-        )
+        return condition.age is None or self._evaluate_age_trigger(task, condition.age, now)
 
     def _evaluate_stale_trigger(
         self,

@@ -288,9 +288,7 @@ class DynamoDBIdempotencyStore:
 
         # Decode response_body from base64
         response_body_b64 = item.get("response_body", {}).get("S", "")
-        response_body = (
-            base64.b64decode(response_body_b64) if response_body_b64 else b""
-        )
+        response_body = base64.b64decode(response_body_b64) if response_body_b64 else b""
 
         # Decode response_headers from JSON string
         response_headers_json = item.get("response_headers", {}).get("S", "{}")
@@ -362,9 +360,7 @@ class DynamoDBIdempotencyStore:
         try:
             # Re-read to preserve created_at and ttl from the claim
             existing = await self.get(pk, sk)
-            created_at = (
-                existing.created_at if existing else datetime.now(tz=UTC).isoformat()
-            )
+            created_at = existing.created_at if existing else datetime.now(tz=UTC).isoformat()
 
             now_epoch = int(datetime.now(tz=UTC).timestamp())
             ttl_epoch = now_epoch + self._ttl_seconds
@@ -376,13 +372,9 @@ class DynamoDBIdempotencyStore:
                     "pk": {"S": pk},
                     "sk": {"S": sk},
                     "status": {"S": "complete"},
-                    "request_fingerprint": {
-                        "S": existing.request_fingerprint if existing else ""
-                    },
+                    "request_fingerprint": {"S": existing.request_fingerprint if existing else ""},
                     "response_status": {"N": str(response_status)},
-                    "response_body": {
-                        "S": base64.b64encode(response_body).decode("ascii")
-                    },
+                    "response_body": {"S": base64.b64encode(response_body).decode("ascii")},
                     "response_headers": {"S": json.dumps(response_headers)},
                     "created_at": {"S": created_at},
                     "ttl": {"N": str(ttl_epoch)},
@@ -563,9 +555,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
             # Log derived fallback key for observability (ADR Section 3.3)
             body = await request.body()
             service_name = _get_service_name(request)
-            fallback = derive_fallback_key(
-                request.method, request.url.path, body, service_name
-            )
+            fallback = derive_fallback_key(request.method, request.url.path, body, service_name)
             logger.info(
                 "idempotency_fallback_derived",
                 derived_key=fallback,
@@ -671,8 +661,7 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                     original_status=existing.response_status,
                     age_seconds=int(
                         (
-                            datetime.now(tz=UTC)
-                            - datetime.fromisoformat(existing.created_at)
+                            datetime.now(tz=UTC) - datetime.fromisoformat(existing.created_at)
                         ).total_seconds()
                     ),
                 )

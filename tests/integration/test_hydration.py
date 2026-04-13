@@ -304,9 +304,7 @@ class TestUpwardTraversal:
         registry.register("business_project", EntityType.BUSINESS)
 
         # Setup: Contact -> ContactHolder -> Business
-        contact_task = make_mock_task(
-            "contact_001", "John Smith", parent_gid="holder_001"
-        )
+        contact_task = make_mock_task("contact_001", "John Smith", parent_gid="holder_001")
         holder_task = make_mock_task("holder_001", "Contacts", parent_gid="bus_001")
         business_task = make_mock_task(
             "bus_001",
@@ -366,9 +364,7 @@ class TestUpwardTraversal:
         """Traversal stops when Business is detected and does not continue past it."""
         # Setup: child -> Business (which itself has a parent that should NOT be visited)
         child_task = make_mock_task("child_001", "Some Child", parent_gid="bus_001")
-        business_task = make_mock_task(
-            "bus_001", "Acme Corporation", parent_gid="grandparent_001"
-        )
+        business_task = make_mock_task("bus_001", "Acme Corporation", parent_gid="grandparent_001")
 
         # Mock structure inspection for Business detection (Tier 4 fallback)
         subtasks = [
@@ -425,9 +421,7 @@ class TestHydrateFromGidAsync:
             make_subtask("holder_001", "Contacts"),
             make_subtask("holder_002", "Units"),
         ]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
         # Mock holder hydration (simplified - empty holders)
         with patch.object(Business, "_fetch_holders_async", new_callable=AsyncMock):
@@ -502,13 +496,9 @@ class TestHydrateFromGidAsync:
         mock_client.tasks.get_async = AsyncMock(return_value=business_task)
 
         subtasks = [make_subtask("holder_001", "Contacts")]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
-        result = await hydrate_from_gid_async(
-            mock_client, "bus_001", hydrate_full=False
-        )
+        result = await hydrate_from_gid_async(mock_client, "bus_001", hydrate_full=False)
 
         assert result.business is not None
         # Fewer API calls since no downward hydration
@@ -524,9 +514,7 @@ class TestHydrateFromGidAsync:
         mock_client.tasks.get_async = AsyncMock(return_value=business_task)
 
         subtasks = [make_subtask("holder_001", "Contacts")]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
         # Mock holder hydration to fail
         with patch.object(
@@ -535,9 +523,7 @@ class TestHydrateFromGidAsync:
             new_callable=AsyncMock,
             side_effect=Exception("Holder fetch failed"),
         ):
-            result = await hydrate_from_gid_async(
-                mock_client, "bus_001", partial_ok=True
-            )
+            result = await hydrate_from_gid_async(mock_client, "bus_001", partial_ok=True)
 
         assert result.business is not None
         assert result.is_complete is False
@@ -553,9 +539,7 @@ class TestHydrateFromGidAsync:
         mock_client.tasks.get_async = AsyncMock(return_value=business_task)
 
         subtasks = [make_subtask("holder_001", "Contacts")]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
         with patch.object(
             Business,
@@ -573,9 +557,7 @@ class TestHydrateFromGidAsync:
         """Non-existent GID raises HydrationError."""
         from autom8_asana.errors import NotFoundError
 
-        mock_client.tasks.get_async = AsyncMock(
-            side_effect=NotFoundError("Task not found")
-        )
+        mock_client.tasks.get_async = AsyncMock(side_effect=NotFoundError("Task not found"))
 
         with pytest.raises(HydrationError) as exc_info:
             await hydrate_from_gid_async(mock_client, "nonexistent_gid")
@@ -630,9 +612,7 @@ class TestDetectionDuringHydration:
             make_subtask("holder_002", "Units"),
             make_subtask("holder_003", "Location"),
         ]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
         with patch.object(Business, "_fetch_holders_async", new_callable=AsyncMock):
             result = await hydrate_from_gid_async(mock_client, "bus_001")
@@ -657,9 +637,7 @@ class TestApiCallTracking:
         mock_client.tasks.get_async = AsyncMock(return_value=business_task)
 
         subtasks = [make_subtask("holder_001", "Contacts")]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
         with patch.object(Business, "_fetch_holders_async", new_callable=AsyncMock):
             result = await hydrate_from_gid_async(mock_client, "bus_001")
@@ -673,9 +651,7 @@ class TestApiCallTracking:
         mock_client: MagicMock,
     ) -> None:
         """API calls increase when traversing hierarchy."""
-        contact_task = make_mock_task(
-            "contact_001", "John Smith", parent_gid="holder_001"
-        )
+        contact_task = make_mock_task("contact_001", "John Smith", parent_gid="holder_001")
         holder_task = make_mock_task("holder_001", "Contacts", parent_gid="bus_001")
         business_task = make_mock_task("bus_001", "Acme Corporation")
 
@@ -689,9 +665,7 @@ class TestApiCallTracking:
         )
 
         subtasks = [make_subtask("holder_001", "Contacts")]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
         with patch.object(Business, "_fetch_holders_async", new_callable=AsyncMock):
             result = await hydrate_from_gid_async(mock_client, "contact_001")
@@ -717,9 +691,7 @@ class TestHydrationEdgeCases:
         mock_client.tasks.get_async = AsyncMock(return_value=orphan_task)
 
         # No subtasks (not a Business structure)
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=[]
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=[])
 
         with pytest.raises(HydrationError):
             await hydrate_from_gid_async(mock_client, "orphan_001")
@@ -735,9 +707,7 @@ class TestHydrationEdgeCases:
 
         # Business structure detected
         subtasks = [make_subtask("holder_001", "Contacts")]
-        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(
-            return_value=subtasks
-        )
+        mock_client.tasks.subtasks_async.return_value.collect = AsyncMock(return_value=subtasks)
 
         # Empty holders are not failures (just no children)
         with patch.object(Business, "_fetch_holders_async", new_callable=AsyncMock):

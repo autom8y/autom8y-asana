@@ -75,9 +75,7 @@ def load_project_dataframe_with_meta(
     """
     bucket = bucket or os.environ.get("ASANA_CACHE_S3_BUCKET")
     if not bucket:
-        raise ValueError(
-            "No S3 bucket configured. Pass bucket= or set ASANA_CACHE_S3_BUCKET."
-        )
+        raise ValueError("No S3 bucket configured. Pass bucket= or set ASANA_CACHE_S3_BUCKET.")
 
     region = region or os.environ.get("ASANA_CACHE_S3_REGION", "us-east-1")
     client = boto3.client("s3", region_name=region)

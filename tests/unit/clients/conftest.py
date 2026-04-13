@@ -72,9 +72,7 @@ class MockCacheProvider(_SDKMockCacheProvider):
             for entry_type in entry_types:
                 self._versioned_store.pop(f"{key}:{entry_type.value}", None)
         else:
-            keys_to_remove = [
-                k for k in self._versioned_store if k.startswith(f"{key}:")
-            ]
+            keys_to_remove = [k for k in self._versioned_store if k.startswith(f"{key}:")]
             for k in keys_to_remove:
                 del self._versioned_store[k]
             self._store.pop(key, None)

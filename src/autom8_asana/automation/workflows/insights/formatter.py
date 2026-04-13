@@ -346,13 +346,10 @@ class HtmlRenderer:
             if k == "Offer":
                 asana_url = f"https://app.asana.com/0/0/{html.escape(v)}"
                 meta_parts.append(
-                    f"<strong>{html.escape(k)}:</strong> "
-                    f'<a href="{asana_url}">View in Asana</a>'
+                    f'<strong>{html.escape(k)}:</strong> <a href="{asana_url}">View in Asana</a>'
                 )
             else:
-                meta_parts.append(
-                    f"<strong>{html.escape(k)}:</strong> {html.escape(v)}"
-                )
+                meta_parts.append(f"<strong>{html.escape(k)}:</strong> {html.escape(v)}")
         meta_html = " &nbsp;&bull;&nbsp; ".join(meta_parts)
 
         parts = [
@@ -446,9 +443,7 @@ class HtmlRenderer:
         # Card 4: ROAS
         roas_val = summary_row.get("roas")
         if roas_val is not None and isinstance(roas_val, (int, float)):
-            cards.append(
-                self._kpi_card("ROAS", f"{roas_val:.2f}x", "Return on ad spend")
-            )
+            cards.append(self._kpi_card("ROAS", f"{roas_val:.2f}x", "Return on ad spend"))
         else:
             cards.append(self._kpi_card("ROAS", "n/a", "Awaiting data"))
 
@@ -481,11 +476,7 @@ class HtmlRenderer:
                 recent = spend_values[-12:] if len(spend_values) > 12 else spend_values
                 prior_start = max(0, len(spend_values) - 24)
                 prior_end = max(0, len(spend_values) - 12)
-                prior = (
-                    spend_values[prior_start:prior_end]
-                    if prior_end > prior_start
-                    else []
-                )
+                prior = spend_values[prior_start:prior_end] if prior_end > prior_start else []
                 recent_sum = sum(recent)
                 prior_sum = sum(prior) if prior else 0
 
@@ -610,22 +601,17 @@ class HtmlRenderer:
         # Subtitle
         subtitle = _SECTION_SUBTITLES.get(section.name, "")
         subtitle_html = (
-            f'<div class="section-subtitle">{html.escape(subtitle)}</div>'
-            if subtitle
-            else ""
+            f'<div class="section-subtitle">{html.escape(subtitle)}</div>' if subtitle else ""
         )
 
         # Embedded JSON for Copy TSV (with PII masking)
-        json_rows = (
-            section.full_rows if section.full_rows is not None else (section.rows or [])
-        )
+        json_rows = section.full_rows if section.full_rows is not None else (section.rows or [])
         json_data = json.dumps(_mask_pii_rows(json_rows), default=str)
 
         parts = [
             f'<section id="{sid}" class="table-section">',
             f'<div class="section-header" onclick="toggleSection(\'{sid}\')">',
-            f"<h2>{html.escape(section.name)} "
-            f'<span class="badge">{section.row_count}</span></h2>',
+            f'<h2>{html.escape(section.name)} <span class="badge">{section.row_count}</span></h2>',
             '<div class="section-controls">',
             f'<button class="copy-btn" onclick="event.stopPropagation();copyTable(\'{sid}\')">Copy TSV</button>',
             f'<span class="toggle-icon{collapsed_class}" id="toggle-{sid}">\u25bc</span>',
@@ -650,9 +636,7 @@ class HtmlRenderer:
             )
 
         # Embedded JSON data script
-        parts.append(
-            f'<script type="application/json" id="data-{sid}">{json_data}</script>'
-        )
+        parts.append(f'<script type="application/json" id="data-{sid}">{json_data}</script>')
         parts.append("</div>")
         parts.append("</section>")
         return "\n".join(parts)
@@ -664,9 +648,7 @@ class HtmlRenderer:
         collapsed_class = "" if is_expanded else " collapsed"
         subtitle = _SECTION_SUBTITLES.get(section.name, "")
         subtitle_html = (
-            f'<div class="section-subtitle">{html.escape(subtitle)}</div>'
-            if subtitle
-            else ""
+            f'<div class="section-subtitle">{html.escape(subtitle)}</div>' if subtitle else ""
         )
         return (
             f'<section id="{sid}" class="table-section">\n'
@@ -764,9 +746,8 @@ def compose_report(data: InsightsReportData) -> str:
             continue
 
         # --- Step 2: Reconciliation pending detection (per FR-11) ---
-        if (
-            spec.dispatch_type == DispatchType.RECONCILIATION
-            and _is_payment_data_pending(result.data)
+        if spec.dispatch_type == DispatchType.RECONCILIATION and _is_payment_data_pending(
+            result.data
         ):
             sections.append(
                 DataSection(
@@ -806,9 +787,7 @@ def compose_report(data: InsightsReportData) -> str:
 
         # --- Step 7: Display columns whitelist (spec.display_columns) ---
         if spec.display_columns is not None:
-            available = [
-                c for c in spec.display_columns if any(c in r for r in display_rows)
-            ]
+            available = [c for c in spec.display_columns if any(c in r for r in display_rows)]
             display_rows = [
                 {k: v for k, v in row.items() if k in available} for row in display_rows
             ]

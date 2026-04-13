@@ -118,9 +118,7 @@ class TestAutoChunkingEdgeCases:
         self, batch_client: BatchClient, mock_http: MockHTTPClient
     ) -> None:
         """execute_async with 1 request makes single HTTP call."""
-        mock_http.request.return_value = [
-            {"status_code": 200, "body": {"data": {"gid": "1"}}}
-        ]
+        mock_http.request.return_value = [{"status_code": 200, "body": {"data": {"gid": "1"}}}]
 
         requests = [BatchRequest("/tasks/1", "GET")]
         results = await batch_client.execute_async(requests)
@@ -133,9 +131,7 @@ class TestAutoChunkingEdgeCases:
         self, batch_client: BatchClient, mock_http: MockHTTPClient
     ) -> None:
         """9 requests executes in single chunk."""
-        mock_http.request.return_value = [
-            {"status_code": 200, "body": {}} for _ in range(9)
-        ]
+        mock_http.request.return_value = [{"status_code": 200, "body": {}} for _ in range(9)]
 
         requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(9)]
         results = await batch_client.execute_async(requests)
@@ -149,10 +145,7 @@ class TestAutoChunkingEdgeCases:
         """100 requests executes in 10 chunks sequentially."""
         # Mock 10 chunks of 10 responses each
         mock_http.request.side_effect = [
-            [
-                {"status_code": 200, "body": {"data": {"gid": str(i + j * 10)}}}
-                for i in range(10)
-            ]
+            [{"status_code": 200, "body": {"data": {"gid": str(i + j * 10)}}} for i in range(10)]
             for j in range(10)
         ]
 
@@ -169,9 +162,7 @@ class TestAutoChunkingEdgeCases:
     ) -> None:
         """101 requests executes in 11 chunks."""
         # Mock 10 chunks of 10 + 1 chunk of 1
-        responses = [
-            [{"status_code": 200, "body": {}} for _ in range(10)] for _ in range(10)
-        ]
+        responses = [[{"status_code": 200, "body": {}} for _ in range(10)] for _ in range(10)]
         responses.append([{"status_code": 200, "body": {}}])  # 11th chunk with 1 item
         mock_http.request.side_effect = responses
 
@@ -188,9 +179,7 @@ class TestAutoChunkingEdgeCases:
 class TestPartialFailureScenarios:
     """Tests for various partial failure patterns."""
 
-    async def test_all_succeed(
-        self, batch_client: BatchClient, mock_http: MockHTTPClient
-    ) -> None:
+    async def test_all_succeed(self, batch_client: BatchClient, mock_http: MockHTTPClient) -> None:
         """All requests succeed."""
         mock_http.request.return_value = [
             {"status_code": 200, "body": {"data": {"gid": str(i)}}} for i in range(5)
@@ -202,9 +191,7 @@ class TestPartialFailureScenarios:
         assert all(r.success for r in results)
         assert all(r.error is None for r in results)
 
-    async def test_all_fail(
-        self, batch_client: BatchClient, mock_http: MockHTTPClient
-    ) -> None:
+    async def test_all_fail(self, batch_client: BatchClient, mock_http: MockHTTPClient) -> None:
         """All requests fail."""
         mock_http.request.return_value = [
             {"status_code": 404, "body": {"errors": [{"message": f"Not found {i}"}]}}
@@ -223,9 +210,7 @@ class TestPartialFailureScenarios:
         """First request fails, rest succeed."""
         responses = [
             {"status_code": 400, "body": {"errors": [{"message": "Bad request"}]}},
-        ] + [
-            {"status_code": 200, "body": {"data": {"gid": str(i)}}} for i in range(1, 5)
-        ]
+        ] + [{"status_code": 200, "body": {"data": {"gid": str(i)}}} for i in range(1, 5)]
         mock_http.request.return_value = responses
 
         requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(5)]
@@ -239,9 +224,7 @@ class TestPartialFailureScenarios:
         self, batch_client: BatchClient, mock_http: MockHTTPClient
     ) -> None:
         """Last request fails, rest succeed."""
-        responses = [
-            {"status_code": 200, "body": {"data": {"gid": str(i)}}} for i in range(4)
-        ] + [
+        responses = [{"status_code": 200, "body": {"data": {"gid": str(i)}}} for i in range(4)] + [
             {"status_code": 500, "body": {"errors": [{"message": "Server error"}]}},
         ]
         mock_http.request.return_value = responses
@@ -260,9 +243,7 @@ class TestPartialFailureScenarios:
         responses = []
         for i in range(6):
             if i % 2 == 0:
-                responses.append(
-                    {"status_code": 200, "body": {"data": {"gid": str(i)}}}
-                )
+                responses.append({"status_code": 200, "body": {"data": {"gid": str(i)}}})
             else:
                 responses.append(
                     {"status_code": 404, "body": {"errors": [{"message": "Not found"}]}}
@@ -286,9 +267,7 @@ class TestPartialFailureScenarios:
         chunk1 = [{"status_code": 200, "body": {}} for _ in range(10)]
         # Chunk 2 (10): mixed failures
         chunk2 = [
-            {"status_code": 200, "body": {}}
-            if i % 2 == 0
-            else {"status_code": 404, "body": {}}
+            {"status_code": 200, "body": {}} if i % 2 == 0 else {"status_code": 404, "body": {}}
             for i in range(10)
         ]
         # Chunk 3 (5): all succeed
@@ -437,9 +416,7 @@ class TestBatchRequestValidationEdgeCases:
 
     def test_nested_data_structure(self) -> None:
         """Deeply nested data structure is preserved."""
-        nested_data = {
-            "level1": {"level2": {"level3": {"level4": {"value": [1, 2, 3]}}}}
-        }
+        nested_data = {"level1": {"level2": {"level3": {"level4": {"value": [1, 2, 3]}}}}}
         req = BatchRequest(relative_path="/tasks", method="POST", data=nested_data)
         action = req.to_action_dict()
         assert action["data"]["level1"]["level2"]["level3"]["level4"]["value"] == [
@@ -563,9 +540,7 @@ class TestBatchResultPropertyEdgeCases:
     # Error extraction tests
     def test_error_single_message(self) -> None:
         """Single error message is extracted."""
-        result = BatchResult(
-            status_code=400, body={"errors": [{"message": "Field is required"}]}
-        )
+        result = BatchResult(status_code=400, body={"errors": [{"message": "Field is required"}]})
         assert result.error is not None
         assert result.error.message == "Field is required"
 
@@ -631,9 +606,7 @@ class TestBatchResultPropertyEdgeCases:
     # Data unwrapping tests
     def test_data_with_data_wrapper(self) -> None:
         """Data unwraps from {"data": ...} wrapper."""
-        result = BatchResult(
-            status_code=200, body={"data": {"gid": "123", "name": "Task"}}
-        )
+        result = BatchResult(status_code=200, body={"data": {"gid": "123", "name": "Task"}})
         assert result.data == {"gid": "123", "name": "Task"}
 
     def test_data_without_wrapper(self) -> None:
@@ -649,9 +622,7 @@ class TestBatchResultPropertyEdgeCases:
 
     def test_data_with_list_data_value(self) -> None:
         """Data returns None when data value is a list (not dict)."""
-        result = BatchResult(
-            status_code=200, body={"data": [{"gid": "1"}, {"gid": "2"}]}
-        )
+        result = BatchResult(status_code=200, body={"data": [{"gid": "1"}, {"gid": "2"}]})
         # data is a list, not a dict, so should return None
         assert result.data is None
 
@@ -854,9 +825,7 @@ class TestConvenienceMethodEdgeCases:
     ) -> None:
         """delete_tasks_async with 100+ tasks chunks correctly."""
         # Mock 11 chunks
-        responses = [
-            [{"status_code": 200, "body": {}} for _ in range(10)] for _ in range(10)
-        ]
+        responses = [[{"status_code": 200, "body": {}} for _ in range(10)] for _ in range(10)]
         responses.append([{"status_code": 200, "body": {}} for _ in range(5)])
         mock_http.request.side_effect = responses
 
@@ -946,9 +915,7 @@ class TestRequestIndexCorrelation:
         self, batch_client: BatchClient, mock_http: MockHTTPClient
     ) -> None:
         """Request indices are 0-N for single chunk."""
-        mock_http.request.return_value = [
-            {"status_code": 200, "body": {}} for _ in range(5)
-        ]
+        mock_http.request.return_value = [{"status_code": 200, "body": {}} for _ in range(5)]
 
         requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(5)]
         results = await batch_client.execute_async(requests)
@@ -973,12 +940,8 @@ class TestRequestIndexCorrelation:
         self, batch_client: BatchClient, mock_http: MockHTTPClient
     ) -> None:
         """Request indices are correct even when some requests fail."""
-        chunk1 = [
-            {"status_code": 200 if i % 2 == 0 else 404, "body": {}} for i in range(10)
-        ]
-        chunk2 = [
-            {"status_code": 200 if i % 2 == 0 else 500, "body": {}} for i in range(5)
-        ]
+        chunk1 = [{"status_code": 200 if i % 2 == 0 else 404, "body": {}} for i in range(10)]
+        chunk2 = [{"status_code": 200 if i % 2 == 0 else 500, "body": {}} for i in range(5)]
         mock_http.request.side_effect = [chunk1, chunk2]
 
         requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(15)]
@@ -990,9 +953,7 @@ class TestRequestIndexCorrelation:
         # Check that failures are at correct indices
         for i, r in enumerate(results):
             expected_success = i % 2 == 0 if i < 10 else (i - 10) % 2 == 0
-            assert r.success == expected_success, (
-                f"Index {i}: expected success={expected_success}"
-            )
+            assert r.success == expected_success, f"Index {i}: expected success={expected_success}"
 
 
 # --- from_asana_response Edge Cases ---
@@ -1013,9 +974,7 @@ class TestFromAsanaResponseEdgeCases:
 
     def test_missing_headers_defaults_to_none(self) -> None:
         """Missing headers defaults to None."""
-        result = BatchResult.from_asana_response(
-            {"status_code": 200, "body": {}}, request_index=0
-        )
+        result = BatchResult.from_asana_response({"status_code": 200, "body": {}}, request_index=0)
         assert result.headers is None
 
     def test_all_fields_present(self) -> None:
@@ -1138,9 +1097,7 @@ class TestBatchSizeLimitConstant:
         assert len(chunks[0]) == BATCH_SIZE_LIMIT
 
         # Test just over boundary
-        requests = [
-            BatchRequest(f"/tasks/{i}", "GET") for i in range(BATCH_SIZE_LIMIT + 1)
-        ]
+        requests = [BatchRequest(f"/tasks/{i}", "GET") for i in range(BATCH_SIZE_LIMIT + 1)]
         chunks = _chunk_requests(requests)
         assert len(chunks) == 2
         assert len(chunks[0]) == BATCH_SIZE_LIMIT

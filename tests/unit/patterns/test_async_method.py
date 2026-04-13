@@ -131,9 +131,7 @@ class TestAsyncMethodDecorator:
 
         class TestClient:
             @async_method
-            async def update(
-                self, gid: str, *, name: str | None = None
-            ) -> dict[str, Any]:
+            async def update(self, gid: str, *, name: str | None = None) -> dict[str, Any]:
                 """Update a resource."""
                 return {"gid": gid, "name": name}
 
@@ -152,9 +150,7 @@ class TestAsyncMethodDecorator:
 
         class TestClient:
             @async_method
-            async def move(
-                self, task_gid: str, section_gid: str, project_gid: str
-            ) -> str:
+            async def move(self, task_gid: str, section_gid: str, project_gid: str) -> str:
                 """Move task to section."""
                 return f"{task_gid}:{section_gid}:{project_gid}"
 
@@ -318,9 +314,7 @@ class TestAsyncMethodIntegration:
         """Simulate the actual SDK client pattern."""
 
         class MockHTTP:
-            async def get(
-                self, path: str, params: dict[str, Any] | None = None
-            ) -> dict[str, Any]:
+            async def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
                 return {"gid": "123", "name": "Test Section", "path": path}
 
             async def delete(self, path: str) -> None:

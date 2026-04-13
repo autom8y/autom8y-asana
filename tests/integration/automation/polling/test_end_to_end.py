@@ -744,9 +744,7 @@ async def test_action_failure_on_one_task_continues_to_others(
             comments = [s for s in stories if s.resource_subtype == "comment_added"]
             comment_texts = [s.text for s in comments if s.text]
 
-            assert valid_comment in comment_texts, (
-                f"Comment not found on task {test_task.gid}"
-            )
+            assert valid_comment in comment_texts, f"Comment not found on task {test_task.gid}"
 
     finally:
         os.unlink(config_path)
@@ -959,13 +957,10 @@ async def test_change_section_full_flow(
 
         if updated_task.memberships:
             section_gids = [
-                m.section.gid
-                for m in updated_task.memberships
-                if m.section and m.section.gid
+                m.section.gid for m in updated_task.memberships if m.section and m.section.gid
             ]
             assert test_section_gid in section_gids, (
-                f"Task not in expected section. Expected: {test_section_gid}, "
-                f"Found: {section_gids}"
+                f"Task not in expected section. Expected: {test_section_gid}, Found: {section_gids}"
             )
 
     finally:

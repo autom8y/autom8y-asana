@@ -32,9 +32,7 @@ def schema_registry() -> SchemaRegistry:
 class TestSchemaExtractorCompleteness:
     """Verify every registered schema can produce a row without crashing."""
 
-    def test_all_schemas_have_capable_extractors(
-        self, schema_registry: SchemaRegistry
-    ) -> None:
+    def test_all_schemas_have_capable_extractors(self, schema_registry: SchemaRegistry) -> None:
         """AC-6.1 through AC-6.4: Every schema type can extract without crash.
 
         Parametrized dynamically over SchemaRegistry.list_task_types() so
@@ -46,8 +44,7 @@ class TestSchemaExtractorCompleteness:
 
         # Sanity: we expect at least 6 non-wildcard schemas
         assert len(task_types) >= 6, (
-            f"Expected at least 6 registered schemas, got {len(task_types)}: "
-            f"{task_types}"
+            f"Expected at least 6 registered schemas, got {len(task_types)}: {task_types}"
         )
 
         for task_type in task_types:
@@ -109,9 +106,7 @@ class TestImportTimeValidation:
 
         # Should have warnings for Offer, Business, AssetEdit, AssetEditHolder
         generic_warnings = [
-            w
-            for w in warnings_emitted
-            if w["event"] == "schema_using_generic_extractor"
+            w for w in warnings_emitted if w["event"] == "schema_using_generic_extractor"
         ]
         warned_entities = {w["extra"]["entity"] for w in generic_warnings}
         expected_warned = {
@@ -156,15 +151,11 @@ class TestImportTimeValidation:
 
         # No warnings should mention Unit or Contact
         generic_warnings = [
-            w
-            for w in warnings_emitted
-            if w["event"] == "schema_using_generic_extractor"
+            w for w in warnings_emitted if w["event"] == "schema_using_generic_extractor"
         ]
         for w in generic_warnings:
             entity = w["extra"].get("entity", "")
-            assert entity not in ("Unit", "Contact", "*"), (
-                f"Unexpected warning for {entity}"
-            )
+            assert entity not in ("Unit", "Contact", "*"), f"Unexpected warning for {entity}"
 
     def test_validation_failure_does_not_crash_startup(self) -> None:
         """R1.1: Validation failure must not crash startup."""

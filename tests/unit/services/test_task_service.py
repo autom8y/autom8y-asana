@@ -67,9 +67,7 @@ def _last_event(mock_invalidator: MagicMock):
 
 class TestListTasks:
     @pytest.mark.asyncio()
-    async def test_list_by_project(
-        self, service: TaskService, mock_client: AsyncMock
-    ) -> None:
+    async def test_list_by_project(self, service: TaskService, mock_client: AsyncMock) -> None:
         mock_client._http.get_paginated.return_value = (
             [{"gid": "1"}, {"gid": "2"}],
             "next-cursor",
@@ -86,9 +84,7 @@ class TestListTasks:
         )
 
     @pytest.mark.asyncio()
-    async def test_list_by_section(
-        self, service: TaskService, mock_client: AsyncMock
-    ) -> None:
+    async def test_list_by_section(self, service: TaskService, mock_client: AsyncMock) -> None:
         mock_client._http.get_paginated.return_value = ([], None)
 
         result = await service.list_tasks(mock_client, section="sec-1")
@@ -114,9 +110,7 @@ class TestListTasks:
             await service.list_tasks(mock_client, project="p", section="s")
 
     @pytest.mark.asyncio()
-    async def test_limit_and_offset(
-        self, service: TaskService, mock_client: AsyncMock
-    ) -> None:
+    async def test_limit_and_offset(self, service: TaskService, mock_client: AsyncMock) -> None:
         mock_client._http.get_paginated.return_value = ([], None)
 
         await service.list_tasks(mock_client, project="p", limit=50, offset="cursor")
@@ -139,9 +133,7 @@ class TestGetTask:
         result = await service.get_task(mock_client, "123")
 
         assert result["gid"] == "123"
-        mock_client.tasks.get_async.assert_called_once_with(
-            "123", opt_fields=None, raw=True
-        )
+        mock_client.tasks.get_async.assert_called_once_with("123", opt_fields=None, raw=True)
 
     @pytest.mark.asyncio()
     async def test_get_task_with_opt_fields(
@@ -254,9 +246,7 @@ class TestUpdateTask:
             "memberships": [{"project": {"gid": "proj-1"}}],
         }
 
-        result = await service.update_task(
-            mock_client, "123", UpdateTaskParams(name="Updated")
-        )
+        result = await service.update_task(mock_client, "123", UpdateTaskParams(name="Updated"))
 
         assert result["gid"] == "123"
         event = _last_event(mock_invalidator)
@@ -416,9 +406,7 @@ class TestMembershipOperations:
         result = await service.set_assignee(mock_client, "123", None)
 
         assert result["gid"] == "123"
-        mock_client.tasks.update_async.assert_called_once_with(
-            "123", raw=True, assignee=None
-        )
+        mock_client.tasks.update_async.assert_called_once_with("123", raw=True, assignee=None)
 
     @pytest.mark.asyncio()
     async def test_add_to_project(
@@ -464,9 +452,7 @@ class TestMembershipOperations:
 
 class TestSubtasksAndDependents:
     @pytest.mark.asyncio()
-    async def test_list_subtasks(
-        self, service: TaskService, mock_client: AsyncMock
-    ) -> None:
+    async def test_list_subtasks(self, service: TaskService, mock_client: AsyncMock) -> None:
         mock_client._http.get_paginated.return_value = (
             [{"gid": "sub-1"}],
             None,
@@ -481,17 +467,13 @@ class TestSubtasksAndDependents:
         )
 
     @pytest.mark.asyncio()
-    async def test_list_dependents(
-        self, service: TaskService, mock_client: AsyncMock
-    ) -> None:
+    async def test_list_dependents(self, service: TaskService, mock_client: AsyncMock) -> None:
         mock_client._http.get_paginated.return_value = (
             [{"gid": "dep-1"}],
             "next",
         )
 
-        result = await service.list_dependents(
-            mock_client, "123", limit=25, offset="prev"
-        )
+        result = await service.list_dependents(mock_client, "123", limit=25, offset="prev")
 
         assert result.has_more is True
         mock_client._http.get_paginated.assert_called_once_with(

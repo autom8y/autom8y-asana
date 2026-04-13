@@ -265,9 +265,7 @@ class TestSchemaRegistryGetAllSchemas:
         schemas = registry.get_all_schemas()
 
         # Modifying returned dict should not affect registry
-        schemas["NewType"] = DataFrameSchema(
-            name="new", task_type="NewType", columns=[]
-        )
+        schemas["NewType"] = DataFrameSchema(name="new", task_type="NewType", columns=[])
         assert not registry.has_schema("NewType")
 
     def test_get_all_schemas_includes_all_registered(self) -> None:

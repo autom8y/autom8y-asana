@@ -78,9 +78,7 @@ class TestEntityWriteRegistry:
             "process_holder",
         ]
         for holder_name in holder_names:
-            assert _write_registry.get(holder_name) is None, (
-                f"{holder_name} should not be writable"
-            )
+            assert _write_registry.get(holder_name) is None, f"{holder_name} should not be writable"
 
     def test_skips_entities_without_project_gid(self) -> None:
         """Entities without primary_project_gid are excluded.

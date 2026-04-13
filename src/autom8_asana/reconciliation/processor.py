@@ -66,9 +66,7 @@ OFFER_ACTIVITY_VALID_UNIT_SECTIONS: dict[AccountActivity, frozenset[str]] = {
     AccountActivity.ACTIVATING: frozenset(
         {"Onboarding", "Implementing", "Preview", "Engaged", "Scheduled"}
     ),
-    AccountActivity.INACTIVE: frozenset(
-        {"Paused", "Unengaged", "Cancelled", "No Start"}
-    ),
+    AccountActivity.INACTIVE: frozenset({"Paused", "Unengaged", "Cancelled", "No Start"}),
     AccountActivity.IGNORED: frozenset(),  # No action for terminal offer states
 }
 
@@ -161,9 +159,7 @@ class ReconciliationBatchProcessor:
         self._offer_df = offer_df
         self._pipeline_summary = pipeline_summary
         self._excluded_section_gids = (
-            excluded_section_gids
-            if excluded_section_gids is not None
-            else EXCLUDED_SECTION_GIDS
+            excluded_section_gids if excluded_section_gids is not None else EXCLUDED_SECTION_GIDS
         )
         self._dry_run = dry_run
         self._offer_activity_index: dict[str, str] = {}
@@ -416,8 +412,8 @@ class ReconciliationBatchProcessor:
         )
 
         # Build phone-based indexes for offer matching (Option C -- SECONDARY)
-        self._offer_composite_index, self._offer_phone_index = (
-            self._build_offer_phone_indexes(self._offer_df)
+        self._offer_composite_index, self._offer_phone_index = self._build_offer_phone_indexes(
+            self._offer_df
         )
 
         # P0-A: Check for canonical "section" column in unit DataFrame
@@ -460,11 +456,7 @@ class ReconciliationBatchProcessor:
                 continue
 
             # Step 2: Name fallback fires ONLY when GID unavailable
-            if (
-                not section_gid
-                and section_name
-                and section_name in EXCLUDED_SECTION_NAMES
-            ):
+            if not section_gid and section_name and section_name in EXCLUDED_SECTION_NAMES:
                 result.excluded_count += 1
                 logger.debug(
                     "reconciliation_excluded_by_name",

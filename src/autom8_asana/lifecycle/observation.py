@@ -136,10 +136,7 @@ class EntityStageTimeline:
 
         stage_idx = 0
         for interval in self.intervals:
-            if (
-                interval.to_stage == stages[stage_idx]
-                and interval.transition_type == "converted"
-            ):
+            if interval.to_stage == stages[stage_idx] and interval.transition_type == "converted":
                 stage_idx += 1
                 if stage_idx >= len(stages):
                     return True

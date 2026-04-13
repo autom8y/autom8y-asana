@@ -111,9 +111,7 @@ class Slot:
     ) -> None:
         self._semaphore = semaphore
         self._epoch = epoch
-        self._status: Literal["pending", "rejected", "succeeded", "released"] = (
-            "pending"
-        )
+        self._status: Literal["pending", "rejected", "succeeded", "released"] = "pending"
 
     async def __aenter__(self) -> Slot:
         return self
@@ -382,9 +380,7 @@ class AsyncAdaptiveSemaphore:
         # Grace period check (FR-002)
         if now - self._last_decrease_time < self._config.grace_period_seconds:
             if self._logger:
-                remaining = self._config.grace_period_seconds - (
-                    now - self._last_decrease_time
-                )
+                remaining = self._config.grace_period_seconds - (now - self._last_decrease_time)
                 self._logger.debug(
                     "aimd_grace_period_suppressed",
                     extra={

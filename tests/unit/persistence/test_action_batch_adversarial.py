@@ -55,9 +55,7 @@ def _make_batch_result(success: bool = True, gid: str = "gid_1") -> BatchResult:
     if success:
         return BatchResult(status_code=200, body={"data": {"gid": gid}})
     else:
-        return BatchResult(
-            status_code=500, body={"errors": [{"message": "Server error"}]}
-        )
+        return BatchResult(status_code=500, body={"errors": [{"message": "Server error"}]})
 
 
 # ---------------------------------------------------------------------------
@@ -83,9 +81,7 @@ class TestPayloadWithoutDataKey:
     def test_payload_without_data_key_converts_to_none_data(self) -> None:
         """If somehow payload lacks "data" key, BatchRequest gets data=None."""
         task = Task(gid="task_1", name="Test")
-        action = ActionOperation(
-            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-        )
+        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1"))
 
         # Monkey-patch to_api_call to return payload without "data" key
         original_to_api_call = action.to_api_call
@@ -164,9 +160,7 @@ class TestBatchResultCountMismatch:
 
         executor = ActionExecutor(mock_http, mock_batch)
         task = Task(gid="task_1", name="Test")
-        actions = [
-            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(4)
-        ]
+        actions = [_make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(4)]
 
         results = await executor.execute_async(actions, {})
 
@@ -190,9 +184,7 @@ class TestBatchResultCountMismatch:
 
         executor = ActionExecutor(mock_http, mock_batch)
         task = Task(gid="task_1", name="Test")
-        actions = [
-            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(2)
-        ]
+        actions = [_make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(2)]
 
         results = await executor.execute_async(actions, {})
 
@@ -212,9 +204,7 @@ class TestBatchResultCountMismatch:
         mock_batch.execute_async = AsyncMock(return_value=[])
 
         executor = ActionExecutor(mock_http, mock_batch)
-        actions = [
-            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(3)
-        ]
+        actions = [_make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(3)]
 
         results = await executor.execute_async(actions, {})
 
@@ -349,10 +339,7 @@ class TestIdTrickObjectReuse:
 
     def test_id_uniqueness_with_many_actions(self) -> None:
         """100 actions should all get unique IDs in resolve_order."""
-        actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(100)
-        ]
+        actions = [_make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(100)]
 
         ids = [id(a) for a in actions]
         assert len(set(ids)) == 100, "Object IDs should be unique for live objects"
@@ -364,9 +351,7 @@ class TestIdTrickObjectReuse:
 
     def test_id_trick_with_ordering_constraint_100_actions(self) -> None:
         """100 actions with ordering constraints should work correctly."""
-        tag_actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(98)
-        ]
+        tag_actions = [_make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(98)]
         add_proj = _make_action("task_x", ActionType.ADD_TO_PROJECT, "proj_1")
         move_sect = _make_action("task_x", ActionType.MOVE_TO_SECTION, "sect_1")
 
@@ -393,10 +378,7 @@ class TestLargeActionLists:
 
     def test_1000_independent_actions(self) -> None:
         """1000 independent actions should resolve into 1 tier quickly."""
-        actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(1000)
-        ]
+        actions = [_make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(1000)]
 
         tiers = resolve_order(actions)
 
@@ -407,13 +389,9 @@ class TestLargeActionLists:
         """500 actions: 250 ADD_TO_PROJECT + 250 MOVE_TO_SECTION for same tasks."""
         actions = []
         for i in range(250):
-            actions.append(
-                _make_action(f"task_{i}", ActionType.ADD_TO_PROJECT, f"proj_{i}")
-            )
+            actions.append(_make_action(f"task_{i}", ActionType.ADD_TO_PROJECT, f"proj_{i}"))
         for i in range(250):
-            actions.append(
-                _make_action(f"task_{i}", ActionType.MOVE_TO_SECTION, f"sect_{i}")
-            )
+            actions.append(_make_action(f"task_{i}", ActionType.MOVE_TO_SECTION, f"sect_{i}"))
 
         tiers = resolve_order(actions)
 
@@ -435,10 +413,7 @@ class TestLargeActionLists:
         ]
 
         executor = ActionExecutor(mock_http, mock_batch)
-        actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}")
-            for i in range(100)
-        ]
+        actions = [_make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(100)]
 
         results = await executor.execute_async(actions, {})
 
@@ -475,9 +450,7 @@ class TestMetricsLogging:
         ]
 
         executor = ActionExecutor(mock_http, mock_batch)
-        actions = [
-            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(3)
-        ]
+        actions = [_make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(3)]
 
         await executor.execute_async(actions, {})
 
@@ -518,9 +491,7 @@ class TestMetricsLogging:
         ]
 
         executor = ActionExecutor(mock_http, mock_batch)
-        actions = [
-            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(2)
-        ]
+        actions = [_make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(2)]
 
         # Should not raise even with no logger
         results = await executor.execute_async(actions, {})
@@ -786,9 +757,7 @@ class TestDoubleFailure:
         mock_batch.execute_async.side_effect = ConnectionError("Batch down")
 
         executor = ActionExecutor(mock_http, mock_batch)
-        actions = [
-            _make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(3)
-        ]
+        actions = [_make_action("task_1", ActionType.ADD_TAG, f"tag_{i}") for i in range(3)]
 
         results = await executor.execute_async(actions, {})
 
@@ -808,27 +777,21 @@ class TestChunkBoundaryCorrectness:
 
     def test_chunk_size_1(self) -> None:
         """Chunk size 1: each action in its own chunk."""
-        actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(3)
-        ]
+        actions = [_make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(3)]
         chunks = _chunk_actions(actions, 1)
         assert len(chunks) == 3
         assert all(len(c) == 1 for c in chunks)
 
     def test_chunk_size_equals_list_length(self) -> None:
         """Chunk size equals list length: single chunk."""
-        actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(7)
-        ]
+        actions = [_make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(7)]
         chunks = _chunk_actions(actions, 7)
         assert len(chunks) == 1
         assert len(chunks[0]) == 7
 
     def test_chunk_11_into_10(self) -> None:
         """11 actions into chunks of 10: [10, 1]."""
-        actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(11)
-        ]
+        actions = [_make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(11)]
         chunks = _chunk_actions(actions, 10)
         assert len(chunks) == 2
         assert len(chunks[0]) == 10
@@ -836,9 +799,7 @@ class TestChunkBoundaryCorrectness:
 
     def test_chunk_20_into_10(self) -> None:
         """20 actions into chunks of 10: [10, 10]."""
-        actions = [
-            _make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(20)
-        ]
+        actions = [_make_action(f"task_{i}", ActionType.ADD_TAG, f"tag_{i}") for i in range(20)]
         chunks = _chunk_actions(actions, 10)
         assert len(chunks) == 2
         assert len(chunks[0]) == 10

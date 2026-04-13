@@ -74,9 +74,7 @@ class BaseClient:
         """Log an operation if logger is available."""
         if self._log:
             if resource_gid:
-                self._log.debug(
-                    f"{self.__class__.__name__}.{operation}({resource_gid})"
-                )
+                self._log.debug(f"{self.__class__.__name__}.{operation}({resource_gid})")
             else:
                 self._log.debug(f"{self.__class__.__name__}.{operation}()")
 

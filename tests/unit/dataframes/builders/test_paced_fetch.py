@@ -90,9 +90,7 @@ def _make_builder(
     # Mock dataframe view for row extraction
     mock_view = MagicMock()
     mock_view._extract_rows_async = AsyncMock(
-        side_effect=lambda dicts, **kw: [
-            {"gid": d["gid"], "name": d["name"]} for d in dicts
-        ]
+        side_effect=lambda dicts, **kw: [{"gid": d["gid"], "name": d["name"]} for d in dicts]
     )
     builder._dataframe_view = mock_view
 
@@ -116,9 +114,7 @@ class TestSmallSectionNoPacing:
         # Return 50 tasks (less than one full page)
         builder._client.tasks.list_async.return_value = _FakePageIterator(50)
 
-        with patch(
-            "autom8_asana.dataframes.builders.progressive.asyncio.sleep"
-        ) as mock_sleep:
+        with patch("autom8_asana.dataframes.builders.progressive.asyncio.sleep") as mock_sleep:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -303,9 +299,7 @@ class TestEmptySectionNoPacing:
         builder = _make_builder(manifest=manifest)
         builder._client.tasks.list_async.return_value = _FakePageIterator(0)
 
-        with patch(
-            "autom8_asana.dataframes.builders.progressive.asyncio.sleep"
-        ) as mock_sleep:
+        with patch("autom8_asana.dataframes.builders.progressive.asyncio.sleep") as mock_sleep:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
@@ -317,18 +311,10 @@ class TestEmptySectionNoPacing:
             SectionStatus.COMPLETE,
             rows=0,
             gid_hash=pytest.approx(
-                builder._persistence.update_manifest_section_async.call_args_list[-1][
-                    1
-                ].get(
+                builder._persistence.update_manifest_section_async.call_args_list[-1][1].get(
                     "gid_hash",
-                    builder._persistence.update_manifest_section_async.call_args_list[
-                        -1
-                    ][0][-1]
-                    if len(
-                        builder._persistence.update_manifest_section_async.call_args_list[
-                            -1
-                        ][0]
-                    )
+                    builder._persistence.update_manifest_section_async.call_args_list[-1][0][-1]
+                    if len(builder._persistence.update_manifest_section_async.call_args_list[-1][0])
                     > 3
                     else None,
                 ),

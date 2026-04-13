@@ -230,7 +230,9 @@ class CheckpointManager:
             )
             return None
 
-        except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- S3 errors should not block warming
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: catch-all-and-degrade -- S3 errors should not block warming
             # Graceful degradation: log warning and return None
             # Per ADR-0064: S3 errors should not block warming
             logger.warning(

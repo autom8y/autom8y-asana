@@ -67,9 +67,7 @@ class TestBootstrapFunction:
 class TestEnsureBootstrappedFallback:
     """Tests for _ensure_bootstrapped() guard on ProjectTypeRegistry."""
 
-    def test_detection_works_without_explicit_bootstrap(
-        self, clean_state: None
-    ) -> None:
+    def test_detection_works_without_explicit_bootstrap(self, clean_state: None) -> None:
         """SC-8: Detection succeeds via _ensure_bootstrapped() fallback.
 
         When no explicit bootstrap() has been called, the guard on

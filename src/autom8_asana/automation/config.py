@@ -141,8 +141,7 @@ class AutomationConfig:
             )
         if self.rules_source not in ("inline", "file", "api"):
             raise ConfigurationError(
-                f"rules_source must be 'inline', 'file', or 'api', "
-                f"got {self.rules_source!r}"
+                f"rules_source must be 'inline', 'file', or 'api', got {self.rules_source!r}"
             )
 
     def get_pipeline_stage(self, process_type: str) -> PipelineStage | None:

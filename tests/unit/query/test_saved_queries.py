@@ -166,12 +166,8 @@ class TestFindSavedQuery:
 
     def test_find_prefers_yaml_over_json(self, tmp_path: Path) -> None:
         """When both .yaml and .json exist, .yaml is found first."""
-        (tmp_path / "both.yaml").write_text(
-            yaml.dump({"name": "both", "entity_type": "offer"})
-        )
-        (tmp_path / "both.json").write_text(
-            json.dumps({"name": "both", "entity_type": "offer"})
-        )
+        (tmp_path / "both.yaml").write_text(yaml.dump({"name": "both", "entity_type": "offer"}))
+        (tmp_path / "both.json").write_text(json.dumps({"name": "both", "entity_type": "offer"}))
 
         result = find_saved_query("both", search_dirs=[tmp_path])
         assert result is not None
@@ -290,9 +286,7 @@ class TestRunSubcommand:
         assert args.query == "active_offers"
         assert args.output_format == "json"
 
-    def test_run_from_file_path(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_run_from_file_path(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         """'run' loads a query from an explicit file path and executes it."""
         from autom8_asana.query.models import RowsMeta, RowsResponse
 
@@ -370,9 +364,7 @@ class TestRunSubcommand:
         captured = capsys.readouterr()
         assert "not found" in captured.err.lower()
 
-    def test_run_with_format_override(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_run_with_format_override(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         """'--format json' overrides saved query's format field."""
         from autom8_asana.query.models import RowsMeta, RowsResponse
 
@@ -644,9 +636,7 @@ class TestIntrospectionHelpers:
         valid = {"1:1", "1:N", "N:1", "N:M", "unknown"}
         assert cardinalities.issubset(valid)
 
-    def test_cli_relations_includes_cardinality(
-        self, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_cli_relations_includes_cardinality(self, capsys: pytest.CaptureFixture) -> None:
         """CLI 'relations offer --format json' output includes cardinality."""
         capsys.readouterr()
         exit_code = main(["relations", "offer", "--format", "json"])
@@ -668,9 +658,7 @@ class TestIntrospectionHelpers:
 class TestSaveQueryFunction:
     """Test the save_query utility in saved.py."""
 
-    def test_save_creates_file(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_save_creates_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """save_query() creates a YAML file at ~/.autom8/queries/."""
         from autom8_asana.query.saved import SavedQuery, save_query
 
@@ -682,9 +670,7 @@ class TestSaveQueryFunction:
         data = yaml.safe_load(path.read_text())
         assert data["name"] == "test"
 
-    def test_save_raises_on_existing(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_save_raises_on_existing(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """save_query() raises FileExistsError if file already exists."""
         from autom8_asana.query.saved import SavedQuery, save_query
 
@@ -810,9 +796,7 @@ class TestRunOverrides:
             assert request.classification == "inactive"
             assert request.limit == 50
 
-    def test_run_select_override(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_run_select_override(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         """CLI --select overrides saved query select list."""
         from autom8_asana.query.models import RowsMeta, RowsResponse
 
@@ -874,9 +858,7 @@ class TestRunOverrides:
             assert request is not None
             assert request.select == ["gid", "name", "mrr"]
 
-    def test_run_where_override(
-        self, tmp_path: Path, capsys: pytest.CaptureFixture
-    ) -> None:
+    def test_run_where_override(self, tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
         """CLI --where overrides saved query predicate."""
         from autom8_asana.query.models import RowsMeta, RowsResponse
 

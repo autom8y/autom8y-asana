@@ -77,9 +77,7 @@ class TestForceRebuildDeletesS3Data:
         assert mock_persistence.delete_section_files_async.call_count == 2
 
         # Verify correct project GIDs
-        manifest_calls = [
-            c.args[0] for c in mock_persistence.delete_manifest_async.call_args_list
-        ]
+        manifest_calls = [c.args[0] for c in mock_persistence.delete_manifest_async.call_args_list]
         assert "proj-unit" in manifest_calls
         assert "proj-contact" in manifest_calls
 
@@ -119,9 +117,7 @@ class TestForceRebuildLambdaInvocation:
             patch(_PERSISTENCE_PATCH, return_value=mock_persistence),
             patch.dict(
                 "os.environ",
-                {
-                    "CACHE_WARMER_LAMBDA_ARN": "arn:aws:lambda:us-east-1:123:function:cache-warmer"
-                },
+                {"CACHE_WARMER_LAMBDA_ARN": "arn:aws:lambda:us-east-1:123:function:cache-warmer"},
             ),
             patch(_LAMBDA_PATCH, mock_invoke),
         ):
@@ -174,10 +170,7 @@ class TestInvokeCacheWarmerLambda:
 
         mock_client.invoke.assert_called_once()
         call_kwargs = mock_client.invoke.call_args.kwargs
-        assert (
-            call_kwargs["FunctionName"]
-            == "arn:aws:lambda:us-east-1:123:function:cache-warmer"
-        )
+        assert call_kwargs["FunctionName"] == "arn:aws:lambda:us-east-1:123:function:cache-warmer"
         assert call_kwargs["InvocationType"] == "Event"
 
         import json
@@ -278,8 +271,6 @@ class TestForceRebuildDeletesMergedArtifacts:
         assert mock_persistence.storage.delete_dataframe.call_count == 2
 
         # Verify correct project GIDs
-        delete_calls = [
-            c.args[0] for c in mock_persistence.storage.delete_dataframe.call_args_list
-        ]
+        delete_calls = [c.args[0] for c in mock_persistence.storage.delete_dataframe.call_args_list]
         assert "proj-unit" in delete_calls
         assert "proj-contact" in delete_calls

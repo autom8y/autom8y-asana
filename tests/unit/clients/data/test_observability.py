@@ -300,9 +300,7 @@ class TestObservabilityMetrics:
         assert total_call[2]["status"] == "success"
 
         # Check insights_request_latency_ms has positive duration
-        latency_call = next(
-            c for c in metrics_calls if c[0] == "insights_request_latency_ms"
-        )
+        latency_call = next(c for c in metrics_calls if c[0] == "insights_request_latency_ms")
         assert latency_call[1] > 0
         assert latency_call[2]["factory"] == "account"
 
@@ -342,9 +340,7 @@ class TestObservabilityMetrics:
         assert "insights_request_latency_ms" in metric_names
 
         # Check error_total metric
-        error_call = next(
-            c for c in metrics_calls if c[0] == "insights_request_error_total"
-        )
+        error_call = next(c for c in metrics_calls if c[0] == "insights_request_error_total")
         assert error_call[1] == 1
         assert error_call[2]["factory"] == "account"
         assert error_call[2]["error_type"] == "server_error"
@@ -380,9 +376,7 @@ class TestObservabilityMetrics:
                         )
 
         # Should have emitted error metrics with timeout type
-        error_call = next(
-            c for c in metrics_calls if c[0] == "insights_request_error_total"
-        )
+        error_call = next(c for c in metrics_calls if c[0] == "insights_request_error_total")
         assert error_call[2]["error_type"] == "timeout"
 
     @pytest.mark.asyncio
@@ -420,9 +414,7 @@ class TestObservabilityMetrics:
                         vertical="chiropractic",
                     )
 
-        latency_call = next(
-            c for c in metrics_calls if c[0] == "insights_request_latency_ms"
-        )
+        latency_call = next(c for c in metrics_calls if c[0] == "insights_request_latency_ms")
         # Should be a positive number (request took some time)
         assert latency_call[1] > 0
         # Should be in milliseconds (unlikely to exceed 10 seconds in test)

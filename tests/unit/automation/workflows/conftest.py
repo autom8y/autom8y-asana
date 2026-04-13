@@ -15,9 +15,7 @@ from autom8_asana.lifecycle.config import LifecycleConfig
 def lifecycle_config() -> LifecycleConfig:
     """Lifecycle configuration loaded from YAML."""
     config_path = (
-        Path(__file__).parent.parent.parent.parent.parent
-        / "config"
-        / "lifecycle_stages.yaml"
+        Path(__file__).parent.parent.parent.parent.parent / "config" / "lifecycle_stages.yaml"
     )
     return LifecycleConfig(config_path)
 

@@ -53,9 +53,7 @@ async def test_wire_defaults_unit_dependent(
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
-    result = await service.wire_defaults_async(
-        "new123", "sales", mock_resolution_context
-    )
+    result = await service.wire_defaults_async("new123", "sales", mock_resolution_context)
 
     assert len(result.wired) >= 1
     mock_client.tasks.add_dependent_async.assert_called()
@@ -74,9 +72,7 @@ async def test_wire_defaults_offer_holder_dependent(
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
-    result = await service.wire_defaults_async(
-        "new123", "sales", mock_resolution_context
-    )
+    result = await service.wire_defaults_async("new123", "sales", mock_resolution_context)
 
     assert "offer_holder1" in result.wired
 
@@ -108,9 +104,7 @@ async def test_wire_defaults_open_plays(
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
-    result = await service.wire_defaults_async(
-        "new123", "sales", mock_resolution_context
-    )
+    result = await service.wire_defaults_async("new123", "sales", mock_resolution_context)
 
     assert "dna1" in result.wired
     assert "dna2" not in result.wired
@@ -137,9 +131,7 @@ async def test_wire_defaults_multiple_open_plays(
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
-    result = await service.wire_defaults_async(
-        "new123", "implementation", mock_resolution_context
-    )
+    result = await service.wire_defaults_async("new123", "implementation", mock_resolution_context)
 
     for i in range(3):
         assert f"play_{i}" in result.wired
@@ -159,9 +151,7 @@ async def test_wire_defaults_no_dna_holder(
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
-    result = await service.wire_defaults_async(
-        "new123", "sales", mock_resolution_context
-    )
+    result = await service.wire_defaults_async("new123", "sales", mock_resolution_context)
 
     # Should still produce a valid result (with unit/offer_holder wiring)
     assert isinstance(result.wired, list)
@@ -181,16 +171,12 @@ async def test_wire_defaults_dna_holder_resolved_via_context(
     mock_play.completed = False
     mock_dna_holder.children = [mock_play]
 
-    mock_resolution_context.resolve_holder_async = AsyncMock(
-        return_value=mock_dna_holder
-    )
+    mock_resolution_context.resolve_holder_async = AsyncMock(return_value=mock_dna_holder)
     mock_client.tasks.add_dependency_async = AsyncMock()
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
-    result = await service.wire_defaults_async(
-        "new123", "implementation", mock_resolution_context
-    )
+    result = await service.wire_defaults_async("new123", "implementation", mock_resolution_context)
 
     assert "resolved_play1" in result.wired
     # Verify resolve_holder_async was called
@@ -232,16 +218,12 @@ async def test_wire_dependent_failure_is_nonfatal(
     lifecycle_config, mock_client, mock_resolution_context, mock_unit
 ):
     """ConnectionError on dependent wiring produces warning, not exception."""
-    mock_client.tasks.add_dependent_async = AsyncMock(
-        side_effect=ConnectionError("Asana API down")
-    )
+    mock_client.tasks.add_dependent_async = AsyncMock(side_effect=ConnectionError("Asana API down"))
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
     # Must NOT raise
-    result = await service.wire_defaults_async(
-        "new123", "sales", mock_resolution_context
-    )
+    result = await service.wire_defaults_async("new123", "sales", mock_resolution_context)
 
     assert result.wired == []
     assert len(result.warnings) > 0
@@ -266,9 +248,7 @@ async def test_wire_open_plays_failure_is_nonfatal(
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
-    result = await service.wire_defaults_async(
-        "new123", "implementation", mock_resolution_context
-    )
+    result = await service.wire_defaults_async("new123", "implementation", mock_resolution_context)
 
     assert "play1" not in result.wired
     assert len(result.warnings) > 0
@@ -296,9 +276,7 @@ async def test_dependent_failure_does_not_prevent_play_wiring(
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
-    result = await service.wire_defaults_async(
-        "new123", "implementation", mock_resolution_context
-    )
+    result = await service.wire_defaults_async("new123", "implementation", mock_resolution_context)
 
     # Play still wired despite dependent failure
     assert "play1" in result.wired
@@ -336,9 +314,7 @@ async def test_one_play_failure_does_not_prevent_others(
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
-    result = await service.wire_defaults_async(
-        "new123", "implementation", mock_resolution_context
-    )
+    result = await service.wire_defaults_async("new123", "implementation", mock_resolution_context)
 
     assert "play_fail" not in result.wired
     assert "play_ok" in result.wired
@@ -362,9 +338,7 @@ async def test_wire_entity_as_dependency(lifecycle_config, mock_client):
     )
 
     assert "created123" in result.wired
-    mock_client.tasks.add_dependency_async.assert_called_once_with(
-        "target456", "created123"
-    )
+    mock_client.tasks.add_dependency_async.assert_called_once_with("target456", "created123")
 
 
 @pytest.mark.asyncio
@@ -374,9 +348,7 @@ async def test_wire_entity_as_dependency_no_target_gid(lifecycle_config, mock_cl
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
-    result = await service.wire_entity_as_dependency_async(
-        "created123", "", "implementation"
-    )
+    result = await service.wire_entity_as_dependency_async("created123", "", "implementation")
 
     assert result.wired == []
     assert len(result.warnings) == 1
@@ -387,9 +359,7 @@ async def test_wire_entity_as_dependency_no_target_gid(lifecycle_config, mock_cl
 @pytest.mark.asyncio
 async def test_wire_entity_as_dependency_api_failure(lifecycle_config, mock_client):
     """API failure on entity dependency wiring produces warning, not exception."""
-    mock_client.tasks.add_dependency_async = AsyncMock(
-        side_effect=ConnectionError("API timeout")
-    )
+    mock_client.tasks.add_dependency_async = AsyncMock(side_effect=ConnectionError("API timeout"))
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
@@ -420,9 +390,7 @@ async def test_wire_defaults_business_async_failure(
 
     service = DependencyWiringService(mock_client, lifecycle_config)
 
-    result = await service.wire_defaults_async(
-        "new123", "sales", mock_resolution_context
-    )
+    result = await service.wire_defaults_async("new123", "sales", mock_resolution_context)
 
     # Should have warnings from play wiring failure, but dependents may still work
     assert isinstance(result, WiringResult)

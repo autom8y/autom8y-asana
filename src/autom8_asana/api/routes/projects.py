@@ -421,9 +421,7 @@ async def add_members(
     Raises:
         404: Project or one or more users not found or not accessible.
     """
-    project = await client.projects.add_members_async(
-        gid, members=body.members, raw=True
-    )
+    project = await client.projects.add_members_async(gid, members=body.members, raw=True)
     return build_success_response(data=project, request_id=request_id)  # type: ignore[arg-type]
 
 
@@ -468,9 +466,7 @@ async def remove_members(
     Raises:
         404: Project not found or not accessible.
     """
-    project = await client.projects.remove_members_async(
-        gid, members=body.members, raw=True
-    )
+    project = await client.projects.remove_members_async(gid, members=body.members, raw=True)
     return build_success_response(data=project, request_id=request_id)  # type: ignore[arg-type]
 
 

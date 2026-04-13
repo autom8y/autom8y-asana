@@ -83,9 +83,7 @@ class TestSetAssigneeFromRepAsync:
     ) -> None:
         """Test FR-ASSIGN-002: Unit.rep takes precedence when present."""
         unit = MockUnit(rep=[{"gid": "unit_rep_123", "name": "Unit Rep"}])
-        business = MockBusiness(
-            rep=[{"gid": "business_rep_456", "name": "Business Rep"}]
-        )
+        business = MockBusiness(rep=[{"gid": "business_rep_456", "name": "Business Rep"}])
         new_task = MockTask("new_task_gid")
         source_process = MockProcess()
 
@@ -98,9 +96,7 @@ class TestSetAssigneeFromRepAsync:
         )
 
         assert result is True
-        mock_client.tasks.set_assignee_async.assert_called_once_with(
-            "new_task_gid", "unit_rep_123"
-        )
+        mock_client.tasks.set_assignee_async.assert_called_once_with("new_task_gid", "unit_rep_123")
 
     @pytest.mark.asyncio
     async def test_unit_rep_empty_fallback_to_business_rep(
@@ -108,9 +104,7 @@ class TestSetAssigneeFromRepAsync:
     ) -> None:
         """Test FR-ASSIGN-003: Fallback to Business.rep when Unit.rep is empty."""
         unit = MockUnit(rep=[])  # Empty list
-        business = MockBusiness(
-            rep=[{"gid": "business_rep_456", "name": "Business Rep"}]
-        )
+        business = MockBusiness(rep=[{"gid": "business_rep_456", "name": "Business Rep"}])
         new_task = MockTask("new_task_gid")
         source_process = MockProcess()
 
@@ -133,9 +127,7 @@ class TestSetAssigneeFromRepAsync:
     ) -> None:
         """Test FR-ASSIGN-003: Fallback to Business.rep when Unit.rep is None."""
         unit = MockUnit(rep=None)
-        business = MockBusiness(
-            rep=[{"gid": "business_rep_456", "name": "Business Rep"}]
-        )
+        business = MockBusiness(rep=[{"gid": "business_rep_456", "name": "Business Rep"}])
         new_task = MockTask("new_task_gid")
         source_process = MockProcess()
 
@@ -178,9 +170,7 @@ class TestSetAssigneeFromRepAsync:
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
         """Test that when unit is None, Business.rep is used."""
-        business = MockBusiness(
-            rep=[{"gid": "business_rep_456", "name": "Business Rep"}]
-        )
+        business = MockBusiness(rep=[{"gid": "business_rep_456", "name": "Business Rep"}])
         new_task = MockTask("new_task_gid")
         source_process = MockProcess()
 
@@ -274,9 +264,7 @@ class TestSetAssigneeFromRepAsync:
     ) -> None:
         """Test handling of malformed rep dict without gid key."""
         unit = MockUnit(rep=[{"name": "No GID User"}])  # Missing 'gid' key
-        business = MockBusiness(
-            rep=[{"gid": "business_rep_456", "name": "Business Rep"}]
-        )
+        business = MockBusiness(rep=[{"gid": "business_rep_456", "name": "Business Rep"}])
         new_task = MockTask("new_task_gid")
         source_process = MockProcess()
 

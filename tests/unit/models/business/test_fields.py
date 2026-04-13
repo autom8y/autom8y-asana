@@ -58,9 +58,7 @@ class TestCascadingFieldDef:
         )
         task = Task(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Office Phone", "text_value": "555-1234"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Office Phone", "text_value": "555-1234"}],
         )
         # Even with existing value, should_update returns True
         assert field_def.should_update_descendant(task) is True
@@ -73,9 +71,7 @@ class TestCascadingFieldDef:
         )
         task = Task(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Platforms", "multi_enum_values": None}
-            ],
+            custom_fields=[{"gid": "456", "name": "Platforms", "multi_enum_values": None}],
         )
         assert field_def.should_update_descendant(task) is True
 
@@ -102,9 +98,7 @@ class TestCascadingFieldDef:
         field_def = CascadingFieldDef(name="Office Phone")
         task = Task(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Office Phone", "text_value": "555-1234"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Office Phone", "text_value": "555-1234"}],
         )
         assert field_def.get_value(task) == "555-1234"
 
@@ -125,9 +119,7 @@ class TestCascadingFieldDef:
         )
         task = Task(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Office Phone", "text_value": "test"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Office Phone", "text_value": "test"}],
         )
         assert field_def.get_value(task) == "TEST"
 
@@ -175,9 +167,7 @@ class TestInheritedFieldDef:
         field_def = InheritedFieldDef(name="Vertical")
         task = Task(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Vertical Override", "text_value": "Yes"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Vertical Override", "text_value": "Yes"}],
         )
         assert field_def.is_overridden(task) is True
 
@@ -195,9 +185,7 @@ class TestInheritedFieldDef:
         )
         task = Task(
             gid="123",
-            custom_fields=[
-                {"gid": "456", "name": "Manager Override", "text_value": "Yes"}
-            ],
+            custom_fields=[{"gid": "456", "name": "Manager Override", "text_value": "Yes"}],
         )
         assert field_def.is_overridden(task) is False
 
@@ -304,9 +292,7 @@ class TestCascadingFieldRegistryAutoWire:
             "primary contact phone",
         ]
         for field_name in expected_business_fields:
-            assert field_name in registry, (
-                f"Business field {field_name!r} missing from registry"
-            )
+            assert field_name in registry, f"Business field {field_name!r} missing from registry"
             owner_class, _ = registry[field_name]
             assert owner_class.__name__ == "Business"
 
@@ -321,9 +307,7 @@ class TestCascadingFieldRegistryAutoWire:
             "weekly ad spend",
         ]
         for field_name in expected_unit_fields:
-            assert field_name in registry, (
-                f"Unit field {field_name!r} missing from registry"
-            )
+            assert field_name in registry, f"Unit field {field_name!r} missing from registry"
             owner_class, _ = registry[field_name]
             assert owner_class.__name__ == "Unit"
 
@@ -345,9 +329,7 @@ class TestCascadingFieldRegistryAutoWire:
         from autom8_asana.core.entity_registry import get_registry
 
         providers = [
-            desc.name
-            for desc in get_registry().all_descriptors()
-            if desc.cascading_field_provider
+            desc.name for desc in get_registry().all_descriptors() if desc.cascading_field_provider
         ]
         assert sorted(providers) == ["business", "unit"]
 

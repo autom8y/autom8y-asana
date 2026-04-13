@@ -44,10 +44,7 @@ class TestCheckEntryStaleness:
 
         # Even with old version, EVENTUAL should not be stale if TTL valid
         newer_version = (now + timedelta(minutes=30)).isoformat()
-        assert (
-            check_entry_staleness(entry, newer_version, FreshnessIntent.EVENTUAL)
-            is False
-        )
+        assert check_entry_staleness(entry, newer_version, FreshnessIntent.EVENTUAL) is False
 
     def test_strict_freshness_checks_version(self) -> None:
         """Test that STRICT freshness verifies version."""
@@ -63,9 +60,7 @@ class TestCheckEntryStaleness:
 
         # Newer source version should be stale in STRICT mode
         newer_version = now.isoformat()
-        assert (
-            check_entry_staleness(entry, newer_version, FreshnessIntent.STRICT) is True
-        )
+        assert check_entry_staleness(entry, newer_version, FreshnessIntent.STRICT) is True
 
     def test_strict_freshness_current_version(self) -> None:
         """Test that STRICT freshness accepts current version."""
@@ -83,12 +78,8 @@ class TestCheckEntryStaleness:
         same_version = now.isoformat()
         older_version = (now - timedelta(hours=1)).isoformat()
 
-        assert (
-            check_entry_staleness(entry, same_version, FreshnessIntent.STRICT) is False
-        )
-        assert (
-            check_entry_staleness(entry, older_version, FreshnessIntent.STRICT) is False
-        )
+        assert check_entry_staleness(entry, same_version, FreshnessIntent.STRICT) is False
+        assert check_entry_staleness(entry, older_version, FreshnessIntent.STRICT) is False
 
     def test_strict_without_current_version_is_stale(self) -> None:
         """Test that STRICT without current version treats as stale."""
@@ -116,9 +107,7 @@ class TestCheckEntryStaleness:
 
         # Z suffix should be handled correctly
         newer_version = (now + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
-        assert (
-            check_entry_staleness(entry, newer_version, FreshnessIntent.STRICT) is True
-        )
+        assert check_entry_staleness(entry, newer_version, FreshnessIntent.STRICT) is True
 
     def test_no_ttl_not_expired(self) -> None:
         """Test that entries without TTL are not expired."""

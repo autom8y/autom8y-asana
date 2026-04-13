@@ -400,9 +400,7 @@ class TestBatchErrorPiiRedaction:
                 )
 
                 async with client:
-                    batch_response = await client.get_insights_batch_async(
-                        pairs, factory="account"
-                    )
+                    batch_response = await client.get_insights_batch_async(pairs, factory="account")
 
         # Check that error strings in results don't contain raw phone
         for result in batch_response.results.values():

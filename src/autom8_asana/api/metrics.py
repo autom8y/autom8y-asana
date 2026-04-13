@@ -144,9 +144,7 @@ class PrometheusMetricsEmitter:
 
     def record_cache_op(self, entity_type: str, tier: str, result: str) -> None:
         """Record a cache operation (hit/miss/error)."""
-        DATAFRAME_CACHE_OPS.labels(
-            entity_type=entity_type, tier=tier, result=result
-        ).inc()
+        DATAFRAME_CACHE_OPS.labels(entity_type=entity_type, tier=tier, result=result).inc()
 
     def record_rows_cached(self, entity_type: str, row_count: int) -> None:
         """Update the rows-cached gauge for an entity type."""

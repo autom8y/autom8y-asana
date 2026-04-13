@@ -89,9 +89,7 @@ class TestInvalidateProjectAsync:
 
         assert response.success is True
         assert response.projects_invalidated == 1
-        mock_persistence.delete_section_files_async.assert_awaited_once_with(
-            "1234567890"
-        )
+        mock_persistence.delete_section_files_async.assert_awaited_once_with("1234567890")
         mock_persistence.delete_manifest_async.assert_awaited_once_with("1234567890")
 
     @pytest.mark.asyncio
@@ -158,9 +156,7 @@ class TestInvalidateProjectAsync:
         assert response.tasks_cleared == {"redis": 10, "s3": 20}
         # Project was also invalidated
         assert response.projects_invalidated == 1
-        mock_persistence.delete_section_files_async.assert_awaited_once_with(
-            "9876543210"
-        )
+        mock_persistence.delete_section_files_async.assert_awaited_once_with("9876543210")
         mock_persistence.delete_manifest_async.assert_awaited_once_with("9876543210")
         mock_cache.clear_all_tasks.assert_called_once()
 
@@ -247,9 +243,7 @@ class TestHandlerAsyncInvalidateProject:
 
         assert result["statusCode"] == 200
         assert result["body"]["projects_invalidated"] == 1
-        mock_persistence.delete_section_files_async.assert_awaited_once_with(
-            "7777777777"
-        )
+        mock_persistence.delete_section_files_async.assert_awaited_once_with("7777777777")
         mock_persistence.delete_manifest_async.assert_awaited_once_with("7777777777")
 
     @pytest.mark.asyncio

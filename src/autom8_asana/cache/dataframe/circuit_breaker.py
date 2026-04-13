@@ -153,10 +153,7 @@ class CircuitBreaker:
         circuit.last_failure = time.monotonic()
 
         # Check if should open circuit
-        if (
-            circuit.state != CircuitState.OPEN
-            and circuit.failure_count >= self.failure_threshold
-        ):
+        if circuit.state != CircuitState.OPEN and circuit.failure_count >= self.failure_threshold:
             circuit.state = CircuitState.OPEN
             self._stats["circuits_opened"] += 1
             logger.warning(
@@ -249,7 +246,5 @@ class CircuitBreaker:
             List of project GIDs in OPEN state.
         """
         return [
-            gid
-            for gid, circuit in self._circuits.items()
-            if circuit.state == CircuitState.OPEN
+            gid for gid, circuit in self._circuits.items() if circuit.state == CircuitState.OPEN
         ]

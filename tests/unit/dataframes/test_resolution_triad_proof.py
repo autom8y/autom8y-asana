@@ -89,9 +89,7 @@ def _build_business_df(
             "due_on": [DATE_DUE] * n_rows,
             "is_completed": [False] * n_rows,
             "completed_at": [None] * n_rows,
-            "url": [
-                f"https://app.asana.com/0/0/120065301256{i:04d}" for i in range(n_rows)
-            ],
+            "url": [f"https://app.asana.com/0/0/120065301256{i:04d}" for i in range(n_rows)],
             "last_modified": [TS_MODIFIED] * n_rows,
             "section": ["Active"] * n_rows,
             "tags": [["vip", "dental"]] * n_rows,
@@ -99,9 +97,7 @@ def _build_business_df(
             "company_id": [f"COMP-{i:04d}" for i in range(n_rows)],
             "office_phone": office_phones,
             "stripe_id": [f"cus_test{i:08d}" for i in range(n_rows)],
-            "booking_type": [
-                booking_types[i % len(booking_types)] for i in range(n_rows)
-            ],
+            "booking_type": [booking_types[i % len(booking_types)] for i in range(n_rows)],
             "facebook_page_id": [f"fb_{i:012d}" for i in range(n_rows)],
         },
         schema_overrides={
@@ -127,8 +123,7 @@ def _build_offer_df(
         {
             "gid": [f"114384366209{i:04d}" for i in range(n_rows)],
             "name": [
-                f"Google Ads - {verticals[i % 2].title()} - Office {i}"
-                for i in range(n_rows)
+                f"Google Ads - {verticals[i % 2].title()} - Office {i}" for i in range(n_rows)
             ],
             "type": ["Offer"] * n_rows,
             "date": [DATE_PRIMARY] * n_rows,
@@ -136,9 +131,7 @@ def _build_offer_df(
             "due_on": [DATE_DUE] * n_rows,
             "is_completed": [False] * n_rows,
             "completed_at": [None] * n_rows,
-            "url": [
-                f"https://app.asana.com/0/0/114384366209{i:04d}" for i in range(n_rows)
-            ],
+            "url": [f"https://app.asana.com/0/0/114384366209{i:04d}" for i in range(n_rows)],
             "last_modified": [TS_MODIFIED] * n_rows,
             "section": ["Active"] * n_rows,
             "tags": [["google-ads"]] * n_rows,
@@ -185,9 +178,7 @@ def _build_asset_edit_df(
             "due_on": [DATE_DUE] * n_rows,
             "is_completed": [False] * n_rows,
             "completed_at": [None] * n_rows,
-            "url": [
-                f"https://app.asana.com/0/0/120220418456{i:04d}" for i in range(n_rows)
-            ],
+            "url": [f"https://app.asana.com/0/0/120220418456{i:04d}" for i in range(n_rows)],
             "last_modified": [TS_MODIFIED] * n_rows,
             "section": ["In Progress"] * n_rows,
             "tags": [["video"]] * n_rows,
@@ -246,9 +237,7 @@ def _build_asset_edit_holder_df(
             "due_on": [DATE_DUE] * n_rows,
             "is_completed": [False] * n_rows,
             "completed_at": [None] * n_rows,
-            "url": [
-                f"https://app.asana.com/0/0/120399266440{i:04d}" for i in range(n_rows)
-            ],
+            "url": [f"https://app.asana.com/0/0/120399266440{i:04d}" for i in range(n_rows)],
             "last_modified": [TS_MODIFIED] * n_rows,
             "section": ["Active"] * n_rows,
             "tags": [["holder"]] * n_rows,
@@ -278,14 +267,10 @@ def assert_schema_coverage(df: pl.DataFrame, schema: DataFrameSchema) -> None:
     for col_def in schema.columns:
         if not col_def.nullable:
             null_count = df[col_def.name].null_count()
-            assert null_count == 0, (
-                f"Non-nullable column {col_def.name!r} has {null_count} nulls"
-            )
+            assert null_count == 0, f"Non-nullable column {col_def.name!r} has {null_count} nulls"
 
 
-def assert_resolves(
-    index: DynamicIndex, criterion: dict[str, Any], expected_gid: str
-) -> None:
+def assert_resolves(index: DynamicIndex, criterion: dict[str, Any], expected_gid: str) -> None:
     """Assert single criterion resolves to expected GID."""
     gids = index.lookup(criterion)
     assert len(gids) >= 1, f"Expected match for {criterion}, got empty"
@@ -467,9 +452,7 @@ class TestCascadeChainHealthy:
     def test_business_has_no_cascade_columns(self) -> None:
         """Business schema has zero cascade columns (office_phone is cf:)."""
         cascade_cols = BUSINESS_SCHEMA.get_cascade_columns()
-        assert cascade_cols == [], (
-            f"Business should have no cascade columns, got: {cascade_cols}"
-        )
+        assert cascade_cols == [], f"Business should have no cascade columns, got: {cascade_cols}"
 
 
 # ---------------------------------------------------------------------------
@@ -494,9 +477,7 @@ class TestCascadeNotReady:
             cfg["schema"],
             tuple(cfg["key_columns"]),
         )
-        assert result.healthy is False, (
-            f"{entity_key}: expected healthy=False at 30% null"
-        )
+        assert result.healthy is False, f"{entity_key}: expected healthy=False at 30% null"
         assert "office_phone" in result.degraded_columns
         assert result.degraded_columns["office_phone"] == pytest.approx(0.3)
         assert result.max_null_rate == pytest.approx(0.3)
@@ -558,9 +539,7 @@ class TestAuditCascadeKeyNulls:
     def test_audit_cascade_key_nulls_healthy(self) -> None:
         """Healthy data (0% null cascade keys) logs at INFO severity."""
         df = _build_offer_df(n_rows=N_ROWS, null_office_phone_count=0)
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_key_nulls(
                 df,
                 "offer",
@@ -578,9 +557,7 @@ class TestAuditCascadeKeyNulls:
     def test_audit_cascade_key_nulls_degraded(self) -> None:
         """Degraded data (30% null) logs at ERROR severity."""
         df = _build_offer_df(n_rows=N_ROWS, null_office_phone_count=3)
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_key_nulls(
                 df,
                 "offer",
@@ -596,9 +573,7 @@ class TestAuditCascadeKeyNulls:
     def test_audit_cascade_key_nulls_no_schema_is_noop(self) -> None:
         """Passing schema=None causes silent skip (safe degradation)."""
         df = _build_offer_df(n_rows=N_ROWS, null_office_phone_count=3)
-        with patch(
-            "autom8_asana.dataframes.builders.cascade_validator.logger"
-        ) as mock_logger:
+        with patch("autom8_asana.dataframes.builders.cascade_validator.logger") as mock_logger:
             audit_cascade_key_nulls(
                 df,
                 "offer",
@@ -644,9 +619,7 @@ class TestDynamicIndexNullExclusion:
     def test_index_size_decreases_with_nulls(self) -> None:
         """Verify index size reflects null exclusion across entities."""
         for null_count in [0, 2, 5, 8]:
-            df = _build_asset_edit_holder_df(
-                n_rows=N_ROWS, null_office_phone_count=null_count
-            )
+            df = _build_asset_edit_holder_df(n_rows=N_ROWS, null_office_phone_count=null_count)
             index = DynamicIndex.from_dataframe(
                 df=df,
                 key_columns=["office_phone"],
@@ -773,8 +746,6 @@ class TestCascadeHealthEdgeCases:
 
     def test_cascade_health_result_is_frozen(self) -> None:
         """CascadeHealthResult is a frozen dataclass."""
-        result = CascadeHealthResult(
-            healthy=True, degraded_columns={}, max_null_rate=0.0
-        )
+        result = CascadeHealthResult(healthy=True, degraded_columns={}, max_null_rate=0.0)
         with pytest.raises(AttributeError):
             result.healthy = False  # type: ignore[misc]

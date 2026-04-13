@@ -13,11 +13,7 @@ from autom8_asana.core.entity_registry import get_registry
 _registry = get_registry()
 
 # Core entity types used by DataFrameCache, admin, and query subsystems
-ENTITY_TYPES: list[str] = [
-    d.name for d in _registry.warmable_entities() if not d.is_holder
-]
+ENTITY_TYPES: list[str] = [d.name for d in _registry.warmable_entities() if not d.is_holder]
 
 # Extended set including derivative types (used by schema providers)
-ENTITY_TYPES_WITH_DERIVATIVES: list[str] = [
-    d.name for d in _registry.warmable_entities()
-]
+ENTITY_TYPES_WITH_DERIVATIVES: list[str] = [d.name for d in _registry.warmable_entities()]

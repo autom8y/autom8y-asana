@@ -127,9 +127,7 @@ class InsightsRequest(BaseModel):
         if re.match(r"^l\d+h?$", v_lower):
             return v_lower
 
-        raise ValueError(
-            f"Invalid period format: {v}. Expected: lifetime, t30, l7, etc."
-        )
+        raise ValueError(f"Invalid period format: {v}. Expected: lifetime, t30, l7, etc.")
 
 
 class ColumnInfo(BaseModel):

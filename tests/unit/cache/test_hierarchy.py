@@ -370,9 +370,7 @@ class TestHierarchyIndexThreadSafety:
         def write_operation() -> None:
             try:
                 for i in range(num_operations):
-                    index.register(
-                        {"gid": f"new-{threading.current_thread().name}-{i}"}
-                    )
+                    index.register({"gid": f"new-{threading.current_thread().name}-{i}"})
             except Exception as e:
                 errors.append(e)
 

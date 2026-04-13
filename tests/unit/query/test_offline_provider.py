@@ -59,9 +59,7 @@ class TestOfflineDataFrameProviderCaching:
             # Same object (cached)
             assert first is second
             # load_project_dataframe_with_meta called only once
-            mock_load.assert_called_once_with(
-                "123", bucket="test-bucket", region="us-east-1"
-            )
+            mock_load.assert_called_once_with("123", bucket="test-bucket", region="us-east-1")
 
     @pytest.mark.asyncio
     async def test_different_project_gids_not_cached(self) -> None:

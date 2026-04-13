@@ -106,11 +106,9 @@ class StageTransitionStore:
 
         # Materialize computed duration_days column
         df = df.with_columns(
-            (
-                (pl.col("exited_at") - pl.col("entered_at"))
-                .dt.total_days()
-                .cast(pl.Float64)
-            ).alias("duration_days")
+            ((pl.col("exited_at") - pl.col("entered_at")).dt.total_days().cast(pl.Float64)).alias(
+                "duration_days"
+            )
         )
 
         return df

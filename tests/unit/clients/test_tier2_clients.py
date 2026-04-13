@@ -117,9 +117,7 @@ class TestWebhooksClientCreateAsync:
         assert result.gid == "wh123"
         mock_http.post.assert_called_once_with(
             "/webhooks",
-            json={
-                "data": {"resource": "proj123", "target": "https://example.com/webhook"}
-            },
+            json={"data": {"resource": "proj123", "target": "https://example.com/webhook"}},
         )
 
 
@@ -287,17 +285,13 @@ class TestTagsClientCreateAsync:
             "color": "dark-blue",
         }
 
-        result = await tags_client.create_async(
-            workspace="ws1", name="Priority", color="dark-blue"
-        )
+        result = await tags_client.create_async(workspace="ws1", name="Priority", color="dark-blue")
 
         assert isinstance(result, Tag)
         assert result.gid == "tag123"
         mock_http.post.assert_called_once_with(
             "/tags",
-            json={
-                "data": {"workspace": "ws1", "name": "Priority", "color": "dark-blue"}
-            },
+            json={"data": {"workspace": "ws1", "name": "Priority", "color": "dark-blue"}},
         )
 
 
@@ -358,9 +352,7 @@ class TestStoriesClientCreateCommentAsync:
             "text": "Great work!",
         }
 
-        result = await stories_client.create_comment_async(
-            task="task1", text="Great work!"
-        )
+        result = await stories_client.create_comment_async(task="task1", text="Great work!")
 
         assert isinstance(result, Story)
         assert result.text == "Great work!"
@@ -867,10 +859,7 @@ class TestWebhookSignatureTimingSafety:
         # Try various partial matches that could pass with naive comparison
         assert WebhooksClient.verify_signature(body, correct_sig[:-1], secret) is False
         assert WebhooksClient.verify_signature(body, correct_sig + "x", secret) is False
-        assert (
-            WebhooksClient.verify_signature(body, "0" + correct_sig[1:], secret)
-            is False
-        )
+        assert WebhooksClient.verify_signature(body, "0" + correct_sig[1:], secret) is False
 
 
 class TestWebhookHandshakeSecretExtractionAdversarial:
@@ -954,9 +943,7 @@ class TestAttachmentUploadEdgeCases:
             }
 
             file_obj = BytesIO(b"test content")
-            await attachments_client.upload_async(
-                parent="task1", file=file_obj, name=filename
-            )
+            await attachments_client.upload_async(parent="task1", file=file_obj, name=filename)
 
             call_args = mock_http.post_multipart.call_args
             files_param = call_args[1]["files"]
@@ -1001,9 +988,7 @@ class TestAttachmentUploadFromPath:
             temp_path = f.name
 
         try:
-            result = await attachments_client.upload_from_path_async(
-                parent="task1", path=temp_path
-            )
+            result = await attachments_client.upload_from_path_async(parent="task1", path=temp_path)
 
             assert isinstance(result, Attachment)
             call_args = mock_http.post_multipart.call_args
@@ -1060,9 +1045,7 @@ class TestAttachmentDownload:
         with tempfile.TemporaryDirectory() as tmpdir:
             dest_path = Path(tmpdir) / "downloaded.txt"
 
-            result = await attachments_client.download_async(
-                "att123", destination=dest_path
-            )
+            result = await attachments_client.download_async("att123", destination=dest_path)
 
             assert result == dest_path
             assert dest_path.exists()
@@ -1100,9 +1083,7 @@ class TestAttachmentDownload:
         }
 
         with pytest.raises(AsanaError) as exc_info:
-            await attachments_client.download_async(
-                "att123", destination="/tmp/test.txt"
-            )
+            await attachments_client.download_async("att123", destination="/tmp/test.txt")
 
         assert "no download URL" in str(exc_info.value)
 
@@ -1217,9 +1198,7 @@ class TestGoalsSupportingWork:
         """Remove supporting work from goal."""
         mock_http.post.return_value = {}
 
-        await goals_client.remove_supporting_work_async(
-            "goal123", supporting_resource="project456"
-        )
+        await goals_client.remove_supporting_work_async("goal123", supporting_resource="project456")
 
         mock_http.post.assert_called_once_with(
             "/goals/goal123/removeSupportingRelationship",
@@ -1236,9 +1215,7 @@ class TestGoalsFollowers:
         """Add multiple followers to goal with comma-join."""
         mock_http.post.return_value = {"gid": "goal123", "name": "Goal"}
 
-        await goals_client.add_followers_async(
-            "goal123", followers=["user1", "user2", "user3"]
-        )
+        await goals_client.add_followers_async("goal123", followers=["user1", "user2", "user3"])
 
         call_data = mock_http.post.call_args[1]["json"]["data"]
         assert call_data["followers"] == "user1,user2,user3"
@@ -1260,9 +1237,7 @@ class TestGoalsFollowers:
         """Remove followers from goal."""
         mock_http.post.return_value = {"gid": "goal123", "name": "Goal"}
 
-        await goals_client.remove_followers_async(
-            "goal123", followers=["user1", "user2"]
-        )
+        await goals_client.remove_followers_async("goal123", followers=["user1", "user2"])
 
         mock_http.post.assert_called_once_with(
             "/goals/goal123/removeFollowers",
@@ -1372,9 +1347,7 @@ class TestPortfoliosMemberManagement:
         """Add multiple members to portfolio with comma-join."""
         mock_http.post.return_value = {"gid": "port123", "name": "Portfolio"}
 
-        await portfolios_client.add_members_async(
-            "port123", members=["user1", "user2", "user3"]
-        )
+        await portfolios_client.add_members_async("port123", members=["user1", "user2", "user3"])
 
         call_data = mock_http.post.call_args[1]["json"]["data"]
         assert call_data["members"] == "user1,user2,user3"
@@ -1385,9 +1358,7 @@ class TestPortfoliosMemberManagement:
         """Remove members from portfolio."""
         mock_http.post.return_value = {"gid": "port123", "name": "Portfolio"}
 
-        await portfolios_client.remove_members_async(
-            "port123", members=["user1", "user2"]
-        )
+        await portfolios_client.remove_members_async("port123", members=["user1", "user2"])
 
         mock_http.post.assert_called_once_with(
             "/portfolios/port123/removeMembers",
@@ -1404,9 +1375,7 @@ class TestPortfoliosCustomFieldSettings:
         """Add custom field to portfolio."""
         mock_http.post.return_value = {}
 
-        await portfolios_client.add_custom_field_setting_async(
-            "port123", custom_field="cf456"
-        )
+        await portfolios_client.add_custom_field_setting_async("port123", custom_field="cf456")
 
         mock_http.post.assert_called_once_with(
             "/portfolios/port123/addCustomFieldSetting",
@@ -1432,9 +1401,7 @@ class TestPortfoliosCustomFieldSettings:
         """Remove custom field from portfolio."""
         mock_http.post.return_value = {}
 
-        await portfolios_client.remove_custom_field_setting_async(
-            "port123", custom_field="cf456"
-        )
+        await portfolios_client.remove_custom_field_setting_async("port123", custom_field="cf456")
 
         mock_http.post.assert_called_once_with(
             "/portfolios/port123/removeCustomFieldSetting",

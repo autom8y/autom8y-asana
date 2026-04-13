@@ -420,9 +420,7 @@ class TestValidationByGid:
     def test_validation_by_gid_string_rejects_invalid(self):
         """Validation rejects invalid type when setting by GID."""
         accessor = CustomFieldAccessor(
-            data=[
-                {"gid": "1234567890", "name": "Priority", "resource_subtype": "number"}
-            ]
+            data=[{"gid": "1234567890", "name": "Priority", "resource_subtype": "number"}]
         )
         with pytest.raises(ValidationError) as exc:
             accessor.set("1234567890", "not_a_number")
@@ -516,9 +514,7 @@ class TestValidationEdgeCases:
         accessor = CustomFieldAccessor(
             data=[{"gid": "1", "name": "Budget", "resource_subtype": "number"}]
         )
-        accessor.set(
-            "Budget", True
-        )  # bool is int subclass; accepted by Python type system
+        accessor.set("Budget", True)  # bool is int subclass; accepted by Python type system
         assert accessor.get("Budget") is True
 
     def test_empty_string_accepted_for_text(self):

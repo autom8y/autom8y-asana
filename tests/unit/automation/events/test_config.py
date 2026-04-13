@@ -202,9 +202,7 @@ class TestEventRoutingConfigFromEnv:
         env = {
             "EVENTS_ENABLED": "true",
             "EVENTS_SQS_QUEUE_URL": "https://sqs.example.com/ignored",
-            "EVENTS_SUBSCRIPTIONS": json.dumps(
-                [{"destination": "https://sqs.example.com/used"}]
-            ),
+            "EVENTS_SUBSCRIPTIONS": json.dumps([{"destination": "https://sqs.example.com/used"}]),
         }
         with patch.dict(os.environ, env, clear=True):
             config = EventRoutingConfig.from_env()

@@ -154,9 +154,7 @@ class TestGetAppointmentsAsync:
 
         client = _make_client()
         mock_cb = AsyncMock()
-        mock_cb.check = AsyncMock(
-            side_effect=SdkCBOpen(time_remaining=30.0, message="CB open")
-        )
+        mock_cb.check = AsyncMock(side_effect=SdkCBOpen(time_remaining=30.0, message="CB open"))
         client._circuit_breaker = mock_cb
 
         with pytest.raises(InsightsServiceError) as exc_info:
@@ -339,9 +337,7 @@ class TestGetLeadsAsync:
 
         client = _make_client()
         mock_cb = AsyncMock()
-        mock_cb.check = AsyncMock(
-            side_effect=SdkCBOpen(time_remaining=15.0, message="CB open")
-        )
+        mock_cb.check = AsyncMock(side_effect=SdkCBOpen(time_remaining=15.0, message="CB open"))
         client._circuit_breaker = mock_cb
 
         with pytest.raises(InsightsServiceError) as exc_info:
@@ -363,9 +359,7 @@ class TestGetLeadsAsync:
             await client.get_leads_async("+17705753103")
 
             started_calls = [
-                c
-                for c in mock_logger.info.call_args_list
-                if c[0][0] == "leads_request_started"
+                c for c in mock_logger.info.call_args_list if c[0][0] == "leads_request_started"
             ]
             assert len(started_calls) >= 1
             call_kwargs = started_calls[0][1]

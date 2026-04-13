@@ -198,7 +198,9 @@ class CacheInvalidator:
                     ]
                     if project_gids:
                         invalidate_task_dataframes(gid, project_gids, self._cache)
-                except CACHE_TRANSIENT_ERRORS as exc:  # isolation -- per-gid loop, single failure must not abort batch
+                except (
+                    CACHE_TRANSIENT_ERRORS
+                ) as exc:  # isolation -- per-gid loop, single failure must not abort batch
                     # FR-INVALIDATE-005: Don't fail commit on invalidation error
                     if self._log:
                         self._log.warning(

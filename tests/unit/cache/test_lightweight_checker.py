@@ -44,9 +44,7 @@ class TestLightweightChecker:
     """Tests for LightweightChecker."""
 
     @pytest.mark.asyncio
-    async def test_empty_batch_returns_empty_dict(
-        self, checker: LightweightChecker
-    ) -> None:
+    async def test_empty_batch_returns_empty_dict(self, checker: LightweightChecker) -> None:
         """Test that empty batch returns empty dict."""
         result = await checker.check_batch_async([])
         assert result == {}
@@ -61,15 +59,11 @@ class TestLightweightChecker:
         mock_batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={
-                    "data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}
-                },
+                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:00:00.000Z"}},
             ),
             BatchResult(
                 status_code=200,
-                body={
-                    "data": {"gid": "456", "modified_at": "2025-12-23T11:00:00.000Z"}
-                },
+                body={"data": {"gid": "456", "modified_at": "2025-12-23T11:00:00.000Z"}},
             ),
         ]
 
@@ -97,15 +91,11 @@ class TestLightweightChecker:
         mock_batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={
-                    "data": {"gid": "123", "modified_at": "2025-12-23T10:30:00.000Z"}
-                },
+                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:30:00.000Z"}},
             ),
             BatchResult(
                 status_code=200,
-                body={
-                    "data": {"gid": "456", "modified_at": "2025-12-24T08:15:00.000Z"}
-                },
+                body={"data": {"gid": "456", "modified_at": "2025-12-24T08:15:00.000Z"}},
             ),
         ]
 
@@ -126,9 +116,7 @@ class TestLightweightChecker:
         mock_batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={
-                    "data": {"gid": "123", "modified_at": "2025-12-23T10:30:00.000Z"}
-                },
+                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:30:00.000Z"}},
             ),
             BatchResult(
                 status_code=404,
@@ -151,9 +139,7 @@ class TestLightweightChecker:
         mock_batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={
-                    "data": {"gid": "123", "modified_at": "2025-12-23T10:30:00.000Z"}
-                },
+                body={"data": {"gid": "123", "modified_at": "2025-12-23T10:30:00.000Z"}},
             ),
             BatchResult(
                 status_code=500,
@@ -161,9 +147,7 @@ class TestLightweightChecker:
             ),
             BatchResult(
                 status_code=200,
-                body={
-                    "data": {"gid": "789", "modified_at": "2025-12-24T09:00:00.000Z"}
-                },
+                body={"data": {"gid": "789", "modified_at": "2025-12-24T09:00:00.000Z"}},
             ),
         ]
 
@@ -204,9 +188,7 @@ class TestLightweightChecker:
             return [
                 BatchResult(
                     status_code=200,
-                    body={
-                        "data": {"gid": gid, "modified_at": "2025-12-23T10:00:00.000Z"}
-                    },
+                    body={"data": {"gid": gid, "modified_at": "2025-12-23T10:00:00.000Z"}},
                 )
                 for gid in gids
             ]
@@ -278,9 +260,7 @@ class TestLightweightChecker:
         mock_batch_client.execute_async.return_value = [
             BatchResult(
                 status_code=200,
-                body={
-                    "data": {"gid": str(i), "modified_at": "2025-12-23T10:00:00.000Z"}
-                },
+                body={"data": {"gid": str(i), "modified_at": "2025-12-23T10:00:00.000Z"}},
             )
             for i in range(5)
         ]
@@ -497,9 +477,7 @@ class TestMixedSuccessFailure:
             return_value=[
                 BatchResult(
                     status_code=200,
-                    body={
-                        "data": {"gid": "1", "modified_at": "2025-12-23T10:00:00.000Z"}
-                    },
+                    body={"data": {"gid": "1", "modified_at": "2025-12-23T10:00:00.000Z"}},
                 ),
                 BatchResult(
                     status_code=404,
@@ -511,9 +489,7 @@ class TestMixedSuccessFailure:
                 ),
                 BatchResult(
                     status_code=200,
-                    body={
-                        "data": {"gid": "4", "modified_at": "2025-12-23T11:00:00.000Z"}
-                    },
+                    body={"data": {"gid": "4", "modified_at": "2025-12-23T11:00:00.000Z"}},
                 ),
             ]
         )

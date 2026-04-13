@@ -120,46 +120,32 @@ class TestSectionClassifier:
         assert simple_classifier.classify("PAUSED") == AccountActivity.INACTIVE
         assert simple_classifier.classify("TEMPLATE") == AccountActivity.IGNORED
 
-    def test_classify_case_insensitive(
-        self, simple_classifier: SectionClassifier
-    ) -> None:
+    def test_classify_case_insensitive(self, simple_classifier: SectionClassifier) -> None:
         assert simple_classifier.classify("active") == AccountActivity.ACTIVE
         assert simple_classifier.classify("Active") == AccountActivity.ACTIVE
         assert simple_classifier.classify("ACTIVE") == AccountActivity.ACTIVE
         assert simple_classifier.classify("AcTiVe") == AccountActivity.ACTIVE
 
-    def test_classify_unknown_returns_none(
-        self, simple_classifier: SectionClassifier
-    ) -> None:
+    def test_classify_unknown_returns_none(self, simple_classifier: SectionClassifier) -> None:
         assert simple_classifier.classify("UNKNOWN") is None
         assert simple_classifier.classify("") is None
         assert simple_classifier.classify("nonexistent section") is None
 
-    def test_classify_all_categories(
-        self, simple_classifier: SectionClassifier
-    ) -> None:
+    def test_classify_all_categories(self, simple_classifier: SectionClassifier) -> None:
         assert simple_classifier.classify("RUNNING") == AccountActivity.ACTIVE
         assert simple_classifier.classify("STOPPED") == AccountActivity.INACTIVE
 
     # --- sections_for ---
 
-    def test_sections_for_single_category(
-        self, simple_classifier: SectionClassifier
-    ) -> None:
+    def test_sections_for_single_category(self, simple_classifier: SectionClassifier) -> None:
         result = simple_classifier.sections_for(AccountActivity.ACTIVE)
         assert result == frozenset({"active", "running"})
 
-    def test_sections_for_multiple_categories(
-        self, simple_classifier: SectionClassifier
-    ) -> None:
-        result = simple_classifier.sections_for(
-            AccountActivity.ACTIVE, AccountActivity.ACTIVATING
-        )
+    def test_sections_for_multiple_categories(self, simple_classifier: SectionClassifier) -> None:
+        result = simple_classifier.sections_for(AccountActivity.ACTIVE, AccountActivity.ACTIVATING)
         assert result == frozenset({"active", "running", "starting"})
 
-    def test_sections_for_returns_frozenset(
-        self, simple_classifier: SectionClassifier
-    ) -> None:
+    def test_sections_for_returns_frozenset(self, simple_classifier: SectionClassifier) -> None:
         result = simple_classifier.sections_for(AccountActivity.ACTIVE)
         assert isinstance(result, frozenset)
 
@@ -216,15 +202,11 @@ class TestSectionClassifier:
 
     # --- Frozen guarantee ---
 
-    def test_frozen_cannot_mutate_entity_type(
-        self, simple_classifier: SectionClassifier
-    ) -> None:
+    def test_frozen_cannot_mutate_entity_type(self, simple_classifier: SectionClassifier) -> None:
         with pytest.raises(FrozenInstanceError):
             simple_classifier.entity_type = "other"  # type: ignore[misc]
 
-    def test_frozen_cannot_mutate_project_gid(
-        self, simple_classifier: SectionClassifier
-    ) -> None:
+    def test_frozen_cannot_mutate_project_gid(self, simple_classifier: SectionClassifier) -> None:
         with pytest.raises(FrozenInstanceError):
             simple_classifier.project_gid = "999"  # type: ignore[misc]
 
@@ -382,9 +364,7 @@ class TestOfferClassifier:
         assert "system error" in active
 
     def test_active_section_count(self) -> None:
-        assert (
-            len(OFFER_CLASSIFIER.active_sections()) == 22
-        )  # +1: ONE-OFF per truth audit
+        assert len(OFFER_CLASSIFIER.active_sections()) == 22  # +1: ONE-OFF per truth audit
 
     def test_activating_sections(self) -> None:
         activating = OFFER_CLASSIFIER.sections_for(AccountActivity.ACTIVATING)
@@ -422,10 +402,7 @@ class TestOfferClassifier:
         )  # +1 ONE-OFF (active) per truth audit; PLAYS/PERFORMANCE CONCERNS case variants collapse
 
     def test_classify_optimize_sections(self) -> None:
-        assert (
-            OFFER_CLASSIFIER.classify("OPTIMIZE - Human Review")
-            == AccountActivity.ACTIVE
-        )
+        assert OFFER_CLASSIFIER.classify("OPTIMIZE - Human Review") == AccountActivity.ACTIVE
         assert (
             OFFER_CLASSIFIER.classify("OPTIMIZE QUANTITY - Request Asset Edit")
             == AccountActivity.ACTIVE
@@ -440,14 +417,8 @@ class TestOfferClassifier:
         )
 
     def test_classify_restart_sections(self) -> None:
-        assert (
-            OFFER_CLASSIFIER.classify("RESTART - Request Testimonial")
-            == AccountActivity.ACTIVE
-        )
-        assert (
-            OFFER_CLASSIFIER.classify("RESTART - Pending Leads")
-            == AccountActivity.ACTIVE
-        )
+        assert OFFER_CLASSIFIER.classify("RESTART - Request Testimonial") == AccountActivity.ACTIVE
+        assert OFFER_CLASSIFIER.classify("RESTART - Pending Leads") == AccountActivity.ACTIVE
 
     def test_classify_case_insensitive(self) -> None:
         assert OFFER_CLASSIFIER.classify("active") == AccountActivity.ACTIVE
@@ -505,9 +476,7 @@ class TestUnitClassifier:
         # Per truth audit: "account review" and "account error" added as INACTIVE
         assert "account review" in inactive
         assert "account error" in inactive
-        assert (
-            len(inactive) == 6
-        )  # -2 (engaged, scheduled) +2 (account review, account error)
+        assert len(inactive) == 6  # -2 (engaged, scheduled) +2 (account review, account error)
 
     def test_ignored_sections(self) -> None:
         ignored = UNIT_CLASSIFIER.sections_for(AccountActivity.IGNORED)

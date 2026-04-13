@@ -383,9 +383,7 @@ class TestDataFrameSchemaValidation:
         errors = validation_schema.validate_row(row)
         assert errors == []
 
-    def test_validate_row_missing_required(
-        self, validation_schema: DataFrameSchema
-    ) -> None:
+    def test_validate_row_missing_required(self, validation_schema: DataFrameSchema) -> None:
         """Test validation with missing required field."""
         row: dict[str, Any] = {
             "gid": "123",
@@ -397,9 +395,7 @@ class TestDataFrameSchemaValidation:
         assert "name" in errors[0]
         assert "null" in errors[0]
 
-    def test_validate_row_null_required(
-        self, validation_schema: DataFrameSchema
-    ) -> None:
+    def test_validate_row_null_required(self, validation_schema: DataFrameSchema) -> None:
         """Test validation with None for required field."""
         row: dict[str, Any] = {
             "gid": None,  # nullable=False
@@ -409,9 +405,7 @@ class TestDataFrameSchemaValidation:
         assert len(errors) == 1
         assert "gid" in errors[0]
 
-    def test_validate_row_multiple_errors(
-        self, validation_schema: DataFrameSchema
-    ) -> None:
+    def test_validate_row_multiple_errors(self, validation_schema: DataFrameSchema) -> None:
         """Test validation with multiple errors."""
         row: dict[str, Any] = {
             "gid": None,  # required but null

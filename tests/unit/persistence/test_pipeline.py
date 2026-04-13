@@ -15,10 +15,10 @@ from autom8_asana.batch.models import BatchResult
 from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.action_executor import ActionExecutor
-from autom8_asana.persistence.events import EventSystem
 from autom8_asana.persistence.errors import (
     UnsupportedOperationError,
 )
+from autom8_asana.persistence.events import EventSystem
 from autom8_asana.persistence.graph import DependencyGraph
 from autom8_asana.persistence.models import (
     ActionOperation,
@@ -422,9 +422,7 @@ class TestGidResolution:
 
         mock_client = create_mock_batch_client()
         # Parent in level 0, child in level 1
-        mock_client.execute_async = AsyncMock(
-            side_effect=[[parent_success], [child_success]]
-        )
+        mock_client.execute_async = AsyncMock(side_effect=[[parent_success], [child_success]])
 
         tracker = ChangeTracker()
         graph = DependencyGraph()
@@ -712,9 +710,7 @@ class TestExecuteWithActions:
         return executor
 
     @pytest.mark.asyncio
-    async def test_execute_with_actions_empty(
-        self, mock_action_executor: AsyncMock
-    ) -> None:
+    async def test_execute_with_actions_empty(self, mock_action_executor: AsyncMock) -> None:
         """execute_with_actions handles empty entities and actions."""
         pipeline, *_ = create_pipeline()
 
@@ -728,9 +724,7 @@ class TestExecuteWithActions:
         assert action_results == []
 
     @pytest.mark.asyncio
-    async def test_execute_with_actions_crud_only(
-        self, mock_action_executor: AsyncMock
-    ) -> None:
+    async def test_execute_with_actions_crud_only(self, mock_action_executor: AsyncMock) -> None:
         """execute_with_actions handles CRUD without actions."""
         success = create_success_result(gid="123")
         pipeline, tracker, _, _, mock_client = create_pipeline([success])
@@ -751,9 +745,7 @@ class TestExecuteWithActions:
         mock_action_executor.execute_async.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_execute_with_actions_actions_only(
-        self, mock_action_executor: AsyncMock
-    ) -> None:
+    async def test_execute_with_actions_actions_only(self, mock_action_executor: AsyncMock) -> None:
         """execute_with_actions handles actions without CRUD."""
         pipeline, *_ = create_pipeline()
 
@@ -780,9 +772,7 @@ class TestExecuteWithActions:
         mock_action_executor.execute_async.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_execute_with_actions_both(
-        self, mock_action_executor: AsyncMock
-    ) -> None:
+    async def test_execute_with_actions_both(self, mock_action_executor: AsyncMock) -> None:
         """execute_with_actions handles both CRUD and actions."""
         success = create_success_result(gid="123")
         pipeline, tracker, _, _, mock_client = create_pipeline([success])

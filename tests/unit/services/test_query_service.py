@@ -174,9 +174,7 @@ class TestResolveSection:
         mock_persistence = MagicMock()
         mock_persistence.is_available = True
         mock_persistence.__aenter__ = AsyncMock(return_value=mock_persistence)
-        mock_persistence.__aexit__ = AsyncMock(
-            side_effect=ConnectionError("S3 unavailable")
-        )
+        mock_persistence.__aexit__ = AsyncMock(side_effect=ConnectionError("S3 unavailable"))
 
         with (
             patch(
@@ -319,9 +317,7 @@ class TestStripSectionConflicts:
 
     def test_no_conflict_when_section_is_none(self) -> None:
         """Returns request unmodified when section_name is None."""
-        request = self._make_rows_request(
-            where={"field": "section", "op": "eq", "value": "ACTIVE"}
-        )
+        request = self._make_rows_request(where={"field": "section", "op": "eq", "value": "ACTIVE"})
         result = strip_section_conflicts(request, None)
         assert result is request
 
@@ -616,9 +612,7 @@ class TestHasSectionPredAdversarial:
         """NOT(section == 'X') is still detected as containing section pred."""
         from autom8_asana.services.query_service import _has_section_pred
 
-        tree = self._build_predicate(
-            {"not": {"field": "section", "op": "eq", "value": "PAUSED"}}
-        )
+        tree = self._build_predicate({"not": {"field": "section", "op": "eq", "value": "PAUSED"}})
         assert _has_section_pred(tree) is True
 
     def test_or_group_with_mixed_section_and_non_section(self) -> None:

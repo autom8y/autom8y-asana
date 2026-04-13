@@ -147,9 +147,7 @@ async def _ensure_units_hydrated(business: Business, client: AsanaClient) -> Non
     # Fetch full hierarchy to populate units
     try:
         await business._fetch_holders_async(client)
-    except (
-        Exception
-    ) as e:  # BROAD-CATCH: enrichment -- logs then re-raises for caller to handle
+    except Exception as e:  # BROAD-CATCH: enrichment -- logs then re-raises for caller to handle
         logger.warning(
             "Failed to hydrate business units",
             extra={"business_gid": business.gid, "error": str(e)},
@@ -203,9 +201,7 @@ async def resolve_units_async(
     # 3. Ensure all Businesses have units hydrated (concurrent)
     # This is the key optimization - fetch once per Business, not per AssetEdit
     if businesses:
-        hydration_tasks = [
-            _ensure_units_hydrated(b, client) for b in businesses.values()
-        ]
+        hydration_tasks = [_ensure_units_hydrated(b, client) for b in businesses.values()]
         # Use gather with return_exceptions to handle partial failures gracefully
         await asyncio.gather(*hydration_tasks, return_exceptions=True)
 
@@ -227,9 +223,7 @@ async def resolve_units_async(
             )
             results[ae.gid] = ResolutionResult[Unit](
                 error=f"Resolution failed: {e}",
-                strategies_tried=[strategy]
-                if strategy != ResolutionStrategy.AUTO
-                else [],
+                strategies_tried=[strategy] if strategy != ResolutionStrategy.AUTO else [],
             )
 
     return results
@@ -281,9 +275,7 @@ async def resolve_offers_async(
     # 3. Ensure all Businesses have units hydrated (concurrent)
     # This is the key optimization - fetch once per Business, not per AssetEdit
     if businesses:
-        hydration_tasks = [
-            _ensure_units_hydrated(b, client) for b in businesses.values()
-        ]
+        hydration_tasks = [_ensure_units_hydrated(b, client) for b in businesses.values()]
         # Use gather with return_exceptions to handle partial failures gracefully
         await asyncio.gather(*hydration_tasks, return_exceptions=True)
 
@@ -305,9 +297,7 @@ async def resolve_offers_async(
             )
             results[ae.gid] = ResolutionResult[Offer](
                 error=f"Resolution failed: {e}",
-                strategies_tried=[strategy]
-                if strategy != ResolutionStrategy.AUTO
-                else [],
+                strategies_tried=[strategy] if strategy != ResolutionStrategy.AUTO else [],
             )
 
     return results

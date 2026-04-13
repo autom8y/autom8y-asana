@@ -66,14 +66,10 @@ class WebhookDispatcherConfig:
         dry_run = os.getenv("WEBHOOK_DISPATCH_DRY_RUN", "true").lower() != "false"
 
         entity_types_raw = os.getenv("WEBHOOK_DISPATCH_ENTITY_TYPES", "")
-        entity_types = frozenset(
-            t.strip() for t in entity_types_raw.split(",") if t.strip()
-        )
+        entity_types = frozenset(t.strip() for t in entity_types_raw.split(",") if t.strip())
 
         event_types_raw = os.getenv("WEBHOOK_DISPATCH_EVENT_TYPES", "")
-        event_types = frozenset(
-            t.strip() for t in event_types_raw.split(",") if t.strip()
-        )
+        event_types = frozenset(t.strip() for t in event_types_raw.split(",") if t.strip())
 
         return cls(
             enabled=enabled,

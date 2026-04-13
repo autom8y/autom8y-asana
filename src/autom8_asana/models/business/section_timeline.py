@@ -77,9 +77,7 @@ class SectionTimeline:
         """
         from autom8_asana.models.business.activity import AccountActivity
 
-        return self._count_days_for_classifications(
-            start, end, frozenset({AccountActivity.ACTIVE})
-        )
+        return self._count_days_for_classifications(start, end, frozenset({AccountActivity.ACTIVE}))
 
     def billable_days_in_period(self, start: date, end: date) -> int:
         """Count unique calendar dates with ACTIVE or ACTIVATING overlap.

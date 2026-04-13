@@ -322,12 +322,8 @@ class TestInMemoryCacheProvider:
         now = datetime.now(UTC)
 
         entries = {
-            "1": CacheEntry(
-                key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now
-            ),
-            "2": CacheEntry(
-                key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now
-            ),
+            "1": CacheEntry(key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now),
+            "2": CacheEntry(key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now),
         }
 
         cache.set_batch(entries)

@@ -24,9 +24,7 @@ OFFER_PROJECT_GID = "1143843662099250"
 UNIT_PROJECT_GID = "1201081073731555"
 
 
-def _make_offer(
-    section_name: str | None = None, project_gid: str = OFFER_PROJECT_GID
-) -> Offer:
+def _make_offer(section_name: str | None = None, project_gid: str = OFFER_PROJECT_GID) -> Offer:
     """Create an Offer with optional section membership."""
     memberships = []
     if section_name is not None:
@@ -45,9 +43,7 @@ def _make_offer(
     )
 
 
-def _make_unit(
-    section_name: str | None = None, project_gid: str = UNIT_PROJECT_GID
-) -> Unit:
+def _make_unit(section_name: str | None = None, project_gid: str = UNIT_PROJECT_GID) -> Unit:
     """Create a Unit with optional section membership."""
     memberships = []
     if section_name is not None:
@@ -341,9 +337,7 @@ class TestBusinessMaxUnitActivity:
                 higher = ACTIVITY_PRIORITY[i]
                 lower = ACTIVITY_PRIORITY[j]
                 business = _make_business_with_units([lower, higher])
-                assert business.max_unit_activity == higher, (
-                    f"{higher} should beat {lower}"
-                )
+                assert business.max_unit_activity == higher, f"{higher} should beat {lower}"
 
     def test_empty_unit_holder(self) -> None:
         business = _make_business_with_units([])

@@ -46,9 +46,7 @@ def invalidator(mock_cache: MagicMock) -> MutationInvalidator:
 
 
 @pytest.fixture
-def invalidator_with_df(
-    mock_cache: MagicMock, mock_df_cache: MagicMock
-) -> MutationInvalidator:
+def invalidator_with_df(mock_cache: MagicMock, mock_df_cache: MagicMock) -> MutationInvalidator:
     """Create a MutationInvalidator with both cache backends."""
     return MutationInvalidator(cache_provider=mock_cache, dataframe_cache=mock_df_cache)
 
@@ -90,9 +88,7 @@ class TestTaskMutationInvalidation:
             await invalidator.invalidate_async(event)
 
         # Per-task DataFrame invalidation called with correct args
-        mock_df_inv.assert_called_once_with(
-            "12345", ["proj1", "proj2"], invalidator._cache
-        )
+        mock_df_inv.assert_called_once_with("12345", ["proj1", "proj2"], invalidator._cache)
         # Entity cache still invalidated
         mock_cache.invalidate.assert_called_once()
 
@@ -421,9 +417,7 @@ class TestGracefulDegradation:
         await invalidator.invalidate_async(event)
 
     @pytest.mark.asyncio
-    async def test_cache_provider_failure_does_not_propagate(
-        self, mock_cache: MagicMock
-    ) -> None:
+    async def test_cache_provider_failure_does_not_propagate(self, mock_cache: MagicMock) -> None:
         """Cache provider failure is caught and logged, not propagated."""
         mock_cache.invalidate.side_effect = ConnectionError("Redis down")
         inv = MutationInvalidator(cache_provider=mock_cache)
@@ -442,9 +436,7 @@ class TestGracefulDegradation:
     ) -> None:
         """DataFrameCache failure is caught and logged, not propagated."""
         mock_df_cache.invalidate_project.side_effect = ConnectionError("Memory error")
-        inv = MutationInvalidator(
-            cache_provider=mock_cache, dataframe_cache=mock_df_cache
-        )
+        inv = MutationInvalidator(cache_provider=mock_cache, dataframe_cache=mock_df_cache)
 
         event = MutationEvent(
             entity_kind=EntityKind.TASK,
@@ -474,9 +466,7 @@ class TestGracefulDegradation:
     ) -> None:
         """Section entity cache failure still processes DataFrame invalidation."""
         mock_cache.invalidate.side_effect = ConnectionError("Cache down")
-        inv = MutationInvalidator(
-            cache_provider=mock_cache, dataframe_cache=mock_df_cache
-        )
+        inv = MutationInvalidator(cache_provider=mock_cache, dataframe_cache=mock_df_cache)
 
         event = MutationEvent(
             entity_kind=EntityKind.SECTION,
@@ -494,9 +484,7 @@ class TestFireAndForget:
     """Tests for the fire-and-forget pattern."""
 
     @pytest.mark.asyncio
-    async def test_fire_and_forget_creates_task(
-        self, invalidator: MutationInvalidator
-    ) -> None:
+    async def test_fire_and_forget_creates_task(self, invalidator: MutationInvalidator) -> None:
         """fire_and_forget schedules an asyncio task."""
         event = MutationEvent(
             entity_kind=EntityKind.TASK,
@@ -509,9 +497,7 @@ class TestFireAndForget:
         await asyncio.sleep(0.01)
 
     @pytest.mark.asyncio
-    async def test_fire_and_forget_task_has_name(
-        self, invalidator: MutationInvalidator
-    ) -> None:
+    async def test_fire_and_forget_task_has_name(self, invalidator: MutationInvalidator) -> None:
         """fire_and_forget creates a named task for debugging."""
         event = MutationEvent(
             entity_kind=EntityKind.TASK,

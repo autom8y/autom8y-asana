@@ -249,9 +249,7 @@ class TestHierarchyPacingResults:
         """All parents are fetched correctly in paced mode."""
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
-        with patch(
-            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
-        ):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             await store.put_batch_async(
                 tasks,
                 warm_hierarchy=True,
@@ -273,13 +271,9 @@ class TestHierarchyPacingResults:
         one fetch per unique parent GID.
         """
         # 200 tasks all sharing 110 unique parents (above threshold)
-        tasks = [
-            _make_task(f"task-{i}", parent_gid=f"parent-{i % 110}") for i in range(200)
-        ]
+        tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i % 110}") for i in range(200)]
 
-        with patch(
-            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
-        ):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             await store.put_batch_async(
                 tasks,
                 warm_hierarchy=True,
@@ -302,9 +296,7 @@ class TestHierarchyPacingLogging:
         """hierarchy_pacing_enabled log is emitted when pacing activates."""
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
-        with patch(
-            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
-        ):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             with patch("autom8_asana.cache.providers.unified.logger") as mock_logger:
                 await store.put_batch_async(
                     tasks,
@@ -333,9 +325,7 @@ class TestHierarchyPacingLogging:
         """hierarchy_warming_complete log is emitted after paced warming."""
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
-        with patch(
-            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
-        ):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             with patch("autom8_asana.cache.providers.unified.logger") as mock_logger:
                 await store.put_batch_async(
                     tasks,
@@ -364,9 +354,7 @@ class TestHierarchyPacingLogging:
         """hierarchy_batch_pause log is emitted between batches."""
         tasks = [_make_task(f"task-{i}", parent_gid=f"parent-{i}") for i in range(120)]
 
-        with patch(
-            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
-        ):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             with patch("autom8_asana.cache.providers.unified.logger") as mock_logger:
                 await store.put_batch_async(
                     tasks,
@@ -421,9 +409,7 @@ class TestPacingBoundaryConditions:
         with patch(
             "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
-            await store.put_batch_async(
-                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
-            )
+            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
             mock_sleep.assert_not_called()
 
         assert mock_tasks_client.get_async.call_count == 100
@@ -438,9 +424,7 @@ class TestPacingBoundaryConditions:
         with patch(
             "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
-            await store.put_batch_async(
-                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
-            )
+            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
             # 101 / 50 = 3 batches (50, 50, 1) -> 2 pauses
             assert mock_sleep.call_count == 2
 
@@ -456,9 +440,7 @@ class TestPacingBoundaryConditions:
         with patch(
             "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
-            await store.put_batch_async(
-                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
-            )
+            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
             mock_sleep.assert_not_called()
 
         mock_tasks_client.get_async.assert_not_called()
@@ -473,9 +455,7 @@ class TestPacingBoundaryConditions:
         with patch(
             "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
-            await store.put_batch_async(
-                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
-            )
+            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
             mock_sleep.assert_not_called()
 
         assert mock_tasks_client.get_async.call_count == 1
@@ -494,9 +474,7 @@ class TestPacingBatchEdgeCases:
         with patch(
             "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
         ) as mock_sleep:
-            await store.put_batch_async(
-                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
-            )
+            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
             assert mock_sleep.call_count == 3
 
         assert mock_tasks_client.get_async.call_count == 151
@@ -516,9 +494,7 @@ class TestPacingBatchEdgeCases:
             patch.dict(os.environ, {"ASANA_PACING_HIERARCHY_BATCH_SIZE": "200"}),
         ):
             reset_settings()
-            await store.put_batch_async(
-                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
-            )
+            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
             mock_sleep.assert_not_called()
         reset_settings()
 
@@ -530,16 +506,10 @@ class TestPacingBatchEdgeCases:
         n = 250
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(n)]
 
-        with patch(
-            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
-        ):
-            await store.put_batch_async(
-                tasks, warm_hierarchy=True, tasks_client=mock_tasks_client
-            )
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
+            await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=mock_tasks_client)
 
-        fetched_gids = [
-            call.args[0] for call in mock_tasks_client.get_async.call_args_list
-        ]
+        fetched_gids = [call.args[0] for call in mock_tasks_client.get_async.call_args_list]
         assert len(fetched_gids) == n
         assert len(set(fetched_gids)) == n
 
@@ -585,18 +555,14 @@ class TestPacingErrorResilience:
         client = MagicMock()
         client.get_async = AsyncMock(side_effect=ConnectionError("Total failure"))
 
-        with patch(
-            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
-        ):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=client)
 
         # With retry (max 3 attempts per parent), 110 parents * 3 = 330 calls
         assert client.get_async.call_count >= 110 * 3
 
     @pytest.mark.asyncio
-    async def test_failure_in_last_batch_handled_gracefully(
-        self, store: UnifiedTaskStore
-    ) -> None:
+    async def test_failure_in_last_batch_handled_gracefully(self, store: UnifiedTaskStore) -> None:
         """Failures in the final (remainder) batch are handled gracefully."""
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(110)]
 
@@ -612,9 +578,7 @@ class TestPacingErrorResilience:
         client = MagicMock()
         client.get_async = AsyncMock(side_effect=_fail_last_batch)
 
-        with patch(
-            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
-        ):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             await store.put_batch_async(tasks, warm_hierarchy=True, tasks_client=client)
 
         # With retry, last batch failures get retried → more than 110 calls
@@ -647,18 +611,14 @@ class TestPacingConcurrencyInteraction:
         client = MagicMock()
         client.get_async = AsyncMock(side_effect=_tracking_get)
 
-        with patch(
-            "autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock
-        ):
+        with patch("autom8_asana.cache.providers.unified.asyncio.sleep", new_callable=AsyncMock):
             await store.put_batch_async(
                 [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(120)],
                 warm_hierarchy=True,
                 tasks_client=client,
             )
 
-        assert max_concurrent <= 10, (
-            f"Max concurrency was {max_concurrent}, expected <= 10"
-        )
+        assert max_concurrent <= 10, f"Max concurrency was {max_concurrent}, expected <= 10"
 
 
 class TestPacingConfigConstants:
@@ -717,9 +677,7 @@ class TestFetchImmediateParentRetry:
         return store
 
     @pytest.mark.asyncio
-    async def test_retry_succeeds_on_second_attempt(
-        self, store: UnifiedTaskStore
-    ) -> None:
+    async def test_retry_succeeds_on_second_attempt(self, store: UnifiedTaskStore) -> None:
         """First attempt fails with transient error, second succeeds."""
         mock_client = MagicMock()
         parent_resp = _make_parent_response("p1")
@@ -743,9 +701,7 @@ class TestFetchImmediateParentRetry:
     async def test_all_retries_exhausted(self, store: UnifiedTaskStore) -> None:
         """All 3 attempts fail — returns 0, does not crash."""
         mock_client = MagicMock()
-        mock_client.get_async = AsyncMock(
-            side_effect=ConnectionError("persistent failure")
-        )
+        mock_client.get_async = AsyncMock(side_effect=ConnectionError("persistent failure"))
 
         tasks = [_make_task("c1", parent_gid="p1")]
 
@@ -757,9 +713,7 @@ class TestFetchImmediateParentRetry:
         store._hierarchy.register.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_success_on_first_attempt_no_retry(
-        self, store: UnifiedTaskStore
-    ) -> None:
+    async def test_success_on_first_attempt_no_retry(self, store: UnifiedTaskStore) -> None:
         """Successful first attempt does not trigger any retries."""
         mock_client = MagicMock()
         parent_resp = _make_parent_response("p1")

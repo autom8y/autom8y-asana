@@ -194,9 +194,7 @@ class DataFrameCache:
     metrics_emitter: MetricsEmitter | None = None
 
     # Last freshness info per cache key (side-channel for API layer)
-    _last_freshness: dict[str, FreshnessInfo] = field(
-        default_factory=dict, init=False, repr=False
-    )
+    _last_freshness: dict[str, FreshnessInfo] = field(default_factory=dict, init=False, repr=False)
 
     # Optional callback for SWR background rebuilds.
     # Signature: async def callback(project_gid: str, entity_type: str) -> None
@@ -206,9 +204,7 @@ class DataFrameCache:
     )
 
     # Statistics per entity type
-    _stats: dict[str, dict[str, int]] = field(
-        default_factory=dict, init=False, repr=False
-    )
+    _stats: dict[str, dict[str, int]] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
         """Initialize per-entity-type statistics."""
@@ -368,9 +364,7 @@ class DataFrameCache:
         if entry is not None and self._schema_is_valid(entry):
             self._stats[entity_type]["lkg_circuit_serves"] += 1
             self._stats[entity_type]["memory_hits"] += 1
-            info = self._build_freshness_info(
-                entry, FreshnessState.CIRCUIT_FALLBACK, cache_key
-            )
+            info = self._build_freshness_info(entry, FreshnessState.CIRCUIT_FALLBACK, cache_key)
             logger.info(
                 "dataframe_cache_circuit_lkg_serve",
                 extra={
@@ -399,9 +393,7 @@ class DataFrameCache:
             self.memory_tier.put(cache_key, entry)
             self._stats[entity_type]["lkg_circuit_serves"] += 1
             self._stats[entity_type]["s3_hits"] += 1
-            info = self._build_freshness_info(
-                entry, FreshnessState.CIRCUIT_FALLBACK, cache_key
-            )
+            info = self._build_freshness_info(entry, FreshnessState.CIRCUIT_FALLBACK, cache_key)
             logger.info(
                 "dataframe_cache_circuit_lkg_serve",
                 extra={
@@ -806,9 +798,7 @@ class DataFrameCache:
         success = await self.coalescer.wait_async(cache_key, timeout_seconds)
 
         if success:
-            result: DataFrameCacheEntry | None = await self.get_async(
-                project_gid, entity_type
-            )
+            result: DataFrameCacheEntry | None = await self.get_async(project_gid, entity_type)
             return result
         return None
 
@@ -946,9 +936,7 @@ class DataFrameCache:
             return FreshnessState.SCHEMA_INVALID
 
         # Watermark check — hard-reject if source has newer data
-        if current_watermark is not None and not entry.is_fresh_by_watermark(
-            current_watermark
-        ):
+        if current_watermark is not None and not entry.is_fresh_by_watermark(current_watermark):
             return FreshnessState.WATERMARK_BEHIND
 
         # Entity-aware TTL with SWR grace window
@@ -1038,6 +1026,4 @@ class DataFrameCache:
                 self.metrics_emitter.record_swr_refresh(
                     entity_type, "success" if success else "failure"
                 )
-            await self.release_build_lock_async(
-                project_gid, entity_type, success=success
-            )
+            await self.release_build_lock_async(project_gid, entity_type, success=success)

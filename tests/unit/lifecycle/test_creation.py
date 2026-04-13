@@ -165,9 +165,7 @@ async def test_create_process_template_happy_path():
     stage_config = _make_stage_config()
 
     with (
-        patch(
-            "autom8_asana.lifecycle.creation.discover_template_async"
-        ) as mock_discover,
+        patch("autom8_asana.lifecycle.creation.discover_template_async") as mock_discover,
         patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
         patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
     ):
@@ -226,9 +224,7 @@ async def test_create_process_blank_fallback():
     stage_config = _make_stage_config()
 
     with (
-        patch(
-            "autom8_asana.lifecycle.creation.discover_template_async"
-        ) as mock_discover,
+        patch("autom8_asana.lifecycle.creation.discover_template_async") as mock_discover,
         patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
         patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
     ):
@@ -713,9 +709,7 @@ async def test_duplicate_check_completed_tasks_skipped():
     template_task.num_subtasks = 0  # IMP-13: subtask count from discovery
 
     with (
-        patch(
-            "autom8_asana.lifecycle.creation.discover_template_async"
-        ) as mock_discover,
+        patch("autom8_asana.lifecycle.creation.discover_template_async") as mock_discover,
         patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
         patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
     ):
@@ -1158,9 +1152,7 @@ async def test_seeding_failure_non_fatal():
     template_task.num_subtasks = 0  # IMP-13: subtask count from discovery
 
     with (
-        patch(
-            "autom8_asana.lifecycle.creation.discover_template_async"
-        ) as mock_discover,
+        patch("autom8_asana.lifecycle.creation.discover_template_async") as mock_discover,
         patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
         patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
     ):
@@ -1248,9 +1240,7 @@ async def test_full_creation_flow_with_all_configure_steps():
     )
 
     with (
-        patch(
-            "autom8_asana.lifecycle.creation.discover_template_async"
-        ) as mock_discover,
+        patch("autom8_asana.lifecycle.creation.discover_template_async") as mock_discover,
         patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder") as MockSeeder,
         patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
     ):

@@ -222,8 +222,7 @@ class DataFrameService:
                 df = pl.DataFrame(schema=schema.to_polars_schema())
         except DataFrameConstructionError as exc:
             raise InvalidParameterError(
-                f"DataFrame construction failed for schema '{schema.name}': "
-                f"{exc.original_error}"
+                f"DataFrame construction failed for schema '{schema.name}': {exc.original_error}"
             ) from exc
 
         return DataFrameResult(
@@ -272,9 +271,7 @@ class DataFrameService:
             params={"opt_fields": "project.gid"},
         )
         project_data = section_data.get("project") or {}
-        project_gid = (
-            project_data.get("gid") if isinstance(project_data, dict) else None
-        )
+        project_gid = project_data.get("gid") if isinstance(project_data, dict) else None
 
         if not project_gid:
             raise EntityNotFoundError("Section not found or has no parent project")
@@ -310,8 +307,7 @@ class DataFrameService:
             df = builder.build(tasks=tasks)
         except DataFrameConstructionError as exc:
             raise InvalidParameterError(
-                f"DataFrame construction failed for schema '{schema.name}': "
-                f"{exc.original_error}"
+                f"DataFrame construction failed for schema '{schema.name}': {exc.original_error}"
             ) from exc
 
         return (

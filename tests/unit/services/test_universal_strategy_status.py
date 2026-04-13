@@ -121,9 +121,7 @@ class TestClassifyGids:
 
         Per FR-2: SectionClassifier maps section names to AccountActivity.
         """
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
 
         result = strategy._classify_gids(unit_status_df, ["u-active"], "unit")
 
@@ -137,9 +135,7 @@ class TestClassifyGids:
 
         Per FR-2, FR-3: Activating sections classified correctly.
         """
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
 
         result = strategy._classify_gids(unit_status_df, ["u-activating"], "unit")
 
@@ -152,9 +148,7 @@ class TestClassifyGids:
 
         Per FR-2: Inactive sections classified correctly.
         """
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
 
         result = strategy._classify_gids(unit_status_df, ["u-inactive"], "unit")
 
@@ -167,9 +161,7 @@ class TestClassifyGids:
 
         Per FR-2: Ignored sections classified correctly.
         """
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
 
         result = strategy._classify_gids(unit_status_df, ["u-ignored"], "unit")
 
@@ -182,9 +174,7 @@ class TestClassifyGids:
 
         Per FR-5, SCAR-005/006: Null section from cascade warming gaps.
         """
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
 
         result = strategy._classify_gids(unit_status_df, ["u-null-section"], "unit")
 
@@ -204,9 +194,7 @@ class TestClassifyGids:
                 "is_completed": [False],
             }
         )
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
 
         result = strategy._classify_gids(df, ["u-unknown"], "unit")
 
@@ -219,9 +207,7 @@ class TestClassifyGids:
 
         Per FR-6, SD-6: is_completed is terminal override.
         """
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
 
         result = strategy._classify_gids(unit_status_df, ["u-completed"], "unit")
 
@@ -242,9 +228,7 @@ class TestClassifyGids:
                 "is_completed": [True],
             }
         )
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
 
         result = strategy._classify_gids(df, ["u-comp-null"], "unit")
 
@@ -257,13 +241,9 @@ class TestClassifyGids:
 
         Per FR-7: No classifier for entity type.
         """
-        strategy = UniversalResolutionStrategy(
-            entity_type="business", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="business", index_cache=index_cache)
 
-        result = strategy._classify_gids(
-            unit_status_df, ["u-active", "u-inactive"], "business"
-        )
+        result = strategy._classify_gids(unit_status_df, ["u-active", "u-inactive"], "business")
 
         assert all(status is None for _, status in result)
         assert len(result) == 2
@@ -275,9 +255,7 @@ class TestClassifyGids:
 
         Per SCAR-005: Missing data treated as unclassifiable.
         """
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
 
         result = strategy._classify_gids(unit_status_df, ["nonexistent-gid"], "unit")
 
@@ -290,9 +268,7 @@ class TestClassifyGids:
 
         Per FR-2: Each GID classified independently.
         """
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
 
         gids = ["u-active", "u-inactive", "u-null-section", "u-completed"]
         result = strategy._classify_gids(unit_status_df, gids, "unit")
@@ -302,9 +278,7 @@ class TestClassifyGids:
         assert result[2] == ("u-null-section", None)
         assert result[3] == ("u-completed", "inactive")
 
-    def test_classify_gids_case_insensitive_section(
-        self, index_cache: DynamicIndexCache
-    ) -> None:
+    def test_classify_gids_case_insensitive_section(self, index_cache: DynamicIndexCache) -> None:
         """Section 'active' vs 'Active' vs 'ACTIVE' all classify correctly.
 
         Per NFR-2: SectionClassifier uses case-insensitive matching.
@@ -320,9 +294,7 @@ class TestClassifyGids:
                 "is_completed": [False, False],
             }
         )
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
 
         result = strategy._classify_gids(df, ["g1", "g2"], "unit")
 
@@ -350,14 +322,10 @@ class TestFilteringAndSorting:
         Per FR-1: active_only filters to active statuses.
         """
         df = make_unit_df_with_status()
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 normalized_criterion={"office_phone": "+11111111111"},
@@ -425,14 +393,10 @@ class TestFilteringAndSorting:
                 "is_completed": [False],
             }
         )
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 normalized_criterion={"vertical": "dental"},
@@ -440,9 +404,7 @@ class TestFilteringAndSorting:
             )
             from autom8_asana.services.dynamic_index import DynamicIndex
 
-            index = DynamicIndex.from_dataframe(
-                df=df, key_columns=["vertical"], value_column="gid"
-            )
+            index = DynamicIndex.from_dataframe(df=df, key_columns=["vertical"], value_column="gid")
             index_cache.put(entity_type="unit", key_columns=["vertical"], index=index)
 
             results = await strategy.resolve(
@@ -471,14 +433,10 @@ class TestFilteringAndSorting:
                 "is_completed": [False, False],
             }
         )
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 normalized_criterion={"vertical": "dental"},
@@ -486,9 +444,7 @@ class TestFilteringAndSorting:
             )
             from autom8_asana.services.dynamic_index import DynamicIndex
 
-            index = DynamicIndex.from_dataframe(
-                df=df, key_columns=["vertical"], value_column="gid"
-            )
+            index = DynamicIndex.from_dataframe(df=df, key_columns=["vertical"], value_column="gid")
             index_cache.put(entity_type="unit", key_columns=["vertical"], index=index)
 
             results = await strategy.resolve(
@@ -510,14 +466,10 @@ class TestFilteringAndSorting:
         Per US-2: Diagnostic mode returns all matches with status.
         """
         df = make_unit_df_with_status()
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 normalized_criterion={"vertical": "dental"},
@@ -525,9 +477,7 @@ class TestFilteringAndSorting:
             )
             from autom8_asana.services.dynamic_index import DynamicIndex
 
-            index = DynamicIndex.from_dataframe(
-                df=df, key_columns=["vertical"], value_column="gid"
-            )
+            index = DynamicIndex.from_dataframe(df=df, key_columns=["vertical"], value_column="gid")
             index_cache.put(entity_type="unit", key_columns=["vertical"], index=index)
 
             results = await strategy.resolve(
@@ -599,14 +549,10 @@ class TestFilteringAndSorting:
                 "is_completed": [False, False, False, False],
             }
         )
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 normalized_criterion={"vertical": "dental"},
@@ -614,9 +560,7 @@ class TestFilteringAndSorting:
             )
             from autom8_asana.services.dynamic_index import DynamicIndex
 
-            index = DynamicIndex.from_dataframe(
-                df=df, key_columns=["vertical"], value_column="gid"
-            )
+            index = DynamicIndex.from_dataframe(df=df, key_columns=["vertical"], value_column="gid")
             index_cache.put(entity_type="unit", key_columns=["vertical"], index=index)
 
             results = await strategy.resolve(
@@ -648,14 +592,10 @@ class TestFilteringAndSorting:
                 "is_completed": [False, False, False],
             }
         )
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 normalized_criterion={"vertical": "dental"},
@@ -663,9 +603,7 @@ class TestFilteringAndSorting:
             )
             from autom8_asana.services.dynamic_index import DynamicIndex
 
-            index = DynamicIndex.from_dataframe(
-                df=df, key_columns=["vertical"], value_column="gid"
-            )
+            index = DynamicIndex.from_dataframe(df=df, key_columns=["vertical"], value_column="gid")
             index_cache.put(entity_type="unit", key_columns=["vertical"], index=index)
 
             results = await strategy.resolve(
@@ -695,14 +633,10 @@ class TestFilteringAndSorting:
                 "is_completed": [False, False],
             }
         )
-        strategy = UniversalResolutionStrategy(
-            entity_type="unit", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="unit", index_cache=index_cache)
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 normalized_criterion={"vertical": "dental"},
@@ -710,9 +644,7 @@ class TestFilteringAndSorting:
             )
             from autom8_asana.services.dynamic_index import DynamicIndex
 
-            index = DynamicIndex.from_dataframe(
-                df=df, key_columns=["vertical"], value_column="gid"
-            )
+            index = DynamicIndex.from_dataframe(df=df, key_columns=["vertical"], value_column="gid")
             index_cache.put(entity_type="unit", key_columns=["vertical"], index=index)
 
             results = await strategy.resolve(
@@ -752,14 +684,10 @@ class TestNoClassifierDegradation:
                 "name": ["Entity A", "Entity B"],
             }
         )
-        strategy = UniversalResolutionStrategy(
-            entity_type="business", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="business", index_cache=index_cache)
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 normalized_criterion={"name": "Entity A"},
@@ -767,9 +695,7 @@ class TestNoClassifierDegradation:
             )
             from autom8_asana.services.dynamic_index import DynamicIndex
 
-            index = DynamicIndex.from_dataframe(
-                df=df, key_columns=["name"], value_column="gid"
-            )
+            index = DynamicIndex.from_dataframe(df=df, key_columns=["name"], value_column="gid")
             index_cache.put(entity_type="business", key_columns=["name"], index=index)
 
             results = await strategy.resolve(
@@ -797,14 +723,10 @@ class TestNoClassifierDegradation:
                 "name": ["Entity A"],
             }
         )
-        strategy = UniversalResolutionStrategy(
-            entity_type="business", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="business", index_cache=index_cache)
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 normalized_criterion={"name": "Entity A"},
@@ -812,9 +734,7 @@ class TestNoClassifierDegradation:
             )
             from autom8_asana.services.dynamic_index import DynamicIndex
 
-            index = DynamicIndex.from_dataframe(
-                df=df, key_columns=["name"], value_column="gid"
-            )
+            index = DynamicIndex.from_dataframe(df=df, key_columns=["name"], value_column="gid")
             index_cache.put(entity_type="business", key_columns=["name"], index=index)
 
             results = await strategy.resolve(
@@ -840,14 +760,10 @@ class TestNoClassifierDegradation:
                 "category": ["cat-a", "cat-a"],
             }
         )
-        strategy = UniversalResolutionStrategy(
-            entity_type="business", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="business", index_cache=index_cache)
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 normalized_criterion={"category": "cat-a"},
@@ -855,12 +771,8 @@ class TestNoClassifierDegradation:
             )
             from autom8_asana.services.dynamic_index import DynamicIndex
 
-            index = DynamicIndex.from_dataframe(
-                df=df, key_columns=["category"], value_column="gid"
-            )
-            index_cache.put(
-                entity_type="business", key_columns=["category"], index=index
-            )
+            index = DynamicIndex.from_dataframe(df=df, key_columns=["category"], value_column="gid")
+            index_cache.put(entity_type="business", key_columns=["category"], index=index)
 
             results = await strategy.resolve(
                 criteria=[{"category": "cat-a"}],
@@ -886,14 +798,10 @@ class TestNoClassifierDegradation:
                 "name": ["Entity A"],
             }
         )
-        strategy = UniversalResolutionStrategy(
-            entity_type="business", index_cache=index_cache
-        )
+        strategy = UniversalResolutionStrategy(entity_type="business", index_cache=index_cache)
         strategy._cached_dataframe = df
 
-        with patch(
-            "autom8_asana.services.resolver.validate_criterion_for_entity"
-        ) as mock_validate:
+        with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.return_value = MagicMock(
                 is_valid=True,
                 normalized_criterion={"name": "Entity A"},
@@ -901,9 +809,7 @@ class TestNoClassifierDegradation:
             )
             from autom8_asana.services.dynamic_index import DynamicIndex
 
-            index = DynamicIndex.from_dataframe(
-                df=df, key_columns=["name"], value_column="gid"
-            )
+            index = DynamicIndex.from_dataframe(df=df, key_columns=["name"], value_column="gid")
             index_cache.put(entity_type="business", key_columns=["name"], index=index)
 
             results = await strategy.resolve(

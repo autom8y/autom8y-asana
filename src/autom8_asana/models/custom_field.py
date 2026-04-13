@@ -156,9 +156,7 @@ class CustomField(AsanaResource):
     )
 
     # Metadata
-    created_at: str | None = Field(
-        default=None, description="Created datetime (ISO 8601)"
-    )
+    created_at: str | None = Field(default=None, description="Created datetime (ISO 8601)")
 
     # ID representations
     id_prefix: str | None = Field(

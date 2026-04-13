@@ -194,9 +194,7 @@ class ActionExecutor:
 
         # Build index map: resolved_action -> original position
         # This lets us restore original ordering after tier/chunk reordering
-        action_index: dict[int, int] = {
-            id(r): i for i, r in enumerate(resolved_actions)
-        }
+        action_index: dict[int, int] = {id(r): i for i, r in enumerate(resolved_actions)}
 
         # Step 2: Ordering resolution (FR-002)
         tiers = resolve_order(resolved_actions)
@@ -263,8 +261,7 @@ class ActionExecutor:
             # and fall back to sequential for this chunk.
             if len(batch_results) != len(chunk):
                 raise ValueError(
-                    f"Batch result count mismatch: expected {len(chunk)}, "
-                    f"got {len(batch_results)}"
+                    f"Batch result count mismatch: expected {len(chunk)}, got {len(batch_results)}"
                 )
 
             results = [
@@ -362,11 +359,7 @@ class ActionExecutor:
         resolved_target = target
 
         # Resolve target.gid if it's a temp GID
-        if (
-            target is not None
-            and target.gid.startswith("temp_")
-            and target.gid in gid_map
-        ):
+        if target is not None and target.gid.startswith("temp_") and target.gid in gid_map:
             # Preserve name and resource_type during resolution
             resolved_target = NameGid(
                 gid=gid_map[target.gid],

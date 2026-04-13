@@ -240,9 +240,7 @@ class TestDoubleExecutionRiskAfterFinalizeFailure:
             f"unknown#{_VALID_KEY}",
             "POST#/v1/intake/business",
         )
-        assert stored is not None, (
-            "Processing sentinel must be present after finalize failure"
-        )
+        assert stored is not None, "Processing sentinel must be present after finalize failure"
         assert stored.status == "processing", (
             f"Key should be stuck in 'processing' after finalize failure; "
             f"got status={stored.status!r}"

@@ -52,9 +52,7 @@ def mock_cold_tier() -> Mock:
 class TestPromotePreservesStamp:
     """Tests for freshness stamp preservation during promotion."""
 
-    def test_promote_preserves_stamp(
-        self, mock_hot_tier: Mock, mock_cold_tier: Mock
-    ) -> None:
+    def test_promote_preserves_stamp(self, mock_hot_tier: Mock, mock_cold_tier: Mock) -> None:
         """Promoted entry has PROMOTION source with original verification time."""
         original_verified_at = datetime(2025, 6, 1, 12, 0, 0, tzinfo=UTC)
         stamp = FreshnessStamp(
@@ -121,9 +119,7 @@ class TestPromotePreservesStamp:
         assert promoted.freshness_stamp.staleness_hint == "mutation:task:update:999"
         assert promoted.freshness_stamp.source == VerificationSource.PROMOTION
 
-    def test_promote_without_stamp(
-        self, mock_hot_tier: Mock, mock_cold_tier: Mock
-    ) -> None:
+    def test_promote_without_stamp(self, mock_hot_tier: Mock, mock_cold_tier: Mock) -> None:
         """Entry without stamp promotes with stamp=None (backward compat)."""
         entry = CacheEntry(
             key="123",
@@ -187,7 +183,4 @@ class TestTieredGetVersionedFreshnessFlow:
         promoted_entry = mock_hot_tier.set_versioned.call_args[0][1]
         assert promoted_entry.freshness_stamp is not None
         assert promoted_entry.freshness_stamp.source == VerificationSource.PROMOTION
-        assert (
-            promoted_entry.freshness_stamp.last_verified_at
-            == original_stamp.last_verified_at
-        )
+        assert promoted_entry.freshness_stamp.last_verified_at == original_stamp.last_verified_at

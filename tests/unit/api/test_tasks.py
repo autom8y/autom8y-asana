@@ -108,9 +108,7 @@ class TestListTasks:
         call_args = mock_sdk._http.get_paginated.call_args
         assert f"/sections/{TEST_SECTION_GID}/tasks" in call_args[0][0]
 
-    def test_list_tasks_with_pagination(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_tasks_with_pagination(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """List tasks returns pagination metadata when more pages exist."""
         client, mock_sdk = authed_client
 
@@ -134,9 +132,7 @@ class TestListTasks:
 class TestGetTask:
     """Tests for GET /api/v1/tasks/{gid} endpoint."""
 
-    def test_get_task_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_get_task_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully returns task by GID."""
         client, mock_sdk = authed_client
 
@@ -158,13 +154,9 @@ class TestGetTask:
         assert data["data"]["gid"] == TEST_TASK_GID
         assert data["data"]["name"] == "Test Task"
 
-        mock_sdk.tasks.get_async.assert_called_once_with(
-            TEST_TASK_GID, opt_fields=None, raw=True
-        )
+        mock_sdk.tasks.get_async.assert_called_once_with(TEST_TASK_GID, opt_fields=None, raw=True)
 
-    def test_get_task_with_opt_fields(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_get_task_with_opt_fields(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Get task with specific fields using opt_fields parameter."""
         client, mock_sdk = authed_client
 
@@ -190,9 +182,7 @@ class TestGetTask:
 class TestCreateTask:
     """Tests for POST /api/v1/tasks endpoint."""
 
-    def test_create_task_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_create_task_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully creates a new task."""
         client, mock_sdk = authed_client
 
@@ -230,9 +220,7 @@ class TestCreateTask:
 
         assert response.status_code == 400
 
-    def test_create_task_with_workspace(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_create_task_with_workspace(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Create task with workspace instead of projects."""
         client, mock_sdk = authed_client
 
@@ -252,9 +240,7 @@ class TestCreateTask:
 
         assert response.status_code == 201
 
-    def test_create_task_with_all_fields(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_create_task_with_all_fields(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Create task with all optional fields."""
         client, mock_sdk = authed_client
 
@@ -283,9 +269,7 @@ class TestCreateTask:
         assert call_kwargs["assignee"] == "user_gid"
         assert call_kwargs["due_on"] == "2024-12-31"
 
-    def test_create_task_name_required(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_create_task_name_required(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Create task without name returns 422."""
         client, _ = authed_client
 
@@ -301,9 +285,7 @@ class TestCreateTask:
 class TestUpdateTask:
     """Tests for PUT /api/v1/tasks/{gid} endpoint."""
 
-    def test_update_task_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_update_task_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully updates a task."""
         client, mock_sdk = authed_client
 
@@ -339,9 +321,7 @@ class TestUpdateTask:
 
         assert response.status_code == 400
 
-    def test_update_task_partial(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_update_task_partial(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Update task with only some fields."""
         client, mock_sdk = authed_client
 
@@ -368,9 +348,7 @@ class TestUpdateTask:
 class TestDeleteTask:
     """Tests for DELETE /api/v1/tasks/{gid} endpoint."""
 
-    def test_delete_task_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_delete_task_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully deletes a task."""
         client, mock_sdk = authed_client
 
@@ -386,9 +364,7 @@ class TestDeleteTask:
 class TestListSubtasks:
     """Tests for GET /api/v1/tasks/{gid}/subtasks endpoint."""
 
-    def test_list_subtasks_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_list_subtasks_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully lists subtasks of a task."""
         client, mock_sdk = authed_client
 
@@ -419,9 +395,7 @@ class TestListSubtasks:
 class TestDuplicateTask:
     """Tests for POST /api/v1/tasks/{gid}/duplicate endpoint."""
 
-    def test_duplicate_task_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_duplicate_task_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully duplicates a task."""
         client, mock_sdk = authed_client
 
@@ -473,13 +447,9 @@ class TestTaskTags:
         )
 
         assert response.status_code == 200
-        mock_sdk.tasks.add_tag_async.assert_called_once_with(
-            TEST_TASK_GID, TEST_TAG_GID
-        )
+        mock_sdk.tasks.add_tag_async.assert_called_once_with(TEST_TASK_GID, TEST_TAG_GID)
 
-    def test_remove_tag_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_remove_tag_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully removes a tag from a task."""
         client, mock_sdk = authed_client
 
@@ -489,17 +459,13 @@ class TestTaskTags:
         )
 
         assert response.status_code == 200
-        mock_sdk.tasks.remove_tag_async.assert_called_once_with(
-            TEST_TASK_GID, TEST_TAG_GID
-        )
+        mock_sdk.tasks.remove_tag_async.assert_called_once_with(TEST_TASK_GID, TEST_TAG_GID)
 
 
 class TestTaskMembership:
     """Tests for task project/section membership operations."""
 
-    def test_move_to_section_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_move_to_section_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully moves a task to a section."""
         client, mock_sdk = authed_client
 
@@ -517,9 +483,7 @@ class TestTaskMembership:
             TEST_TASK_GID, TEST_SECTION_GID, TEST_PROJECT_GID
         )
 
-    def test_add_to_project_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_add_to_project_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully adds a task to a project."""
         client, mock_sdk = authed_client
 
@@ -530,13 +494,9 @@ class TestTaskMembership:
         )
 
         assert response.status_code == 200
-        mock_sdk.tasks.add_to_project_async.assert_called_once_with(
-            TEST_TASK_GID, TEST_PROJECT_GID
-        )
+        mock_sdk.tasks.add_to_project_async.assert_called_once_with(TEST_TASK_GID, TEST_PROJECT_GID)
 
-    def test_remove_from_project_success(
-        self, authed_client: tuple[TestClient, MagicMock]
-    ) -> None:
+    def test_remove_from_project_success(self, authed_client: tuple[TestClient, MagicMock]) -> None:
         """Successfully removes a task from a project."""
         client, mock_sdk = authed_client
 

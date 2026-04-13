@@ -154,9 +154,7 @@ class TestObservabilityHook:
         from autom8_asana.protocols.observability import ObservabilityHook
 
         class MyHook:
-            async def on_request_start(
-                self, method: str, path: str, correlation_id: str
-            ) -> None:
+            async def on_request_start(self, method: str, path: str, correlation_id: str) -> None:
                 pass
 
             async def on_request_end(
@@ -164,22 +162,16 @@ class TestObservabilityHook:
             ) -> None:
                 pass
 
-            async def on_request_error(
-                self, method: str, path: str, error: Exception
-            ) -> None:
+            async def on_request_error(self, method: str, path: str, error: Exception) -> None:
                 pass
 
             async def on_rate_limit(self, retry_after_seconds: int) -> None:
                 pass
 
-            async def on_circuit_breaker_state_change(
-                self, old_state: str, new_state: str
-            ) -> None:
+            async def on_circuit_breaker_state_change(self, old_state: str, new_state: str) -> None:
                 pass
 
-            async def on_retry(
-                self, attempt: int, max_attempts: int, error: Exception
-            ) -> None:
+            async def on_retry(self, attempt: int, max_attempts: int, error: Exception) -> None:
                 pass
 
         assert isinstance(MyHook(), ObservabilityHook)

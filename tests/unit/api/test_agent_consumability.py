@@ -203,8 +203,7 @@ class TestTier1Discovery:
         )
         for name, scheme in schemes.items():
             assert scheme.get("description"), (
-                f"Auth scheme '{name}' has no description — agent cannot "
-                f"decide when to use it"
+                f"Auth scheme '{name}' has no description — agent cannot decide when to use it"
             )
 
 
@@ -239,8 +238,7 @@ class TestTier2Construction:
 
         props = body.get("properties", {})
         assert props, (
-            "Agent cannot construct a task — "
-            "POST /api/v1/tasks has no request body properties"
+            "Agent cannot construct a task — POST /api/v1/tasks has no request body properties"
         )
 
         undescribed = [
@@ -249,8 +247,7 @@ class TestTier2Construction:
             if not field_schema.get("description")
         ]
         assert not undescribed, (
-            f"Agent must guess the meaning of these fields in "
-            f"POST /api/v1/tasks: {undescribed}"
+            f"Agent must guess the meaning of these fields in POST /api/v1/tasks: {undescribed}"
         )
 
     def test_error_response_schema_documented(self, spec):
@@ -259,9 +256,7 @@ class TestTier2Construction:
         """
         schemas = spec.get("components", {}).get("schemas", {})
         error_schemas = [
-            name
-            for name in schemas
-            if "error" in name.lower() and "response" in name.lower()
+            name for name in schemas if "error" in name.lower() and "response" in name.lower()
         ]
         assert error_schemas, (
             "Agent cannot parse errors — no ErrorResponse schema found in components"
@@ -325,8 +320,7 @@ class TestTier2Construction:
         post_op = spec["paths"][invoke_path].get("post")
         assert post_op, f"Agent cannot invoke workflows — POST {invoke_path} not found"
         assert post_op.get("description"), (
-            f"Agent cannot understand workflow invocation — "
-            f"POST {invoke_path} has no description"
+            f"Agent cannot understand workflow invocation — POST {invoke_path} has no description"
         )
 
         # Verify the request body schema is documented
@@ -384,9 +378,7 @@ class TestTier3Safety:
             if any(pattern in path for pattern in _REVERSIBLE_PATTERNS):
                 continue
 
-            desc = (
-                delete_op.get("description", "") + " " + delete_op.get("summary", "")
-            ).upper()
+            desc = (delete_op.get("description", "") + " " + delete_op.get("summary", "")).upper()
             has_safety = any(word in desc for word in safety_words)
             if not has_safety:
                 unmarked.append(f"DELETE {path}")
@@ -415,8 +407,7 @@ class TestTier3Safety:
                     section_move_paths.append(path)
 
         assert section_move_paths, (
-            "Agent cannot find section move endpoint — "
-            "no /tasks/{gid}/section path found"
+            "Agent cannot find section move endpoint — no /tasks/{gid}/section path found"
         )
 
         for path in section_move_paths:

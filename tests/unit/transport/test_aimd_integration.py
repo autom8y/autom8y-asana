@@ -67,9 +67,7 @@ class TestAIMDIntegration429:
     @pytest.mark.asyncio
     async def test_429_triggers_aimd_decrease_in_request(self):
         """Mock 429 response, verify semaphore window decreased."""
-        config = AsanaConfig(
-            concurrency=ConcurrencyConfig(read_limit=50, write_limit=15)
-        )
+        config = AsanaConfig(concurrency=ConcurrencyConfig(read_limit=50, write_limit=15))
         auth = MockAuthProvider()
         client = AsanaHttpClient(config, auth)
         # Disable retry so the 429 raises immediately
@@ -115,9 +113,7 @@ class TestAIMDIntegration429:
         assert client._read_semaphore.current_limit == 25
 
         # Now send a 200
-        mock_platform_200, _ = _create_mock_platform_client(
-            _make_200_response({"gid": "123"})
-        )
+        mock_platform_200, _ = _create_mock_platform_client(_make_200_response({"gid": "123"}))
         client._platform_client = mock_platform_200
 
         result = await client.get("/tasks/123")
@@ -129,9 +125,7 @@ class TestAIMDIntegration429:
     @pytest.mark.asyncio
     async def test_429_does_not_affect_other_pool(self):
         """Mock 429 on read, verify write semaphore unchanged."""
-        config = AsanaConfig(
-            concurrency=ConcurrencyConfig(read_limit=50, write_limit=15)
-        )
+        config = AsanaConfig(concurrency=ConcurrencyConfig(read_limit=50, write_limit=15))
         auth = MockAuthProvider()
         client = AsanaHttpClient(config, auth)
         client._retry_policy = None
@@ -156,9 +150,7 @@ class TestAIMDDisabled:
     def test_aimd_disabled_uses_fixed_semaphore(self):
         """Set aimd_enabled=False, verify FixedSemaphoreAdapter used."""
         config = AsanaConfig(
-            concurrency=ConcurrencyConfig(
-                read_limit=50, write_limit=15, aimd_enabled=False
-            )
+            concurrency=ConcurrencyConfig(read_limit=50, write_limit=15, aimd_enabled=False)
         )
         auth = MockAuthProvider()
         client = AsanaHttpClient(config, auth)
@@ -170,9 +162,7 @@ class TestAIMDDisabled:
 
     def test_aimd_enabled_uses_adaptive_semaphore(self):
         """Default (aimd_enabled=True) uses AsyncAdaptiveSemaphore."""
-        config = AsanaConfig(
-            concurrency=ConcurrencyConfig(read_limit=50, write_limit=15)
-        )
+        config = AsanaConfig(concurrency=ConcurrencyConfig(read_limit=50, write_limit=15))
         auth = MockAuthProvider()
         client = AsanaHttpClient(config, auth)
 

@@ -103,9 +103,7 @@ def run_reconciliation(
             "dry_run": config.dry_run,
             "max_actions": config.max_actions,
             "unit_df_rows": len(unit_df) if hasattr(unit_df, "__len__") else "unknown",
-            "offer_df_rows": len(offer_df)
-            if hasattr(offer_df, "__len__")
-            else "unknown",
+            "offer_df_rows": len(offer_df) if hasattr(offer_df, "__len__") else "unknown",
             "has_pipeline_summary": pipeline_summary is not None,
         },
     )

@@ -139,9 +139,7 @@ class TestConcurrencyController:
     async def test_gather_with_limit_bounds_concurrency(self) -> None:
         """Test that gather_with_limit respects concurrency limit."""
         max_concurrent = 5
-        controller = ConcurrencyController(
-            config=ConcurrencyConfig(max_concurrent=max_concurrent)
-        )
+        controller = ConcurrencyController(config=ConcurrencyConfig(max_concurrent=max_concurrent))
 
         concurrent_count = 0
         max_observed = 0
@@ -178,9 +176,7 @@ class TestConcurrencyController:
             await asyncio.sleep(0.01 * (50 - idx))
             return idx * 2
 
-        results = await controller.gather_with_limit(
-            [delayed_return(i) for i in range(20)]
-        )
+        results = await controller.gather_with_limit([delayed_return(i) for i in range(20)])
 
         expected = [i * 2 for i in range(20)]
         assert results == expected

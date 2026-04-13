@@ -164,9 +164,7 @@ class TestSaveSessionGIDValidation:
         with pytest.raises(ValidationError):
             session.add_to_project(task_fixture, "invalid-project")
 
-    def test_remove_from_project_validates_project_gid(
-        self, client_fixture, task_fixture
-    ):
+    def test_remove_from_project_validates_project_gid(self, client_fixture, task_fixture):
         """remove_from_project() validates project_gid parameter."""
         from autom8_asana.persistence.session import SaveSession
 
@@ -184,9 +182,7 @@ class TestSaveSessionGIDValidation:
         with pytest.raises(ValidationError):
             session.move_to_section(task_fixture, "invalid-section")
 
-    def test_add_dependency_validates_dependency_gid(
-        self, client_fixture, task_fixture
-    ):
+    def test_add_dependency_validates_dependency_gid(self, client_fixture, task_fixture):
         """add_dependency() validates dependency_gid parameter."""
         from autom8_asana.persistence.session import SaveSession
 
@@ -195,9 +191,7 @@ class TestSaveSessionGIDValidation:
         with pytest.raises(ValidationError):
             session.add_dependency(task_fixture, "invalid-dep")
 
-    def test_remove_dependency_validates_dependency_gid(
-        self, client_fixture, task_fixture
-    ):
+    def test_remove_dependency_validates_dependency_gid(self, client_fixture, task_fixture):
         """remove_dependency() validates dependency_gid parameter."""
         from autom8_asana.persistence.session import SaveSession
 
@@ -242,19 +236,13 @@ class TestClientGIDValidation:
     async def test_move_to_section_async_validates_gids(self, client_fixture):
         """TasksClient.move_to_section_async() validates all GIDs."""
         with pytest.raises(ValidationError):
-            await client_fixture.tasks.move_to_section_async(
-                "invalid-task", "123", "456"
-            )
+            await client_fixture.tasks.move_to_section_async("invalid-task", "123", "456")
 
         with pytest.raises(ValidationError):
-            await client_fixture.tasks.move_to_section_async(
-                "123", "invalid-section", "456"
-            )
+            await client_fixture.tasks.move_to_section_async("123", "invalid-section", "456")
 
         with pytest.raises(ValidationError):
-            await client_fixture.tasks.move_to_section_async(
-                "123", "456", "invalid-project"
-            )
+            await client_fixture.tasks.move_to_section_async("123", "456", "invalid-project")
 
     @pytest.mark.asyncio
     async def test_set_assignee_async_validates_both_gids(self, client_fixture):
@@ -281,6 +269,4 @@ class TestClientGIDValidation:
             await client_fixture.tasks.remove_from_project_async("invalid-task", "123")
 
         with pytest.raises(ValidationError):
-            await client_fixture.tasks.remove_from_project_async(
-                "123", "invalid-project"
-            )
+            await client_fixture.tasks.remove_from_project_async("123", "invalid-project")

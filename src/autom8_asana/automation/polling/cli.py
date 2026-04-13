@@ -179,9 +179,7 @@ def evaluate_command(config_path: str, dry_run: bool = False) -> int:
                     print(f"    Action: {rule.action.type}")
                     print()
 
-            print(
-                "[DRY RUN] Skipping actual evaluation (use without --dry-run to execute)"
-            )
+            print("[DRY RUN] Skipping actual evaluation (use without --dry-run to execute)")
             return 0
 
         # Create scheduler and run single evaluation

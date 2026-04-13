@@ -242,9 +242,7 @@ class TestPollingSchedulerRunOnce:
         )
 
         # Mock evaluate to raise error
-        with patch.object(
-            scheduler, "_evaluate_rules", side_effect=RuntimeError("Test error")
-        ):
+        with patch.object(scheduler, "_evaluate_rules", side_effect=RuntimeError("Test error")):
             with patch.object(scheduler, "_release_lock") as mock_release:
                 with pytest.raises(RuntimeError):
                     scheduler.run_once()
@@ -504,9 +502,7 @@ class TestPollingSchedulerIntegration:
         scheduler.run_once()
 
         # Verify lock was released (file should not be exclusively locked)
-        assert (
-            not Path(lock_path).exists() or True
-        )  # Lock file may or may not exist after release
+        assert not Path(lock_path).exists() or True  # Lock file may or may not exist after release
 
     def test_multiple_run_once_calls(
         self,
@@ -606,13 +602,9 @@ class TestPollingSchedulerActionExecution:
                     rule_id="stale-check",
                     name="Stale Task Check",
                     project_gid="1234567890123",
-                    conditions=[
-                        RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))
-                    ],
+                    conditions=[RuleCondition(stale=TriggerStaleConfig(field="Section", days=3))],
                     # Use correct param name: tag_gid instead of tag
-                    action=ActionConfig(
-                        type="add_tag", params={"tag_gid": "tag-escalate-123"}
-                    ),
+                    action=ActionConfig(type="add_tag", params={"tag_gid": "tag-escalate-123"}),
                     enabled=True,
                 ),
             ],
@@ -657,9 +649,7 @@ class TestPollingSchedulerActionExecution:
         rule = scheduler_with_client.config.rules[0]  # stale-check rule
 
         # Use stale tasks (task-1, task-5, task-7 are modified 5+ days ago, matching 3-day stale)
-        stale_tasks = [
-            t for t in sample_tasks if t.gid in ("task-1", "task-5", "task-7")
-        ]
+        stale_tasks = [t for t in sample_tasks if t.gid in ("task-1", "task-5", "task-7")]
 
         tasks_by_project = {rule.project_gid: stale_tasks}
 
@@ -677,9 +667,7 @@ class TestPollingSchedulerActionExecution:
         rule = scheduler_dry_run.config.rules[0]
 
         # Use stale tasks
-        stale_tasks = [
-            t for t in sample_tasks if t.gid in ("task-1", "task-5", "task-7")
-        ]
+        stale_tasks = [t for t in sample_tasks if t.gid in ("task-1", "task-5", "task-7")]
         tasks_by_project = {rule.project_gid: stale_tasks}
 
         with patch(
@@ -744,9 +732,7 @@ class TestPollingSchedulerActionExecution:
         rule = scheduler.config.rules[0]
 
         # Use stale tasks
-        stale_tasks = [
-            t for t in sample_tasks if t.gid in ("task-1", "task-5", "task-7")
-        ]
+        stale_tasks = [t for t in sample_tasks if t.gid in ("task-1", "task-5", "task-7")]
         tasks_by_project = {rule.project_gid: stale_tasks}
 
         scheduler._evaluate_rules(tasks_by_project)
@@ -824,9 +810,7 @@ class TestPollingSchedulerTriggerEvaluator:
             "evaluate_conditions",
             wraps=scheduler._evaluator.evaluate_conditions,
         ) as mock_evaluate:
-            with patch(
-                "autom8_asana.automation.polling.polling_scheduler.StructuredLogger"
-            ):
+            with patch("autom8_asana.automation.polling.polling_scheduler.StructuredLogger"):
                 scheduler._evaluate_rules(tasks_by_project)
 
                 # Should call evaluate_conditions for each enabled rule with matching project
@@ -858,9 +842,7 @@ class TestPollingSchedulerShouldRunSchedule:
         schedule = ScheduleConfig(frequency="daily")
         assert scheduler._should_run_schedule(schedule) is True
 
-    def test_weekly_matching_day_returns_true(
-        self, scheduler: PollingScheduler
-    ) -> None:
+    def test_weekly_matching_day_returns_true(self, scheduler: PollingScheduler) -> None:
         """Weekly schedule returns True when today matches day_of_week."""
         from datetime import UTC, datetime
 
@@ -882,9 +864,7 @@ class TestPollingSchedulerShouldRunSchedule:
         schedule = ScheduleConfig(frequency="weekly", day_of_week=today_name)
         assert scheduler._should_run_schedule(schedule) is True
 
-    def test_weekly_non_matching_day_returns_false(
-        self, scheduler: PollingScheduler
-    ) -> None:
+    def test_weekly_non_matching_day_returns_false(self, scheduler: PollingScheduler) -> None:
         """Weekly schedule returns False when today does NOT match day_of_week."""
         from datetime import UTC, datetime
 
@@ -914,9 +894,7 @@ class TestPollingSchedulerShouldRunSchedule:
         schedule = ScheduleConfig.__new__(ScheduleConfig)
         object.__setattr__(schedule, "frequency", "monthly")
         object.__setattr__(schedule, "day_of_week", None)
-        object.__setattr__(
-            schedule, "__dict__", {"frequency": "monthly", "day_of_week": None}
-        )
+        object.__setattr__(schedule, "__dict__", {"frequency": "monthly", "day_of_week": None})
         object.__setattr__(schedule, "__pydantic_fields_set__", set())
 
         assert scheduler._should_run_schedule(schedule) is False
@@ -999,9 +977,7 @@ class TestPollingSchedulerExecuteWorkflowAsync:
         await scheduler._execute_workflow_async(mock_workflow, mock_rule, mock_log)
 
         mock_workflow.enumerate_async.assert_awaited_once()
-        mock_workflow.execute_async.assert_awaited_once_with(
-            mock_entities, mock_rule.action.params
-        )
+        mock_workflow.execute_async.assert_awaited_once_with(mock_entities, mock_rule.action.params)
         mock_log.info.assert_called_once()
         call_kwargs = mock_log.info.call_args[1]
         assert call_kwargs["total"] == 5
@@ -1018,9 +994,7 @@ class TestPollingSchedulerExecuteWorkflowAsync:
         mock_workflow = MagicMock()
         mock_workflow.validate_async = AsyncMock(return_value=[])
         mock_workflow.enumerate_async = AsyncMock(return_value=[{"gid": "1"}])
-        mock_workflow.execute_async = AsyncMock(
-            side_effect=RuntimeError("Asana API failed")
-        )
+        mock_workflow.execute_async = AsyncMock(side_effect=RuntimeError("Asana API failed"))
 
         # Should NOT raise
         await scheduler._execute_workflow_async(mock_workflow, mock_rule, mock_log)
@@ -1075,9 +1049,7 @@ class TestPollingSchedulerWorkflowDispatch:
         mock_workflow.validate_async = AsyncMock(return_value=[])
         mock_workflow.enumerate_async = AsyncMock(return_value=[{"gid": "1"}])
         mock_workflow.execute_async = AsyncMock(
-            return_value=MagicMock(
-                total=3, succeeded=3, failed=0, skipped=0, duration_seconds=1.5
-            )
+            return_value=MagicMock(total=3, succeeded=3, failed=0, skipped=0, duration_seconds=1.5)
         )
 
         registry = WorkflowRegistry()

@@ -1029,9 +1029,7 @@ class TestReconciliationShadowIntegration:
         )
         stack.enter_context(patch("autom8_asana.cache.dataframe.warmer.WarmResult"))
         stack.enter_context(patch("autom8_asana.AsanaClient"))
-        stack.enter_context(
-            patch("autom8_asana.lambda_handlers.cache_warmer.emit_metric")
-        )
+        stack.enter_context(patch("autom8_asana.lambda_handlers.cache_warmer.emit_metric"))
         stack.enter_context(
             patch(
                 "autom8_asana.lambda_handlers.cache_warmer._push_gid_mappings_for_completed_entities",

@@ -178,9 +178,9 @@ def test_authorization_param_stripped(spec):
             if operation is None:
                 continue
             for param in operation.get("parameters", []):
-                assert not (
-                    param.get("name") == "authorization" and param.get("in") == "header"
-                ), f"{method.upper()} {path} still has authorization header parameter"
+                assert not (param.get("name") == "authorization" and param.get("in") == "header"), (
+                    f"{method.upper()} {path} still has authorization header parameter"
+                )
 
 
 # --- Test 5: Tag descriptions present ---
@@ -232,9 +232,7 @@ def test_openapi_version_3_2(spec):
 
 def test_json_schema_dialect_present(spec):
     """spec['jsonSchemaDialect'] must reference Draft 2020-12."""
-    assert (
-        spec.get("jsonSchemaDialect") == "https://json-schema.org/draft/2020-12/schema"
-    ), (
+    assert spec.get("jsonSchemaDialect") == "https://json-schema.org/draft/2020-12/schema", (
         f"Expected jsonSchemaDialect for Draft 2020-12, got {spec.get('jsonSchemaDialect')}"
     )
 
@@ -319,12 +317,9 @@ def test_all_delete_endpoints_have_irreversible_marker(spec):
         # Skip reversible association removal endpoints
         if any(pattern in path for pattern in _REVERSIBLE_PATTERNS):
             continue
-        desc = (
-            delete_op.get("description", "") + " " + delete_op.get("summary", "")
-        ).upper()
+        desc = (delete_op.get("description", "") + " " + delete_op.get("summary", "")).upper()
         assert "IRREVERSIBLE" in desc or "PERMANENT" in desc, (
-            f"DELETE {path} lacks IRREVERSIBLE/PERMANENT marker in "
-            f"description or summary"
+            f"DELETE {path} lacks IRREVERSIBLE/PERMANENT marker in description or summary"
         )
 
 
@@ -345,8 +340,7 @@ def test_all_tags_have_descriptions(spec):
         # A description like "Sentence one. Sentence two." has 2+ segments.
         sentences = [s.strip() for s in desc.split(". ") if s.strip()]
         assert len(sentences) >= 2, (
-            f"Tag '{tag['name']}' needs >= 2 sentences, has {len(sentences)}: "
-            f"{desc[:80]}..."
+            f"Tag '{tag['name']}' needs >= 2 sentences, has {len(sentences)}: {desc[:80]}..."
         )
 
 
@@ -438,9 +432,7 @@ def test_resolver_endpoint_in_spec(spec):
     assert resolver_paths, "No resolver endpoints found in spec"
     # Verify at least one POST operation exists
     post_found = any("post" in spec["paths"][p] for p in resolver_paths)
-    assert post_found, (
-        f"Resolver paths found ({resolver_paths}) but none have POST operations"
-    )
+    assert post_found, f"Resolver paths found ({resolver_paths}) but none have POST operations"
 
 
 # --- Test 16: Dataframe schema endpoints in spec ---
@@ -453,9 +445,7 @@ def test_dataframe_schema_endpoints_in_spec(spec):
     need to find available dataframe types.
     """
     schema_paths = [p for p in spec["paths"] if "/dataframes/schemas" in p]
-    assert len(schema_paths) >= 1, (
-        "No dataframe schema introspection endpoints found in spec"
-    )
+    assert len(schema_paths) >= 1, "No dataframe schema introspection endpoints found in spec"
 
 
 # --- Test 17: Workflow list endpoint in spec ---
@@ -484,12 +474,8 @@ def test_webhook_token_security_scheme_exists(spec):
     schemes = spec.get("components", {}).get("securitySchemes", {})
     assert "WebhookToken" in schemes, "WebhookToken security scheme missing"
     wt = schemes["WebhookToken"]
-    assert wt.get("type") == "apiKey", (
-        f"WebhookToken must be apiKey type, got '{wt.get('type')}'"
-    )
-    assert wt.get("in") == "query", (
-        f"WebhookToken must be in query, got '{wt.get('in')}'"
-    )
+    assert wt.get("type") == "apiKey", f"WebhookToken must be apiKey type, got '{wt.get('type')}'"
+    assert wt.get("in") == "query", f"WebhookToken must be in query, got '{wt.get('in')}'"
     assert wt.get("description"), "WebhookToken scheme needs a description"
 
 
@@ -582,8 +568,7 @@ def test_task_schema_injected(spec):
     """
     schemas = spec.get("components", {}).get("schemas", {})
     assert "Task" in schemas, (
-        f"Task schema missing from components/schemas. "
-        f"Available: {sorted(schemas.keys())[:10]}..."
+        f"Task schema missing from components/schemas. Available: {sorted(schemas.keys())[:10]}..."
     )
     task = schemas["Task"]
     # Task should have properties (it's a full Pydantic model, not empty)

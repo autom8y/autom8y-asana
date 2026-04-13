@@ -83,9 +83,7 @@ async def _aggregate_pipeline_stages(
         # Step 1: Identify which pipeline entities completed warming
         # ---------------------------------------------------------------
         pipeline_entities = [
-            name
-            for name in completed_entities
-            if name.startswith(_PIPELINE_ENTITY_PREFIX)
+            name for name in completed_entities if name.startswith(_PIPELINE_ENTITY_PREFIX)
         ]
 
         if not pipeline_entities:

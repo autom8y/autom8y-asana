@@ -144,9 +144,7 @@ class MatchingService:
         # Project to API response models
         response_candidates: list[MatchCandidate] = []
         for result in results[:limit]:
-            response_candidates.append(
-                self._project_result(result, effective_threshold)
-            )
+            response_candidates.append(self._project_result(result, effective_threshold))
 
         elapsed_ms = (time.monotonic() - start) * 1000
 
@@ -192,22 +190,12 @@ class MatchingService:
                     gid=str(gid),
                     name=row.get("name") if "name" in columns else None,
                     email=row.get("email") if "email" in columns else None,
-                    phone=row.get("office_phone")
-                    if "office_phone" in columns
-                    else None,
+                    phone=row.get("office_phone") if "office_phone" in columns else None,
                     domain=row.get("domain") if "domain" in columns else None,
-                    city=row.get("business_city")
-                    if "business_city" in columns
-                    else None,
-                    state=row.get("business_state")
-                    if "business_state" in columns
-                    else None,
-                    zip_code=row.get("business_zip")
-                    if "business_zip" in columns
-                    else None,
-                    company_id=row.get("company_id")
-                    if "company_id" in columns
-                    else None,
+                    city=row.get("business_city") if "business_city" in columns else None,
+                    state=row.get("business_state") if "business_state" in columns else None,
+                    zip_code=row.get("business_zip") if "business_zip" in columns else None,
+                    company_id=row.get("company_id") if "company_id" in columns else None,
                 )
             )
 

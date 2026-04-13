@@ -97,9 +97,7 @@ class TestFromResponse:
         """Test 429 returns RateLimitError."""
         mock_response = MagicMock()
         mock_response.status_code = 429
-        mock_response.json.return_value = {
-            "errors": [{"message": "Rate limit exceeded"}]
-        }
+        mock_response.json.return_value = {"errors": [{"message": "Rate limit exceeded"}]}
 
         error = AsanaError.from_response(mock_response)
 
@@ -110,9 +108,7 @@ class TestFromResponse:
         """Test 500 returns ServerError."""
         mock_response = MagicMock()
         mock_response.status_code = 500
-        mock_response.json.return_value = {
-            "errors": [{"message": "Internal server error"}]
-        }
+        mock_response.json.return_value = {"errors": [{"message": "Internal server error"}]}
 
         error = AsanaError.from_response(mock_response)
 
@@ -177,9 +173,7 @@ class TestFromResponse:
         error = AsanaError.from_response(mock_response)
 
         assert "HTTP 500" in error.message
-        assert (
-            "request_id" not in error.message
-        )  # Should not include request_id context
+        assert "request_id" not in error.message  # Should not include request_id context
         assert "Server error" in error.message
 
 
@@ -191,9 +185,7 @@ class TestRateLimitError:
         mock_response = MagicMock()
         mock_response.status_code = 429
         mock_response.headers = {"retry-after": "30"}
-        mock_response.json.return_value = {
-            "errors": [{"message": "Rate limit exceeded"}]
-        }
+        mock_response.json.return_value = {"errors": [{"message": "Rate limit exceeded"}]}
 
         error = RateLimitError.from_response(mock_response)
 
@@ -204,9 +196,7 @@ class TestRateLimitError:
         mock_response = MagicMock()
         mock_response.status_code = 429
         mock_response.headers = {}
-        mock_response.json.return_value = {
-            "errors": [{"message": "Rate limit exceeded"}]
-        }
+        mock_response.json.return_value = {"errors": [{"message": "Rate limit exceeded"}]}
 
         error = RateLimitError.from_response(mock_response)
 
@@ -217,9 +207,7 @@ class TestRateLimitError:
         mock_response = MagicMock()
         mock_response.status_code = 429
         mock_response.headers = {"retry-after": "not-a-number"}
-        mock_response.json.return_value = {
-            "errors": [{"message": "Rate limit exceeded"}]
-        }
+        mock_response.json.return_value = {"errors": [{"message": "Rate limit exceeded"}]}
 
         error = RateLimitError.from_response(mock_response)
 

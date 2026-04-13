@@ -85,9 +85,7 @@ class DependencyGraph:
         in_degree = dict(self._in_degree)
 
         # Start with nodes that have no dependencies
-        queue: deque[str] = deque(
-            gid for gid, degree in in_degree.items() if degree == 0
-        )
+        queue: deque[str] = deque(gid for gid, degree in in_degree.items() if degree == 0)
 
         result: list[AsanaResource] = []
 

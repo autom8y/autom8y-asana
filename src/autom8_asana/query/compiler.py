@@ -47,9 +47,7 @@ _STRING_OPS = frozenset({Op.CONTAINS, Op.STARTS_WITH})
 _UNIVERSAL_OPS = frozenset({Op.EQ, Op.NE, Op.IN, Op.NOT_IN})
 
 # Dtypes that support ordering
-_ORDERABLE_DTYPES = frozenset(
-    {"Utf8", "Int64", "Int32", "Float64", "Date", "Datetime", "Decimal"}
-)
+_ORDERABLE_DTYPES = frozenset({"Utf8", "Int64", "Int32", "Float64", "Date", "Datetime", "Decimal"})
 
 # Complete compatibility matrix: dtype -> frozenset of allowed ops
 OPERATOR_MATRIX: dict[str, frozenset[Op]] = {
@@ -80,9 +78,7 @@ def _coerce_value(value: Any, dtype: str, field_name: str, op: Op) -> Any:
     """
     if op in (Op.IN, Op.NOT_IN):
         if not isinstance(value, list):
-            raise CoercionError(
-                field_name, dtype, value, "value must be a list for in/not_in"
-            )
+            raise CoercionError(field_name, dtype, value, "value must be a list for in/not_in")
         return [_coerce_scalar(v, dtype, field_name) for v in value if v is not None]
 
     return _coerce_scalar(value, dtype, field_name)
@@ -190,9 +186,7 @@ class PredicateCompiler:
         _span = _otel_trace.get_current_span()
         start = time.perf_counter()
         result = self._compile_node(node, schema)
-        _span.set_attribute(
-            "computation.duration_ms", (time.perf_counter() - start) * 1000
-        )
+        _span.set_attribute("computation.duration_ms", (time.perf_counter() - start) * 1000)
         return result
 
     def _compile_node(self, node: PredicateNode, schema: DataFrameSchema) -> pl.Expr:

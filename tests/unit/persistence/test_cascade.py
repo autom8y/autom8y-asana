@@ -170,9 +170,7 @@ class TestCascadeExecutor:
         assert result.operations_queued == 1
 
     @pytest.mark.asyncio
-    async def test_execute_handles_missing_field_def(
-        self, executor: CascadeExecutor
-    ) -> None:
+    async def test_execute_handles_missing_field_def(self, executor: CascadeExecutor) -> None:
         """execute handles missing cascading field definition."""
         business = Business(gid="123")
         op = CascadeOperation(

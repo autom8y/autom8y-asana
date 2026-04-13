@@ -56,15 +56,11 @@ class TimeoutConfig:
     def __post_init__(self) -> None:
         """Validate configuration values."""
         if self.connect <= 0:
-            raise ConfigurationError(
-                f"connect timeout must be positive, got {self.connect}"
-            )
+            raise ConfigurationError(f"connect timeout must be positive, got {self.connect}")
         if self.read <= 0:
             raise ConfigurationError(f"read timeout must be positive, got {self.read}")
         if self.write <= 0:
-            raise ConfigurationError(
-                f"write timeout must be positive, got {self.write}"
-            )
+            raise ConfigurationError(f"write timeout must be positive, got {self.write}")
         if self.pool <= 0:
             raise ConfigurationError(f"pool timeout must be positive, got {self.pool}")
 
@@ -97,8 +93,7 @@ class ConnectionPoolConfig:
             )
         if self.max_keepalive_connections <= 0:
             raise ConfigurationError(
-                f"max_keepalive_connections must be positive, "
-                f"got {self.max_keepalive_connections}"
+                f"max_keepalive_connections must be positive, got {self.max_keepalive_connections}"
             )
         if self.keepalive_expiry <= 0:
             raise ConfigurationError(
@@ -139,17 +134,11 @@ class RetryConfig:
     def __post_init__(self) -> None:
         """Validate configuration values."""
         if self.max_retries < 0:
-            raise ConfigurationError(
-                f"max_retries must be non-negative, got {self.max_retries}"
-            )
+            raise ConfigurationError(f"max_retries must be non-negative, got {self.max_retries}")
         if self.base_delay < 0:
-            raise ConfigurationError(
-                f"base_delay must be non-negative, got {self.base_delay}"
-            )
+            raise ConfigurationError(f"base_delay must be non-negative, got {self.base_delay}")
         if self.max_delay <= 0:
-            raise ConfigurationError(
-                f"max_delay must be positive, got {self.max_delay}"
-            )
+            raise ConfigurationError(f"max_delay must be positive, got {self.max_delay}")
         if self.exponential_base < 1:
             raise ConfigurationError(
                 f"exponential_base must be at least 1, got {self.exponential_base}"
@@ -262,9 +251,7 @@ class DataServiceConfig:
         if not self.token_key:
             raise ConfigurationError("token_key must not be empty")
         if self.cache_ttl < 0:
-            raise ConfigurationError(
-                f"cache_ttl must be non-negative, got {self.cache_ttl}"
-            )
+            raise ConfigurationError(f"cache_ttl must be non-negative, got {self.cache_ttl}")
         if self.max_batch_size < 1:
             raise ConfigurationError(
                 f"max_batch_size must be at least 1, got {self.max_batch_size}"

@@ -60,15 +60,13 @@ class TestParseContentDispositionFilename:
     def test_quoted_filename(self) -> None:
         header = 'attachment; filename="conversations_17705753103_20260210.csv"'
         assert (
-            _parse_content_disposition_filename(header)
-            == "conversations_17705753103_20260210.csv"
+            _parse_content_disposition_filename(header) == "conversations_17705753103_20260210.csv"
         )
 
     def test_unquoted_filename(self) -> None:
         header = "attachment; filename=conversations_17705753103_20260210.csv"
         assert (
-            _parse_content_disposition_filename(header)
-            == "conversations_17705753103_20260210.csv"
+            _parse_content_disposition_filename(header) == "conversations_17705753103_20260210.csv"
         )
 
     def test_empty_header(self) -> None:
@@ -219,9 +217,7 @@ class TestGetExportCsvAsyncErrors:
 
         client = _make_client()
         mock_cb = AsyncMock()
-        mock_cb.check = AsyncMock(
-            side_effect=SdkCBOpen(time_remaining=30.0, message="CB open")
-        )
+        mock_cb.check = AsyncMock(side_effect=SdkCBOpen(time_remaining=30.0, message="CB open"))
         client._circuit_breaker = mock_cb
 
         with pytest.raises(ExportError) as exc_info:

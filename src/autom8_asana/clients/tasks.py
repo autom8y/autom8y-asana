@@ -672,9 +672,7 @@ class TasksClient(BaseClient):
     # Per TDD-SDKUX Section 2C: Direct methods that wrap SaveSession internally
     # and return updated Task objects without requiring explicit session management.
 
-    async def add_tag_async(
-        self, task_gid: str, tag_gid: str, *, refresh: bool = False
-    ) -> Task:
+    async def add_tag_async(self, task_gid: str, tag_gid: str, *, refresh: bool = False) -> Task:
         """Add tag to task without explicit SaveSession.
 
         Delegates to TaskOperations.add_tag_async per ADR-0059.
@@ -696,9 +694,7 @@ class TasksClient(BaseClient):
         """
         return self.operations.add_tag(task_gid, tag_gid, refresh=refresh)  # type: ignore[no-any-return]
 
-    async def remove_tag_async(
-        self, task_gid: str, tag_gid: str, *, refresh: bool = False
-    ) -> Task:
+    async def remove_tag_async(self, task_gid: str, tag_gid: str, *, refresh: bool = False) -> Task:
         """Remove tag from task without explicit SaveSession.
 
         Delegates to TaskOperations.remove_tag_async per ADR-0059.

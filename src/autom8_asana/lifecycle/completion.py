@@ -84,9 +84,7 @@ class CompletionService:
                 process_gid=source_process.gid,
                 process_name=source_process.name,
             )
-        except (
-            Exception
-        ) as e:  # BROAD-CATCH: boundary -- auto-complete failure is non-fatal
+        except Exception as e:  # BROAD-CATCH: boundary -- auto-complete failure is non-fatal
             logger.warning(
                 "lifecycle_auto_complete_failed",
                 process_gid=source_process.gid,

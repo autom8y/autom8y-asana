@@ -170,9 +170,7 @@ class TestConversationAuditE2E:
         mock_attachments.upload_async = AsyncMock(return_value=MagicMock())
 
         # h1 has an old attachment, h2 has none
-        old_att_h1 = _make_attachment(
-            "old-h1", "conversations_17705753101_20260203.csv"
-        )
+        old_att_h1 = _make_attachment("old-h1", "conversations_17705753101_20260203.csv")
 
         def mock_list_for_task(gid: str, **kwargs: Any) -> _AsyncIterator:
             if gid == "h1":
@@ -243,9 +241,7 @@ class TestConversationAuditE2E:
         mock_data_client.get_export_csv_async = AsyncMock()
 
         mock_attachments = MagicMock()
-        mock_attachments.list_for_task_async = MagicMock(
-            return_value=_AsyncIterator([])
-        )
+        mock_attachments.list_for_task_async = MagicMock(return_value=_AsyncIterator([]))
         mock_attachments.upload_async = AsyncMock(return_value=MagicMock())
         mock_attachments.delete_async = AsyncMock()
 
@@ -265,7 +261,5 @@ class TestConversationAuditE2E:
         from autom8_asana.core.scope import EntityScope
 
         entities = await workflow.enumerate_async(EntityScope())
-        result = await workflow.execute_async(
-            entities, {"workflow_id": "conversation-audit"}
-        )
+        result = await workflow.execute_async(entities, {"workflow_id": "conversation-audit"})
         assert result.total == 0  # Empty project

@@ -160,9 +160,7 @@ def execute_join(
     target_deduped = target_deduped.filter(pl.col(join_key).is_not_null())
 
     # 5. Rename target columns to avoid collision (prefix with entity type)
-    rename_map = {
-        col: f"{target_entity_type}_{col}" for col in select_columns if col != join_key
-    }
+    rename_map = {col: f"{target_entity_type}_{col}" for col in select_columns if col != join_key}
     target_renamed = target_deduped.rename(rename_map)
     renamed_cols = list(rename_map.values())
 
@@ -182,9 +180,7 @@ def execute_join(
 
     unmatched_count = enriched.height - matched_count
 
-    _span.set_attribute(
-        "computation.duration_ms", (time.perf_counter() - _join_start) * 1000
-    )
+    _span.set_attribute("computation.duration_ms", (time.perf_counter() - _join_start) * 1000)
     _span.set_attribute("computation.join.matched_count", matched_count)
     _span.set_attribute("computation.join.unmatched_count", unmatched_count)
 

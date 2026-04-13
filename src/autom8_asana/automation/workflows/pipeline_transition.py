@@ -203,9 +203,7 @@ class PipelineTransitionWorkflow(WorkflowAction):
                 processes_to_transition.append((entity["_process"], entity["outcome"]))
             else:
                 # Came from targeted invocation -- build Process from GID
-                process = Process.model_validate(
-                    {"gid": entity["gid"], "name": entity.get("name")}
-                )
+                process = Process.model_validate({"gid": entity["gid"], "name": entity.get("name")})
                 outcome = entity.get("outcome", "converted")
                 processes_to_transition.append((process, outcome))
 
@@ -231,10 +229,7 @@ class PipelineTransitionWorkflow(WorkflowAction):
                 return await self._process_transition_async(process, outcome)
 
         # Create tasks for all transitions
-        tasks = [
-            process_one(process, outcome)
-            for process, outcome in processes_to_transition
-        ]
+        tasks = [process_one(process, outcome) for process, outcome in processes_to_transition]
 
         # Execute with error isolation
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -308,9 +303,7 @@ class PipelineTransitionWorkflow(WorkflowAction):
 
         results = await gather_with_semaphore(
             [
-                self._enumerate_one_project_async(
-                    project_gid, converted_section, dnc_section
-                )
+                self._enumerate_one_project_async(project_gid, converted_section, dnc_section)
                 for project_gid in project_gids
             ],
             concurrency=5,
@@ -416,9 +409,7 @@ class PipelineTransitionWorkflow(WorkflowAction):
                     tasks_enumerated=len(project_processes),
                 )
 
-        except (
-            Exception
-        ) as e:  # BROAD-CATCH: boundary -- enumeration failure skips project
+        except Exception as e:  # BROAD-CATCH: boundary -- enumeration failure skips project
             logger.error(
                 "pipeline_transition_enumerate_error",
                 project_gid=project_gid,

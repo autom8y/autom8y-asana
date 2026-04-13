@@ -98,9 +98,7 @@ class TestStageTransitionRecord:
 class TestEntityStageTimeline:
     """Test EntityStageTimeline computed properties."""
 
-    def _make_timeline(
-        self, intervals: list[StageTransitionRecord]
-    ) -> EntityStageTimeline:
+    def _make_timeline(self, intervals: list[StageTransitionRecord]) -> EntityStageTimeline:
         return EntityStageTimeline(
             entity_gid="gid1",
             entity_type="Process",

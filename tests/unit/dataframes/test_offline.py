@@ -161,9 +161,7 @@ class TestLoadProjectDataframe:
         assert client.get_object.call_count == 1
 
     @patch("autom8_asana.dataframes.offline.boto3")
-    def test_env_var_fallback(
-        self, mock_boto3: MagicMock, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_env_var_fallback(self, mock_boto3: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
         """Bucket falls back to ASANA_CACHE_S3_BUCKET env var."""
         monkeypatch.setenv("ASANA_CACHE_S3_BUCKET", "env-bucket")
 
@@ -282,11 +280,7 @@ class TestLoadProjectDataframeWithMeta:
         paginator = MagicMock()
         client.get_paginator.return_value = paginator
         paginator.paginate.return_value = [
-            {
-                "Contents": [
-                    {"Key": "dataframes/p/sections/s.parquet", "LastModified": mtime}
-                ]
-            }
+            {"Contents": [{"Key": "dataframes/p/sections/s.parquet", "LastModified": mtime}]}
         ]
         body = MagicMock()
         body.read.return_value = _make_parquet_bytes(df1)
@@ -329,11 +323,7 @@ class TestLoadProjectDataframeWithMeta:
         paginator = MagicMock()
         client.get_paginator.return_value = paginator
         paginator.paginate.return_value = [
-            {
-                "Contents": [
-                    {"Key": "dataframes/p/sections/s.parquet", "LastModified": mtime}
-                ]
-            }
+            {"Contents": [{"Key": "dataframes/p/sections/s.parquet", "LastModified": mtime}]}
         ]
         body = MagicMock()
         body.read.return_value = _make_parquet_bytes(df1)

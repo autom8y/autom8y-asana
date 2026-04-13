@@ -362,9 +362,7 @@ class DuplicateTaskRequest(BaseModel):
 
     model_config = ConfigDict(
         extra="forbid",
-        json_schema_extra={
-            "examples": [{"name": "Review Q3 marketing proposal (copy)"}]
-        },
+        json_schema_extra={"examples": [{"name": "Review Q3 marketing proposal (copy)"}]},
     )
 
 
@@ -475,9 +473,7 @@ class MembersRequest(BaseModel):
 
     model_config = ConfigDict(
         extra="forbid",
-        json_schema_extra={
-            "examples": [{"members": ["9876543210987654", "9876543210987655"]}]
-        },
+        json_schema_extra={"examples": [{"members": ["9876543210987654", "9876543210987655"]}]},
     )
 
 

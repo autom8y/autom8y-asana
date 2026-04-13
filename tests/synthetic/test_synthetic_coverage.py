@@ -44,9 +44,7 @@ from tests.synthetic.conftest import (
 # Constants
 # =============================================================================
 
-SPEC_PATH = (
-    Path(__file__).parent.parent.parent / "docs" / "api-reference" / "openapi.json"
-)
+SPEC_PATH = Path(__file__).parent.parent.parent / "docs" / "api-reference" / "openapi.json"
 
 
 # =============================================================================
@@ -84,11 +82,7 @@ def resolve_schema(spec: dict, schema: dict, _depth: int = 0) -> dict:
 
     # Unwrap Pydantic nullable pattern: anyOf: [{type: T}, {type: null}]
     if "anyOf" in schema:
-        non_null = [
-            s
-            for s in schema["anyOf"]
-            if s.get("type") != "null" and s != {"type": "null"}
-        ]
+        non_null = [s for s in schema["anyOf"] if s.get("type") != "null" and s != {"type": "null"}]
         if non_null:
             resolved = resolve_schema(spec, non_null[0], _depth + 1)
             merged = {**schema, **resolved}
@@ -306,9 +300,7 @@ def deep_resolve_schema(spec: dict, schema: dict, _seen: set | None = None) -> d
             result[key] = deep_resolve_schema(spec, value, _seen.copy())
         elif isinstance(value, list):
             result[key] = [
-                deep_resolve_schema(spec, item, _seen.copy())
-                if isinstance(item, dict)
-                else item
+                deep_resolve_schema(spec, item, _seen.copy()) if isinstance(item, dict) else item
                 for item in value
             ]
         else:
@@ -345,9 +337,7 @@ def validate_response_schema(
     if not response_spec:
         return True, None
 
-    schema = (
-        response_spec.get("content", {}).get("application/json", {}).get("schema", {})
-    )
+    schema = response_spec.get("content", {}).get("application/json", {}).get("schema", {})
     if not schema:
         return True, None
 
@@ -442,9 +432,7 @@ _operation_ids = [f"{method.upper()}:{path}" for path, method, _ in _all_operati
     _all_operations,
     ids=_operation_ids,
 )
-def test_operation(
-    synthetic_client: TestClient, path: str, method: str, req: dict
-) -> None:
+def test_operation(synthetic_client: TestClient, path: str, method: str, req: dict) -> None:
     """Exercise a single API operation and assert no 5xx (except known gaps).
 
     PASSED: 2xx or 4xx response (expected for data mismatches with shallow mock).
@@ -526,10 +514,7 @@ def test_operation(
 
     if not is_5xx:
         outcome = "PASSED"
-    elif (
-        path in tolerated_5xx_paths
-        or (method.upper(), path) in tolerated_5xx_path_methods
-    ):
+    elif path in tolerated_5xx_paths or (method.upper(), path) in tolerated_5xx_path_methods:
         outcome = "EXPECTED-5xx"
     else:
         outcome = "FAILED"
@@ -572,6 +557,5 @@ def test_operation(
     # Fail the test only for unexpected 5xx
     if outcome == "FAILED":
         pytest.fail(
-            f"{method.upper()} {path} -> {status} (unexpected 5xx). "
-            f"Body: {response.text[:200]}"
+            f"{method.upper()} {path} -> {status} (unexpected 5xx). Body: {response.text[:200]}"
         )

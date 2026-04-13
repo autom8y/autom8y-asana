@@ -90,13 +90,9 @@ def make_custom_field(
         case "number":
             cf["number_value"] = value
         case "enum":
-            cf["enum_value"] = (
-                {"gid": f"enum_{value}", "name": value} if value else None
-            )
+            cf["enum_value"] = {"gid": f"enum_{value}", "name": value} if value else None
         case "multi_enum":
-            cf["multi_enum_values"] = [
-                {"gid": f"me_{v}", "name": v} for v in (value or [])
-            ]
+            cf["multi_enum_values"] = [{"gid": f"me_{v}", "name": v} for v in (value or [])]
 
     return cf
 
@@ -131,9 +127,7 @@ class TestUnitSchemaCascadeSource:
                 office_phone_col = col
                 break
 
-        assert office_phone_col is not None, (
-            "office_phone column not found in UNIT_SCHEMA"
-        )
+        assert office_phone_col is not None, "office_phone column not found in UNIT_SCHEMA"
         assert office_phone_col.source == "cascade:Office Phone", (
             f"Expected source='cascade:Office Phone', got source='{office_phone_col.source}'"
         )
@@ -198,9 +192,7 @@ class TestEndToEndCascadingResolution:
         resolver = CascadingFieldResolver(mock_client)
 
         # Patch entity type detection
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             mock_detect.side_effect = [
                 MagicMock(entity_type=EntityType.UNIT),
                 MagicMock(entity_type=EntityType.UNIT_HOLDER),
@@ -265,9 +257,7 @@ class TestEndToEndCascadingResolution:
             # Then checks cached business (or fetches first time)
             detection_responses.append(MagicMock(entity_type=EntityType.BUSINESS))
 
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             mock_detect.side_effect = detection_responses
 
             # Resolve all unit tasks
@@ -306,9 +296,7 @@ class TestGidLookupIndexWithCascadedValues:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         # Verify index contains expected entries
         assert len(index) == 3
@@ -336,9 +324,7 @@ class TestGidLookupIndexWithCascadedValues:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         # Should only index 2 entries (skipping null office_phone)
         assert len(index) == 2
@@ -360,9 +346,7 @@ class MinimalExtractor(BaseExtractor):
 class TestBaseExtractorCascadeSupport:
     """Test BaseExtractor handles cascade: source prefix correctly."""
 
-    def test_sync_extract_raises_for_cascade_source(
-        self, mock_client: MagicMock
-    ) -> None:
+    def test_sync_extract_raises_for_cascade_source(self, mock_client: MagicMock) -> None:
         """Test sync extract() raises ValueError for cascade: sources.
 
         Note: The ValueError is raised during _extract_column, but since
@@ -395,9 +379,7 @@ class TestBaseExtractorCascadeSupport:
         assert result["office_phone"] is None
 
     @pytest.mark.asyncio
-    async def test_async_extract_resolves_cascade_source(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_async_extract_resolves_cascade_source(self, mock_client: MagicMock) -> None:
         """Test async extract_async() resolves cascade: sources."""
         schema = DataFrameSchema(
             name="test",
@@ -434,9 +416,7 @@ class TestBaseExtractorCascadeSupport:
 
         extractor = MinimalExtractor(schema, client=mock_client)
 
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             mock_detect.side_effect = [
                 MagicMock(entity_type=EntityType.UNIT),
                 MagicMock(entity_type=EntityType.BUSINESS),
@@ -492,18 +472,14 @@ class TestCascadingErrorHandling:
         assert result["office_phone"] is None
 
     @pytest.mark.asyncio
-    async def test_broken_parent_chain_returns_none(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_broken_parent_chain_returns_none(self, mock_client: MagicMock) -> None:
         """Test cascading returns None when parent chain is broken."""
         resolver = CascadingFieldResolver(mock_client)
 
         # Task with no parent
         orphan_task = MockTask(gid="orphan_123", name="Orphan Task", parent=None)
 
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             mock_detect.return_value = MagicMock(entity_type=EntityType.UNIT)
 
             result = await resolver.resolve_async(orphan_task, "Office Phone")  # type: ignore[arg-type]
@@ -560,9 +536,7 @@ class TestProductionValidationScenarios:
 
         resolver = CascadingFieldResolver(mock_client)
 
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             mock_detect.side_effect = [
                 MagicMock(entity_type=EntityType.UNIT),
                 MagicMock(entity_type=EntityType.UNIT_HOLDER),
@@ -584,9 +558,7 @@ class TestProductionValidationScenarios:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         from autom8_asana.models.contracts.phone_vertical import PhoneVerticalPair
 
@@ -597,9 +569,7 @@ class TestProductionValidationScenarios:
         assert resolved_gid == "unit_prod_001"
 
     @pytest.mark.asyncio
-    async def test_scenario_second_chiropractic_unit(
-        self, mock_client: MagicMock
-    ) -> None:
+    async def test_scenario_second_chiropractic_unit(self, mock_client: MagicMock) -> None:
         """Test: +19127481506 / chiropractic should return Unit GID."""
         business_task = MockTask(
             gid="business_prod_002",
@@ -628,9 +598,7 @@ class TestProductionValidationScenarios:
 
         resolver = CascadingFieldResolver(mock_client)
 
-        with patch(
-            "autom8_asana.dataframes.resolver.cascading.detect_entity_type"
-        ) as mock_detect:
+        with patch("autom8_asana.dataframes.resolver.cascading.detect_entity_type") as mock_detect:
             mock_detect.side_effect = [
                 MagicMock(entity_type=EntityType.UNIT),
                 MagicMock(entity_type=EntityType.UNIT_HOLDER),
@@ -651,9 +619,7 @@ class TestProductionValidationScenarios:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         from autom8_asana.models.contracts.phone_vertical import PhoneVerticalPair
 

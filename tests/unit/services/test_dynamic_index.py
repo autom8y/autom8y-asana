@@ -64,9 +64,7 @@ class TestDynamicIndexKey:
 
     def test_from_criterion_normalizes_case(self) -> None:
         """from_criterion lowercases string values by default."""
-        key = DynamicIndexKey.from_criterion(
-            {"email": "Test@EXAMPLE.com", "name": "John DOE"}
-        )
+        key = DynamicIndexKey.from_criterion({"email": "Test@EXAMPLE.com", "name": "John DOE"})
 
         assert key.values == ("test@example.com", "john doe")
 

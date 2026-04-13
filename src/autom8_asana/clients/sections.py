@@ -214,9 +214,7 @@ class SectionsClient(BaseClient):
         if insert_after is not None:
             data["insert_after"] = insert_after
 
-        result = await self._http.post(
-            f"/projects/{project}/sections", json={"data": data}
-        )
+        result = await self._http.post(f"/projects/{project}/sections", json={"data": data})
         if raw:
             return result
         return Section.model_validate(result)
@@ -436,6 +434,4 @@ class SectionsClient(BaseClient):
         if after_section is not None:
             data["after_section"] = after_section
 
-        await self._http.post(
-            f"/projects/{project_gid}/sections/insert", json={"data": data}
-        )
+        await self._http.post(f"/projects/{project_gid}/sections/insert", json={"data": data})

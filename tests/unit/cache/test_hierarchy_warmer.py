@@ -230,9 +230,7 @@ class TestWarmAncestorsAsync:
         hierarchy_index.register({"gid": "unit-1", "parent": {"gid": "business-1"}})
 
         # Mock the tasks client to raise an error
-        mock_tasks_client.get_async = AsyncMock(
-            side_effect=ConnectionError("Network error")
-        )
+        mock_tasks_client.get_async = AsyncMock(side_effect=ConnectionError("Network error"))
 
         # Should not raise, just log warning and continue
         warmed = await warm_ancestors_async(
@@ -337,9 +335,7 @@ class TestDeadCodeRemoval:
 
         hw_src = inspect.getsource(hw)
         uf_src = inspect.getsource(uf)
-        assert "backoff_event" not in hw_src, (
-            "backoff_event reference in hierarchy_warmer.py"
-        )
+        assert "backoff_event" not in hw_src, "backoff_event reference in hierarchy_warmer.py"
         assert "backoff_event" not in uf_src, "backoff_event reference in unified.py"
 
 
@@ -377,9 +373,7 @@ class TestWarmAncestorsPhase2:
         return HierarchyIndex()
 
     @pytest.mark.asyncio
-    async def test_warm_ancestors_basic_traversal(
-        self, hierarchy_index: HierarchyIndex
-    ) -> None:
+    async def test_warm_ancestors_basic_traversal(self, hierarchy_index: HierarchyIndex) -> None:
         """Basic parent chain traversal fetches and registers parent."""
         hierarchy_index.register({"gid": "unit-1", "parent": {"gid": "biz-1"}})
 
@@ -404,9 +398,7 @@ class TestWarmAncestorsPhase2:
         assert hierarchy_index.contains("biz-1")
 
     @pytest.mark.asyncio
-    async def test_warm_ancestors_multi_level(
-        self, hierarchy_index: HierarchyIndex
-    ) -> None:
+    async def test_warm_ancestors_multi_level(self, hierarchy_index: HierarchyIndex) -> None:
         """Multi-level traversal reaches all ancestors."""
         hierarchy_index.register({"gid": "unit-1", "parent": {"gid": "biz-1"}})
 
@@ -448,9 +440,7 @@ class TestWarmAncestorsPhase2:
         assert hierarchy_index.contains("acct-1")
 
     @pytest.mark.asyncio
-    async def test_warm_ancestors_error_resilience(
-        self, hierarchy_index: HierarchyIndex
-    ) -> None:
+    async def test_warm_ancestors_error_resilience(self, hierarchy_index: HierarchyIndex) -> None:
         """warm_ancestors_async handles fetch errors gracefully."""
         hierarchy_index.register({"gid": "u-1", "parent": {"gid": "b-1"}})
 
@@ -467,9 +457,7 @@ class TestWarmAncestorsPhase2:
         assert warmed == 0
 
     @pytest.mark.asyncio
-    async def test_warm_ancestors_global_semaphore(
-        self, hierarchy_index: HierarchyIndex
-    ) -> None:
+    async def test_warm_ancestors_global_semaphore(self, hierarchy_index: HierarchyIndex) -> None:
         """Global semaphore parameter is accepted and respected."""
         hierarchy_index.register({"gid": "u-1", "parent": {"gid": "b-1"}})
 

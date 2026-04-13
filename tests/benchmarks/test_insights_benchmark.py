@@ -550,9 +550,7 @@ class TestBatchRequestBenchmark:
 
             async with client:
                 # Warm-up
-                batch = await client.get_insights_batch_async(
-                    pairs[:3], factory="account"
-                )
+                batch = await client.get_insights_batch_async(pairs[:3], factory="account")
                 _ = batch.to_dataframe()
 
                 # Benchmark runs

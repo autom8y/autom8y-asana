@@ -58,9 +58,7 @@ class TestPartialFailure:
         mock_client.batch.execute_async = AsyncMock(
             return_value=[
                 create_success_result(gid="1", request_index=0),
-                create_failure_result(
-                    message="Error", status_code=400, request_index=1
-                ),
+                create_failure_result(message="Error", status_code=400, request_index=1),
             ]
         )
 
@@ -84,12 +82,8 @@ class TestPartialFailure:
         mock_client = create_mock_client()
         mock_client.batch.execute_async = AsyncMock(
             return_value=[
-                create_failure_result(
-                    message="Error 1", status_code=400, request_index=0
-                ),
-                create_failure_result(
-                    message="Error 2", status_code=500, request_index=1
-                ),
+                create_failure_result(message="Error 1", status_code=400, request_index=0),
+                create_failure_result(message="Error 2", status_code=500, request_index=1),
             ]
         )
 
@@ -175,9 +169,7 @@ class TestPartialFailure:
         mock_client.batch.execute_async = AsyncMock(
             return_value=[
                 create_success_result(gid="1", request_index=0),
-                create_failure_result(
-                    message="Error", status_code=400, request_index=1
-                ),
+                create_failure_result(message="Error", status_code=400, request_index=1),
             ]
         )
 
@@ -499,9 +491,7 @@ class TestErrorEdgeCases:
         """Handle batch result without data field."""
         mock_client = create_mock_client()
         mock_client.batch.execute_async = AsyncMock(
-            return_value=[
-                BatchResult(status_code=200, body={"other": "field"}, request_index=0)
-            ]
+            return_value=[BatchResult(status_code=200, body={"other": "field"}, request_index=0)]
         )
 
         task = Task(gid="123", name="Test")

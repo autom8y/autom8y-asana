@@ -97,9 +97,7 @@ class TestAdminRefreshAdversarialInputs:
             pytest.param("offer\x00malicious", id="null-byte"),
         ],
     )
-    def test_adversarial_entity_type_rejected(
-        self, client: TestClient, entity_type: str
-    ) -> None:
+    def test_adversarial_entity_type_rejected(self, client: TestClient, entity_type: str) -> None:
         """Adversarial entity_type values should be rejected with 400."""
         with (
             patch(

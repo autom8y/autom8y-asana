@@ -179,8 +179,7 @@ class TestInMemoryCacheConcurrency:
                 errors.append(e)
 
         threads = [
-            threading.Thread(target=operate_on_key, args=(f"thread_{i}",))
-            for i in range(20)
+            threading.Thread(target=operate_on_key, args=(f"thread_{i}",)) for i in range(20)
         ]
         for t in threads:
             t.start()
@@ -427,9 +426,7 @@ class TestModificationCheckCacheConcurrency:
         def set_ops(thread_id: int) -> None:
             try:
                 for i in range(100):
-                    cache.set(
-                        f"gid_{thread_id}_{i}", f"2025-01-{(i % 28) + 1:02d}T00:00:00Z"
-                    )
+                    cache.set(f"gid_{thread_id}_{i}", f"2025-01-{(i % 28) + 1:02d}T00:00:00Z")
             except Exception as e:
                 errors.append(e)
 
@@ -537,9 +534,7 @@ class TestModificationCheckCacheConcurrency:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=set_and_cleanup, name=f"t{i}") for i in range(10)
-        ]
+        threads = [threading.Thread(target=set_and_cleanup, name=f"t{i}") for i in range(10)]
         for t in threads:
             t.start()
         for t in threads:
@@ -870,9 +865,7 @@ class TestRaceConditionScenarios:
                     # All values should be the same (no torn read)
                     if not (data["a"] == data["b"] == data["c"]):
                         with inconsistencies_lock:
-                            inconsistencies.append(
-                                f"a={data['a']}, b={data['b']}, c={data['c']}"
-                            )
+                            inconsistencies.append(f"a={data['a']}, b={data['b']}, c={data['c']}")
 
         # Initial value
         entry = CacheEntry(
@@ -893,17 +886,13 @@ class TestRaceConditionScenarios:
 
         writer_thread.join(timeout=10)
         if writer_thread.is_alive():
-            raise AssertionError(
-                f"Thread {writer_thread.name} did not complete within timeout"
-            )
+            raise AssertionError(f"Thread {writer_thread.name} did not complete within timeout")
         for r in readers:
             r.join(timeout=10)
             if r.is_alive():
                 raise AssertionError(f"Thread {r.name} did not complete within timeout")
 
-        assert len(inconsistencies) == 0, (
-            f"Found inconsistencies: {inconsistencies[:5]}"
-        )
+        assert len(inconsistencies) == 0, f"Found inconsistencies: {inconsistencies[:5]}"
 
     def test_counter_increment_atomicity(self) -> None:
         """Test that metrics counters are atomic.

@@ -66,7 +66,9 @@ class AttachmentReplacementMixin:
                         attachment_gid=attachment.gid,
                         attachment_name=att_name,
                     )
-                except Exception as exc:  # BROAD-CATCH: boundary -- attachment delete soft-fails per item
+                except (
+                    Exception
+                ) as exc:  # BROAD-CATCH: boundary -- attachment delete soft-fails per item
                     logger.warning(
                         "workflow_attachment_delete_failed",
                         workflow_id=self.workflow_id,

@@ -57,13 +57,9 @@ class BatchRequest:
         """Validate request configuration."""
         valid_methods = {"GET", "POST", "PUT", "DELETE"}
         if self.method.upper() not in valid_methods:
-            raise ValueError(
-                f"method must be one of {valid_methods}, got '{self.method}'"
-            )
+            raise ValueError(f"method must be one of {valid_methods}, got '{self.method}'")
         if not self.relative_path.startswith("/"):
-            raise ValueError(
-                f"relative_path must start with '/', got '{self.relative_path}'"
-            )
+            raise ValueError(f"relative_path must start with '/', got '{self.relative_path}'")
 
     def to_action_dict(self) -> dict[str, Any]:
         """Convert to Asana batch action format.

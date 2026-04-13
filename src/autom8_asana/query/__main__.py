@@ -95,8 +95,7 @@ def parse_where_flag(raw: str) -> dict[str, Any]:
         op = Op(op_str)
     except ValueError:
         raise CLIError(
-            f"Unknown operator: '{op_str}'. "
-            f"Supported: {', '.join(op.value for op in Op)}"
+            f"Unknown operator: '{op_str}'. Supported: {', '.join(op.value for op in Op)}"
         ) from None
 
     # Coerce value based on operator
@@ -122,15 +121,11 @@ def parse_where_json(raw: str) -> dict[str, Any]:
         raise CLIError(f"Invalid JSON in --where-json: {e}") from None
 
     if not isinstance(data, dict):
-        raise CLIError(
-            f"Invalid --where-json: expected a JSON object, got {type(data).__name__}"
-        )
+        raise CLIError(f"Invalid --where-json: expected a JSON object, got {type(data).__name__}")
     return data
 
 
-def build_predicate(
-    where_flags: list[str] | None, where_json: str | None
-) -> dict[str, Any] | None:
+def build_predicate(where_flags: list[str] | None, where_json: str | None) -> dict[str, Any] | None:
     """Combine --where and --where-json into a single predicate dict.
 
     Rules:
@@ -207,9 +202,7 @@ def resolve_entity_type(entity_type: str) -> tuple[str, str]:
     desc = registry.get(entity_type)
     if desc is None:
         available = sorted(d.name for d in registry.all_descriptors() if d.warmable)
-        raise CLIError(
-            f"Unknown entity type '{entity_type}'. Available: {', '.join(available)}"
-        )
+        raise CLIError(f"Unknown entity type '{entity_type}'. Available: {', '.join(available)}")
     if desc.primary_project_gid is None:
         available = sorted(d.name for d in registry.all_descriptors() if d.warmable)
         raise CLIError(
@@ -549,8 +542,7 @@ def handle_rows(args: argparse.Namespace) -> int:
     elif join_list:
         if len(join_list) > 1:
             print(
-                f"Note: Only one --join is supported per query. "
-                f"Using first: {join_list[0]}",
+                f"Note: Only one --join is supported per query. Using first: {join_list[0]}",
                 file=sys.stderr,
             )
         join_spec = _parse_join(
@@ -944,9 +936,7 @@ def handle_timeline(args: argparse.Namespace) -> int:
                         else None
                     ),
                     "entered_at": str(interval.entered_at),
-                    "exited_at": (
-                        str(interval.exited_at) if interval.exited_at else None
-                    ),
+                    "exited_at": (str(interval.exited_at) if interval.exited_at else None),
                 }
             )
 
@@ -1009,8 +999,7 @@ def handle_list_queries(args: argparse.Namespace) -> int:
 
     if not rows:
         print(
-            "No saved queries found. Place .yaml/.json files in "
-            "./queries/ or ~/.autom8/queries/",
+            "No saved queries found. Place .yaml/.json files in ./queries/ or ~/.autom8/queries/",
             file=sys.stderr,
         )
 
@@ -1272,9 +1261,7 @@ def _parse_join(
         CLIError: If the join string format is invalid.
     """
     if ":" not in join_str:
-        raise CLIError(
-            f"Invalid --join format: {join_str!r}. Expected ENTITY:col1,col2"
-        )
+        raise CLIError(f"Invalid --join format: {join_str!r}. Expected ENTITY:col1,col2")
     entity_type, cols_str = join_str.split(":", 1)
     select = [c.strip() for c in cols_str.split(",") if c.strip()]
     if not select:
@@ -1382,9 +1369,7 @@ def build_parser() -> argparse.ArgumentParser:
     rows_parser.add_argument(
         "--limit", type=int, default=100, help="Max rows to return (default: 100)"
     )
-    rows_parser.add_argument(
-        "--offset", type=int, default=0, help="Rows to skip (default: 0)"
-    )
+    rows_parser.add_argument("--offset", type=int, default=0, help="Rows to skip (default: 0)")
     rows_parser.add_argument("--order-by", help="Column to sort by")
     rows_parser.add_argument(
         "--order-dir",

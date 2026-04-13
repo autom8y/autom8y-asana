@@ -139,10 +139,7 @@ class NameResolver:
 
         # Find exact match
         for section in all_sections:
-            if (
-                section.name
-                and section.name.lower().strip() == name_or_gid.lower().strip()
-            ):
+            if section.name and section.name.lower().strip() == name_or_gid.lower().strip():
                 self._cache[cache_key] = section.gid
                 return section.gid
 
@@ -195,10 +192,7 @@ class NameResolver:
 
         # Find exact match
         for project in all_projects:
-            if (
-                project.name
-                and project.name.lower().strip() == name_or_gid.lower().strip()
-            ):
+            if project.name and project.name.lower().strip() == name_or_gid.lower().strip():
                 self._cache[cache_key] = project.gid
                 return project.gid
 
@@ -259,9 +253,7 @@ class NameResolver:
                 return user.gid
 
         # Not found
-        available = [
-            f"{u.name} ({u.email})" if u.email else u.name for u in all_users if u.name
-        ]
+        available = [f"{u.name} ({u.email})" if u.email else u.name for u in all_users if u.name]
         suggestions = get_close_matches(
             name_or_gid,
             available,

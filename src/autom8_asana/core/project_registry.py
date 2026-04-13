@@ -63,9 +63,7 @@ RETENTION_PIPELINE_PROJECT = "1201346565918814"
 REACTIVATION_PIPELINE_PROJECT = "1201265144487549"
 ACCOUNT_ERROR_PIPELINE_PROJECT = "1201684018234520"
 EXPANSION_PIPELINE_PROJECT = "1201265144487557"
-ACTIVATION_CONSULTATION_PROJECT = (
-    "1209247943184021"  # month1 pipeline ("Activation Consultation")
-)
+ACTIVATION_CONSULTATION_PROJECT = "1209247943184021"  # month1 pipeline ("Activation Consultation")
 
 # =============================================================================
 # Lookup Tables
@@ -144,8 +142,7 @@ def get_project_name(gid: str) -> str:
         return _REVERSE_REGISTRY[gid]
     except KeyError:
         raise KeyError(
-            f"Unknown project GID: {gid!r}. "
-            f"This GID is not registered in the project registry."
+            f"Unknown project GID: {gid!r}. This GID is not registered in the project registry."
         ) from None
 
 

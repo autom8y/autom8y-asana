@@ -14,9 +14,7 @@ from unittest.mock import MagicMock, patch
 # ---------------------------------------------------------------------------
 
 
-def _make_descriptor(
-    name: str, *, priority: int = 10, is_provider: bool = False
-) -> MagicMock:
+def _make_descriptor(name: str, *, priority: int = 10, is_provider: bool = False) -> MagicMock:
     """Create a mock EntityDescriptor for warmable_entities()."""
     desc = MagicMock()
     desc.name = name

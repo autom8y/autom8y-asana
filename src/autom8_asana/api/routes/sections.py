@@ -128,9 +128,7 @@ async def create_section(
         404: Project not found or not accessible.
     """
     try:
-        section = await section_service.create_section(
-            client, name=body.name, project=body.project
-        )
+        section = await section_service.create_section(client, name=body.name, project=body.project)
     except ServiceError as e:
         raise_service_error(request_id, e)
     return build_success_response(data=section, request_id=request_id)  # type: ignore[arg-type]

@@ -214,9 +214,7 @@ class BusinessSeeder:
 
         if existing_business is not None:
             biz = existing_business
-            logger.info(
-                "Found existing Business", extra={"gid": biz.gid, "name": biz.name}
-            )
+            logger.info("Found existing Business", extra={"gid": biz.gid, "name": biz.name})
         else:
             # Create new Business with temp GID
             biz = Business(gid=_temp_gid("biz"), name=business.name)
@@ -249,9 +247,7 @@ class BusinessSeeder:
 
         if existing_unit is not None:
             unit = existing_unit
-            logger.info(
-                "Found existing Unit", extra={"gid": unit.gid, "name": unit.name}
-            )
+            logger.info("Found existing Unit", extra={"gid": unit.gid, "name": unit.name})
         else:
             unit = Unit(gid=_temp_gid("unit"), name=f"{unit_display_name} - Unit")
             created_unit = True
@@ -498,7 +494,9 @@ class BusinessSeeder:
                 )
                 candidates.append(candidate)
 
-        except Exception as e:  # BROAD-CATCH: catch-all-and-degrade -- search API + assertion + data access
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: catch-all-and-degrade -- search API + assertion + data access
             logger.warning(
                 "Failed to get match candidates",
                 extra={"query_name": data.name, "error": str(e)},

@@ -67,57 +67,43 @@ def compiler() -> PredicateCompiler:
 class TestCompilerUtf8:
     """Utf8 supports all 10 operators."""
 
-    def test_eq(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_eq(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="name", op=Op.EQ, value="Acme")
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"name": ["Acme", "Beta", "Acme"]})
         assert df.filter(expr)["name"].to_list() == ["Acme", "Acme"]
 
-    def test_ne(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_ne(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="name", op=Op.NE, value="Acme")
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"name": ["Acme", "Beta"]})
         assert df.filter(expr)["name"].to_list() == ["Beta"]
 
-    def test_contains(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_contains(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="name", op=Op.CONTAINS, value="cm")
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"name": ["Acme", "Beta", "Acme Dental"]})
         assert len(df.filter(expr)) == 2
 
-    def test_starts_with(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_starts_with(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="name", op=Op.STARTS_WITH, value="Ac")
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"name": ["Acme", "Beta", "Acrobat"]})
         assert df.filter(expr)["name"].to_list() == ["Acme", "Acrobat"]
 
-    def test_in(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_in(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="name", op=Op.IN, value=["Acme", "Beta"])
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"name": ["Acme", "Beta", "Gamma"]})
         assert len(df.filter(expr)) == 2
 
-    def test_not_in(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_not_in(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="name", op=Op.NOT_IN, value=["Acme"])
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"name": ["Acme", "Beta", "Gamma"]})
         assert len(df.filter(expr)) == 2
 
-    def test_gt(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_gt(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="name", op=Op.GT, value="B")
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"name": ["Acme", "Beta", "Gamma"]})
@@ -141,17 +127,13 @@ class TestCompilerUtf8:
 class TestCompilerBoolean:
     """Boolean supports eq, ne, in, not_in only."""
 
-    def test_eq_true(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_eq_true(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="is_active", op=Op.EQ, value=True)
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"is_active": [True, False, True]})
         assert len(df.filter(expr)) == 2
 
-    def test_gt_rejected(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_gt_rejected(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="is_active", op=Op.GT, value=True)
         with pytest.raises(InvalidOperatorError) as exc_info:
             compiler.compile(node, test_schema)
@@ -174,17 +156,13 @@ class TestCompilerBoolean:
 class TestCompilerInt64:
     """Int64 supports universal + orderable, not string ops."""
 
-    def test_eq(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_eq(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="age", op=Op.EQ, value=30)
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"age": [25, 30, 35]})
         assert df.filter(expr)["age"].to_list() == [30]
 
-    def test_gt(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_gt(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="age", op=Op.GT, value=30)
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"age": [25, 30, 35]})
@@ -205,9 +183,7 @@ class TestCompilerInt64:
         df = pl.DataFrame({"age": [25, 30, 35]})
         assert df.filter(expr)["age"].to_list() == [30]
 
-    def test_in_list(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_in_list(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="age", op=Op.IN, value=[25, 35])
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"age": [25, 30, 35]})
@@ -222,17 +198,13 @@ class TestCompilerInt64:
 class TestCompilerDate:
     """Date supports universal + orderable, not string ops."""
 
-    def test_eq(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_eq(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="created_date", op=Op.EQ, value="2026-01-15")
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"created_date": [date(2026, 1, 15), date(2026, 2, 1)]})
         assert len(df.filter(expr)) == 1
 
-    def test_gt(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_gt(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="created_date", op=Op.GT, value="2026-01-15")
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"created_date": [date(2026, 1, 15), date(2026, 2, 1)]})
@@ -265,9 +237,7 @@ class TestCompilerDatetime:
 class TestCompilerListUtf8:
     """List[Utf8] supports no operators."""
 
-    def test_eq_rejected(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_eq_rejected(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = Comparison(field="tags", op=Op.EQ, value="foo")
         with pytest.raises(InvalidOperatorError):
             compiler.compile(node, test_schema)
@@ -328,9 +298,7 @@ class TestCoercionFailures:
 class TestGroupCompilation:
     """Test AND, OR, NOT expression assembly."""
 
-    def test_and_combines(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_and_combines(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = _adapter.validate_python(
             {
                 "and": [
@@ -345,9 +313,7 @@ class TestGroupCompilation:
         assert len(result) == 1
         assert result["age"].to_list() == [30]
 
-    def test_or_combines(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
+    def test_or_combines(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
         node = _adapter.validate_python(
             {
                 "or": [
@@ -360,12 +326,8 @@ class TestGroupCompilation:
         df = pl.DataFrame({"name": ["Acme", "Beta", "Gamma"]})
         assert len(df.filter(expr)) == 2
 
-    def test_not_inverts(
-        self, compiler: PredicateCompiler, test_schema: DataFrameSchema
-    ) -> None:
-        node = _adapter.validate_python(
-            {"not": {"field": "name", "op": "eq", "value": "Acme"}}
-        )
+    def test_not_inverts(self, compiler: PredicateCompiler, test_schema: DataFrameSchema) -> None:
+        node = _adapter.validate_python({"not": {"field": "name", "op": "eq", "value": "Acme"}})
         expr = compiler.compile(node, test_schema)
         df = pl.DataFrame({"name": ["Acme", "Beta", "Gamma"]})
         assert df.filter(expr)["name"].to_list() == ["Beta", "Gamma"]
@@ -767,9 +729,7 @@ class TestNullPropagation:
         self, compiler: PredicateCompiler, full_schema_for_coercion: DataFrameSchema
     ) -> None:
         """NOT(eq) with nulls: NOT(null) is null, so null rows excluded."""
-        node = NotGroup.model_validate(
-            {"not": {"field": "name", "op": "eq", "value": "Acme"}}
-        )
+        node = NotGroup.model_validate({"not": {"field": "name", "op": "eq", "value": "Acme"}})
         expr = compiler.compile(node, full_schema_for_coercion)
         df = pl.DataFrame({"name": ["Acme", None, "Beta"]})
         result = df.filter(expr)
@@ -940,9 +900,7 @@ class TestStripSectionPredicates:
 
     def test_strip_all_section_returns_none(self) -> None:
         """If entire tree is section predicates, returns None."""
-        node = _adapter.validate_python(
-            {"field": "section", "op": "eq", "value": "Active"}
-        )
+        node = _adapter.validate_python({"field": "section", "op": "eq", "value": "Active"})
         result = strip_section_predicates(node)
         assert result is None
 

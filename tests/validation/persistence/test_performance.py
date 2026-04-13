@@ -71,8 +71,7 @@ class TestChangeTrackingOverhead:
 
         # Hard limit
         assert elapsed_ms < HARD_TRACKING_100_ENTITIES_MS, (
-            f"Tracking took {elapsed_ms:.1f}ms "
-            f"(hard limit: {HARD_TRACKING_100_ENTITIES_MS}ms)"
+            f"Tracking took {elapsed_ms:.1f}ms (hard limit: {HARD_TRACKING_100_ENTITIES_MS}ms)"
         )
 
     def test_tracking_500_entities_timing(self) -> None:
@@ -217,8 +216,7 @@ class TestDependencyGraphOverhead:
         """Sorting wide tree (root with 99 children)."""
         root = Task(gid="root", name="Root")
         children = [
-            Task(gid=f"child_{i}", name=f"Child {i}", parent=NameGid(gid="root"))
-            for i in range(99)
+            Task(gid=f"child_{i}", name=f"Child {i}", parent=NameGid(gid="root")) for i in range(99)
         ]
 
         graph = DependencyGraph()
@@ -260,9 +258,7 @@ class TestDependencyGraphOverhead:
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert len(levels) == 50
-        assert (
-            elapsed_ms < HARD_GRAPH_SORT_100_ENTITIES_MS * 2
-        )  # Allow 2x for complex structure
+        assert elapsed_ms < HARD_GRAPH_SORT_100_ENTITIES_MS * 2  # Allow 2x for complex structure
 
     def test_topological_sort_timing(self) -> None:
         """topological_sort() performance."""
@@ -308,9 +304,7 @@ class TestMemoryOverhead:
 
         # Create tracked tasks
         tracker = ChangeTracker()
-        tracked_tasks = [
-            Task(gid=f"track_{i}", name=f"Tracked {i}") for i in range(100)
-        ]
+        tracked_tasks = [Task(gid=f"track_{i}", name=f"Tracked {i}") for i in range(100)]
         for task in tracked_tasks:
             tracker.track(task)
         gc.collect()
@@ -396,8 +390,7 @@ class TestEndToEndPerformance:
         # Create hierarchy
         root = Task(gid="root", name="Root")
         children = [
-            Task(gid=f"child_{i}", name=f"Child {i}", parent=NameGid(gid="root"))
-            for i in range(99)
+            Task(gid=f"child_{i}", name=f"Child {i}", parent=NameGid(gid="root")) for i in range(99)
         ]
 
         with SaveSession(client) as session:

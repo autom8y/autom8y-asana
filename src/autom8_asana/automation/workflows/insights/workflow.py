@@ -187,9 +187,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         return await self._process_offer(
             offer_gid=entity["gid"],
             offer_name=entity.get("name"),
-            attachment_pattern=params.get(
-                "attachment_pattern", DEFAULT_ATTACHMENT_PATTERN
-            ),
+            attachment_pattern=params.get("attachment_pattern", DEFAULT_ATTACHMENT_PATTERN),
             row_limits=params.get("row_limits", DEFAULT_ROW_LIMITS),
             dry_run=params.get("dry_run", False),
         )
@@ -282,15 +280,11 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
 
         # Dry-run preview paths
         dry_run_outcomes = [
-            o
-            for o in outcomes
-            if isinstance(o, _OfferOutcome) and o.preview_path is not None
+            o for o in outcomes if isinstance(o, _OfferOutcome) and o.preview_path is not None
         ]
         if dry_run_outcomes:
             metadata["dry_run"] = True
-            metadata["preview_paths"] = {
-                o.gid: o.preview_path for o in dry_run_outcomes
-            }
+            metadata["preview_paths"] = {o.gid: o.preview_path for o in dry_run_outcomes}
 
         return metadata
 
@@ -317,7 +311,9 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                 OFFER_PROJECT_GID,
                 active_section_names,
             )
-        except Exception:  # BROAD-CATCH: boundary -- section resolution failure falls back to full enumeration
+        except (
+            Exception
+        ):  # BROAD-CATCH: boundary -- section resolution failure falls back to full enumeration
             logger.warning(
                 "section_resolution_failed_fallback",
                 workflow_id=self.workflow_id,
@@ -527,9 +523,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             report_content = compose_report(report_data)
 
             # Step E: Upload-first attachment replacement
-            sanitized_name = _sanitize_business_name(
-                business_name or offer_name or "Unknown"
-            )
+            sanitized_name = _sanitize_business_name(business_name or offer_name or "Unknown")
             date_str = datetime.now(UTC).strftime("%Y%m%d")
             filename = f"insights_export_{sanitized_name}_{date_str}.html"
             preview_path: str | None = None
@@ -589,7 +583,9 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                 preview_path=str(preview_path) if dry_run else None,
             )
 
-        except Exception as exc:  # BROAD-CATCH: boundary -- offer processing failure returns failed outcome
+        except (
+            Exception
+        ) as exc:  # BROAD-CATCH: boundary -- offer processing failure returns failed outcome
             logger.error(
                 "insights_export_offer_error",
                 offer_gid=offer_gid,
@@ -768,9 +764,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                         if len(phones_in_data) > 1:
                             pre_filter = len(response.data)
                             filtered_data = [
-                                r
-                                for r in response.data
-                                if r.get("office_phone") == office_phone
+                                r for r in response.data if r.get("office_phone") == office_phone
                             ]
                             logger.info(
                                 "insights_export_recon_filtered",
@@ -791,10 +785,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
 
             elapsed_ms = (time.monotonic() - fetch_start) * 1000
             # Use filtered_data if reconciliation phone filtering was applied
-            if (
-                spec.dispatch_type == DispatchType.RECONCILIATION
-                and filtered_data is not None
-            ):
+            if spec.dispatch_type == DispatchType.RECONCILIATION and filtered_data is not None:
                 data = filtered_data
             else:
                 data = response.data if hasattr(response, "data") else []
@@ -814,7 +805,9 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                 row_count=len(data),
             )
 
-        except Exception as exc:  # BROAD-CATCH: boundary -- table fetch failure returns failed TableResult
+        except (
+            Exception
+        ) as exc:  # BROAD-CATCH: boundary -- table fetch failure returns failed TableResult
             elapsed_ms = (time.monotonic() - fetch_start) * 1000
             error_type = type(exc).__name__
 

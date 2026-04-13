@@ -450,9 +450,7 @@ class TestCustomFieldAccessorToApiDict:
         """to_api_dict extracts GIDs from multi_enum list of dicts."""
         data = [{"gid": "123", "name": "Tags", "multi_enum_values": []}]
         accessor = CustomFieldAccessor(data)
-        accessor.set(
-            "Tags", [{"gid": "a", "name": "Tag1"}, {"gid": "b", "name": "Tag2"}]
-        )
+        accessor.set("Tags", [{"gid": "a", "name": "Tag1"}, {"gid": "b", "name": "Tag2"}])
         result = accessor.to_api_dict()
         # API expects list of GIDs
         assert result == {"123": ["a", "b"]}
@@ -637,9 +635,7 @@ class TestCustomFieldAccessorDictSyntax:
         assert isinstance(accessor["Category"], str)
 
         # Number field
-        accessor = CustomFieldAccessor(
-            [{"gid": "cf_num", "name": "MRR", "number_value": 1000.50}]
-        )
+        accessor = CustomFieldAccessor([{"gid": "cf_num", "name": "MRR", "number_value": 1000.50}])
         assert accessor["MRR"] == 1000.50
         assert isinstance(accessor["MRR"], (int, float))
 

@@ -50,9 +50,7 @@ class ObservabilityHook(Protocol):
         )
     """
 
-    async def on_request_start(
-        self, method: str, path: str, correlation_id: str
-    ) -> None:
+    async def on_request_start(self, method: str, path: str, correlation_id: str) -> None:
         """Called before HTTP request is sent.
 
         Per FR-OBS-002: Hook point for request start.
@@ -64,9 +62,7 @@ class ObservabilityHook(Protocol):
         """
         ...
 
-    async def on_request_end(
-        self, method: str, path: str, status: int, duration_ms: float
-    ) -> None:
+    async def on_request_end(self, method: str, path: str, status: int, duration_ms: float) -> None:
         """Called after HTTP request completes successfully.
 
         Per FR-OBS-003: Hook point for request completion.
@@ -102,9 +98,7 @@ class ObservabilityHook(Protocol):
         """
         ...
 
-    async def on_circuit_breaker_state_change(
-        self, old_state: str, new_state: str
-    ) -> None:
+    async def on_circuit_breaker_state_change(self, old_state: str, new_state: str) -> None:
         """Called when circuit breaker state changes.
 
         Per FR-OBS-006: Hook point for circuit breaker transitions.

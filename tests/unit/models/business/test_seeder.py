@@ -371,9 +371,7 @@ class TestBusinessDeduplication:
         )
 
         client = MagicMock()
-        client.search.find_one_async = AsyncMock(
-            side_effect=ValueError("Multiple matches found")
-        )
+        client.search.find_one_async = AsyncMock(side_effect=ValueError("Multiple matches found"))
         client.search.find_async = AsyncMock(return_value=mock_result)
 
         seeder = BusinessSeeder(client)
@@ -389,9 +387,7 @@ class TestBusinessDeduplication:
         from unittest.mock import AsyncMock, MagicMock
 
         client = MagicMock()
-        client.search.find_one_async = AsyncMock(
-            side_effect=RuntimeError("Unexpected error")
-        )
+        client.search.find_one_async = AsyncMock(side_effect=RuntimeError("Unexpected error"))
 
         seeder = BusinessSeeder(client)
 
@@ -460,9 +456,7 @@ class TestBusinessDeduplication:
         )
 
         client = MagicMock()
-        client.search.find_one_async = AsyncMock(
-            side_effect=ValueError("Multiple matches found")
-        )
+        client.search.find_one_async = AsyncMock(side_effect=ValueError("Multiple matches found"))
         client.search.find_async = AsyncMock(return_value=mock_result)
 
         seeder = BusinessSeeder(client)
@@ -478,9 +472,7 @@ class TestBusinessDeduplication:
         from unittest.mock import AsyncMock, MagicMock
 
         client = MagicMock()
-        client.search.find_one_async = AsyncMock(
-            side_effect=RuntimeError("Unexpected error")
-        )
+        client.search.find_one_async = AsyncMock(side_effect=RuntimeError("Unexpected error"))
 
         seeder = BusinessSeeder(client)
 
@@ -512,9 +504,7 @@ class TestBusinessDeduplication:
         mock_business = MagicMock()
         mock_business.gid = "COMPANY_ID_MATCH"
 
-        with patch.object(
-            seeder, "_load_business", new_callable=AsyncMock
-        ) as mock_load:
+        with patch.object(seeder, "_load_business", new_callable=AsyncMock) as mock_load:
             mock_load.return_value = mock_business
 
             data = BusinessData(name="Some Name", company_id="ACME-001")
@@ -567,9 +557,7 @@ class TestBusinessDeduplication:
         mock_business = MagicMock()
         mock_business.gid = "COMPOSITE_MATCH"
 
-        with patch.object(
-            seeder, "_load_business", new_callable=AsyncMock
-        ) as mock_load:
+        with patch.object(seeder, "_load_business", new_callable=AsyncMock) as mock_load:
             mock_load.return_value = mock_business
 
             # Provide enough fields for composite matching to find a match
@@ -620,9 +608,7 @@ class TestBusinessDeduplication:
         mock_business = MagicMock()
         mock_business.gid = "COMPOSITE_ONLY_MATCH"
 
-        with patch.object(
-            seeder, "_load_business", new_callable=AsyncMock
-        ) as mock_load:
+        with patch.object(seeder, "_load_business", new_callable=AsyncMock) as mock_load:
             mock_load.return_value = mock_business
 
             # No company_id provided, but email and phone for composite matching

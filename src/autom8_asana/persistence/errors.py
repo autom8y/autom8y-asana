@@ -129,9 +129,7 @@ class PartialSaveError(SaveOrchestrationError):
 
         message = f"Partial save: {failed_count}/{total} operations failed"
         if failed_count > 0:
-            message += (
-                f" ({retryable_count} retryable, {non_retryable_count} non-retryable)"
-            )
+            message += f" ({retryable_count} retryable, {non_retryable_count} non-retryable)"
 
         super().__init__(message)
 
@@ -289,9 +287,8 @@ class SaveSessionError(SaveOrchestrationError):
                     f"{action_result.action.task.gid}: {action_result.error}"
                 )
 
-        message = (
-            f"SaveSession commit failed. {len(failures)} failure(s): "
-            + "; ".join(failures[:3])
+        message = f"SaveSession commit failed. {len(failures)} failure(s): " + "; ".join(
+            failures[:3]
         )
         if len(failures) > 3:
             message += f" ... and {len(failures) - 3} more"

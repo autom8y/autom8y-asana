@@ -55,9 +55,7 @@ class CustomFieldAccessor:
         self._data: list[dict[str, Any]] = list(data) if data else []
         self._resolver = resolver
         self._strict = strict
-        self._modifications: dict[
-            str, Any
-        ] = {}  # gid -> new_value (or None for removal)
+        self._modifications: dict[str, Any] = {}  # gid -> new_value (or None for removal)
         self._name_to_gid: dict[str, str] = {}  # Cache name->gid from data
         self._gid_to_field: dict[str, dict[str, Any]] = {}  # Cache gid->field dict
         self._build_index()

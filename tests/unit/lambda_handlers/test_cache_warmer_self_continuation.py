@@ -35,10 +35,7 @@ class TestSelfInvokeContinuation:
         import json
 
         call_kwargs = mock_lambda.invoke.call_args[1]
-        assert (
-            call_kwargs["FunctionName"]
-            == "arn:aws:lambda:us-east-1:123:function:warmer"
-        )
+        assert call_kwargs["FunctionName"] == "arn:aws:lambda:us-east-1:123:function:warmer"
         assert call_kwargs["InvocationType"] == "Event"
 
         payload = json.loads(call_kwargs["Payload"])
@@ -97,9 +94,7 @@ class TestSelfInvokeContinuation:
 
     @patch("boto3.client")
     @patch("autom8_asana.lambda_handlers.timeout.emit_metric")
-    def test_uses_context_arn(
-        self, mock_metric: MagicMock, mock_boto3_client: MagicMock
-    ) -> None:
+    def test_uses_context_arn(self, mock_metric: MagicMock, mock_boto3_client: MagicMock) -> None:
         """Uses context.invoked_function_arn as the function name."""
         mock_lambda = MagicMock()
         mock_boto3_client.return_value = mock_lambda

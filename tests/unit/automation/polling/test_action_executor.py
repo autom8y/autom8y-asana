@@ -96,9 +96,7 @@ class TestActionExecutorAddTag:
         assert result.success is True
         assert result.action_type == "add_tag"
         assert result.task_gid == "task-456"
-        mock_client.tags.add_to_task_async.assert_called_once_with(
-            "task-456", tag="tag-123"
-        )
+        mock_client.tags.add_to_task_async.assert_called_once_with("task-456", tag="tag-123")
 
     @pytest.mark.asyncio
     async def test_add_tag_returns_details_on_success(
@@ -173,9 +171,7 @@ class TestActionExecutorAddComment:
         mock_client: MagicMock,
     ) -> None:
         """add_comment action wraps API error in ActionResult."""
-        mock_client.stories.create_comment_async.side_effect = Exception(
-            "Task not found"
-        )
+        mock_client.stories.create_comment_async.side_effect = Exception("Task not found")
         action = ActionConfig(type="add_comment", params={"text": "Test comment"})
 
         result = await executor.execute_async("invalid-task", action)
@@ -228,9 +224,7 @@ class TestActionExecutorChangeSection:
     ) -> None:
         """change_section action wraps API error in ActionResult."""
         mock_client.sections.add_task_async.side_effect = Exception("Section not found")
-        action = ActionConfig(
-            type="change_section", params={"section_gid": "invalid-section"}
-        )
+        action = ActionConfig(type="change_section", params={"section_gid": "invalid-section"})
 
         result = await executor.execute_async("task-123", action)
 

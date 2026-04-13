@@ -82,15 +82,11 @@ class CascadingSectionService:
 
         # Update Offer section
         if config.offer:
-            await self._update_entity_section_async(
-                ctx.offer_async, config.offer, "offer", result
-            )
+            await self._update_entity_section_async(ctx.offer_async, config.offer, "offer", result)
 
         # Update Unit section
         if config.unit:
-            await self._update_entity_section_async(
-                ctx.unit_async, config.unit, "unit", result
-            )
+            await self._update_entity_section_async(ctx.unit_async, config.unit, "unit", result)
 
         # Update Business section
         if config.business:
@@ -121,9 +117,7 @@ class CascadingSectionService:
             if moved:
                 result.updates.append(entity.gid)
             else:
-                result.warnings.append(
-                    f"Section '{section_name}' not found for {entity_type}"
-                )
+                result.warnings.append(f"Section '{section_name}' not found for {entity_type}")
         except (
             Exception
         ) as e:  # BROAD-CATCH: boundary -- cascade section update soft-fails per entity
@@ -179,9 +173,7 @@ class CascadingSectionService:
             return False
 
         # Find section by name (case-insensitive)
-        sections = await self._client.sections.list_for_project_async(
-            project_gid
-        ).collect()
+        sections = await self._client.sections.list_for_project_async(project_gid).collect()
 
         target = next(
             (s for s in sections if s.name and s.name.lower() == section_name.lower()),

@@ -53,9 +53,7 @@ class TestTaskCustomFieldsEditor:
             task.custom_fields_editor()
             # No deprecation warnings should be emitted
             deprecation_warnings = [
-                warning
-                for warning in w
-                if issubclass(warning.category, DeprecationWarning)
+                warning for warning in w if issubclass(warning.category, DeprecationWarning)
             ]
             assert len(deprecation_warnings) == 0
 

@@ -355,9 +355,7 @@ class ProjectsClient(BaseClient):
             if offset:
                 params["offset"] = offset
 
-            data, next_offset = await self._http.get_paginated(
-                "/projects", params=params
-            )
+            data, next_offset = await self._http.get_paginated("/projects", params=params)
             projects = [Project.model_validate(p) for p in data]
             return projects, next_offset
 

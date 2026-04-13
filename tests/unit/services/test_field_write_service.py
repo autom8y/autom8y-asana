@@ -212,9 +212,7 @@ class TestFieldWriteService:
     @pytest.mark.asyncio
     async def test_task_not_found_raises(self) -> None:
         """Asana 404 raises TaskNotFoundError."""
-        client = _make_mock_client(
-            get_side_effect=NotFoundError("Not found", status_code=404)
-        )
+        client = _make_mock_client(get_side_effect=NotFoundError("Not found", status_code=404))
         registry = _make_write_registry()
         service = FieldWriteService(client, registry)
 
@@ -327,9 +325,7 @@ class TestFieldWriteService:
     async def test_asana_rate_limit_propagates(self) -> None:
         """Asana RateLimitError propagates to caller."""
         client = _make_mock_client(
-            update_side_effect=RateLimitError(
-                "Rate limited", status_code=429, retry_after=30
-            )
+            update_side_effect=RateLimitError("Rate limited", status_code=429, retry_after=30)
         )
         registry = _make_write_registry()
         service = FieldWriteService(client, registry)

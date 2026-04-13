@@ -80,11 +80,7 @@ class ApiSettings(Autom8yBaseSettings):
         """
         if not self.cors_allowed_origins:
             return []
-        return [
-            origin.strip()
-            for origin in self.cors_allowed_origins.split(",")
-            if origin.strip()
-        ]
+        return [origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()]
 
 
 @lru_cache

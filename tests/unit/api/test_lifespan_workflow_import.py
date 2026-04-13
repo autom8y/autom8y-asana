@@ -17,8 +17,7 @@ class TestLifespanWorkflowImportPath:
         """Verify _config is importable from conversation_audit handler."""
         mod = importlib.import_module("autom8_asana.lambda_handlers.conversation_audit")
         assert hasattr(mod, "_config"), (
-            "conversation_audit module must export _config "
-            "(WorkflowHandlerConfig instance)"
+            "conversation_audit module must export _config (WorkflowHandlerConfig instance)"
         )
         # Verify it quacks like a WorkflowHandlerConfig
         config = mod._config
@@ -29,8 +28,7 @@ class TestLifespanWorkflowImportPath:
         """Verify _config is importable from insights_export handler."""
         mod = importlib.import_module("autom8_asana.lambda_handlers.insights_export")
         assert hasattr(mod, "_config"), (
-            "insights_export module must export _config "
-            "(WorkflowHandlerConfig instance)"
+            "insights_export module must export _config (WorkflowHandlerConfig instance)"
         )
         config = mod._config
         assert hasattr(config, "workflow_id")

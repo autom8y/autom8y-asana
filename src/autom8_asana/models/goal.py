@@ -105,9 +105,7 @@ class Goal(AsanaResource):
     # Time period
     due_on: str | None = Field(default=None, description="Due date (YYYY-MM-DD)")
     start_on: str | None = Field(default=None, description="Start date (YYYY-MM-DD)")
-    time_period: NameGid | None = Field(
-        default=None, description="Associated time period"
-    )
+    time_period: NameGid | None = Field(default=None, description="Associated time period")
 
     # Relationships
     owner: NameGid | None = Field(
@@ -177,6 +175,4 @@ class GoalMembership(AsanaResource):
         default=None,
         description="Goal this membership belongs to.",
     )
-    role: str | None = Field(
-        default=None, description="Member role (owner, editor, commenter)"
-    )
+    role: str | None = Field(default=None, description="Member role (owner, editor, commenter)")

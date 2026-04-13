@@ -123,9 +123,7 @@ class TaskCacheCoordinator:
         self._unified_store: UnifiedTaskStore | None = None
 
     @classmethod
-    def from_unified_store(
-        cls, unified_store: UnifiedTaskStore
-    ) -> TaskCacheCoordinator:
+    def from_unified_store(cls, unified_store: UnifiedTaskStore) -> TaskCacheCoordinator:
         """Create coordinator that delegates to UnifiedTaskStore.
 
         Per TDD-UNIFIED-CACHE-001: Provides adapter for unified cache integration.
@@ -275,11 +273,7 @@ class TaskCacheCoordinator:
                 # Build cache entry
                 data = self._task_to_data(task)
                 version = self._parse_modified_at(task.modified_at)
-                ttl = (
-                    ttl_resolver(task)
-                    if ttl_resolver
-                    else self._resolve_entity_ttl(data)
-                )
+                ttl = ttl_resolver(task) if ttl_resolver else self._resolve_entity_ttl(data)
 
                 entry = CacheEntry(
                     key=task.gid,
@@ -333,9 +327,7 @@ class TaskCacheCoordinator:
             TaskCacheResult with merged list and statistics.
         """
         # Build lookup for fetched tasks
-        fetched_by_gid: dict[str, Task] = {
-            t.gid: t for t in fetched if t.gid is not None
-        }
+        fetched_by_gid: dict[str, Task] = {t.gid: t for t in fetched if t.gid is not None}
 
         # Merge in order
         all_tasks: list[Task] = []

@@ -112,9 +112,7 @@ class TestResolutionCriterion:
 
     def test_contact_fields(self) -> None:
         """contact_email and contact_phone are typed optional fields."""
-        crit = ResolutionCriterion(
-            contact_email="jane@acme.com", contact_phone="+14155551234"
-        )
+        crit = ResolutionCriterion(contact_email="jane@acme.com", contact_phone="+14155551234")
         assert crit.contact_email == "jane@acme.com"
         assert crit.contact_phone == "+14155551234"
 

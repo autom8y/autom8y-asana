@@ -144,9 +144,7 @@ class ActionExecutor:
         required_params = _SUPPORTED_ACTIONS[action_type]
         missing_params = [p for p in required_params if p not in params]
         if missing_params:
-            raise ValueError(
-                f"Missing required params for '{action_type}': {missing_params}"
-            )
+            raise ValueError(f"Missing required params for '{action_type}': {missing_params}")
 
         # Log action start
         self._logger.info(

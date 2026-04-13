@@ -555,10 +555,7 @@ class TestAsyncDetection:
         # ProcessType should be available
         workspace_registry = get_workspace_registry()
         assert workspace_registry.get_process_type("sales_gid") == ProcessType.SALES
-        assert (
-            workspace_registry.get_process_type("onboarding_gid")
-            == ProcessType.ONBOARDING
-        )
+        assert workspace_registry.get_process_type("onboarding_gid") == ProcessType.ONBOARDING
 
     async def test_async_falls_through_to_name_pattern(
         self,
@@ -567,9 +564,7 @@ class TestAsyncDetection:
         """Async detection falls through to Tier 2 for non-pipeline projects."""
         # Mock non-pipeline project
         other = self._make_mock_project("other_gid", "Random Project")
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=[other]
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=[other])
 
         # Task with holder name pattern
         task = Task(
@@ -590,9 +585,7 @@ class TestAsyncDetection:
     ) -> None:
         """Discovery only happens once, subsequent calls use cached registry."""
         sales = self._make_mock_project("sales_gid", "Sales Pipeline")
-        mock_client.projects.list_async.return_value.collect = AsyncMock(
-            return_value=[sales]
-        )
+        mock_client.projects.list_async.return_value.collect = AsyncMock(return_value=[sales])
 
         task1 = Task(
             gid="task1",

@@ -130,9 +130,7 @@ def test_api(case):
                 "name": "Mock Resource",
                 "resource_type": "task",
                 "email": "fuzz@autom8y.io",
-                "workspaces": [
-                    {"gid": "1111111111111111", "resource_type": "workspace"}
-                ],
+                "workspaces": [{"gid": "1111111111111111", "resource_type": "workspace"}],
             }
 
             # Heuristic for list vs single resource

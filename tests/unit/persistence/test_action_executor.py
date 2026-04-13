@@ -99,15 +99,9 @@ class TestActionExecutorExecuteAsync:
         """execute_async executes multiple actions sequentially."""
         task = Task(gid="task_123")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-            ),
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")
-            ),
-            ActionOperation(
-                task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_3")
-            ),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")),
+            ActionOperation(task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_3")),
         ]
 
         results = await executor.execute_async(actions, {})
@@ -144,15 +138,9 @@ class TestActionExecutorExecuteAsync:
         """execute_async continues processing after an error."""
         task = Task(gid="task_123")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-            ),
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")
-            ),
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_3")
-            ),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_3")),
         ]
 
         # Second call fails
@@ -176,12 +164,8 @@ class TestActionExecutorExecuteAsync:
         """execute_async preserves action order in results."""
         task = Task(gid="task_123")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-            ),
-            ActionOperation(
-                task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_2")
-            ),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")),
+            ActionOperation(task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_2")),
             ActionOperation(
                 task=task,
                 action=ActionType.ADD_TO_PROJECT,
@@ -274,9 +258,7 @@ class TestActionExecutorApiCalls:
     """Tests for correct API call generation."""
 
     @pytest.mark.asyncio
-    async def test_add_tag_api_call(
-        self, executor: ActionExecutor, mock_http: AsyncMock
-    ) -> None:
+    async def test_add_tag_api_call(self, executor: ActionExecutor, mock_http: AsyncMock) -> None:
         """ADD_TAG generates correct API call."""
         task = Task(gid="task_123")
         action = ActionOperation(
@@ -419,16 +401,12 @@ class TestActionExecutorResponseHandling:
             task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_456")
         )
 
-        mock_http.request.return_value = {
-            "data": {"gid": "tag_456", "name": "Important"}
-        }
+        mock_http.request.return_value = {"data": {"gid": "tag_456", "name": "Important"}}
 
         results = await executor.execute_async([action], {})
 
         assert results[0].success is True
-        assert results[0].response_data == {
-            "data": {"gid": "tag_456", "name": "Important"}
-        }
+        assert results[0].response_data == {"data": {"gid": "tag_456", "name": "Important"}}
         assert results[0].error is None
 
     @pytest.mark.asyncio
@@ -523,9 +501,7 @@ class TestActionToBatchRequest:
     ) -> None:
         """Parametrized test covering action types with targets."""
         task = Task(gid="task_123", name="Test")
-        action = ActionOperation(
-            task=task, action=action_type, target=NameGid(gid=target_gid)
-        )
+        action = ActionOperation(task=task, action=action_type, target=NameGid(gid=target_gid))
 
         result = action_to_batch_request(action)
 
@@ -776,12 +752,8 @@ class TestBatchExecutionPath:
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-            ),
-            ActionOperation(
-                task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_2")
-            ),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")),
+            ActionOperation(task=task, action=ActionType.REMOVE_TAG, target=NameGid(gid="tag_2")),
         ]
 
         results = await executor.execute_async(actions, {})
@@ -807,9 +779,7 @@ class TestBatchExecutionPath:
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
-            )
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}"))
             for i in range(25)
         ]
 
@@ -826,9 +796,7 @@ class TestBatchExecutionPath:
         """1 action -> sequential path (direct HTTP), batch_client not called."""
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
         task = Task(gid="task_1", name="Test")
-        action = ActionOperation(
-            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-        )
+        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1"))
 
         results = await executor.execute_async([action], {})
 
@@ -838,16 +806,12 @@ class TestBatchExecutionPath:
         mock_http_for_batch.request.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_no_batch_client_uses_sequential(
-        self, mock_http_for_batch: AsyncMock
-    ) -> None:
+    async def test_no_batch_client_uses_sequential(self, mock_http_for_batch: AsyncMock) -> None:
         """batch_client=None -> sequential path for any count."""
         executor = ActionExecutor(mock_http_for_batch, None)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
-            )
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}"))
             for i in range(5)
         ]
 
@@ -864,16 +828,13 @@ class TestBatchExecutionPath:
         """10 mixed actions -> results in same order as input."""
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
-            )
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}"))
             for i in range(10)
         ]
 
         # Return results with identifiable data
         mock_batch_client.execute_async.return_value = [
-            BatchResult(status_code=200, body={"data": {"gid": f"result_{i}"}})
-            for i in range(10)
+            BatchResult(status_code=200, body={"data": {"gid": f"result_{i}"}}) for i in range(10)
         ]
 
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
@@ -952,12 +913,8 @@ class TestChunkFallback:
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-            ),
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")
-            ),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")),
         ]
 
         results = await executor.execute_async(actions, {})
@@ -981,9 +938,7 @@ class TestChunkFallback:
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
-            )
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}"))
             for i in range(15)
         ]
 
@@ -1006,12 +961,8 @@ class TestChunkFallback:
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-            ),
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")
-            ),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")),
         ]
 
         results = await executor.execute_async(actions, {})
@@ -1035,12 +986,8 @@ class TestChunkFallback:
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-            ),
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")
-            ),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")),
         ]
 
         await executor.execute_async(actions, {})
@@ -1074,15 +1021,9 @@ class TestChunkFallback:
 
         task = Task(gid="123456", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="100")
-            ),
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="101")
-            ),
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="102")
-            ),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="100")),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="101")),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="102")),
         ]
 
         results = await executor.execute_async(actions, {})
@@ -1139,9 +1080,7 @@ class TestEdgeCases:
         """EC-002: 1 action -> sequential, batch_client.execute_async not called."""
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
         task = Task(gid="task_1", name="Test")
-        action = ActionOperation(
-            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-        )
+        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1"))
 
         results = await executor.execute_async([action], {})
 
@@ -1154,16 +1093,12 @@ class TestEdgeCases:
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
         """EC-003: All BatchResults have success=False -> all failed ActionResults."""
-        mock_batch_client.execute_async.return_value = [
-            _make_batch_result(False) for _ in range(3)
-        ]
+        mock_batch_client.execute_async.return_value = [_make_batch_result(False) for _ in range(3)]
 
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
-            )
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}"))
             for i in range(3)
         ]
 
@@ -1191,9 +1126,7 @@ class TestEdgeCases:
                 action=ActionType.ADD_TO_PROJECT,
                 target=NameGid(gid="proj_1"),
             ),
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-            ),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")),
         ]
 
         results = await executor.execute_async(actions, {})
@@ -1221,9 +1154,7 @@ class TestEdgeCases:
                 action=ActionType.MOVE_TO_SECTION,
                 target=NameGid(gid="section_1"),
             ),
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-            ),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")),
         ]
 
         results = await executor.execute_async(actions, {})
@@ -1239,19 +1170,13 @@ class TestEdgeCases:
         """EC-006: batch_client raises (simulating exhausted 429 retries) -> fallback."""
         from autom8_asana.errors import RateLimitError
 
-        mock_batch_client.execute_async.side_effect = RateLimitError(
-            "Rate limited", retry_after=30
-        )
+        mock_batch_client.execute_async.side_effect = RateLimitError("Rate limited", retry_after=30)
 
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-            ),
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")
-            ),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")),
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_2")),
         ]
 
         results = await executor.execute_async(actions, {})
@@ -1267,8 +1192,7 @@ class TestEdgeCases:
     ) -> None:
         """EC-007: 5 ADD_COMMENT on same task -> all in tier 0, order preserved."""
         mock_batch_client.execute_async.return_value = [
-            BatchResult(status_code=200, body={"data": {"gid": f"story_{i}"}})
-            for i in range(5)
+            BatchResult(status_code=200, body={"data": {"gid": f"story_{i}"}}) for i in range(5)
         ]
 
         executor = ActionExecutor(mock_http_for_batch, mock_batch_client)
@@ -1302,9 +1226,7 @@ class TestEdgeCases:
         # Total: 3 batch calls
         mock_batch_client.execute_async.side_effect = [
             [_make_batch_result(True, f"r{i}") for i in range(10)],  # Chunk 1 (10 tags)
-            [
-                _make_batch_result(True, f"r{i}") for i in range(6)
-            ],  # Chunk 2 (5 tags + add_project)
+            [_make_batch_result(True, f"r{i}") for i in range(6)],  # Chunk 2 (5 tags + add_project)
             [_make_batch_result(True, "r_move")],  # Chunk 3 (move_to_section)
         ]
 
@@ -1399,17 +1321,14 @@ class TestBatchResultCountMismatchEdgeCases:
         # Return 5 results for 2 requests
         mock_batch.execute_async = AsyncMock(
             return_value=[
-                BatchResult(status_code=200, body={"data": {"gid": f"r{i}"}})
-                for i in range(5)
+                BatchResult(status_code=200, body={"data": {"gid": f"r{i}"}}) for i in range(5)
             ]
         )
 
         executor = ActionExecutor(mock_http, mock_batch)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
-            )
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}"))
             for i in range(2)
         ]
 
@@ -1433,9 +1352,7 @@ class TestBatchResultCountMismatchEdgeCases:
         executor = ActionExecutor(mock_http, mock_batch)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
-            )
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}"))
             for i in range(3)
         ]
 
@@ -1507,19 +1424,14 @@ class TestBatchExecutorScale:
         mock_batch = AsyncMock()
         # 10 chunks of 10
         mock_batch.execute_async.side_effect = [
-            [
-                BatchResult(status_code=200, body={"data": {"gid": f"r{j}"}})
-                for j in range(10)
-            ]
+            [BatchResult(status_code=200, body={"data": {"gid": f"r{j}"}}) for j in range(10)]
             for _ in range(10)
         ]
 
         executor = ActionExecutor(mock_http, mock_batch)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
-            )
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}"))
             for i in range(100)
         ]
 
@@ -1544,18 +1456,14 @@ class TestMetricsLogging:
         mock_batch = AsyncMock()
         mock_batch.execute_async.return_value = [
             BatchResult(status_code=200, body={"data": {"gid": "r1"}}),
-            BatchResult(
-                status_code=500, body={"errors": [{"message": "Server error"}]}
-            ),
+            BatchResult(status_code=500, body={"errors": [{"message": "Server error"}]}),
             BatchResult(status_code=200, body={"data": {"gid": "r3"}}),
         ]
 
         executor = ActionExecutor(mock_http, mock_batch)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
-            )
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}"))
             for i in range(3)
         ]
 
@@ -1600,9 +1508,7 @@ class TestMetricsLogging:
         executor = ActionExecutor(mock_http, mock_batch)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
-            )
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}"))
             for i in range(2)
         ]
 
@@ -1741,9 +1647,7 @@ class TestBatchResultStatusCodes:
         """201 Created should be treated as success."""
         br = BatchResult(status_code=201, body={"data": {"gid": "new_1"}})
         task = Task(gid="task_1", name="Test")
-        action = ActionOperation(
-            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-        )
+        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1"))
 
         result = batch_result_to_action_result(action, br)
         assert result.success is True
@@ -1767,9 +1671,7 @@ class TestBatchResultStatusCodes:
             body={"errors": [{"message": "Bad request"}]},
         )
         task = Task(gid="task_1", name="Test")
-        action = ActionOperation(
-            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-        )
+        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1"))
 
         result = batch_result_to_action_result(action, br)
         assert result.success is False
@@ -1782,9 +1684,7 @@ class TestBatchResultStatusCodes:
             body={"errors": [{"message": "Forbidden"}]},
         )
         task = Task(gid="task_1", name="Test")
-        action = ActionOperation(
-            task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1")
-        )
+        action = ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid="tag_1"))
 
         result = batch_result_to_action_result(action, br)
         assert result.success is False
@@ -1806,9 +1706,7 @@ class TestDoubleFailure:
         executor = ActionExecutor(mock_http, mock_batch)
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
-            )
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}"))
             for i in range(3)
         ]
 
@@ -1827,9 +1725,7 @@ class TestChunkBoundaryEdgeCases:
         """11 actions into chunks of 10: [10, 1]."""
         task = Task(gid="task_1", name="Test")
         actions = [
-            ActionOperation(
-                task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}")
-            )
+            ActionOperation(task=task, action=ActionType.ADD_TAG, target=NameGid(gid=f"tag_{i}"))
             for i in range(11)
         ]
         chunks = _chunk_actions(actions, 10)

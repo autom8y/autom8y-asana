@@ -156,9 +156,7 @@ class DataFrameViewPlugin:
 
         # Fetch tasks from unified store
         assert self._store is not None  # Required for materialization
-        task_data_map = await self._store.get_batch_async(
-            task_gids, freshness=freshness
-        )
+        task_data_map = await self._store.get_batch_async(task_gids, freshness=freshness)
         self._stats["tasks_fetched"] += len(task_data_map)
 
         # Filter to found tasks only
@@ -341,9 +339,7 @@ class DataFrameViewPlugin:
         # Derived field - use extraction method
         if source is None:
             # Per WS3-001: Some derived fields require async resolution
-            async_result = await self._extract_derived_field_async(
-                task_data, col.name, project_gid
-            )
+            async_result = await self._extract_derived_field_async(task_data, col.name, project_gid)
             if async_result is not None:
                 return async_result
             return self._extract_derived_field(task_data, col.name, project_gid)
@@ -393,9 +389,7 @@ class DataFrameViewPlugin:
                 return local_value
         else:
             # Fallback: try to extract from custom_fields directly
-            local_value = self._extract_custom_field_value_from_dict(
-                task_data, field_name
-            )
+            local_value = self._extract_custom_field_value_from_dict(task_data, field_name)
             if local_value is not None:
                 return local_value
 
@@ -422,9 +416,7 @@ class DataFrameViewPlugin:
         if not parent_chain:
             # INFO-level logging when cascade resolution gets empty chain
             parent = task_data.get("parent")
-            parent_gid_for_log = (
-                parent.get("gid") if parent and isinstance(parent, dict) else None
-            )
+            parent_gid_for_log = parent.get("gid") if parent and isinstance(parent, dict) else None
             logger.info(
                 "cascade_resolution_empty_chain",
                 extra={
@@ -463,9 +455,7 @@ class DataFrameViewPlugin:
         if self._cascade_plugin is None:
             return None
         for parent_data in parent_chain:
-            value = self._cascade_plugin._get_custom_field_value_from_dict(
-                parent_data, field_name
-            )
+            value = self._cascade_plugin._get_custom_field_value_from_dict(parent_data, field_name)
             if value is not None:
                 return value
 
@@ -491,10 +481,8 @@ class DataFrameViewPlugin:
                             freshness=FreshnessIntent.IMMEDIATE,
                         )
                         if grandparent_data and self._cascade_plugin is not None:
-                            value = (
-                                self._cascade_plugin._get_custom_field_value_from_dict(
-                                    grandparent_data, field_name
-                                )
+                            value = self._cascade_plugin._get_custom_field_value_from_dict(
+                                grandparent_data, field_name
                             )
                             if value is not None:
                                 logger.info(
@@ -680,8 +668,7 @@ class DataFrameViewPlugin:
         last_parent = parent_chain[-1]
         last_parent_parent = last_parent.get("parent")
         if last_parent_parent is None or (
-            isinstance(last_parent_parent, dict)
-            and last_parent_parent.get("gid") is None
+            isinstance(last_parent_parent, dict) and last_parent_parent.get("gid") is None
         ):
             return last_parent.get("name")
 
@@ -807,11 +794,7 @@ class DataFrameViewPlugin:
         # Handle tags
         if source == "tags" and value is not None:
             if isinstance(value, list):
-                return [
-                    t.get("name")
-                    for t in value
-                    if isinstance(t, dict) and t.get("name")
-                ]
+                return [t.get("name") for t in value if isinstance(t, dict) and t.get("name")]
             return []
 
         # Parse datetime/date based on column dtype

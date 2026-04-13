@@ -82,9 +82,7 @@ class MemoryTier:
     max_entries: int = 100
 
     # Internal state
-    _cache: OrderedDict[str, CacheEntry] = field(
-        default_factory=OrderedDict, init=False
-    )
+    _cache: OrderedDict[str, CacheEntry] = field(default_factory=OrderedDict, init=False)
     _lock: threading.RLock = field(default_factory=threading.RLock, init=False)
     _current_bytes: int = field(default=0, init=False)
     _container_memory_bytes: int = field(default=0, init=False)
@@ -198,9 +196,7 @@ class MemoryTier:
             cutoff = now.timestamp() - max_age_seconds
 
             stale_keys = [
-                key
-                for key, entry in self._cache.items()
-                if entry.created_at.timestamp() < cutoff
+                key for key, entry in self._cache.items() if entry.created_at.timestamp() < cutoff
             ]
 
             for key in stale_keys:

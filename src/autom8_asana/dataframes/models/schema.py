@@ -141,10 +141,7 @@ class DataFrameSchema:
         Returns:
             True if any column has a cascade: source prefix.
         """
-        return any(
-            col.source and col.source.lower().startswith("cascade:")
-            for col in self.columns
-        )
+        return any(col.source and col.source.lower().startswith("cascade:") for col in self.columns)
 
     def get_cascade_columns(self) -> list[tuple[str, str]]:
         """Extract cascade column pairs from schema.

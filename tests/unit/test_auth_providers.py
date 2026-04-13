@@ -18,9 +18,7 @@ from autom8_asana.errors import AuthenticationError
 class TestEnvAuthProvider:
     """Tests for EnvAuthProvider."""
 
-    def test_reads_from_environment_variable(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_reads_from_environment_variable(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """get_secret reads value from environment variable."""
         monkeypatch.setenv("ASANA_PAT", "my-secret-token")
         provider = EnvAuthProvider()
@@ -77,9 +75,7 @@ class TestEnvAuthProvider:
 
         assert result == "custom-token-value"
 
-    def test_preserves_whitespace_in_value(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_preserves_whitespace_in_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """get_secret preserves leading/trailing whitespace in non-empty values.
 
         Note: The token itself has surrounding whitespace, but it's not empty
@@ -157,10 +153,7 @@ class TestSecretsManagerAuthProvider:
         provider = SecretsManagerAuthProvider(service_name="asana")
 
         assert provider._build_secret_path("bot_pat") == "autom8y/asana/bot_pat"
-        assert (
-            provider._build_secret_path("workspace_gid")
-            == "autom8y/asana/workspace_gid"
-        )
+        assert provider._build_secret_path("workspace_gid") == "autom8y/asana/workspace_gid"
 
     def test_build_secret_path_custom_pattern(self) -> None:
         """Custom pattern builds paths with custom format."""
@@ -196,18 +189,14 @@ class TestSecretsManagerAuthProvider:
         result = provider.get_secret("bot_pat")
 
         assert result == "fetched_token"
-        mock_client.get_secret_value.assert_called_once_with(
-            SecretId="autom8y/asana/bot_pat"
-        )
+        mock_client.get_secret_value.assert_called_once_with(SecretId="autom8y/asana/bot_pat")
         # Verify cached
         assert provider._cache["bot_pat"] == "fetched_token"
 
     def test_get_secret_handles_resource_not_found(self) -> None:
         """get_secret raises AuthenticationError for missing secret."""
         mock_client = MagicMock()
-        error_response: dict[str, Any] = {
-            "Error": {"Code": "ResourceNotFoundException"}
-        }
+        error_response: dict[str, Any] = {"Error": {"Code": "ResourceNotFoundException"}}
         mock_client.get_secret_value.side_effect = Exception("Not found")
         mock_client.get_secret_value.side_effect.response = error_response  # type: ignore[attr-defined]
 

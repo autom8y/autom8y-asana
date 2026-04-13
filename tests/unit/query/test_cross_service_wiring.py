@@ -103,9 +103,7 @@ class TestSavedQueryYAMLLoading:
     def test_load_offers_with_spend_yaml(self) -> None:
         """The actual offers_with_spend.yaml file loads successfully."""
         yaml_path = (
-            Path(__file__).parent.parent.parent.parent
-            / "queries"
-            / "offers_with_spend.yaml"
+            Path(__file__).parent.parent.parent.parent / "queries" / "offers_with_spend.yaml"
         )
         if not yaml_path.exists():
             pytest.skip("offers_with_spend.yaml not found")
@@ -248,9 +246,7 @@ class TestCreateDataClientIfNeeded:
             ),
         ):
             mock_cls.return_value = "mock_client"
-            result = _create_data_client_if_needed(
-                {"source": "data-service", "factory": "spend"}
-            )
+            result = _create_data_client_if_needed({"source": "data-service", "factory": "spend"})
         assert result == "mock_client"
 
     def test_creates_client_with_auth_provider(self) -> None:
@@ -266,9 +262,7 @@ class TestCreateDataClientIfNeeded:
             ),
         ):
             mock_cls.return_value = "mock_client"
-            _create_data_client_if_needed(
-                {"source": "data-service", "factory": "spend"}
-            )
+            _create_data_client_if_needed({"source": "data-service", "factory": "spend"})
         mock_cls.assert_called_once_with(auth_provider=mock_auth)
 
     def test_raises_cli_error_on_init_failure(self) -> None:
@@ -285,9 +279,7 @@ class TestCreateDataClientIfNeeded:
             ),
             pytest.raises(CLIError, match="Data-service joins require"),
         ):
-            _create_data_client_if_needed(
-                {"source": "data-service", "factory": "spend"}
-            )
+            _create_data_client_if_needed({"source": "data-service", "factory": "spend"})
 
 
 class TestServiceTokenAuthProvider:
@@ -369,9 +361,7 @@ class TestBatchErrorHandlerStrCoercion:
         from autom8_asana.clients.data._pii import mask_pii_in_string
 
         # Simulate what the error handler does after the fix
-        detail = [
-            {"type": "missing", "loc": ["body", "frame_type"], "msg": "Field required"}
-        ]
+        detail = [{"type": "missing", "loc": ["body", "frame_type"], "msg": "Field required"}]
         result = mask_pii_in_string(str(detail))
         assert "Field required" in result
 

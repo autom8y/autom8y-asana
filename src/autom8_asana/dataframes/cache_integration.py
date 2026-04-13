@@ -381,9 +381,7 @@ class DataFrameCacheIntegration:
                 key = make_dataframe_key(task_gid, project_gid)
 
                 # Normalize version
-                version_dt = (
-                    parse_version(version) if isinstance(version, str) else version
-                )
+                version_dt = parse_version(version) if isinstance(version, str) else version
                 if version_dt.tzinfo is None:
                     version_dt = version_dt.replace(tzinfo=UTC)
 
@@ -595,9 +593,7 @@ class DataFrameCacheIntegration:
             True if cache is current (not stale), False if stale.
         """
         current = (
-            parse_version(current_version)
-            if isinstance(current_version, str)
-            else current_version
+            parse_version(current_version) if isinstance(current_version, str) else current_version
         )
 
         # Normalize timezones

@@ -91,9 +91,7 @@ if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
 
 DEFAULT_KEY_COLUMNS: dict[str, list[str]] = {
-    d.name: list(d.key_columns)
-    for d in _get_entity_registry().all_descriptors()
-    if d.key_columns
+    d.name: list(d.key_columns) for d in _get_entity_registry().all_descriptors() if d.key_columns
 }
 
 
@@ -186,9 +184,7 @@ class UniversalResolutionStrategy:
             from autom8_asana.services.resolver import validate_criterion_for_entity
 
             results: list[ResolutionResult | None] = [None] * len(criteria)
-            groups: dict[tuple[str, ...], list[tuple[int, dict[str, Any]]]] = (
-                defaultdict(list)
-            )
+            groups: dict[tuple[str, ...], list[tuple[int, dict[str, Any]]]] = defaultdict(list)
 
             for i, criterion in enumerate(criteria):
                 validation = validate_criterion_for_entity(self.entity_type, criterion)
@@ -252,15 +248,11 @@ class UniversalResolutionStrategy:
                         },
                     )
                     null_slot_count += 1
-                    final_results.append(
-                        ResolutionResult.error_result("RESOLUTION_NULL_SLOT")
-                    )
+                    final_results.append(ResolutionResult.error_result("RESOLUTION_NULL_SLOT"))
 
             # Log batch completion
             elapsed_ms = (time.monotonic() - start_time) * 1000
-            resolved_count = sum(
-                1 for r in final_results if r.gid is not None and r.error is None
-            )
+            resolved_count = sum(1 for r in final_results if r.gid is not None and r.error is None)
             multi_match_count = sum(1 for r in final_results if r.is_ambiguous)
 
             span.set_attribute("strategy.resolved_count", resolved_count)
@@ -342,16 +334,12 @@ class UniversalResolutionStrategy:
                 span.record_exception(e)
                 span.set_status(StatusCode.ERROR, description="INDEX_UNAVAILABLE")
                 for original_idx, _normalized in entries:
-                    results[original_idx] = ResolutionResult.error_result(
-                        "INDEX_UNAVAILABLE"
-                    )
+                    results[original_idx] = ResolutionResult.error_result("INDEX_UNAVAILABLE")
                 return
 
             if index is None:
                 for original_idx, _normalized in entries:
-                    results[original_idx] = ResolutionResult.error_result(
-                        "INDEX_UNAVAILABLE"
-                    )
+                    results[original_idx] = ResolutionResult.error_result("INDEX_UNAVAILABLE")
                 return
 
             # Per TDD-STATUS-AWARE-RESOLUTION / FR-2, FR-7:
@@ -379,16 +367,12 @@ class UniversalResolutionStrategy:
                         # Per TDD-STATUS-AWARE-RESOLUTION / FR-1:
                         # Filter to active statuses when active_only=True
                         if active_only:
-                            classified = [
-                                (g, s) for g, s in classified if s in _ACTIVE_STATUSES
-                            ]
+                            classified = [(g, s) for g, s in classified if s in _ACTIVE_STATUSES]
 
                         # Per TDD-STATUS-AWARE-RESOLUTION / FR-8:
                         # Sort by ACTIVITY_PRIORITY (stable sort)
                         classified.sort(
-                            key=lambda pair: _PRIORITY_MAP.get(
-                                pair[1], _UNKNOWN_PRIORITY
-                            )
+                            key=lambda pair: _PRIORITY_MAP.get(pair[1], _UNKNOWN_PRIORITY)
                         )
 
                         sorted_gids = [g for g, _s in classified]
@@ -397,9 +381,7 @@ class UniversalResolutionStrategy:
                         # Enrich if fields requested (existing, unchanged)
                         context: list[dict[str, Any]] | None = None
                         if requested_fields and sorted_gids:
-                            context = self._enrich_from_dataframe(
-                                df, sorted_gids, requested_fields
-                            )
+                            context = self._enrich_from_dataframe(df, sorted_gids, requested_fields)
 
                         # Per TDD-STATUS-AWARE-RESOLUTION / FR-9, EC-1:
                         # Empty after filtering -> NOT_FOUND
@@ -414,12 +396,8 @@ class UniversalResolutionStrategy:
                         # No classifier or no gids: existing behavior, no status
                         context = None
                         if requested_fields and gids and df is not None:
-                            context = self._enrich_from_dataframe(
-                                df, gids, requested_fields
-                            )
-                        results[original_idx] = ResolutionResult.from_gids(
-                            gids, context=context
-                        )
+                            context = self._enrich_from_dataframe(df, gids, requested_fields)
+                        results[original_idx] = ResolutionResult.from_gids(gids, context=context)
 
                 except _LOOKUP_ERRORS as e:  # NARROWED: per-criterion isolation
                     logger.warning(
@@ -438,9 +416,7 @@ class UniversalResolutionStrategy:
                         },
                     )
                     lookup_error_count += 1
-                    results[original_idx] = ResolutionResult.error_result(
-                        "LOOKUP_ERROR"
-                    )
+                    results[original_idx] = ResolutionResult.error_result("LOOKUP_ERROR")
 
             span.set_attribute("strategy.lookup_error_count", lookup_error_count)
 
@@ -731,8 +707,7 @@ class UniversalResolutionStrategy:
 
             # Convert to list of dicts, maintaining GID order
             result_map = {
-                row["gid"]: {k: v for k, v in row.items()}
-                for row in selected.iter_rows(named=True)
+                row["gid"]: {k: v for k, v in row.items()} for row in selected.iter_rows(named=True)
             }
 
             # Return in same order as input GIDs
@@ -945,9 +920,7 @@ class UniversalResolutionStrategy:
 
         descriptor = get_registry().get(self.entity_type)
         if descriptor and descriptor.custom_field_resolver_class_path:
-            module_path, class_name = (
-                descriptor.custom_field_resolver_class_path.rsplit(".", 1)
-            )
+            module_path, class_name = descriptor.custom_field_resolver_class_path.rsplit(".", 1)
             import importlib
 
             module = importlib.import_module(module_path)

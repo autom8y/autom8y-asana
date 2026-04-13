@@ -70,9 +70,7 @@ def _build_patch_stack(
 
     stack = contextlib.ExitStack()
     stack.enter_context(patch.dict("os.environ", env))
-    stack.enter_context(
-        patch("autom8_asana.auth.bot_pat.get_bot_pat", return_value="test-pat")
-    )
+    stack.enter_context(patch("autom8_asana.auth.bot_pat.get_bot_pat", return_value="test-pat"))
     stack.enter_context(
         patch(
             "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
@@ -86,12 +84,8 @@ def _build_patch_stack(
         )
     )
     stack.enter_context(patch("autom8_asana.dataframes.models.registry.SchemaRegistry"))
-    stack.enter_context(
-        patch("autom8_asana.dataframes.resolver.DefaultCustomFieldResolver")
-    )
-    stack.enter_context(
-        patch("autom8_asana.cache.integration.factory.CacheProviderFactory")
-    )
+    stack.enter_context(patch("autom8_asana.dataframes.resolver.DefaultCustomFieldResolver"))
+    stack.enter_context(patch("autom8_asana.cache.integration.factory.CacheProviderFactory"))
     stack.enter_context(
         patch(
             "autom8_asana.dataframes.section_persistence.SectionPersistence",
@@ -168,9 +162,7 @@ class TestPreloadParquetFallback:
         s3_df = pl.DataFrame({"gid": [str(i) for i in range(100)]})
         s3_watermark = datetime.now(UTC) - timedelta(hours=2)
         mock_df_persistence = MagicMock()
-        mock_df_persistence.load_dataframe = AsyncMock(
-            return_value=(s3_df, s3_watermark)
-        )
+        mock_df_persistence.load_dataframe = AsyncMock(return_value=(s3_df, s3_watermark))
 
         mock_cache = MagicMock()
         mock_cache.put_async = AsyncMock()
@@ -193,9 +185,7 @@ class TestPreloadParquetFallback:
         assert len(call_args[0][2]) == 100  # DataFrame rows
 
         # Verify watermark was set
-        mock_watermark_repo.set_watermark.assert_called_once_with(
-            "proj_offer", s3_watermark
-        )
+        mock_watermark_repo.set_watermark.assert_called_once_with("proj_offer", s3_watermark)
 
     @pytest.mark.asyncio
     async def test_delegates_to_lambda_when_no_parquet_either(self) -> None:
@@ -359,17 +349,13 @@ class TestPreloadColdStartBuild:
                 )
             )
             mock_builder_instance = MagicMock()
-            mock_builder_instance.build_progressive_async = AsyncMock(
-                return_value=build_result
-            )
+            mock_builder_instance.build_progressive_async = AsyncMock(return_value=build_result)
             mock_builder_cls.return_value = mock_builder_instance
 
             await _preload_dataframe_cache_progressive(app)
 
         # Builder should have been called for the cold-start build
-        mock_builder_instance.build_progressive_async.assert_awaited_once_with(
-            resume=True
-        )
+        mock_builder_instance.build_progressive_async.assert_awaited_once_with(resume=True)
 
         # Cache should have been populated with the build result
         mock_cache.put_async.assert_called_once()

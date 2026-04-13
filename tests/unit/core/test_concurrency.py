@@ -165,9 +165,7 @@ class TestConcurrencyBound:
         coros = [_tracked() for _ in range(10)]
         await gather_with_semaphore(coros, concurrency=2)
 
-        assert max_concurrent <= 2, (
-            f"Expected at most 2 concurrent, observed {max_concurrent}"
-        )
+        assert max_concurrent <= 2, f"Expected at most 2 concurrent, observed {max_concurrent}"
         assert max_concurrent == 2, (
             f"Expected exactly 2 concurrent (sanity check), observed {max_concurrent}"
         )

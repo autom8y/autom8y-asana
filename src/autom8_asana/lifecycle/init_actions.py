@@ -108,7 +108,9 @@ class CommentHandler(InitActionHandler):
             )
             return CreationResult(success=True, entity_gid="")
 
-        except Exception as e:  # BROAD-CATCH: boundary -- comment failure must not block pipeline transition
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: boundary -- comment failure must not block pipeline transition
             logger.warning(
                 "lifecycle_comment_failed",
                 task_gid=created_entity_gid,
@@ -208,11 +210,7 @@ class PlayCreationHandler(InitActionHandler):
                     if dep_gid:
                         memberships = (
                             getattr(dep, "memberships", None)
-                            or (
-                                dep.get("memberships")
-                                if isinstance(dep, dict)
-                                else None
-                            )
+                            or (dep.get("memberships") if isinstance(dep, dict) else None)
                             or []
                         )
                         for membership in memberships:
@@ -247,9 +245,7 @@ class PlayCreationHandler(InitActionHandler):
 
             assert action_config.project_gid is not None  # validated at config load
             template_discovery = TemplateDiscovery(self._client)
-            template = await template_discovery.find_template_task_async(
-                action_config.project_gid
-            )
+            template = await template_discovery.find_template_task_async(action_config.project_gid)
 
             if not template:
                 logger.warning(
@@ -336,9 +332,7 @@ class PlayCreationHandler(InitActionHandler):
 
             # Take the first (most recent) completed task
             candidate = task_list[0]
-            candidate_gid = (
-                candidate.gid if hasattr(candidate, "gid") else candidate.get("gid")
-            )
+            candidate_gid = candidate.gid if hasattr(candidate, "gid") else candidate.get("gid")
 
             if not candidate_gid:
                 return None
@@ -364,7 +358,9 @@ class PlayCreationHandler(InitActionHandler):
                 was_reopened=True,
             )
 
-        except Exception as e:  # BROAD-CATCH: boundary -- reopen failure is non-fatal, falls through to create new
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: boundary -- reopen failure is non-fatal, falls through to create new
             # Reopen failure is non-fatal; fall through to create new
             logger.warning(
                 "lifecycle_play_reopen_failed",
@@ -478,9 +474,7 @@ class ProductsCheckHandler(InitActionHandler):
                     if fnmatch.fnmatch(str(product).lower(), pattern.lower()):
                         matched = True
                         break
-            elif isinstance(products, str) and fnmatch.fnmatch(
-                products.lower(), pattern.lower()
-            ):
+            elif isinstance(products, str) and fnmatch.fnmatch(products.lower(), pattern.lower()):
                 matched = True
 
             if not matched:

@@ -89,8 +89,7 @@ class TestSchemaRegistryAutoWire:
         for key, expected_name in expected_names.items():
             assert key in schemas, f"Missing schema for {key}"
             assert schemas[key].name == expected_name, (
-                f"Schema for {key} has name {schemas[key].name!r}, "
-                f"expected {expected_name!r}"
+                f"Schema for {key} has name {schemas[key].name!r}, expected {expected_name!r}"
             )
 
     def test_descriptor_schema_key_matches_registry_key(self) -> None:

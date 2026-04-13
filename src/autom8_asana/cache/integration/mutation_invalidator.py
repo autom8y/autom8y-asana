@@ -109,7 +109,9 @@ class MutationInvalidator:
                     "mutation_invalidator_unsupported_kind",
                     extra={"entity_kind": event.entity_kind.value},
                 )
-        except Exception as exc:  # BROAD-CATCH: isolation -- background task boundary, must never propagate
+        except (
+            Exception
+        ) as exc:  # BROAD-CATCH: isolation -- background task boundary, must never propagate
             logger.error(
                 "mutation_invalidation_failed",
                 extra={
@@ -230,9 +232,7 @@ class MutationInvalidator:
 
     # --- Private: Invalidation Primitives ---
 
-    def _invalidate_entity_entries(
-        self, gid: str, event: MutationEvent | None = None
-    ) -> None:
+    def _invalidate_entity_entries(self, gid: str, event: MutationEvent | None = None) -> None:
         """Invalidate or soft-mark TASK, SUBTASKS, DETECTION entries for a GID.
 
         If soft invalidation is enabled and the event qualifies, entries
@@ -271,10 +271,7 @@ class MutationInvalidator:
         and writes back. If the entry does not exist or has no stamp,
         falls back to hard invalidation.
         """
-        hint = (
-            f"mutation:{event.entity_kind.value}:"
-            f"{event.mutation_type.value}:{event.entity_gid}"
-        )
+        hint = f"mutation:{event.entity_kind.value}:{event.mutation_type.value}:{event.entity_gid}"
 
         for entry_type in _TASK_ENTRY_TYPES:
             try:
@@ -299,7 +296,9 @@ class MutationInvalidator:
                     },
                 )
 
-            except Exception as exc:  # BROAD-CATCH: isolation -- per-entry loop with fallback to hard invalidation
+            except (
+                Exception
+            ) as exc:  # BROAD-CATCH: isolation -- per-entry loop with fallback to hard invalidation
                 logger.warning(
                     "soft_invalidation_failed_falling_back",
                     extra={
@@ -311,9 +310,7 @@ class MutationInvalidator:
                 # Fallback: hard invalidate on any error
                 try:
                     self._cache.invalidate(gid, [entry_type])
-                except (
-                    Exception
-                ):  # BROAD-CATCH: isolation -- last-resort fallback, must not fail
+                except Exception:  # BROAD-CATCH: isolation -- last-resort fallback, must not fail
                     logger.warning(
                         "hard_invalidation_fallback_failed",
                         extra={
@@ -324,9 +321,7 @@ class MutationInvalidator:
                     )
                     pass
 
-    def _invalidate_per_task_dataframes(
-        self, task_gid: str, project_gids: list[str]
-    ) -> None:
+    def _invalidate_per_task_dataframes(self, task_gid: str, project_gids: list[str]) -> None:
         """Invalidate per-task DataFrame entries (task_gid:project_gid keys)."""
         from autom8_asana.cache.integration.dataframes import invalidate_task_dataframes
 

@@ -292,28 +292,18 @@ class TestComputeParity:
         metric = _make_metric(
             "weekly_ad_spend",
             cast_dtype=pl.Float64,
-            filter_expr=(
-                pl.col("weekly_ad_spend").is_not_null()
-                & (pl.col("weekly_ad_spend") > 0)
-            ),
+            filter_expr=(pl.col("weekly_ad_spend").is_not_null() & (pl.col("weekly_ad_spend") > 0)),
             dedup_keys=["office_phone", "vertical"],
         )
         result = compute_metric(metric, sample_offer_df)
 
         # Reproduce old script logic
         old_result = (
-            sample_offer_df.select(
-                "name", "office_phone", "vertical", "weekly_ad_spend"
-            )
+            sample_offer_df.select("name", "office_phone", "vertical", "weekly_ad_spend")
             .with_columns(
-                pl.col("weekly_ad_spend")
-                .cast(pl.Float64, strict=False)
-                .alias("weekly_ad_spend")
+                pl.col("weekly_ad_spend").cast(pl.Float64, strict=False).alias("weekly_ad_spend")
             )
-            .filter(
-                pl.col("weekly_ad_spend").is_not_null()
-                & (pl.col("weekly_ad_spend") > 0)
-            )
+            .filter(pl.col("weekly_ad_spend").is_not_null() & (pl.col("weekly_ad_spend") > 0))
             .unique(subset=["office_phone", "vertical"], keep="first")
         )
 

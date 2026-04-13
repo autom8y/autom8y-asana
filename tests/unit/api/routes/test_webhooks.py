@@ -188,9 +188,7 @@ class TestInvalidateStaleCacheTask:
         )
 
         assert result is True
-        mock_cache_provider.invalidate.assert_called_once_with(
-            "12345", _TASK_ENTRY_TYPES
-        )
+        mock_cache_provider.invalidate.assert_called_once_with("12345", _TASK_ENTRY_TYPES)
 
     def test_skips_when_inbound_older(self, mock_cache_provider):
         """Should skip when inbound modified_at is older than cached."""
@@ -338,9 +336,7 @@ class TestReceiveInboundWebhook:
         assert response.status_code == 401
         assert response.json()["detail"]["error"]["code"] == "INVALID_TOKEN"
 
-    def test_unconfigured_token_returns_503(
-        self, test_client_unconfigured, sample_task_payload
-    ):
+    def test_unconfigured_token_returns_503(self, test_client_unconfigured, sample_task_payload):
         """When token is not configured, should return 503."""
         response = test_client_unconfigured.post(
             "/api/v1/webhooks/inbound?token=any-token",
@@ -402,9 +398,7 @@ class TestReceiveInboundWebhook:
 
     def test_background_task_enqueued(self, test_client, sample_task_payload):
         """Background task should be added via BackgroundTasks."""
-        with patch(
-            "autom8_asana.api.routes.webhooks._process_inbound_task"
-        ) as mock_process:
+        with patch("autom8_asana.api.routes.webhooks._process_inbound_task") as mock_process:
             response = test_client.post(
                 f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
                 json=sample_task_payload,
@@ -428,9 +422,7 @@ class TestReceiveInboundWebhook:
             assert response.status_code == 200
             # Find the webhook_task_received call
             info_calls = [
-                c
-                for c in mock_logger.info.call_args_list
-                if c[0][0] == "webhook_task_received"
+                c for c in mock_logger.info.call_args_list if c[0][0] == "webhook_task_received"
             ]
             assert len(info_calls) == 1
             extra = info_calls[0][1]["extra"]
@@ -577,9 +569,7 @@ class TestProcessInboundTask:
 
         task = Task.model_validate({"gid": "12345", "resource_type": "task"})
         mock_dispatcher = MagicMock()
-        mock_dispatcher.dispatch = AsyncMock(
-            side_effect=RuntimeError("Dispatch failed")
-        )
+        mock_dispatcher.dispatch = AsyncMock(side_effect=RuntimeError("Dispatch failed"))
         set_dispatcher(mock_dispatcher)
 
         # Should not raise
@@ -944,9 +934,7 @@ class TestAdversarialCacheInvalidation:
         assert result is False
         mock_cache_provider.get_versioned.assert_not_called()
 
-    def test_invalidation_error_during_delete_does_not_propagate(
-        self, mock_cache_provider
-    ):
+    def test_invalidation_error_during_delete_does_not_propagate(self, mock_cache_provider):
         """Error during cache.invalidate() should be caught."""
         cached_entry = CacheEntry(
             key="12345",
@@ -975,15 +963,11 @@ class TestAdversarialCacheInvalidation:
             f"MutationInvalidator {MUTATION_TASK_ENTRY_TYPES}"
         )
 
-    def test_cache_provider_attribute_access_safe(
-        self, test_client, sample_task_payload
-    ):
+    def test_cache_provider_attribute_access_safe(self, test_client, sample_task_payload):
         """When app.state has no mutation_invalidator, cache_provider should be None."""
         # The test_client fixture creates a bare FastAPI app without
         # mutation_invalidator on app.state. Verify it does not crash.
-        with patch(
-            "autom8_asana.api.routes.webhooks._process_inbound_task"
-        ) as mock_process:
+        with patch("autom8_asana.api.routes.webhooks._process_inbound_task") as mock_process:
             response = test_client.post(
                 f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
                 json=sample_task_payload,
@@ -1132,9 +1116,7 @@ class TestAdversarialSecurityLogging:
             )
             for call in all_calls:
                 call_str = str(call)
-                assert _TEST_TOKEN not in call_str, (
-                    f"Token value found in log call: {call_str}"
-                )
+                assert _TEST_TOKEN not in call_str, f"Token value found in log call: {call_str}"
 
     def test_token_value_not_in_rejection_logs(self, test_client):
         """Token value must not appear in logs for rejected requests."""

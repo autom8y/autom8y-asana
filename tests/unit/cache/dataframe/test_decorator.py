@@ -75,9 +75,7 @@ class TestDataframeCacheDecorator:
             entity_type="unit",
         )
         class TestStrategy:
-            async def resolve(
-                self, criteria: list, project_gid: str, client: object
-            ) -> list:
+            async def resolve(self, criteria: list, project_gid: str, client: object) -> list:
                 # Access injected dataframe
                 df = getattr(self, "_cached_dataframe", None)
                 return [{"gid": "1", "cached": df is not None}]
@@ -99,9 +97,7 @@ class TestDataframeCacheDecorator:
             entity_type="unit",
         )
         class TestStrategy:
-            async def resolve(
-                self, criteria: list, project_gid: str, client: object
-            ) -> list:
+            async def resolve(self, criteria: list, project_gid: str, client: object) -> list:
                 return [{"gid": "1"}]
 
             async def _build_dataframe(
@@ -116,9 +112,7 @@ class TestDataframeCacheDecorator:
         assert result[0]["gid"] == "1"
         mock_cache.acquire_build_lock_async.assert_called_once()
         mock_cache.put_async.assert_called_once()
-        mock_cache.release_build_lock_async.assert_called_once_with(
-            "proj-1", "unit", success=True
-        )
+        mock_cache.release_build_lock_async.assert_called_once_with("proj-1", "unit", success=True)
 
     @pytest.mark.asyncio
     async def test_build_in_progress_waits(self) -> None:
@@ -132,9 +126,7 @@ class TestDataframeCacheDecorator:
             entity_type="unit",
         )
         class TestStrategy:
-            async def resolve(
-                self, criteria: list, project_gid: str, client: object
-            ) -> list:
+            async def resolve(self, criteria: list, project_gid: str, client: object) -> list:
                 return [{"gid": "1"}]
 
         strategy = TestStrategy()
@@ -155,9 +147,7 @@ class TestDataframeCacheDecorator:
             entity_type="unit",
         )
         class TestStrategy:
-            async def resolve(
-                self, criteria: list, project_gid: str, client: object
-            ) -> list:
+            async def resolve(self, criteria: list, project_gid: str, client: object) -> list:
                 return []
 
         strategy = TestStrategy()
@@ -178,9 +168,7 @@ class TestDataframeCacheDecorator:
             entity_type="unit",
         )
         class TestStrategy:
-            async def resolve(
-                self, criteria: list, project_gid: str, client: object
-            ) -> list:
+            async def resolve(self, criteria: list, project_gid: str, client: object) -> list:
                 return []
 
             async def _build_dataframe(
@@ -195,9 +183,7 @@ class TestDataframeCacheDecorator:
 
         assert exc_info.value.status_code == 503
         assert exc_info.value.code == "DATAFRAME_BUILD_FAILED"
-        mock_cache.release_build_lock_async.assert_called_once_with(
-            "proj-1", "unit", success=False
-        )
+        mock_cache.release_build_lock_async.assert_called_once_with("proj-1", "unit", success=False)
 
     @pytest.mark.asyncio
     async def test_build_exception_returns_503(self) -> None:
@@ -209,9 +195,7 @@ class TestDataframeCacheDecorator:
             entity_type="unit",
         )
         class TestStrategy:
-            async def resolve(
-                self, criteria: list, project_gid: str, client: object
-            ) -> list:
+            async def resolve(self, criteria: list, project_gid: str, client: object) -> list:
                 return []
 
             async def _build_dataframe(
@@ -242,9 +226,7 @@ class TestDataframeCacheDecorator:
             entity_type="unit",
         )
         class TestStrategy:
-            async def resolve(
-                self, criteria: list, project_gid: str, client: object
-            ) -> list:
+            async def resolve(self, criteria: list, project_gid: str, client: object) -> list:
                 return [{"gid": "bypassed"}]
 
         strategy = TestStrategy()
@@ -262,9 +244,7 @@ class TestDataframeCacheDecorator:
             entity_type="unit",
         )
         class TestStrategy:
-            async def resolve(
-                self, criteria: list, project_gid: str, client: object
-            ) -> list:
+            async def resolve(self, criteria: list, project_gid: str, client: object) -> list:
                 return [{"gid": "no-cache"}]
 
         strategy = TestStrategy()
@@ -283,9 +263,7 @@ class TestDataframeCacheDecorator:
             build_method="_build_offer_data",
         )
         class TestStrategy:
-            async def resolve(
-                self, criteria: list, project_gid: str, client: object
-            ) -> list:
+            async def resolve(self, criteria: list, project_gid: str, client: object) -> list:
                 return [{"gid": "1"}]
 
             async def _build_offer_data(
@@ -309,9 +287,7 @@ class TestDataframeCacheDecorator:
             entity_type="contact",
         )
         class TestStrategy:
-            async def resolve(
-                self, criteria: list, project_gid: str, client: object
-            ) -> list:
+            async def resolve(self, criteria: list, project_gid: str, client: object) -> list:
                 return [{"gid": "1"}]
 
             async def _build_contact_dataframe(
@@ -335,14 +311,10 @@ class TestDataframeCacheDecorator:
             entity_type="unit",
         )
         class TestStrategy:
-            async def resolve(
-                self, criteria: list, project_gid: str, client: object
-            ) -> list:
+            async def resolve(self, criteria: list, project_gid: str, client: object) -> list:
                 return [{"gid": "1"}]
 
-            async def _build_dataframe(
-                self, project_gid: str, client: object
-            ) -> pl.DataFrame:
+            async def _build_dataframe(self, project_gid: str, client: object) -> pl.DataFrame:
                 return pl.DataFrame({"gid": ["1"]})
 
         strategy = TestStrategy()

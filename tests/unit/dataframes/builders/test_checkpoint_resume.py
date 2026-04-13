@@ -37,9 +37,7 @@ class _FakePageIterator:
     """Fake PageIterator that yields a configurable number of tasks."""
 
     def __init__(self, total_tasks: int, start_gid: int = 0) -> None:
-        self._tasks = [
-            _make_mock_task(str(i)) for i in range(start_gid, start_gid + total_tasks)
-        ]
+        self._tasks = [_make_mock_task(str(i)) for i in range(start_gid, start_gid + total_tasks)]
         self._index = 0
 
     def __aiter__(self) -> _FakePageIterator:
@@ -74,9 +72,7 @@ def _make_builder(
     mock_s3_result = MagicMock()
     mock_s3_result.success = True
     mock_s3_result.error = None
-    mock_persistence._s3_client.put_object_async = AsyncMock(
-        return_value=mock_s3_result
-    )
+    mock_persistence._s3_client.put_object_async = AsyncMock(return_value=mock_s3_result)
     mock_persistence._get_manifest_lock = MagicMock(return_value=asyncio.Lock())
     mock_persistence.get_manifest_async = AsyncMock(return_value=manifest)
     mock_persistence._manifest_cache = {}
@@ -99,9 +95,7 @@ def _make_builder(
 
     mock_view = MagicMock()
     mock_view._extract_rows_async = AsyncMock(
-        side_effect=lambda dicts, **kw: [
-            {"gid": d["gid"], "name": d["name"]} for d in dicts
-        ]
+        side_effect=lambda dicts, **kw: [{"gid": d["gid"], "name": d["name"]} for d in dicts]
     )
     builder._dataframe_view = mock_view
 
@@ -148,9 +142,7 @@ class TestResumeFromCheckpoint:
 
         assert result is True
         # read_section_async should have been called to read the checkpoint
-        builder._persistence.read_section_async.assert_called_once_with(
-            "proj_123", "sec_1"
-        )
+        builder._persistence.read_section_async.assert_called_once_with("proj_123", "sec_1")
 
 
 @pytest.mark.asyncio

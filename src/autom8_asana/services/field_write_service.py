@@ -200,9 +200,7 @@ class FieldWriteService:
             from autom8_asana.cache.models.entry import EntryType
 
             self._client.tasks._cache_invalidate(gid, [EntryType.TASK])
-            updated_fields = await self._refetch_updated(
-                gid, resolved_fields, write_info
-            )
+            updated_fields = await self._refetch_updated(gid, resolved_fields, write_info)
 
         # [9] Fire-and-forget cache invalidation
         if mutation_invalidator is not None:
@@ -237,9 +235,7 @@ class FieldWriteService:
         Lets RateLimitError propagate.
         """
         try:
-            result = await self._client.tasks.get_async(
-                gid, raw=True, opt_fields=_TASK_OPT_FIELDS
-            )
+            result = await self._client.tasks.get_async(gid, raw=True, opt_fields=_TASK_OPT_FIELDS)
             return result
         except NotFoundError as exc:
             raise TaskNotFoundError(gid) from exc
@@ -303,9 +299,7 @@ class FieldWriteService:
 
         Maps custom field GIDs back to business field names.
         """
-        task_data = await self._client.tasks.get_async(
-            gid, raw=True, opt_fields=_TASK_OPT_FIELDS
-        )
+        task_data = await self._client.tasks.get_async(gid, raw=True, opt_fields=_TASK_OPT_FIELDS)
         updated: dict[str, Any] = {}
 
         # Build GID -> input_name map for custom fields

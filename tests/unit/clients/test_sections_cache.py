@@ -167,9 +167,7 @@ class TestCacheMissFlow:
     ) -> None:
         """When cache miss, fetch from API."""
         # Arrange: Empty cache, mock HTTP response
-        mock_http.get.return_value = make_section_data(
-            gid=SECTION_GID, name="API Section"
-        )
+        mock_http.get.return_value = make_section_data(gid=SECTION_GID, name="API Section")
 
         # Act
         result = await sections_client.get_async(SECTION_GID)
@@ -191,9 +189,7 @@ class TestCacheMissFlow:
     ) -> None:
         """After cache miss, store API result in cache."""
         # Arrange
-        mock_http.get.return_value = make_section_data(
-            gid=SECTION_GID, name="API Section"
-        )
+        mock_http.get.return_value = make_section_data(gid=SECTION_GID, name="API Section")
 
         # Act
         await sections_client.get_async(SECTION_GID)
@@ -213,9 +209,7 @@ class TestCacheMissFlow:
     ) -> None:
         """Cache miss stores with 1800s (30 min) TTL per TDD-CACHE-UTILIZATION."""
         # Arrange
-        mock_http.get.return_value = make_section_data(
-            gid=SECTION_GID, name="API Section"
-        )
+        mock_http.get.return_value = make_section_data(gid=SECTION_GID, name="API Section")
 
         # Act
         await sections_client.get_async(SECTION_GID)
@@ -233,9 +227,7 @@ class TestCacheMissFlow:
     ) -> None:
         """Cache miss with raw=True stores data and returns dict."""
         # Arrange
-        mock_http.get.return_value = make_section_data(
-            gid=SECTION_GID, name="API Section"
-        )
+        mock_http.get.return_value = make_section_data(gid=SECTION_GID, name="API Section")
 
         # Act
         result = await sections_client.get_async(SECTION_GID, raw=True)
@@ -267,13 +259,9 @@ class TestCacheExpiration:
             cached_at=datetime.now(UTC) - timedelta(hours=1),
             ttl=1800,  # 30 min TTL, but cached 1 hour ago
         )
-        cache_provider._cache[f"{SECTION_GID}:{EntryType.SECTION.value}"] = (
-            expired_entry
-        )
+        cache_provider._cache[f"{SECTION_GID}:{EntryType.SECTION.value}"] = expired_entry
 
-        mock_http.get.return_value = make_section_data(
-            gid=SECTION_GID, name="Fresh Section"
-        )
+        mock_http.get.return_value = make_section_data(gid=SECTION_GID, name="Fresh Section")
 
         # Act
         result = await sections_client.get_async(SECTION_GID)
@@ -295,9 +283,7 @@ class TestNoCacheProvider:
     ) -> None:
         """Without cache provider, always fetch from API."""
         # Arrange
-        mock_http.get.return_value = make_section_data(
-            gid=SECTION_GID, name="API Section"
-        )
+        mock_http.get.return_value = make_section_data(gid=SECTION_GID, name="API Section")
 
         # Act
         result = await sections_client_no_cache.get_async(SECTION_GID)
@@ -327,9 +313,7 @@ class TestGracefulDegradation:
             cache_provider=failing_cache,  # type: ignore[arg-type]
         )
 
-        mock_http.get.return_value = make_section_data(
-            gid=SECTION_GID, name="Fallback Section"
-        )
+        mock_http.get.return_value = make_section_data(gid=SECTION_GID, name="Fallback Section")
 
         # Act: Should not raise, should fall back to API
         result = await sections_client.get_async(SECTION_GID)
@@ -355,9 +339,7 @@ class TestGracefulDegradation:
             cache_provider=failing_cache,  # type: ignore[arg-type]
         )
 
-        mock_http.get.return_value = make_section_data(
-            gid=SECTION_GID, name="API Section"
-        )
+        mock_http.get.return_value = make_section_data(gid=SECTION_GID, name="API Section")
 
         # Act: Should not raise despite cache set failure
         result = await sections_client.get_async(SECTION_GID)
@@ -551,9 +533,7 @@ class TestOptFields:
     ) -> None:
         """Cache miss passes opt_fields to API."""
         # Arrange
-        mock_http.get.return_value = make_section_data(
-            gid=SECTION_GID, name="API Section"
-        )
+        mock_http.get.return_value = make_section_data(gid=SECTION_GID, name="API Section")
 
         # Act
         await sections_client.get_async(SECTION_GID, opt_fields=["name"])

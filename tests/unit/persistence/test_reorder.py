@@ -247,8 +247,7 @@ class TestComputeReorderPlan:
         for move in plan.moves:
             # Reference must be in placed set before this move
             assert move.reference.gid in placed_gids, (
-                f"Move for {move.item.gid} references {move.reference.gid} "
-                f"which is not yet placed"
+                f"Move for {move.item.gid} references {move.reference.gid} which is not yet placed"
             )
             placed_gids.add(move.item.gid)
 
@@ -546,8 +545,7 @@ class TestLISAdversarial:
         # Values must be strictly increasing
         for i in range(1, len(values)):
             assert values[i] > values[i - 1], (
-                f"LIS values not increasing at position {i}: "
-                f"{values[i - 1]} >= {values[i]}"
+                f"LIS values not increasing at position {i}: {values[i - 1]} >= {values[i]}"
             )
 
 
@@ -702,9 +700,7 @@ class TestExhaustiveSmallN:
 
             # The number of moves should equal N - LIS_length
             # This is the mathematical minimum for this problem
-            lis_indices = _compute_lis_indices(
-                [list(desired).index(item) for item in current]
-            )
+            lis_indices = _compute_lis_indices([list(desired).index(item) for item in current])
             expected_moves = n - len(lis_indices)
             assert plan.moves_required == expected_moves, (
                 f"Non-minimal moves for perm {perm}: "

@@ -377,8 +377,7 @@ async def get_dataframe_schema(
             request_id,
             404,
             "SCHEMA_NOT_FOUND",
-            f"Unknown schema: '{name}'. "
-            f"Available schemas: {', '.join(sorted(all_schemas.keys()))}",
+            f"Unknown schema: '{name}'. Available schemas: {', '.join(sorted(all_schemas.keys()))}",
             details={"available_schemas": sorted(all_schemas.keys())},
         )
     return build_success_response(

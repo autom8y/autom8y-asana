@@ -191,9 +191,7 @@ class EnhancedInMemoryCacheProvider(DegradedModeMixin):
 
         with self._lock:
             self._evict_if_needed()
-            self._simple_cache[key] = _SimpleCacheEntry(
-                value=value, expires_at=expires_at
-            )
+            self._simple_cache[key] = _SimpleCacheEntry(value=value, expires_at=expires_at)
 
         latency = (time.perf_counter() - start) * 1000
         self._metrics.record_write(latency, key=key)

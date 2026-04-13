@@ -102,12 +102,8 @@ class DataServiceJoinFetcher:
                 if df.height > 0:
                     frames.append(df)
 
-        _span.set_attribute(
-            "computation.batch.success_count", batch_response.success_count
-        )
-        _span.set_attribute(
-            "computation.batch.failure_count", batch_response.failure_count
-        )
+        _span.set_attribute("computation.batch.success_count", batch_response.success_count)
+        _span.set_attribute("computation.batch.failure_count", batch_response.failure_count)
 
         if not frames:
             logger.warning(
@@ -139,9 +135,7 @@ class DataServiceJoinFetcher:
             },
         )
 
-        _span.set_attribute(
-            "computation.duration_ms", (time.perf_counter() - _fetch_start) * 1000
-        )
+        _span.set_attribute("computation.duration_ms", (time.perf_counter() - _fetch_start) * 1000)
         return combined
 
     def _extract_pvps(self, df: pl.DataFrame, join_key: str) -> list[PhoneVerticalPair]:

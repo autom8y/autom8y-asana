@@ -309,14 +309,10 @@ except ImportError:
     pass
 
 # All transport errors (union of S3 + Redis)
-ALL_TRANSPORT_ERRORS: tuple[type[Exception], ...] = (
-    S3_TRANSPORT_ERRORS + REDIS_TRANSPORT_ERRORS
-)
+ALL_TRANSPORT_ERRORS: tuple[type[Exception], ...] = S3_TRANSPORT_ERRORS + REDIS_TRANSPORT_ERRORS
 
 # Cache-layer errors (transport + semantic)
-CACHE_TRANSIENT_ERRORS: tuple[type[Exception], ...] = ALL_TRANSPORT_ERRORS + (
-    CacheConnectionError,
-)
+CACHE_TRANSIENT_ERRORS: tuple[type[Exception], ...] = ALL_TRANSPORT_ERRORS + (CacheConnectionError,)
 
 # Asana API errors (import-safe)
 # Used by automation/pipeline.py for catch-site convenience.

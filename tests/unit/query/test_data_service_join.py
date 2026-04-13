@@ -216,9 +216,7 @@ class TestDataServiceJoinFetcher:
         )
 
     @pytest.mark.asyncio
-    async def test_basic_fetch(
-        self, primary_df: pl.DataFrame, spend_df: pl.DataFrame
-    ) -> None:
+    async def test_basic_fetch(self, primary_df: pl.DataFrame, spend_df: pl.DataFrame) -> None:
         """Successful batch fetch returns combined DataFrame."""
         mock_client = AsyncMock()
         mock_client.get_insights_batch_async = AsyncMock(
@@ -266,9 +264,7 @@ class TestDataServiceJoinFetcher:
         )
 
         fetcher = DataServiceJoinFetcher(mock_client)
-        await fetcher.fetch_for_join(
-            primary_df=primary_df, factory="spend", period="T30"
-        )
+        await fetcher.fetch_for_join(primary_df=primary_df, factory="spend", period="T30")
 
         # Primary has 4 rows but only 3 unique (phone, vertical) pairs
         call_args = mock_client.get_insights_batch_async.call_args
@@ -611,9 +607,7 @@ class TestQueryEngineDataServiceDispatch:
             ]
         )
 
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry.get_instance"
-        ) as mock_registry:
+        with patch("autom8_asana.query.engine.SchemaRegistry.get_instance") as mock_registry:
             mock_registry.return_value.get_schema.return_value = test_schema
 
             result = await engine.execute_rows(
@@ -632,9 +626,7 @@ class TestQueryEngineDataServiceDispatch:
             assert "spend_spend" in result.data[0]
 
     @pytest.mark.asyncio
-    async def test_data_service_join_requires_data_client(
-        self, mock_provider: MagicMock
-    ) -> None:
+    async def test_data_service_join_requires_data_client(self, mock_provider: MagicMock) -> None:
         """Data-service join without data_client raises JoinError."""
         from autom8_asana.query.engine import QueryEngine
         from autom8_asana.query.models import RowsRequest
@@ -653,9 +645,7 @@ class TestQueryEngineDataServiceDispatch:
         test_schema.get_column = MagicMock(return_value=MagicMock())
 
         with (
-            patch(
-                "autom8_asana.query.engine.SchemaRegistry.get_instance"
-            ) as mock_registry,
+            patch("autom8_asana.query.engine.SchemaRegistry.get_instance") as mock_registry,
             pytest.raises(JoinError, match="data_client is required"),
         ):
             mock_registry.return_value.get_schema.return_value = test_schema
@@ -667,9 +657,7 @@ class TestQueryEngineDataServiceDispatch:
             )
 
     @pytest.mark.asyncio
-    async def test_data_service_join_empty_target(
-        self, mock_provider: MagicMock
-    ) -> None:
+    async def test_data_service_join_empty_target(self, mock_provider: MagicMock) -> None:
         """Data-service join with empty response returns primary data with null join cols."""
         from autom8_asana.query.engine import QueryEngine
         from autom8_asana.query.models import RowsRequest
@@ -697,9 +685,7 @@ class TestQueryEngineDataServiceDispatch:
         test_schema = MagicMock()
         test_schema.get_column = MagicMock(return_value=MagicMock())
 
-        with patch(
-            "autom8_asana.query.engine.SchemaRegistry.get_instance"
-        ) as mock_registry:
+        with patch("autom8_asana.query.engine.SchemaRegistry.get_instance") as mock_registry:
             mock_registry.return_value.get_schema.return_value = test_schema
 
             result = await engine.execute_rows(

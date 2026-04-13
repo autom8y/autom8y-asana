@@ -287,9 +287,7 @@ class TestBuildProjectDataframe:
         assert result.next_offset is None
 
     @pytest.mark.asyncio
-    async def test_empty_results(
-        self, service: DataFrameService, mock_client: MagicMock
-    ):
+    async def test_empty_results(self, service: DataFrameService, mock_client: MagicMock):
         """Returns empty DataFrame when no tasks found."""
         schema = service.get_schema("base")
         mock_client._http.get_paginated.return_value = ([], None)
@@ -307,9 +305,7 @@ class TestBuildProjectDataframe:
         assert result.next_offset is None
 
     @pytest.mark.asyncio
-    async def test_pagination_metadata(
-        self, service: DataFrameService, mock_client: MagicMock
-    ):
+    async def test_pagination_metadata(self, service: DataFrameService, mock_client: MagicMock):
         """Propagates pagination info from HTTP response."""
         schema = service.get_schema("base")
         mock_client._http.get_paginated.return_value = ([], "next_cursor")
@@ -326,9 +322,7 @@ class TestBuildProjectDataframe:
         assert result.next_offset == "next_cursor"
 
     @pytest.mark.asyncio
-    async def test_passes_offset(
-        self, service: DataFrameService, mock_client: MagicMock
-    ):
+    async def test_passes_offset(self, service: DataFrameService, mock_client: MagicMock):
         """Passes offset parameter to HTTP client when provided."""
         schema = service.get_schema("base")
         mock_client._http.get_paginated.return_value = ([], None)
@@ -345,9 +339,7 @@ class TestBuildProjectDataframe:
         assert call_args[1]["params"]["offset"] == "cursor123"
 
     @pytest.mark.asyncio
-    async def test_uses_task_opt_fields(
-        self, service: DataFrameService, mock_client: MagicMock
-    ):
+    async def test_uses_task_opt_fields(self, service: DataFrameService, mock_client: MagicMock):
         """Uses TASK_OPT_FIELDS for the opt_fields parameter."""
         schema = service.get_schema("base")
         mock_client._http.get_paginated.return_value = ([], None)
@@ -423,9 +415,7 @@ class TestBuildSectionDataframe:
         assert project_gid == "proj1"
 
     @pytest.mark.asyncio
-    async def test_missing_project_raises(
-        self, service: DataFrameService, mock_client: MagicMock
-    ):
+    async def test_missing_project_raises(self, service: DataFrameService, mock_client: MagicMock):
         """Raises EntityNotFoundError when section has no parent project."""
         mock_client._http.get.return_value = {
             "gid": "sec1",
@@ -445,9 +435,7 @@ class TestBuildSectionDataframe:
         assert "Section not found" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_no_project_key_raises(
-        self, service: DataFrameService, mock_client: MagicMock
-    ):
+    async def test_no_project_key_raises(self, service: DataFrameService, mock_client: MagicMock):
         """Raises EntityNotFoundError when section response has no project key."""
         mock_client._http.get.return_value = {
             "gid": "sec1",
@@ -465,9 +453,7 @@ class TestBuildSectionDataframe:
             )
 
     @pytest.mark.asyncio
-    async def test_pagination_metadata(
-        self, service: DataFrameService, mock_client: MagicMock
-    ):
+    async def test_pagination_metadata(self, service: DataFrameService, mock_client: MagicMock):
         """Propagates pagination info from HTTP response."""
         schema = service.get_schema("base")
 
@@ -489,9 +475,7 @@ class TestBuildSectionDataframe:
         assert result.next_offset == "next_xyz"
 
     @pytest.mark.asyncio
-    async def test_passes_offset(
-        self, service: DataFrameService, mock_client: MagicMock
-    ):
+    async def test_passes_offset(self, service: DataFrameService, mock_client: MagicMock):
         """Passes offset parameter to HTTP client when provided."""
         schema = service.get_schema("base")
 
@@ -513,9 +497,7 @@ class TestBuildSectionDataframe:
         assert call_args[1]["params"]["offset"] == "cursor456"
 
     @pytest.mark.asyncio
-    async def test_fetches_section_first(
-        self, service: DataFrameService, mock_client: MagicMock
-    ):
+    async def test_fetches_section_first(self, service: DataFrameService, mock_client: MagicMock):
         """Fetches section metadata before tasks."""
         schema = service.get_schema("base")
 
@@ -620,9 +602,7 @@ class TestAdversarialInvalidSchemaErrorMRO:
         assert "EntityValidationError" in mro_names
         assert "ServiceError" in mro_names
         # InvalidParameterError must come before ServiceError
-        assert mro_names.index("InvalidParameterError") < mro_names.index(
-            "ServiceError"
-        )
+        assert mro_names.index("InvalidParameterError") < mro_names.index("ServiceError")
 
     def test_status_hint_fallback_is_also_400(self):
         """Even if MRO walk failed, status_hint on InvalidParameterError is 400."""
@@ -658,9 +638,7 @@ class TestAdversarialDataFrameResultEdgeCases:
     def test_has_more_false_with_offset_present(self):
         """DataFrameResult allows has_more=False with non-None offset (no enforcement)."""
         df = pl.DataFrame({"a": [1]})
-        result = DataFrameResult(
-            dataframe=df, has_more=False, next_offset="leftover_cursor"
-        )
+        result = DataFrameResult(dataframe=df, has_more=False, next_offset="leftover_cursor")
         # This is a data inconsistency but DataFrameResult is a dumb container
         assert result.has_more is False
         assert result.next_offset == "leftover_cursor"
@@ -880,9 +858,7 @@ class TestAdversarialBuildSectionProjectKeyVariants:
             )
 
     @pytest.mark.asyncio
-    async def test_project_gid_none_raises(
-        self, service: DataFrameService, mock_client: MagicMock
-    ):
+    async def test_project_gid_none_raises(self, service: DataFrameService, mock_client: MagicMock):
         """project.gid=None triggers EntityNotFoundError."""
         mock_client._http.get.return_value = {
             "gid": "sec1",
@@ -1046,9 +1022,7 @@ class TestAdversarialTaskOptFieldsDeduplication:
         import re
 
         for f in DataFrameService.TASK_OPT_FIELDS:
-            assert re.match(r"^[a-z_]+(\.[a-z_]+)*$", f), (
-                f"Field '{f}' uses unexpected format"
-            )
+            assert re.match(r"^[a-z_]+(\.[a-z_]+)*$", f), f"Field '{f}' uses unexpected format"
 
     def test_opt_fields_join_produces_valid_csv(self):
         """Joining TASK_OPT_FIELDS produces a valid comma-separated string."""
@@ -1089,9 +1063,7 @@ class TestAdversarialContentNegotiation:
         from autom8_asana.api.routes.dataframes import _should_use_polars_format
 
         assert (
-            _should_use_polars_format(
-                "text/html, application/x-polars-json, application/json"
-            )
+            _should_use_polars_format("text/html, application/x-polars-json, application/json")
             is True
         )
 

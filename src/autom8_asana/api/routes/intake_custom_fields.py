@@ -40,9 +40,7 @@ __all__ = ["router"]
 
 logger = get_logger(__name__)
 
-router = s2s_router(
-    prefix="/v1/tasks", tags=["intake-custom-fields"], include_in_schema=False
-)
+router = s2s_router(prefix="/v1/tasks", tags=["intake-custom-fields"], include_in_schema=False)
 
 
 @router.post(

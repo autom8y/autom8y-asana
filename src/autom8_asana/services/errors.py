@@ -112,9 +112,7 @@ class UnknownSectionError(EntityNotFoundError):
         available_sections: Sorted list of valid section names.
     """
 
-    def __init__(
-        self, section_name: str, available_sections: list[str] | None = None
-    ) -> None:
+    def __init__(self, section_name: str, available_sections: list[str] | None = None) -> None:
         self.section_name = section_name
         self.available_sections = available_sections or []
         super().__init__(f"Unknown section: {section_name}")
@@ -158,9 +156,7 @@ class EntityTypeMismatchError(EntityNotFoundError):
         actual_projects: Project GIDs the task actually belongs to.
     """
 
-    def __init__(
-        self, gid: str, expected_project: str, actual_projects: list[str]
-    ) -> None:
+    def __init__(self, gid: str, expected_project: str, actual_projects: list[str]) -> None:
         self.gid = gid
         self.expected_project = expected_project
         self.actual_projects = actual_projects
@@ -302,9 +298,7 @@ class CascadeNotReadyError(ServiceError):
         self.project_gid = project_gid
         self.degraded_columns = degraded_columns
         self.max_null_rate = max_null_rate
-        cols = ", ".join(
-            f"{col} ({rate:.1%})" for col, rate in degraded_columns.items()
-        )
+        cols = ", ".join(f"{col} ({rate:.1%})" for col, rate in degraded_columns.items())
         super().__init__(
             f"Cascade data not ready for {entity_type}: "
             f"degraded columns [{cols}] exceed 20% null threshold"

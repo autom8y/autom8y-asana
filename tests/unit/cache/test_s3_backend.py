@@ -212,9 +212,7 @@ class TestS3CacheProviderDegraded:
 
             now = datetime.now(UTC)
             entries = {
-                "1": CacheEntry(
-                    key="1", data={}, entry_type=EntryType.TASK, version=now
-                ),
+                "1": CacheEntry(key="1", data={}, entry_type=EntryType.TASK, version=now),
             }
 
             # Should not raise
@@ -229,10 +227,7 @@ class TestS3CacheProviderDegraded:
             provider = S3CacheProvider(config=config)
             provider._degraded = True
 
-            assert (
-                provider.check_freshness("key", EntryType.TASK, datetime.now(UTC))
-                is False
-            )
+            assert provider.check_freshness("key", EntryType.TASK, datetime.now(UTC)) is False
 
 
 class TestS3CacheProviderKeyGeneration:
@@ -481,9 +476,7 @@ class TestS3CacheProviderMetrics:
             provider = S3CacheProvider(config=config)
 
             # Manually record an error
-            provider._metrics.record_error(
-                key="test-key", error_message="Connection failed"
-            )
+            provider._metrics.record_error(key="test-key", error_message="Connection failed")
 
             metrics = provider.get_metrics()
             assert metrics.errors == 1
@@ -913,12 +906,8 @@ class TestS3CacheProviderIntegration:
         now = datetime.now(UTC)
 
         entries = {
-            "1": CacheEntry(
-                key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now
-            ),
-            "2": CacheEntry(
-                key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now
-            ),
+            "1": CacheEntry(key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now),
+            "2": CacheEntry(key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now),
         }
 
         s3_provider.set_batch(entries)

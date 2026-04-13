@@ -479,9 +479,7 @@ class TestFormatConsistencyAcrossRoutes:
             detail = exc_info.value.detail
             for key in ("error", "meta"):
                 assert key in detail, f"{label}: missing key '{key}'"
-            assert "request_id" in detail["meta"], (
-                f"{label}: missing 'request_id' in meta"
-            )
+            assert "request_id" in detail["meta"], f"{label}: missing 'request_id' in meta"
 
 
 # ===========================================================================
@@ -583,9 +581,7 @@ class TestReviewSitesEntityWrite:
         # The only raw HTTPException reference should be the re-raise passthrough
         lines = source.split("\n")
         http_exc_lines = [
-            line.strip()
-            for line in lines
-            if "HTTPException" in line and "import" not in line
+            line.strip() for line in lines if "HTTPException" in line and "import" not in line
         ]
         # Should only have "except HTTPException:" and "raise" (the passthrough)
         assert any("except HTTPException" in line for line in http_exc_lines)
@@ -742,9 +738,7 @@ class TestServiceErrorStatusMapping:
             (ServiceError("generic"), 500),
         ],
     )
-    def test_status_code_matches_mapping(
-        self, error: ServiceError, expected_status: int
-    ) -> None:
+    def test_status_code_matches_mapping(self, error: ServiceError, expected_status: int) -> None:
         """raise_service_error uses get_status_for_error for status code."""
         with pytest.raises(HTTPException) as exc_info:
             raise_service_error("req-id", error)

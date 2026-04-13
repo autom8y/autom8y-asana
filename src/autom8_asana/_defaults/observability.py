@@ -22,15 +22,11 @@ class NullObservabilityHook:
         client = AsanaClient(token="...", observability_hook=NullObservabilityHook())
     """
 
-    async def on_request_start(
-        self, method: str, path: str, correlation_id: str
-    ) -> None:
+    async def on_request_start(self, method: str, path: str, correlation_id: str) -> None:
         """No-op: called before HTTP request."""
         pass
 
-    async def on_request_end(
-        self, method: str, path: str, status: int, duration_ms: float
-    ) -> None:
+    async def on_request_end(self, method: str, path: str, status: int, duration_ms: float) -> None:
         """No-op: called after HTTP request completes."""
         pass
 
@@ -42,9 +38,7 @@ class NullObservabilityHook:
         """No-op: called on rate limit 429."""
         pass
 
-    async def on_circuit_breaker_state_change(
-        self, old_state: str, new_state: str
-    ) -> None:
+    async def on_circuit_breaker_state_change(self, old_state: str, new_state: str) -> None:
         """No-op: called on circuit breaker state change."""
         pass
 

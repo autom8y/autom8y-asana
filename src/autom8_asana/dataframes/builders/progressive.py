@@ -104,8 +104,7 @@ class ProgressiveProjectBuilder:
         resolver: CustomFieldResolver | None = None,
         store: Any | None = None,
         max_concurrent_sections: int = 8,
-        index_builder: Callable[[pl.DataFrame, str], dict[str, Any] | None]
-        | None = None,
+        index_builder: Callable[[pl.DataFrame, str], dict[str, Any] | None] | None = None,
     ) -> None:
         """Initialize progressive builder.
 
@@ -425,14 +424,10 @@ class ProgressiveProjectBuilder:
         Returns:
             Merged DataFrame (may be empty if no sections produced data).
         """
-        merged_df = await self._persistence.merge_sections_to_dataframe_async(
-            self._project_gid
-        )
+        merged_df = await self._persistence.merge_sections_to_dataframe_async(self._project_gid)
 
         if merged_df is None and self._section_dfs:
-            merged_df = pl.concat(
-                list(self._section_dfs.values()), how="diagonal_relaxed"
-            )
+            merged_df = pl.concat(list(self._section_dfs.values()), how="diagonal_relaxed")
             logger.warning(
                 "progressive_build_s3_fallback",
                 extra={
@@ -562,14 +557,10 @@ class ProgressiveProjectBuilder:
         # don't register in HierarchyIndex. Reconstruct from parent_gid column
         # so Step 5.5 cascade validation can resolve parent chains.
         if total_rows > 0 and self._hierarchy_warmer is not None:
-            reconstructed = self._hierarchy_warmer.reconstruct_hierarchy_from_dataframe(
-                merged_df
-            )
+            reconstructed = self._hierarchy_warmer.reconstruct_hierarchy_from_dataframe(merged_df)
             if reconstructed > 0:
                 # Step 5.3: Warm hierarchy gaps (e.g. unit_holder → business links)
-                warmed = await self._hierarchy_warmer.warm_hierarchy_gaps_async(
-                    merged_df
-                )
+                warmed = await self._hierarchy_warmer.warm_hierarchy_gaps_async(merged_df)
                 logger.info(
                     "hierarchy_gaps_warmed",
                     extra={
@@ -670,9 +661,7 @@ class ProgressiveProjectBuilder:
         _span.set_attribute(
             "computation.materialize.sections_built", build_result.sections_succeeded
         )
-        _span.set_attribute(
-            "computation.materialize.total_rows", build_result.total_rows
-        )
+        _span.set_attribute("computation.materialize.total_rows", build_result.total_rows)
 
         return build_result
 
@@ -794,9 +783,7 @@ class ProgressiveProjectBuilder:
             if len(first_page_tasks) < ASANA_PAGE_SIZE:
                 tasks = first_page_tasks
             else:
-                tasks = await self._fetch_large_section(
-                    section_gid, iterator, first_page_tasks
-                )
+                tasks = await self._fetch_large_section(section_gid, iterator, first_page_tasks)
 
             if self._hierarchy_warmer is not None and tasks:
                 await self._hierarchy_warmer.populate_store_with_tasks(tasks)
@@ -818,9 +805,7 @@ class ProgressiveProjectBuilder:
             section_df, gid_hash, watermark = await self._build_section_dataframe(tasks)
 
             # Phase 5: Persist to S3
-            return await self._persist_section(
-                section_gid, section_df, gid_hash, watermark
-            )
+            return await self._persist_section(section_gid, section_df, gid_hash, watermark)
 
         except Exception as e:  # BROAD-CATCH: isolation
             logger.error(
@@ -1113,9 +1098,7 @@ class ProgressiveProjectBuilder:
                 task_dicts = [self._task_to_dict(task) for task in remaining_tasks]
                 rows = await self._extract_rows(task_dicts)
                 delta_df = safe_dataframe_construct(rows, self._schema)
-                section_df = pl.concat(
-                    [self._checkpoint_df, delta_df], how="diagonal_relaxed"
-                )
+                section_df = pl.concat([self._checkpoint_df, delta_df], how="diagonal_relaxed")
             else:
                 # Branch (b): all tasks were already checkpointed
                 section_df = self._checkpoint_df
@@ -1197,9 +1180,7 @@ class ProgressiveProjectBuilder:
 
             # Concatenate with previous checkpoint if it exists
             if self._checkpoint_df is not None:
-                checkpoint_df = pl.concat(
-                    [self._checkpoint_df, delta_df], how="diagonal_relaxed"
-                )
+                checkpoint_df = pl.concat([self._checkpoint_df, delta_df], how="diagonal_relaxed")
             else:
                 checkpoint_df = delta_df
 

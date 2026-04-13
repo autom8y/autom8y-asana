@@ -137,7 +137,5 @@ class SubtaskWaiter:
             Current number of subtasks.
         """
         # Use minimal opt_fields for efficiency - only need count
-        subtasks = await self._client.tasks.subtasks_async(
-            task_gid, opt_fields=["gid"]
-        ).collect()
+        subtasks = await self._client.tasks.subtasks_async(task_gid, opt_fields=["gid"]).collect()
         return len(subtasks)

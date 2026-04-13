@@ -206,10 +206,7 @@ class TestClassVars:
         ):
             pass
 
-        assert (
-            ReconciliationHolder._CHILD_MODULE
-            == "autom8_asana.models.business.reconciliation"
-        )
+        assert ReconciliationHolder._CHILD_MODULE == "autom8_asana.models.business.reconciliation"
 
     def test_child_type_initially_task(self) -> None:
         """Test CHILD_TYPE is initially Task (resolved at runtime)."""
@@ -242,10 +239,7 @@ class TestMigratedHolders:
         from autom8_asana.models.business.business import ReconciliationHolder
 
         assert ReconciliationHolder._CHILD_CLASS_NAME == "Reconciliation"
-        assert (
-            ReconciliationHolder._CHILD_MODULE
-            == "autom8_asana.models.business.reconciliation"
-        )
+        assert ReconciliationHolder._CHILD_MODULE == "autom8_asana.models.business.reconciliation"
         assert ReconciliationHolder.PARENT_REF_NAME == "_reconciliation_holder"
         assert ReconciliationHolder.CHILDREN_ATTR == "_children"
 
@@ -259,9 +253,7 @@ class TestMigratedHolders:
         from autom8_asana.models.business.business import AssetEditHolder
 
         assert AssetEditHolder._CHILD_CLASS_NAME == "AssetEdit"
-        assert (
-            AssetEditHolder._CHILD_MODULE == "autom8_asana.models.business.asset_edit"
-        )
+        assert AssetEditHolder._CHILD_MODULE == "autom8_asana.models.business.asset_edit"
         assert AssetEditHolder.PARENT_REF_NAME == "_asset_edit_holder"
         assert AssetEditHolder.CHILDREN_ATTR == "_asset_edits"
 
@@ -275,10 +267,7 @@ class TestMigratedHolders:
         from autom8_asana.models.business.business import VideographyHolder
 
         assert VideographyHolder._CHILD_CLASS_NAME == "Videography"
-        assert (
-            VideographyHolder._CHILD_MODULE
-            == "autom8_asana.models.business.videography"
-        )
+        assert VideographyHolder._CHILD_MODULE == "autom8_asana.models.business.videography"
         assert VideographyHolder.PARENT_REF_NAME == "_videography_holder"
         assert VideographyHolder.CHILDREN_ATTR == "_children"
 

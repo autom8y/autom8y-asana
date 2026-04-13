@@ -62,9 +62,7 @@ async def post_build_validate_and_audit(
                 validate_cascade_fields_async,
             )
 
-            cascade_plugin = (
-                dataframe_view.cascade_plugin if dataframe_view is not None else None
-            )
+            cascade_plugin = dataframe_view.cascade_plugin if dataframe_view is not None else None
             if cascade_plugin is not None:
                 try:
                     (

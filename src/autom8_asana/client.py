@@ -142,9 +142,7 @@ class AsanaClient:
             explicit_provider=cache_provider,
         )
         self._log_provider: LogProvider = log_provider or DefaultLogProvider()
-        self._observability_hook: ObservabilityHook = (
-            observability_hook or NullObservabilityHook()
-        )
+        self._observability_hook: ObservabilityHook = observability_hook or NullObservabilityHook()
 
         # Create HTTP client with shared rate limiter
         # Per TDD-ASANA-HTTP-MIGRATION-001/FR-002: Single rate limiter per AsanaClient
@@ -1042,8 +1040,7 @@ class _TokenAuthProvider:
         """
         if not token.strip():
             raise AuthenticationError(
-                "Token cannot be empty or whitespace-only. "
-                "Provide a valid authentication token."
+                "Token cannot be empty or whitespace-only. Provide a valid authentication token."
             )
         self._token = token
         self._expected_key = expected_key

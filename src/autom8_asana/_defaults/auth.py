@@ -74,8 +74,7 @@ class EnvAuthProvider:
         value = os.environ.get(key)
         if value is None:
             raise AuthenticationError(
-                f"Environment variable '{key}' not set. "
-                f"Set it or provide a custom AuthProvider."
+                f"Environment variable '{key}' not set. Set it or provide a custom AuthProvider."
             )
         if not value.strip():
             raise AuthenticationError(
@@ -170,8 +169,7 @@ class SecretsManagerAuthProvider:
             import boto3
         except ImportError as e:
             raise AuthenticationError(
-                "boto3 is required for SecretsManagerAuthProvider. "
-                "Install with: pip install boto3"
+                "boto3 is required for SecretsManagerAuthProvider. Install with: pip install boto3"
             ) from e
 
         self._client = boto3.client("secretsmanager", region_name=self._region)
@@ -241,7 +239,9 @@ class SecretsManagerAuthProvider:
         except AuthenticationError:
             # Re-raise our own errors directly
             raise
-        except Exception as e:  # BROAD-CATCH: boundary -- wraps diverse boto3 errors into AuthenticationError
+        except (
+            Exception
+        ) as e:  # BROAD-CATCH: boundary -- wraps diverse boto3 errors into AuthenticationError
             # Handle boto3 exceptions
             error_response: dict[str, Any] | None = getattr(e, "response", None)
             error_code = ""
@@ -261,13 +261,10 @@ class SecretsManagerAuthProvider:
                 ) from e
             elif error_code in ("DecryptionFailure", "InvalidRequestException"):
                 raise AuthenticationError(
-                    f"Failed to decrypt secret '{secret_path}'. "
-                    "Check KMS key permissions."
+                    f"Failed to decrypt secret '{secret_path}'. Check KMS key permissions."
                 ) from e
             else:
-                raise AuthenticationError(
-                    f"Failed to retrieve secret '{secret_path}': {e}"
-                ) from e
+                raise AuthenticationError(f"Failed to retrieve secret '{secret_path}': {e}") from e
 
     def clear_cache(self) -> None:
         """Clear the in-memory secret cache.

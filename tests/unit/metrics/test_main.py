@@ -23,9 +23,7 @@ def _reset_registry() -> None:
 class TestCliList:
     """Test --list functionality."""
 
-    def test_list_outputs_metric_names(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_list_outputs_metric_names(self, capsys: pytest.CaptureFixture[str]) -> None:
         with patch("sys.argv", ["metrics", "--list"]):
             main()
         captured = capsys.readouterr()
@@ -53,9 +51,7 @@ class TestCliErrors:
 class TestCliCompute:
     """Test metric computation via CLI."""
 
-    def test_compute_with_mocked_loader(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_compute_with_mocked_loader(self, capsys: pytest.CaptureFixture[str]) -> None:
         """CLI computes metric when loader returns valid DataFrame."""
         mock_df = pl.DataFrame(
             {
@@ -124,9 +120,7 @@ class TestCliCompute:
         captured = capsys.readouterr()
         assert "No S3 bucket configured" in captured.err
 
-    def test_count_metric_formats_as_integer(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
+    def test_count_metric_formats_as_integer(self, capsys: pytest.CaptureFixture[str]) -> None:
         """count aggregation formats as plain integer, not dollar amount (LS-DEEP-001)."""
         registry = MetricRegistry()
         registry._initialized = True

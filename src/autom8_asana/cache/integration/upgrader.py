@@ -104,9 +104,7 @@ class AsanaTaskUpgrader:
         opt_fields = list(self.get_fields_for_level(target_level))
 
         try:
-            task = await self._tasks_client.get_async(
-                key, opt_fields=opt_fields, raw=True
-            )
+            task = await self._tasks_client.get_async(key, opt_fields=opt_fields, raw=True)
 
             if task is None:
                 logger.debug(

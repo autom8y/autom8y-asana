@@ -47,9 +47,7 @@ VALID_SEMANTIC_TYPES: frozenset[str] = frozenset(
     }
 )
 
-VALID_VALUES_SOURCES: frozenset[str] = frozenset(
-    {"hardcoded", "asana_configured", "mixed"}
-)
+VALID_VALUES_SOURCES: frozenset[str] = frozenset({"hardcoded", "asana_configured", "mixed"})
 
 VALID_NULL_SEVERITIES: frozenset[str] = frozenset({"expected", "warning", "error"})
 
@@ -538,8 +536,7 @@ SEMANTIC_ANNOTATIONS: dict[str, dict[str, Any]] = {
         ),
         "data_type_semantic": "identifier",
         "resolution_impact": (
-            "CRITICAL. Key column for offer (office_phone, vertical, "
-            "offer_id) resolution."
+            "CRITICAL. Key column for offer (office_phone, vertical, offer_id) resolution."
         ),
         "agent_discoverable": True,
     },

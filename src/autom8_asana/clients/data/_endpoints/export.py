@@ -53,9 +53,7 @@ def _parse_content_disposition_filename(header: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def _cb_error_factory(
-    e: CircuitBreakerOpenError, request: ExportRequestDescriptor
-) -> Any:
+def _cb_error_factory(e: CircuitBreakerOpenError, request: ExportRequestDescriptor) -> Any:
     """Convert CB open error to ExportError (always raises)."""
     raise ExportError(
         f"Circuit breaker open for autom8_data. Retry in {e.time_remaining:.1f}s.",
@@ -211,20 +209,16 @@ async def get_export_csv(
     )
 
     # S2-S8: Execute via policy
-    policy: DefaultEndpointPolicy[ExportRequestDescriptor, ExportResult] = (
-        DefaultEndpointPolicy(
-            circuit_breaker=client._circuit_breaker,
-            get_client=client._get_client,
-            execute_with_retry=client._execute_with_retry,
-            cb_error_factory=_cb_error_factory,
-            request_builder=_request_builder,
-            error_handler=lambda resp, req, ms: _error_handler(
-                resp, req, ms, client=client
-            ),
-            success_handler=lambda resp, req, ms: _success_handler(
-                resp, req, ms, client=client, office_phone=office_phone
-            ),
-        )
+    policy: DefaultEndpointPolicy[ExportRequestDescriptor, ExportResult] = DefaultEndpointPolicy(
+        circuit_breaker=client._circuit_breaker,
+        get_client=client._get_client,
+        execute_with_retry=client._execute_with_retry,
+        cb_error_factory=_cb_error_factory,
+        request_builder=_request_builder,
+        error_handler=lambda resp, req, ms: _error_handler(resp, req, ms, client=client),
+        success_handler=lambda resp, req, ms: _success_handler(
+            resp, req, ms, client=client, office_phone=office_phone
+        ),
     )
 
     return await policy.execute(descriptor)

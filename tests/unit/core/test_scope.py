@@ -56,9 +56,7 @@ class TestEntityScopeFromEvent:
 
     def test_from_event_unknown_keys_ignored(self) -> None:
         """Extra keys do not raise."""
-        scope = EntityScope.from_event(
-            {"entity_ids": ["123"], "unknown_key": "value", "extra": 42}
-        )
+        scope = EntityScope.from_event({"entity_ids": ["123"], "unknown_key": "value", "extra": 42})
         assert scope.entity_ids == ("123",)
 
     def test_from_event_empty_entity_ids(self) -> None:

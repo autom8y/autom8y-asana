@@ -673,9 +673,7 @@ class TestHolderEnsurerInternals:
         business = make_business(gid="biz_real_gid")
 
         # Pre-populate a tracked ContactHolder on the business
-        existing_ch = ContactHolder(
-            gid="existing_ch_gid", name="Contacts", resource_type="task"
-        )
+        existing_ch = ContactHolder(gid="existing_ch_gid", name="Contacts", resource_type="task")
         business._contact_holder = existing_ch
 
         mock_client = make_mock_client(subtasks=[])
@@ -999,9 +997,7 @@ class TestS2005LevelDependencyGraph:
         business = Business(gid="", name="New Biz")
         object.__setattr__(business, "gid", f"temp_{id(business)}")
 
-        contact_holder = construct_holder(
-            "contact_holder", Business.HOLDER_KEY_MAP, business
-        )
+        contact_holder = construct_holder("contact_holder", Business.HOLDER_KEY_MAP, business)
         unit_holder = construct_holder("unit_holder", Business.HOLDER_KEY_MAP, business)
 
         contact = Contact(gid="", name="John")
@@ -1544,9 +1540,7 @@ class TestS2007EdgeCases:
         unit = make_unit(gid="unit_real_gid", business=business)
 
         # Existing OfferHolder for this unit
-        existing_oh = make_holder_task(
-            "Offers", "existing_oh_gid", OfferHolder.PRIMARY_PROJECT_GID
-        )
+        existing_oh = make_holder_task("Offers", "existing_oh_gid", OfferHolder.PRIMARY_PROJECT_GID)
 
         mock_client = make_mock_client(subtasks=[existing_oh])
         tracker = ChangeTracker()
@@ -1561,9 +1555,7 @@ class TestS2007EdgeCases:
 
         # The existing OfferHolder should be reused, not recreated
         offer_holders = [e for e in result if isinstance(e, OfferHolder)]
-        new_offer_holders = [
-            e for e in offer_holders if e.gid and e.gid.startswith("temp_")
-        ]
+        new_offer_holders = [e for e in offer_holders if e.gid and e.gid.startswith("temp_")]
         assert len(new_offer_holders) == 0, "Should reuse existing OfferHolder"
 
         # The existing holder should be tracked

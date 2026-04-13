@@ -83,9 +83,7 @@ class TestGetSubtaskCountAsync:
         count = await waiter.get_subtask_count_async("task_123")
 
         assert count == 3
-        client.tasks.subtasks_async.assert_called_once_with(
-            "task_123", opt_fields=["gid"]
-        )
+        client.tasks.subtasks_async.assert_called_once_with("task_123", opt_fields=["gid"])
 
     async def test_returns_zero_for_no_subtasks(self) -> None:
         """get_subtask_count_async returns 0 when no subtasks exist."""
@@ -161,9 +159,7 @@ class TestWaitForSubtasksAsync:
         """wait_for_subtasks_async returns False when timeout expires."""
         client = MockAsanaClient()
         # Always return 1 subtask, but expect 5
-        client.tasks.subtasks_async.return_value = MockPageIterator(
-            [make_mock_subtask("1")]
-        )
+        client.tasks.subtasks_async.return_value = MockPageIterator([make_mock_subtask("1")])
 
         waiter = SubtaskWaiter(client)  # type: ignore[arg-type]
         result = await waiter.wait_for_subtasks_async(
@@ -180,9 +176,7 @@ class TestWaitForSubtasksAsync:
     async def test_logs_warning_on_timeout(self) -> None:
         """wait_for_subtasks_async logs warning when timeout expires."""
         client = MockAsanaClient()
-        client.tasks.subtasks_async.return_value = MockPageIterator(
-            [make_mock_subtask("1")]
-        )
+        client.tasks.subtasks_async.return_value = MockPageIterator([make_mock_subtask("1")])
 
         waiter = SubtaskWaiter(client)  # type: ignore[arg-type]
 

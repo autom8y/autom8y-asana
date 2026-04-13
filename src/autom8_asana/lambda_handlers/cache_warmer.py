@@ -167,9 +167,7 @@ async def _run_vertical_backfill(
             },
         )
 
-    except (
-        Exception
-    ) as e:  # BROAD-CATCH: isolation -- backfill must never fail cache warmer
+    except Exception as e:  # BROAD-CATCH: isolation -- backfill must never fail cache warmer
         logger.warning(
             "vertical_backfill_error",
             extra={
@@ -398,27 +396,21 @@ async def _warm_cache_async(
             for entity_type in processing_list:
                 # Check timeout before processing
                 if _should_exit_early(context):
-                    remaining_ms = (
-                        context.get_remaining_time_in_millis() if context else 0
-                    )
+                    remaining_ms = context.get_remaining_time_in_millis() if context else 0
                     logger.warning(
                         "exiting_early_timeout",
                         extra={
                             "remaining_ms": remaining_ms,
                             "completed": completed_entities,
                             "pending": [
-                                et
-                                for et in processing_list
-                                if et not in completed_entities
+                                et for et in processing_list if et not in completed_entities
                             ],
                             "invocation_id": invocation_id,
                         },
                     )
 
                     # Save checkpoint before exit
-                    pending = [
-                        et for et in processing_list if et not in completed_entities
-                    ]
+                    pending = [et for et in processing_list if et not in completed_entities]
                     await checkpoint_mgr.save_async(
                         invocation_id=invocation_id,
                         completed_entities=completed_entities,
@@ -521,11 +513,7 @@ async def _warm_cache_async(
 
                         if strict:
                             # Save checkpoint and exit
-                            pending = [
-                                et
-                                for et in processing_list
-                                if et not in completed_entities
-                            ]
+                            pending = [et for et in processing_list if et not in completed_entities]
                             await checkpoint_mgr.save_async(
                                 invocation_id=invocation_id,
                                 completed_entities=completed_entities,
@@ -538,17 +526,13 @@ async def _warm_cache_async(
                                 success=False,
                                 message=f"Failed on {entity_type}: {status.error}",
                                 entity_results=entity_results,
-                                total_rows=sum(
-                                    r.get("row_count", 0) for r in entity_results
-                                ),
+                                total_rows=sum(r.get("row_count", 0) for r in entity_results),
                                 duration_ms=(time.monotonic() - start_time) * 1000,
                                 invocation_id=invocation_id,
                             )
 
                     # Save checkpoint after each entity (if more pending)
-                    pending = [
-                        et for et in processing_list if et not in completed_entities
-                    ]
+                    pending = [et for et in processing_list if et not in completed_entities]
                     if pending:
                         await checkpoint_mgr.save_async(
                             invocation_id=invocation_id,
@@ -584,9 +568,7 @@ async def _warm_cache_async(
                     )
 
                     if strict:
-                        pending = [
-                            et for et in processing_list if et not in completed_entities
-                        ]
+                        pending = [et for et in processing_list if et not in completed_entities]
                         await checkpoint_mgr.save_async(
                             invocation_id=invocation_id,
                             completed_entities=completed_entities,
@@ -625,9 +607,7 @@ async def _warm_cache_async(
                 cache=cache,
                 invocation_id=invocation_id,
             )
-        except (
-            Exception
-        ) as e:  # BROAD-CATCH: isolation -- status push must never fail cache warmer
+        except Exception as e:  # BROAD-CATCH: isolation -- status push must never fail cache warmer
             logger.error(
                 "status_push_fatal_error",
                 extra={
@@ -714,7 +694,9 @@ async def _warm_cache_async(
         all_success = failure_count == 0 and skipped_count == 0
 
         if all_success:
-            message = f"Cache warm complete: {success_count} entity types warmed, {total_rows} total rows"
+            message = (
+                f"Cache warm complete: {success_count} entity types warmed, {total_rows} total rows"
+            )
         else:
             message = (
                 f"Cache warm finished: {success_count} success, "
@@ -731,7 +713,9 @@ async def _warm_cache_async(
             invocation_id=invocation_id,
         )
 
-    except Exception as e:  # BROAD-CATCH: boundary -- async function top-level catch, returns error response
+    except (
+        Exception
+    ) as e:  # BROAD-CATCH: boundary -- async function top-level catch, returns error response
         duration_ms = (time.monotonic() - start_time) * 1000
         logger.error(
             "cache_warmer_handler_error",

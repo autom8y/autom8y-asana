@@ -249,9 +249,7 @@ def _configure_standard_patches(
 
     MockTD.return_value = mock_template
     MockWaiter.return_value = True
-    MockSeeder.return_value.seed_async = AsyncMock(
-        return_value=seeding_result or SeedingResult()
-    )
+    MockSeeder.return_value.seed_async = AsyncMock(return_value=seeding_result or SeedingResult())
 
     mock_session = MagicMock()
     mock_session.set_parent = MagicMock()
@@ -277,15 +275,9 @@ def _integration_patches():
     """
     return {
         "resolution_context": patch("autom8_asana.lifecycle.engine.ResolutionContext"),
-        "template_discovery": patch(
-            "autom8_asana.lifecycle.creation.discover_template_async"
-        ),
-        "subtask_waiter": patch(
-            "autom8_asana.lifecycle.creation.wait_for_subtasks_async"
-        ),
-        "auto_cascade_seeder": patch(
-            "autom8_asana.lifecycle.creation.AutoCascadeSeeder"
-        ),
+        "template_discovery": patch("autom8_asana.lifecycle.creation.discover_template_async"),
+        "subtask_waiter": patch("autom8_asana.lifecycle.creation.wait_for_subtasks_async"),
+        "auto_cascade_seeder": patch("autom8_asana.lifecycle.creation.AutoCascadeSeeder"),
         "save_session": patch("autom8_asana.persistence.session.SaveSession"),
     }
 
@@ -477,9 +469,7 @@ class TestOnboardingConvertedToImplementation:
         async def _duplicate_side_effect(*args, **kwargs):
             return next(duplicate_results)
 
-        mock_client.tasks.duplicate_async = AsyncMock(
-            side_effect=_duplicate_side_effect
-        )
+        mock_client.tasks.duplicate_async = AsyncMock(side_effect=_duplicate_side_effect)
 
         # get_async for play creation: task with no dependencies
         mock_task_no_deps = MagicMock()
@@ -526,9 +516,7 @@ class TestOnboardingConvertedToImplementation:
             mock_session = MagicMock()
             mock_session.set_parent = MagicMock()
             mock_session.commit_async = AsyncMock()
-            MockSaveSession.return_value.__aenter__ = AsyncMock(
-                return_value=mock_session
-            )
+            MockSaveSession.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             MockSaveSession.return_value.__aexit__ = AsyncMock(return_value=None)
 
             engine = LifecycleEngine(mock_client, lifecycle_config)
@@ -704,9 +692,7 @@ class TestSalesDncCreateNew:
             "Sales Pipeline",
         )
 
-        mock_template = _make_mock_task(
-            "outreach_template", "Template - [Business Name]"
-        )
+        mock_template = _make_mock_task("outreach_template", "Template - [Business Name]")
 
         patches = _integration_patches()
         with (
@@ -977,10 +963,7 @@ class TestEdgeCases:
 
         # Creation failure is a hard failure
         assert result.success is False
-        assert (
-            "creation failed" in result.error.lower()
-            or "asana api" in result.error.lower()
-        )
+        assert "creation failed" in result.error.lower() or "asana api" in result.error.lower()
 
     @pytest.mark.asyncio
     async def test_init_action_failure_is_warning_not_hard_failure(
@@ -1061,8 +1044,7 @@ class TestEdgeCases:
 
         assert result.success is False
         assert (
-            "validation" in result.rule_id.lower()
-            or "validation" in (result.error or "").lower()
+            "validation" in result.rule_id.lower() or "validation" in (result.error or "").lower()
         )
 
     @pytest.mark.asyncio

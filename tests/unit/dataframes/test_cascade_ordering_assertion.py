@@ -122,6 +122,4 @@ def test_cascade_dependency_graph_is_nonempty() -> None:
     assert len(deps) > 0, "Cascade dependency graph is empty — no protection"
     # At minimum, unit depends on business for cascade fields
     assert "unit" in deps, "unit should depend on business for cascade fields"
-    assert "business" in deps.get("unit", set()), (
-        "unit's cascade deps should include business"
-    )
+    assert "business" in deps.get("unit", set()), "unit's cascade deps should include business"

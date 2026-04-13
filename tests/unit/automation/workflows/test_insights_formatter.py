@@ -431,15 +431,11 @@ class TestEmptyTable:
         assert 'class="empty"' in result
 
     def test_empty_appointments(self):
-        result = _render_section(
-            "APPOINTMENTS", rows=[], empty_message="No data available"
-        )
+        result = _render_section("APPOINTMENTS", rows=[], empty_message="No data available")
         assert "No data available" in result
 
     def test_empty_generic_table(self):
-        result = _render_section(
-            "BY QUARTER", rows=[], empty_message="No data available"
-        )
+        result = _render_section("BY QUARTER", rows=[], empty_message="No data available")
         assert "No data available" in result
 
 
@@ -452,16 +448,12 @@ class TestUnusedAssetsEmpty:
     """UNUSED ASSETS empty shows special message."""
 
     def test_unused_assets_empty(self):
-        result = _render_section(
-            "UNUSED ASSETS", rows=[], empty_message="No unused assets found"
-        )
+        result = _render_section("UNUSED ASSETS", rows=[], empty_message="No unused assets found")
         assert "No unused assets found" in result
 
     def test_unused_assets_distinct_from_other_tables(self):
         """Verify UNUSED ASSETS message differs from other empty tables."""
-        unused = _render_section(
-            "UNUSED ASSETS", rows=[], empty_message="No unused assets found"
-        )
+        unused = _render_section("UNUSED ASSETS", rows=[], empty_message="No unused assets found")
         summary = _render_section("SUMMARY", rows=[], empty_message="No data available")
         assert "No unused assets found" in unused
         assert "No data available" in summary
@@ -856,8 +848,7 @@ class TestHtmlEscaping:
         result = compose_report(data)
         # The report-title in the header must have the escaped business name
         assert (
-            '<script>alert("xss")</script>'
-            not in result.split("report-title")[1].split("</h1>")[0]
+            '<script>alert("xss")</script>' not in result.split("report-title")[1].split("</h1>")[0]
         )
         assert "&lt;script&gt;" in result
 
@@ -936,9 +927,7 @@ class TestAdversarialRowLimitEdgeCases:
     def test_row_limit_one(self):
         """row_limit=1 shows exactly 1 row with truncation note."""
         rows = [{"id": 1}, {"id": 2}, {"id": 3}]
-        result = _render_section(
-            "TEST", rows=rows[:1], row_count=1, truncated=True, total_rows=3
-        )
+        result = _render_section("TEST", rows=rows[:1], row_count=1, truncated=True, total_rows=3)
         assert "Showing 1 of 3 rows" in result
         # Count data rows (tr in tbody, not thead)
         # The single row should be present
@@ -1086,9 +1075,7 @@ class TestColumnOrdering:
         period_pos = result.find(">Period<")
         spend_pos = result.find(">Spend<")
         impressions_pos = result.find(">Impressions<")
-        assert period_pos < spend_pos, (
-            "period_label must appear before spend in BY QUARTER"
-        )
+        assert period_pos < spend_pos, "period_label must appear before spend in BY QUARTER"
         assert period_pos < impressions_pos, (
             "period_label must appear before impressions in BY QUARTER"
         )
@@ -1828,9 +1815,7 @@ class TestPhase1Constants:
     def test_section_subtitles_are_non_empty(self):
         """All subtitles are non-empty strings."""
         for name, subtitle in _SECTION_SUBTITLES.items():
-            assert isinstance(subtitle, str) and len(subtitle) > 0, (
-                f"Empty subtitle for {name}"
-            )
+            assert isinstance(subtitle, str) and len(subtitle) > 0, f"Empty subtitle for {name}"
 
     # --- _ASSET_EXCLUDE_COLUMNS ---
 
@@ -2141,9 +2126,7 @@ class TestPhase6QA:
 
     def test_section_ids_unique_across_all_table_order(self):
         """Every section ID is unique when rendering all TABLE_ORDER sections."""
-        sections = [
-            DataSection(name=name, rows=[{"a": 1}], row_count=1) for name in TABLE_ORDER
-        ]
+        sections = [DataSection(name=name, rows=[{"a": 1}], row_count=1) for name in TABLE_ORDER]
         renderer = HtmlRenderer()
         result = renderer.render_document(title="Test", metadata={}, sections=sections)
         # Each section should have a unique id
@@ -2156,9 +2139,7 @@ class TestPhase6QA:
 
     def test_sidebar_nav_links_match_section_ids(self):
         """Sidebar nav links have href matching section id attributes."""
-        sections = [
-            DataSection(name=name, rows=[{"a": 1}], row_count=1) for name in TABLE_ORDER
-        ]
+        sections = [DataSection(name=name, rows=[{"a": 1}], row_count=1) for name in TABLE_ORDER]
         renderer = HtmlRenderer()
         result = renderer.render_document(title="Test", metadata={}, sections=sections)
         for name in TABLE_ORDER:
@@ -2225,9 +2206,7 @@ class TestPhase6QA:
     def test_xss_in_cell_values_angle_brackets(self):
         """Cell values with angle brackets are HTML-escaped."""
         assert "&lt;" in _format_cell_html("<img onerror=alert(1)>")
-        assert (
-            "onerror" not in _format_cell_html("<img onerror=alert(1)>").split("&")[0]
-        )
+        assert "onerror" not in _format_cell_html("<img onerror=alert(1)>").split("&")[0]
 
     def test_xss_in_cell_values_quotes(self):
         """Cell values with quotes are HTML-escaped."""
@@ -2417,8 +2396,7 @@ class TestPhase6QA:
     def test_kpi_cards_by_week_25_rows_spend_trend(self):
         """BY WEEK with 25 rows -> spend trend uses 12/12 split correctly."""
         week_rows = [
-            {"period_label": f"W{i:02d}", "booking_rate": 0.30, "spend": 100 + i}
-            for i in range(25)
+            {"period_label": f"W{i:02d}", "booking_rate": 0.30, "spend": 100 + i} for i in range(25)
         ]
         sections = [
             DataSection(
@@ -2440,8 +2418,7 @@ class TestPhase6QA:
     def test_kpi_cards_by_week_5_rows_spend_trend(self):
         """BY WEEK with 5 rows -> spend trend with insufficient prior data."""
         week_rows = [
-            {"period_label": f"W{i:02d}", "booking_rate": 0.30, "spend": 100}
-            for i in range(5)
+            {"period_label": f"W{i:02d}", "booking_rate": 0.30, "spend": 100} for i in range(5)
         ]
         sections = [
             DataSection(
@@ -2712,9 +2689,7 @@ class TestPhase6QA:
 
         row_names = _extract_row_names(tbody)
         assert (
-            row_names.index("HighSpend")
-            < row_names.index("LowSpend")
-            < row_names.index("NoSpend")
+            row_names.index("HighSpend") < row_names.index("LowSpend") < row_names.index("NoSpend")
         ), "Null spend should sort to bottom"
 
     @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
@@ -3067,9 +3042,7 @@ class TestPhase6QA:
 
         assert _RECONCILIATION_PENDING_MESSAGE in report
         # Should show as empty section (no data table)
-        lifetime_section = report.split('id="lifetime-reconciliations"')[1].split(
-            "</section>"
-        )[0]
+        lifetime_section = report.split('id="lifetime-reconciliations"')[1].split("</section>")[0]
         assert '<table class="data-table"' not in lifetime_section
         assert 'class="empty"' in lifetime_section
 
@@ -3403,9 +3376,7 @@ class TestPhase6QA:
 
     def test_date_cells_have_date_class(self):
         """Cells in period_start and period_end columns get date-cell class."""
-        rows = [
-            {"period_start": "2026-01-01", "period_end": "2026-01-07", "name": "W01"}
-        ]
+        rows = [{"period_start": "2026-01-01", "period_end": "2026-01-07", "name": "W01"}]
         result = _render_section("TEST", rows=rows, row_count=1)
         assert "date-cell" in result
 

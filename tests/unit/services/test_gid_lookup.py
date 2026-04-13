@@ -444,9 +444,7 @@ class TestGidLookupIndexFromDataframe:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         assert len(index) == 0
 
@@ -460,9 +458,7 @@ class TestGidLookupIndexFromDataframe:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         assert len(index) == 1
 
@@ -476,9 +472,7 @@ class TestGidLookupIndexFromDataframe:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         assert len(index) == 3
 
@@ -505,9 +499,7 @@ class TestGidLookupIndexFromDataframe:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         assert len(index) == 2  # Row with null phone excluded
 
@@ -521,9 +513,7 @@ class TestGidLookupIndexFromDataframe:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         assert len(index) == 1  # Row with null vertical excluded
 
@@ -537,9 +527,7 @@ class TestGidLookupIndexFromDataframe:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         assert len(index) == 1  # Row with null gid excluded
 
@@ -554,9 +542,7 @@ class TestGidLookupIndexFromDataframe:
         )
 
         before = datetime.now(UTC)
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
         after = datetime.now(UTC)
 
         assert before <= index.created_at <= after
@@ -573,9 +559,7 @@ class TestGidLookupIndexFromDataframe:
             }
         )
 
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         assert len(index) == 1
 
@@ -593,9 +577,7 @@ class TestGidLookupIndexGetGid:
                 "gid": ["111", "222", "333"],
             }
         )
-        return GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        return GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
     def test_get_gid_found(self, sample_index: GidLookupIndex) -> None:
         """Should return GID when pair exists in index."""
@@ -619,9 +601,7 @@ class TestGidLookupIndexGetGid:
 
         assert result is None
 
-    def test_get_gid_wrong_vertical_returns_none(
-        self, sample_index: GidLookupIndex
-    ) -> None:
+    def test_get_gid_wrong_vertical_returns_none(self, sample_index: GidLookupIndex) -> None:
         """Should return None when phone exists but vertical differs."""
         # Phone exists with 'chiropractic', not 'dental'
         pair = PhoneVerticalPair(
@@ -633,9 +613,7 @@ class TestGidLookupIndexGetGid:
 
         assert result is None
 
-    def test_get_gid_uses_canonical_key_format(
-        self, sample_index: GidLookupIndex
-    ) -> None:
+    def test_get_gid_uses_canonical_key_format(self, sample_index: GidLookupIndex) -> None:
         """Lookup should use canonical_key 'pv1:{phone}:{vertical}' format."""
         pair = PhoneVerticalPair(
             office_phone="+14045551234",
@@ -662,9 +640,7 @@ class TestGidLookupIndexGetGids:
                 "gid": ["111", "222", "333"],
             }
         )
-        return GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        return GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
     def test_get_gids_empty_list(self, sample_index: GidLookupIndex) -> None:
         """Empty input list should return empty dict."""
@@ -685,15 +661,11 @@ class TestGidLookupIndexGetGids:
         assert result[pairs[0]] == "111"
         assert result[pairs[1]] == "222"
 
-    def test_get_gids_mixed_found_and_not_found(
-        self, sample_index: GidLookupIndex
-    ) -> None:
+    def test_get_gids_mixed_found_and_not_found(self, sample_index: GidLookupIndex) -> None:
         """Mix of found and not found should have None for missing."""
         pairs = [
             PhoneVerticalPair(office_phone="+17705753103", vertical="chiropractic"),
-            PhoneVerticalPair(
-                office_phone="+19995551111", vertical="dental"
-            ),  # Not in index
+            PhoneVerticalPair(office_phone="+19995551111", vertical="dental"),  # Not in index
         ]
 
         result = sample_index.get_gids(pairs)
@@ -739,9 +711,7 @@ class TestGidLookupIndexStaleDetection:
                 "gid": ["111"],
             }
         )
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         assert not index.is_stale(ttl_seconds=3600)
 
@@ -775,9 +745,7 @@ class TestGidLookupIndexStaleDetection:
                 "gid": ["111"],
             }
         )
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         # Even freshly created index becomes stale with 0 TTL
         # (due to time elapsed during creation)
@@ -797,9 +765,7 @@ class TestGidLookupIndexContains:
                 "gid": ["111"],
             }
         )
-        return GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        return GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
     def test_contains_true_when_present(self, sample_index: GidLookupIndex) -> None:
         """'in' operator should return True for existing pair."""
@@ -838,9 +804,7 @@ class TestGidLookupIndexLen:
                 "gid": pl.Utf8,
             }
         )
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         assert len(index) == 0
 
@@ -853,8 +817,6 @@ class TestGidLookupIndexLen:
                 "gid": ["111", "222"],
             }
         )
-        index = GidLookupIndex.from_dataframe(
-            df, key_columns=["office_phone", "vertical"]
-        )
+        index = GidLookupIndex.from_dataframe(df, key_columns=["office_phone", "vertical"])
 
         assert len(index) == 2

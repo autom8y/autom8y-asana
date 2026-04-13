@@ -639,9 +639,7 @@ class TestCompositionWithProjectTypeRegistry:
         await workspace_registry.discover_async(mock_client)
 
         # lookup_or_discover should return UNIT (static), not PROCESS
-        result = await workspace_registry.lookup_or_discover_async(
-            "priority_gid", mock_client
-        )
+        result = await workspace_registry.lookup_or_discover_async("priority_gid", mock_client)
         assert result == EntityType.UNIT
 
 
@@ -679,9 +677,7 @@ class TestO1Lookup:
     @pytest.mark.asyncio
     async def test_name_lookup_is_dict_based(self) -> None:
         """Verify name lookup uses dict (O(1) by design)."""
-        projects = [
-            MockProject(gid=f"gid_{i}", name=f"Project {i}") for i in range(100)
-        ]
+        projects = [MockProject(gid=f"gid_{i}", name=f"Project {i}") for i in range(100)]
         mock_client = create_mock_client(projects=projects)
 
         registry = get_workspace_registry()
@@ -889,6 +885,4 @@ class TestExactMatchPrecedence:
         assert registry.get_process_type("sales_gid") == ProcessType.SALES
         assert registry.get_process_type("retention_gid") == ProcessType.RETENTION
         # Contains match (no exact match for ONBOARDING)
-        assert (
-            registry.get_process_type("onboard_process_gid") == ProcessType.ONBOARDING
-        )
+        assert registry.get_process_type("onboard_process_gid") == ProcessType.ONBOARDING

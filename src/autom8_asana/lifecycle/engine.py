@@ -229,13 +229,9 @@ class LifecycleEngine:
 
         # Service dependencies -- injected or lazily constructed from
         # concrete implementations in sibling modules.
-        self._creation_service = creation_service or _import_creation_service(
-            client, config
-        )
+        self._creation_service = creation_service or _import_creation_service(client, config)
         self._section_service = section_service or _import_section_service(client)
-        self._completion_service = completion_service or _import_completion_service(
-            client, config
-        )
+        self._completion_service = completion_service or _import_completion_service(client, config)
         self._init_action_registry = init_action_registry or _DefaultInitActionRegistry(
             client, config
         )
@@ -306,9 +302,7 @@ class LifecycleEngine:
             # --- Pre-transition validation ---
             if source_stage.validation and source_stage.validation.pre_transition:
                 validation = source_stage.validation.pre_transition
-                missing = self._check_required_fields(
-                    source_process, validation.required_fields
-                )
+                missing = self._check_required_fields(source_process, validation.required_fields)
                 if missing:
                     if validation.mode == "block":
                         return self._build_result(
@@ -419,14 +413,10 @@ class LifecycleEngine:
         result.add_action("create_process")
 
         # Phase 2: CONFIGURE
-        await self._phase_configure_async(
-            source_stage, target_stage, ctx, source_process, result
-        )
+        await self._phase_configure_async(source_stage, target_stage, ctx, source_process, result)
 
         # Phase 3: ACTIONS
-        await self._phase_actions_async(
-            target_stage, entity_gid, ctx, source_process, result
-        )
+        await self._phase_actions_async(target_stage, entity_gid, ctx, source_process, result)
 
         # Phase 4: WIRE
         await self._phase_wire_async(target_stage, entity_gid, ctx, result)
@@ -460,8 +450,8 @@ class LifecycleEngine:
         # Auto-completion (explicit per-transition flag, FR-COMPLETE-001)
         if source_stage.transitions.auto_complete_prior:
             try:
-                completion_result = (
-                    await self._completion_service.complete_source_async(source_process)
+                completion_result = await self._completion_service.complete_source_async(
+                    source_process
                 )
                 if completion_result.completed:
                     for gid in completion_result.completed:
@@ -496,17 +486,13 @@ class LifecycleEngine:
             for i, action_result in enumerate(action_results):
                 action_type = target_stage.init_actions[i].type
                 if isinstance(action_result, BaseException):
-                    result.add_warning(
-                        f"Init action {action_type} failed: {action_result}"
-                    )
+                    result.add_warning(f"Init action {action_type} failed: {action_result}")
                 elif action_result.success:
                     result.add_action(f"init_{action_type}")
                     if action_result.entity_gid:
                         result.add_entity_created(action_result.entity_gid)
                 else:
-                    result.add_warning(
-                        f"Init action {action_type} failed: {action_result.error}"
-                    )
+                    result.add_warning(f"Init action {action_type} failed: {action_result.error}")
         except Exception as e:  # BROAD-CATCH: fail-forward
             result.add_warning(f"Init actions phase failed: {e}")
 
@@ -621,9 +607,7 @@ class LifecycleEngine:
             self._client,
             trigger_entity=source_process,
         ) as ctx:
-            await self._run_pipeline_async(
-                source_stage, target_stage, ctx, source_process, result
-            )
+            await self._run_pipeline_async(source_stage, target_stage, ctx, source_process, result)
 
         logger.info(
             "lifecycle_dnc_create_complete",
@@ -672,8 +656,8 @@ class LifecycleEngine:
         # CompletionService instead of just recording the action string)
         if outcome == "converted" and source_stage.transitions.auto_complete_prior:
             try:
-                completion_result = (
-                    await self._completion_service.complete_source_async(source_process)
+                completion_result = await self._completion_service.complete_source_async(
+                    source_process
                 )
                 if completion_result.completed:
                     for gid in completion_result.completed:
@@ -761,9 +745,7 @@ class LifecycleEngine:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _check_required_fields(
-        self, process: Process, required_fields: list[str]
-    ) -> list[str]:
+    def _check_required_fields(self, process: Process, required_fields: list[str]) -> list[str]:
         """Check required fields on process. Returns list of missing."""
         missing = []
         for field_name in required_fields:
@@ -895,9 +877,7 @@ def _import_completion_service(
     return CompletionService(client)
 
 
-def _import_wiring_service(
-    client: AsanaClient, config: LifecycleConfig
-) -> WiringServiceProtocol:
+def _import_wiring_service(client: AsanaClient, config: LifecycleConfig) -> WiringServiceProtocol:
     """Lazily import and construct DependencyWiringService."""
     from autom8_asana.lifecycle.wiring import DependencyWiringService
 

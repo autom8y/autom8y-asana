@@ -166,18 +166,13 @@ class TestYAMLConfigIntegrity:
         stage_names = set(config.stages.keys())
         issues = []
         for name, stage in config.stages.items():
-            if (
-                stage.transitions.converted
-                and stage.transitions.converted not in stage_names
-            ):
+            if stage.transitions.converted and stage.transitions.converted not in stage_names:
                 issues.append(f"{name} -> converted: '{stage.transitions.converted}'")
             if (
                 stage.transitions.did_not_convert
                 and stage.transitions.did_not_convert not in stage_names
             ):
-                issues.append(
-                    f"{name} -> did_not_convert: '{stage.transitions.did_not_convert}'"
-                )
+                issues.append(f"{name} -> did_not_convert: '{stage.transitions.did_not_convert}'")
         assert not issues, f"DAG integrity failures: {issues}"
 
     def test_auto_complete_prior_on_expected_stages(self):
@@ -209,9 +204,7 @@ class TestYAMLConfigIntegrity:
             stage = config.get_stage(stage_name)
             assert stage is not None
             assert stage.target_section, f"Stage '{stage_name}' missing target_section"
-            assert stage.template_section, (
-                f"Stage '{stage_name}' missing template_section"
-            )
+            assert stage.template_section, f"Stage '{stage_name}' missing template_section"
 
     def test_cascading_sections_defined_for_active_stages(self):
         """Stages 1-4 should define cascading_sections for at least one
@@ -260,9 +253,7 @@ class TestYAMLConfigIntegrity:
         for stage_name in ("outreach", "sales", "onboarding", "implementation"):
             stage = config.get_stage(stage_name)
             assert stage is not None
-            assert stage.project_gid is not None, (
-                f"Stage '{stage_name}' has null project_gid"
-            )
+            assert stage.project_gid is not None, f"Stage '{stage_name}' has null project_gid"
 
     def test_orphan_stages_check(self):
         """Report any stages that are defined but never reachable via
@@ -301,9 +292,7 @@ class TestYAMLConfigIntegrity:
             stage = config.get_stage(name)
             assert stage is not None
             numbers.append(stage.pipeline_stage)
-        assert numbers == [1, 2, 3, 4], (
-            f"Main pipeline stages should be [1,2,3,4], got {numbers}"
-        )
+        assert numbers == [1, 2, 3, 4], f"Main pipeline stages should be [1,2,3,4], got {numbers}"
 
     def test_dependency_wiring_rules_exist(self):
         """At least pipeline_default wiring rules should exist."""
@@ -433,9 +422,7 @@ class TestCompletionService:
         from autom8_asana.lifecycle.completion import CompletionService
 
         client = _make_mock_client()
-        client.tasks.update_async = AsyncMock(
-            side_effect=ConnectionError("API timeout")
-        )
+        client.tasks.update_async = AsyncMock(side_effect=ConnectionError("API timeout"))
         service = CompletionService(client)
         process = _make_mock_process(completed=False)
 
@@ -592,9 +579,7 @@ class TestCascadingSectionService:
             return s
 
         paginator = MagicMock()
-        paginator.collect = AsyncMock(
-            return_value=[make_section("Sales Process", "sec_1")]
-        )
+        paginator.collect = AsyncMock(return_value=[make_section("Sales Process", "sec_1")])
         client.sections.list_for_project_async = MagicMock(return_value=paginator)
 
         ctx = MagicMock()
@@ -657,9 +642,7 @@ class TestDependencyWiringService:
 
         result = _run_async(_run())
         assert "play_gid" in result.wired
-        client.tasks.add_dependency_async.assert_called_once_with(
-            "process_gid", "play_gid"
-        )
+        client.tasks.add_dependency_async.assert_called_once_with("process_gid", "play_gid")
 
     def test_wire_entity_no_target_gid(self):
         """Passing empty target GID should produce warning, not error."""
@@ -671,9 +654,7 @@ class TestDependencyWiringService:
         service = DependencyWiringService(client, config)
 
         async def _run():
-            return await service.wire_entity_as_dependency_async(
-                "play_gid", "", "implementation"
-            )
+            return await service.wire_entity_as_dependency_async("play_gid", "", "implementation")
 
         result = _run_async(_run())
         assert len(result.warnings) > 0
@@ -686,9 +667,7 @@ class TestDependencyWiringService:
 
         config = LifecycleConfig(CONFIG_PATH)
         client = _make_mock_client()
-        client.tasks.add_dependency_async = AsyncMock(
-            side_effect=ConnectionError("timeout")
-        )
+        client.tasks.add_dependency_async = AsyncMock(side_effect=ConnectionError("timeout"))
         service = DependencyWiringService(client, config)
 
         async def _run():
@@ -751,9 +730,7 @@ class TestEntityCreationService:
         """Should extract gid from list of dicts."""
         from autom8_asana.lifecycle.creation import EntityCreationService
 
-        result = EntityCreationService._extract_user_gid(
-            [{"gid": "user123", "name": "Alice"}]
-        )
+        result = EntityCreationService._extract_user_gid([{"gid": "user123", "name": "Alice"}])
         assert result == "user123"
 
     def test_extract_user_gid_from_empty(self):
@@ -842,18 +819,14 @@ class TestInitActionHandlers:
 
         config = LifecycleConfig(CONFIG_PATH)
         client = _make_mock_client()
-        client.stories.create_comment_async = AsyncMock(
-            side_effect=ConnectionError("timeout")
-        )
+        client.stories.create_comment_async = AsyncMock(side_effect=ConnectionError("timeout"))
         handler = CommentHandler(client, config)
 
         action_config = MagicMock()
         action_config.comment_template = None
         process = _make_mock_process()
         ctx = MagicMock()
-        ctx.business_async = AsyncMock(
-            return_value=MagicMock(name="Biz", gid="biz_gid")
-        )
+        ctx.business_async = AsyncMock(return_value=MagicMock(name="Biz", gid="biz_gid"))
 
         async def _run():
             return await handler.execute_async(ctx, "new_gid", action_config, process)
@@ -988,9 +961,7 @@ class TestLifecycleEngineIntegration:
 
         # Mock wiring service
         wiring_service = MagicMock()
-        wiring_service.wire_defaults_async = AsyncMock(
-            return_value=WiringResult(wired=["dep_gid"])
-        )
+        wiring_service.wire_defaults_async = AsyncMock(return_value=WiringResult(wired=["dep_gid"]))
 
         # Mock reopen service
         reopen_service = MagicMock()
@@ -1020,9 +991,7 @@ class TestLifecycleEngineIntegration:
 
     def test_converted_transition_runs_all_phases(self):
         """CONVERTED transition should run all 4 phases in order."""
-        (engine, creation, sections, completion, actions, wiring, _) = (
-            self._make_engine()
-        )
+        (engine, creation, sections, completion, actions, wiring, _) = self._make_engine()
 
         process = _make_mock_process(process_type_value="sales")
 
@@ -1044,9 +1013,7 @@ class TestLifecycleEngineIntegration:
 
     def test_outreach_converted_skips_auto_complete(self):
         """Outreach CONVERTED should NOT auto-complete (flag=false)."""
-        (engine, creation, sections, completion, actions, wiring, _) = (
-            self._make_engine()
-        )
+        (engine, creation, sections, completion, actions, wiring, _) = self._make_engine()
 
         process = _make_mock_process(process_type_value="outreach")
 
@@ -1060,9 +1027,7 @@ class TestLifecycleEngineIntegration:
 
     def test_terminal_transition(self):
         """Implementation CONVERTED is terminal (target=null)."""
-        (engine, creation, sections, completion, actions, wiring, _) = (
-            self._make_engine()
-        )
+        (engine, creation, sections, completion, actions, wiring, _) = self._make_engine()
 
         process = _make_mock_process(process_type_value="implementation")
 
@@ -1077,9 +1042,7 @@ class TestLifecycleEngineIntegration:
 
     def test_dnc_deferred(self):
         """Outreach DNC is 'deferred' - should just log."""
-        (engine, creation, sections, completion, actions, wiring, _) = (
-            self._make_engine()
-        )
+        (engine, creation, sections, completion, actions, wiring, _) = self._make_engine()
 
         process = _make_mock_process(process_type_value="outreach")
 
@@ -1093,9 +1056,7 @@ class TestLifecycleEngineIntegration:
 
     def test_dnc_create_new(self):
         """Sales DNC should create a new outreach process."""
-        (engine, creation, sections, completion, actions, wiring, reopen) = (
-            self._make_engine()
-        )
+        (engine, creation, sections, completion, actions, wiring, reopen) = self._make_engine()
 
         process = _make_mock_process(process_type_value="sales")
 
@@ -1109,9 +1070,7 @@ class TestLifecycleEngineIntegration:
 
     def test_dnc_reopen(self):
         """Onboarding DNC should reopen, not create new."""
-        (engine, creation, sections, completion, actions, wiring, reopen) = (
-            self._make_engine()
-        )
+        (engine, creation, sections, completion, actions, wiring, reopen) = self._make_engine()
 
         process = _make_mock_process(process_type_value="onboarding")
 
@@ -1126,9 +1085,7 @@ class TestLifecycleEngineIntegration:
 
     def test_unknown_stage_returns_error(self):
         """Unknown source stage should return error result, not crash."""
-        (engine, creation, sections, completion, actions, wiring, _) = (
-            self._make_engine()
-        )
+        (engine, creation, sections, completion, actions, wiring, _) = self._make_engine()
 
         process = _make_mock_process(process_type_value="nonexistent")
 
@@ -1143,9 +1100,7 @@ class TestLifecycleEngineIntegration:
         """If Phase 1 creation fails, the transition should hard-fail."""
         from autom8_asana.lifecycle.engine import CreationResult
 
-        (engine, creation, sections, completion, actions, wiring, _) = (
-            self._make_engine()
-        )
+        (engine, creation, sections, completion, actions, wiring, _) = self._make_engine()
         creation.create_process_async = AsyncMock(
             return_value=CreationResult(success=False, error="Template not found")
         )
@@ -1164,9 +1119,7 @@ class TestLifecycleEngineIntegration:
 
     def test_phase2_failure_fail_forward(self):
         """If Phase 2 cascade fails, should warn but continue."""
-        (engine, creation, sections, completion, actions, wiring, _) = (
-            self._make_engine()
-        )
+        (engine, creation, sections, completion, actions, wiring, _) = self._make_engine()
         sections.cascade_async = AsyncMock(side_effect=RuntimeError("cascade boom"))
 
         process = _make_mock_process(process_type_value="sales")
@@ -1184,9 +1137,7 @@ class TestLifecycleEngineIntegration:
     def test_exception_in_engine_is_boundary_guarded(self):
         """Unhandled exception in transition should be caught by
         boundary guard."""
-        (engine, creation, sections, completion, actions, wiring, _) = (
-            self._make_engine()
-        )
+        (engine, creation, sections, completion, actions, wiring, _) = self._make_engine()
         # Force an unexpected error in creation service
         creation.create_process_async = AsyncMock(side_effect=TypeError("unexpected"))
 
@@ -1203,9 +1154,7 @@ class TestLifecycleEngineIntegration:
     def test_pre_validation_warn_mode(self):
         """Onboarding stage has pre_transition validation in warn mode.
         Missing fields should add warning but allow transition."""
-        (engine, creation, sections, completion, actions, wiring, _) = (
-            self._make_engine()
-        )
+        (engine, creation, sections, completion, actions, wiring, _) = self._make_engine()
 
         # Process missing Contact Phone
         process = _make_mock_process(
@@ -1227,9 +1176,7 @@ class TestLifecycleEngineIntegration:
         D-LC-004 FIXED: _handle_terminal_async now calls CompletionService
         instead of just recording the action string.
         """
-        (engine, creation, sections, completion, actions, wiring, _) = (
-            self._make_engine()
-        )
+        (engine, creation, sections, completion, actions, wiring, _) = self._make_engine()
 
         process = _make_mock_process(process_type_value="implementation")
 
@@ -1429,9 +1376,7 @@ class TestEdgeCasesAdversarial:
         holder.gid = "holder_gid"
 
         subtask = MagicMock()
-        subtask.custom_fields = [
-            {"name": "Process Type", "display_value": "Onboarding"}
-        ]
+        subtask.custom_fields = [{"name": "Process Type", "display_value": "Onboarding"}]
         subtask.completed = False
         subtask.created_at = "2025-01-01T00:00:00Z"
 
@@ -1505,9 +1450,7 @@ class TestEdgeCasesAdversarial:
         assert result.error == ""
 
         # With explicit error
-        result_err = engine._build_result(
-            "test_rule", process, start, tr, error="explicit"
-        )
+        result_err = engine._build_result("test_rule", process, start, tr, error="explicit")
         assert result_err.success is False
         assert result_err.error == "explicit"
 
@@ -1554,9 +1497,7 @@ class TestEdgeCasesAdversarial:
             return_value=CreationResult(success=True, entity_gid="new_gid")
         )
         section_service = MagicMock()
-        section_service.cascade_async = AsyncMock(
-            return_value=CascadeResult(updates=[])
-        )
+        section_service.cascade_async = AsyncMock(return_value=CascadeResult(updates=[]))
         completion_service = MagicMock()
         completion_service.complete_source_async = AsyncMock(
             return_value=CompletionResult(completed=[])
@@ -1564,9 +1505,7 @@ class TestEdgeCasesAdversarial:
         init_action_registry = MagicMock()
         init_action_registry.execute_actions_async = AsyncMock(return_value=[])
         wiring_service = MagicMock()
-        wiring_service.wire_defaults_async = AsyncMock(
-            return_value=WiringResult(wired=[])
-        )
+        wiring_service.wire_defaults_async = AsyncMock(return_value=WiringResult(wired=[]))
 
         engine = LifecycleEngine(
             client,
@@ -1690,8 +1629,7 @@ class TestEdgeCasesAdversarial:
         for stage_name, expected_action in expected.items():
             actual = config.get_dnc_action(stage_name)
             assert actual == expected_action, (
-                f"Stage '{stage_name}': expected dnc_action="
-                f"'{expected_action}', got '{actual}'"
+                f"Stage '{stage_name}': expected dnc_action='{expected_action}', got '{actual}'"
             )
 
     def test_transition_targets_per_stage(self):
@@ -1765,6 +1703,5 @@ class TestEdgeCasesAdversarial:
         impl = config.get_stage("implementation")
         assert impl is not None
         assert impl.transitions.did_not_convert == "outreach", (
-            "Implementation DNC should route to outreach per TDD 8.2 "
-            "correction, not sales"
+            "Implementation DNC should route to outreach per TDD 8.2 correction, not sales"
         )

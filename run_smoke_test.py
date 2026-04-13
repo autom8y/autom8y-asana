@@ -116,10 +116,8 @@ def main() -> None:
 
     _orig_timeout_init = _data_config.TimeoutConfig.__post_init__
     # Replace the frozen dataclass default by creating a new default factory
-    _data_config.DataServiceConfig.__dataclass_fields__["timeout"].default_factory = (
-        lambda: _data_config.TimeoutConfig(
-            connect=10.0, read=120.0, write=30.0, pool=10.0
-        )
+    _data_config.DataServiceConfig.__dataclass_fields__["timeout"].default_factory = lambda: (
+        _data_config.TimeoutConfig(connect=10.0, read=120.0, write=30.0, pool=10.0)
     )
 
     # Capture HTML during compose_report — must patch in insights_export module
@@ -173,9 +171,7 @@ def main() -> None:
         for gid, path in captured_html.items():
             print(f"  {gid}: {path}")
     else:
-        print(
-            "\nWARNING: No HTML was captured (compose_report may not have been called)"
-        )
+        print("\nWARNING: No HTML was captured (compose_report may not have been called)")
 
     # Exit with appropriate code
     body = json.loads(result.get("body", "{}"))

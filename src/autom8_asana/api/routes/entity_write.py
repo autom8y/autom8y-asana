@@ -51,9 +51,7 @@ from autom8_asana.services.field_write_service import (
 
 logger = get_logger(__name__)
 
-router = s2s_router(
-    prefix="/api/v1/entity", tags=["entity-write"], include_in_schema=False
-)
+router = s2s_router(prefix="/api/v1/entity", tags=["entity-write"], include_in_schema=False)
 
 
 # ---------------------------------------------------------------------------
@@ -114,12 +112,8 @@ class EntityWriteResponse(BaseModel):
     gid: str = Field(description="Asana task GID that was written to.")
     entity_type: str = Field(description="Entity type of the written task.")
     fields_written: int = Field(description="Number of fields successfully written.")
-    fields_skipped: int = Field(
-        description="Number of fields skipped due to errors or filtering."
-    )
-    field_results: list[FieldWriteResult] = Field(
-        description="Per-field write outcomes."
-    )
+    fields_skipped: int = Field(description="Number of fields skipped due to errors or filtering.")
+    field_results: list[FieldWriteResult] = Field(description="Per-field write outcomes.")
     updated_fields: dict[str, Any] | None = Field(
         default=None,
         description="Current field values after write (only when include_updated=true).",

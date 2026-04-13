@@ -109,9 +109,7 @@ class TestRedisCacheProviderWithManager:
         manager.health_check.assert_called_once()
 
     @patch("redis.ConnectionPool")
-    def test_is_healthy_returns_false_when_manager_disconnected(
-        self, mock_pool: MagicMock
-    ) -> None:
+    def test_is_healthy_returns_false_when_manager_disconnected(self, mock_pool: MagicMock) -> None:
         """is_healthy returns False when manager reports DISCONNECTED."""
         manager = _make_redis_manager_mock(state=ConnectionState.DISCONNECTED)
 
@@ -184,9 +182,7 @@ class TestS3CacheProviderWithManager:
         manager.health_check.assert_called_once()
 
     @patch("boto3.client")
-    def test_is_healthy_returns_false_when_manager_disconnected(
-        self, mock_boto: MagicMock
-    ) -> None:
+    def test_is_healthy_returns_false_when_manager_disconnected(self, mock_boto: MagicMock) -> None:
         """is_healthy returns False when manager reports DISCONNECTED."""
         manager = _make_s3_manager_mock(state=ConnectionState.DISCONNECTED)
 
@@ -198,9 +194,7 @@ class TestS3CacheProviderWithManager:
         assert provider.is_healthy() is False
 
     @patch("boto3.client")
-    def test_no_client_created_when_manager_provided(
-        self, mock_boto: MagicMock
-    ) -> None:
+    def test_no_client_created_when_manager_provided(self, mock_boto: MagicMock) -> None:
         """No internal boto3 client is created when connection_manager is provided."""
         manager = _make_s3_manager_mock()
 

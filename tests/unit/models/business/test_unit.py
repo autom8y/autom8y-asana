@@ -216,9 +216,7 @@ class TestUnitCustomFields:
         """weekly_ad_spend getter/setter works."""
         unit = Unit(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Weekly Ad Spend", "number_value": 1200.00}
-            ],
+            custom_fields=[{"gid": "1", "name": "Weekly Ad Spend", "number_value": 1200.00}],
         )
         assert unit.weekly_ad_spend == Decimal("1200.00")
 
@@ -226,9 +224,7 @@ class TestUnitCustomFields:
         """discount getter returns enum value per PRD-0024."""
         unit = Unit(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Discount", "enum_value": {"name": "10%"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Discount", "enum_value": {"name": "10%"}}],
         )
         assert unit.discount == "10%"
 
@@ -244,9 +240,7 @@ class TestUnitCustomFields:
         """tiktok_spend getter/setter works."""
         unit = Unit(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Tiktok Spend", "number_value": 300.00}
-            ],
+            custom_fields=[{"gid": "1", "name": "Tiktok Spend", "number_value": 300.00}],
         )
         assert unit.tiktok_spend == Decimal("300.00")
 
@@ -256,9 +250,7 @@ class TestUnitCustomFields:
         """ad_account_id getter/setter works."""
         unit = Unit(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Ad Account ID", "text_value": "ACC123"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Ad Account ID", "text_value": "ACC123"}],
         )
         assert unit.ad_account_id == "ACC123"
 
@@ -286,9 +278,7 @@ class TestUnitCustomFields:
         """vertical extracts name from enum dict."""
         unit = Unit(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Vertical", "enum_value": {"name": "Retail"}}
-            ],
+            custom_fields=[{"gid": "1", "name": "Vertical", "enum_value": {"name": "Retail"}}],
         )
         assert unit.vertical == "Retail"
 
@@ -410,9 +400,7 @@ class TestUnitCustomFields:
         """zip_codes_radius returns int per PRD-0024."""
         unit = Unit(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Zip Codes Radius", "number_value": 25}
-            ],
+            custom_fields=[{"gid": "1", "name": "Zip Codes Radius", "number_value": 25}],
         )
         assert unit.zip_codes_radius == 25
 
@@ -420,9 +408,7 @@ class TestUnitCustomFields:
         """internal_notes getter works per PRD-0024."""
         unit = Unit(
             gid="123",
-            custom_fields=[
-                {"gid": "1", "name": "Internal Notes", "text_value": "Some notes here"}
-            ],
+            custom_fields=[{"gid": "1", "name": "Internal Notes", "text_value": "Some notes here"}],
         )
         assert unit.internal_notes == "Some notes here"
 

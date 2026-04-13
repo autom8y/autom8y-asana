@@ -42,10 +42,7 @@ def _cb_error_factory(
     e: CircuitBreakerOpenError, request: BatchRequestDescriptor
 ) -> dict[str, BatchInsightsResult]:
     """Return error dict for all PVPs when CB is open (non-raising)."""
-    error_msg = (
-        f"Circuit breaker open. Service appears degraded. "
-        f"Retry in {e.time_remaining:.1f}s."
-    )
+    error_msg = f"Circuit breaker open. Service appears degraded. Retry in {e.time_remaining:.1f}s."
     results: dict[str, BatchInsightsResult] = {}
     for pvp in request.pvp_list:
         results[pvp.canonical_key] = BatchInsightsResult(
@@ -265,9 +262,7 @@ async def execute_batch_request(
     import time
 
     # S1: Pre-flight -- build PVP lookup and request body
-    pvp_by_key: dict[str, PhoneVerticalPair] = {
-        pvp.canonical_key: pvp for pvp in pvp_list
-    }
+    pvp_by_key: dict[str, PhoneVerticalPair] = {pvp.canonical_key: pvp for pvp in pvp_list}
 
     path = "/api/v1/data-service/insights"
 
@@ -318,21 +313,17 @@ async def execute_batch_request(
     )
 
     # S2-S8: Execute via policy
-    policy: DefaultEndpointPolicy[
-        BatchRequestDescriptor, dict[str, BatchInsightsResult]
-    ] = DefaultEndpointPolicy(
-        circuit_breaker=client._circuit_breaker,
-        get_client=client._get_client,
-        execute_with_retry=client._execute_with_retry,
-        cb_error_factory=_cb_error_factory,
-        request_builder=_request_builder,
-        error_handler=lambda resp, req, ms: _error_handler(
-            resp, req, ms, client=client
-        ),
-        success_handler=lambda resp, req, ms: _success_handler(
-            resp, req, ms, client=client
-        ),
-        pre_execute_error_handler=_make_pre_execute_error_handler(pvp_list),
+    policy: DefaultEndpointPolicy[BatchRequestDescriptor, dict[str, BatchInsightsResult]] = (
+        DefaultEndpointPolicy(
+            circuit_breaker=client._circuit_breaker,
+            get_client=client._get_client,
+            execute_with_retry=client._execute_with_retry,
+            cb_error_factory=_cb_error_factory,
+            request_builder=_request_builder,
+            error_handler=lambda resp, req, ms: _error_handler(resp, req, ms, client=client),
+            success_handler=lambda resp, req, ms: _success_handler(resp, req, ms, client=client),
+            pre_execute_error_handler=_make_pre_execute_error_handler(pvp_list),
+        )
     )
 
     return await policy.execute(descriptor)

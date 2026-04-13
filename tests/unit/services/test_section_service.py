@@ -61,9 +61,7 @@ def _last_event(mock_invalidator: MagicMock):
 
 class TestGetSection:
     @pytest.mark.asyncio()
-    async def test_get_section(
-        self, service: SectionService, mock_client: AsyncMock
-    ) -> None:
+    async def test_get_section(self, service: SectionService, mock_client: AsyncMock) -> None:
         mock_client.sections.get_async.return_value = {
             "gid": "sec-1",
             "name": "To Do",
@@ -93,9 +91,7 @@ class TestCreateSection:
             "name": "New Section",
         }
 
-        result = await service.create_section(
-            mock_client, name="New Section", project="proj-1"
-        )
+        result = await service.create_section(mock_client, name="New Section", project="proj-1")
 
         assert result["gid"] == "sec-new"
         event = _last_event(mock_invalidator)
@@ -203,9 +199,7 @@ class TestAddTask:
     ) -> None:
         await service.add_task(mock_client, "sec-1", "task-1")
 
-        mock_client.sections.add_task_async.assert_called_once_with(
-            "sec-1", task="task-1"
-        )
+        mock_client.sections.add_task_async.assert_called_once_with("sec-1", task="task-1")
         event = _last_event(mock_invalidator)
         assert event.entity_kind == EntityKind.SECTION
         assert event.entity_gid == "sec-1"
@@ -220,9 +214,7 @@ class TestAddTask:
 
 class TestReorder:
     @pytest.mark.asyncio()
-    async def test_reorder_before(
-        self, service: SectionService, mock_client: AsyncMock
-    ) -> None:
+    async def test_reorder_before(self, service: SectionService, mock_client: AsyncMock) -> None:
         await service.reorder(mock_client, "sec-1", "proj-1", before_section="sec-2")
 
         mock_client.sections.insert_section_async.assert_called_once_with(
@@ -233,9 +225,7 @@ class TestReorder:
         )
 
     @pytest.mark.asyncio()
-    async def test_reorder_after(
-        self, service: SectionService, mock_client: AsyncMock
-    ) -> None:
+    async def test_reorder_after(self, service: SectionService, mock_client: AsyncMock) -> None:
         await service.reorder(mock_client, "sec-1", "proj-1", after_section="sec-0")
 
         mock_client.sections.insert_section_async.assert_called_once_with(
@@ -249,9 +239,7 @@ class TestReorder:
     async def test_reorder_neither_raises(
         self, service: SectionService, mock_client: AsyncMock
     ) -> None:
-        with pytest.raises(
-            InvalidParameterError, match="before_section.*after_section"
-        ):
+        with pytest.raises(InvalidParameterError, match="before_section.*after_section"):
             await service.reorder(mock_client, "sec-1", "proj-1")
 
     @pytest.mark.asyncio()
@@ -275,9 +263,7 @@ class TestReorder:
 
 class TestExtractProjectGids:
     def test_with_project_dict(self) -> None:
-        result = SectionService._extract_section_project_gids(
-            {"project": {"gid": "proj-1"}}
-        )
+        result = SectionService._extract_section_project_gids({"project": {"gid": "proj-1"}})
         assert result == ["proj-1"]
 
     def test_without_project(self) -> None:
@@ -289,9 +275,7 @@ class TestExtractProjectGids:
         assert result == []
 
     def test_project_without_gid(self) -> None:
-        result = SectionService._extract_section_project_gids(
-            {"project": {"name": "Test"}}
-        )
+        result = SectionService._extract_section_project_gids({"project": {"name": "Test"}})
         assert result == []
 
 

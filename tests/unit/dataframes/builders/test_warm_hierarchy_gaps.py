@@ -155,9 +155,7 @@ class TestWarmHierarchyGapsFetchesFullData:
         mock_persistence = MagicMock()
 
         # Patch settings to avoid real config access
-        with patch(
-            "autom8_asana.dataframes.builders.progressive.get_settings"
-        ) as mock_settings:
+        with patch("autom8_asana.dataframes.builders.progressive.get_settings") as mock_settings:
             mock_settings.return_value.runtime.section_cascade_validation = "1"
             mock_settings.return_value.pacing.hierarchy_batch_delay = 0.0
             mock_settings.return_value.pacing.hierarchy_batch_size = 10
@@ -218,9 +216,7 @@ class TestWarmHierarchyGapsFetchesFullData:
 
         mock_persistence = MagicMock()
 
-        with patch(
-            "autom8_asana.dataframes.builders.progressive.get_settings"
-        ) as mock_settings:
+        with patch("autom8_asana.dataframes.builders.progressive.get_settings") as mock_settings:
             mock_settings.return_value.runtime.section_cascade_validation = "1"
 
             builder = ProgressiveProjectBuilder(
@@ -265,9 +261,7 @@ class TestWarmHierarchyGapsFetchesFullData:
 
         mock_persistence = MagicMock()
 
-        with patch(
-            "autom8_asana.dataframes.builders.progressive.get_settings"
-        ) as mock_settings:
+        with patch("autom8_asana.dataframes.builders.progressive.get_settings") as mock_settings:
             mock_settings.return_value.runtime.section_cascade_validation = "1"
 
             builder = ProgressiveProjectBuilder(
@@ -344,9 +338,7 @@ class TestWarmHierarchyGapsFetchesFullData:
         mock_schema.version = "1.0.0"
         mock_persistence = MagicMock()
 
-        with patch(
-            "autom8_asana.dataframes.builders.progressive.get_settings"
-        ) as mock_settings:
+        with patch("autom8_asana.dataframes.builders.progressive.get_settings") as mock_settings:
             mock_settings.return_value.runtime.section_cascade_validation = "1"
 
             builder = ProgressiveProjectBuilder(

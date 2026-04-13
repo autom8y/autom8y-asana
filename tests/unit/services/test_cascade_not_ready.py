@@ -375,9 +375,7 @@ class TestCheckCascadeHealthGateSkipPath:
         )
         df = pl.DataFrame({"gid": ["g1"]})
         # Should not raise -- registry returns None for unknown entity
-        with patch(
-            "autom8_asana.services.universal_strategy._get_entity_registry"
-        ) as mock_reg:
+        with patch("autom8_asana.services.universal_strategy._get_entity_registry") as mock_reg:
             mock_reg.return_value.get.return_value = None
             strategy._check_cascade_health(df, "proj-1")
 
@@ -388,9 +386,7 @@ class TestCheckCascadeHealthGateSkipPath:
         )
         df = pl.DataFrame({"gid": ["g1"]})
         desc = _make_descriptor(key_columns=())
-        with patch(
-            "autom8_asana.services.universal_strategy._get_entity_registry"
-        ) as mock_reg:
+        with patch("autom8_asana.services.universal_strategy._get_entity_registry") as mock_reg:
             mock_reg.return_value.get.return_value = desc
             strategy._check_cascade_health(df, "proj-1")
 
@@ -402,9 +398,7 @@ class TestCheckCascadeHealthGateSkipPath:
         df = pl.DataFrame({"gid": ["g1"]})
         desc = _make_descriptor(key_columns=("office_phone",))
         with (
-            patch(
-                "autom8_asana.services.universal_strategy._get_entity_registry"
-            ) as mock_reg,
+            patch("autom8_asana.services.universal_strategy._get_entity_registry") as mock_reg,
             patch.object(strategy, "_get_entity_schema", return_value=None),
         ):
             mock_reg.return_value.get.return_value = desc
@@ -447,9 +441,7 @@ class TestResolveGroupCascadeNotReady:
         schema = _make_schema([("office_phone", "Office Phone")])
 
         with (
-            patch(
-                "autom8_asana.services.universal_strategy._get_entity_registry"
-            ) as mock_reg,
+            patch("autom8_asana.services.universal_strategy._get_entity_registry") as mock_reg,
             patch.object(strategy, "_get_entity_schema", return_value=schema),
         ):
             mock_reg.return_value.get.return_value = desc
@@ -526,9 +518,7 @@ class TestCascadeHealthResult:
     """Verify the frozen dataclass behaves correctly."""
 
     def test_frozen(self) -> None:
-        result = CascadeHealthResult(
-            healthy=True, degraded_columns={}, max_null_rate=0.0
-        )
+        result = CascadeHealthResult(healthy=True, degraded_columns={}, max_null_rate=0.0)
         with pytest.raises(AttributeError):
             result.healthy = False  # type: ignore[misc]
 

@@ -37,9 +37,7 @@ def mock_batch_client() -> MagicMock:
 
 
 @pytest.fixture
-def store(
-    mock_cache_provider: MagicMock, mock_batch_client: MagicMock
-) -> UnifiedTaskStore:
+def store(mock_cache_provider: MagicMock, mock_batch_client: MagicMock) -> UnifiedTaskStore:
     """Create a UnifiedTaskStore with mocks."""
     return UnifiedTaskStore(
         cache=mock_cache_provider,

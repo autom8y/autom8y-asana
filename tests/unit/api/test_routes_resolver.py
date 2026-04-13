@@ -121,9 +121,7 @@ class TestResolveUnitEndpoint:
         )
 
         # Create mock strategy that uses DynamicIndex
-        mock_resolve = _make_mock_strategy_resolve(
-            mock_df, ["office_phone", "vertical"]
-        )
+        mock_resolve = _make_mock_strategy_resolve(mock_df, ["office_phone", "vertical"])
 
         with (
             patch(
@@ -183,9 +181,7 @@ class TestResolveUnitEndpoint:
             }
         )
 
-        mock_resolve = _make_mock_strategy_resolve(
-            mock_df, ["office_phone", "vertical"]
-        )
+        mock_resolve = _make_mock_strategy_resolve(mock_df, ["office_phone", "vertical"])
 
         with (
             patch(
@@ -286,9 +282,7 @@ class TestResolveValidation:
         """Batch size > 1000 returns 422 validation error."""
         jwt_token = "header.payload.signature"
 
-        criteria = [
-            {"phone": f"+1555{i:07d}", "vertical": "dental"} for i in range(1001)
-        ]
+        criteria = [{"phone": f"+1555{i:07d}", "vertical": "dental"} for i in range(1001)]
 
         with patch(
             "autom8_asana.api.routes.internal.validate_service_token",
@@ -487,9 +481,7 @@ class TestResolveInputOrder:
             }
         )
 
-        mock_resolve = _make_mock_strategy_resolve(
-            mock_df, ["office_phone", "vertical"]
-        )
+        mock_resolve = _make_mock_strategy_resolve(mock_df, ["office_phone", "vertical"])
 
         criteria = [
             {"phone": "+11111111111", "vertical": "a"},
@@ -753,9 +745,7 @@ class TestSchemaDiscoveryEndpoint:
         assert "gid" in field_names
         assert "name" in field_names
 
-    def test_schema_endpoint_unknown_entity_returns_404(
-        self, client: TestClient
-    ) -> None:
+    def test_schema_endpoint_unknown_entity_returns_404(self, client: TestClient) -> None:
         """Unknown entity type returns 404 with helpful error."""
         jwt_token = "header.payload.signature"
 
@@ -795,9 +785,7 @@ class TestSchemaDiscoveryEndpoint:
         data = response.json()
 
         # Find gid field and verify it has type info
-        gid_field = next(
-            (f for f in data["queryable_fields"] if f["name"] == "gid"), None
-        )
+        gid_field = next((f for f in data["queryable_fields"] if f["name"] == "gid"), None)
         assert gid_field is not None
         assert "type" in gid_field
 
@@ -863,9 +851,7 @@ class TestDynamicCriteriaFields:
         # Backend validation determines if field is valid
         assert response.status_code == 200
 
-    def test_invalid_dynamic_field_rejected_by_backend(
-        self, client: TestClient
-    ) -> None:
+    def test_invalid_dynamic_field_rejected_by_backend(self, client: TestClient) -> None:
         """Invalid dynamic fields are rejected by backend validation."""
         jwt_token = "header.payload.signature"
 
