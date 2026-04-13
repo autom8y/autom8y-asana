@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from autom8_asana.persistence.exceptions import GidValidationError as ValidationError
+from autom8_asana.persistence.errors import GidValidationError as ValidationError
 from autom8_asana.persistence.validation import validate_gid
 
 

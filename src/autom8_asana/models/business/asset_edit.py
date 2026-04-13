@@ -625,7 +625,7 @@ class AssetEdit(Process):
 
         Per PRD-0024: offer_id is now int, convert to str for API calls.
         """
-        from autom8_asana.exceptions import NotFoundError
+        from autom8_asana.errors import NotFoundError
         from autom8_asana.models.business.offer import Offer
         from autom8_asana.models.business.unit import Unit
 
@@ -690,7 +690,7 @@ class AssetEdit(Process):
 
         Per PRD-0024: offer_id is now int, convert to str for API calls.
         """
-        from autom8_asana.exceptions import NotFoundError
+        from autom8_asana.errors import NotFoundError
         from autom8_asana.models.business.offer import Offer
 
         offer_id_int = self.offer_id

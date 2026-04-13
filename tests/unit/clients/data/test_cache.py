@@ -410,7 +410,7 @@ class TestStaleFallback:
         """Raises InsightsServiceError when no stale cache available."""
         import respx
 
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         mock_cache = MagicMock()
         mock_cache.get.return_value = None  # No stale cache
@@ -439,7 +439,7 @@ class TestStaleFallback:
         """No stale fallback on 400 validation errors."""
         import respx
 
-        from autom8_asana.exceptions import InsightsValidationError
+        from autom8_asana.errors import InsightsValidationError
 
         mock_cache = MagicMock()
         mock_cache.get.return_value = {
@@ -480,7 +480,7 @@ class TestStaleFallback:
         """No stale fallback on 404 not found errors."""
         import respx
 
-        from autom8_asana.exceptions import InsightsNotFoundError
+        from autom8_asana.errors import InsightsNotFoundError
 
         mock_cache = MagicMock()
         mock_cache.get.return_value = {
@@ -560,7 +560,7 @@ class TestCacheFailureGracefulDegradation:
         """Cache get failure during fallback doesn't break error handling."""
         import respx
 
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         mock_cache = MagicMock()
         mock_cache.get.side_effect = ConnectionError("Cache read failed")

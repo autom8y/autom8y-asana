@@ -32,7 +32,7 @@ from autom8y_http import (
 )
 from autom8y_log import LoggerProtocol
 
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     AsanaError,
     RateLimitError,
     ServerError,

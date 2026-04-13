@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-09T10:20:59.424505+00:00",
+  "timestamp": "2026-04-13T13:40:50.893490+00:00",
   "spec_path": "/Users/tomtenuta/Code/a8/repos/autom8y-asana/docs/api-reference/openapi.json",
   "total_operations": 53,
   "coverage": {
@@ -10,87 +10,87 @@
     "active_coverage_pct": 100.0
   },
   "schema_validation": {
-    "checked": 33,
-    "valid": 33,
+    "checked": 32,
+    "valid": 32,
     "invalid": 0,
     "findings": []
   },
   "memory": {
-    "baseline_rss_mb": 335.2,
-    "final_rss_mb": 337.9,
-    "total_growth_mb": 2.8,
+    "baseline_rss_mb": 367.9,
+    "final_rss_mb": 371.5,
+    "total_growth_mb": 3.8,
     "budget_mb": 100,
     "per_endpoint_budget_mb": 50,
     "per_category": {
       "dataframes": {
-        "rss_before": 335.2,
-        "rss_after": 336.1,
-        "delta_mb": 1.0,
+        "rss_before": 367.9,
+        "rss_after": 368.2,
+        "delta_mb": 0.3,
         "operations": 4
       },
       "health": {
-        "rss_before": 336.1,
-        "rss_after": 337.6,
-        "delta_mb": 1.4,
+        "rss_before": 368.2,
+        "rss_after": 371.0,
+        "delta_mb": 2.8,
         "operations": 3
       },
       "offers": {
-        "rss_before": 337.6,
-        "rss_after": 337.6,
-        "delta_mb": 0.0,
+        "rss_before": 371.0,
+        "rss_after": 371.2,
+        "delta_mb": 0.2,
         "operations": 1
       },
       "projects": {
-        "rss_before": 337.6,
-        "rss_after": 337.7,
+        "rss_before": 371.2,
+        "rss_after": 371.3,
         "delta_mb": 0.1,
         "operations": 8
       },
       "query": {
-        "rss_before": 337.7,
-        "rss_after": 337.7,
+        "rss_before": 371.3,
+        "rss_after": 371.3,
         "delta_mb": 0.0,
         "operations": 6
       },
       "resolver": {
-        "rss_before": 337.7,
-        "rss_after": 337.7,
+        "rss_before": 371.3,
+        "rss_after": 371.3,
         "delta_mb": 0.0,
         "operations": 3
       },
       "sections": {
-        "rss_before": 337.7,
-        "rss_after": 337.7,
+        "rss_before": 371.3,
+        "rss_after": 371.4,
         "delta_mb": 0.0,
         "operations": 6
       },
       "tasks": {
-        "rss_before": 337.7,
-        "rss_after": 337.9,
+        "rss_before": 371.4,
+        "rss_after": 371.5,
         "delta_mb": 0.1,
         "operations": 14
       },
       "users": {
-        "rss_before": 337.9,
-        "rss_after": 337.9,
+        "rss_before": 371.5,
+        "rss_after": 371.5,
         "delta_mb": 0.0,
         "operations": 3
       },
       "webhooks": {
-        "rss_before": 337.9,
-        "rss_after": 337.9,
+        "rss_before": 371.5,
+        "rss_after": 371.5,
         "delta_mb": 0.0,
         "operations": 1
       },
       "workflows": {
-        "rss_before": 337.9,
-        "rss_after": 337.9,
+        "rss_before": 371.5,
+        "rss_after": 371.5,
         "delta_mb": 0.0,
         "operations": 2
       },
       "workspaces": {
-        "rss_before": 337.9,
-        "rss_after": 337.9,
+        "rss_before": 371.5,
+        "rss_after": 371.5,
         "delta_mb": 0.0,
         "operations": 2
       }
@@ -104,10 +104,10 @@
       "category": "dataframes",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 7.5,
-      "rss_before_mb": 335.19,
-      "rss_after_mb": 335.5,
-      "rss_delta_mb": 0.31,
+      "duration_ms": 8.0,
+      "rss_before_mb": 367.92,
+      "rss_after_mb": 368.25,
+      "rss_delta_mb": 0.33,
       "schema_valid": true
     },
     {
@@ -116,10 +116,10 @@
       "category": "dataframes",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 5.2,
-      "rss_before_mb": 336.09,
-      "rss_after_mb": 336.17,
-      "rss_delta_mb": 0.08,
+      "duration_ms": 4.4,
+      "rss_before_mb": 368.25,
+      "rss_after_mb": 368.28,
+      "rss_delta_mb": 0.03,
       "schema_valid": true
     },
     {
@@ -128,9 +128,9 @@
       "category": "dataframes",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 4.2,
-      "rss_before_mb": 336.14,
-      "rss_after_mb": 336.17,
+      "duration_ms": 4.1,
+      "rss_before_mb": 368.25,
+      "rss_after_mb": 368.28,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     },
@@ -140,9 +140,9 @@
       "category": "dataframes",
       "status": 404,
       "outcome": "PASSED",
-      "duration_ms": 5.7,
-      "rss_before_mb": 336.14,
-      "rss_after_mb": 336.17,
+      "duration_ms": 5.3,
+      "rss_before_mb": 368.25,
+      "rss_after_mb": 368.28,
       "rss_delta_mb": 0.03
     },
     {
@@ -151,9 +151,9 @@
       "category": "health",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 3.2,
-      "rss_before_mb": 336.14,
-      "rss_after_mb": 336.17,
+      "duration_ms": 2.9,
+      "rss_before_mb": 368.25,
+      "rss_after_mb": 368.28,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     },
@@ -163,10 +163,10 @@
       "category": "health",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 505.0,
-      "rss_before_mb": 336.14,
-      "rss_after_mb": 337.58,
-      "rss_delta_mb": 1.44,
+      "duration_ms": 503.8,
+      "rss_before_mb": 368.25,
+      "rss_after_mb": 370.23,
+      "rss_delta_mb": 1.98,
       "schema_valid": true
     },
     {
@@ -175,10 +175,10 @@
       "category": "health",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 5.3,
-      "rss_before_mb": 337.58,
-      "rss_after_mb": 337.61,
-      "rss_delta_mb": 0.03,
+      "duration_ms": 451.5,
+      "rss_before_mb": 370.23,
+      "rss_after_mb": 371.0,
+      "rss_delta_mb": 0.77,
       "schema_valid": true
     },
     {
@@ -187,10 +187,10 @@
       "category": "offers",
       "status": 502,
       "outcome": "EXPECTED-5xx",
-      "duration_ms": 7.8,
-      "rss_before_mb": 337.58,
-      "rss_after_mb": 337.61,
-      "rss_delta_mb": 0.03
+      "duration_ms": 62.0,
+      "rss_before_mb": 371.0,
+      "rss_after_mb": 371.23,
+      "rss_delta_mb": 0.23
     },
     {
       "path": "/api/v1/projects",
@@ -198,10 +198,10 @@
       "category": "projects",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 5.5,
-      "rss_before_mb": 337.58,
-      "rss_after_mb": 337.62,
-      "rss_delta_mb": 0.05,
+      "duration_ms": 4.1,
+      "rss_before_mb": 371.25,
+      "rss_after_mb": 371.28,
+      "rss_delta_mb": 0.03,
       "schema_valid": true
     },
     {
@@ -210,10 +210,10 @@
       "category": "projects",
       "status": 201,
       "outcome": "PASSED",
-      "duration_ms": 5.4,
-      "rss_before_mb": 337.59,
-      "rss_after_mb": 337.64,
-      "rss_delta_mb": 0.05,
+      "duration_ms": 4.3,
+      "rss_before_mb": 371.28,
+      "rss_after_mb": 371.31,
+      "rss_delta_mb": 0.03,
       "schema_valid": true
     },
     {
@@ -222,9 +222,9 @@
       "category": "projects",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 3.7,
-      "rss_before_mb": 337.61,
-      "rss_after_mb": 337.64,
+      "duration_ms": 3.5,
+      "rss_before_mb": 371.28,
+      "rss_after_mb": 371.31,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     },
@@ -234,10 +234,10 @@
       "category": "projects",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 5.0,
-      "rss_before_mb": 337.61,
-      "rss_after_mb": 337.66,
-      "rss_delta_mb": 0.05,
+      "duration_ms": 4.6,
+      "rss_before_mb": 371.28,
+      "rss_after_mb": 371.31,
+      "rss_delta_mb": 0.03,
       "schema_valid": true
     },
     {
@@ -246,10 +246,10 @@
       "category": "projects",
       "status": 204,
       "outcome": "PASSED",
-      "duration_ms": 4.5,
-      "rss_before_mb": 337.62,
-      "rss_after_mb": 337.66,
-      "rss_delta_mb": 0.03
+      "duration_ms": 3.8,
+      "rss_before_mb": 371.28,
+      "rss_after_mb": 371.33,
+      "rss_delta_mb": 0.05
     },
     {
       "path": "/api/v1/projects/{gid}/members",
@@ -257,10 +257,10 @@
       "category": "projects",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 4.1,
-      "rss_before_mb": 337.62,
-      "rss_after_mb": 337.66,
-      "rss_delta_mb": 0.03,
+      "duration_ms": 5.2,
+      "rss_before_mb": 371.3,
+      "rss_after_mb": 371.3,
+      "rss_delta_mb": 0.0,
       "schema_valid": true
     },
     {
@@ -269,9 +269,9 @@
       "category": "projects",
       "status": 422,
       "outcome": "PASSED",
-      "duration_ms": 5.2,
-      "rss_before_mb": 337.62,
-      "rss_after_mb": 337.7,
+      "duration_ms": 4.6,
+      "rss_before_mb": 371.3,
+      "rss_after_mb": 371.38,
       "rss_delta_mb": 0.08
     },
     {
@@ -280,10 +280,10 @@
       "category": "projects",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 4.3,
-      "rss_before_mb": 337.67,
-      "rss_after_mb": 337.7,
-      "rss_delta_mb": 0.03,
+      "duration_ms": 4.4,
+      "rss_before_mb": 371.34,
+      "rss_after_mb": 371.34,
+      "rss_delta_mb": 0.0,
       "schema_valid": true
     },
     {
@@ -292,9 +292,9 @@
       "category": "query",
       "status": 401,
       "outcome": "PASSED",
-      "duration_ms": 3.1,
-      "rss_before_mb": 337.67,
-      "rss_after_mb": 337.7,
+      "duration_ms": 2.6,
+      "rss_before_mb": 371.34,
+      "rss_after_mb": 371.38,
       "rss_delta_mb": 0.03
     },
     {
@@ -303,9 +303,9 @@
       "category": "query",
       "status": 401,
       "outcome": "PASSED",
-      "duration_ms": 2.8,
-      "rss_before_mb": 337.67,
-      "rss_after_mb": 337.7,
+      "duration_ms": 2.6,
+      "rss_before_mb": 371.34,
+      "rss_after_mb": 371.38,
       "rss_delta_mb": 0.03
     },
     {
@@ -315,8 +315,8 @@
       "status": 401,
       "outcome": "PASSED",
       "duration_ms": 2.8,
-      "rss_before_mb": 337.67,
-      "rss_after_mb": 337.7,
+      "rss_before_mb": 371.34,
+      "rss_after_mb": 371.38,
       "rss_delta_mb": 0.03
     },
     {
@@ -325,10 +325,10 @@
       "category": "query",
       "status": 401,
       "outcome": "PASSED",
-      "duration_ms": 2.5,
-      "rss_before_mb": 337.67,
-      "rss_after_mb": 337.72,
-      "rss_delta_mb": 0.05
+      "duration_ms": 3.2,
+      "rss_before_mb": 371.34,
+      "rss_after_mb": 371.38,
+      "rss_delta_mb": 0.03
     },
     {
       "path": "/v1/query/{entity_type}/relations",
@@ -336,9 +336,9 @@
       "category": "query",
       "status": 401,
       "outcome": "PASSED",
-      "duration_ms": 2.9,
-      "rss_before_mb": 337.69,
-      "rss_after_mb": 337.72,
+      "duration_ms": 2.4,
+      "rss_before_mb": 371.34,
+      "rss_after_mb": 371.38,
       "rss_delta_mb": 0.03
     },
     {
@@ -347,9 +347,9 @@
       "category": "query",
       "status": 401,
       "outcome": "PASSED",
-      "duration_ms": 2.9,
-      "rss_before_mb": 337.69,
-      "rss_after_mb": 337.72,
+      "duration_ms": 2.6,
+      "rss_before_mb": 371.34,
+      "rss_after_mb": 371.38,
       "rss_delta_mb": 0.03
     },
     {
@@ -358,9 +358,9 @@
       "category": "resolver",
       "status": 401,
       "outcome": "PASSED",
-      "duration_ms": 3.0,
-      "rss_before_mb": 337.69,
-      "rss_after_mb": 337.72,
+      "duration_ms": 2.6,
+      "rss_before_mb": 371.34,
+      "rss_after_mb": 371.38,
       "rss_delta_mb": 0.03
     },
     {
@@ -369,9 +369,9 @@
       "category": "resolver",
       "status": 401,
       "outcome": "PASSED",
-      "duration_ms": 3.0,
-      "rss_before_mb": 337.69,
-      "rss_after_mb": 337.72,
+      "duration_ms": 2.7,
+      "rss_before_mb": 371.34,
+      "rss_after_mb": 371.38,
       "rss_delta_mb": 0.03
     },
     {
@@ -380,9 +380,9 @@
       "category": "resolver",
       "status": 401,
       "outcome": "PASSED",
-      "duration_ms": 2.7,
-      "rss_before_mb": 337.69,
-      "rss_after_mb": 337.72,
+      "duration_ms": 2.4,
+      "rss_before_mb": 371.34,
+      "rss_after_mb": 371.38,
       "rss_delta_mb": 0.03
     },
     {
@@ -391,10 +391,10 @@
       "category": "sections",
       "status": 201,
       "outcome": "PASSED",
-      "duration_ms": 6.0,
-      "rss_before_mb": 337.69,
-      "rss_after_mb": 337.69,
-      "rss_delta_mb": 0.0,
+      "duration_ms": 6.2,
+      "rss_before_mb": 371.34,
+      "rss_after_mb": 371.36,
+      "rss_delta_mb": 0.02,
       "schema_valid": true
     },
     {
@@ -403,9 +403,9 @@
       "category": "sections",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 4.5,
-      "rss_before_mb": 337.69,
-      "rss_after_mb": 337.72,
+      "duration_ms": 3.9,
+      "rss_before_mb": 371.36,
+      "rss_after_mb": 371.39,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     },
@@ -415,9 +415,9 @@
       "category": "sections",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 5.5,
-      "rss_before_mb": 337.69,
-      "rss_after_mb": 337.72,
+      "duration_ms": 4.9,
+      "rss_before_mb": 371.36,
+      "rss_after_mb": 371.39,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     },
@@ -427,9 +427,9 @@
       "category": "sections",
       "status": 204,
       "outcome": "PASSED",
-      "duration_ms": 4.2,
-      "rss_before_mb": 337.69,
-      "rss_after_mb": 337.73,
+      "duration_ms": 3.9,
+      "rss_before_mb": 371.36,
+      "rss_after_mb": 371.41,
       "rss_delta_mb": 0.05
     },
     {
@@ -439,8 +439,8 @@
       "status": 204,
       "outcome": "PASSED",
       "duration_ms": 4.7,
-      "rss_before_mb": 337.7,
-      "rss_after_mb": 337.73,
+      "rss_before_mb": 371.38,
+      "rss_after_mb": 371.41,
       "rss_delta_mb": 0.03
     },
     {
@@ -449,20 +449,20 @@
       "category": "sections",
       "status": 204,
       "outcome": "PASSED",
-      "duration_ms": 4.5,
-      "rss_before_mb": 337.7,
-      "rss_after_mb": 337.75,
-      "rss_delta_mb": 0.05
+      "duration_ms": 5.1,
+      "rss_before_mb": 371.38,
+      "rss_after_mb": 371.41,
+      "rss_delta_mb": 0.03
     },
     {
       "path": "/api/v1/tasks",
       "method": "GET",
       "category": "tasks",
-      "status": 400,
+      "status": 422,
       "outcome": "PASSED",
-      "duration_ms": 6.5,
-      "rss_before_mb": 337.72,
-      "rss_after_mb": 337.78,
+      "duration_ms": 5.8,
+      "rss_before_mb": 371.38,
+      "rss_after_mb": 371.44,
       "rss_delta_mb": 0.06
     },
     {
@@ -471,10 +471,10 @@
       "category": "tasks",
       "status": 201,
       "outcome": "PASSED",
-      "duration_ms": 5.0,
-      "rss_before_mb": 337.75,
-      "rss_after_mb": 337.83,
-      "rss_delta_mb": 0.08,
+      "duration_ms": 4.7,
+      "rss_before_mb": 371.41,
+      "rss_after_mb": 371.42,
+      "rss_delta_mb": 0.02,
       "schema_valid": true
     },
     {
@@ -483,9 +483,9 @@
       "category": "tasks",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 4.6,
-      "rss_before_mb": 337.8,
-      "rss_after_mb": 337.83,
+      "duration_ms": 4.1,
+      "rss_before_mb": 371.42,
+      "rss_after_mb": 371.45,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     },
@@ -495,9 +495,9 @@
       "category": "tasks",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 5.0,
-      "rss_before_mb": 337.8,
-      "rss_after_mb": 337.83,
+      "duration_ms": 5.4,
+      "rss_before_mb": 371.42,
+      "rss_after_mb": 371.45,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     },
@@ -507,9 +507,9 @@
       "category": "tasks",
       "status": 204,
       "outcome": "PASSED",
-      "duration_ms": 4.3,
-      "rss_before_mb": 337.8,
-      "rss_after_mb": 337.83,
+      "duration_ms": 3.8,
+      "rss_before_mb": 371.42,
+      "rss_after_mb": 371.45,
       "rss_delta_mb": 0.03
     },
     {
@@ -518,10 +518,10 @@
       "category": "tasks",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 5.5,
-      "rss_before_mb": 337.8,
-      "rss_after_mb": 337.83,
-      "rss_delta_mb": 0.03,
+      "duration_ms": 4.3,
+      "rss_before_mb": 371.42,
+      "rss_after_mb": 371.47,
+      "rss_delta_mb": 0.05,
       "schema_valid": true
     },
     {
@@ -530,10 +530,10 @@
       "category": "tasks",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 4.9,
-      "rss_before_mb": 337.8,
-      "rss_after_mb": 337.84,
-      "rss_delta_mb": 0.05,
+      "duration_ms": 4.2,
+      "rss_before_mb": 371.44,
+      "rss_after_mb": 371.47,
+      "rss_delta_mb": 0.03,
       "schema_valid": true
     },
     {
@@ -542,9 +542,9 @@
       "category": "tasks",
       "status": 201,
       "outcome": "PASSED",
-      "duration_ms": 4.4,
-      "rss_before_mb": 337.81,
-      "rss_after_mb": 337.84,
+      "duration_ms": 4.6,
+      "rss_before_mb": 371.44,
+      "rss_after_mb": 371.47,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     },
@@ -555,9 +555,9 @@
       "status": 200,
       "outcome": "PASSED",
       "duration_ms": 5.0,
-      "rss_before_mb": 337.81,
-      "rss_after_mb": 337.86,
-      "rss_delta_mb": 0.05,
+      "rss_before_mb": 371.44,
+      "rss_after_mb": 371.47,
+      "rss_delta_mb": 0.03,
       "schema_valid": true
     },
     {
@@ -566,10 +566,10 @@
       "category": "tasks",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 4.5,
-      "rss_before_mb": 337.83,
-      "rss_after_mb": 337.88,
-      "rss_delta_mb": 0.05,
+      "duration_ms": 5.0,
+      "rss_before_mb": 371.44,
+      "rss_after_mb": 371.44,
+      "rss_delta_mb": 0.0,
       "schema_valid": true
     },
     {
@@ -578,10 +578,10 @@
       "category": "tasks",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 4.6,
-      "rss_before_mb": 337.84,
-      "rss_after_mb": 337.88,
-      "rss_delta_mb": 0.03,
+      "duration_ms": 5.2,
+      "rss_before_mb": 371.44,
+      "rss_after_mb": 371.48,
+      "rss_delta_mb": 0.05,
       "schema_valid": true
     },
     {
@@ -590,10 +590,10 @@
       "category": "tasks",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 4.4,
-      "rss_before_mb": 337.84,
-      "rss_after_mb": 337.89,
-      "rss_delta_mb": 0.05,
+      "duration_ms": 4.5,
+      "rss_before_mb": 371.45,
+      "rss_after_mb": 371.48,
+      "rss_delta_mb": 0.03,
       "schema_valid": true
     },
     {
@@ -602,9 +602,9 @@
       "category": "tasks",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 4.5,
-      "rss_before_mb": 337.86,
-      "rss_after_mb": 337.89,
+      "duration_ms": 4.6,
+      "rss_before_mb": 371.45,
+      "rss_after_mb": 371.48,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     },
@@ -614,9 +614,9 @@
       "category": "tasks",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 4.3,
-      "rss_before_mb": 337.86,
-      "rss_after_mb": 337.89,
+      "duration_ms": 4.6,
+      "rss_before_mb": 371.45,
+      "rss_after_mb": 371.48,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     },
@@ -626,9 +626,9 @@
       "category": "users",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 5.6,
-      "rss_before_mb": 337.86,
-      "rss_after_mb": 337.89,
+      "duration_ms": 4.0,
+      "rss_before_mb": 371.45,
+      "rss_after_mb": 371.48,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     },
@@ -638,10 +638,10 @@
       "category": "users",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 4.0,
-      "rss_before_mb": 337.86,
-      "rss_after_mb": 337.89,
-      "rss_delta_mb": 0.03,
+      "duration_ms": 4.2,
+      "rss_before_mb": 371.45,
+      "rss_after_mb": 371.45,
+      "rss_delta_mb": 0.0,
       "schema_valid": true
     },
     {
@@ -650,9 +650,9 @@
       "category": "users",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 3.5,
-      "rss_before_mb": 337.86,
-      "rss_after_mb": 337.89,
+      "duration_ms": 3.9,
+      "rss_before_mb": 371.45,
+      "rss_after_mb": 371.48,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     },
@@ -662,33 +662,32 @@
       "category": "webhooks",
       "status": 503,
       "outcome": "EXPECTED-5xx",
-      "duration_ms": 10.7,
-      "rss_before_mb": 337.86,
-      "rss_after_mb": 337.89,
-      "rss_delta_mb": 0.03
+      "duration_ms": 10.6,
+      "rss_before_mb": 371.45,
+      "rss_after_mb": 371.47,
+      "rss_delta_mb": 0.02
     },
     {
       "path": "/api/v1/workflows/",
       "method": "GET",
       "category": "workflows",
-      "status": 200,
+      "status": 401,
       "outcome": "PASSED",
-      "duration_ms": 5.2,
-      "rss_before_mb": 337.89,
-      "rss_after_mb": 337.92,
-      "rss_delta_mb": 0.03,
-      "schema_valid": true
+      "duration_ms": 2.9,
+      "rss_before_mb": 371.47,
+      "rss_after_mb": 371.5,
+      "rss_delta_mb": 0.03
     },
     {
       "path": "/api/v1/workflows/{workflow_id}/invoke",
       "method": "POST",
       "category": "workflows",
-      "status": 404,
+      "status": 401,
       "outcome": "PASSED",
-      "duration_ms": 4.8,
-      "rss_before_mb": 337.89,
-      "rss_after_mb": 337.92,
-      "rss_delta_mb": 0.03
+      "duration_ms": 2.4,
+      "rss_before_mb": 371.47,
+      "rss_after_mb": 371.47,
+      "rss_delta_mb": 0.0
     },
     {
       "path": "/api/v1/workspaces",
@@ -696,10 +695,10 @@
       "category": "workspaces",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 5.0,
-      "rss_before_mb": 337.89,
-      "rss_after_mb": 337.92,
-      "rss_delta_mb": 0.03,
+      "duration_ms": 4.9,
+      "rss_before_mb": 371.47,
+      "rss_after_mb": 371.52,
+      "rss_delta_mb": 0.05,
       "schema_valid": true
     },
     {
@@ -708,9 +707,9 @@
       "category": "workspaces",
       "status": 200,
       "outcome": "PASSED",
-      "duration_ms": 3.6,
-      "rss_before_mb": 337.89,
-      "rss_after_mb": 337.92,
+      "duration_ms": 3.9,
+      "rss_before_mb": 371.48,
+      "rss_after_mb": 371.52,
       "rss_delta_mb": 0.03,
       "schema_valid": true
     }

@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from autom8_asana.automation.config import AutomationConfig, PipelineStage
-from autom8_asana.exceptions import ConfigurationError
+from autom8_asana.errors import ConfigurationError
 
 
 class TestAutomationConfig:

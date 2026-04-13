@@ -28,7 +28,7 @@ from autom8_asana.clients.users import UsersClient
 from autom8_asana.clients.webhooks import WebhooksClient
 from autom8_asana.clients.workspaces import WorkspacesClient
 from autom8_asana.config import AsanaConfig, get_workspace_gid
-from autom8_asana.exceptions import AuthenticationError, ConfigurationError
+from autom8_asana.errors import AuthenticationError, ConfigurationError
 
 logger = get_logger(__name__)
 
@@ -954,7 +954,7 @@ class AsanaClient:
         """
         import asyncio
 
-        from autom8_asana.exceptions import SyncInAsyncContextError
+        from autom8_asana.errors import SyncInAsyncContextError
 
         # Check if we're in an async context
         running_loop: asyncio.AbstractEventLoop | None = None

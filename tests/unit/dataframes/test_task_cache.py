@@ -18,7 +18,7 @@ import pytest
 
 from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvider
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.core.exceptions import RedisTransportError
+from autom8_asana.core.errors import RedisTransportError
 from autom8_asana.dataframes.builders.task_cache import (
     TaskCacheCoordinator,
     TaskCacheResult,

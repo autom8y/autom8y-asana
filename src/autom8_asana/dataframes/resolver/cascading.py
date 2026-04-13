@@ -26,7 +26,7 @@ try:
 except ImportError:
     HierarchyAwareResolver = None  # type: ignore[assignment, misc]
 
-from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+from autom8_asana.core.errors import S3_TRANSPORT_ERRORS
 from autom8_asana.dataframes.views.cf_utils import (
     class_to_entity_type,
     get_custom_field_value,

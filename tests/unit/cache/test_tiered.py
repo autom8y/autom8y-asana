@@ -10,7 +10,7 @@ import pytest
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.models.metrics import CacheMetrics
-from autom8_asana.core.exceptions import S3TransportError
+from autom8_asana.core.errors import S3TransportError
 from autom8_asana.protocols.cache import CacheProvider, WarmResult
 
 # ============================================================================

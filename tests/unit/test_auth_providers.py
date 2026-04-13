@@ -12,7 +12,7 @@ from autom8_asana._defaults.auth import (
     NotConfiguredAuthProvider,
     SecretsManagerAuthProvider,
 )
-from autom8_asana.exceptions import AuthenticationError
+from autom8_asana.errors import AuthenticationError
 
 
 class TestEnvAuthProvider:

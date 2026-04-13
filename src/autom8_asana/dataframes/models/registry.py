@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from autom8y_log import get_logger
 
-from autom8_asana.dataframes.exceptions import SchemaNotFoundError, SchemaVersionError
+from autom8_asana.dataframes.errors import SchemaNotFoundError, SchemaVersionError
 
 if TYPE_CHECKING:
     from collections.abc import Callable

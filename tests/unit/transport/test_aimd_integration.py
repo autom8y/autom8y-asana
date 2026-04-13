@@ -82,7 +82,7 @@ class TestAIMDIntegration429:
         # Verify initial state
         assert client._read_semaphore.current_limit == 50
 
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         with pytest.raises(RateLimitError):
             await client.get("/tasks/123")
@@ -108,7 +108,7 @@ class TestAIMDIntegration429:
         client._platform_client = mock_platform_429
         client._retry_policy = None
 
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         with pytest.raises(RateLimitError):
             await client.get("/tasks/123")
@@ -140,7 +140,7 @@ class TestAIMDIntegration429:
         mock_platform, _ = _create_mock_platform_client(mock_response)
         client._platform_client = mock_platform
 
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         with pytest.raises(RateLimitError):
             await client.get("/tasks/123")  # GET uses read semaphore

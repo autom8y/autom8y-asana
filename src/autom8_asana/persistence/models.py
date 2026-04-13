@@ -353,7 +353,7 @@ class SaveResult:
             PartialSaveError: If any operations failed.
         """
         if self.failed:
-            from autom8_asana.persistence.exceptions import PartialSaveError
+            from autom8_asana.persistence.errors import PartialSaveError
 
             raise PartialSaveError(self)
 

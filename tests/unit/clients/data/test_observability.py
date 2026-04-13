@@ -174,7 +174,7 @@ class TestObservabilityLogging:
         """insights_request_failed log is emitted on error."""
         import respx
 
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         mock_logger = MagicMock()
         client = DataServiceClient(logger=mock_logger)
@@ -311,7 +311,7 @@ class TestObservabilityMetrics:
         """Error metrics are emitted on 500 error."""
         import respx
 
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         metrics_calls: list[tuple[str, float, dict[str, str]]] = []
 
@@ -356,7 +356,7 @@ class TestObservabilityMetrics:
         """Error metrics are emitted on timeout."""
         import respx
 
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         metrics_calls: list[tuple[str, float, dict[str, str]]] = []
 
@@ -490,7 +490,7 @@ class TestObservabilityIntegration:
         """Full observability: logging + metrics on error."""
         import respx
 
-        from autom8_asana.exceptions import InsightsValidationError
+        from autom8_asana.errors import InsightsValidationError
 
         mock_logger = MagicMock()
         metrics_calls: list[tuple[str, float, dict[str, str]]] = []

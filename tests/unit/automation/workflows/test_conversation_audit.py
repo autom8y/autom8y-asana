@@ -22,7 +22,7 @@ from autom8_asana.automation.workflows.conversation_audit import (
 )
 from autom8_asana.clients.data.models import ExportResult
 from autom8_asana.core.scope import EntityScope
-from autom8_asana.exceptions import ExportError
+from autom8_asana.errors import ExportError
 from autom8_asana.models.business.activity import AccountActivity
 from autom8_asana.models.task import Task
 

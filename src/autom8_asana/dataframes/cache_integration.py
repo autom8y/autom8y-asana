@@ -29,7 +29,7 @@ from autom8_asana.cache.integration.dataframes import make_dataframe_key
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.models.versioning import parse_version
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
     from autom8_asana.protocols.cache import CacheProvider

@@ -10,7 +10,7 @@ from __future__ import annotations
 from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, cast
 
-from autom8_asana.exceptions import NameNotFoundError
+from autom8_asana.errors import NameNotFoundError
 from autom8_asana.patterns import async_method
 
 if TYPE_CHECKING:

@@ -17,7 +17,7 @@ from autom8_asana.cache.integration.factory import (
     create_cache_provider,
 )
 from autom8_asana.config import CacheConfig
-from autom8_asana.exceptions import ConfigurationError
+from autom8_asana.errors import ConfigurationError
 
 
 class TestCacheProviderFactoryCreate:

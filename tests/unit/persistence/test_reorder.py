@@ -419,7 +419,7 @@ class TestReorderSubtasks:
 
     def test_reorder_subtasks_closed_session_raises(self) -> None:
         """Raises SessionClosedError when session is closed."""
-        from autom8_asana.persistence.exceptions import SessionClosedError
+        from autom8_asana.persistence.errors import SessionClosedError
 
         mock_client = create_mock_client()
 

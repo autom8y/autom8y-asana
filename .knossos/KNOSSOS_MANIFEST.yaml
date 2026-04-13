@@ -1,13 +1,13 @@
 schema_version: "1.0"
-inscription_version: "162"
-last_sync: 2026-04-09T15:01:45.622274Z
-active_rite: hygiene
+inscription_version: "166"
+last_sync: 2026-04-12T14:49:07.183758Z
+active_rite: eunomia
 template_path: knossos/templates/CLAUDE.md.tpl
 regions:
     agent-configurations:
         owner: regenerate
         source: agents/*.md
-        hash: sha256:47f70c3d0620e6a83dbcfc117618d78bc3cdf812cb23658a05945251eaf23a7c
+        hash: sha256:bb2aa04c18024e08a2ff888603e8e46a57c269f00f6f6f0a0ab8739fd7b8bf78
     agent-routing:
         owner: knossos
         hash: sha256:41e26d347a524baf7bd9f3510b107c0d3c8e175963e2acc0979392a403284812
@@ -31,7 +31,7 @@ regions:
     quick-start:
         owner: regenerate
         source: ACTIVE_RITE+agents
-        hash: sha256:52bcbb1f8a2fea52a8bdc97e3d734f3657616f6e781676bdcb20e1b15df3ae74
+        hash: sha256:3cb0440d0669658f515c475190e03c97062ac47ea65cdc16b1f0919893c9c7b8
     user-content:
         owner: satellite
 section_order:

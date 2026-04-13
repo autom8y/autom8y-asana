@@ -35,7 +35,7 @@ from autom8y_log import get_logger
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     AsanaError,
     AuthenticationError,
     ForbiddenError,
@@ -44,7 +44,7 @@ from autom8_asana.exceptions import (
     ServerError,
     TimeoutError,
 )
-from autom8_asana.persistence.exceptions import GidValidationError
+from autom8_asana.persistence.errors import GidValidationError
 
 from .exceptions import (
     ApiAuthError,

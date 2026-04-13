@@ -34,7 +34,7 @@ from autom8_asana.automation.workflows.bridge_base import (
     BridgeWorkflowAction,
 )
 from autom8_asana.clients.utils.pii import mask_phone_number
-from autom8_asana.exceptions import ExportError
+from autom8_asana.errors import ExportError
 from autom8_asana.models.business.activity import AccountActivity
 from autom8_asana.models.business.contact import ContactHolder
 from autom8_asana.models.business.hydration import hydrate_from_gid_async

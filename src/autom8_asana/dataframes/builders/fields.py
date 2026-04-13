@@ -211,7 +211,7 @@ def safe_dataframe_construct(
     import polars as pl
     from autom8y_log import get_logger
 
-    from autom8_asana.dataframes.exceptions import DataFrameConstructionError
+    from autom8_asana.dataframes.errors import DataFrameConstructionError
 
     _logger = get_logger(__name__)
 

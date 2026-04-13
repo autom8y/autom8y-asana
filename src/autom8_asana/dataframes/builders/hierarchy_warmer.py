@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+from autom8_asana.core.errors import S3_TRANSPORT_ERRORS
 from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.builders.fields import BASE_OPT_FIELDS
 

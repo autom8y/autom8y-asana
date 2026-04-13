@@ -32,11 +32,11 @@ from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
 )
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     RateLimitError,
     ServerError,
 )
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     TimeoutError as AsanaTimeoutError,
 )
 from autom8_asana.services.errors import (

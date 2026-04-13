@@ -6,7 +6,7 @@ import asyncio
 from functools import wraps
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from autom8_asana.exceptions import SyncInAsyncContextError
+from autom8_asana.errors import SyncInAsyncContextError
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine

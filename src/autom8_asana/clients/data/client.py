@@ -42,7 +42,7 @@ from autom8_asana.clients.data.models import (
     InsightsRequest,
     InsightsResponse,
 )
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     InsightsServiceError,
     InsightsValidationError,
     SyncInAsyncContextError,

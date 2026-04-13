@@ -13,7 +13,7 @@ import datetime as dt
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from autom8_asana.dataframes.exceptions import ExtractionError
+from autom8_asana.dataframes.errors import ExtractionError
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient

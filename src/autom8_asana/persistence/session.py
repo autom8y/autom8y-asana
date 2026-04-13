@@ -18,7 +18,7 @@ from autom8_asana.persistence.action_executor import ActionExecutor
 from autom8_asana.persistence.actions import ActionBuilder
 from autom8_asana.persistence.cache_invalidator import CacheInvalidator
 from autom8_asana.persistence.events import EventSystem
-from autom8_asana.persistence.exceptions import (
+from autom8_asana.persistence.errors import (
     PositioningConflictError,
     SessionClosedError,
 )

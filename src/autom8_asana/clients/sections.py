@@ -13,7 +13,7 @@ from typing import Any, Literal, overload
 from autom8y_log import get_logger
 
 from autom8_asana.clients.base import BaseClient
-from autom8_asana.core.exceptions import CacheError
+from autom8_asana.core.errors import CacheError
 from autom8_asana.models import PageIterator
 from autom8_asana.models.section import Section
 from autom8_asana.observability import error_handler

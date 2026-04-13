@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     AsanaError,
     AuthenticationError,
     ForbiddenError,

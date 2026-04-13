@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from autom8_asana.exceptions import SyncInAsyncContextError
+from autom8_asana.errors import SyncInAsyncContextError
 from autom8_asana.patterns.async_method import AsyncMethodPair, async_method
 
 

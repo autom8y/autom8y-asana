@@ -22,7 +22,7 @@ import pytest
 
 from autom8_asana.automation.polling.config_loader import ConfigurationLoader
 from autom8_asana.automation.polling.config_schema import AutomationRulesConfig
-from autom8_asana.exceptions import ConfigurationError
+from autom8_asana.errors import ConfigurationError
 
 if TYPE_CHECKING:
     from pathlib import Path

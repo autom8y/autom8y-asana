@@ -16,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.models import Task
-from autom8_asana.persistence.exceptions import SessionClosedError
+from autom8_asana.persistence.errors import SessionClosedError
 from autom8_asana.persistence.models import OperationType
 from autom8_asana.persistence.session import SaveSession
 

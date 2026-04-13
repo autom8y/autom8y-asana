@@ -75,7 +75,7 @@ class TaskOperations:
             >>> # With refresh: two GETs (slower, but task.tags is current)
             >>> task = await client.tasks.add_tag_async(task_gid, tag_gid, refresh=True)
         """
-        from autom8_asana.persistence.exceptions import SaveSessionError
+        from autom8_asana.persistence.errors import SaveSessionError
         from autom8_asana.persistence.session import SaveSession
         from autom8_asana.persistence.validation import validate_gid
 
@@ -125,7 +125,7 @@ class TaskOperations:
         Example:
             >>> task = await client.tasks.remove_tag_async(task_gid, tag_gid)
         """
-        from autom8_asana.persistence.exceptions import SaveSessionError
+        from autom8_asana.persistence.errors import SaveSessionError
         from autom8_asana.persistence.session import SaveSession
         from autom8_asana.persistence.validation import validate_gid
 
@@ -178,7 +178,7 @@ class TaskOperations:
             ...     task_gid, section_gid, project_gid
             ... )
         """
-        from autom8_asana.persistence.exceptions import SaveSessionError
+        from autom8_asana.persistence.errors import SaveSessionError
         from autom8_asana.persistence.session import SaveSession
         from autom8_asana.persistence.validation import validate_gid
 
@@ -268,7 +268,7 @@ class TaskOperations:
             ...     task_gid, project_gid, section_gid=section_gid
             ... )
         """
-        from autom8_asana.persistence.exceptions import SaveSessionError
+        from autom8_asana.persistence.errors import SaveSessionError
         from autom8_asana.persistence.session import SaveSession
         from autom8_asana.persistence.validation import validate_gid
 
@@ -313,7 +313,7 @@ class TaskOperations:
         Example:
             >>> task = await client.tasks.remove_from_project_async(task_gid, project_gid)
         """
-        from autom8_asana.persistence.exceptions import SaveSessionError
+        from autom8_asana.persistence.errors import SaveSessionError
         from autom8_asana.persistence.session import SaveSession
         from autom8_asana.persistence.validation import validate_gid
 

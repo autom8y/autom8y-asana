@@ -14,7 +14,7 @@ import pytest
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.clients.tasks import TasksClient
-from autom8_asana.core.exceptions import CacheConnectionError
+from autom8_asana.core.errors import CacheConnectionError
 from autom8_asana.models import Task
 
 if TYPE_CHECKING:

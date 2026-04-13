@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.exceptions import HydrationError
+from autom8_asana.errors import HydrationError
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.contact import Contact, ContactHolder
 from autom8_asana.models.business.hydration import (

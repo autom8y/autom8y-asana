@@ -24,7 +24,7 @@ from autom8_asana.cache.models.completeness import (
     create_completeness_metadata,
 )
 from autom8_asana.cache.models.entry import EntryType
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
     from autom8_asana.clients.tasks import TasksClient

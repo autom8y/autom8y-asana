@@ -10,7 +10,7 @@ from autom8_asana.cache.models.metrics import CacheMetrics
 from autom8_asana.client import AsanaClient, _TokenAuthProvider
 from autom8_asana.clients.tasks import TasksClient
 from autom8_asana.config import AsanaConfig
-from autom8_asana.exceptions import AuthenticationError, ConfigurationError
+from autom8_asana.errors import AuthenticationError, ConfigurationError
 
 
 class MockAuthProvider:

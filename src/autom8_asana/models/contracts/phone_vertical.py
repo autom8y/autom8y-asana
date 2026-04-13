@@ -30,7 +30,7 @@ def pvp_from_business(business: Business) -> PhoneVerticalPair:
     Raises:
         InsightsValidationError: If office_phone or vertical is None.
     """
-    from autom8_asana.exceptions import InsightsValidationError
+    from autom8_asana.errors import InsightsValidationError
 
     if not business.office_phone:
         raise InsightsValidationError(

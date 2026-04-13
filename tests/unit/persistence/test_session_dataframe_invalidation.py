@@ -420,7 +420,7 @@ class TestDataFrameConfigValidation:
     def test_dataframe_config_validation_low(self) -> None:
         """Verify max_concurrent_sections rejects values below 1."""
         from autom8_asana.config import DataFrameConfig
-        from autom8_asana.exceptions import ConfigurationError
+        from autom8_asana.errors import ConfigurationError
 
         with pytest.raises(ConfigurationError) as exc_info:
             DataFrameConfig(max_concurrent_sections=0)
@@ -430,7 +430,7 @@ class TestDataFrameConfigValidation:
     def test_dataframe_config_validation_high(self) -> None:
         """Verify max_concurrent_sections rejects values above 20."""
         from autom8_asana.config import DataFrameConfig
-        from autom8_asana.exceptions import ConfigurationError
+        from autom8_asana.errors import ConfigurationError
 
         with pytest.raises(ConfigurationError) as exc_info:
             DataFrameConfig(max_concurrent_sections=21)

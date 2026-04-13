@@ -1361,7 +1361,7 @@ class TestListAsyncErrorHandling:
         self, tasks_client_local: Any, mock_http_for_tasks: AsyncMock
     ) -> None:
         """Network error mid-pagination is propagated."""
-        from autom8_asana.exceptions import AsanaError
+        from autom8_asana.errors import AsanaError
 
         mock_http_for_tasks.get_paginated.side_effect = [
             ([{"gid": "1"}], "offset1"),

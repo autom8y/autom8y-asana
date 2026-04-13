@@ -19,7 +19,7 @@ from autom8y_log import get_logger
 from autom8y_telemetry import get_tracer
 from opentelemetry.trace import StatusCode
 
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 from autom8_asana.core.string_utils import to_pascal_case
 from autom8_asana.models.business.activity import (
     ACTIVITY_PRIORITY,

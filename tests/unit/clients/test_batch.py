@@ -12,7 +12,7 @@ import pytest
 
 from autom8_asana.batch import BatchClient, BatchRequest, BatchResult, BatchSummary
 from autom8_asana.batch.client import BATCH_SIZE_LIMIT, _chunk_requests, _count_chunks
-from autom8_asana.exceptions import AsanaError, SyncInAsyncContextError
+from autom8_asana.errors import AsanaError, SyncInAsyncContextError
 
 if TYPE_CHECKING:
     from autom8_asana.config import AsanaConfig

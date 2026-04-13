@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from autom8_asana.core.exceptions import (
+from autom8_asana.core.errors import (
     ALL_TRANSPORT_ERRORS,
     CACHE_TRANSIENT_ERRORS,
     REDIS_TRANSPORT_ERRORS,

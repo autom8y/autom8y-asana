@@ -166,7 +166,7 @@ class UpwardTraversalMixin:
             # Entity references are updated
             assert entity.business is business
         """
-        from autom8_asana.exceptions import HydrationError
+        from autom8_asana.errors import HydrationError
         from autom8_asana.models.business.hydration import _traverse_upward_async
 
         # Traverse upward to find Business

@@ -24,7 +24,7 @@ from autom8_asana.cache.models.mutation_event import (
     MutationEvent,
     MutationType,
 )
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
     from autom8_asana.cache.integration.dataframe_cache import DataFrameCache

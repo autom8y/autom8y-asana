@@ -367,7 +367,7 @@ class TestWarmCacheSync:
 
     async def test_warm_cache_sync_raises_in_async_context(self) -> None:
         """warm_cache() raises SyncInAsyncContextError in async context."""
-        from autom8_asana.exceptions import SyncInAsyncContextError
+        from autom8_asana.errors import SyncInAsyncContextError
 
         client = AsanaClient(
             token="test-token",

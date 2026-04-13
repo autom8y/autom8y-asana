@@ -38,7 +38,7 @@ class TestFeatureFlagDisabled:
     )
     async def test_disabled_when_env_var_opt_out(self, scenario: str) -> None:
         """get_insights_async raises InsightsServiceError when insights_enabled=False."""
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 
@@ -64,7 +64,7 @@ class TestFeatureFlagDisabled:
         Per D-011: Pydantic Settings handles case-insensitive bool parsing at
         construction time. The client tests only verify behavior when disabled.
         """
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 
@@ -88,7 +88,7 @@ class TestFeatureFlagDisabled:
     @pytest.mark.asyncio
     async def test_feature_check_happens_before_validation(self) -> None:
         """Feature flag check happens before any other validation."""
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 
@@ -252,7 +252,7 @@ class TestCheckFeatureEnabled:
 
     def test_raises_when_explicitly_disabled(self) -> None:
         """_check_feature_enabled raises when insights_enabled=False in settings."""
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 
@@ -267,7 +267,7 @@ class TestCheckFeatureEnabled:
 
     def test_error_message_is_helpful(self) -> None:
         """Error message explains how to re-enable."""
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from autom8_asana.persistence.exceptions import (
+from autom8_asana.persistence.errors import (
     DependencyResolutionError,
     UnsupportedOperationError,
 )

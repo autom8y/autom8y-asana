@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 
 from autom8_asana.clients.name_resolver import NameResolver
-from autom8_asana.exceptions import NameNotFoundError
+from autom8_asana.errors import NameNotFoundError
 
 
 class MockResource:

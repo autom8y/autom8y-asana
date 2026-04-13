@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.exceptions import HydrationError
+from autom8_asana.errors import HydrationError
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.detection import EntityType
 from autom8_asana.models.business.hydration import (
@@ -528,7 +528,7 @@ class TestPartialOkParameter:
 
     async def test_partial_ok_failure_records_recoverable_status(self) -> None:
         """partial_ok=True records recoverable status correctly."""
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         client = MagicMock()
 

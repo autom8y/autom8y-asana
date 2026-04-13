@@ -19,7 +19,7 @@ from autom8_asana.clients.data.models import (
     InsightsMetadata,
     InsightsResponse,
 )
-from autom8_asana.core.exceptions import CacheError
+from autom8_asana.core.errors import CacheError
 
 if TYPE_CHECKING:
     from autom8_asana.models.contracts import PhoneVerticalPair

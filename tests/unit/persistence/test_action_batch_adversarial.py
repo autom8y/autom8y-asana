@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.batch.models import BatchResult
-from autom8_asana.exceptions import AsanaError
+from autom8_asana.errors import AsanaError
 from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.action_executor import (

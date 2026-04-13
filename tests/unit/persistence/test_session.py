@@ -15,7 +15,7 @@ from autom8_asana.batch.models import BatchResult
 from autom8_asana.models import Project, Section, Tag, Task
 from autom8_asana.models.common import NameGid
 from autom8_asana.models.user import User
-from autom8_asana.persistence.exceptions import (
+from autom8_asana.persistence.errors import (
     PositioningConflictError,
     SessionClosedError,
     UnsupportedOperationError,

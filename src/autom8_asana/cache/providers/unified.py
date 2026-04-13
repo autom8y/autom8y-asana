@@ -25,7 +25,7 @@ from autom8_asana.cache.models.completeness import (
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.policies.hierarchy import HierarchyIndex
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
     from autom8_asana.batch.client import BatchClient

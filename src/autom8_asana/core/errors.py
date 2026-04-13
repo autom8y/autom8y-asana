@@ -326,7 +326,7 @@ ASANA_API_ERRORS: tuple[type[Exception], ...] = (
     TimeoutError,
 )
 try:
-    from autom8_asana.exceptions import AsanaError
+    from autom8_asana.errors import AsanaError
 
     ASANA_API_ERRORS = (AsanaError, ConnectionError, TimeoutError)
 except ImportError:

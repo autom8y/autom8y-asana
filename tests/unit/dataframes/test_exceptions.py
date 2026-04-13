@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from autom8_asana.dataframes.exceptions import (
+from autom8_asana.dataframes.errors import (
     DataFrameError,
     ExtractionError,
     SchemaNotFoundError,

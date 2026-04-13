@@ -18,7 +18,7 @@ from autom8_asana.clients.data._endpoints.export import (
 from autom8_asana.clients.data.client import DataServiceClient
 from autom8_asana.clients.data.config import DataServiceConfig
 from autom8_asana.clients.data.models import ExportResult
-from autom8_asana.exceptions import ExportError
+from autom8_asana.errors import ExportError
 
 
 def _make_client() -> DataServiceClient:

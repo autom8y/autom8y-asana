@@ -20,7 +20,7 @@ from autom8_asana.cache.models.versioning import (
     is_current,
     parse_version,
 )
-from autom8_asana.core.exceptions import REDIS_TRANSPORT_ERRORS, RedisTransportError
+from autom8_asana.core.errors import REDIS_TRANSPORT_ERRORS, RedisTransportError
 from autom8_asana.protocols.cache import WarmResult
 
 if TYPE_CHECKING:

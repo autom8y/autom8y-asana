@@ -88,7 +88,7 @@ from autom8_asana.persistence.cascade import (
     CascadeResult,
     cascade_field,
 )
-from autom8_asana.persistence.exceptions import (
+from autom8_asana.persistence.errors import (
     CyclicDependencyError,
     DependencyResolutionError,
     # TDD-HARDENING-A: Exception hierarchy cleanup (FR-EXC-003, FR-EXC-004)

@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from autom8_asana.batch.models import BatchRequest, BatchResult
-from autom8_asana.exceptions import AsanaError
+from autom8_asana.errors import AsanaError
 from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.action_executor import (
@@ -1237,7 +1237,7 @@ class TestEdgeCases:
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
         """EC-006: batch_client raises (simulating exhausted 429 retries) -> fallback."""
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         mock_batch_client.execute_async.side_effect = RateLimitError(
             "Rate limited", retry_after=30

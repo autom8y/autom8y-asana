@@ -212,7 +212,7 @@ class DataFrameService:
         )
 
         from autom8_asana.dataframes.builders.fields import safe_dataframe_construct
-        from autom8_asana.dataframes.exceptions import DataFrameConstructionError
+        from autom8_asana.dataframes.errors import DataFrameConstructionError
 
         rows = await view_plugin._extract_rows_async(data, project_gid=project_gid)
         try:
@@ -298,7 +298,7 @@ class DataFrameService:
         # SectionDataFrameBuilder expects a section-like object
         section_proxy = _SectionProxy(section_gid, project_gid, tasks)
 
-        from autom8_asana.dataframes.exceptions import DataFrameConstructionError
+        from autom8_asana.dataframes.errors import DataFrameConstructionError
 
         builder = SectionDataFrameBuilder(
             section=section_proxy,

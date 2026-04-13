@@ -76,7 +76,7 @@ class TestGetInsightsAsyncValidation:
     @pytest.mark.asyncio
     async def test_rejects_invalid_factory(self) -> None:
         """Invalid factory names are rejected with helpful error listing valid factories."""
-        from autom8_asana.exceptions import InsightsValidationError
+        from autom8_asana.errors import InsightsValidationError
 
         client = DataServiceClient()
 
@@ -102,7 +102,7 @@ class TestGetInsightsAsyncValidation:
     @pytest.mark.asyncio
     async def test_rejects_invalid_phone_format(self) -> None:
         """Invalid E.164 phone format is rejected."""
-        from autom8_asana.exceptions import InsightsValidationError
+        from autom8_asana.errors import InsightsValidationError
 
         client = DataServiceClient()
 
@@ -329,7 +329,7 @@ class TestGetInsightsAsyncErrorMapping:
         """HTTP 400 maps to InsightsValidationError."""
         import respx
 
-        from autom8_asana.exceptions import InsightsValidationError
+        from autom8_asana.errors import InsightsValidationError
 
         client = DataServiceClient()
 
@@ -355,7 +355,7 @@ class TestGetInsightsAsyncErrorMapping:
         """HTTP 404 maps to InsightsNotFoundError."""
         import respx
 
-        from autom8_asana.exceptions import InsightsNotFoundError
+        from autom8_asana.errors import InsightsNotFoundError
 
         client = DataServiceClient()
 
@@ -381,7 +381,7 @@ class TestGetInsightsAsyncErrorMapping:
         """HTTP 500 maps to InsightsServiceError."""
         import respx
 
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 
@@ -409,7 +409,7 @@ class TestGetInsightsAsyncErrorMapping:
         """HTTP 502 maps to InsightsServiceError."""
         import respx
 
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 
@@ -436,7 +436,7 @@ class TestGetInsightsAsyncErrorMapping:
         """HTTP 503 maps to InsightsServiceError."""
         import respx
 
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 
@@ -462,7 +462,7 @@ class TestGetInsightsAsyncErrorMapping:
         """HTTP 504 maps to InsightsServiceError."""
         import respx
 
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 
@@ -488,7 +488,7 @@ class TestGetInsightsAsyncErrorMapping:
         """Request timeout maps to InsightsServiceError."""
         import respx
 
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 
@@ -513,7 +513,7 @@ class TestGetInsightsAsyncErrorMapping:
         """Generic HTTP error maps to InsightsServiceError."""
         import respx
 
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 
@@ -537,7 +537,7 @@ class TestGetInsightsAsyncErrorMapping:
         """Error response with 'detail' field is extracted."""
         import respx
 
-        from autom8_asana.exceptions import InsightsValidationError
+        from autom8_asana.errors import InsightsValidationError
 
         client = DataServiceClient()
 

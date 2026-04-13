@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from autom8y_log import get_logger
 
 from autom8_asana.core.string_utils import to_pascal_case
-from autom8_asana.dataframes.exceptions import SchemaNotFoundError
+from autom8_asana.dataframes.errors import SchemaNotFoundError
 from autom8_asana.services.resolution_result import ResolutionResult
 
 if TYPE_CHECKING:

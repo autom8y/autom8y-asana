@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from autom8_asana.exceptions import SyncInAsyncContextError
+from autom8_asana.errors import SyncInAsyncContextError
 from autom8_asana.transport.sync import sync_wrapper
 
 

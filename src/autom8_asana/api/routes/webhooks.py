@@ -20,7 +20,7 @@ from autom8_asana.api.dependencies import get_request_id
 from autom8_asana.api.error_responses import authenticated_responses
 from autom8_asana.api.errors import raise_api_error
 from autom8_asana.cache.models.entry import EntryType
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 from autom8_asana.models.task import Task
 from autom8_asana.settings import get_settings
 

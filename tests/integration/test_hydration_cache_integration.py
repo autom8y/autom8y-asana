@@ -190,7 +190,7 @@ class TestParentGidFromCachedTasks:
         parent.gid is not included in the opt_fields - the exact
         bug that PRD-CACHE-PERF-HYDRATION addresses.
         """
-        from autom8_asana.exceptions import HydrationError
+        from autom8_asana.errors import HydrationError
 
         # Task without parent.gid (simulating cache miss scenario)
         orphan_task = make_mock_task(

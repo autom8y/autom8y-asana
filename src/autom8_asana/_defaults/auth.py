@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.exceptions import AuthenticationError
+from autom8_asana.errors import AuthenticationError
 from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:

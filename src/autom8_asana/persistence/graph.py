@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from typing import TYPE_CHECKING, Any
 
-from autom8_asana.persistence.exceptions import CyclicDependencyError
+from autom8_asana.persistence.errors import CyclicDependencyError
 
 if TYPE_CHECKING:
     from autom8_asana.models.base import AsanaResource

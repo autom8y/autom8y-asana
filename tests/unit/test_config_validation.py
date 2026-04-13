@@ -20,7 +20,7 @@ from autom8_asana.config import (
     TimeoutConfig,
     validate_project_env_vars,
 )
-from autom8_asana.exceptions import ConfigurationError
+from autom8_asana.errors import ConfigurationError
 
 
 class TestRateLimitConfig:

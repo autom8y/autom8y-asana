@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Literal
 
 from autom8y_log import get_logger
 
-from autom8_asana.exceptions import HydrationError
+from autom8_asana.errors import HydrationError
 from autom8_asana.models.business.detection import (
     EntityType,
     detect_entity_type_async,
@@ -179,7 +179,7 @@ def _is_recoverable(error: Exception) -> bool:
         True if error is likely transient (rate limit, timeout, server error).
         False if error is permanent (not found, forbidden, etc.).
     """
-    from autom8_asana.exceptions import (
+    from autom8_asana.errors import (
         ForbiddenError,
         NotFoundError,
         RateLimitError,

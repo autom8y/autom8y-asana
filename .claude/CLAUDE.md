@@ -7,15 +7,17 @@ Use the available agents and slash commands. Delegate complex work to specialist
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-5-agent workflow (hygiene):
+7-agent workflow (eunomia):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates code hygiene initiative phases |
-| **code-smeller** | Detects code smells and quality issues across codebase |
-| **architect-enforcer** | Plans refactoring approach and enforces architecture standards |
-| **janitor** | Executes code cleanup and improvements |
-| **audit-lead** | Audits cleanup results and provides quality signoff |
+| **potnia** | Coordinates governance phases, gates complexity, manages track selection and back-routes |
+| **test-cartographer** | Inventories test ecosystem (files, fixtures, mocks, coverage, adversarial file accumulation) |
+| **pipeline-cartographer** | Inventories CI/CD pipelines (workflows, actions, version skew, safety config, duplication) |
+| **entropy-assessor** | Grades entropy severity and health per category using weakest-link model |
+| **consolidation-planner** | Designs target state with atomic, independently-revertible change specifications |
+| **rationalization-executor** | Executes consolidation plan as atomic commits (one commit per planned change) |
+| **verification-auditor** | Validates execution against plan and baseline, computes entropy delta, issues verdict |
 
 Delegate to specialists via Task tool.
 <!-- KNOSSOS:END quick-start -->
@@ -38,16 +40,18 @@ Delegate to specialists via Task tool.
 Agents cannot spawn other agents — only the main thread has Task tool access.
 <!-- KNOSSOS:END commands -->
 
-<!-- KNOSSOS:START agent-configurations source=agents/*.md regenerate=true -->
+<!-- KNOSSOS:START agent-configurations regenerate=true source=agents/*.md -->
 ## Agents
 
 Prompts in `.claude/agents/`:
 
-- `potnia.md` - Coordinates code hygiene initiative phases
-- `code-smeller.md` - Detects code smells and quality issues across codebase
-- `architect-enforcer.md` - Plans refactoring approach and enforces architecture standards
-- `janitor.md` - Executes code cleanup and improvements
-- `audit-lead.md` - Audits cleanup results and provides quality signoff
+- `potnia.md` - Coordinates governance phases, gates complexity, manages track selection and back-routes
+- `test-cartographer.md` - Inventories test ecosystem (files, fixtures, mocks, coverage, adversarial file accumulation)
+- `pipeline-cartographer.md` - Inventories CI/CD pipelines (workflows, actions, version skew, safety config, duplication)
+- `entropy-assessor.md` - Grades entropy severity and health per category using weakest-link model
+- `consolidation-planner.md` - Designs target state with atomic, independently-revertible change specifications
+- `rationalization-executor.md` - Executes consolidation plan as atomic commits (one commit per planned change)
+- `verification-auditor.md` - Validates execution against plan and baseline, computes entropy delta, issues verdict
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:

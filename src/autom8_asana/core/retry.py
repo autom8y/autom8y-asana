@@ -33,7 +33,7 @@ from typing import (
 
 from autom8y_log import get_logger
 
-from autom8_asana.exceptions import CircuitBreakerOpenError
+from autom8_asana.errors import CircuitBreakerOpenError
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -253,7 +253,7 @@ class DefaultRetryPolicy:
         3. Known transient error tuples (migration compatibility)
         4. Default: not transient (fail-fast)
         """
-        from autom8_asana.core.exceptions import Autom8Error
+        from autom8_asana.core.errors import Autom8Error
 
         if isinstance(error, Autom8Error):
             return error.transient
@@ -268,7 +268,7 @@ class DefaultRetryPolicy:
                 return False
 
         # Migration compatibility: check error tuple membership
-        from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+        from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 
         return isinstance(error, CACHE_TRANSIENT_ERRORS)
 

@@ -16,7 +16,7 @@ from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
 from autom8_asana.persistence.action_executor import ActionExecutor
 from autom8_asana.persistence.events import EventSystem
-from autom8_asana.persistence.exceptions import (
+from autom8_asana.persistence.errors import (
     UnsupportedOperationError,
 )
 from autom8_asana.persistence.graph import DependencyGraph

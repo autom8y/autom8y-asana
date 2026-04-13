@@ -389,7 +389,7 @@ class DataFrameBuilder(ABC):
         Returns:
             Polars DataFrame with extracted data (collected from LazyFrame)
         """
-        from autom8_asana.dataframes.exceptions import DataFrameConstructionError
+        from autom8_asana.dataframes.errors import DataFrameConstructionError
 
         rows = [self._extract_row(task) for task in tasks]
         coerced_rows = coerce_rows_to_schema(rows, self._schema)
@@ -446,7 +446,7 @@ class DataFrameBuilder(ABC):
         Returns:
             Polars DataFrame with extracted data (collected from LazyFrame)
         """
-        from autom8_asana.dataframes.exceptions import DataFrameConstructionError
+        from autom8_asana.dataframes.errors import DataFrameConstructionError
 
         # Per TDD-GID-RESOLUTION-SERVICE: Use gather_with_limit for bounded
         # parallel extraction instead of sequential awaits

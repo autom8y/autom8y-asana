@@ -183,7 +183,7 @@ class TestRetryHandler:
         from httpx import Response
 
         from autom8_asana.clients.data.config import RetryConfig
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         config = DataServiceConfig(
             retry=RetryConfig(
@@ -283,7 +283,7 @@ class TestRetryHandler:
         import respx
 
         from autom8_asana.clients.data.config import RetryConfig
-        from autom8_asana.exceptions import InsightsValidationError
+        from autom8_asana.errors import InsightsValidationError
 
         config = DataServiceConfig(
             retry=RetryConfig(
@@ -317,7 +317,7 @@ class TestRetryHandler:
         import respx
 
         from autom8_asana.clients.data.config import RetryConfig
-        from autom8_asana.exceptions import InsightsNotFoundError
+        from autom8_asana.errors import InsightsNotFoundError
 
         config = DataServiceConfig(
             retry=RetryConfig(
@@ -404,7 +404,7 @@ class TestRetryHandler:
         import respx
 
         from autom8_asana.clients.data.config import RetryConfig
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         config = DataServiceConfig(
             retry=RetryConfig(

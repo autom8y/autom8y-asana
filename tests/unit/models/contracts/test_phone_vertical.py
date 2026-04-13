@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from pydantic import ValidationError
 
-from autom8_asana.exceptions import InsightsValidationError
+from autom8_asana.errors import InsightsValidationError
 from autom8_asana.models.contracts.phone_vertical import (
     PhoneVerticalPair,
     pvp_from_business,

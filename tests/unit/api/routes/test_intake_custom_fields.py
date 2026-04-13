@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from autom8_asana.api.main import create_app
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.jwt_validator import reset_auth_client
-from autom8_asana.exceptions import NotFoundError, RateLimitError
+from autom8_asana.errors import NotFoundError, RateLimitError
 from autom8_asana.services.resolver import EntityProjectRegistry
 
 # ---------------------------------------------------------------------------

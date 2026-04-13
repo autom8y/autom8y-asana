@@ -69,7 +69,7 @@ from autom8_asana.api.routes.resolver_models import (
 from autom8_asana.api.routes.resolver_schema import schema_router
 from autom8_asana.core.entity_types import ENTITY_TYPES
 from autom8_asana.core.string_utils import to_pascal_case
-from autom8_asana.exceptions import AsanaError
+from autom8_asana.errors import AsanaError
 from autom8_asana.services.errors import ServiceError
 from autom8_asana.services.resolver import (
     EntityProjectRegistry,

@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.exceptions import HydrationError
+from autom8_asana.errors import HydrationError
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.contact import Contact, ContactHolder
 from autom8_asana.models.business.detection import (
@@ -190,7 +190,7 @@ class TestHydrationError:
 
     def test_hydration_error_inherits_from_asana_error(self) -> None:
         """HydrationError inherits from AsanaError."""
-        from autom8_asana.exceptions import AsanaError
+        from autom8_asana.errors import AsanaError
 
         error = HydrationError("Test", entity_gid="123", phase="downward")
         assert isinstance(error, AsanaError)
@@ -1483,7 +1483,7 @@ class TestIsRecoverable:
 
     def test_rate_limit_is_recoverable(self) -> None:
         """RateLimitError is classified as recoverable."""
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
         from autom8_asana.models.business.hydration import _is_recoverable
 
         error = RateLimitError("Rate limited", retry_after=30)
@@ -1491,7 +1491,7 @@ class TestIsRecoverable:
 
     def test_timeout_is_recoverable(self) -> None:
         """TimeoutError is classified as recoverable."""
-        from autom8_asana.exceptions import TimeoutError
+        from autom8_asana.errors import TimeoutError
         from autom8_asana.models.business.hydration import _is_recoverable
 
         error = TimeoutError("Request timed out")
@@ -1499,7 +1499,7 @@ class TestIsRecoverable:
 
     def test_server_error_is_recoverable(self) -> None:
         """ServerError is classified as recoverable."""
-        from autom8_asana.exceptions import ServerError
+        from autom8_asana.errors import ServerError
         from autom8_asana.models.business.hydration import _is_recoverable
 
         error = ServerError("Internal server error")
@@ -1507,7 +1507,7 @@ class TestIsRecoverable:
 
     def test_not_found_is_not_recoverable(self) -> None:
         """NotFoundError is classified as not recoverable."""
-        from autom8_asana.exceptions import NotFoundError
+        from autom8_asana.errors import NotFoundError
         from autom8_asana.models.business.hydration import _is_recoverable
 
         error = NotFoundError("Task not found")
@@ -1515,7 +1515,7 @@ class TestIsRecoverable:
 
     def test_forbidden_is_not_recoverable(self) -> None:
         """ForbiddenError is classified as not recoverable."""
-        from autom8_asana.exceptions import ForbiddenError
+        from autom8_asana.errors import ForbiddenError
         from autom8_asana.models.business.hydration import _is_recoverable
 
         error = ForbiddenError("Access denied")

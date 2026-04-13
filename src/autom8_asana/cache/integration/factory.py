@@ -91,7 +91,7 @@ class CacheProviderFactory:
             InMemoryCacheProvider,
             NullCacheProvider,
         )
-        from autom8_asana.exceptions import ConfigurationError
+        from autom8_asana.errors import ConfigurationError
 
         provider_name = provider_name.lower()
 

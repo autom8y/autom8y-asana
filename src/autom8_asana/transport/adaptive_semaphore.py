@@ -26,7 +26,7 @@ import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from autom8_asana.exceptions import ConfigurationError
+from autom8_asana.errors import ConfigurationError
 
 if TYPE_CHECKING:
     from collections.abc import Callable

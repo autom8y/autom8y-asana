@@ -18,7 +18,7 @@ from autom8_asana.clients.data.config import (
     RetryConfig,
     TimeoutConfig,
 )
-from autom8_asana.exceptions import ConfigurationError
+from autom8_asana.errors import ConfigurationError
 
 
 class TestTimeoutConfig:

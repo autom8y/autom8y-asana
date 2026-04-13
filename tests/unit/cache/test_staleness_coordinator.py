@@ -18,7 +18,7 @@ from autom8_asana.cache.integration.staleness_coordinator import (
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
-from autom8_asana.core.exceptions import CacheConnectionError, RedisTransportError
+from autom8_asana.core.errors import CacheConnectionError, RedisTransportError
 
 
 @pytest.fixture

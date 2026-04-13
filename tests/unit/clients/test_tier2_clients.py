@@ -24,7 +24,7 @@ from autom8_asana.clients.stories import StoriesClient
 from autom8_asana.clients.tags import TagsClient
 from autom8_asana.clients.teams import TeamsClient
 from autom8_asana.clients.webhooks import WebhooksClient
-from autom8_asana.exceptions import AsanaError
+from autom8_asana.errors import AsanaError
 from autom8_asana.models import (
     Attachment,
     Goal,

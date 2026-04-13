@@ -361,7 +361,7 @@ class TestEntityWriteRoute:
 
     def test_task_not_found_404(self, client: TestClient) -> None:
         """Invalid GID -> 404 TASK_NOT_FOUND."""
-        from autom8_asana.exceptions import NotFoundError
+        from autom8_asana.errors import NotFoundError
 
         patches = _patches(get_side_effect=NotFoundError("Not found", status_code=404))
         _apply_patches(*patches)

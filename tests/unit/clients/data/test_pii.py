@@ -233,7 +233,7 @@ class TestExportErrorPiiRedaction:
         import respx
 
         from autom8_asana.clients.data.client import DataServiceClient
-        from autom8_asana.exceptions import ExportError
+        from autom8_asana.errors import ExportError
 
         client = DataServiceClient()
 
@@ -260,7 +260,7 @@ class TestExportErrorPiiRedaction:
         from autom8y_http import CircuitBreakerOpenError as SdkCircuitBreakerOpenError
 
         from autom8_asana.clients.data.client import DataServiceClient
-        from autom8_asana.exceptions import ExportError
+        from autom8_asana.errors import ExportError
 
         client = DataServiceClient()
         # Force circuit breaker open
@@ -283,7 +283,7 @@ class TestExportErrorPiiRedaction:
         import respx
 
         from autom8_asana.clients.data.client import DataServiceClient
-        from autom8_asana.exceptions import ExportError
+        from autom8_asana.errors import ExportError
 
         client = DataServiceClient()
 
@@ -313,7 +313,7 @@ class TestSimpleCacheKeyPiiRedaction:
         import respx
 
         from autom8_asana.clients.data.client import DataServiceClient
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         mock_cache = MagicMock()
         mock_cache.get.return_value = None  # No stale data
@@ -343,7 +343,7 @@ class TestSimpleCacheKeyPiiRedaction:
         import respx
 
         from autom8_asana.clients.data.client import DataServiceClient
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         mock_cache = MagicMock()
         mock_cache.get.return_value = None

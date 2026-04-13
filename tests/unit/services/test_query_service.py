@@ -61,7 +61,7 @@ class TestValidateFields:
 
     def test_falls_back_to_wildcard_schema(self) -> None:
         """Falls back to '*' schema when entity-specific schema not found."""
-        from autom8_asana.dataframes.exceptions import SchemaNotFoundError
+        from autom8_asana.dataframes.errors import SchemaNotFoundError
 
         wildcard_schema = self._mock_schema(["gid", "name"])
         mock_registry = MagicMock()

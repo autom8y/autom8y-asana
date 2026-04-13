@@ -33,7 +33,7 @@ from autom8_asana.api.routes.internal import (
     ServiceClaims,
     require_service_claims,
 )
-from autom8_asana.exceptions import NotFoundError, RateLimitError
+from autom8_asana.errors import NotFoundError, RateLimitError
 from autom8_asana.services.intake_custom_field_service import IntakeCustomFieldService
 
 __all__ = ["router"]

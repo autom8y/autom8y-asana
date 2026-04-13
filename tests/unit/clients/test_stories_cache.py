@@ -14,7 +14,7 @@ from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.clients.stories import StoriesClient
-from autom8_asana.core.exceptions import CacheConnectionError
+from autom8_asana.core.errors import CacheConnectionError
 from autom8_asana.models.story import Story
 
 if TYPE_CHECKING:

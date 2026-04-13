@@ -537,7 +537,7 @@ class TestAssetEditEdgeCases:
         Per FR-STRATEGY-004: Handle NotFoundError gracefully when offer_id
         refers to a non-existent task.
         """
-        from autom8_asana.exceptions import NotFoundError
+        from autom8_asana.errors import NotFoundError
 
         mock_client.tasks.get_async.side_effect = NotFoundError(
             "Task not found",

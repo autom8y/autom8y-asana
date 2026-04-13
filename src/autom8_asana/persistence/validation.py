@@ -3,7 +3,7 @@
 Per TDD-TRIAGE-FIXES Issue #5: Fail-fast GID validation.
 """
 
-from autom8_asana.persistence.exceptions import GidValidationError
+from autom8_asana.persistence.errors import GidValidationError
 
 
 def validate_gid(gid: str, param_name: str = "gid") -> None:

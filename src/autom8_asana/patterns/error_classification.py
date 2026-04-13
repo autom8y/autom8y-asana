@@ -169,7 +169,7 @@ class RetryableErrorMixin:
             HTTP status code or None if not available.
         """
         # Lazy import to avoid circular dependency
-        from autom8_asana.exceptions import AsanaError
+        from autom8_asana.errors import AsanaError
 
         if isinstance(error, AsanaError):
             return error.status_code

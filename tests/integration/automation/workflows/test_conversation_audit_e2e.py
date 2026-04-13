@@ -18,7 +18,7 @@ from autom8_asana.automation.workflows.conversation_audit import (
     ConversationAuditWorkflow,
 )
 from autom8_asana.clients.data.models import ExportResult
-from autom8_asana.exceptions import ExportError
+from autom8_asana.errors import ExportError
 from autom8_asana.models.business.activity import AccountActivity
 
 # --- Helpers ---

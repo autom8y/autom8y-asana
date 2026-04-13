@@ -70,7 +70,7 @@ def validate_fields(
         InvalidFieldError: If any field is not in the schema.
     """
     from autom8_asana.core.string_utils import to_pascal_case
-    from autom8_asana.dataframes.exceptions import SchemaNotFoundError
+    from autom8_asana.dataframes.errors import SchemaNotFoundError
     from autom8_asana.dataframes.models.registry import SchemaRegistry
     from autom8_asana.services.errors import InvalidFieldError
 
@@ -115,7 +115,7 @@ async def resolve_section(
     Raises:
         UnknownSectionError: If section cannot be resolved.
     """
-    from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS
+    from autom8_asana.core.errors import S3_TRANSPORT_ERRORS
     from autom8_asana.metrics.resolve import SectionIndex
     from autom8_asana.services.errors import UnknownSectionError
 

@@ -10,7 +10,7 @@ import logging
 
 import pytest
 
-from autom8_asana.persistence.exceptions import (
+from autom8_asana.persistence.errors import (
     GidValidationError,
     PositioningConflictError,
     SaveOrchestrationError,

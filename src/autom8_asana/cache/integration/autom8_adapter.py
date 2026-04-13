@@ -45,7 +45,7 @@ from autom8_asana.cache.policies.staleness import (
     check_batch_staleness,
     partition_by_staleness,
 )
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:

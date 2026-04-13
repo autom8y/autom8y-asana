@@ -27,7 +27,7 @@ from autom8_asana.clients.projects import ProjectsClient
 from autom8_asana.clients.sections import SectionsClient
 from autom8_asana.clients.users import UsersClient
 from autom8_asana.clients.workspaces import WorkspacesClient
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     SyncInAsyncContextError,
 )
 from autom8_asana.models import (

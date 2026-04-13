@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from autom8_asana.cache.models.entry import CacheEntry
 
 from autom8_asana.batch.models import BatchRequest
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 
 logger = get_logger(__name__)
 

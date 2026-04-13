@@ -23,7 +23,7 @@ from fastapi.testclient import TestClient
 from autom8_asana.api.main import create_app
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.jwt_validator import reset_auth_client
-from autom8_asana.exceptions import RateLimitError
+from autom8_asana.errors import RateLimitError
 from autom8_asana.services.errors import CacheNotReadyError, ServiceError
 from autom8_asana.services.resolution_result import ResolutionResult
 from autom8_asana.services.resolver import EntityProjectRegistry

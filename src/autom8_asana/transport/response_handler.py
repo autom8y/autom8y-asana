@@ -13,7 +13,7 @@ import contextlib
 import json
 from typing import TYPE_CHECKING, Any
 
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     AsanaError,
     RateLimitError,
 )

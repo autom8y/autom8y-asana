@@ -71,7 +71,7 @@ def __getattr__(name: str) -> object:
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     AsanaError,
     AuthenticationError,
     ConfigurationError,
@@ -119,7 +119,7 @@ from autom8_asana.observability import (
 )
 
 # TDD-HARDENING-A: GID validation exception at root level (FR-EXC-006)
-from autom8_asana.persistence.exceptions import GidValidationError
+from autom8_asana.persistence.errors import GidValidationError
 
 # Protocols (for type checking and custom implementations)
 from autom8_asana.protocols import (

@@ -31,7 +31,7 @@ from autom8_asana.automation.polling.polling_scheduler import (
     DEFAULT_LOCK_PATH,
     PollingScheduler,
 )
-from autom8_asana.exceptions import ConfigurationError
+from autom8_asana.errors import ConfigurationError
 
 
 class TestPollingSchedulerInit:

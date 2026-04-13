@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from autom8_asana.exceptions import HydrationError
+from autom8_asana.errors import HydrationError
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.contact import Contact, ContactHolder
 from autom8_asana.models.business.detection import EntityType
@@ -165,35 +165,35 @@ class TestIsRecoverable:
 
     def test_rate_limit_is_recoverable(self) -> None:
         """RateLimitError is recoverable."""
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         error = RateLimitError("Rate limited")
         assert _is_recoverable(error) is True
 
     def test_timeout_is_recoverable(self) -> None:
         """TimeoutError is recoverable."""
-        from autom8_asana.exceptions import TimeoutError
+        from autom8_asana.errors import TimeoutError
 
         error = TimeoutError("Request timed out")
         assert _is_recoverable(error) is True
 
     def test_server_error_is_recoverable(self) -> None:
         """ServerError is recoverable."""
-        from autom8_asana.exceptions import ServerError
+        from autom8_asana.errors import ServerError
 
         error = ServerError("Internal server error")
         assert _is_recoverable(error) is True
 
     def test_not_found_is_not_recoverable(self) -> None:
         """NotFoundError is not recoverable."""
-        from autom8_asana.exceptions import NotFoundError
+        from autom8_asana.errors import NotFoundError
 
         error = NotFoundError("Resource not found")
         assert _is_recoverable(error) is False
 
     def test_forbidden_is_not_recoverable(self) -> None:
         """ForbiddenError is not recoverable."""
-        from autom8_asana.exceptions import ForbiddenError
+        from autom8_asana.errors import ForbiddenError
 
         error = ForbiddenError("Access denied")
         assert _is_recoverable(error) is False
@@ -571,7 +571,7 @@ class TestHydrateFromGidAsync:
         mock_client: MagicMock,
     ) -> None:
         """Non-existent GID raises HydrationError."""
-        from autom8_asana.exceptions import NotFoundError
+        from autom8_asana.errors import NotFoundError
 
         mock_client.tasks.get_async = AsyncMock(
             side_effect=NotFoundError("Task not found")

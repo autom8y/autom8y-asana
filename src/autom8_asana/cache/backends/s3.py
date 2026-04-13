@@ -21,7 +21,7 @@ from autom8_asana.cache.models.versioning import (
     is_current,
     parse_version,
 )
-from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS, S3TransportError
+from autom8_asana.core.errors import S3_TRANSPORT_ERRORS, S3TransportError
 from autom8_asana.protocols.cache import WarmResult
 
 if TYPE_CHECKING:

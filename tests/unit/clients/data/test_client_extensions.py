@@ -15,7 +15,7 @@ import pytest
 from autom8_asana.clients.data.client import DataServiceClient
 from autom8_asana.clients.data.config import DataServiceConfig
 from autom8_asana.clients.data.models import InsightsRequest, InsightsResponse
-from autom8_asana.exceptions import InsightsServiceError
+from autom8_asana.errors import InsightsServiceError
 
 
 def _make_client() -> DataServiceClient:

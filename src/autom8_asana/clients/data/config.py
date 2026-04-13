@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from autom8_asana.exceptions import ConfigurationError
+from autom8_asana.errors import ConfigurationError
 from autom8_asana.settings import get_settings
 
 __all__ = [

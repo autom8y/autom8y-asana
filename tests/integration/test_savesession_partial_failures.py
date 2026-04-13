@@ -16,7 +16,7 @@ from autom8_asana.batch.models import BatchResult
 from autom8_asana.client import AsanaClient
 from autom8_asana.config import AsanaConfig, RetryConfig
 from autom8_asana.models import Task
-from autom8_asana.persistence.exceptions import SaveSessionError
+from autom8_asana.persistence.errors import SaveSessionError
 from autom8_asana.persistence.models import OperationType
 from autom8_asana.persistence.session import SaveSession
 

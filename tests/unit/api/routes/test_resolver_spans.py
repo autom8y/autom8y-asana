@@ -22,7 +22,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
-from autom8_asana.exceptions import AsanaError
+from autom8_asana.errors import AsanaError
 from autom8_asana.services.errors import ServiceError
 from autom8_asana.services.resolution_result import ResolutionResult
 from autom8_asana.services.resolver import EntityProjectRegistry

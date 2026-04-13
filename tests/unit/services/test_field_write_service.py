@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.exceptions import NotFoundError, RateLimitError
+from autom8_asana.errors import NotFoundError, RateLimitError
 from autom8_asana.resolution.write_registry import (
     CORE_FIELD_NAMES,
     EntityWriteRegistry,

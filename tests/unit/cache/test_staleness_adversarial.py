@@ -32,7 +32,7 @@ from autom8_asana.cache.models.entry import CacheEntry, EntryType, _parse_dateti
 from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
 from autom8_asana.cache.policies.coalescer import RequestCoalescer
 from autom8_asana.cache.policies.lightweight_checker import LightweightChecker, _chunk
-from autom8_asana.core.exceptions import RedisTransportError
+from autom8_asana.core.errors import RedisTransportError
 
 
 def make_entry(

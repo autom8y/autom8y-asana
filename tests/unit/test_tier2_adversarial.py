@@ -33,7 +33,7 @@ from autom8_asana.clients.goals import GoalsClient
 from autom8_asana.clients.portfolios import PortfoliosClient
 from autom8_asana.clients.stories import StoriesClient
 from autom8_asana.clients.webhooks import WebhooksClient
-from autom8_asana.exceptions import AsanaError, SyncInAsyncContextError
+from autom8_asana.errors import AsanaError, SyncInAsyncContextError
 from autom8_asana.models import (
     Attachment,
     Goal,

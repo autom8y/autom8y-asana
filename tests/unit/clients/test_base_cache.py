@@ -13,7 +13,7 @@ from autom8_asana._defaults.cache import InMemoryCacheProvider, NullCacheProvide
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.clients.base import BaseClient
 from autom8_asana.config import AsanaConfig, CacheConfig
-from autom8_asana.core.exceptions import CacheConnectionError
+from autom8_asana.core.errors import CacheConnectionError
 
 
 class TestBaseClientCacheGet:

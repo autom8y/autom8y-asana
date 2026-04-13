@@ -17,7 +17,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, overload
 
 from autom8_asana.models.common import NameGid
-from autom8_asana.persistence.exceptions import PositioningConflictError
+from autom8_asana.persistence.errors import PositioningConflictError
 from autom8_asana.persistence.models import ActionOperation, ActionType
 from autom8_asana.persistence.validation import validate_gid
 

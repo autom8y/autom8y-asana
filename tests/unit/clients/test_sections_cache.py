@@ -15,9 +15,9 @@ import pytest
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.clients.sections import SectionsClient
-from autom8_asana.core.exceptions import CacheConnectionError
+from autom8_asana.core.errors import CacheConnectionError
 from autom8_asana.models.section import Section
-from autom8_asana.persistence.exceptions import GidValidationError
+from autom8_asana.persistence.errors import GidValidationError
 
 if TYPE_CHECKING:
     from autom8_asana.config import AsanaConfig

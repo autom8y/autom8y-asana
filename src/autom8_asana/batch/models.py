@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from autom8_asana.exceptions import AsanaError
+from autom8_asana.errors import AsanaError
 
 
 @dataclass(frozen=True)

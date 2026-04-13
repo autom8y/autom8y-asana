@@ -367,7 +367,7 @@ class CustomFieldAccessor:
         if self._strict:
             from difflib import get_close_matches
 
-            from autom8_asana.exceptions import NameNotFoundError
+            from autom8_asana.errors import NameNotFoundError
 
             # Get available field names for suggestions
             available = self.list_available_fields()
@@ -420,7 +420,7 @@ class CustomFieldAccessor:
         """
         from decimal import Decimal
 
-        from autom8_asana.persistence.exceptions import (  # nosemgrep: autom8y.no-models-import-upper
+        from autom8_asana.persistence.errors import (  # nosemgrep: autom8y.no-models-import-upper
             GidValidationError,
         )
 

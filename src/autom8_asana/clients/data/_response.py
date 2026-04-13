@@ -20,7 +20,7 @@ from autom8_asana.clients.data.models import (
     InsightsMetadata,
     InsightsResponse,
 )
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     InsightsNotFoundError,
     InsightsServiceError,
     InsightsValidationError,

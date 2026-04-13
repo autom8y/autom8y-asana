@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 import polars as pl
 from autom8y_log import get_logger
 
-from autom8_asana.core.exceptions import S3_TRANSPORT_ERRORS, S3TransportError
+from autom8_asana.core.errors import S3_TRANSPORT_ERRORS, S3TransportError
 from autom8_asana.core.retry import (
     BackoffType,
     BudgetConfig,

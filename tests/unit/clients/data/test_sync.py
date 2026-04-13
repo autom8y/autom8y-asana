@@ -56,7 +56,7 @@ class TestSyncWrapper:
     @pytest.mark.asyncio
     async def test_sync_wrapper_raises_in_async_context(self) -> None:
         """Sync wrapper raises SyncInAsyncContextError in async context."""
-        from autom8_asana.exceptions import SyncInAsyncContextError
+        from autom8_asana.errors import SyncInAsyncContextError
 
         client = DataServiceClient()
 
@@ -148,7 +148,7 @@ class TestSyncWrapper:
     @pytest.mark.asyncio
     async def test_sync_exit_raises_in_async_context(self) -> None:
         """Sync __exit__ raises SyncInAsyncContextError in async context."""
-        from autom8_asana.exceptions import SyncInAsyncContextError
+        from autom8_asana.errors import SyncInAsyncContextError
 
         client = DataServiceClient()
 
@@ -165,7 +165,7 @@ class TestSyncWrapper:
 
     def test_sync_wrapper_propagates_validation_errors(self) -> None:
         """Sync wrapper propagates InsightsValidationError correctly."""
-        from autom8_asana.exceptions import InsightsValidationError
+        from autom8_asana.errors import InsightsValidationError
 
         client = DataServiceClient()
 
@@ -183,7 +183,7 @@ class TestSyncWrapper:
         """Sync wrapper propagates InsightsServiceError correctly."""
         import respx
 
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 

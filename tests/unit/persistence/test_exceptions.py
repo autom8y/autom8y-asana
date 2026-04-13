@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import pytest
 
-from autom8_asana.exceptions import AsanaError
+from autom8_asana.errors import AsanaError
 from autom8_asana.models import Task
 from autom8_asana.models.common import NameGid
-from autom8_asana.persistence.exceptions import (
+from autom8_asana.persistence.errors import (
     CyclicDependencyError,
     DependencyResolutionError,
     PartialSaveError,

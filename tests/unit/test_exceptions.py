@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     AsanaError,
     AuthenticationError,
     ForbiddenError,

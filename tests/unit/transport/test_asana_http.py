@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 from autom8_asana.config import AsanaConfig
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     RateLimitError,
     ServerError,
     TimeoutError,

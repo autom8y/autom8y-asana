@@ -18,7 +18,7 @@ from autom8_asana.clients.data._policy import (
     DefaultEndpointPolicy,
     ReconciliationRequestDescriptor,
 )
-from autom8_asana.exceptions import InsightsServiceError
+from autom8_asana.errors import InsightsServiceError
 
 if TYPE_CHECKING:
     from autom8y_http import CircuitBreakerOpenError, Response

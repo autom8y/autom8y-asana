@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.exceptions import InsightsValidationError
+from autom8_asana.errors import InsightsValidationError
 from autom8_asana.models.business.business import Business
 
 

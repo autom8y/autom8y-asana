@@ -21,7 +21,7 @@ from autom8y_log import get_logger
 from pydantic import ValidationError
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 from autom8_asana.core.types import EntityType
 from autom8_asana.models.business.detection.config import (
     get_holder_attr,

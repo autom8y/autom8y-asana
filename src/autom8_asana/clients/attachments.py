@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, BinaryIO, Literal, overload
 
 from autom8_asana.clients.base import BaseClient
-from autom8_asana.exceptions import AsanaError
+from autom8_asana.errors import AsanaError
 from autom8_asana.models import PageIterator
 from autom8_asana.models.attachment import Attachment
 from autom8_asana.patterns import async_method

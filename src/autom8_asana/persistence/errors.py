@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from autom8_asana.exceptions import AsanaError
+from autom8_asana.errors import AsanaError
 
 if TYPE_CHECKING:
     from autom8_asana.models.base import AsanaResource

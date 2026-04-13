@@ -115,7 +115,7 @@ class TestGetInsightsBatchAsync:
         self, sample_pvps: list
     ) -> None:
         """Batch size validation - exceeds max_batch_size raises InsightsValidationError."""
-        from autom8_asana.exceptions import InsightsValidationError
+        from autom8_asana.errors import InsightsValidationError
 
         # Create config with very small max_batch_size
         config = DataServiceConfig(
@@ -140,7 +140,7 @@ class TestGetInsightsBatchAsync:
         self, sample_pvps: list
     ) -> None:
         """Invalid factory - raises InsightsValidationError."""
-        from autom8_asana.exceptions import InsightsValidationError
+        from autom8_asana.errors import InsightsValidationError
 
         client = DataServiceClient()
 
@@ -163,7 +163,7 @@ class TestGetInsightsBatchAsync:
 
         Per Story 2.7: Feature is now enabled by default. Must explicitly disable.
         """
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         client = DataServiceClient()
 

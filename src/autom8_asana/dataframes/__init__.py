@@ -37,7 +37,7 @@ from autom8_asana.dataframes.cache_integration import (
     CachedRow,
     DataFrameCacheIntegration,
 )
-from autom8_asana.dataframes.exceptions import (
+from autom8_asana.dataframes.errors import (
     DataFrameError,
     ExtractionError,
     SchemaNotFoundError,

@@ -73,7 +73,7 @@ class TestCircuitBreaker:
         from autom8y_http.protocols import CircuitState
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig, RetryConfig
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         # Use config with default failure_threshold=5
         # Disable retries to isolate circuit breaker behavior
@@ -116,7 +116,7 @@ class TestCircuitBreaker:
         from autom8y_http.protocols import CircuitState
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig, RetryConfig
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         # Disable retries to isolate circuit breaker behavior
         config = DataServiceConfig(
@@ -169,7 +169,7 @@ class TestCircuitBreaker:
         from autom8y_http.protocols import CircuitState
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig, RetryConfig
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         # Very short recovery timeout so we can test half-open
         # Disable retries to isolate circuit breaker behavior
@@ -224,7 +224,7 @@ class TestCircuitBreaker:
         from autom8y_http.protocols import CircuitState
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig, RetryConfig
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         # Disable retries to isolate circuit breaker behavior
         config = DataServiceConfig(
@@ -299,7 +299,7 @@ class TestCircuitBreaker:
         from autom8y_http.protocols import CircuitState
 
         from autom8_asana.clients.data.config import CircuitBreakerConfig, RetryConfig
-        from autom8_asana.exceptions import InsightsServiceError
+        from autom8_asana.errors import InsightsServiceError
 
         # Disable retries to isolate circuit breaker behavior
         config = DataServiceConfig(

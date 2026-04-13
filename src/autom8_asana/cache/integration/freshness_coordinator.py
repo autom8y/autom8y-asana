@@ -15,7 +15,7 @@ from autom8y_log import get_logger
 
 from autom8_asana.batch.models import BatchRequest
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
     from autom8_asana.batch.client import BatchClient

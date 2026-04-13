@@ -19,8 +19,8 @@ from typing import TYPE_CHECKING, ClassVar
 from autom8y_log import get_logger
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
-from autom8_asana.dataframes.exceptions import DataFrameError
+from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
+from autom8_asana.dataframes.errors import DataFrameError
 
 if TYPE_CHECKING:
     from autom8_asana.clients.sections import SectionsClient

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from autom8_asana.clients.tasks import TasksClient
-from autom8_asana.exceptions import SyncInAsyncContextError
+from autom8_asana.errors import SyncInAsyncContextError
 from autom8_asana.models import PageIterator, Task
 
 if TYPE_CHECKING:

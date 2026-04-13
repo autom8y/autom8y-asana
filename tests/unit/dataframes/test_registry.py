@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 
-from autom8_asana.dataframes.exceptions import SchemaNotFoundError, SchemaVersionError
+from autom8_asana.dataframes.errors import SchemaNotFoundError, SchemaVersionError
 from autom8_asana.dataframes.models.registry import SchemaRegistry
 from autom8_asana.dataframes.models.schema import ColumnDef, DataFrameSchema
 

@@ -203,7 +203,7 @@ class TestDependentsAsync:
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
         """dependents_async validates task_gid is not empty."""
-        from autom8_asana.persistence.exceptions import GidValidationError
+        from autom8_asana.persistence.errors import GidValidationError
 
         with pytest.raises(GidValidationError) as exc_info:
             tasks_client.dependents_async("")

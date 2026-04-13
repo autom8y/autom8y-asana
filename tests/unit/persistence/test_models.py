@@ -306,7 +306,7 @@ class TestSaveResult:
 
     def test_raise_on_failure_with_failures(self) -> None:
         """raise_on_failure raises PartialSaveError when failures exist."""
-        from autom8_asana.persistence.exceptions import PartialSaveError
+        from autom8_asana.persistence.errors import PartialSaveError
 
         task = Task(gid="123")
         error = SaveError(
@@ -326,7 +326,7 @@ class TestSaveResult:
 
     def test_raise_on_failure_with_partial_result(self) -> None:
         """raise_on_failure raises PartialSaveError for partial results."""
-        from autom8_asana.persistence.exceptions import PartialSaveError
+        from autom8_asana.persistence.errors import PartialSaveError
 
         task1 = Task(gid="123")
         task2 = Task(gid="456")
@@ -1075,7 +1075,7 @@ class TestSaveErrorRetryable:
 
     def test_is_retryable_429_rate_limit(self) -> None:
         """429 status code is retryable (FR-FH-002)."""
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         task = Task(gid="123")
         error = RateLimitError("Rate limited", status_code=429, retry_after=60)
@@ -1091,7 +1091,7 @@ class TestSaveErrorRetryable:
 
     def test_is_retryable_500_server_error(self) -> None:
         """500 status code is retryable (FR-FH-003)."""
-        from autom8_asana.exceptions import ServerError
+        from autom8_asana.errors import ServerError
 
         task = Task(gid="123")
         error = ServerError("Internal Server Error", status_code=500)
@@ -1107,7 +1107,7 @@ class TestSaveErrorRetryable:
 
     def test_is_retryable_502_bad_gateway(self) -> None:
         """502 status code is retryable (FR-FH-003)."""
-        from autom8_asana.exceptions import ServerError
+        from autom8_asana.errors import ServerError
 
         task = Task(gid="123")
         error = ServerError("Bad Gateway", status_code=502)
@@ -1123,7 +1123,7 @@ class TestSaveErrorRetryable:
 
     def test_is_retryable_503_service_unavailable(self) -> None:
         """503 status code is retryable (FR-FH-003)."""
-        from autom8_asana.exceptions import ServerError
+        from autom8_asana.errors import ServerError
 
         task = Task(gid="123")
         error = ServerError("Service Unavailable", status_code=503)
@@ -1139,7 +1139,7 @@ class TestSaveErrorRetryable:
 
     def test_is_retryable_504_gateway_timeout(self) -> None:
         """504 status code is retryable (FR-FH-003)."""
-        from autom8_asana.exceptions import ServerError
+        from autom8_asana.errors import ServerError
 
         task = Task(gid="123")
         error = ServerError("Gateway Timeout", status_code=504)
@@ -1155,7 +1155,7 @@ class TestSaveErrorRetryable:
 
     def test_not_retryable_400_bad_request(self) -> None:
         """400 status code is not retryable (FR-FH-004)."""
-        from autom8_asana.exceptions import AsanaError
+        from autom8_asana.errors import AsanaError
 
         task = Task(gid="123")
         error = AsanaError("Bad Request", status_code=400)
@@ -1171,7 +1171,7 @@ class TestSaveErrorRetryable:
 
     def test_not_retryable_401_unauthorized(self) -> None:
         """401 status code is not retryable (FR-FH-004)."""
-        from autom8_asana.exceptions import AuthenticationError
+        from autom8_asana.errors import AuthenticationError
 
         task = Task(gid="123")
         error = AuthenticationError("Unauthorized", status_code=401)
@@ -1187,7 +1187,7 @@ class TestSaveErrorRetryable:
 
     def test_not_retryable_403_forbidden(self) -> None:
         """403 status code is not retryable (FR-FH-004)."""
-        from autom8_asana.exceptions import ForbiddenError
+        from autom8_asana.errors import ForbiddenError
 
         task = Task(gid="123")
         error = ForbiddenError("Forbidden", status_code=403)
@@ -1203,7 +1203,7 @@ class TestSaveErrorRetryable:
 
     def test_not_retryable_404_not_found(self) -> None:
         """404 status code is not retryable (FR-FH-004)."""
-        from autom8_asana.exceptions import NotFoundError
+        from autom8_asana.errors import NotFoundError
 
         task = Task(gid="123")
         error = NotFoundError("Not Found", status_code=404)
@@ -1279,7 +1279,7 @@ class TestSaveErrorRecoveryHint:
 
     def test_recovery_hint_429(self) -> None:
         """429 provides rate limit specific hint."""
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         task = Task(gid="123")
         error = RateLimitError("Rate limited", status_code=429)
@@ -1295,7 +1295,7 @@ class TestSaveErrorRecoveryHint:
 
     def test_recovery_hint_500(self) -> None:
         """500 provides server error hint."""
-        from autom8_asana.exceptions import ServerError
+        from autom8_asana.errors import ServerError
 
         task = Task(gid="123")
         error = ServerError("Internal Server Error", status_code=500)
@@ -1312,7 +1312,7 @@ class TestSaveErrorRecoveryHint:
 
     def test_recovery_hint_400(self) -> None:
         """400 provides bad request hint."""
-        from autom8_asana.exceptions import AsanaError
+        from autom8_asana.errors import AsanaError
 
         task = Task(gid="123")
         error = AsanaError("Bad Request", status_code=400)
@@ -1328,7 +1328,7 @@ class TestSaveErrorRecoveryHint:
 
     def test_recovery_hint_401(self) -> None:
         """401 provides authentication hint."""
-        from autom8_asana.exceptions import AuthenticationError
+        from autom8_asana.errors import AuthenticationError
 
         task = Task(gid="123")
         error = AuthenticationError("Unauthorized", status_code=401)
@@ -1344,7 +1344,7 @@ class TestSaveErrorRecoveryHint:
 
     def test_recovery_hint_403(self) -> None:
         """403 provides permission hint."""
-        from autom8_asana.exceptions import ForbiddenError
+        from autom8_asana.errors import ForbiddenError
 
         task = Task(gid="123")
         error = ForbiddenError("Forbidden", status_code=403)
@@ -1360,7 +1360,7 @@ class TestSaveErrorRecoveryHint:
 
     def test_recovery_hint_404(self) -> None:
         """404 provides not found hint."""
-        from autom8_asana.exceptions import NotFoundError
+        from autom8_asana.errors import NotFoundError
 
         task = Task(gid="123")
         error = NotFoundError("Not Found", status_code=404)
@@ -1422,7 +1422,7 @@ class TestSaveErrorRetryAfterSeconds:
 
     def test_retry_after_from_rate_limit_error(self) -> None:
         """retry_after_seconds extracts from RateLimitError."""
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         task = Task(gid="123")
         error = RateLimitError("Rate limited", status_code=429, retry_after=60)
@@ -1438,7 +1438,7 @@ class TestSaveErrorRetryAfterSeconds:
 
     def test_retry_after_none_for_non_rate_limit(self) -> None:
         """retry_after_seconds is None for non-rate-limit errors."""
-        from autom8_asana.exceptions import ServerError
+        from autom8_asana.errors import ServerError
 
         task = Task(gid="123")
         error = ServerError("Internal Server Error", status_code=500)
@@ -1531,7 +1531,7 @@ class TestSaveResultRetryableHelpers:
 
     def test_retryable_failures_filters_correctly(self) -> None:
         """retryable_failures returns only retryable errors."""
-        from autom8_asana.exceptions import NotFoundError, RateLimitError
+        from autom8_asana.errors import NotFoundError, RateLimitError
 
         task1 = Task(gid="123")
         task2 = Task(gid="456")
@@ -1556,7 +1556,7 @@ class TestSaveResultRetryableHelpers:
 
     def test_non_retryable_failures_filters_correctly(self) -> None:
         """non_retryable_failures returns only non-retryable errors."""
-        from autom8_asana.exceptions import NotFoundError, RateLimitError
+        from autom8_asana.errors import NotFoundError, RateLimitError
 
         task1 = Task(gid="123")
         task2 = Task(gid="456")
@@ -1581,7 +1581,7 @@ class TestSaveResultRetryableHelpers:
 
     def test_has_retryable_failures_true(self) -> None:
         """has_retryable_failures is True when retryable error present."""
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         task = Task(gid="123")
         error = SaveError(
@@ -1597,7 +1597,7 @@ class TestSaveResultRetryableHelpers:
 
     def test_has_retryable_failures_false(self) -> None:
         """has_retryable_failures is False when no retryable errors."""
-        from autom8_asana.exceptions import NotFoundError
+        from autom8_asana.errors import NotFoundError
 
         task = Task(gid="123")
         error = SaveError(
@@ -1619,7 +1619,7 @@ class TestSaveResultRetryableHelpers:
 
     def test_get_retryable_errors_alias(self) -> None:
         """get_retryable_errors() is alias for retryable_failures (FR-FH-006)."""
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         task = Task(gid="123")
         error = SaveError(
@@ -1641,7 +1641,7 @@ class TestSaveResultRetryableHelpers:
 
     def test_get_recovery_summary_with_failures(self) -> None:
         """get_recovery_summary includes retryable and non-retryable sections."""
-        from autom8_asana.exceptions import NotFoundError, RateLimitError
+        from autom8_asana.errors import NotFoundError, RateLimitError
 
         task1 = Task(gid="123")
         task2 = Task(gid="456")
@@ -1674,8 +1674,8 @@ class TestPartialSaveErrorEnhanced:
 
     def test_partial_save_error_message_includes_retryable_counts(self) -> None:
         """PartialSaveError message includes retryable/non-retryable counts."""
-        from autom8_asana.exceptions import NotFoundError, RateLimitError
-        from autom8_asana.persistence.exceptions import PartialSaveError
+        from autom8_asana.errors import NotFoundError, RateLimitError
+        from autom8_asana.persistence.errors import PartialSaveError
 
         task1 = Task(gid="123")
         task2 = Task(gid="456")
@@ -1705,8 +1705,8 @@ class TestPartialSaveErrorEnhanced:
 
     def test_partial_save_error_is_retryable_true(self) -> None:
         """PartialSaveError.is_retryable is True when retryable errors exist."""
-        from autom8_asana.exceptions import RateLimitError
-        from autom8_asana.persistence.exceptions import PartialSaveError
+        from autom8_asana.errors import RateLimitError
+        from autom8_asana.persistence.errors import PartialSaveError
 
         task = Task(gid="123")
         error = SaveError(
@@ -1725,8 +1725,8 @@ class TestPartialSaveErrorEnhanced:
 
     def test_partial_save_error_is_retryable_false(self) -> None:
         """PartialSaveError.is_retryable is False when no retryable errors."""
-        from autom8_asana.exceptions import NotFoundError
-        from autom8_asana.persistence.exceptions import PartialSaveError
+        from autom8_asana.errors import NotFoundError
+        from autom8_asana.persistence.errors import PartialSaveError
 
         task = Task(gid="123")
         error = SaveError(
@@ -1745,8 +1745,8 @@ class TestPartialSaveErrorEnhanced:
 
     def test_partial_save_error_retryable_count(self) -> None:
         """PartialSaveError.retryable_count returns correct count."""
-        from autom8_asana.exceptions import RateLimitError, ServerError
-        from autom8_asana.persistence.exceptions import PartialSaveError
+        from autom8_asana.errors import RateLimitError, ServerError
+        from autom8_asana.persistence.errors import PartialSaveError
 
         task1 = Task(gid="123")
         task2 = Task(gid="456")
@@ -1773,8 +1773,8 @@ class TestPartialSaveErrorEnhanced:
 
     def test_partial_save_error_non_retryable_count(self) -> None:
         """PartialSaveError.non_retryable_count returns correct count."""
-        from autom8_asana.exceptions import ForbiddenError, NotFoundError
-        from autom8_asana.persistence.exceptions import PartialSaveError
+        from autom8_asana.errors import ForbiddenError, NotFoundError
+        from autom8_asana.persistence.errors import PartialSaveError
 
         task1 = Task(gid="123")
         task2 = Task(gid="456")
@@ -1818,7 +1818,7 @@ class TestActionResultRetryable:
 
     def test_is_retryable_429(self) -> None:
         """ActionResult.is_retryable is True for 429 errors."""
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         task = Task(gid="task_123")
         action = ActionOperation(
@@ -1834,7 +1834,7 @@ class TestActionResultRetryable:
 
     def test_is_retryable_500(self) -> None:
         """ActionResult.is_retryable is True for 500 errors."""
-        from autom8_asana.exceptions import ServerError
+        from autom8_asana.errors import ServerError
 
         task = Task(gid="task_123")
         action = ActionOperation(
@@ -1850,7 +1850,7 @@ class TestActionResultRetryable:
 
     def test_is_retryable_false_for_404(self) -> None:
         """ActionResult.is_retryable is False for 404 errors."""
-        from autom8_asana.exceptions import NotFoundError
+        from autom8_asana.errors import NotFoundError
 
         task = Task(gid="task_123")
         action = ActionOperation(
@@ -1897,7 +1897,7 @@ class TestActionResultRecoveryHint:
 
     def test_recovery_hint_429(self) -> None:
         """ActionResult.recovery_hint provides guidance for 429."""
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         task = Task(gid="task_123")
         action = ActionOperation(
@@ -1913,7 +1913,7 @@ class TestActionResultRecoveryHint:
 
     def test_recovery_hint_500(self) -> None:
         """ActionResult.recovery_hint provides guidance for 500."""
-        from autom8_asana.exceptions import ServerError
+        from autom8_asana.errors import ServerError
 
         task = Task(gid="task_123")
         action = ActionOperation(
@@ -1933,7 +1933,7 @@ class TestActionResultRetryAfterSeconds:
 
     def test_retry_after_from_rate_limit_error(self) -> None:
         """retry_after_seconds extracts from RateLimitError."""
-        from autom8_asana.exceptions import RateLimitError
+        from autom8_asana.errors import RateLimitError
 
         task = Task(gid="task_123")
         action = ActionOperation(
@@ -1962,7 +1962,7 @@ class TestActionResultRetryAfterSeconds:
 
     def test_retry_after_none_for_non_rate_limit(self) -> None:
         """retry_after_seconds is None for non-rate-limit errors."""
-        from autom8_asana.exceptions import ServerError
+        from autom8_asana.errors import ServerError
 
         task = Task(gid="task_123")
         action = ActionOperation(

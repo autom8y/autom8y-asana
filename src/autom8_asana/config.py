@@ -32,7 +32,7 @@ from autom8y_http import (
 from autom8y_log import get_logger
 
 from autom8_asana.automation.config import AutomationConfig
-from autom8_asana.exceptions import ConfigurationError
+from autom8_asana.errors import ConfigurationError
 from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:

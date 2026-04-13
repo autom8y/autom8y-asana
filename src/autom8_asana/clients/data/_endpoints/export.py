@@ -21,7 +21,7 @@ from autom8_asana.clients.data._policy import (
     ExportRequestDescriptor,
 )
 from autom8_asana.clients.data.models import ExportResult
-from autom8_asana.exceptions import ExportError
+from autom8_asana.errors import ExportError
 
 if TYPE_CHECKING:
     from autom8y_http import CircuitBreakerOpenError, Response

@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from autom8_asana.core.exceptions import RedisTransportError
+from autom8_asana.core.errors import RedisTransportError
 from autom8_asana.dataframes.builders.parallel_fetch import (
     FetchResult,
     ParallelFetchError,

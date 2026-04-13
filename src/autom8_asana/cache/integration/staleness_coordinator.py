@@ -23,7 +23,7 @@ from autom8_asana.cache.models.entry import CacheEntry
 from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
 from autom8_asana.cache.policies.coalescer import RequestCoalescer
 from autom8_asana.cache.policies.lightweight_checker import LightweightChecker
-from autom8_asana.core.exceptions import CACHE_TRANSIENT_ERRORS
+from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 
 logger = get_logger(__name__)
 

@@ -24,7 +24,7 @@ from autom8_asana.clients.data.models import (
     BatchInsightsResult,
     InsightsResponse,
 )
-from autom8_asana.exceptions import InsightsError, InsightsServiceError
+from autom8_asana.errors import InsightsError, InsightsServiceError
 
 if TYPE_CHECKING:
     from autom8y_http import CircuitBreakerOpenError, Response
