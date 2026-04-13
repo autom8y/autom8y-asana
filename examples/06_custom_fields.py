@@ -31,7 +31,7 @@ import asyncio
 from argparse import ArgumentParser
 
 from autom8_asana import AsanaClient
-from autom8_asana.exceptions import AsanaError
+from autom8_asana.errors import AsanaError
 from _config import get_workspace_gid, get_project_gid, get_config_instructions
 
 

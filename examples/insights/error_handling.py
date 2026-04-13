@@ -22,7 +22,7 @@ Output:
 import asyncio
 
 from autom8_asana.clients.data import DataServiceClient
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     InsightsError,
     InsightsNotFoundError,
     InsightsServiceError,

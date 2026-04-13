@@ -24,7 +24,7 @@ import asyncio
 from argparse import ArgumentParser
 
 from autom8_asana import AsanaClient
-from autom8_asana.exceptions import (
+from autom8_asana.errors import (
     AsanaError,
     AuthenticationError,
     NotFoundError,
