@@ -16,12 +16,10 @@ import argparse
 import json
 import sys
 import tomllib
-from pathlib import Path
 from typing import Any
 
 # PyYAML is pre-installed on ubuntu-latest GitHub Actions runners.
 import yaml
-
 
 # --- Result model ---
 
@@ -211,18 +209,20 @@ def validate_sdk_pins(
 
     violations = []
     for dep in deps:
-        if dep.strip().startswith(prefix) or dep.strip().split("[")[0].startswith(prefix):
-            if banned_style in dep:
-                violations.append(dep.strip())
+        if (
+            dep.strip().startswith(prefix) or dep.strip().split("[")[0].startswith(prefix)
+        ) and banned_style in dep:
+            violations.append(dep.strip())
 
     # Also check optional-dependencies
     for group_name, group_deps in (
         pyproject.get("project", {}).get("optional-dependencies", {}).items()
     ):
         for dep in group_deps:
-            if dep.strip().startswith(prefix) or dep.strip().split("[")[0].startswith(prefix):
-                if banned_style in dep:
-                    violations.append(f"[{group_name}] {dep.strip()}")
+            if (
+                dep.strip().startswith(prefix) or dep.strip().split("[")[0].startswith(prefix)
+            ) and banned_style in dep:
+                violations.append(f"[{group_name}] {dep.strip()}")
 
     if violations:
         return DimensionResult(
@@ -252,14 +252,14 @@ def run_gate(spec_path: str, pyproject_path: str, repo_name: str) -> int:
         with open(spec_path) as f:
             spec = yaml.safe_load(f)
     except Exception as e:
-        print(f"::error::Failed to parse spec: {e}", file=sys.stderr)
+        print(f"::error::Failed to parse spec: {e}", file=sys.stderr)  # noqa: T201
         return 2
 
     try:
         with open(pyproject_path, "rb") as f:
             pyproject = tomllib.load(f)
     except Exception as e:
-        print(f"::error::Failed to parse pyproject.toml: {e}", file=sys.stderr)
+        print(f"::error::Failed to parse pyproject.toml: {e}", file=sys.stderr)  # noqa: T201
         return 2
 
     # Check skip_all exemption
@@ -268,7 +268,7 @@ def run_gate(spec_path: str, pyproject_path: str, repo_name: str) -> int:
 
     if repo_exemption and repo_exemption.get("skip_all"):
         reason = repo_exemption.get("reason", "no reason provided")
-        print(f"SKIP: {repo_name} is fully exempt ({reason})")
+        print(f"SKIP: {repo_name} is fully exempt ({reason})")  # noqa: T201
         # Write GitHub Actions summary
         _write_summary([DimensionResult("all", "SKIP", f"Fully exempt: {reason}")])
         return 0
@@ -285,7 +285,7 @@ def run_gate(spec_path: str, pyproject_path: str, repo_name: str) -> int:
         color_fn = {"PASS": "notice", "FAIL": "error", "WARN": "warning", "SKIP": "notice"}[
             result.status
         ]
-        print(f"::{color_fn}::[{icon}] {result.name}: {result.message}")
+        print(f"::{color_fn}::[{icon}] {result.name}: {result.message}")  # noqa: T201
 
     # Write summary
     _write_summary(results)
@@ -294,7 +294,7 @@ def run_gate(spec_path: str, pyproject_path: str, repo_name: str) -> int:
     has_failure = any(r.status == "FAIL" for r in results)
     if has_failure:
         failed = [r.name for r in results if r.status == "FAIL"]
-        print(f"\n::error::Conformance gate FAILED on dimensions: {', '.join(failed)}")
+        print(f"\n::error::Conformance gate FAILED on dimensions: {', '.join(failed)}")  # noqa: T201
         return 1
 
     return 0
@@ -318,7 +318,7 @@ def _write_summary(results: list[DimensionResult]) -> None:
         f.write("\n")
 
     # Also emit JSON to stdout for programmatic consumption
-    print(json.dumps([r.to_dict() for r in results], indent=2))
+    print(json.dumps([r.to_dict() for r in results], indent=2))  # noqa: T201
 
 
 def main() -> None:
