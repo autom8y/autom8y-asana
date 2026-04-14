@@ -25,28 +25,32 @@ import os
 #   - 2341b32b pinned schemathesis<4.15.0, but the same bug exists unchanged
 #     in 4.14.3 and earlier.
 #
-# Correct fix: patch the *class method* at module import time, BEFORE pluggy
-# introspects the plugin instance during registration. conftest.py is
-# imported by pytest before schemathesis's ``pytest_configure`` hook runs, so
-# by the time schemathesis calls ``pluginmanager.register(XdistReportingPlugin())``,
-# the class's ``pytest_testnodedown`` slot already points at our wrapper.
+# Correct fix: patch the *class method* inside ``pytest_configure``, which
+# pytest guarantees runs before plugin registration. This ensures the patch
+# is applied before schemathesis calls
+# ``pluginmanager.register(XdistReportingPlugin())``, regardless of conftest
+# import ordering in xdist workers.
 # ---------------------------------------------------------------------------
-try:
-    from schemathesis.pytest import xdist as _sx_xdist
 
-    _sx_original_testnodedown = _sx_xdist.XdistReportingPlugin.pytest_testnodedown
 
-    def _safe_testnodedown(self, node, error):  # type: ignore[no-untyped-def]
-        # Skip the hook entirely if the worker never populated workeroutput
-        # (i.e. it errored out before sending the workerfinished event).
-        if not hasattr(node, "workeroutput"):
-            return None
-        return _sx_original_testnodedown(self, node, error)
+def pytest_configure(config):  # type: ignore[no-untyped-def]
+    """Patch schemathesis xdist plugin before pluggy registration."""
+    try:
+        from schemathesis.pytest import xdist as _sx_xdist
 
-    _sx_xdist.XdistReportingPlugin.pytest_testnodedown = _safe_testnodedown
-except ImportError:
-    # schemathesis not installed - nothing to patch.
-    pass
+        _original = _sx_xdist.XdistReportingPlugin.pytest_testnodedown
+
+        def _safe_testnodedown(self, node, error):  # type: ignore[no-untyped-def]
+            # Skip the hook entirely if the worker never populated workeroutput
+            # (i.e. it errored out before sending the workerfinished event).
+            if not hasattr(node, "workeroutput"):
+                return None
+            return _original(self, node, error)
+
+        _sx_xdist.XdistReportingPlugin.pytest_testnodedown = _safe_testnodedown
+    except ImportError:
+        # schemathesis not installed - nothing to patch.
+        pass
 
 
 # Set test environment BEFORE any model imports.
