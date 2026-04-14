@@ -54,13 +54,13 @@ jobs:
           echo "CODEARTIFACT_AUTH_TOKEN=$TOKEN" >> "$GITHUB_ENV"
 
       - name: Install dependencies
-        run: uv sync --all-extras
+        run: uv sync --no-sources --all-extras
         env:
           UV_INDEX_AUTOM8Y_USERNAME: aws
           UV_INDEX_AUTOM8Y_PASSWORD: ${{ env.CODEARTIFACT_AUTH_TOKEN }}
 
       - name: Run Aegis synthetic coverage tests
-        run: uv run pytest tests/synthetic/ -q -s --tb=short
+        run: uv run --no-sources pytest tests/synthetic/ -q -s --tb=short
         env:
           AUTOM8Y_ENV: test
           IDEMPOTENCY_STORE_BACKEND: noop
@@ -88,4 +88,4 @@ jobs:
 
       - name: Aegis threshold enforcement
         if: always()
-        run: uv run python scripts/aegis-check.py aegis-report.json
+        run: uv run --no-sources python scripts/aegis-check.py aegis-report.json
