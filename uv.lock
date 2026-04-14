@@ -116,7 +116,7 @@ rate-limit = [
 
 [[package]]
 name = "autom8y-api-schemas"
-version = "1.6.0"
+version = "1.7.2"
 source = { editable = "../autom8y-api-schemas" }
 dependencies = [
     { name = "pydantic" },
