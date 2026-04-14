@@ -46,6 +46,7 @@ status = "document"
 [invariants.dataframe_cache_heap]
 description = "DataFrame in-memory cache size must fit within container heap budget"
 type = "cross-field"
+expression = "ASANA_CACHE_PROVIDER != 'memory' or ASANA_CACHE_MEMORY_MAX_SIZE <= 50000"
 severity = "medium"
 coupling_id = "CC-14"
 status = "document"
