@@ -41,12 +41,13 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    # Pinned to SHA 47bd968 (WS-α cross-repo App token fix). Update when autom8y-workflows changes.
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@47bd96868eaf4a1a8a91ecc35485a63319f1de0b
+    # Pinned to SHA 006dc3f (test_timeout input + governance checkout fix). Update when autom8y-workflows changes.
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@006dc3f07f9a74f67dd2e82a65a29abaf24c9af4
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
       coverage_threshold: 80
+      test_timeout: 40
       test_parallel: true
       test_markers_exclude: 'not integration and not benchmark'
       run_integration: ${{ github.event_name == 'push' }}
