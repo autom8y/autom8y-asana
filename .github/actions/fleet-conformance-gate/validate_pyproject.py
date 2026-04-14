@@ -9,6 +9,7 @@ Exit codes:
     1 = one or more dimensions FAIL
     2 = spec or pyproject parse error
 """
+
 from __future__ import annotations
 
 import argparse
@@ -23,6 +24,7 @@ import yaml
 
 
 # --- Result model ---
+
 
 class DimensionResult:
     """Result of validating a single conformance dimension."""
@@ -42,7 +44,10 @@ class DimensionResult:
 
 # --- Dimension validators ---
 
-def validate_build_system(pyproject: dict[str, Any], spec: dict[str, Any], _exemption: dict[str, Any] | None) -> DimensionResult:
+
+def validate_build_system(
+    pyproject: dict[str, Any], spec: dict[str, Any], _exemption: dict[str, Any] | None
+) -> DimensionResult:
     bs = pyproject.get("build-system", {})
     requires = bs.get("requires", [])
     backend = bs.get("build-backend", "")
@@ -61,7 +66,9 @@ def validate_build_system(pyproject: dict[str, Any], spec: dict[str, Any], _exem
     return DimensionResult("build_system", "PASS", "hatchling build system configured correctly")
 
 
-def validate_project(pyproject: dict[str, Any], spec: dict[str, Any], _exemption: dict[str, Any] | None) -> DimensionResult:
+def validate_project(
+    pyproject: dict[str, Any], spec: dict[str, Any], _exemption: dict[str, Any] | None
+) -> DimensionResult:
     project = pyproject.get("project", {})
     requires_python = project.get("requires-python", "")
 
@@ -74,23 +81,32 @@ def validate_project(pyproject: dict[str, Any], spec: dict[str, Any], _exemption
     else:
         # Extract version from requires-python (e.g., ">=3.12" -> "3.12")
         import re
+
         spec_match = re.search(r"(\d+\.\d+)", floor)
         actual_match = re.search(r"(\d+\.\d+)", requires_python)
         if spec_match and actual_match:
             spec_ver = tuple(int(x) for x in spec_match.group(1).split("."))
             actual_ver = tuple(int(x) for x in actual_match.group(1).split("."))
             if actual_ver < spec_ver:
-                errors.append(f"requires-python floor {requires_python} is below fleet minimum {floor}")
+                errors.append(
+                    f"requires-python floor {requires_python} is below fleet minimum {floor}"
+                )
         # Check no upper bound
         if spec.get("no_upper_bound") and "<" in requires_python:
-            errors.append(f"requires-python '{requires_python}' has upper bound (fleet standard forbids upper bounds)")
+            errors.append(
+                f"requires-python '{requires_python}' has upper bound (fleet standard forbids upper bounds)"
+            )
 
     if errors:
         return DimensionResult("project", "FAIL", "; ".join(errors))
-    return DimensionResult("project", "PASS", f"requires-python '{requires_python}' meets fleet floor")
+    return DimensionResult(
+        "project", "PASS", f"requires-python '{requires_python}' meets fleet floor"
+    )
 
 
-def validate_ruff(pyproject: dict[str, Any], spec: dict[str, Any], _exemption: dict[str, Any] | None) -> DimensionResult:
+def validate_ruff(
+    pyproject: dict[str, Any], spec: dict[str, Any], _exemption: dict[str, Any] | None
+) -> DimensionResult:
     ruff = pyproject.get("tool", {}).get("ruff", {})
     ruff_lint = ruff.get("lint", {})
 
@@ -115,10 +131,14 @@ def validate_ruff(pyproject: dict[str, Any], spec: dict[str, Any], _exemption: d
 
     if errors:
         return DimensionResult("ruff", "FAIL", "; ".join(errors))
-    return DimensionResult("ruff", "PASS", f"ruff config compliant (select includes {sorted(floor)})")
+    return DimensionResult(
+        "ruff", "PASS", f"ruff config compliant (select includes {sorted(floor)})"
+    )
 
 
-def validate_mypy(pyproject: dict[str, Any], spec: dict[str, Any], _exemption: dict[str, Any] | None) -> DimensionResult:
+def validate_mypy(
+    pyproject: dict[str, Any], spec: dict[str, Any], _exemption: dict[str, Any] | None
+) -> DimensionResult:
     mypy = pyproject.get("tool", {}).get("mypy", {})
 
     errors = []
@@ -135,7 +155,9 @@ def validate_mypy(pyproject: dict[str, Any], spec: dict[str, Any], _exemption: d
     return DimensionResult("mypy", "PASS", "mypy strict mode with correct python_version")
 
 
-def validate_coverage(pyproject: dict[str, Any], spec: dict[str, Any], exemption: dict[str, Any] | None) -> DimensionResult:
+def validate_coverage(
+    pyproject: dict[str, Any], spec: dict[str, Any], exemption: dict[str, Any] | None
+) -> DimensionResult:
     coverage = pyproject.get("tool", {}).get("coverage", {}).get("report", {})
     fail_under = coverage.get("fail_under")
 
@@ -158,7 +180,8 @@ def validate_coverage(pyproject: dict[str, Any], spec: dict[str, Any], exemption
 
     if fail_under < effective_floor:
         return DimensionResult(
-            "coverage", "FAIL",
+            "coverage",
+            "FAIL",
             f"fail_under={fail_under} is below effective floor {effective_floor}",
             details=ratchet_info,
         )
@@ -166,17 +189,22 @@ def validate_coverage(pyproject: dict[str, Any], spec: dict[str, Any], exemption
     # If below the fleet-wide floor but above the exempted floor, WARN
     if fail_under < spec["fail_under_floor"] and ratchet_info:
         return DimensionResult(
-            "coverage", "WARN",
+            "coverage",
+            "WARN",
             f"fail_under={fail_under} is below fleet floor {spec['fail_under_floor']} "
             f"but meets exempted floor {effective_floor} "
             f"(ratchet target: {ratchet_info['ratchet_target']} by {ratchet_info['ratchet_deadline']})",
             details=ratchet_info,
         )
 
-    return DimensionResult("coverage", "PASS", f"fail_under={fail_under} meets fleet floor {spec['fail_under_floor']}")
+    return DimensionResult(
+        "coverage", "PASS", f"fail_under={fail_under} meets fleet floor {spec['fail_under_floor']}"
+    )
 
 
-def validate_sdk_pins(pyproject: dict[str, Any], spec: dict[str, Any], _exemption: dict[str, Any] | None) -> DimensionResult:
+def validate_sdk_pins(
+    pyproject: dict[str, Any], spec: dict[str, Any], _exemption: dict[str, Any] | None
+) -> DimensionResult:
     deps = pyproject.get("project", {}).get("dependencies", [])
     prefix = spec.get("package_prefix", "autom8y-")
     banned_style = "~="
@@ -188,7 +216,9 @@ def validate_sdk_pins(pyproject: dict[str, Any], spec: dict[str, Any], _exemptio
                 violations.append(dep.strip())
 
     # Also check optional-dependencies
-    for group_name, group_deps in pyproject.get("project", {}).get("optional-dependencies", {}).items():
+    for group_name, group_deps in (
+        pyproject.get("project", {}).get("optional-dependencies", {}).items()
+    ):
         for dep in group_deps:
             if dep.strip().startswith(prefix) or dep.strip().split("[")[0].startswith(prefix):
                 if banned_style in dep:
@@ -196,7 +226,8 @@ def validate_sdk_pins(pyproject: dict[str, Any], spec: dict[str, Any], _exemptio
 
     if violations:
         return DimensionResult(
-            "sdk_pins", "FAIL",
+            "sdk_pins",
+            "FAIL",
             f"Found {len(violations)} tilde (~=) pins on autom8y-* SDKs: {violations}",
         )
     return DimensionResult("sdk_pins", "PASS", "All autom8y-* SDK dependencies use >= pins")
@@ -251,7 +282,9 @@ def run_gate(spec_path: str, pyproject_path: str, repo_name: str) -> int:
 
         # Emit GitHub Actions annotations
         icon = {"PASS": "v", "FAIL": "X", "WARN": "!", "SKIP": "-"}[result.status]
-        color_fn = {"PASS": "notice", "FAIL": "error", "WARN": "warning", "SKIP": "notice"}[result.status]
+        color_fn = {"PASS": "notice", "FAIL": "error", "WARN": "warning", "SKIP": "notice"}[
+            result.status
+        ]
         print(f"::{color_fn}::[{icon}] {result.name}: {result.message}")
 
     # Write summary
@@ -270,6 +303,7 @@ def run_gate(spec_path: str, pyproject_path: str, repo_name: str) -> int:
 def _write_summary(results: list[DimensionResult]) -> None:
     """Write GitHub Actions job summary as a markdown table."""
     import os
+
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
         return
