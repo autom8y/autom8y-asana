@@ -154,10 +154,7 @@ class QueryEngine:
         # 7.5. Apply section filter (ANDed with predicate)
         if section_name_filter is not None:
             section_expr = pl.col("section") == section_name_filter
-            if filter_expr is not None:
-                filter_expr = section_expr & filter_expr
-            else:
-                filter_expr = section_expr
+            filter_expr = section_expr & filter_expr if filter_expr is not None else section_expr
 
         # 7. Apply filter
         if filter_expr is not None:
@@ -320,10 +317,7 @@ class QueryEngine:
 
         if section_name_filter is not None:
             section_expr = pl.col("section") == section_name_filter
-            if filter_expr is not None:
-                filter_expr = section_expr & filter_expr
-            else:
-                filter_expr = section_expr
+            filter_expr = section_expr & filter_expr if filter_expr is not None else section_expr
 
         if filter_expr is not None:
             df = df.filter(filter_expr)

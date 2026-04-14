@@ -62,10 +62,7 @@ def error_handler(
             resource_gid = args[0]
 
         # Format operation string with optional resource GID
-        if resource_gid:
-            operation_str = f"{operation}({resource_gid})"
-        else:
-            operation_str = f"{operation}()"
+        operation_str = f"{operation}({resource_gid})" if resource_gid else f"{operation}()"
 
         # Get log provider from instance
         log_provider: LogProvider | None = getattr(self, "_log", None)

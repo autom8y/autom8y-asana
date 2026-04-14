@@ -46,11 +46,7 @@ def make_entry(
     """
     version = datetime.fromisoformat(modified_at.replace("Z", "+00:00"))
 
-    if expired:
-        # Set cached_at to past so entry is expired
-        cached_at = datetime.now(UTC) - timedelta(seconds=ttl + 60)
-    else:
-        cached_at = datetime.now(UTC)
+    cached_at = datetime.now(UTC) - timedelta(seconds=ttl + 60) if expired else datetime.now(UTC)
 
     return CacheEntry(
         key=gid,

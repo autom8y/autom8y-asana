@@ -147,10 +147,7 @@ def build_retry_callbacks(
         ) from e
 
     async def on_http_error(e: HTTPError, attempt: int) -> None:
-        if start_time is not None:
-            elapsed_ms = (time.monotonic() - start_time) * 1000
-        else:
-            elapsed_ms = None
+        elapsed_ms = (time.monotonic() - start_time) * 1000 if start_time is not None else None
 
         if log and log_event_fail:
             fail_extra = {

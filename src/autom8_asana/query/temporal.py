@@ -43,10 +43,7 @@ class TemporalFilter:
 
     def matches(self, timeline: SectionTimeline) -> bool:
         """Check if any interval in the timeline matches all filter criteria."""
-        for interval in timeline.intervals:
-            if self._interval_matches(interval, timeline):
-                return True
-        return False
+        return any(self._interval_matches(interval, timeline) for interval in timeline.intervals)
 
     def _interval_matches(self, interval: SectionInterval, timeline: SectionTimeline) -> bool:
         """Check if a single interval satisfies all filter criteria."""

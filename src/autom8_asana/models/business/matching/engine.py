@@ -258,12 +258,7 @@ class MatchingEngine:
             norm_query, norm_candidate, self._config
         )
 
-        if multiplier > 0:
-            # Match
-            weight = self._config.email_weight
-        else:
-            # Non-match
-            weight = self._config.email_nonmatch
+        weight = self._config.email_weight if multiplier > 0 else self._config.email_nonmatch
 
         return FieldComparison(
             field_name="email",
@@ -313,12 +308,7 @@ class MatchingEngine:
             norm_query, norm_candidate, self._config
         )
 
-        if multiplier > 0:
-            # Match
-            weight = self._config.phone_weight
-        else:
-            # Non-match
-            weight = self._config.phone_nonmatch
+        weight = self._config.phone_weight if multiplier > 0 else self._config.phone_nonmatch
 
         return FieldComparison(
             field_name="phone",

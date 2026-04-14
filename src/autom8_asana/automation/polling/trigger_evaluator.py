@@ -116,10 +116,7 @@ class TriggerEvaluator:
         Returns:
             True if task matches all conditions, False otherwise.
         """
-        for condition in conditions:
-            if not self._task_matches_condition(task, condition, now):
-                return False
-        return True
+        return all(self._task_matches_condition(task, condition, now) for condition in conditions)
 
     def _task_matches_condition(
         self,

@@ -159,10 +159,7 @@ class TaskService:
         if offset:
             params["offset"] = offset
 
-        if project:
-            endpoint = f"/projects/{project}/tasks"
-        else:
-            endpoint = f"/sections/{section}/tasks"
+        endpoint = f"/projects/{project}/tasks" if project else f"/sections/{section}/tasks"
 
         data, next_offset = await client._http.get_paginated(endpoint, params=params)
 

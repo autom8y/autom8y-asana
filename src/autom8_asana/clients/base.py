@@ -146,10 +146,7 @@ class BaseClient:
 
             # Extract version from modified_at if present
             modified_at = data.get("modified_at")
-            if modified_at:
-                version = self._parse_modified_at(modified_at)
-            else:
-                version = datetime.now(UTC)
+            version = self._parse_modified_at(modified_at) if modified_at else datetime.now(UTC)
 
             # Resolve TTL from config if not provided
             if ttl is None:

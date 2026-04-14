@@ -107,10 +107,7 @@ def load_saved_query(path: Path) -> SavedQuery:
         pydantic.ValidationError: If the data does not match the SavedQuery schema.
     """
     text = path.read_text()
-    if path.suffix in (".yaml", ".yml"):
-        data = yaml.safe_load(text)
-    else:
-        data = json.loads(text)
+    data = yaml.safe_load(text) if path.suffix in (".yaml", ".yml") else json.loads(text)
     return SavedQuery(**data)
 
 

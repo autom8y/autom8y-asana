@@ -265,10 +265,7 @@ class DefaultCustomFieldResolver:
                 multi_values = get_attr("multi_enum_values") or []
                 result: list[str] = []
                 for opt in multi_values:
-                    if isinstance(opt, dict):
-                        name = opt.get("name")
-                    else:
-                        name = getattr(opt, "name", None)
+                    name = opt.get("name") if isinstance(opt, dict) else getattr(opt, "name", None)
                     if name:
                         result.append(name)
                 return result
@@ -281,10 +278,7 @@ class DefaultCustomFieldResolver:
                 people = get_attr("people_value") or []
                 gid_result: list[str] = []
                 for p in people:
-                    if isinstance(p, dict):
-                        gid = p.get("gid")
-                    else:
-                        gid = getattr(p, "gid", None)
+                    gid = p.get("gid") if isinstance(p, dict) else getattr(p, "gid", None)
                     if gid:
                         gid_result.append(gid)
                 return gid_result
