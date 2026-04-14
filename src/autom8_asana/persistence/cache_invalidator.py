@@ -277,7 +277,7 @@ class CacheInvalidator:
                         "project_dataframe_cache_invalidated",
                         project_gid=project_gid,
                     )
-            except Exception as exc:  # BROAD-CATCH: isolation -- per-project loop, single failure must not abort batch
+            except Exception as exc:  # BROAD-CATCH: isolation -- per-project loop, single failure must not abort batch  # noqa: BLE001
                 if self._log:
                     self._log.warning(
                         "project_dataframe_invalidation_failed",

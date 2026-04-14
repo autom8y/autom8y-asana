@@ -377,7 +377,7 @@ class DataFrameService:
                     "schema": schema.name,
                 },
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             logger.warning(
                 "cascade_warming_failed",
                 extra={

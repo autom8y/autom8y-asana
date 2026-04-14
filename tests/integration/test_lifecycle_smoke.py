@@ -1684,7 +1684,7 @@ class TestEdgeCasesAdversarial:
             # If it's 'forbid', this will raise
             config = LifecycleConfig(path)
             assert config.get_stage("test_stage") is not None
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             pytest.fail(
                 f"D-LC-002: Config loader rejects unknown YAML fields: {e}. "
                 f"This means adding new fields to YAML requires updating "

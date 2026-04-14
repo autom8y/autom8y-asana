@@ -144,7 +144,7 @@ class TestThreadSafety:
         def track_task(task: Task) -> None:
             try:
                 tracker.track(task)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=track_task, args=(task,)) for task in tasks]
@@ -173,7 +173,7 @@ class TestThreadSafety:
             try:
                 task.name = f"Modified {task.name}"
                 _ = tracker.get_changes(task)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=modify_task, args=(task,)) for task in tasks]
@@ -198,7 +198,7 @@ class TestThreadSafety:
                 tasks = [Task(gid=f"g{idx}_t{i}", name=f"Task {i}") for i in range(10)]
                 graph.build(tasks)
                 _ = graph.get_levels()
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=build_graph, args=(i,)) for i in range(10)]
@@ -230,7 +230,7 @@ class TestThreadSafety:
             try:
                 dirty = tracker.get_dirty_entities()
                 results.append(len(dirty))
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=get_dirty) for _ in range(20)]
@@ -255,7 +255,7 @@ class TestThreadSafety:
         def track_task(task: Task) -> None:
             try:
                 session.track(task)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=track_task, args=(task,)) for task in tasks]
@@ -428,7 +428,7 @@ class TestRaceConditions:
                 for _ in range(100):
                     session.track(task)
                     session.untrack(task)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=track_untrack_cycle) for _ in range(5)]

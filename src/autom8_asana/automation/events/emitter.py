@@ -101,7 +101,7 @@ class EventEmitter:
                 )
 
             except (
-                Exception
+                Exception  # noqa: BLE001
             ) as e:  # BROAD-CATCH: isolation -- transport failure must not propagate to commit path
                 elapsed_ms = (time.perf_counter() - start) * 1000
                 failed += 1

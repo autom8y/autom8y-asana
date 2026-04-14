@@ -114,7 +114,7 @@ async def matching_query(
     # Get Business DataFrame from cache
     try:
         cache = get_dataframe_cache_provider()
-    except Exception:  # BROAD-CATCH: boundary
+    except Exception:  # BROAD-CATCH: boundary  # noqa: BLE001
         cache = None
 
     if cache is None:
@@ -129,7 +129,7 @@ async def matching_query(
     try:
         registry = EntityProjectRegistry.get_instance()
         project_gid = registry.get_project_gid("business")
-    except Exception:  # BROAD-CATCH: boundary
+    except Exception:  # BROAD-CATCH: boundary  # noqa: BLE001
         project_gid = None
 
     if project_gid is None:

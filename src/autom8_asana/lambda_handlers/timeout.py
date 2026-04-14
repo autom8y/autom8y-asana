@@ -102,7 +102,7 @@ def _self_invoke_continuation(
         )
         emit_metric("SelfContinuationInvoked", 1)
     except (
-        Exception
+        Exception  # noqa: BLE001
     ) as e:  # BROAD-CATCH: isolation -- self-invoke failure must not fail current invocation
         logger.error(
             "self_invoke_failed",

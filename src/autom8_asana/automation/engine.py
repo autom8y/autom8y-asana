@@ -221,7 +221,7 @@ class AutomationEngine:
                             triggered_by=result.triggered_by_gid,
                         )
 
-                except Exception as e:  # BROAD-CATCH: isolation -- per-rule loop, single rule failure must not abort batch
+                except Exception as e:  # BROAD-CATCH: isolation -- per-rule loop, single rule failure must not abort batch  # noqa: BLE001
                     # Per NFR-003: Capture failure, don't propagate
                     execution_time_ms = (time.perf_counter() - start_time) * 1000
                     results.append(

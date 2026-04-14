@@ -177,7 +177,7 @@ class ActionExecutor:
                 details=params,
             )
 
-        except Exception as exc:  # BROAD-CATCH: isolation -- single action failure returns error result, never propagates
+        except Exception as exc:  # BROAD-CATCH: isolation -- single action failure returns error result, never propagates  # noqa: BLE001
             # Log failure
             error_message = str(exc)
             self._logger.error(

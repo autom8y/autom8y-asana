@@ -311,7 +311,7 @@ async def get_entity_schema(
             category = getattr(entity_desc, "category", None)
             holder_for = getattr(entity_desc, "holder_for", None)
             parent_entity = getattr(entity_desc, "parent_entity", None)
-    except Exception:
+    except Exception:  # noqa: BLE001
         logger.debug("entity_descriptor_lookup_failed", extra={"entity_type": entity_type})
 
     return EntitySchemaResponse(

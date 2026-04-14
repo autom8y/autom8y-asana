@@ -213,7 +213,7 @@ class SearchService:
             )
 
         except (
-            Exception
+            Exception  # noqa: BLE001
         ) as e:  # BROAD-CATCH: catch-all-and-degrade -- returns empty results on error
             # Graceful degradation - return empty results on error
             logger.warning(

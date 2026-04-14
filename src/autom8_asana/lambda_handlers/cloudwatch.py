@@ -70,7 +70,7 @@ def emit_metric(
             ],
         )
     except (
-        Exception
+        Exception  # noqa: BLE001
     ) as e:  # BROAD-CATCH: metrics -- CloudWatch metric emission must not fail the handler
         logger.warning(
             "metric_emit_error",

@@ -104,7 +104,7 @@ class TestAC001StateTransitionsAtomic:
                 results.append("tracked")
             except SessionClosedError:
                 results.append("closed")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 exceptions.append(e)
                 results.append("error")
 
@@ -153,7 +153,7 @@ class TestAC001StateTransitionsAtomic:
                     results.append("tracked")
                 except SessionClosedError:
                     results.append("closed")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     exceptions.append(e)
 
             def exit_thread() -> None:
@@ -375,7 +375,7 @@ class TestAC003NoDoubleCommits:
                 session.track(task)
                 result = await session.commit_async()
                 results.append(result)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         # Run 5 concurrent commits
@@ -587,7 +587,7 @@ class TestAC006PerformanceTolerance:
                     _ = session.state
                 elapsed = time.perf_counter_ns() - start
                 times.append(elapsed / 200)  # 200 ops per thread
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         # 5 concurrent threads
@@ -649,7 +649,7 @@ class TestActionMethodThreadSafety:
                 results.append("action_completed")
             except SessionClosedError:
                 results.append("closed")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 results.append(f"error: {e}")
 
         def close_thread() -> None:
@@ -757,7 +757,7 @@ class TestConcurrencyEdgeCases:
                 for _ in range(100):
                     session.track(task)
                     session.untrack(task)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = [threading.Thread(target=cycle) for _ in range(5)]

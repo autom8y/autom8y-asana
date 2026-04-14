@@ -952,7 +952,7 @@ class TestAdversarialConcurrency:
             try:
                 result = coercer.coerce(["A", "B", "C"], "Utf8")
                 results.append(result)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -980,7 +980,7 @@ class TestAdversarialConcurrency:
                 result = coercer.coerce(input_list, "Utf8")
                 with lock:
                     results[i] = result
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         with ThreadPoolExecutor(max_workers=10) as executor:

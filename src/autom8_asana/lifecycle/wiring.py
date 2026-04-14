@@ -101,7 +101,7 @@ class DependencyWiringService:
                     error=str(e),
                 )
                 result.warnings.append(msg)
-            except Exception as e:  # BROAD-CATCH: fail-forward boundary
+            except Exception as e:  # BROAD-CATCH: fail-forward boundary  # noqa: BLE001
                 msg = f"Unexpected error wiring dependent '{entity_type}': {e}"
                 logger.warning(
                     "lifecycle_wire_dependent_failed",
@@ -170,7 +170,7 @@ class DependencyWiringService:
                 error=str(e),
             )
             result.warnings.append(msg)
-        except Exception as e:  # BROAD-CATCH: fail-forward boundary
+        except Exception as e:  # BROAD-CATCH: fail-forward boundary  # noqa: BLE001
             msg = f"Unexpected error wiring open plays: {e}"
             logger.warning(
                 "lifecycle_wire_open_plays_failed",
@@ -228,7 +228,7 @@ class DependencyWiringService:
                 error=str(e),
             )
             result.warnings.append(msg)
-        except Exception as e:  # BROAD-CATCH: fail-forward boundary
+        except Exception as e:  # BROAD-CATCH: fail-forward boundary  # noqa: BLE001
             msg = (
                 f"Unexpected error wiring '{created_gid}' as dependency "
                 f"of '{target_entity_gid}': {e}"

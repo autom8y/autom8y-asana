@@ -153,7 +153,7 @@ class ProgressiveTier:
             )
             return None
         except (
-            Exception
+            Exception  # noqa: BLE001
         ) as e:  # BROAD-CATCH: vendor-polymorphic -- load_dataframe may raise diverse errors
             self._stats["read_errors"] += 1
             logger.warning(

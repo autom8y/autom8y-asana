@@ -349,7 +349,7 @@ def validate_response_schema(
         return True, None
     except _jsonschema.ValidationError as e:
         return False, str(e.message)[:200]
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return False, f"validation-error: {str(e)[:150]}"
 
 
@@ -471,7 +471,7 @@ def test_operation(synthetic_client: TestClient, path: str, method: str, req: di
     try:
         response = caller(url, **kwargs)
         status = response.status_code
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         rss_after = _current_rss_mb()
         _results.append(
             {
@@ -532,7 +532,7 @@ def test_operation(synthetic_client: TestClient, path: str, method: str, req: di
                 status,
                 body,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             schema_valid = None
 
     rss_delta = rss_after - rss_before

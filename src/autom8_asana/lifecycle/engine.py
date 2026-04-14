@@ -365,7 +365,7 @@ class LifecycleEngine:
 
             return automation_result
 
-        except Exception as e:  # BROAD-CATCH: boundary guard at orchestrator level
+        except Exception as e:  # BROAD-CATCH: boundary guard at orchestrator level  # noqa: BLE001
             logger.error(
                 "lifecycle_transition_error",
                 source_gid=source_process.gid,
@@ -444,7 +444,7 @@ class LifecycleEngine:
                 for gid in section_result.updates:
                     result.add_entity_updated(gid)
                 result.add_action("cascade_sections")
-        except Exception as e:  # BROAD-CATCH: fail-forward
+        except Exception as e:  # BROAD-CATCH: fail-forward  # noqa: BLE001
             result.add_warning(f"Cascade sections failed: {e}")
 
         # Auto-completion (explicit per-transition flag, FR-COMPLETE-001)
@@ -457,7 +457,7 @@ class LifecycleEngine:
                     for gid in completion_result.completed:
                         result.add_entity_updated(gid)
                     result.add_action("auto_complete_source")
-            except Exception as e:  # BROAD-CATCH: fail-forward
+            except Exception as e:  # BROAD-CATCH: fail-forward  # noqa: BLE001
                 result.add_warning(f"Auto-completion failed: {e}")
 
     async def _phase_actions_async(
@@ -493,7 +493,7 @@ class LifecycleEngine:
                         result.add_entity_created(action_result.entity_gid)
                 else:
                     result.add_warning(f"Init action {action_type} failed: {action_result.error}")
-        except Exception as e:  # BROAD-CATCH: fail-forward
+        except Exception as e:  # BROAD-CATCH: fail-forward  # noqa: BLE001
             result.add_warning(f"Init actions phase failed: {e}")
 
     async def _phase_wire_async(
@@ -514,7 +514,7 @@ class LifecycleEngine:
             )
             if wiring_result.wired:
                 result.add_action("wire_dependencies")
-        except Exception as e:  # BROAD-CATCH: fail-forward
+        except Exception as e:  # BROAD-CATCH: fail-forward  # noqa: BLE001
             result.add_warning(f"Dependency wiring failed: {e}")
 
     # ------------------------------------------------------------------
@@ -575,7 +575,7 @@ class LifecycleEngine:
                             result.add_entity_updated(reopen_result.entity_gid)
                     else:
                         result.add_warning(f"Reopen failed: {reopen_result.error}")
-                except Exception as e:  # BROAD-CATCH: fail-forward
+                except Exception as e:  # BROAD-CATCH: fail-forward  # noqa: BLE001
                     result.add_warning(f"Reopen failed: {e}")
 
             logger.info(
@@ -663,7 +663,7 @@ class LifecycleEngine:
                     for gid in completion_result.completed:
                         result.add_entity_updated(gid)
                     result.add_action("auto_complete_source")
-            except Exception as e:  # BROAD-CATCH: fail-forward
+            except Exception as e:  # BROAD-CATCH: fail-forward  # noqa: BLE001
                 result.add_warning(f"Terminal auto-completion failed: {e}")
 
         result.add_action("terminal")
@@ -734,7 +734,7 @@ class LifecycleEngine:
                 duration_ms=automation_result.execution_time_ms,
             )
             await self._transition_emitter.emit(record)
-        except Exception:  # BROAD-CATCH: fire-and-forget (fail-forward)
+        except Exception:  # BROAD-CATCH: fire-and-forget (fail-forward)  # noqa: BLE001
             logger.warning(
                 "stage_transition_emission_failed",
                 source_gid=source_process.gid,
@@ -843,7 +843,7 @@ class _DefaultInitActionRegistry:
                 entity_gid=creation_result.entity_gid or "",
                 error=creation_result.error or "",
             )
-        except Exception as e:  # BROAD-CATCH: per-action isolation
+        except Exception as e:  # BROAD-CATCH: per-action isolation  # noqa: BLE001
             return LifecycleActionResult(success=False, error=str(e))
 
 

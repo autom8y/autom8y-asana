@@ -41,7 +41,7 @@ def _build_cascade_deps() -> dict[str, set[str]]:
     for desc in entity_registry.warmable_entities():
         try:
             schema = schema_registry.get_schema(desc.effective_schema_key)
-        except Exception:
+        except Exception:  # noqa: BLE001
             continue
         for _col_name, asana_field_name in schema.get_cascade_columns():
             provider = provider_for_field.get(asana_field_name)

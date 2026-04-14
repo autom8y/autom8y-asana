@@ -221,7 +221,9 @@ class BridgeWorkflowAction(AttachmentReplacementMixin, WorkflowAction):
             async with semaphore:
                 try:
                     return await self.process_entity(entity, params)
-                except Exception as exc:  # BROAD-CATCH: boundary -- per-entity isolation
+                except (
+                    Exception  # noqa: BLE001
+                ) as exc:  # BROAD-CATCH: boundary -- per-entity isolation
                     return BridgeOutcome(
                         gid=entity.get("gid", "unknown"),
                         status="failed",

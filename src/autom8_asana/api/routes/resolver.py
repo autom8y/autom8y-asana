@@ -117,7 +117,7 @@ def get_supported_entity_types() -> set[str]:
     try:
         discovered = get_resolvable_entities()
         supported.update(discovered)
-    except Exception as e:  # BROAD-CATCH: degrade
+    except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
         logger.warning(
             "entity_discovery_error",
             extra={"error": str(e)},
@@ -131,7 +131,7 @@ def get_supported_entity_types() -> set[str]:
             for entity_type in project_registry.get_all_entity_types():
                 if is_entity_resolvable(entity_type):
                     supported.add(entity_type)
-    except Exception as e:  # BROAD-CATCH: degrade
+    except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
         logger.warning(
             "entity_registry_check_error",
             extra={"error": str(e)},

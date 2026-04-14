@@ -204,7 +204,7 @@ class RequestCoalescer:
 
             # Distribute results to waiting futures
             self._distribute_results(batch, results)
-        except Exception as e:  # BROAD-CATCH: boundary -- RF-006 widened to prevent unresolved futures causing hangs
+        except Exception as e:  # BROAD-CATCH: boundary -- RF-006 widened to prevent unresolved futures causing hangs  # noqa: BLE001
             # Batch failed - set all futures to None
             # Widen from CACHE_TRANSIENT_ERRORS to prevent unresolved futures
             # causing indefinite hangs on unexpected exception types

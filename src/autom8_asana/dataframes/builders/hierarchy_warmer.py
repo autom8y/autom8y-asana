@@ -240,7 +240,7 @@ class HierarchyWarmer:
             )
 
             return len(fetched_task_dicts)
-        except Exception as e:  # BROAD-CATCH: enrichment
+        except Exception as e:  # BROAD-CATCH: enrichment  # noqa: BLE001
             logger.warning(
                 "hierarchy_gap_warming_failed",
                 extra={
@@ -291,7 +291,7 @@ class HierarchyWarmer:
                 warm_hierarchy=True,
             )
 
-        except Exception as e:  # BROAD-CATCH: enrichment
+        except Exception as e:  # BROAD-CATCH: enrichment  # noqa: BLE001
             # Don't fail build if store population fails
             logger.warning(
                 "store_populate_batch_failed",

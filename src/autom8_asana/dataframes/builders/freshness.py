@@ -216,7 +216,7 @@ class SectionFreshnessProber:
                 current_gid_hash=current_hash,
             )
 
-        except Exception as e:  # BROAD-CATCH: api-boundary -- probe calls Asana API which can throw diverse HTTP errors
+        except Exception as e:  # BROAD-CATCH: api-boundary -- probe calls Asana API which can throw diverse HTTP errors  # noqa: BLE001
             logger.warning(
                 "freshness_probe_section_failed",
                 extra={

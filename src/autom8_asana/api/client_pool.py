@@ -233,7 +233,7 @@ class ClientPool:
             for key, (client, _, _, _) in self._pool.items():
                 try:
                     await client.aclose()
-                except Exception:
+                except Exception:  # noqa: BLE001
                     logger.warning(
                         "pool.close_error",
                         extra={"token_hash": key},

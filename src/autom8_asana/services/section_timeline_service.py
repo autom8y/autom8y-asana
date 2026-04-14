@@ -508,7 +508,7 @@ async def get_or_compute_timelines(
                 async with sem:
                     try:
                         await client.stories.list_for_task_cached_async(gid)  # type: ignore[attr-defined]
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         logger.warning(
                             "inline_story_fetch_failed",
                             extra={"task_gid": gid},
@@ -636,7 +636,7 @@ async def get_or_compute_timelines(
                 cache_misses=cache_misses,
                 computation_duration_ms=compute_duration_ms,
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Per TDD Section 8.2: Serialization error -- log and return
             # computed results (just not cached).
             logger.warning(

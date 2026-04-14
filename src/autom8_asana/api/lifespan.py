@@ -195,7 +195,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "entity_write_registry_ready",
             extra={"writable_types": write_registry.writable_types()},
         )
-    except Exception as e:  # BROAD-CATCH: degrade
+    except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
         logger.warning(
             "entity_write_registry_init_failed",
             extra={
@@ -226,7 +226,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "workflow_configs_registered",
             extra={"workflow_ids": ["insights-export", "conversation-audit"]},
         )
-    except Exception as e:  # BROAD-CATCH: degrade
+    except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
         app.state.workflow_configs_registered = False
         from autom8_asana.api.routes.health import set_workflow_configs_registered
 
@@ -294,7 +294,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 await task
             except asyncio.CancelledError:
                 logger.info("cache_warming_cancelled")
-            except Exception as e:  # BROAD-CATCH: degrade
+            except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
                 logger.warning(
                     "cache_warming_cancel_error",
                     extra={"error": str(e)},
@@ -305,7 +305,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         try:
             await app.state.client_pool.close_all()
             logger.info("client_pool_shutdown_complete")
-        except Exception as e:  # BROAD-CATCH: degrade
+        except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
             logger.warning(
                 "client_pool_shutdown_error",
                 extra={"error": str(e)},
@@ -316,7 +316,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         try:
             await app.state.connection_registry.close_all_async()
             logger.info("connection_registry_shutdown_complete")
-        except Exception as e:  # BROAD-CATCH: degrade
+        except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
             logger.warning(
                 "connection_registry_shutdown_error",
                 extra={"error": str(e)},

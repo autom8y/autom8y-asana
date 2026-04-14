@@ -181,7 +181,7 @@ class LifecycleWebhookDispatcher:
                 success=result.get("success", False),
             )
             return {"dispatched": True, "reason": "live", "result": result}
-        except Exception:  # BROAD-CATCH: fail-forward
+        except Exception:  # BROAD-CATCH: fail-forward  # noqa: BLE001
             logger.warning(
                 "webhook_dispatch_failed",
                 entity_gid=entity_gid,

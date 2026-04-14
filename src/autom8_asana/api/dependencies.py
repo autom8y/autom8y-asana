@@ -505,7 +505,7 @@ def get_data_service_client(request: Request) -> DataServiceClient | None:
         client = DataServiceClient(auth_provider=auth_provider)
         request.app.state.data_service_client = client
         return client
-    except Exception:
+    except Exception:  # noqa: BLE001
         request.app.state._data_service_client_failed = True
         return None
 

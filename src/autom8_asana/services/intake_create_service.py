@@ -84,7 +84,7 @@ def resolve_workspace_gid() -> str:
         project_gid = registry.get_project_gid("business")
         if project_gid:
             return project_gid
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     return ""
 
@@ -104,7 +104,7 @@ def resolve_business_project_gid() -> str:
         project_gid = registry.get_project_gid("business")
         if project_gid:
             return project_gid
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
     return ""
 
@@ -577,7 +577,7 @@ class IntakeCreateService:
                         process_gid,
                         data={"assignee": resolved_assignee},
                     )
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001
                     logger.warning(
                         "assignee_set_failed",
                         extra={
@@ -619,7 +619,7 @@ class IntakeCreateService:
                 opt_fields=["name", "completed"],
             ).collect()
             subtasks = self._to_list(subtasks_result)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "existing_process_check_failed",
                 extra={"unit_gid": unit_gid, "error": str(exc)},
@@ -660,7 +660,7 @@ class IntakeCreateService:
                 )
                 if user_name and assignee_lower in user_name.lower():
                     return user.get("gid") if isinstance(user, dict) else getattr(user, "gid", None)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "assignee_resolution_failed",
                 extra={"assignee_name": assignee_name, "error": str(exc)},

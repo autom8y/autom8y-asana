@@ -500,7 +500,7 @@ def _create_data_client_if_needed(
             pass
 
         return DataServiceClient(auth_provider=auth_provider)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         raise CLIError(
             f"Data-service joins require AUTOM8Y_DATA_URL and authentication "
             f"(SERVICE_CLIENT_ID + SERVICE_CLIENT_SECRET or AUTOM8Y_DATA_API_KEY). Error: {e}"
@@ -993,7 +993,7 @@ def handle_list_queries(args: argparse.Namespace) -> int:
                         "path": str(p),
                     }
                 )
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # Skip malformed query files silently
                 continue
 
@@ -1735,7 +1735,7 @@ def main(argv: list[str] | None = None) -> int:
     except CLIError as e:
         print(f"ERROR: {e}", file=sys.stderr)
         return e.exit_code
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return handle_error(e)
 
 

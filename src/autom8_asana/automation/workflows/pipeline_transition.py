@@ -343,7 +343,7 @@ class PipelineTransitionWorkflow(WorkflowAction):
                     project_gid,
                     {converted_section, dnc_section},
                 )
-            except Exception:  # BROAD-CATCH: boundary -- section resolution failure falls back to project-level fetch
+            except Exception:  # BROAD-CATCH: boundary -- section resolution failure falls back to project-level fetch  # noqa: BLE001
                 logger.warning(
                     "section_resolution_failed_fallback",
                     project_gid=project_gid,
@@ -409,7 +409,9 @@ class PipelineTransitionWorkflow(WorkflowAction):
                     tasks_enumerated=len(project_processes),
                 )
 
-        except Exception as e:  # BROAD-CATCH: boundary -- enumeration failure skips project
+        except (
+            Exception  # noqa: BLE001
+        ) as e:  # BROAD-CATCH: boundary -- enumeration failure skips project
             logger.error(
                 "pipeline_transition_enumerate_error",
                 project_gid=project_gid,
@@ -463,7 +465,7 @@ class PipelineTransitionWorkflow(WorkflowAction):
                 )
 
         except (
-            Exception
+            Exception  # noqa: BLE001
         ) as e:  # BROAD-CATCH: boundary -- transition failure returns WorkflowItemError
             logger.error(
                 "pipeline_transition_exception",

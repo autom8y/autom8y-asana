@@ -97,7 +97,7 @@ class TestCreateAutom8CacheProvider:
             assert provider is not None
             assert hasattr(provider, "get_versioned")
             assert hasattr(provider, "set_versioned")
-        except Exception:
+        except Exception:  # noqa: BLE001
             # Redis not available, which is fine for this test
             pass
 
@@ -128,7 +128,7 @@ class TestCreateAutom8CacheProvider:
                 provider = create_autom8_cache_provider()
                 # Check that it was created (connection may fail)
                 assert provider is not None
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # Redis not available, which is fine
                 pass
             finally:

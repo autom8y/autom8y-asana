@@ -208,7 +208,7 @@ class ProgressiveProjectBuilder:
                             "hierarchy_size": hierarchy_len,
                         },
                     )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Probe failed — log but don't block the build.
             # L1 and L2 are the hard guards; L3 is advisory.
             logger.warning(
@@ -376,7 +376,7 @@ class ProgressiveProjectBuilder:
 
             return sections_probed, sections_delta_updated
 
-        except Exception as e:  # BROAD-CATCH: degrade
+        except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
             logger.warning(
                 "progressive_build_freshness_probe_failed",
                 extra={
@@ -807,7 +807,7 @@ class ProgressiveProjectBuilder:
             # Phase 5: Persist to S3
             return await self._persist_section(section_gid, section_df, gid_hash, watermark)
 
-        except Exception as e:  # BROAD-CATCH: isolation
+        except Exception as e:  # BROAD-CATCH: isolation  # noqa: BLE001
             logger.error(
                 "section_fetch_failed",
                 extra={
@@ -896,7 +896,7 @@ class ProgressiveProjectBuilder:
                     error_type="UnknownError",
                 )
 
-        except Exception as e:  # BROAD-CATCH: isolation
+        except Exception as e:  # BROAD-CATCH: isolation  # noqa: BLE001
             fetch_time_ms = (time.perf_counter() - section_start) * 1000
             return SectionResult(
                 section_gid=section_gid,
@@ -945,7 +945,7 @@ class ProgressiveProjectBuilder:
                     },
                 )
                 return section_info.last_fetched_offset
-        except Exception as e:  # BROAD-CATCH: degrade
+        except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
             logger.warning(
                 "section_checkpoint_resume_failed",
                 extra={
@@ -1284,7 +1284,7 @@ class ProgressiveProjectBuilder:
             return None
         try:
             return self._index_builder(df, self._entity_type)
-        except Exception as e:  # BROAD-CATCH: enrichment
+        except Exception as e:  # BROAD-CATCH: enrichment  # noqa: BLE001
             logger.warning(
                 "progressive_build_index_failed",
                 extra={

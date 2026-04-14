@@ -574,7 +574,7 @@ class CacheMetrics:
                 try:
                     callback(event)
                 except (
-                    Exception
+                    Exception  # noqa: BLE001
                 ):  # BROAD-CATCH: hook -- metrics callbacks must not break cache operations
                     logger.warning("Metrics callback failed", exc_info=True)
         finally:

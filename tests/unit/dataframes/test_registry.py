@@ -291,7 +291,7 @@ class TestSchemaRegistryThreadSafety:
             try:
                 schema = registry.get_schema("Unit")
                 results.append(schema)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -317,7 +317,7 @@ class TestSchemaRegistryThreadSafety:
                     columns=[ColumnDef("gid", "Utf8")],
                 )
                 registry.register(f"Type_{i}", schema)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         with ThreadPoolExecutor(max_workers=10) as executor:

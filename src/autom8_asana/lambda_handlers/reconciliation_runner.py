@@ -161,7 +161,9 @@ async def _run_reconciliation_shadow(
             },
         )
 
-    except Exception as exc:  # BROAD-CATCH: isolation -- never crash the cache warmer
+    except (
+        Exception  # noqa: BLE001
+    ) as exc:  # BROAD-CATCH: isolation -- never crash the cache warmer
         logger.warning(
             "reconciliation_shadow_error",
             extra={

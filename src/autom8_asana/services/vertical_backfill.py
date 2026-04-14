@@ -128,7 +128,7 @@ class VerticalBackfillService:
                 else:
                     result.skipped += 1
             except (
-                Exception
+                Exception  # noqa: BLE001
             ) as e:  # BROAD-CATCH: isolation -- single task failure must not abort batch
                 result.failed += 1
                 result.errors.append((gid_str, str(e)))

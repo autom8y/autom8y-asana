@@ -488,7 +488,7 @@ class PipelineConversionRule:
             )
 
         except (
-            Exception
+            Exception  # noqa: BLE001
         ) as e:  # BROAD-CATCH: isolation -- catch-all for unexpected errors in rule execution
             return AutomationResult(
                 rule_id=self.id,

@@ -251,14 +251,14 @@ def run_gate(spec_path: str, pyproject_path: str, repo_name: str) -> int:
     try:
         with open(spec_path) as f:
             spec = yaml.safe_load(f)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"::error::Failed to parse spec: {e}", file=sys.stderr)  # noqa: T201
         return 2
 
     try:
         with open(pyproject_path, "rb") as f:
             pyproject = tomllib.load(f)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"::error::Failed to parse pyproject.toml: {e}", file=sys.stderr)  # noqa: T201
         return 2
 

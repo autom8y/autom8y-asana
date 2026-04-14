@@ -153,7 +153,7 @@ class ReopenService:
                 entity_gid=target_process.gid,
             )
 
-        except Exception as e:  # BROAD-CATCH: boundary guard for reopen flow
+        except Exception as e:  # BROAD-CATCH: boundary guard for reopen flow  # noqa: BLE001
             logger.error(
                 "lifecycle_reopen_error",
                 target_stage=target_stage.name,

@@ -127,7 +127,7 @@ async def require_service_claims(request: Request) -> ServiceClaims:
             "S2S_NOT_CONFIGURED",
             "Service-to-service authentication is not available",
         )
-    except Exception as e:  # BROAD-CATCH: boundary
+    except Exception as e:  # BROAD-CATCH: boundary  # noqa: BLE001
         # Try to get error code from autom8y_auth exceptions
         error_code = getattr(e, "code", "UNKNOWN_ERROR")
         logger.warning(

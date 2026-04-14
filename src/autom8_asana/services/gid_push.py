@@ -177,7 +177,7 @@ async def _push_to_data_service(
         if response.status_code < 300:
             try:
                 parsed = response_model.model_validate(response.json())
-            except Exception:
+            except Exception:  # noqa: BLE001
                 parsed = response_model()
 
             logger.info(
@@ -207,7 +207,9 @@ async def _push_to_data_service(
         )
         return False
 
-    except Exception as e:  # BROAD-CATCH: isolation -- push failure must never fail cache warmer
+    except (
+        Exception  # noqa: BLE001
+    ) as e:  # BROAD-CATCH: isolation -- push failure must never fail cache warmer
         logger.error(
             f"{log_prefix}_error",
             extra={

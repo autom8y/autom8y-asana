@@ -245,7 +245,7 @@ async def readiness_check() -> JSONResponse:
                 latency_ms=round(latency, 1),
                 detail={"error": "connection_error"},
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             latency = (time.monotonic() - t0) * 1000
             return CheckResult(
                 status=HealthStatus.DEGRADED,

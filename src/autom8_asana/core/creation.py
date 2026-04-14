@@ -200,7 +200,7 @@ async def place_in_section_async(
                 task_gid=task_gid,
             )
             return False
-    except Exception as e:  # BROAD-CATCH: non-fatal config step
+    except Exception as e:  # BROAD-CATCH: non-fatal config step  # noqa: BLE001
         logger.warning(
             "creation_section_placement_failed",
             task_gid=task_gid,

@@ -90,7 +90,7 @@ def resolve_gid_from_index(office_phone: str, vertical: str | None = None) -> st
             gids = index.lookup(criterion)
             if gids:
                 return str(gids[0])
-    except Exception:
+    except Exception:  # noqa: BLE001
         pass
 
     return None
@@ -136,7 +136,7 @@ class IntakeResolveService:
                 gid,
                 opt_fields=["name", "custom_fields", "memberships"],
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "business_task_fetch_failed",
                 extra={"gid": gid, "error": str(exc)},
@@ -173,7 +173,7 @@ class IntakeResolveService:
                     has_unit = True
                 if st_name and "contact_holder" in st_name.lower():
                     has_contact_holder = True
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "business_subtask_check_failed",
                 extra={"gid": gid, "error": str(exc)},

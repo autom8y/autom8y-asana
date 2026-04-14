@@ -269,7 +269,7 @@ class ActionExecutor:
                 for action, br in zip(chunk, batch_results)
             ]
             return results, False
-        except Exception as exc:  # BROAD-CATCH: intentional -- ANY batch endpoint failure triggers chunk-level fallback
+        except Exception as exc:  # BROAD-CATCH: intentional -- ANY batch endpoint failure triggers chunk-level fallback  # noqa: BLE001
             # Chunk-level fallback (FR-006, MUST)
             if self._log:
                 self._log.warning(

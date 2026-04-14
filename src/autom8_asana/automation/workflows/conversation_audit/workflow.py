@@ -378,7 +378,7 @@ class ConversationAuditWorkflow(BridgeWorkflowAction):
             else:
                 activity = None
         except (
-            Exception
+            Exception  # noqa: BLE001
         ):  # BROAD-CATCH: boundary -- activity resolution failure returns None (soft-fail)
             logger.warning(
                 "conversation_audit_activity_resolution_failed",
@@ -525,7 +525,7 @@ class ConversationAuditWorkflow(BridgeWorkflowAction):
             )
 
         except (
-            Exception
+            Exception  # noqa: BLE001
         ) as exc:  # BROAD-CATCH: boundary -- holder processing failure returns failed outcome
             logger.error(
                 "holder_processing_error",

@@ -94,7 +94,7 @@ async def _warm_story_caches_for_completed_entities(
                             )
                         return True
                     except (
-                        Exception
+                        Exception  # noqa: BLE001
                     ) as e:  # BROAD-CATCH: isolation -- single task failure must not abort batch
                         logger.debug(
                             "story_warm_task_failed",
@@ -138,7 +138,7 @@ async def _warm_story_caches_for_completed_entities(
                             stats["failure"] += 1
 
             except (
-                Exception
+                Exception  # noqa: BLE001
             ) as e:  # BROAD-CATCH: isolation -- per-entity failure must not abort story warming
                 logger.warning(
                     "story_warm_entity_error",
@@ -172,7 +172,7 @@ async def _warm_story_caches_for_completed_entities(
             )
 
     except (
-        Exception
+        Exception  # noqa: BLE001
     ) as e:  # BROAD-CATCH: isolation -- story warming must never fail the overall warmer
         warm_duration_ms = (time.monotonic() - warm_start) * 1000
         logger.error(

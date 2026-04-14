@@ -447,7 +447,7 @@ class FieldSeeder:
                 fields_skipped=fields_skipped,
             )
 
-        except Exception as e:  # BROAD-CATCH: boundary -- wraps API+accessor+resolution pipeline, must return WriteResult
+        except Exception as e:  # BROAD-CATCH: boundary -- wraps API+accessor+resolution pipeline, must return WriteResult  # noqa: BLE001
             logger.error(
                 "seeding_write_failed",
                 task_gid=target_task_gid,

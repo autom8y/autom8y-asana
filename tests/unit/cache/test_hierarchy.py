@@ -364,14 +364,14 @@ class TestHierarchyIndexThreadSafety:
                     index.get_children_gids("parent")
                     index.get_ancestor_chain("child-50")
                     index.get_root_gid("child-50")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         def write_operation() -> None:
             try:
                 for i in range(num_operations):
                     index.register({"gid": f"new-{threading.current_thread().name}-{i}"})
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 errors.append(e)
 
         threads = []

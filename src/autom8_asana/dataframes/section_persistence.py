@@ -389,7 +389,7 @@ class SectionPersistence:
             manifest = SectionManifest.model_validate(data)
             self._manifest_cache[project_gid] = manifest
             return manifest
-        except Exception as e:  # BROAD-CATCH: vendor-polymorphic
+        except Exception as e:  # BROAD-CATCH: vendor-polymorphic  # noqa: BLE001
             logger.error("manifest_parse_failed", project_gid=project_gid, error=str(e))
             return None
 
@@ -675,7 +675,7 @@ class SectionPersistence:
             )
 
             return merged
-        except Exception as e:  # BROAD-CATCH: vendor-polymorphic
+        except Exception as e:  # BROAD-CATCH: vendor-polymorphic  # noqa: BLE001
             logger.error("sections_merge_failed", project_gid=project_gid, error=str(e))
             return None
 

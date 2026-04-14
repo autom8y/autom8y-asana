@@ -203,7 +203,9 @@ async def _aggregate_pipeline_stages(
         # ---------------------------------------------------------------
         return summary
 
-    except Exception as exc:  # BROAD-CATCH: isolation -- never crash the cache warmer
+    except (
+        Exception  # noqa: BLE001
+    ) as exc:  # BROAD-CATCH: isolation -- never crash the cache warmer
         logger.warning(
             "pipeline_stage_aggregation_error",
             extra={

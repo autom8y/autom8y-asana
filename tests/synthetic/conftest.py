@@ -501,7 +501,7 @@ def _write_baselines(results: list[dict]) -> None:
         with open(BASELINES_PATH, "w") as f:
             json.dump(baseline_doc, f, indent=2)
         print(f"[aegis] Baselines written to {BASELINES_PATH}")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"[aegis] WARNING: Failed to write baselines: {e}")
 
 
@@ -685,7 +685,7 @@ def coverage_summary() -> None:
         with open(REPORT_PATH, "w") as f:
             json.dump(report, f, indent=2)
         print(f"\n[aegis] Report written to {REPORT_PATH}")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"\n[aegis] WARNING: Failed to write report: {e}")
 
     # ---- Write baselines ----

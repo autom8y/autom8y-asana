@@ -96,7 +96,7 @@ def cascade_provider_field_mapping(entity_type: str) -> dict[str, str]:
     # after "cf:" matches CascadingFieldDef.name.
     try:
         schema = get_schema(to_pascal_case(entity_type))
-    except Exception:
+    except Exception:  # noqa: BLE001
         return {}
 
     mapping: dict[str, str] = {}
@@ -176,7 +176,7 @@ def cascade_warm_phases() -> list[list[str]]:
         # Get schema for this entity
         try:
             schema = schema_registry.get_schema(desc.effective_schema_key)
-        except Exception:
+        except Exception:  # noqa: BLE001
             continue
 
         # For each cascade column, add a dependency on its provider
@@ -266,7 +266,7 @@ def get_cascade_providers(entity_type: str) -> set[str]:
     schema_registry = SchemaRegistry.get_instance()
     try:
         schema = schema_registry.get_schema(desc.effective_schema_key)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return set()
 
     providers: set[str] = set()

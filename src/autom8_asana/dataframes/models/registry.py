@@ -155,7 +155,7 @@ class SchemaRegistry:
             # Warn about schemas without dedicated extractors
             try:
                 self._validate_extractor_coverage()
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # Per R1.1: Validation MUST NOT crash startup
                 # If validation itself fails, log and continue
                 from autom8y_log import get_logger

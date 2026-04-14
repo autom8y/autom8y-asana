@@ -77,7 +77,7 @@ async def post_build_validate_and_audit(
                         schema=schema,
                     )
                     total_rows = len(merged_df)
-                except Exception as e:  # BROAD-CATCH: validation is additive
+                except Exception as e:  # BROAD-CATCH: validation is additive  # noqa: BLE001
                     logger.warning(
                         "cascade_validation_failed",
                         extra={
@@ -125,7 +125,7 @@ async def post_build_validate_and_audit(
                 entity_type=entity_type,
                 project_gid=project_gid,
             )
-        except Exception as e:  # BROAD-CATCH: audit is diagnostic only
+        except Exception as e:  # BROAD-CATCH: audit is diagnostic only  # noqa: BLE001
             logger.warning(
                 "cascade_key_null_audit_failed",
                 extra={

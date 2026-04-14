@@ -103,7 +103,7 @@ def create_workflow_handler(
         try:
             return await _execute(event)
         except (
-            Exception
+            Exception  # noqa: BLE001
         ) as exc:  # BROAD-CATCH: boundary -- lambda top-level error handler returns 500
             logger.error(
                 f"{config.log_prefix}_error",
@@ -225,7 +225,7 @@ def create_workflow_handler(
                 f"{config.log_prefix}_event_skipped",
                 reason="autom8y_events not installed",
             )
-        except Exception:  # BROAD-CATCH: fire-and-forget per ADR
+        except Exception:  # BROAD-CATCH: fire-and-forget per ADR  # noqa: BLE001
             logger.warning(
                 f"{config.log_prefix}_event_publish_failed",
                 workflow_id=result.workflow_id,

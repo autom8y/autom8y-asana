@@ -312,7 +312,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                 active_section_names,
             )
         except (
-            Exception
+            Exception  # noqa: BLE001
         ):  # BROAD-CATCH: boundary -- section resolution failure falls back to full enumeration
             logger.warning(
                 "section_resolution_failed_fallback",
@@ -584,7 +584,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             )
 
         except (
-            Exception
+            Exception  # noqa: BLE001
         ) as exc:  # BROAD-CATCH: boundary -- offer processing failure returns failed outcome
             logger.error(
                 "insights_export_offer_error",
@@ -806,7 +806,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             )
 
         except (
-            Exception
+            Exception  # noqa: BLE001
         ) as exc:  # BROAD-CATCH: boundary -- table fetch failure returns failed TableResult
             elapsed_ms = (time.monotonic() - fetch_start) * 1000
             error_type = type(exc).__name__

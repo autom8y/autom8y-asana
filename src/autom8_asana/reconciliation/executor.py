@@ -163,7 +163,7 @@ async def execute_actions(
                 project_gid=project_gid,
             )
             result.succeeded += 1
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             error_msg = f"Failed to move {action.unit_gid}: {e}"
             logger.error(
                 "reconciliation_executor_error",

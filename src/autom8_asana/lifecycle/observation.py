@@ -177,7 +177,7 @@ class StageTransitionEmitter:
                 to_stage=record.to_stage,
                 transition_type=record.transition_type,
             )
-        except Exception:  # BROAD-CATCH: fire-and-forget (fail-forward)
+        except Exception:  # BROAD-CATCH: fire-and-forget (fail-forward)  # noqa: BLE001
             logger.warning(
                 "stage_transition_emit_failed",
                 entity_gid=record.entity_gid,

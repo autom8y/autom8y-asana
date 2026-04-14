@@ -102,7 +102,7 @@ async def _push_gid_mappings_for_completed_entities(
                 )
 
         except (
-            Exception
+            Exception  # noqa: BLE001
         ) as e:  # BROAD-CATCH: isolation -- push failure must never fail cache warmer
             logger.warning(
                 "gid_push_entity_error",
@@ -169,7 +169,7 @@ async def _push_account_status_for_completed_entities(
             )
             all_entries.extend(entries)
 
-        except Exception as e:  # BROAD-CATCH: isolation
+        except Exception as e:  # BROAD-CATCH: isolation  # noqa: BLE001
             logger.warning(
                 "status_extract_entity_error",
                 extra={

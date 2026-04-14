@@ -1321,7 +1321,7 @@ class TestAsanaClientThreadSafety:
             def access_projects() -> None:
                 try:
                     results.append(client.projects)
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     errors.append(e)
 
             # Create multiple threads

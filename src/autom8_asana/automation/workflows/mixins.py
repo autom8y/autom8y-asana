@@ -67,7 +67,7 @@ class AttachmentReplacementMixin:
                         attachment_name=att_name,
                     )
                 except (
-                    Exception
+                    Exception  # noqa: BLE001
                 ) as exc:  # BROAD-CATCH: boundary -- attachment delete soft-fails per item
                     logger.warning(
                         "workflow_attachment_delete_failed",

@@ -166,9 +166,9 @@ class IntakeCustomFieldService:
                             field_name_to_gid[col.name.lower()] = col.source
                             descriptor = col.name.lower().replace(" ", "_")
                             field_name_to_gid[descriptor] = col.source
-                except Exception:
+                except Exception:  # noqa: BLE001
                     continue
-        except Exception:
+        except Exception:  # noqa: BLE001
             # SchemaRegistry not available -- rely on task's custom fields
             pass
 

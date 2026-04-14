@@ -469,7 +469,7 @@ class PollingScheduler:
                 )
                 # Log the action result
                 StructuredLogger.log_action_result(result, rule_id=rule.rule_id)
-            except Exception as exc:  # BROAD-CATCH: isolation -- per-task loop, single task failure must not abort batch
+            except Exception as exc:  # BROAD-CATCH: isolation -- per-task loop, single task failure must not abort batch  # noqa: BLE001
                 structured_log.error(
                     "action_execution_error",
                     rule_id=rule.rule_id,
@@ -557,7 +557,7 @@ class PollingScheduler:
                 duration_seconds=round(result.duration_seconds, 2),
             )
         except (
-            Exception
+            Exception  # noqa: BLE001
         ) as exc:  # BROAD-CATCH: isolation -- workflow failure must not abort evaluation cycle
             structured_log.error(
                 "workflow_execution_error",

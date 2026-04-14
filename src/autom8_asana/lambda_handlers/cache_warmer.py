@@ -167,7 +167,9 @@ async def _run_vertical_backfill(
             },
         )
 
-    except Exception as e:  # BROAD-CATCH: isolation -- backfill must never fail cache warmer
+    except (
+        Exception  # noqa: BLE001
+    ) as e:  # BROAD-CATCH: isolation -- backfill must never fail cache warmer
         logger.warning(
             "vertical_backfill_error",
             extra={
@@ -293,7 +295,7 @@ async def _warm_cache_async(
 
             await discover_entity_projects_async()
         except (
-            Exception
+            Exception  # noqa: BLE001
         ) as e:  # BROAD-CATCH: isolation -- discovery failure should not block warming
             logger.warning(
                 "cache_warmer_discovery_failed",
@@ -607,7 +609,7 @@ async def _warm_cache_async(
                 cache=cache,
                 invocation_id=invocation_id,
             )
-        except Exception as e:  # BROAD-CATCH: isolation -- status push must never fail cache warmer
+        except Exception as e:  # BROAD-CATCH: isolation -- status push must never fail cache warmer  # noqa: BLE001
             logger.error(
                 "status_push_fatal_error",
                 extra={
@@ -714,7 +716,7 @@ async def _warm_cache_async(
         )
 
     except (
-        Exception
+        Exception  # noqa: BLE001
     ) as e:  # BROAD-CATCH: boundary -- async function top-level catch, returns error response
         duration_ms = (time.monotonic() - start_time) * 1000
         logger.error(
@@ -820,7 +822,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 context=context,
             )
         )
-    except Exception as e:  # BROAD-CATCH: boundary -- Lambda handler top-level catch
+    except (
+        Exception  # noqa: BLE001
+    ) as e:  # BROAD-CATCH: boundary -- Lambda handler top-level catch
         logger.error(
             "cache_warmer_handler_exception",
             extra={

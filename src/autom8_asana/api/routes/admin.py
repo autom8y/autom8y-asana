@@ -152,7 +152,7 @@ async def _perform_force_rebuild(
             if dataframe_cache is not None:
                 try:
                     dataframe_cache.invalidate(project_gid, entity_type)
-                except Exception as e:  # BROAD-CATCH: degrade
+                except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
                     logger.warning(
                         "cache_refresh_invalidate_failed",
                         extra={
@@ -179,7 +179,7 @@ async def _perform_force_rebuild(
                         "project_gid": project_gid,
                     },
                 )
-            except Exception as e:  # BROAD-CATCH: degrade
+            except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
                 logger.warning(
                     "cache_refresh_s3_purge_failed",
                     extra={
@@ -189,7 +189,7 @@ async def _perform_force_rebuild(
                     },
                 )
 
-        except Exception as e:  # BROAD-CATCH: isolation
+        except Exception as e:  # BROAD-CATCH: isolation  # noqa: BLE001
             logger.error(
                 "cache_refresh_entity_failed",
                 extra={
@@ -277,7 +277,7 @@ async def _perform_incremental_rebuild(
             if dataframe_cache is not None:
                 try:
                     dataframe_cache.invalidate(project_gid, entity_type)
-                except Exception as e:  # BROAD-CATCH: degrade
+                except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
                     logger.warning(
                         "cache_refresh_invalidate_failed",
                         extra={
@@ -326,7 +326,7 @@ async def _perform_incremental_rebuild(
                     },
                 )
 
-        except Exception as e:  # BROAD-CATCH: isolation
+        except Exception as e:  # BROAD-CATCH: isolation  # noqa: BLE001
             logger.error(
                 "cache_refresh_entity_failed",
                 extra={
@@ -374,7 +374,7 @@ def _invoke_cache_warmer_lambda(
                 "refresh_id": refresh_id,
             },
         )
-    except Exception as e:  # BROAD-CATCH: degrade
+    except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
         logger.error(
             "cache_warmer_lambda_invoke_failed",
             extra={

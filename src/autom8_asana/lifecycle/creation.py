@@ -229,7 +229,9 @@ class EntityCreationService:
                 warnings=warnings,
             )
 
-        except Exception as e:  # BROAD-CATCH: boundary -- top-level creation must return result
+        except (
+            Exception  # noqa: BLE001
+        ) as e:  # BROAD-CATCH: boundary -- top-level creation must return result
             logger.error(
                 "lifecycle_creation_error",
                 stage=stage_config.name,
@@ -338,7 +340,9 @@ class EntityCreationService:
                 warnings=warnings,
             )
 
-        except Exception as e:  # BROAD-CATCH: boundary -- entity creation must return result
+        except (
+            Exception  # noqa: BLE001
+        ) as e:  # BROAD-CATCH: boundary -- entity creation must return result
             logger.error(
                 "lifecycle_entity_creation_error",
                 holder_type=holder_type,
@@ -421,7 +425,9 @@ class EntityCreationService:
             fields_seeded = seeding_result.fields_seeded
             fields_skipped = seeding_result.fields_skipped
             warnings.extend(seeding_result.warnings)
-        except Exception as e:  # BROAD-CATCH: non-fatal -- seeding failure does not block creation
+        except (
+            Exception  # noqa: BLE001
+        ) as e:  # BROAD-CATCH: non-fatal -- seeding failure does not block creation
             logger.warning(
                 "lifecycle_field_seeding_failed",
                 task_gid=new_task.gid,
@@ -447,7 +453,7 @@ class EntityCreationService:
                         insert_after=source_process,
                     )
                     await session.commit_async()
-            except Exception as e:  # BROAD-CATCH: non-fatal hierarchy step
+            except Exception as e:  # BROAD-CATCH: non-fatal hierarchy step  # noqa: BLE001
                 logger.warning(
                     "lifecycle_hierarchy_placement_failed",
                     task_gid=new_task.gid,
@@ -477,7 +483,7 @@ class EntityCreationService:
         if update_kwargs:
             try:
                 await self._client.tasks.update_async(new_task.gid, **update_kwargs)
-            except Exception as e:  # BROAD-CATCH: non-fatal config step
+            except Exception as e:  # BROAD-CATCH: non-fatal config step  # noqa: BLE001
                 logger.warning(
                     "lifecycle_configure_update_failed",
                     task_gid=new_task.gid,
@@ -528,7 +534,7 @@ class EntityCreationService:
                 if self._matches_process_type(task, target_stage_name):
                     return task.gid
 
-        except Exception as e:  # BROAD-CATCH: non-fatal -- duplicate check failure means create new
+        except Exception as e:  # BROAD-CATCH: non-fatal -- duplicate check failure means create new  # noqa: BLE001
             logger.warning(
                 "lifecycle_duplicate_check_failed",
                 error=str(e),
@@ -661,7 +667,7 @@ class EntityCreationService:
                     assignee_gid,
                 )
                 return None  # success, no warning
-            except Exception as e:  # BROAD-CATCH: non-fatal
+            except Exception as e:  # BROAD-CATCH: non-fatal  # noqa: BLE001
                 logger.warning(
                     "lifecycle_set_assignee_failed",
                     task_gid=new_task.gid,

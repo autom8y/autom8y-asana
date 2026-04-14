@@ -110,7 +110,7 @@ class MutationInvalidator:
                     extra={"entity_kind": event.entity_kind.value},
                 )
         except (
-            Exception
+            Exception  # noqa: BLE001
         ) as exc:  # BROAD-CATCH: isolation -- background task boundary, must never propagate
             logger.error(
                 "mutation_invalidation_failed",
@@ -297,7 +297,7 @@ class MutationInvalidator:
                 )
 
             except (
-                Exception
+                Exception  # noqa: BLE001
             ) as exc:  # BROAD-CATCH: isolation -- per-entry loop with fallback to hard invalidation
                 logger.warning(
                     "soft_invalidation_failed_falling_back",
@@ -310,7 +310,9 @@ class MutationInvalidator:
                 # Fallback: hard invalidate on any error
                 try:
                     self._cache.invalidate(gid, [entry_type])
-                except Exception:  # BROAD-CATCH: isolation -- last-resort fallback, must not fail
+                except (
+                    Exception  # noqa: BLE001
+                ):  # BROAD-CATCH: isolation -- last-resort fallback, must not fail
                     logger.warning(
                         "hard_invalidation_fallback_failed",
                         extra={
@@ -349,7 +351,7 @@ class MutationInvalidator:
         for project_gid in project_gids:
             try:
                 self._dataframe_cache.invalidate_project(project_gid)
-            except Exception as exc:  # BROAD-CATCH: isolation -- per-project loop, single failure must not abort batch
+            except Exception as exc:  # BROAD-CATCH: isolation -- per-project loop, single failure must not abort batch  # noqa: BLE001
                 logger.warning(
                     "project_dataframe_invalidation_failed",
                     extra={"project_gid": project_gid, "error": str(exc)},
