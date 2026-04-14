@@ -356,7 +356,8 @@ def create_app() -> FastAPI:
     # PKG-009 / AUDIT-010: Fleet baseline JWTAuthMiddleware.
     # PAT routes MUST be excluded -- the middleware validates JWTs only.
     jwt_auth_config = JWTAuthConfig(
-        exclude_paths=list(DEFAULT_EXCLUDE_PATHS) + [
+        exclude_paths=list(DEFAULT_EXCLUDE_PATHS)
+        + [
             # asana has redoc enabled
             "/redoc",
             # Webhooks: URL-token auth via ?token=, not Bearer
