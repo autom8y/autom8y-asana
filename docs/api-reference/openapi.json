@@ -129,6 +129,75 @@
         "title": "AsanaResource",
         "type": "object"
       },
+      "AuthTebError": {
+        "additionalProperties": false,
+        "description": "Middleware-layer error envelope for AUTH-TEB responses.\n\nEmitted by ``JWTAuthMiddleware`` in ``autom8y-auth`` for HTTP 401,\n403, and 503 status codes on auth-protected routes.  This envelope\ndeliberately diverges from ``ErrorResponse`` \u2014 it is the canonical\nshape for the **middleware layer**, not the application layer.\n\nStructural differences from ``ErrorResponse``:\n- No ``meta`` block (``request_id`` lives inside ``error``, not in a\n  sibling ``meta`` object).\n- No ``data`` field.\n- ``error`` contains only ``code``, ``message``, and ``request_id``.\n\nThis model documents the dual-envelope contract ratified in\nADR-dual-error-envelope-resolution (DOCUMENT verdict, 2026-04-12).\nIt is the reference definition for the ``AuthTebError`` OpenAPI\ncomponent schema used in ``oneOf`` declarations for auth-protected\nroute error responses.\n\nAttributes:\n    error: AUTH-TEB error detail (code, message, request_id).",
+        "examples": [
+          {
+            "error": {
+              "code": "AUTH-TEB-001",
+              "message": "No Authorization header present on protected route",
+              "request_id": "a1b2c3d4e5f67890"
+            }
+          }
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/AuthTebErrorDetail",
+            "description": "AUTH-TEB error detail"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "AuthTebError",
+        "type": "object"
+      },
+      "AuthTebErrorDetail": {
+        "additionalProperties": false,
+        "description": "Error detail for AUTH-TEB middleware responses.\n\nMinimal fixed-taxonomy error object emitted by ``JWTAuthMiddleware``\n(``autom8y-auth``) at the middleware layer.  This is intentionally\nnarrower than ``ErrorDetail``; only the three fields that the\nmiddleware can know at interception time are present.\n\nNo ``meta`` block, no ``details``, no ``field``, no ``suggestions``,\nno ``retryable`` \u2014 those fields only make sense once a request has\nreached application/domain logic.\n\nCode pattern: ``AUTH-TEB-{NNN}`` (three decimal digits).\n\nAttributes:\n    code: AUTH-TEB error code, e.g. ``AUTH-TEB-001``.\n    message: Human-readable description.\n    request_id: Request correlation ID propagated from the middleware.",
+        "examples": [
+          {
+            "code": "AUTH-TEB-001",
+            "message": "No Authorization header present on protected route",
+            "request_id": "a1b2c3d4e5f67890"
+          }
+        ],
+        "properties": {
+          "code": {
+            "description": "AUTH-TEB error code matching pattern AUTH-TEB-NNN",
+            "examples": [
+              "AUTH-TEB-001"
+            ],
+            "pattern": "^AUTH-TEB-\\d{3}$",
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "description": "Human-readable error message",
+            "examples": [
+              "No Authorization header present on protected route"
+            ],
+            "title": "Message",
+            "type": "string"
+          },
+          "request_id": {
+            "description": "Request correlation ID",
+            "examples": [
+              "a1b2c3d4e5f67890"
+            ],
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "title": "AuthTebErrorDetail",
+        "type": "object"
+      },
       "CreateProjectRequest": {
         "additionalProperties": false,
         "description": "Request body for creating a project.\n\nPer FR-API-PROJ-002: Create project endpoint.\n\nAttributes:\n    name: Project name (required).\n    workspace: Workspace GID (required).\n    team: Team GID (optional, for organization workspaces).",
@@ -516,19 +585,17 @@
           "details": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/ErrorDetails"
               },
               {
                 "type": "null"
               }
             ],
             "default": null,
-            "description": "Additional error context",
+            "description": "Additional error context (JSON-serializable values only)",
             "examples": [
               null
-            ],
-            "title": "Details"
+            ]
           },
           "field": {
             "anyOf": [
@@ -605,6 +672,38 @@
           "message"
         ],
         "title": "ErrorDetail",
+        "type": "object"
+      },
+      "ErrorDetailValue": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "items": {},
+            "type": "array"
+          },
+          {
+            "$ref": "#/components/schemas/ErrorDetails"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "ErrorDetails": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ErrorDetailValue"
+        },
         "type": "object"
       },
       "ErrorResponse": {
@@ -2561,6 +2660,32 @@
       }
     },
     "securitySchemes": {
+      "OAuth2Asana": {
+        "description": "OAuth2 Client Credentials flow for the Asana service. Scopes document the authorization requirements per operation. Use PersonalAccessToken or ServiceJWT for actual authentication until OAuth2 enforcement is live.",
+        "flows": {
+          "clientCredentials": {
+            "scopes": {
+              "admin:manage": "Administrative operations (cache, config, diagnostics)",
+              "dataframes:read": "Read access to structured DataFrame extractions",
+              "intake:write": "Create and resolve entities via intake pipeline (S2S)",
+              "projects:read": "Read access to Asana projects and their sections",
+              "projects:write": "Create, update, delete projects and manage members",
+              "query:read": "Schema introspection and entity queries (S2S)",
+              "resolver:read": "Resolve business identifiers to Asana entities (S2S)",
+              "sections:read": "Read access to project sections",
+              "sections:write": "Create, update, delete, and reorder sections",
+              "tasks:read": "Read access to Asana tasks, subtasks, and dependents",
+              "tasks:write": "Create, update, delete, duplicate, tag, and move tasks",
+              "users:read": "Read access to Asana user profiles",
+              "webhooks:receive": "Receive inbound webhook notifications",
+              "workflows:execute": "Invoke registered automation workflows",
+              "workspaces:read": "Read access to Asana workspaces"
+            },
+            "tokenUrl": "https://auth.api.autom8y.io/oauth/token"
+          }
+        },
+        "type": "oauth2"
+      },
       "PersonalAccessToken": {
         "description": "Asana Personal Access Token (PAT). The token is passed directly to the Asana API. Use for standard resource endpoints (/api/v1/*).",
         "scheme": "bearer",
@@ -2764,6 +2889,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "dataframes:read"
+            ]
           }
         ],
         "summary": "Get project tasks as a DataFrame",
@@ -2885,6 +3015,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "dataframes:read"
+            ]
           }
         ],
         "summary": "List all dataframe schemas",
@@ -3025,6 +3160,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "dataframes:read"
+            ]
           }
         ],
         "summary": "Get a single dataframe schema",
@@ -3204,6 +3344,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "dataframes:read"
+            ]
           }
         ],
         "summary": "Get section tasks as a DataFrame",
@@ -3285,21 +3430,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Get Offer Section Timelines Api V1 Offers Section Timelines Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Get Offer Section Timelines Api V1 Offers Section Timelines Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -3407,21 +3568,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 List Projects Api V1 Projects Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 List Projects Api V1 Projects Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -3447,6 +3624,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "projects:read"
+            ]
           }
         ],
         "summary": "List projects in a workspace",
@@ -3492,21 +3674,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Create Project Api V1 Projects Post"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Create Project Api V1 Projects Post"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -3525,11 +3723,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "projects:write"
+            ]
           }
         ],
         "summary": "Create a project",
         "tags": [
           "projects"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": false
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "project",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -3566,21 +3781,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Delete Project Api V1 Projects  Gid  Delete"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Delete Project Api V1 Projects  Gid  Delete"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -3606,11 +3837,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "projects:write"
+            ]
           }
         ],
         "summary": "Delete a project",
         "tags": [
           "projects"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "project",
+            "type": "asana_api"
+          }
         ]
       },
       "get": {
@@ -3673,21 +3921,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Get Project Api V1 Projects  Gid  Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Get Project Api V1 Projects  Gid  Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -3713,6 +3977,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "projects:read"
+            ]
           }
         ],
         "summary": "Get a project by GID",
@@ -3769,21 +4038,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Update Project Api V1 Projects  Gid  Put"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Update Project Api V1 Projects  Gid  Put"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -3802,11 +4087,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "projects:write"
+            ]
           }
         ],
         "summary": "Update a project",
         "tags": [
           "projects"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": false
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "project",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -3860,21 +4162,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Remove Members Api V1 Projects  Gid  Members Delete"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Remove Members Api V1 Projects  Gid  Members Delete"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -3893,11 +4211,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "projects:write"
+            ]
           }
         ],
         "summary": "Remove members from a project",
         "tags": [
           "projects"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "project",
+            "type": "asana_api"
+          }
         ]
       },
       "post": {
@@ -3949,21 +4284,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Add Members Api V1 Projects  Gid  Members Post"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Add Members Api V1 Projects  Gid  Members Post"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -3982,11 +4333,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "projects:write"
+            ]
           }
         ],
         "summary": "Add members to a project",
         "tags": [
           "projects"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "project",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -4062,21 +4430,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 List Sections Api V1 Projects  Gid  Sections Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 List Sections Api V1 Projects  Gid  Sections Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -4102,6 +4486,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "projects:read"
+            ]
           }
         ],
         "summary": "List sections in a project",
@@ -4149,21 +4538,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Create Section Api V1 Sections Post"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Create Section Api V1 Sections Post"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -4182,11 +4587,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "sections:write"
+            ]
           }
         ],
         "summary": "Create a section in a project",
         "tags": [
           "sections"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": false
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "section",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -4223,21 +4645,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Delete Section Api V1 Sections  Gid  Delete"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Delete Section Api V1 Sections  Gid  Delete"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -4263,11 +4701,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "sections:write"
+            ]
           }
         ],
         "summary": "Delete a section",
         "tags": [
           "sections"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "section",
+            "type": "asana_api"
+          }
         ]
       },
       "get": {
@@ -4309,21 +4764,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Get Section Api V1 Sections  Gid  Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Get Section Api V1 Sections  Gid  Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -4349,6 +4820,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "sections:read"
+            ]
           }
         ],
         "summary": "Get a section by GID",
@@ -4405,21 +4881,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Update Section Api V1 Sections  Gid  Put"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Update Section Api V1 Sections  Gid  Put"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -4438,11 +4930,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "sections:write"
+            ]
           }
         ],
         "summary": "Rename a section",
         "tags": [
           "sections"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": false
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "section",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -4489,21 +4998,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Reorder Section Api V1 Sections  Gid  Reorder Post"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Reorder Section Api V1 Sections  Gid  Reorder Post"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -4522,11 +5047,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "sections:write"
+            ]
           }
         ],
         "summary": "Reorder a section within a project",
         "tags": [
           "sections"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": false
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "section",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -4573,21 +5115,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Add Task To Section Api V1 Sections  Gid  Tasks Post"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Add Task To Section Api V1 Sections  Gid  Tasks Post"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -4606,11 +5164,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "sections:write"
+            ]
           }
         ],
         "summary": "Add a task to a section",
         "tags": [
           "sections"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "task",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -4713,21 +5288,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 List Tasks Api V1 Tasks Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 List Tasks Api V1 Tasks Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -4753,6 +5344,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:read"
+            ]
           }
         ],
         "summary": "List tasks in a project or section",
@@ -4798,21 +5394,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Create Task Api V1 Tasks Post"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Create Task Api V1 Tasks Post"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -4831,6 +5443,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:write"
+            ]
           }
         ],
         "summary": "Create a task",
@@ -4884,21 +5501,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Delete Task Api V1 Tasks  Gid  Delete"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Delete Task Api V1 Tasks  Gid  Delete"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -4924,11 +5557,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:write"
+            ]
           }
         ],
         "summary": "Delete a task",
         "tags": [
           "tasks"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "task",
+            "type": "asana_api"
+          }
         ]
       },
       "get": {
@@ -4991,21 +5641,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Get Task Api V1 Tasks  Gid  Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Get Task Api V1 Tasks  Gid  Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -5031,6 +5697,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:read"
+            ]
           }
         ],
         "summary": "Get a task by GID",
@@ -5087,21 +5758,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Update Task Api V1 Tasks  Gid  Put"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Update Task Api V1 Tasks  Gid  Put"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -5120,11 +5807,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:write"
+            ]
           }
         ],
         "summary": "Update a task",
         "tags": [
           "tasks"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": false
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "task",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -5218,11 +5922,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:write"
+            ]
           }
         ],
         "summary": "Set or clear a task assignee",
         "tags": [
           "tasks"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": false
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "task",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -5298,21 +6019,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 List Dependents Api V1 Tasks  Gid  Dependents Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 List Dependents Api V1 Tasks  Gid  Dependents Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -5338,6 +6075,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:read"
+            ]
           }
         ],
         "summary": "List tasks that depend on a task",
@@ -5396,21 +6138,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Duplicate Task Api V1 Tasks  Gid  Duplicate Post"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Duplicate Task Api V1 Tasks  Gid  Duplicate Post"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -5429,11 +6187,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:write"
+            ]
           }
         ],
         "summary": "Duplicate a task",
         "tags": [
           "tasks"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": false
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "task",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -5527,11 +6302,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:write"
+            ]
           }
         ],
         "summary": "Add a task to a project",
         "tags": [
           "tasks"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "task",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -5624,11 +6416,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:write"
+            ]
           }
         ],
         "summary": "Remove a task from a project",
         "tags": [
           "tasks"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "task",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -5722,11 +6531,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:write"
+            ]
           }
         ],
         "summary": "Move a task to a section",
         "tags": [
           "tasks"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": false
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "task",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -5802,21 +6628,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 List Subtasks Api V1 Tasks  Gid  Subtasks Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 List Subtasks Api V1 Tasks  Gid  Subtasks Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -5842,6 +6684,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:read"
+            ]
           }
         ],
         "summary": "List subtasks of a task",
@@ -5900,21 +6747,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Add Tag Api V1 Tasks  Gid  Tags Post"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Add Tag Api V1 Tasks  Gid  Tags Post"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -5933,11 +6796,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:write"
+            ]
           }
         ],
         "summary": "Add a tag to a task",
         "tags": [
           "tasks"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "task",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -6030,11 +6910,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "tasks:write"
+            ]
           }
         ],
         "summary": "Remove a tag from a task",
         "tags": [
           "tasks"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "task",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -6112,21 +7009,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 List Users Api V1 Users Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 List Users Api V1 Users Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -6152,6 +7065,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "users:read"
+            ]
           }
         ],
         "summary": "List users in a workspace",
@@ -6189,21 +7107,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Get Current User Api V1 Users Me Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Get Current User Api V1 Users Me Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -6229,6 +7163,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "users:read"
+            ]
           }
         ],
         "summary": "Get the current authenticated user",
@@ -6277,21 +7216,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Get User Api V1 Users  Gid  Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Get User Api V1 Users  Gid  Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -6317,6 +7272,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "users:read"
+            ]
           }
         ],
         "summary": "Get a user by GID",
@@ -6370,21 +7330,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Receive Inbound Webhook Api V1 Webhooks Inbound Post"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Receive Inbound Webhook Api V1 Webhooks Inbound Post"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -6410,12 +7386,21 @@
         "security": [
           {
             "WebhookToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "webhooks:receive"
+            ]
           }
         ],
         "summary": "Receive an inbound webhook event from Asana",
         "tags": [
           "webhooks"
-        ]
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-side-effects": []
       }
     },
     "/api/v1/workflows/": {
@@ -6489,6 +7474,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "workflows:execute"
+            ]
           }
         ],
         "summary": "List registered workflows",
@@ -6565,11 +7555,28 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "workflows:execute"
+            ]
           }
         ],
         "summary": "Invoke a workflow against specific entities",
         "tags": [
           "workflows"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": false
+        },
+        "x-fleet-rate-limit": {
+          "tier": "external"
+        },
+        "x-fleet-side-effects": [
+          {
+            "target": "task",
+            "type": "asana_api"
+          }
         ]
       }
     },
@@ -6636,21 +7643,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 List Workspaces Api V1 Workspaces Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 List Workspaces Api V1 Workspaces Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -6676,6 +7699,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "workspaces:read"
+            ]
           }
         ],
         "summary": "List accessible workspaces",
@@ -6724,21 +7752,37 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 401 Get Workspace Api V1 Workspaces  Gid  Get"
                 }
               }
             },
-            "description": "Authentication failed -- missing or invalid Bearer token"
+            "description": "Unauthorized -- AUTH-TEB (JWTAuthMiddleware) or application-layer error"
           },
           "403": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AuthTebError"
+                    }
+                  ],
+                  "title": "Response 403 Get Workspace Api V1 Workspaces  Gid  Get"
                 }
               }
             },
-            "description": "Forbidden -- valid token but insufficient permissions"
+            "description": "Forbidden -- AUTH-TEB-004 (JWTAuthMiddleware) or application-layer error"
           },
           "404": {
             "content": {
@@ -6764,6 +7808,11 @@
         "security": [
           {
             "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "workspaces:read"
+            ]
           }
         ],
         "summary": "Get a workspace by GID",
@@ -6784,46 +7833,6 @@
               }
             },
             "description": "Application liveness status"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad Request (Validation Error)"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized (Missing or Invalid Token)"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden (Insufficient Permissions)"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found (Resource or Schema not found)"
           }
         },
         "security": [],
@@ -6845,46 +7854,6 @@
               }
             },
             "description": "Dependency health status with per-check results"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad Request (Validation Error)"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized (Missing or Invalid Token)"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden (Insufficient Permissions)"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found (Resource or Schema not found)"
           }
         },
         "security": [],
@@ -6906,46 +7875,6 @@
               }
             },
             "description": "Service readiness status with dependency connectivity"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Bad Request (Validation Error)"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Unauthorized (Missing or Invalid Token)"
-          },
-          "403": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Forbidden (Insufficient Permissions)"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Not Found (Resource or Schema not found)"
           }
         },
         "security": [],
@@ -7026,6 +7955,11 @@
         "security": [
           {
             "ServiceJWT": []
+          },
+          {
+            "OAuth2Asana": [
+              "query:read"
+            ]
           }
         ],
         "summary": "List data-service factories",
@@ -7118,6 +8052,11 @@
         "security": [
           {
             "ServiceJWT": []
+          },
+          {
+            "OAuth2Asana": [
+              "query:read"
+            ]
           }
         ],
         "summary": "List fields for a data-service factory",
@@ -7199,6 +8138,11 @@
         "security": [
           {
             "ServiceJWT": []
+          },
+          {
+            "OAuth2Asana": [
+              "query:read"
+            ]
           }
         ],
         "summary": "List queryable entity types",
@@ -7291,6 +8235,11 @@
         "security": [
           {
             "ServiceJWT": []
+          },
+          {
+            "OAuth2Asana": [
+              "query:read"
+            ]
           }
         ],
         "summary": "List fields for an entity type",
@@ -7383,6 +8332,11 @@
         "security": [
           {
             "ServiceJWT": []
+          },
+          {
+            "OAuth2Asana": [
+              "query:read"
+            ]
           }
         ],
         "summary": "List relations for an entity type",
@@ -7475,6 +8429,11 @@
         "security": [
           {
             "ServiceJWT": []
+          },
+          {
+            "OAuth2Asana": [
+              "query:read"
+            ]
           }
         ],
         "summary": "List sections for an entity type",
@@ -7575,12 +8534,25 @@
         "security": [
           {
             "ServiceJWT": []
+          },
+          {
+            "OAuth2Asana": [
+              "resolver:read"
+            ]
           }
         ],
         "summary": "Resolve entity identifiers to task GIDs",
         "tags": [
           "resolver"
-        ]
+        ],
+        "x-fleet-cross-service-refs": {
+          "entity": "task",
+          "service": "autom8y-asana"
+        },
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-side-effects": []
       }
     },
     "/v1/resolve/{entity_type}/schema": {
@@ -7705,6 +8677,11 @@
         "security": [
           {
             "ServiceJWT": []
+          },
+          {
+            "OAuth2Asana": [
+              "resolver:read"
+            ]
           }
         ],
         "summary": "Get queryable fields for entity type",
@@ -7802,6 +8779,11 @@
         "security": [
           {
             "ServiceJWT": []
+          },
+          {
+            "OAuth2Asana": [
+              "resolver:read"
+            ]
           }
         ],
         "summary": "Get enum values for a field",

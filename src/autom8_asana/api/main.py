@@ -43,6 +43,7 @@ from autom8y_api_middleware import (
     create_fleet_app,
     enrich_openapi_schema,
 )
+from autom8y_auth import DEFAULT_EXCLUDE_PATHS
 from autom8y_log import get_logger
 from fastapi import FastAPI
 from starlette.middleware import Middleware
@@ -319,7 +320,7 @@ def create_app() -> FastAPI:
                     "region": table_region,
                 },
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.warning(
                 "idempotency_store_degraded",
                 extra={"backend": "dynamodb", "error": str(e), "fallback": "noop"},
@@ -355,15 +356,9 @@ def create_app() -> FastAPI:
     # PKG-009 / AUDIT-010: Fleet baseline JWTAuthMiddleware.
     # PAT routes MUST be excluded -- the middleware validates JWTs only.
     jwt_auth_config = JWTAuthConfig(
-        exclude_paths=[
-            # Health / docs (standard fleet exclusions)
-            "/health",
-            "/ready",
-            "/health/*",
-            "/docs/*",
+        exclude_paths=list(DEFAULT_EXCLUDE_PATHS) + [
+            # asana has redoc enabled
             "/redoc",
-            "/openapi.json",
-            "/metrics",
             # Webhooks: URL-token auth via ?token=, not Bearer
             "/api/v1/webhooks/*",
             # PAT-tag route trees (handled by dual-mode get_auth_context DI)
