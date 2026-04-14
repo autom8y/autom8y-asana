@@ -41,8 +41,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    # Pinned to SHA 614a4e5 (consumer-gate support). Update when autom8y-workflows changes.
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@ea392dae33dc2035dc6a30d498799558a861f1e6
+    # Pinned to SHA 47bd968 (WS-α cross-repo App token fix). Update when autom8y-workflows changes.
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@47bd96868eaf4a1a8a91ecc35485a63319f1de0b
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
