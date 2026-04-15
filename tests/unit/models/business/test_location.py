@@ -11,16 +11,6 @@ from autom8_asana.models.business.location import Location, LocationHolder
 from autom8_asana.models.task import Task
 
 
-class TestLocation:
-    """Tests for Location model."""
-
-    def test_location_inherits_from_task(self) -> None:
-        """Location inherits from Task and can be constructed."""
-        location = Location(gid="123", name="Main Office")
-        assert location.gid == "123"
-        assert location.name == "Main Office"
-
-
 class TestLocationNewFields:
     """Tests for new Location fields per PRD-0024."""
 

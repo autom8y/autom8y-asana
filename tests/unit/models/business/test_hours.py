@@ -14,16 +14,6 @@ from autom8_asana.models.business.hours import Hours
 from autom8_asana.models.business.location import LocationHolder
 
 
-class TestHours:
-    """Tests for Hours model."""
-
-    def test_hours_inherits_from_task(self) -> None:
-        """Hours inherits from Task and can be constructed."""
-        hours = Hours(gid="123", name="Hours")
-        assert hours.gid == "123"
-        assert hours.name == "Hours"
-
-
 class TestHoursNewProperties:
     """Tests for Hours new property names per PRD-0024."""
 

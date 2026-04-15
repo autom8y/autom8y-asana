@@ -14,12 +14,6 @@ from autom8_asana.models.task import Task
 class TestContact:
     """Tests for Contact model."""
 
-    def test_contact_inherits_from_task(self) -> None:
-        """Contact inherits from Task and can be constructed."""
-        contact = Contact(gid="123", name="John Doe")
-        assert contact.gid == "123"
-        assert contact.name == "John Doe"
-
     def test_full_name_property(self) -> None:
         """full_name returns Task.name."""
         contact = Contact(gid="123", name="John Doe")
