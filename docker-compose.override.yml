@@ -63,7 +63,6 @@ services:
       - ${AUTOM8Y_MONOREPO_ROOT:-.}/sdks/python/autom8y-cache/src/autom8y_cache:/app/sdks/autom8y_cache
       - ${AUTOM8Y_MONOREPO_ROOT:-.}/sdks/python/autom8y-telemetry/src/autom8y_telemetry:/app/sdks/autom8y_telemetry
       - ${AUTOM8Y_MONOREPO_ROOT:-.}/sdks/python/autom8y-events/src/autom8y_events:/app/sdks/autom8y_events
-      - ${AUTOM8Y_MONOREPO_ROOT:-.}/sdks/python/autom8y-interop/src/autom8y_interop:/app/sdks/autom8y_interop
       - ${AUTOM8Y_MONOREPO_ROOT:-.}/sdks/python/autom8y-reconciliation/src/autom8y_reconciliation:/app/sdks/autom8y_reconciliation
     depends_on:
       redis:
