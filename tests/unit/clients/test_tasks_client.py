@@ -88,46 +88,41 @@ class TestGetAsync:
 class TestGetSync:
     """Tests for TasksClient.get() sync wrapper."""
 
-    def test_get_sync_returns_task_model(
+    @pytest.mark.parametrize(
+        ("raw", "expected_type"),
+        [
+            pytest.param(False, Task, id="model-default"),
+            pytest.param(True, dict, id="raw-dict"),
+        ],
+    )
+    def test_get_sync_return_shape(
         self,
         mock_http: MockHTTPClient,
         config: AsanaConfig,
         auth_provider: MockAuthProvider,
+        raw: bool,
+        expected_type: type,
     ) -> None:
-        """get() returns Task model by default outside async context."""
+        """get() returns Task model by default, dict when raw=True (sync path)."""
         # Create fresh client for sync test (avoids shared event loop issues)
         client = TasksClient(
             http=mock_http,  # type: ignore[arg-type]
             config=config,
             auth_provider=auth_provider,
         )
-        mock_http.get.return_value = {"gid": "456", "name": "Sync Task"}
+        payload = {"gid": "456", "name": "Sync Task"}
+        mock_http.get.return_value = payload
 
-        result = client.get("456")
+        kwargs = {"raw": True} if raw else {}
+        result = client.get("456", **kwargs)
 
-        assert isinstance(result, Task)
-        assert result.gid == "456"
-        assert result.name == "Sync Task"
-        mock_http.get.assert_called_once_with("/tasks/456", params={})
-
-    def test_get_sync_raw_returns_dict(
-        self,
-        mock_http: MockHTTPClient,
-        config: AsanaConfig,
-        auth_provider: MockAuthProvider,
-    ) -> None:
-        """get() with raw=True returns dict outside async context."""
-        client = TasksClient(
-            http=mock_http,  # type: ignore[arg-type]
-            config=config,
-            auth_provider=auth_provider,
-        )
-        mock_http.get.return_value = {"gid": "456", "name": "Sync Task"}
-
-        result = client.get("456", raw=True)
-
-        assert isinstance(result, dict)
-        assert result == {"gid": "456", "name": "Sync Task"}
+        assert isinstance(result, expected_type)
+        if raw:
+            assert result == payload
+        else:
+            assert result.gid == "456"
+            assert result.name == "Sync Task"
+            mock_http.get.assert_called_once_with("/tasks/456", params={})
 
     async def test_get_sync_fails_in_async_context(self, tasks_client: TasksClient) -> None:
         """get() raises SyncInAsyncContextError when called from async."""
