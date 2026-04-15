@@ -10,7 +10,6 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.clients.stories import StoriesClient
@@ -18,49 +17,9 @@ from autom8_asana.core.errors import CacheConnectionError
 from autom8_asana.models.story import Story
 
 if TYPE_CHECKING:
+    from tests.unit.clients.conftest import MockCacheProvider
+
     from autom8_asana.config import AsanaConfig
-
-
-class MockCacheProvider(_SDKMockCacheProvider):
-    """Mock cache provider for stories cache tests (extends SDK MockCacheProvider).
-
-    Adds satellite-specific tracking lists and handles EntryType enum keys.
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.get_versioned_calls: list[tuple[str, EntryType]] = []
-        self.set_versioned_calls: list[tuple[str, CacheEntry]] = []
-
-    @property
-    def _cache(self) -> dict[str, CacheEntry]:
-        """Alias for SDK _versioned_store (backward compat for direct access)."""
-        return self._versioned_store  # type: ignore[return-value]
-
-    def get_versioned(
-        self, key: str, entry_type: EntryType, freshness: object = None
-    ) -> CacheEntry | None:
-        """Get entry from cache with satellite tracking."""
-        self.get_versioned_calls.append((key, entry_type))
-        self.calls.append(
-            (
-                "get_versioned",
-                {"key": key, "entry_type": entry_type, "freshness": freshness},
-            )
-        )
-        return self._versioned_store.get(f"{key}:{entry_type.value}")
-
-    def set_versioned(self, key: str, entry: CacheEntry) -> None:
-        """Store entry in cache with satellite tracking."""
-        self.set_versioned_calls.append((key, entry))
-        self.calls.append(("set_versioned", {"key": key, "entry": entry}))
-        self._versioned_store[f"{key}:{entry.entry_type.value}"] = entry
-
-    def get_metrics(self) -> Any:
-        """Return a mock metrics object (satellite CacheMetrics)."""
-        from autom8_asana.cache.models.metrics import CacheMetrics
-
-        return CacheMetrics()
 
 
 class FailingCacheProvider:
@@ -73,12 +32,6 @@ class FailingCacheProvider:
 
     def set_versioned(self, key: str, entry: CacheEntry) -> None:
         raise CacheConnectionError("Cache connection failed")
-
-
-@pytest.fixture
-def cache_provider() -> MockCacheProvider:
-    """Mock cache provider."""
-    return MockCacheProvider()
 
 
 @pytest.fixture

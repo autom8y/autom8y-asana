@@ -77,6 +77,12 @@ class MockCacheProvider(_SDKMockCacheProvider):
                 del self._versioned_store[k]
             self._store.pop(key, None)
 
+    def get_metrics(self) -> object:
+        """Return a mock metrics object (satellite CacheMetrics)."""
+        from autom8_asana.cache.models.metrics import CacheMetrics
+
+        return CacheMetrics()
+
 
 @pytest.fixture
 def cache_provider() -> MockCacheProvider:
