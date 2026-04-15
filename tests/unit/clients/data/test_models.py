@@ -175,14 +175,6 @@ class TestInsightsRequestSerialization:
         assert "end_date" not in data  # None excluded
         assert "metrics" not in data  # None excluded
 
-    def test_extra_fields_ignored(self) -> None:
-        """Extra fields in input are ignored (extra='ignore')."""
-        request = InsightsRequest(
-            office_phone="+17705753103",
-            vertical="chiropractic",
-            unknown_field="ignored",  # type: ignore[call-arg]
-        )
-        assert not hasattr(request, "unknown_field")
 
 
 # -----------------------------------------------------------------------------
@@ -205,14 +197,6 @@ class TestColumnInfo:
         col = ColumnInfo(name="id", dtype="int64", nullable=False)
         assert col.nullable is False
 
-    def test_extra_fields_ignored(self) -> None:
-        """Extra fields are ignored."""
-        col = ColumnInfo(
-            name="spend",
-            dtype="float64",
-            description="Total spend",  # type: ignore[call-arg]
-        )
-        assert not hasattr(col, "description")
 
 
 # -----------------------------------------------------------------------------

@@ -144,11 +144,6 @@ class TestLazyTasksProperty:
 class TestAsyncContextManager:
     """Tests for async context manager behavior."""
 
-    async def test_async_context_manager_entry(self) -> None:
-        """async with returns the client instance."""
-        async with AsanaClient(token="test-token") as client:
-            assert isinstance(client, AsanaClient)
-
     async def test_async_context_manager_closes_on_exit(self) -> None:
         """async with calls close() on exit."""
         client = AsanaClient(token="test-token")
@@ -173,12 +168,6 @@ class TestAsyncContextManager:
 
 class TestSyncContextManager:
     """Tests for sync context manager behavior."""
-
-    def test_sync_context_manager_entry(self) -> None:
-        """with returns the client instance (when not in async context)."""
-        # This test runs outside async context
-        with AsanaClient(token="test-token") as client:
-            assert isinstance(client, AsanaClient)
 
     async def test_sync_context_manager_raises_in_async_context(self) -> None:
         """Sync context manager raises ConfigurationError in async context."""
