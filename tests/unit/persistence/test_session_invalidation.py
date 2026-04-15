@@ -7,47 +7,15 @@ Per ADR-0127: Graceful degradation on cache errors.
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.batch.models import BatchResult
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.models import Task
 from autom8_asana.persistence.session import SaveSession
-
-# ---------------------------------------------------------------------------
-# Mock Cache Provider
-# ---------------------------------------------------------------------------
-
-
-class MockCacheProvider(_SDKMockCacheProvider):
-    """Mock cache provider for testing invalidation (extends SDK MockCacheProvider).
-
-    Adds fail_on_invalidate flag and satellite-specific invalidate_calls tracking.
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.invalidate_calls: list[tuple[str, list[EntryType] | None]] = []
-        self.fail_on_invalidate: bool = False
-
-    def get_versioned(self, key: str, entry_type: EntryType, freshness: object = None) -> None:
-        """Get entry from cache (always returns None for invalidation tests)."""
-        return None
-
-    def set_versioned(self, key: str, entry: Any) -> None:
-        """Store entry in cache (no-op for invalidation tests)."""
-        pass
-
-    def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
-        """Invalidate cache entry with fail simulation."""
-        if self.fail_on_invalidate:
-            raise ConnectionError("Cache invalidation failed")
-        self.invalidate_calls.append((key, entry_types))
-
+from tests.unit.persistence.conftest import MockCacheProviderForInvalidation
 
 # ---------------------------------------------------------------------------
 # Test Fixtures
@@ -63,7 +31,7 @@ def create_mock_client_with_cache() -> MagicMock:
     mock_client._log = None
 
     # Cache provider
-    mock_client._cache_provider = MockCacheProvider()
+    mock_client._cache_provider = MockCacheProviderForInvalidation()
 
     # HTTP client for action executor
     mock_http = AsyncMock()

@@ -11,60 +11,16 @@ Per FR-INVALIDATE-006: Invalidation SHALL be triggered for CREATE, UPDATE, and D
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.batch.models import BatchResult
 from autom8_asana.cache.integration.dataframes import make_dataframe_key
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.models import Task
 from autom8_asana.persistence.session import SaveSession
-
-# ---------------------------------------------------------------------------
-# Mock Cache Provider with DataFrame Support
-# ---------------------------------------------------------------------------
-
-
-class MockCacheProviderWithDataFrame(_SDKMockCacheProvider):
-    """Mock cache provider for testing DataFrame invalidation (extends SDK).
-
-    Adds fail_on_invalidate, fail_on_dataframe_invalidate flags,
-    invalidate_calls tracking, and get_invalidations_for_type helper.
-    """
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.invalidate_calls: list[tuple[str, list[EntryType] | None]] = []
-        self.fail_on_invalidate: bool = False
-        self.fail_on_dataframe_invalidate: bool = False
-
-    def get_versioned(self, key: str, entry_type: EntryType, freshness: object = None) -> None:
-        """Get entry from cache (always returns None for invalidation tests)."""
-        return None
-
-    def set_versioned(self, key: str, entry: Any) -> None:
-        """Store entry in cache (no-op for invalidation tests)."""
-        pass
-
-    def invalidate(self, key: str, entry_types: list[EntryType] | None = None) -> None:
-        """Invalidate cache entry with fail simulation."""
-        if self.fail_on_invalidate:
-            raise ConnectionError("Cache invalidation failed")
-        if self.fail_on_dataframe_invalidate and entry_types and EntryType.DATAFRAME in entry_types:
-            raise ConnectionError("DataFrame cache invalidation failed")
-        self.invalidate_calls.append((key, entry_types))
-
-    def get_invalidations_for_type(
-        self, entry_type: EntryType
-    ) -> list[tuple[str, list[EntryType] | None]]:
-        """Get invalidation calls that include a specific entry type."""
-        return [
-            (key, types) for key, types in self.invalidate_calls if types and entry_type in types
-        ]
-
+from tests.unit.persistence.conftest import MockCacheProviderForInvalidation
 
 # ---------------------------------------------------------------------------
 # Test Fixtures
@@ -79,8 +35,8 @@ def create_mock_client_with_cache() -> MagicMock:
     mock_client.batch = mock_batch
     mock_client._log = None
 
-    # Cache provider with DataFrame support
-    mock_client._cache_provider = MockCacheProviderWithDataFrame()
+    # Cache provider
+    mock_client._cache_provider = MockCacheProviderForInvalidation()
 
     # HTTP client for action executor
     mock_http = AsyncMock()
