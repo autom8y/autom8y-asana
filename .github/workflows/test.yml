@@ -48,7 +48,7 @@ jobs:
       coverage_package: 'autom8_asana'
       coverage_threshold: 80
       test_timeout: 40
-      test_parallel: false
+      test_parallel: true
       test_markers_exclude: 'not integration and not benchmark'
       run_integration: ${{ github.event_name == 'push' }}
       test_env: 'ASANA_WORKSPACE_GID=${{ vars.ASANA_WORKSPACE_GID }}'
