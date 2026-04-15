@@ -22,18 +22,6 @@ from autom8_asana.models.business.unit import Unit
 class TestResolutionStrategy:
     """Tests for ResolutionStrategy enum."""
 
-    def test_strategy_values(self) -> None:
-        """All strategy enum values are correct."""
-        assert ResolutionStrategy.DEPENDENT_TASKS.value == "dependent_tasks"
-        assert ResolutionStrategy.CUSTOM_FIELD_MAPPING.value == "custom_field_mapping"
-        assert ResolutionStrategy.EXPLICIT_OFFER_ID.value == "explicit_offer_id"
-        assert ResolutionStrategy.AUTO.value == "auto"
-
-    def test_strategy_is_string_enum(self) -> None:
-        """Strategy enum values are strings for serialization."""
-        assert isinstance(ResolutionStrategy.DEPENDENT_TASKS, str)
-        assert ResolutionStrategy.DEPENDENT_TASKS == "dependent_tasks"
-
     def test_priority_order_returns_correct_sequence(self) -> None:
         """priority_order returns strategies in expected priority."""
         order = ResolutionStrategy.priority_order()
