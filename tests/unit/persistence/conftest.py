@@ -42,10 +42,7 @@ class MockCacheProviderForInvalidation(_SDKMockCacheProvider):
         """Invalidate cache entry with fail simulation."""
         if self.fail_on_invalidate:
             raise ConnectionError("Cache invalidation failed")
-        if (
-            self.fail_on_dataframe_invalidate
-            and entry_types is not None
-        ):
+        if self.fail_on_dataframe_invalidate and entry_types is not None:
             from autom8_asana.cache.models.entry import EntryType as _EntryType
 
             if _EntryType.DATAFRAME in entry_types:
@@ -57,9 +54,7 @@ class MockCacheProviderForInvalidation(_SDKMockCacheProvider):
     ) -> list[tuple[str, list[EntryType] | None]]:
         """Return invalidation calls that include a specific entry type."""
         return [
-            (key, types)
-            for key, types in self.invalidate_calls
-            if types and entry_type in types
+            (key, types) for key, types in self.invalidate_calls if types and entry_type in types
         ]
 
 

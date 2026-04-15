@@ -32,6 +32,7 @@ class TestBusinessConstruction:
         # All required keys must be present (allows adding new holders without breaking test)
         assert required_keys.issubset(set(Business.HOLDER_KEY_MAP.keys()))
 
+
 class TestBusinessHolderProperties:
     """Tests for Business holder properties."""
 

@@ -18,6 +18,7 @@ from autom8_asana.models.task import Task
 class TestProcess:
     """Tests for Process model."""
 
+
 class TestProcessType:
     """Tests for ProcessType enum."""
 
@@ -316,6 +317,7 @@ class TestProcessSectionEnum:
         assert ProcessSection.CONVERTED.value == "converted"
         assert ProcessSection.DID_NOT_CONVERT.value == "did_not_convert"
         assert ProcessSection.OTHER.value == "other"
+
 
 class TestProcessSectionFromName:
     """Tests for ProcessSection.from_name() method."""

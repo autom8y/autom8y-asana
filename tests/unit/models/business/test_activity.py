@@ -79,7 +79,6 @@ class TestActivityPriority:
         assert ACTIVITY_PRIORITY[-1] is AccountActivity.IGNORED
 
 
-
 # ---------------------------------------------------------------------------
 # SectionClassifier
 # ---------------------------------------------------------------------------
@@ -198,7 +197,6 @@ class TestSectionClassifier:
     def test_frozen_cannot_mutate_project_gid(self, simple_classifier: SectionClassifier) -> None:
         with pytest.raises(FrozenInstanceError):
             simple_classifier.project_gid = "999"  # type: ignore[misc]
-
 
 
 # ---------------------------------------------------------------------------

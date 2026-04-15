@@ -30,6 +30,142 @@ from autom8_asana.models import (
 if TYPE_CHECKING:
     from autom8_asana.config import AsanaConfig
 
+
+# =============================================================================
+# Cross-Client Parametrized Tests (Pattern A per CRU-S3 TDD)
+# =============================================================================
+
+
+def _check_workspace(result: Workspace) -> None:
+    assert result.is_organization is True
+
+
+def _check_user(result: User) -> None:
+    assert result.email == "alice@example.com"
+
+
+def _check_project(result: Project) -> None:
+    assert result.archived is False
+    assert result.public is True
+
+
+def _check_section(result: Section) -> None:
+    assert result.project is not None
+    assert result.project.gid == "9876543210987"
+
+
+def _check_custom_field(result: CustomField) -> None:
+    assert result.resource_subtype == "enum"
+    assert result.enum_options is not None
+    assert len(result.enum_options) == 2
+    assert isinstance(result.enum_options[0], CustomFieldEnumOption)
+
+
+@pytest.mark.parametrize(
+    ("client_cls", "gid", "payload", "expected_model", "url_template", "extra_check"),
+    [
+        (
+            WorkspacesClient,
+            "ws123",
+            {"gid": "ws123", "name": "My Workspace", "is_organization": True},
+            Workspace,
+            "/workspaces/{gid}",
+            _check_workspace,
+        ),
+        (
+            UsersClient,
+            "1234567890123",
+            {
+                "gid": "1234567890123",
+                "name": "Alice Smith",
+                "email": "alice@example.com",
+            },
+            User,
+            "/users/{gid}",
+            _check_user,
+        ),
+        (
+            ProjectsClient,
+            "1234567890123",
+            {
+                "gid": "1234567890123",
+                "name": "My Project",
+                "archived": False,
+                "public": True,
+            },
+            Project,
+            "/projects/{gid}",
+            _check_project,
+        ),
+        (
+            SectionsClient,
+            "1234567890123",
+            {
+                "gid": "1234567890123",
+                "name": "To Do",
+                "project": {"gid": "9876543210987", "name": "Project"},
+            },
+            Section,
+            "/sections/{gid}",
+            _check_section,
+        ),
+        (
+            CustomFieldsClient,
+            "1234567890123",
+            {
+                "gid": "1234567890123",
+                "name": "Priority",
+                "resource_subtype": "enum",
+                "enum_options": [
+                    {"gid": "1234567890001", "name": "High", "color": "red"},
+                    {"gid": "1234567890002", "name": "Low", "color": "green"},
+                ],
+            },
+            CustomField,
+            "/custom_fields/{gid}",
+            _check_custom_field,
+        ),
+    ],
+    ids=[
+        "workspaces_get",
+        "users_get",
+        "projects_get",
+        "sections_get",
+        "custom_fields_get",
+    ],
+)
+async def test_get_async_returns_model(
+    client_factory,
+    mock_http,
+    client_cls,
+    gid,
+    payload,
+    expected_model,
+    url_template,
+    extra_check,
+) -> None:
+    """get_async returns the typed model for each tier-1 client.
+
+    Consolidates the five previously-copy-pasted ``test_get_async_returns_*_model``
+    tests (one per client class) into a single parametrized matrix. Asymmetric
+    field assertions (is_organization, email, archived/public, project ref,
+    enum_options) are captured per-case via ``extra_check`` callables.
+    """
+    client = client_factory(client_cls, use_cache=False)
+    mock_http.get.return_value = payload
+
+    result = await client.get_async(gid)
+
+    # Behavioral assertions (typed model shape + common fields)
+    assert isinstance(result, expected_model)
+    assert result.gid == payload["gid"]
+    assert result.name == payload["name"]
+    extra_check(result)
+
+    # Asana-contract assertion (URL + params) -- retained per Pattern E decision tree category 1
+    mock_http.get.assert_called_once_with(url_template.format(gid=gid), params={})
+
+
 # =============================================================================
 # WorkspacesClient Tests
 # =============================================================================
@@ -53,24 +189,6 @@ def workspaces_client(
 
 class TestWorkspacesClientGetAsync:
     """Tests for WorkspacesClient.get_async()."""
-
-    async def test_get_async_returns_workspace_model(
-        self, workspaces_client: WorkspacesClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async returns Workspace model by default."""
-        mock_http.get.return_value = {
-            "gid": "ws123",
-            "name": "My Workspace",
-            "is_organization": True,
-        }
-
-        result = await workspaces_client.get_async("ws123")
-
-        assert isinstance(result, Workspace)
-        assert result.gid == "ws123"
-        assert result.name == "My Workspace"
-        assert result.is_organization is True
-        mock_http.get.assert_called_once_with("/workspaces/ws123", params={})
 
     async def test_get_async_raw_returns_dict(
         self, workspaces_client: WorkspacesClient, mock_http: MockHTTPClient
@@ -162,24 +280,6 @@ def users_client(
 
 class TestUsersClientGetAsync:
     """Tests for UsersClient.get_async()."""
-
-    async def test_get_async_returns_user_model(
-        self, users_client: UsersClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async returns User model by default."""
-        mock_http.get.return_value = {
-            "gid": "1234567890123",
-            "name": "Alice Smith",
-            "email": "alice@example.com",
-        }
-
-        result = await users_client.get_async("1234567890123")
-
-        assert isinstance(result, User)
-        assert result.gid == "1234567890123"
-        assert result.name == "Alice Smith"
-        assert result.email == "alice@example.com"
-        mock_http.get.assert_called_once_with("/users/1234567890123", params={})
 
     async def test_get_async_raw_returns_dict(
         self, users_client: UsersClient, mock_http: MockHTTPClient
@@ -290,26 +390,6 @@ def projects_client(
 
 class TestProjectsClientGetAsync:
     """Tests for ProjectsClient.get_async()."""
-
-    async def test_get_async_returns_project_model(
-        self, projects_client: ProjectsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async returns Project model by default."""
-        mock_http.get.return_value = {
-            "gid": "1234567890123",
-            "name": "My Project",
-            "archived": False,
-            "public": True,
-        }
-
-        result = await projects_client.get_async("1234567890123")
-
-        assert isinstance(result, Project)
-        assert result.gid == "1234567890123"
-        assert result.name == "My Project"
-        assert result.archived is False
-        assert result.public is True
-        mock_http.get.assert_called_once_with("/projects/1234567890123", params={})
 
     async def test_get_async_raw_returns_dict(
         self, projects_client: ProjectsClient, mock_http: MockHTTPClient
@@ -534,29 +614,6 @@ def sections_client(
     )
 
 
-class TestSectionsClientGetAsync:
-    """Tests for SectionsClient.get_async()."""
-
-    async def test_get_async_returns_section_model(
-        self, sections_client: SectionsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async returns Section model by default."""
-        mock_http.get.return_value = {
-            "gid": "1234567890123",
-            "name": "To Do",
-            "project": {"gid": "9876543210987", "name": "Project"},
-        }
-
-        result = await sections_client.get_async("1234567890123")
-
-        assert isinstance(result, Section)
-        assert result.gid == "1234567890123"
-        assert result.name == "To Do"
-        assert result.project is not None
-        assert result.project.gid == "9876543210987"
-        mock_http.get.assert_called_once_with("/sections/1234567890123", params={})
-
-
 class TestSectionsClientCreateAsync:
     """Tests for SectionsClient.create_async()."""
 
@@ -679,35 +736,6 @@ def custom_fields_client(
         auth_provider=auth_provider,
         log_provider=logger,
     )
-
-
-class TestCustomFieldsClientGetAsync:
-    """Tests for CustomFieldsClient.get_async()."""
-
-    async def test_get_async_returns_custom_field_model(
-        self, custom_fields_client: CustomFieldsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async returns CustomField model by default."""
-        mock_http.get.return_value = {
-            "gid": "1234567890123",
-            "name": "Priority",
-            "resource_subtype": "enum",
-            "enum_options": [
-                {"gid": "1234567890001", "name": "High", "color": "red"},
-                {"gid": "1234567890002", "name": "Low", "color": "green"},
-            ],
-        }
-
-        result = await custom_fields_client.get_async("1234567890123")
-
-        assert isinstance(result, CustomField)
-        assert result.gid == "1234567890123"
-        assert result.name == "Priority"
-        assert result.resource_subtype == "enum"
-        assert result.enum_options is not None
-        assert len(result.enum_options) == 2
-        assert isinstance(result.enum_options[0], CustomFieldEnumOption)
-        mock_http.get.assert_called_once_with("/custom_fields/1234567890123", params={})
 
 
 class TestCustomFieldsClientCreateAsync:

@@ -123,7 +123,6 @@ def logger() -> MockLogger:
     return MockLogger()
 
 
-
 @pytest.fixture(autouse=True, scope="session")
 def _bootstrap_session():
     """Bootstrap the application once per test session.

@@ -176,7 +176,6 @@ class TestInsightsRequestSerialization:
         assert "metrics" not in data  # None excluded
 
 
-
 # -----------------------------------------------------------------------------
 # ColumnInfo Tests
 # -----------------------------------------------------------------------------
@@ -196,7 +195,6 @@ class TestColumnInfo:
         """Create non-nullable column."""
         col = ColumnInfo(name="id", dtype="int64", nullable=False)
         assert col.nullable is False
-
 
 
 # -----------------------------------------------------------------------------

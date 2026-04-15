@@ -120,7 +120,9 @@ class TestLoadStoriesIncremental:
         assert result[0]["gid"] == "s1"
         assert result[1]["gid"] == "s2"
 
-    async def test_merge_dedupes_by_gid(self, cache: CacheDomainMockProvider, fetcher: AsyncMock) -> None:
+    async def test_merge_dedupes_by_gid(
+        self, cache: CacheDomainMockProvider, fetcher: AsyncMock
+    ) -> None:
         """Test that merge deduplicates stories by GID."""
         # Pre-populate cache
         cached_entry = CacheEntry(
