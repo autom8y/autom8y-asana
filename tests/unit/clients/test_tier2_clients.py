@@ -196,6 +196,77 @@ async def test_tier2_get_async_returns_model(
     mock_http.get.assert_called_once_with(url_template.format(gid=gid), params={})
 
 
+@pytest.mark.parametrize(
+    ("client_cls", "call_kwargs", "response", "expected_model", "endpoint", "expected_body"),
+    [
+        (
+            WebhooksClient,
+            {"resource": "proj123", "target": "https://example.com/webhook"},
+            {
+                "gid": "wh123",
+                "target": "https://example.com/webhook",
+                "active": True,
+                "resource": {"gid": "proj123"},
+            },
+            Webhook,
+            "/webhooks",
+            {"resource": "proj123", "target": "https://example.com/webhook"},
+        ),
+        (
+            TagsClient,
+            {"workspace": "ws1", "name": "Priority", "color": "dark-blue"},
+            {"gid": "tag123", "name": "Priority", "color": "dark-blue"},
+            Tag,
+            "/tags",
+            {"workspace": "ws1", "name": "Priority", "color": "dark-blue"},
+        ),
+        (
+            GoalsClient,
+            {"workspace": "ws1", "name": "Increase Revenue", "due_on": "2024-12-31"},
+            {"gid": "goal123", "name": "Increase Revenue", "workspace": {"gid": "ws1"}},
+            Goal,
+            "/goals",
+            {"workspace": "ws1", "name": "Increase Revenue", "due_on": "2024-12-31"},
+        ),
+        (
+            PortfoliosClient,
+            {"workspace": "ws1", "name": "New Portfolio", "color": "dark-green"},
+            {"gid": "port123", "name": "New Portfolio", "color": "dark-green"},
+            Portfolio,
+            "/portfolios",
+            {"workspace": "ws1", "name": "New Portfolio", "color": "dark-green"},
+        ),
+    ],
+    ids=["webhooks_create", "tags_create", "goals_create", "portfolios_create"],
+)
+async def test_tier2_create_async_returns_model(
+    client_factory,
+    mock_http,
+    client_cls,
+    call_kwargs,
+    response,
+    expected_model,
+    endpoint,
+    expected_body,
+) -> None:
+    """create_async returns the typed model for each tier-2 client with a symmetric create.
+
+    Consolidates four ``test_create_async_returns_*_model`` tests (Webhooks,
+    Tags, Goals, Portfolios). Each case supplies its own kwargs, expected
+    request body, and endpoint. The Goal case's original test used
+    assert_called_once + call_args inspection; normalized here to the
+    stricter assert_called_once_with for uniform contract checking.
+    """
+    client = client_factory(client_cls, use_cache=False)
+    mock_http.post.return_value = response
+
+    result = await client.create_async(**call_kwargs)
+
+    assert isinstance(result, expected_model)
+    assert result.gid == response["gid"]
+    mock_http.post.assert_called_once_with(endpoint, json={"data": expected_body})
+
+
 # =============================================================================
 # WebhooksClient Tests
 # =============================================================================
@@ -234,29 +305,6 @@ class TestWebhooksClientGetAsync:
 
 class TestWebhooksClientCreateAsync:
     """Tests for WebhooksClient.create_async()."""
-
-    async def test_create_async_returns_webhook_model(
-        self, webhooks_client: WebhooksClient, mock_http: MockHTTPClient
-    ) -> None:
-        """create_async returns Webhook model by default."""
-        mock_http.post.return_value = {
-            "gid": "wh123",
-            "target": "https://example.com/webhook",
-            "active": True,
-            "resource": {"gid": "proj123"},
-        }
-
-        result = await webhooks_client.create_async(
-            resource="proj123", target="https://example.com/webhook"
-        )
-
-        assert isinstance(result, Webhook)
-        assert result.gid == "wh123"
-        mock_http.post.assert_called_once_with(
-            "/webhooks",
-            json={"data": {"resource": "proj123", "target": "https://example.com/webhook"}},
-        )
-
 
 class TestWebhooksSignatureVerification:
     """Tests for WebhooksClient signature verification (per ADR-0008)."""
@@ -368,26 +416,6 @@ def tags_client(
 
 class TestTagsClientCreateAsync:
     """Tests for TagsClient.create_async()."""
-
-    async def test_create_async_returns_tag_model(
-        self, tags_client: TagsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """create_async returns Tag model by default."""
-        mock_http.post.return_value = {
-            "gid": "tag123",
-            "name": "Priority",
-            "color": "dark-blue",
-        }
-
-        result = await tags_client.create_async(workspace="ws1", name="Priority", color="dark-blue")
-
-        assert isinstance(result, Tag)
-        assert result.gid == "tag123"
-        mock_http.post.assert_called_once_with(
-            "/tags",
-            json={"data": {"workspace": "ws1", "name": "Priority", "color": "dark-blue"}},
-        )
-
 
 # =============================================================================
 # StoriesClient Tests
@@ -535,29 +563,6 @@ def goals_client(
 class TestGoalsClientCreateAsync:
     """Tests for GoalsClient.create_async()."""
 
-    async def test_create_async_returns_goal_model(
-        self, goals_client: GoalsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """create_async returns Goal model by default."""
-        mock_http.post.return_value = {
-            "gid": "goal123",
-            "name": "Increase Revenue",
-            "workspace": {"gid": "ws1"},
-        }
-
-        result = await goals_client.create_async(
-            workspace="ws1", name="Increase Revenue", due_on="2024-12-31"
-        )
-
-        assert isinstance(result, Goal)
-        assert result.gid == "goal123"
-        mock_http.post.assert_called_once()
-        call_data = mock_http.post.call_args[1]["json"]["data"]
-        assert call_data["workspace"] == "ws1"
-        assert call_data["name"] == "Increase Revenue"
-        assert call_data["due_on"] == "2024-12-31"
-
-
 class TestGoalsClientSubgoals:
     """Tests for GoalsClient subgoal operations."""
 
@@ -601,34 +606,6 @@ def portfolios_client(
 
 class TestPortfoliosClientCreateAsync:
     """Tests for PortfoliosClient.create_async()."""
-
-    async def test_create_async_returns_portfolio_model(
-        self, portfolios_client: PortfoliosClient, mock_http: MockHTTPClient
-    ) -> None:
-        """create_async returns Portfolio model by default."""
-        mock_http.post.return_value = {
-            "gid": "port123",
-            "name": "New Portfolio",
-            "color": "dark-green",
-        }
-
-        result = await portfolios_client.create_async(
-            workspace="ws1", name="New Portfolio", color="dark-green"
-        )
-
-        assert isinstance(result, Portfolio)
-        assert result.gid == "port123"
-        mock_http.post.assert_called_once_with(
-            "/portfolios",
-            json={
-                "data": {
-                    "workspace": "ws1",
-                    "name": "New Portfolio",
-                    "color": "dark-green",
-                }
-            },
-        )
-
 
 class TestPortfoliosClientItems:
     """Tests for PortfoliosClient item operations."""
