@@ -123,7 +123,7 @@ def client_factory(mock_http, config, auth_provider, cache_provider, logger):
             "http": mock_http,
             "config": config,
             "auth_provider": auth_provider,
-            "logger": logger,
+            "log_provider": logger,
         }
         if use_cache:
             kwargs["cache_provider"] = cache_provider
