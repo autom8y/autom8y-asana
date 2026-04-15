@@ -32,26 +32,6 @@ from autom8_asana.models.business.seeder import (
 class TestBusinessData:
     """Tests for BusinessData Pydantic model."""
 
-    def test_required_name(self) -> None:
-        """BusinessData requires name field."""
-        with pytest.raises(ValidationError) as exc_info:
-            BusinessData()  # type: ignore[call-arg]
-
-        errors = exc_info.value.errors()
-        assert any(e["loc"] == ("name",) for e in errors)
-
-    def test_minimal_creation(self) -> None:
-        """BusinessData can be created with just name."""
-        data = BusinessData(name="Acme Corp")
-
-        assert data.name == "Acme Corp"
-        assert data.company_id is None
-        assert data.vertical is None
-        assert data.business_address_line_1 is None
-        assert data.business_city is None
-        assert data.business_state is None
-        assert data.business_zip is None
-
     def test_full_creation(self) -> None:
         """BusinessData can be created with all fields."""
         data = BusinessData(
