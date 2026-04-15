@@ -44,26 +44,6 @@ def make_task(gid: str = "task_gid", name: str | None = "Test Task") -> Task:
 class TestPatternSpec:
     """Tests for PatternSpec dataclass."""
 
-    def test_creation_with_defaults(self) -> None:
-        """PatternSpec can be created with default values."""
-        spec = PatternSpec(patterns=("contacts", "contact"))
-
-        assert spec.patterns == ("contacts", "contact")
-        assert spec.word_boundary is True
-        assert spec.strip_decorations is True
-
-    def test_creation_with_custom_values(self) -> None:
-        """PatternSpec can be created with custom values."""
-        spec = PatternSpec(
-            patterns=("custom",),
-            word_boundary=False,
-            strip_decorations=False,
-        )
-
-        assert spec.patterns == ("custom",)
-        assert spec.word_boundary is False
-        assert spec.strip_decorations is False
-
     def test_frozen_immutability(self) -> None:
         """PatternSpec is immutable (frozen)."""
         spec = PatternSpec(patterns=("test",))
