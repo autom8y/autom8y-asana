@@ -328,83 +328,75 @@ class TestDeleteAsync:
 class TestSyncWrappers:
     """Test sync wrapper variants for all methods."""
 
-    def test_create_sync_returns_task_model(
+    @pytest.mark.parametrize(
+        ("raw", "expected_type"),
+        [
+            pytest.param(False, Task, id="model-default"),
+            pytest.param(True, dict, id="raw-dict"),
+        ],
+    )
+    def test_create_sync_return_shape(
         self,
         mock_http: MockHTTPClient,
         config: AsanaConfig,
         auth_provider: MockAuthProvider,
+        raw: bool,
+        expected_type: type,
     ) -> None:
-        """create() sync wrapper returns Task model by default."""
+        """create() sync wrapper returns Task model by default, dict when raw=True."""
         client = TasksClient(
             http=mock_http,  # type: ignore[arg-type]
             config=config,
             auth_provider=auth_provider,
         )
-        mock_http.post.return_value = {"gid": "7123", "name": "Sync Create"}
+        payload = {"gid": "7123", "name": "Sync Create"}
+        mock_http.post.return_value = payload
 
-        result = client.create(name="Sync Create", workspace="ws")
+        kwargs = {"raw": True} if raw else {}
+        result = client.create(name="Sync Create", workspace="ws", **kwargs)
 
-        assert isinstance(result, Task)
-        assert result.gid == "7123"
-        assert result.name == "Sync Create"
+        assert isinstance(result, expected_type)
+        if raw:
+            assert result == payload
+        else:
+            assert result.gid == "7123"
+            assert result.name == "Sync Create"
 
-    def test_create_sync_raw_returns_dict(
+    @pytest.mark.parametrize(
+        ("raw", "expected_type"),
+        [
+            pytest.param(False, Task, id="model-default"),
+            pytest.param(True, dict, id="raw-dict"),
+        ],
+    )
+    def test_update_sync_return_shape(
         self,
         mock_http: MockHTTPClient,
         config: AsanaConfig,
         auth_provider: MockAuthProvider,
+        raw: bool,
+        expected_type: type,
     ) -> None:
-        """create() sync wrapper with raw=True returns dict."""
+        """update() sync wrapper returns Task model by default, dict when raw=True."""
         client = TasksClient(
             http=mock_http,  # type: ignore[arg-type]
             config=config,
             auth_provider=auth_provider,
         )
-        mock_http.post.return_value = {"gid": "7123", "name": "Sync Create"}
+        payload = {"gid": "7456", "name": "Updated"}
+        mock_http.put.return_value = payload
 
-        result = client.create(name="Sync Create", workspace="ws", raw=True)
+        kwargs: dict = {"name": "Updated"}
+        if raw:
+            kwargs["raw"] = True
+        result = client.update("7456", **kwargs)
 
-        assert isinstance(result, dict)
-        assert result == {"gid": "7123", "name": "Sync Create"}
-
-    def test_update_sync_returns_task_model(
-        self,
-        mock_http: MockHTTPClient,
-        config: AsanaConfig,
-        auth_provider: MockAuthProvider,
-    ) -> None:
-        """update() sync wrapper returns Task model by default."""
-        client = TasksClient(
-            http=mock_http,  # type: ignore[arg-type]
-            config=config,
-            auth_provider=auth_provider,
-        )
-        mock_http.put.return_value = {"gid": "7456", "name": "Updated"}
-
-        result = client.update("7456", name="Updated")
-
-        assert isinstance(result, Task)
-        assert result.gid == "7456"
-        assert result.name == "Updated"
-
-    def test_update_sync_raw_returns_dict(
-        self,
-        mock_http: MockHTTPClient,
-        config: AsanaConfig,
-        auth_provider: MockAuthProvider,
-    ) -> None:
-        """update() sync wrapper with raw=True returns dict."""
-        client = TasksClient(
-            http=mock_http,  # type: ignore[arg-type]
-            config=config,
-            auth_provider=auth_provider,
-        )
-        mock_http.put.return_value = {"gid": "7456", "name": "Updated"}
-
-        result = client.update("7456", raw=True, name="Updated")
-
-        assert isinstance(result, dict)
-        assert result == {"gid": "7456", "name": "Updated"}
+        assert isinstance(result, expected_type)
+        if raw:
+            assert result == payload
+        else:
+            assert result.gid == "7456"
+            assert result.name == "Updated"
 
     def test_delete_sync_works(
         self,
