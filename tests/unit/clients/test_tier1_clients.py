@@ -935,55 +935,40 @@ class TestCustomFieldsClientSyncWrappers:
 # =============================================================================
 
 
-class TestModelImports:
-    """Test that all models can be imported from the package."""
+@pytest.mark.parametrize(
+    ("model_cls", "kwargs"),
+    [
+        (Workspace, {"gid": "123", "name": "Test"}),
+        (User, {"gid": "456", "name": "Test User", "email": "test@example.com"}),
+        (Project, {"gid": "789", "name": "Test Project", "archived": False}),
+        (Section, {"gid": "abc", "name": "Test Section"}),
+        (CustomField, {"gid": "def", "name": "Test Field", "resource_subtype": "text"}),
+        (
+            CustomFieldEnumOption,
+            {"gid": "opt1", "name": "High", "color": "red", "enabled": True},
+        ),
+        (CustomFieldSetting, {"gid": "set1", "is_important": True}),
+    ],
+    ids=[
+        "workspace",
+        "user",
+        "project",
+        "section",
+        "custom_field",
+        "custom_field_enum_option",
+        "custom_field_setting",
+    ],
+)
+def test_import_and_instantiate_model(model_cls, kwargs) -> None:
+    """Each Tier-1 model can be imported and instantiated with kwargs.
 
-    def test_import_workspace(self) -> None:
-        """Workspace model can be imported and instantiated."""
-        ws = Workspace(gid="123", name="Test")
-        assert ws.gid == "123"
-        assert ws.name == "Test"
-
-    def test_import_user(self) -> None:
-        """User model can be imported and instantiated."""
-        user = User(gid="456", name="Test User", email="test@example.com")
-        assert user.gid == "456"
-        assert user.name == "Test User"
-        assert user.email == "test@example.com"
-
-    def test_import_project(self) -> None:
-        """Project model can be imported and instantiated."""
-        project = Project(gid="789", name="Test Project", archived=False)
-        assert project.gid == "789"
-        assert project.name == "Test Project"
-        assert project.archived is False
-
-    def test_import_section(self) -> None:
-        """Section model can be imported and instantiated."""
-        section = Section(gid="abc", name="Test Section")
-        assert section.gid == "abc"
-        assert section.name == "Test Section"
-
-    def test_import_custom_field(self) -> None:
-        """CustomField model can be imported and instantiated."""
-        cf = CustomField(gid="def", name="Test Field", resource_subtype="text")
-        assert cf.gid == "def"
-        assert cf.name == "Test Field"
-        assert cf.resource_subtype == "text"
-
-    def test_import_custom_field_enum_option(self) -> None:
-        """CustomFieldEnumOption model can be imported and instantiated."""
-        opt = CustomFieldEnumOption(gid="opt1", name="High", color="red", enabled=True)
-        assert opt.gid == "opt1"
-        assert opt.name == "High"
-        assert opt.color == "red"
-        assert opt.enabled is True
-
-    def test_import_custom_field_setting(self) -> None:
-        """CustomFieldSetting model can be imported and instantiated."""
-        setting = CustomFieldSetting(gid="set1", is_important=True)
-        assert setting.gid == "set1"
-        assert setting.is_important is True
+    Consolidates seven per-model ``test_import_*`` functions. Each case
+    constructs the model from kwargs and asserts every provided field
+    round-trips to the matching attribute.
+    """
+    instance = model_cls(**kwargs)
+    for field, expected in kwargs.items():
+        assert getattr(instance, field) == expected
 
 
 class TestModelValidation:
