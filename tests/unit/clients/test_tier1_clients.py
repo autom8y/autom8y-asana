@@ -206,6 +206,54 @@ async def test_get_async_raw_returns_dict(
     assert result == payload
 
 
+@pytest.mark.parametrize(
+    ("client_cls", "gid", "payload", "expected_model"),
+    [
+        (
+            WorkspacesClient,
+            "ws456",
+            {"gid": "ws456", "name": "Sync Workspace"},
+            Workspace,
+        ),
+        (
+            ProjectsClient,
+            "1234567890123",
+            {"gid": "1234567890123", "name": "Sync Project"},
+            Project,
+        ),
+        (
+            CustomFieldsClient,
+            "1234567890123",
+            {"gid": "1234567890123", "name": "Field"},
+            CustomField,
+        ),
+    ],
+    ids=["workspaces_get", "projects_get", "custom_fields_get"],
+)
+def test_get_sync_returns_model(
+    client_factory, mock_http, client_cls, gid, payload, expected_model
+) -> None:
+    """get() sync wrapper returns the typed model.
+
+    Consolidates the three per-client sync-wrapper tests. Mirrors the
+    original tests' omission of log_provider by passing log_provider=None
+    to client_factory, preserving the "fresh client works standalone"
+    semantic.
+
+    Not folded with test_get_async_returns_model because pytest-asyncio
+    cannot drive a sync top-level test alongside async cases in one
+    parametrize block without introducing a bridge helper that obscures
+    the sync-vs-async dispatch being verified here.
+    """
+    client = client_factory(client_cls, use_cache=False, log_provider=None)
+    mock_http.get.return_value = payload
+
+    result = client.get(gid)
+
+    assert isinstance(result, expected_model)
+    assert result.gid == payload["gid"]
+
+
 # =============================================================================
 # WorkspacesClient Tests
 # =============================================================================
@@ -230,30 +278,14 @@ def workspaces_client(
 class TestWorkspacesClientGetSync:
     """Tests for WorkspacesClient.get() sync wrapper."""
 
-    def test_get_sync_returns_workspace_model(
-        self,
-        mock_http: MockHTTPClient,
-        config: AsanaConfig,
-        auth_provider: MockAuthProvider,
-    ) -> None:
-        """get() returns Workspace model outside async context."""
-        client = WorkspacesClient(
-            http=mock_http,  # type: ignore[arg-type]
-            config=config,
-            auth_provider=auth_provider,
-        )
-        mock_http.get.return_value = {"gid": "ws456", "name": "Sync Workspace"}
-
-        result = client.get("ws456")
-
-        assert isinstance(result, Workspace)
-        assert result.gid == "ws456"
-        assert result.name == "Sync Workspace"
-
     async def test_get_sync_fails_in_async_context(
         self, workspaces_client: WorkspacesClient
     ) -> None:
-        """get() raises SyncInAsyncContextError in async context."""
+        """get() raises SyncInAsyncContextError in async context.
+
+        Not folded into Pattern B/A -- this asserts the distinct
+        SyncInAsyncContextError behavior per TDD critical constraint.
+        """
         with pytest.raises(SyncInAsyncContextError):
             workspaces_client.get("ws123")
 
@@ -533,25 +565,6 @@ class TestProjectsClientListAsync:
 
 class TestProjectsClientSyncWrappers:
     """Test sync wrappers for ProjectsClient."""
-
-    def test_get_sync_returns_project_model(
-        self,
-        mock_http: MockHTTPClient,
-        config: AsanaConfig,
-        auth_provider: MockAuthProvider,
-    ) -> None:
-        """get() sync wrapper returns Project model."""
-        client = ProjectsClient(
-            http=mock_http,  # type: ignore[arg-type]
-            config=config,
-            auth_provider=auth_provider,
-        )
-        mock_http.get.return_value = {"gid": "1234567890123", "name": "Sync Project"}
-
-        result = client.get("1234567890123")
-
-        assert isinstance(result, Project)
-        assert result.gid == "1234567890123"
 
     def test_create_sync_returns_project_model(
         self,
@@ -898,24 +911,6 @@ class TestCustomFieldsClientProjectSettings:
 
 class TestCustomFieldsClientSyncWrappers:
     """Test sync wrappers for CustomFieldsClient."""
-
-    def test_get_sync_returns_custom_field_model(
-        self,
-        mock_http: MockHTTPClient,
-        config: AsanaConfig,
-        auth_provider: MockAuthProvider,
-    ) -> None:
-        """get() sync wrapper returns CustomField model."""
-        client = CustomFieldsClient(
-            http=mock_http,  # type: ignore[arg-type]
-            config=config,
-            auth_provider=auth_provider,
-        )
-        mock_http.get.return_value = {"gid": "1234567890123", "name": "Field"}
-
-        result = client.get("1234567890123")
-
-        assert isinstance(result, CustomField)
 
     def test_create_enum_option_sync_works(
         self,
