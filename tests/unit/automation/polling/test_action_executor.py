@@ -82,7 +82,6 @@ class TestActionExecutorAddTag:
         """Create ActionExecutor with mock client."""
         return ActionExecutor(mock_client)
 
-    @pytest.mark.asyncio
     async def test_add_tag_executes_correct_api_method(
         self,
         executor: ActionExecutor,
@@ -98,7 +97,6 @@ class TestActionExecutorAddTag:
         assert result.task_gid == "task-456"
         mock_client.tags.add_to_task_async.assert_called_once_with("task-456", tag="tag-123")
 
-    @pytest.mark.asyncio
     async def test_add_tag_returns_details_on_success(
         self,
         executor: ActionExecutor,
@@ -110,7 +108,6 @@ class TestActionExecutorAddTag:
 
         assert result.details == {"tag_gid": "tag-999"}
 
-    @pytest.mark.asyncio
     async def test_add_tag_handles_api_error(
         self,
         executor: ActionExecutor,
@@ -144,7 +141,6 @@ class TestActionExecutorAddComment:
         """Create ActionExecutor with mock client."""
         return ActionExecutor(mock_client)
 
-    @pytest.mark.asyncio
     async def test_add_comment_executes_correct_api_method(
         self,
         executor: ActionExecutor,
@@ -164,7 +160,6 @@ class TestActionExecutorAddComment:
             task="task-789", text="This task has been escalated."
         )
 
-    @pytest.mark.asyncio
     async def test_add_comment_handles_api_error(
         self,
         executor: ActionExecutor,
@@ -196,7 +191,6 @@ class TestActionExecutorChangeSection:
         """Create ActionExecutor with mock client."""
         return ActionExecutor(mock_client)
 
-    @pytest.mark.asyncio
     async def test_change_section_executes_correct_api_method(
         self,
         executor: ActionExecutor,
@@ -216,7 +210,6 @@ class TestActionExecutorChangeSection:
             "section-archive", task="task-old"
         )
 
-    @pytest.mark.asyncio
     async def test_change_section_handles_api_error(
         self,
         executor: ActionExecutor,
@@ -245,7 +238,6 @@ class TestActionExecutorValidation:
         """Create ActionExecutor with mock client."""
         return ActionExecutor(mock_client)
 
-    @pytest.mark.asyncio
     async def test_invalid_action_type_raises_value_error(
         self,
         executor: ActionExecutor,
@@ -259,7 +251,6 @@ class TestActionExecutorValidation:
         assert "Unsupported action type: 'delete_task'" in str(exc_info.value)
         assert "add_tag" in str(exc_info.value)  # Lists supported types
 
-    @pytest.mark.asyncio
     async def test_missing_required_params_raises_value_error_add_tag(
         self,
         executor: ActionExecutor,
@@ -273,7 +264,6 @@ class TestActionExecutorValidation:
         assert "Missing required params" in str(exc_info.value)
         assert "tag_gid" in str(exc_info.value)
 
-    @pytest.mark.asyncio
     async def test_missing_required_params_raises_value_error_add_comment(
         self,
         executor: ActionExecutor,
@@ -287,7 +277,6 @@ class TestActionExecutorValidation:
         assert "Missing required params" in str(exc_info.value)
         assert "text" in str(exc_info.value)
 
-    @pytest.mark.asyncio
     async def test_missing_required_params_raises_value_error_change_section(
         self,
         executor: ActionExecutor,
@@ -301,7 +290,6 @@ class TestActionExecutorValidation:
         assert "Missing required params" in str(exc_info.value)
         assert "section_gid" in str(exc_info.value)
 
-    @pytest.mark.asyncio
     async def test_extra_params_allowed(
         self,
         executor: ActionExecutor,
@@ -340,7 +328,6 @@ class TestActionExecutorLogging:
         client.sections.add_task_async = AsyncMock()
         return client
 
-    @pytest.mark.asyncio
     async def test_logs_action_start_and_success(
         self,
         mock_client: MagicMock,
@@ -365,7 +352,6 @@ class TestActionExecutorLogging:
             success_call = mock_logger.info.call_args_list[1]
             assert success_call[0][0] == "action_execution_succeeded"
 
-    @pytest.mark.asyncio
     async def test_logs_action_failure(
         self,
         mock_client: MagicMock,
@@ -407,7 +393,6 @@ class TestActionExecutorIsolation:
         """Create ActionExecutor."""
         return ActionExecutor(mock_client)
 
-    @pytest.mark.asyncio
     async def test_failed_action_does_not_prevent_subsequent_actions(
         self,
         executor: ActionExecutor,

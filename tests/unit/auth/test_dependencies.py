@@ -40,7 +40,6 @@ def reset_singletons() -> Generator[None, None, None]:
 class TestExtractBearerToken:
     """Test bearer token extraction from Authorization header."""
 
-    @pytest.mark.asyncio
     async def test_extract_valid_token(self) -> None:
         """Extracts token from valid Bearer header."""
         # Arrange
@@ -52,7 +51,6 @@ class TestExtractBearerToken:
         # Assert
         assert result == "0/1234567890abcdef1234567890"
 
-    @pytest.mark.asyncio
     async def test_missing_header_raises_401(self) -> None:
         """Raises ApiAuthError when Authorization header is missing."""
         # Act & Assert
@@ -62,7 +60,6 @@ class TestExtractBearerToken:
         assert exc_info.value.status_code == 401
         assert exc_info.value.code == "MISSING_AUTH"
 
-    @pytest.mark.asyncio
     async def test_wrong_scheme_raises_401(self) -> None:
         """Raises ApiAuthError when scheme is not Bearer."""
         # Act & Assert
@@ -72,7 +69,6 @@ class TestExtractBearerToken:
         assert exc_info.value.status_code == 401
         assert exc_info.value.code == "INVALID_SCHEME"
 
-    @pytest.mark.asyncio
     async def test_empty_token_raises_401(self) -> None:
         """Raises ApiAuthError when token is empty."""
         # Act & Assert
@@ -82,7 +78,6 @@ class TestExtractBearerToken:
         assert exc_info.value.status_code == 401
         assert exc_info.value.code == "MISSING_TOKEN"
 
-    @pytest.mark.asyncio
     async def test_short_token_raises_401(self) -> None:
         """Raises ApiAuthError when token is too short."""
         # Act & Assert
@@ -127,7 +122,6 @@ class TestAuthContext:
 class TestGetAuthContextPATMode:
     """Test get_auth_context with PAT tokens (pass-through mode)."""
 
-    @pytest.mark.asyncio
     async def test_pat_passthrough(self) -> None:
         """PAT tokens are passed through unchanged."""
         # Arrange
@@ -143,7 +137,6 @@ class TestGetAuthContextPATMode:
         assert result.asana_pat == pat_token
         assert result.caller_service is None
 
-    @pytest.mark.asyncio
     async def test_pat_with_slash_prefix_1(self) -> None:
         """PAT with 1/ prefix is treated as PAT mode."""
         # Arrange
@@ -162,7 +155,6 @@ class TestGetAuthContextPATMode:
 class TestGetAuthContextJWTMode:
     """Test get_auth_context with JWT tokens (S2S mode)."""
 
-    @pytest.mark.asyncio
     async def test_jwt_validated_and_bot_pat_used(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """JWT tokens are validated and bot PAT is returned."""
         # Arrange
@@ -192,7 +184,6 @@ class TestGetAuthContextJWTMode:
         assert result.asana_pat == bot_pat
         assert result.caller_service == "autom8_data"
 
-    @pytest.mark.asyncio
     async def test_jwt_validation_failure_returns_401(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -219,7 +210,6 @@ class TestGetAuthContextJWTMode:
             assert exc_info.value.status_code == 401
             assert exc_info.value.code == "TOKEN_EXPIRED"
 
-    @pytest.mark.asyncio
     async def test_missing_bot_pat_returns_503(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Missing bot PAT returns 503 ApiServiceUnavailableError."""
         # Arrange
@@ -250,7 +240,6 @@ class TestGetAuthContextJWTMode:
 class TestGetAuthContextCircuitOpen:
     """Test CircuitOpenError handling in get_auth_context."""
 
-    @pytest.mark.asyncio
     async def test_circuit_open_returns_503(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """CircuitOpenError maps to ApiServiceUnavailableError (503)."""
         mock_request = MagicMock()
@@ -270,7 +259,6 @@ class TestGetAuthContextCircuitOpen:
             assert exc_info.value.status_code == 503
             assert exc_info.value.code == "CIRCUIT_OPEN"
 
-    @pytest.mark.asyncio
     async def test_jwks_fetch_error_returns_503(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """JWKSFetchError (transient) maps to ApiServiceUnavailableError (503)."""
         mock_request = MagicMock()
@@ -290,7 +278,6 @@ class TestGetAuthContextCircuitOpen:
             assert exc_info.value.status_code == 503
             assert exc_info.value.code == "JWKS_FETCH_ERROR"
 
-    @pytest.mark.asyncio
     async def test_permanent_error_returns_401(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """PermanentAuthError subclasses map to ApiAuthError (401)."""
         mock_request = MagicMock()
@@ -314,7 +301,6 @@ class TestGetAuthContextCircuitOpen:
 class TestBotPatNeverLogged:
     """Test that bot PAT values never appear in logs or errors."""
 
-    @pytest.mark.asyncio
     async def test_pat_not_in_error_message(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Bot PAT value does not appear in error messages."""
         # Arrange

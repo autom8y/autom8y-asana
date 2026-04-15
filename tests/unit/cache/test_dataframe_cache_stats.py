@@ -73,7 +73,6 @@ class TestDataFrameCacheStats:
         assert cache._stats["offer"]["invalidations"] == 1
         assert cache._stats["contact"]["invalidations"] == 1
 
-    @pytest.mark.asyncio
     async def test_get_async_unknown_type_no_keyerror(self) -> None:
         """get_async with unknown entity type should not raise KeyError on stats."""
         cache = _make_cache()
@@ -82,7 +81,6 @@ class TestDataFrameCacheStats:
         assert result is None
         assert "unknown_type" in cache._stats
 
-    @pytest.mark.asyncio
     async def test_acquire_build_lock_unknown_type_no_keyerror(self) -> None:
         """acquire_build_lock_async with unknown type should not raise KeyError."""
         cache = _make_cache()

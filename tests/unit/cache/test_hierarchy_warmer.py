@@ -74,7 +74,6 @@ class TestWarmAncestorsAsync:
         client.get_async = AsyncMock(return_value=None)
         return client
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_extracts_parent_gids(
         self,
         hierarchy_index: HierarchyIndex,
@@ -127,7 +126,6 @@ class TestWarmAncestorsAsync:
         assert hierarchy_index.contains("business-1")
         assert warmed >= 1
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_handles_orphan_tasks(
         self,
         hierarchy_index: HierarchyIndex,
@@ -153,7 +151,6 @@ class TestWarmAncestorsAsync:
         mock_tasks_client.get_async.assert_not_called()
         assert warmed == 0
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_respects_max_depth(
         self,
         hierarchy_index: HierarchyIndex,
@@ -178,7 +175,6 @@ class TestWarmAncestorsAsync:
         # But the function should still respect max_depth in traversal
         assert warmed == 0
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_caches_fetched_parents(
         self,
         hierarchy_index: HierarchyIndex,
@@ -219,7 +215,6 @@ class TestWarmAncestorsAsync:
         call_args = mock_store.put_async.call_args
         assert call_args[0][0]["gid"] == "business-1"
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_handles_fetch_errors(
         self,
         hierarchy_index: HierarchyIndex,
@@ -372,7 +367,6 @@ class TestWarmAncestorsPhase2:
     def hierarchy_index(self) -> HierarchyIndex:
         return HierarchyIndex()
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_basic_traversal(self, hierarchy_index: HierarchyIndex) -> None:
         """Basic parent chain traversal fetches and registers parent."""
         hierarchy_index.register({"gid": "unit-1", "parent": {"gid": "biz-1"}})
@@ -397,7 +391,6 @@ class TestWarmAncestorsPhase2:
         assert warmed == 1
         assert hierarchy_index.contains("biz-1")
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_multi_level(self, hierarchy_index: HierarchyIndex) -> None:
         """Multi-level traversal reaches all ancestors."""
         hierarchy_index.register({"gid": "unit-1", "parent": {"gid": "biz-1"}})
@@ -439,7 +432,6 @@ class TestWarmAncestorsPhase2:
         assert hierarchy_index.contains("biz-1")
         assert hierarchy_index.contains("acct-1")
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_error_resilience(self, hierarchy_index: HierarchyIndex) -> None:
         """warm_ancestors_async handles fetch errors gracefully."""
         hierarchy_index.register({"gid": "u-1", "parent": {"gid": "b-1"}})
@@ -456,7 +448,6 @@ class TestWarmAncestorsPhase2:
 
         assert warmed == 0
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_global_semaphore(self, hierarchy_index: HierarchyIndex) -> None:
         """Global semaphore parameter is accepted and respected."""
         hierarchy_index.register({"gid": "u-1", "parent": {"gid": "b-1"}})

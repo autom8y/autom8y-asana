@@ -169,7 +169,6 @@ class TestParallelSectionFetcher:
     # Success Cases
     # -------------------------------------------------------------------------
 
-    @pytest.mark.asyncio
     async def test_fetch_all_success(
         self,
         mock_sections: list[Section],
@@ -194,7 +193,6 @@ class TestParallelSectionFetcher:
         assert result.total_api_calls == 4  # 1 section list + 3 section fetches
         assert result.fetch_time_ms > 0
 
-    @pytest.mark.asyncio
     async def test_fetch_all_empty_project(self) -> None:
         """Test fetch_all with project that has no sections."""
         sections_client = create_mock_sections_client([])
@@ -213,7 +211,6 @@ class TestParallelSectionFetcher:
         assert result.sections_fetched == 0
         assert result.total_api_calls == 1  # Only section list call
 
-    @pytest.mark.asyncio
     async def test_fetch_all_empty_sections(
         self,
         mock_sections: list[Section],
@@ -239,7 +236,6 @@ class TestParallelSectionFetcher:
         assert len(result.tasks) == 0
         assert result.sections_fetched == 3
 
-    @pytest.mark.asyncio
     async def test_fetch_all_multi_homed_dedup(
         self,
         multi_homed_tasks: dict[str, list[Task]],
@@ -269,7 +265,6 @@ class TestParallelSectionFetcher:
     # Concurrency Control
     # -------------------------------------------------------------------------
 
-    @pytest.mark.asyncio
     async def test_fetch_all_semaphore_limits(self) -> None:
         """Test that semaphore limits concurrent requests."""
         # Create many sections to test concurrency
@@ -323,7 +318,6 @@ class TestParallelSectionFetcher:
     # Error Handling
     # -------------------------------------------------------------------------
 
-    @pytest.mark.asyncio
     async def test_fetch_all_partial_failure(
         self,
         mock_sections: list[Section],
@@ -365,7 +359,6 @@ class TestParallelSectionFetcher:
         assert len(exc_info.value.errors) == 1
         assert "section_2" in exc_info.value.section_gids
 
-    @pytest.mark.asyncio
     async def test_fetch_all_multiple_failures(
         self,
         mock_sections: list[Section],
@@ -402,7 +395,6 @@ class TestParallelSectionFetcher:
     # API Call Counting
     # -------------------------------------------------------------------------
 
-    @pytest.mark.asyncio
     async def test_fetch_all_counts_api_calls(
         self,
         mock_sections: list[Section],
@@ -427,7 +419,6 @@ class TestParallelSectionFetcher:
     # Opt Fields
     # -------------------------------------------------------------------------
 
-    @pytest.mark.asyncio
     async def test_fetch_all_passes_opt_fields(
         self,
         mock_sections: list[Section],
@@ -520,7 +511,6 @@ class TestFetchSectionTaskGidsAsync:
     Per TDD-CACHE-PERF-FETCH-PATH Phase 2: Lightweight GID enumeration.
     """
 
-    @pytest.mark.asyncio
     async def test_fetch_gids_success(
         self,
         mock_sections: list[Section],
@@ -550,7 +540,6 @@ class TestFetchSectionTaskGidsAsync:
         assert result["section_2"] == ["task_3"]
         assert result["section_3"] == []  # Empty section
 
-    @pytest.mark.asyncio
     async def test_fetch_gids_empty_project(self) -> None:
         """Test GID enumeration with project that has no sections."""
         sections_client = create_mock_sections_client([])
@@ -566,7 +555,6 @@ class TestFetchSectionTaskGidsAsync:
 
         assert result == {}
 
-    @pytest.mark.asyncio
     async def test_fetch_gids_uses_minimal_opt_fields(
         self,
         mock_sections: list[Section],
@@ -589,7 +577,6 @@ class TestFetchSectionTaskGidsAsync:
         for call in tasks_client.list_async.call_args_list:
             assert call.kwargs.get("opt_fields") == ["gid"]
 
-    @pytest.mark.asyncio
     async def test_fetch_gids_handles_multi_homed(
         self,
         multi_homed_tasks: dict[str, list[Task]],
@@ -614,7 +601,6 @@ class TestFetchSectionTaskGidsAsync:
         assert "shared_task" in result["section_1"]
         assert "shared_task" in result["section_2"]
 
-    @pytest.mark.asyncio
     async def test_fetch_gids_partial_failure(
         self,
         mock_sections: list[Section],
@@ -646,7 +632,6 @@ class TestFetchSectionTaskGidsAsync:
         assert len(exc_info.value.errors) == 1
         assert "section_2" in exc_info.value.section_gids
 
-    @pytest.mark.asyncio
     async def test_fetch_gids_respects_semaphore(self) -> None:
         """Test GID enumeration respects concurrency limit."""
         many_sections = [Section(gid=f"section_{i}", name=f"Section {i}") for i in range(15)]
@@ -702,7 +687,6 @@ class TestFetchByGids:
     Per TDD-CACHE-OPTIMIZATION-P2 Phase 2: Targeted fetch for cache misses.
     """
 
-    @pytest.mark.asyncio
     async def test_fetch_by_gids_success_with_section_map(
         self,
         mock_tasks_by_section: dict[str, list[Task]],
@@ -734,7 +718,6 @@ class TestFetchByGids:
         gids = {t.gid for t in result.tasks}
         assert gids == {"task_2", "task_3"}
 
-    @pytest.mark.asyncio
     async def test_fetch_by_gids_only_fetches_relevant_sections(
         self,
         mock_tasks_by_section: dict[str, list[Task]],
@@ -768,7 +751,6 @@ class TestFetchByGids:
         assert len(result.tasks) == 1
         assert result.tasks[0].gid == "task_3"
 
-    @pytest.mark.asyncio
     async def test_fetch_by_gids_without_section_map(
         self,
         mock_sections: list[Section],
@@ -795,7 +777,6 @@ class TestFetchByGids:
         # Should have enumerated sections (1 call) plus fetched all sections (3 calls)
         assert result.total_api_calls == 4
 
-    @pytest.mark.asyncio
     async def test_fetch_by_gids_empty_gid_list(self) -> None:
         """Test fetch_by_gids with empty GID list returns empty result."""
         sections_client = create_mock_sections_client([])
@@ -813,7 +794,6 @@ class TestFetchByGids:
         assert result.sections_fetched == 0
         assert result.total_api_calls == 0
 
-    @pytest.mark.asyncio
     async def test_fetch_by_gids_deduplicates_multi_homed(
         self,
         multi_homed_tasks: dict[str, list[Task]],
@@ -844,7 +824,6 @@ class TestFetchByGids:
         assert len(result.tasks) == 1
         assert result.tasks[0].gid == "shared_task"
 
-    @pytest.mark.asyncio
     async def test_fetch_by_gids_partial_failure(
         self,
         mock_sections: list[Section],
@@ -889,7 +868,6 @@ class TestFetchByGids:
         assert len(exc_info.value.errors) == 1
         assert "section_1" in exc_info.value.section_gids
 
-    @pytest.mark.asyncio
     async def test_fetch_by_gids_filters_to_target_gids(
         self,
         mock_tasks_by_section: dict[str, list[Task]],
@@ -917,7 +895,6 @@ class TestFetchByGids:
         assert len(result.tasks) == 1
         assert result.tasks[0].gid == "task_1"
 
-    @pytest.mark.asyncio
     async def test_fetch_by_gids_respects_opt_fields(
         self,
         mock_tasks_by_section: dict[str, list[Task]],
@@ -943,7 +920,6 @@ class TestFetchByGids:
         for call in tasks_client.list_async.call_args_list:
             assert call.kwargs.get("opt_fields") == opt_fields
 
-    @pytest.mark.asyncio
     async def test_fetch_by_gids_no_matching_sections(self) -> None:
         """Test fetch_by_gids returns empty when GIDs not in any section."""
         sections_client = create_mock_sections_client([])
@@ -983,7 +959,6 @@ class TestGidEnumerationCache:
     # Section List Cache Tests
     # -------------------------------------------------------------------------
 
-    @pytest.mark.asyncio
     async def test_section_list_cache_hit(
         self,
         mock_sections: list[Section],
@@ -1038,7 +1013,6 @@ class TestGidEnumerationCache:
         assert sections[0].gid == "section_1"
         assert sections[1].gid == "section_2"
 
-    @pytest.mark.asyncio
     async def test_section_list_cache_miss_populates(
         self,
         mock_sections: list[Section],
@@ -1079,7 +1053,6 @@ class TestGidEnumerationCache:
         assert entry.ttl == 1800  # 30 minutes
         assert len(entry.data["sections"]) == 3
 
-    @pytest.mark.asyncio
     async def test_section_list_cache_key_format(self) -> None:
         """Test section list cache key format (FR-SECTION-004)."""
         from unittest.mock import MagicMock
@@ -1100,7 +1073,6 @@ class TestGidEnumerationCache:
     # GID Enumeration Cache Tests
     # -------------------------------------------------------------------------
 
-    @pytest.mark.asyncio
     async def test_gid_enumeration_cache_hit(
         self,
         mock_sections: list[Section],
@@ -1158,7 +1130,6 @@ class TestGidEnumerationCache:
         assert result["section_2"] == ["task_3"]
         assert result["section_3"] == []
 
-    @pytest.mark.asyncio
     async def test_gid_enumeration_cache_miss_populates(
         self,
         mock_sections: list[Section],
@@ -1224,7 +1195,6 @@ class TestGidEnumerationCache:
         assert entry.ttl == 300  # 5 minutes
         assert "section_gids" in entry.data
 
-    @pytest.mark.asyncio
     async def test_gid_enumeration_cache_key_format(self) -> None:
         """Test GID enumeration cache key format (FR-GID-004)."""
         from unittest.mock import MagicMock
@@ -1245,7 +1215,6 @@ class TestGidEnumerationCache:
     # Graceful Degradation Tests
     # -------------------------------------------------------------------------
 
-    @pytest.mark.asyncio
     async def test_cache_failure_graceful_degradation(
         self,
         mock_sections: list[Section],
@@ -1278,7 +1247,6 @@ class TestGidEnumerationCache:
         assert "section_2" in result
         assert "section_3" in result
 
-    @pytest.mark.asyncio
     async def test_cache_provider_none_bypasses_cache(
         self,
         mock_sections: list[Section],
@@ -1304,7 +1272,6 @@ class TestGidEnumerationCache:
         # Verify result is valid
         assert len(result) == 3
 
-    @pytest.mark.asyncio
     async def test_cache_errors_logged_as_warnings(
         self,
         mock_sections: list[Section],
@@ -1351,7 +1318,6 @@ class TestGidEnumerationCache:
     # Backward Compatibility Tests
     # -------------------------------------------------------------------------
 
-    @pytest.mark.asyncio
     async def test_backward_compatible_without_cache_provider(
         self,
         mock_sections: list[Section],

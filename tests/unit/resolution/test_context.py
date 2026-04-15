@@ -19,7 +19,6 @@ if TYPE_CHECKING:
 class TestResolutionContext:
     """Tests for ResolutionContext."""
 
-    @pytest.mark.asyncio
     async def test_context_manager(self, mock_client: MagicMock) -> None:
         """Test async context manager clears cache."""
         async with ResolutionContext(mock_client) as ctx:
@@ -60,7 +59,6 @@ class TestResolutionContext:
         result = ctx.get_cached_business()
         assert result == mock_business
 
-    @pytest.mark.asyncio
     async def test_resolve_entity_async_no_source(self, mock_client: MagicMock) -> None:
         """Test resolve_entity_async fails with no source entity."""
         ctx = ResolutionContext(mock_client)  # No trigger_entity
@@ -70,7 +68,6 @@ class TestResolutionContext:
         assert result.status == ResolutionStatus.FAILED
         assert "No source entity" in result.diagnostics[0]
 
-    @pytest.mark.asyncio
     async def test_resolve_entity_async_uses_trigger_entity(self, mock_client: MagicMock) -> None:
         """Test resolve_entity_async uses trigger_entity as default source."""
         trigger = make_business_entity("trigger-123", "Trigger")
@@ -96,7 +93,6 @@ class TestResolutionContext:
         # Should have tried strategies and all failed
         assert len(result.diagnostics) > 0
 
-    @pytest.mark.asyncio
     async def test_business_async_with_gid(
         self,
         mock_client: MagicMock,
@@ -116,7 +112,6 @@ class TestResolutionContext:
 
         assert result == mock_business
 
-    @pytest.mark.asyncio
     async def test_business_async_raises_on_failure(self, mock_client: MagicMock) -> None:
         """Test business_async raises ResolutionError on failure."""
         ctx = ResolutionContext(mock_client)  # No trigger_entity
@@ -126,7 +121,6 @@ class TestResolutionContext:
 
         assert "Cannot resolve Business" in str(exc_info.value)
 
-    @pytest.mark.asyncio
     async def test_contact_async_raises_on_failure(self, mock_client: MagicMock) -> None:
         """Test contact_async raises ResolutionError on failure."""
         ctx = ResolutionContext(mock_client)
@@ -136,7 +130,6 @@ class TestResolutionContext:
 
         assert "Cannot resolve Contact" in str(exc_info.value)
 
-    @pytest.mark.asyncio
     async def test_hydrate_branch_async(
         self, mock_client: MagicMock, mock_business: Business
     ) -> None:
@@ -160,7 +153,6 @@ class TestResolutionContext:
         mock_client.tasks.subtasks_async.assert_called_once()
         assert ctx._holders_fetched is True
 
-    @pytest.mark.asyncio
     async def test_hydrate_branch_async_cached(
         self, mock_client: MagicMock, mock_business: Business
     ) -> None:
@@ -213,7 +205,6 @@ class TestResolveHolderAsync:
         }
         return subtask
 
-    @pytest.mark.asyncio
     async def test_returns_cached_holder(
         self, mock_client: MagicMock, mock_contact_holder: ContactHolder
     ) -> None:
@@ -229,7 +220,6 @@ class TestResolveHolderAsync:
         # No API call should have been made
         mock_client.tasks.subtasks_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_no_parent_gid(self, mock_client: MagicMock) -> None:
         """Test returns None when no parent GID is available."""
         from autom8_asana.models.business.contact import ContactHolder
@@ -241,7 +231,6 @@ class TestResolveHolderAsync:
         assert result is None
         mock_client.tasks.subtasks_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_finds_holder_by_project_gid(self, mock_client: MagicMock) -> None:
         """Test finds holder among subtasks by matching PRIMARY_PROJECT_GID."""
         from autom8_asana.models.business.contact import ContactHolder
@@ -279,7 +268,6 @@ class TestResolveHolderAsync:
             "biz-123", include_detection_fields=True
         )
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_no_matching_subtask(self, mock_client: MagicMock) -> None:
         """Test returns None when no subtask matches the holder type."""
         from autom8_asana.models.business.contact import ContactHolder
@@ -302,7 +290,6 @@ class TestResolveHolderAsync:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_no_subtasks(self, mock_client: MagicMock) -> None:
         """Test returns None when parent has no subtasks."""
         from autom8_asana.models.business.contact import ContactHolder
@@ -319,7 +306,6 @@ class TestResolveHolderAsync:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_uses_explicit_parent_gid(self, mock_client: MagicMock) -> None:
         """Test uses explicit parent_gid parameter over business_gid."""
         from autom8_asana.models.business.contact import ContactHolder
@@ -339,7 +325,6 @@ class TestResolveHolderAsync:
             "biz-override", include_detection_fields=True
         )
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_no_primary_project_gid(self, mock_client: MagicMock) -> None:
         """Test returns None when holder_type has no PRIMARY_PROJECT_GID."""
         from autom8_asana.models.business.base import BusinessEntity
@@ -351,7 +336,6 @@ class TestResolveHolderAsync:
         assert result is None
         mock_client.tasks.subtasks_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_uses_trigger_entity_parent_as_fallback(self, mock_client: MagicMock) -> None:
         """Test falls back to trigger_entity.parent.gid when no explicit parent."""
         from autom8_asana.models.business.contact import ContactHolder
@@ -375,7 +359,6 @@ class TestResolveHolderAsync:
             "parent-from-trigger", include_detection_fields=True
         )
 
-    @pytest.mark.asyncio
     async def test_handles_subtask_with_no_projects(self, mock_client: MagicMock) -> None:
         """Test gracefully handles subtasks that have no projects list."""
         from autom8_asana.models.business.contact import ContactHolder

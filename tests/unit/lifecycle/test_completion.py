@@ -44,7 +44,6 @@ def _make_process(
 # --- CompletionService Tests ---
 
 
-@pytest.mark.asyncio
 async def test_complete_source_marks_process_complete(mock_client):
     """When called for an incomplete process, marks it as completed
     via the Asana API and returns its GID."""
@@ -59,7 +58,6 @@ async def test_complete_source_marks_process_complete(mock_client):
     mock_client.tasks.update_async.assert_awaited_once_with("proc1", completed=True)
 
 
-@pytest.mark.asyncio
 async def test_complete_source_already_completed_is_noop(mock_client):
     """When source process is already completed, returns empty result
     without calling the API (idempotent)."""
@@ -73,7 +71,6 @@ async def test_complete_source_already_completed_is_noop(mock_client):
     mock_client.tasks.update_async.assert_not_awaited()
 
 
-@pytest.mark.asyncio
 async def test_complete_source_api_failure_returns_empty(mock_client):
     """When the Asana API call fails, logs a warning and returns
     an empty result (fail-forward)."""
@@ -87,7 +84,6 @@ async def test_complete_source_api_failure_returns_empty(mock_client):
     mock_client.tasks.update_async.assert_awaited_once()
 
 
-@pytest.mark.asyncio
 async def test_complete_source_result_type(mock_client):
     """CompletionResult is a proper dataclass with expected fields."""
     result = CompletionResult()
@@ -98,7 +94,6 @@ async def test_complete_source_result_type(mock_client):
 # --- Config-driven behavior tests (engine responsibility) ---
 
 
-@pytest.mark.asyncio
 async def test_auto_complete_prior_true_calls_service(mock_client):
     """Simulates the engine behavior: when auto_complete_prior is true,
     the engine calls complete_source_async."""
@@ -121,7 +116,6 @@ async def test_auto_complete_prior_true_calls_service(mock_client):
     assert result.completed[0] == "sales1"
 
 
-@pytest.mark.asyncio
 async def test_auto_complete_prior_false_skips_service(mock_client):
     """Simulates the engine behavior: when auto_complete_prior is false,
     the engine does NOT call complete_source_async."""

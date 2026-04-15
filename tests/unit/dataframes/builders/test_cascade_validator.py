@@ -11,7 +11,7 @@ import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
-import pytest
+import pytest  # noqa: TC002
 
 from autom8_asana.dataframes.builders.cascade_validator import (
     CASCADE_NULL_ERROR_THRESHOLD,
@@ -90,7 +90,6 @@ def _make_mock_cascade_plugin(
     return mock_plugin
 
 
-@pytest.mark.asyncio
 async def test_validation_corrects_null_office_phone() -> None:
     """1 row with null office_phone, store resolves from parent chain."""
     merged_df = pl.DataFrame(
@@ -144,7 +143,6 @@ async def test_validation_corrects_null_office_phone() -> None:
     assert corrected_df["office_phone"][0] == "555-1234"
 
 
-@pytest.mark.asyncio
 async def test_validation_noop_when_all_populated() -> None:
     """No null rows, assert unchanged."""
     merged_df = pl.DataFrame(
@@ -178,7 +176,6 @@ async def test_validation_noop_when_all_populated() -> None:
     assert corrected_df["office_phone"].to_list() == ["555-1111", "555-2222"]
 
 
-@pytest.mark.asyncio
 async def test_validation_noop_when_no_ancestors() -> None:
     """Null row but no ancestors in hierarchy, assert not corrected."""
     merged_df = pl.DataFrame(
@@ -216,7 +213,6 @@ async def test_validation_noop_when_no_ancestors() -> None:
     assert corrected_df["office_phone"][0] is None
 
 
-@pytest.mark.asyncio
 async def test_validation_noop_when_ancestors_also_null() -> None:
     """Ancestors exist but also have null for the cascade field."""
     merged_df = pl.DataFrame(
@@ -265,7 +261,6 @@ async def test_validation_noop_when_ancestors_also_null() -> None:
     assert corrected_df["office_phone"][0] is None
 
 
-@pytest.mark.asyncio
 async def test_validation_multiple_rows() -> None:
     """3 rows with null, 2 resolvable, assert 2 corrected."""
     merged_df = pl.DataFrame(
@@ -336,7 +331,6 @@ async def test_validation_multiple_rows() -> None:
     assert corrected_df["office_phone"][2] is None
 
 
-@pytest.mark.asyncio
 async def test_validation_skips_when_no_gid_column() -> None:
     """DataFrame without gid column should return immediately."""
     merged_df = pl.DataFrame(
@@ -366,7 +360,6 @@ async def test_validation_skips_when_no_gid_column() -> None:
     assert result.rows_corrected == 0
 
 
-@pytest.mark.asyncio
 async def test_validation_skips_when_column_not_present() -> None:
     """DataFrame without cascade column should return immediately."""
     merged_df = pl.DataFrame(
@@ -398,7 +391,6 @@ async def test_validation_skips_when_column_not_present() -> None:
     assert result.rows_corrected == 0
 
 
-@pytest.mark.asyncio
 async def test_validation_skips_when_parent_chain_empty() -> None:
     """Ancestors exist in hierarchy but parent chain returns empty."""
     merged_df = pl.DataFrame(
@@ -436,7 +428,6 @@ async def test_validation_skips_when_parent_chain_empty() -> None:
     assert corrected_df["office_phone"][0] is None
 
 
-@pytest.mark.asyncio
 async def test_validation_result_duration_populated() -> None:
     """Verify duration_ms is populated on the result."""
     merged_df = pl.DataFrame(
@@ -491,7 +482,6 @@ def test_feature_flag_disabled_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.runtime.section_cascade_validation == "0"
 
 
-@pytest.mark.asyncio
 async def test_schema_driven_validates_all_cascade_columns() -> None:
     """When schema is passed, validates ALL its cascade columns, not just office_phone."""
     schema = MagicMock()
@@ -538,7 +528,6 @@ async def test_schema_driven_validates_all_cascade_columns() -> None:
     assert corrected_df["vertical"][0] == "Chiro"
 
 
-@pytest.mark.asyncio
 async def test_no_schema_validates_nothing() -> None:
     """When schema=None, no cascade fields are checked (safe degradation)."""
     merged_df = pl.DataFrame(
@@ -859,7 +848,6 @@ class TestOfferOfficeCascadeContract:
         assert office_entry == ("office", "Business Name")
 
 
-@pytest.mark.asyncio
 async def test_cascade_validator_corrects_business_name_from_task_name() -> None:
     """Cascade validator resolves Business Name from task['name'], not custom_fields.
 
@@ -910,7 +898,6 @@ async def test_cascade_validator_corrects_business_name_from_task_name() -> None
     assert result.rows_corrected >= 1
 
 
-@pytest.mark.asyncio
 async def test_cascade_validator_office_phone_correction_unaffected() -> None:
     """Office Phone correction still works after the get_field_value refactor.
 

@@ -104,7 +104,6 @@ def store(mock_cache_provider: MagicMock) -> UnifiedTaskStore:
 class TestHierarchyPacingThreshold:
     """Tests for pacing activation based on parent count threshold."""
 
-    @pytest.mark.asyncio
     async def test_small_section_no_pacing(
         self,
         store: UnifiedTaskStore,
@@ -126,7 +125,6 @@ class TestHierarchyPacingThreshold:
             # No sleep should be called for small sections
             mock_sleep.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_large_section_pacing_activates(
         self,
         store: UnifiedTaskStore,
@@ -152,7 +150,6 @@ class TestHierarchyPacingThreshold:
 class TestHierarchyBatchSizing:
     """Tests for correct batch sizing and delay insertion."""
 
-    @pytest.mark.asyncio
     async def test_batch_count_calculation(
         self,
         store: UnifiedTaskStore,
@@ -172,7 +169,6 @@ class TestHierarchyBatchSizing:
             )
             assert mock_sleep.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_exact_batch_boundary_no_trailing_sleep(
         self,
         store: UnifiedTaskStore,
@@ -192,7 +188,6 @@ class TestHierarchyBatchSizing:
             )
             assert mock_sleep.call_count == 3
 
-    @pytest.mark.asyncio
     async def test_sleep_uses_configured_delay(
         self,
         store: UnifiedTaskStore,
@@ -222,7 +217,6 @@ class TestHierarchyBatchSizing:
 class TestHierarchyPacingResults:
     """Tests for correct parent fetch results regardless of pacing mode."""
 
-    @pytest.mark.asyncio
     async def test_all_parents_fetched_without_pacing(
         self,
         store: UnifiedTaskStore,
@@ -240,7 +234,6 @@ class TestHierarchyPacingResults:
         # All 30 unique parents should have been fetched
         assert mock_tasks_client.get_async.call_count == 30
 
-    @pytest.mark.asyncio
     async def test_all_parents_fetched_with_pacing(
         self,
         store: UnifiedTaskStore,
@@ -259,7 +252,6 @@ class TestHierarchyPacingResults:
         # All 120 unique parents should have been fetched
         assert mock_tasks_client.get_async.call_count == 120
 
-    @pytest.mark.asyncio
     async def test_deduplication_preserves_with_pacing(
         self,
         store: UnifiedTaskStore,
@@ -287,7 +279,6 @@ class TestHierarchyPacingResults:
 class TestHierarchyPacingLogging:
     """Tests for structured log events emitted during paced hierarchy warming."""
 
-    @pytest.mark.asyncio
     async def test_pacing_enabled_log_emitted(
         self,
         store: UnifiedTaskStore,
@@ -316,7 +307,6 @@ class TestHierarchyPacingLogging:
                 assert extra["batch_size"] == 50
                 assert extra["batch_delay"] == 1.0
 
-    @pytest.mark.asyncio
     async def test_warming_complete_log_emitted(
         self,
         store: UnifiedTaskStore,
@@ -345,7 +335,6 @@ class TestHierarchyPacingLogging:
                 assert extra["total_parents"] == 120
                 assert extra["batches"] == 3  # ceil(120/50) = 3
 
-    @pytest.mark.asyncio
     async def test_batch_pause_log_emitted(
         self,
         store: UnifiedTaskStore,
@@ -371,7 +360,6 @@ class TestHierarchyPacingLogging:
                 # 3 batches = 2 pauses
                 assert len(debug_calls) == 2
 
-    @pytest.mark.asyncio
     async def test_no_pacing_logs_for_small_section(
         self,
         store: UnifiedTaskStore,
@@ -399,7 +387,6 @@ class TestHierarchyPacingLogging:
 class TestPacingBoundaryConditions:
     """Exact boundary probes around HIERARCHY_PACING_THRESHOLD (100)."""
 
-    @pytest.mark.asyncio
     async def test_exactly_100_parents_no_pacing(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -414,7 +401,6 @@ class TestPacingBoundaryConditions:
 
         assert mock_tasks_client.get_async.call_count == 100
 
-    @pytest.mark.asyncio
     async def test_exactly_101_parents_pacing_activates(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -430,7 +416,6 @@ class TestPacingBoundaryConditions:
 
         assert mock_tasks_client.get_async.call_count == 101
 
-    @pytest.mark.asyncio
     async def test_zero_parents_no_fetches_no_pacing(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -445,7 +430,6 @@ class TestPacingBoundaryConditions:
 
         mock_tasks_client.get_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_single_parent_no_pacing(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -464,7 +448,6 @@ class TestPacingBoundaryConditions:
 class TestPacingBatchEdgeCases:
     """Batch arithmetic edge cases for divisible, non-divisible, and overflow sizes."""
 
-    @pytest.mark.asyncio
     async def test_not_divisible_151_parents_four_batches(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -479,7 +462,6 @@ class TestPacingBatchEdgeCases:
 
         assert mock_tasks_client.get_async.call_count == 151
 
-    @pytest.mark.asyncio
     async def test_single_batch_above_threshold_with_large_batch_size(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -498,7 +480,6 @@ class TestPacingBatchEdgeCases:
             mock_sleep.assert_not_called()
         reset_settings()
 
-    @pytest.mark.asyncio
     async def test_all_parents_fetched_after_batching_250(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -517,7 +498,6 @@ class TestPacingBatchEdgeCases:
 class TestPacingErrorResilience:
     """Verify batch failures do not abort subsequent batches."""
 
-    @pytest.mark.asyncio
     async def test_partial_failure_continues_subsequent_batches(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -547,7 +527,6 @@ class TestPacingErrorResilience:
         # Phase 1 attempts all 120 (with retries for failures), Phase 2 re-attempts uncached
         assert client.get_async.call_count >= n
 
-    @pytest.mark.asyncio
     async def test_all_fetches_fail_no_crash(self, store: UnifiedTaskStore) -> None:
         """Every fetch failing does not raise an exception."""
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(110)]
@@ -561,7 +540,6 @@ class TestPacingErrorResilience:
         # With retry (max 3 attempts per parent), 110 parents * 3 = 330 calls
         assert client.get_async.call_count >= 110 * 3
 
-    @pytest.mark.asyncio
     async def test_failure_in_last_batch_handled_gracefully(self, store: UnifiedTaskStore) -> None:
         """Failures in the final (remainder) batch are handled gracefully."""
         tasks = [_make_task(f"t-{i}", parent_gid=f"p-{i}") for i in range(110)]
@@ -588,7 +566,6 @@ class TestPacingErrorResilience:
 class TestPacingConcurrencyInteraction:
     """Semaphore limits concurrency within paced batches."""
 
-    @pytest.mark.asyncio
     async def test_semaphore_limits_concurrency_within_batch(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -676,7 +653,6 @@ class TestFetchImmediateParentRetry:
         store._freshness_intent = FreshnessIntent.IMMEDIATE
         return store
 
-    @pytest.mark.asyncio
     async def test_retry_succeeds_on_second_attempt(self, store: UnifiedTaskStore) -> None:
         """First attempt fails with transient error, second succeeds."""
         mock_client = MagicMock()
@@ -697,7 +673,6 @@ class TestFetchImmediateParentRetry:
         assert mock_client.get_async.call_count == 2
         store._hierarchy.register.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_all_retries_exhausted(self, store: UnifiedTaskStore) -> None:
         """All 3 attempts fail — returns 0, does not crash."""
         mock_client = MagicMock()
@@ -712,7 +687,6 @@ class TestFetchImmediateParentRetry:
         assert mock_client.get_async.call_count == 3
         store._hierarchy.register.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_success_on_first_attempt_no_retry(self, store: UnifiedTaskStore) -> None:
         """Successful first attempt does not trigger any retries."""
         mock_client = MagicMock()

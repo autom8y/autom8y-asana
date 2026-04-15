@@ -147,7 +147,6 @@ class TestBatchResultCountMismatch:
     was proactively added by the engineer.
     """
 
-    @pytest.mark.asyncio
     async def test_fewer_results_triggers_fallback(self) -> None:
         """BatchClient returning fewer results than sent -> fallback."""
         mock_http = AsyncMock()
@@ -169,7 +168,6 @@ class TestBatchResultCountMismatch:
         # Fell back to sequential
         assert mock_http.request.call_count == 4
 
-    @pytest.mark.asyncio
     async def test_more_results_than_requests_triggers_fallback(self) -> None:
         """BatchClient returning MORE results than sent -> fallback."""
         mock_http = AsyncMock()
@@ -193,7 +191,6 @@ class TestBatchResultCountMismatch:
         # Fell back to sequential
         assert mock_http.request.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_empty_results_for_nonempty_chunk_triggers_fallback(self) -> None:
         """BatchClient returning empty list for a chunk -> fallback."""
         mock_http = AsyncMock()
@@ -272,7 +269,6 @@ class TestResolveTempGidsInPlaceMutation:
     frozen task model. Let's verify the Pydantic model_copy path is preferred.
     """
 
-    @pytest.mark.asyncio
     async def test_resolve_does_not_mutate_original_action(self) -> None:
         """Resolved action should be a new object, not the original mutated."""
         mock_http = AsyncMock()
@@ -297,7 +293,6 @@ class TestResolveTempGidsInPlaceMutation:
         # They should be different objects
         assert resolved is not action
 
-    @pytest.mark.asyncio
     async def test_resolve_no_mutation_when_no_temp_gids(self) -> None:
         """When no temp GIDs, returns the SAME object (identity preserved)."""
         mock_http = AsyncMock()
@@ -399,7 +394,6 @@ class TestLargeActionLists:
         assert len(tiers[0]) == 250
         assert len(tiers[1]) == 250
 
-    @pytest.mark.asyncio
     async def test_100_actions_batch_execution(self) -> None:
         """100 actions through batch executor: 10 batch calls expected."""
         mock_http = AsyncMock()
@@ -434,7 +428,6 @@ class TestMetricsLogging:
     via structured logging (self._log.info). Let's verify the log fields.
     """
 
-    @pytest.mark.asyncio
     async def test_batch_complete_log_fields(self) -> None:
         """The action_batch_complete log should include all TDD-specified fields."""
         mock_log = MagicMock()
@@ -477,7 +470,6 @@ class TestMetricsLogging:
         assert "chunks_fallback" in kwargs
         assert "sequential_fallback" in kwargs
 
-    @pytest.mark.asyncio
     async def test_no_log_when_log_is_none(self) -> None:
         """When _log is None, no logging calls should happen (no AttributeError)."""
         mock_http = AsyncMock()
@@ -511,7 +503,6 @@ class TestIndexMapCorrectness:
     the final result list must still match the INPUT order, not the tier order.
     """
 
-    @pytest.mark.asyncio
     async def test_results_ordered_by_input_not_tier_order(self) -> None:
         """If input is [MOVE, TAG, ADD_PROJECT], results must be [MOVE_result, TAG_result, ADD_result]."""
         mock_http = AsyncMock()
@@ -583,7 +574,6 @@ class TestFallbackWithResolvedActions:
     (like ADD_LIKE)?
     """
 
-    @pytest.mark.asyncio
     async def test_fallback_with_no_target_action(self) -> None:
         """Fallback with ADD_LIKE (target=None) should work."""
         mock_http = AsyncMock()
@@ -605,7 +595,6 @@ class TestFallbackWithResolvedActions:
         assert len(results) == 2
         assert all(r.success for r in results)
 
-    @pytest.mark.asyncio
     async def test_fallback_with_comment_action(self) -> None:
         """Fallback with ADD_COMMENT should preserve extra_params."""
         mock_http = AsyncMock()
@@ -746,7 +735,6 @@ class TestDoubleFailure:
     gracefully -- the result will show individual failures.
     """
 
-    @pytest.mark.asyncio
     async def test_batch_fails_then_sequential_also_fails(self) -> None:
         """Batch fails, fallback sequential also fails -> failed ActionResults."""
         mock_http = AsyncMock()

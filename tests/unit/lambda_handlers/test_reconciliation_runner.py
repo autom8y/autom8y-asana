@@ -37,7 +37,6 @@ def _make_cache_entry(*, dataframe: object = None) -> MagicMock:
 class TestFeatureFlagGuard:
     """Feature flag must be enabled for reconciliation to run."""
 
-    @pytest.mark.asyncio
     async def test_returns_early_when_flag_not_set(self) -> None:
         """No env var -> returns without calling anything downstream."""
         with patch.dict("os.environ", {}, clear=False):
@@ -55,7 +54,6 @@ class TestFeatureFlagGuard:
                 )
             mock_engine.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_returns_early_when_flag_is_false(self) -> None:
         """Flag set to 'false' -> returns without calling engine."""
         with patch.dict(
@@ -71,7 +69,6 @@ class TestFeatureFlagGuard:
                 )
             mock_engine.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_proceeds_when_flag_is_true(self) -> None:
         """Flag set to 'true' -> engine is called."""
         mock_cache = MagicMock()
@@ -105,7 +102,6 @@ class TestFeatureFlagGuard:
                 )
             mock_engine.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_proceeds_when_flag_is_one(self) -> None:
         """Flag set to '1' -> engine is called."""
         mock_cache = MagicMock()
@@ -148,7 +144,6 @@ class TestFeatureFlagGuard:
 class TestEntityGuard:
     """Both 'unit' and 'offer' must be in completed_entities."""
 
-    @pytest.mark.asyncio
     async def test_skips_when_unit_missing(self) -> None:
         """Only 'offer' completed -> skips with log."""
         with patch.dict(
@@ -164,7 +159,6 @@ class TestEntityGuard:
                 )
             mock_engine.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_skips_when_offer_missing(self) -> None:
         """Only 'unit' completed -> skips with log."""
         with patch.dict(
@@ -180,7 +174,6 @@ class TestEntityGuard:
                 )
             mock_engine.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_skips_when_empty_list(self) -> None:
         """Empty completed_entities -> skips."""
         with patch.dict(
@@ -205,7 +198,6 @@ class TestEntityGuard:
 class TestDataFrameAvailability:
     """Cache must return valid entries with non-None DataFrames."""
 
-    @pytest.mark.asyncio
     async def test_skips_when_unit_entry_is_none(self) -> None:
         """cache.get_async returns None for unit -> skips."""
         mock_cache = MagicMock()
@@ -228,7 +220,6 @@ class TestDataFrameAvailability:
                 )
             mock_engine.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_skips_when_unit_dataframe_is_none(self) -> None:
         """Cache entry exists but dataframe attr is None -> skips."""
         mock_cache = MagicMock()
@@ -253,7 +244,6 @@ class TestDataFrameAvailability:
                 )
             mock_engine.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_skips_when_offer_entry_is_none(self) -> None:
         """cache.get_async returns None for offer -> skips."""
         mock_cache = MagicMock()
@@ -276,7 +266,6 @@ class TestDataFrameAvailability:
                 )
             mock_engine.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_skips_when_offer_dataframe_is_none(self) -> None:
         """Cache entry exists but offer dataframe is None -> skips."""
         mock_cache = MagicMock()
@@ -310,7 +299,6 @@ class TestDataFrameAvailability:
 class TestHappyPath:
     """Full pipeline: engine -> executor -> report."""
 
-    @pytest.mark.asyncio
     async def test_full_pipeline_executes(self) -> None:
         """Engine called, executor called, report built and emitted."""
         mock_unit_df = MagicMock(name="unit_df")
@@ -379,7 +367,6 @@ class TestHappyPath:
                 mock_build.assert_called_once_with(mock_processor_result)
                 mock_emit.assert_called_once_with(mock_report)
 
-    @pytest.mark.asyncio
     async def test_accepts_extra_entities_beyond_required(self) -> None:
         """Having extra entities like 'contact' beyond unit/offer still runs."""
         mock_cache = MagicMock()
@@ -422,7 +409,6 @@ class TestHappyPath:
 class TestErrorIsolation:
     """Exceptions must be caught and logged, never propagated."""
 
-    @pytest.mark.asyncio
     async def test_engine_exception_is_caught(self) -> None:
         """Exception in engine -> caught, logged, no crash."""
         mock_cache = MagicMock()
@@ -445,7 +431,6 @@ class TestErrorIsolation:
                     invocation_id="test-err-1",
                 )
 
-    @pytest.mark.asyncio
     async def test_executor_exception_is_caught(self) -> None:
         """Exception in executor -> caught, logged, no crash."""
         mock_cache = MagicMock()
@@ -482,7 +467,6 @@ class TestErrorIsolation:
                     invocation_id="test-err-2",
                 )
 
-    @pytest.mark.asyncio
     async def test_report_exception_is_caught(self) -> None:
         """Exception in report -> caught, logged, no crash."""
         mock_cache = MagicMock()
@@ -522,7 +506,6 @@ class TestErrorIsolation:
                     invocation_id="test-err-3",
                 )
 
-    @pytest.mark.asyncio
     async def test_cache_exception_is_caught(self) -> None:
         """Exception in cache.get_async -> caught, logged, no crash."""
         mock_cache = MagicMock()

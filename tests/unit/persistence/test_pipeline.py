@@ -196,7 +196,6 @@ class TestPreview:
 class TestExecute:
     """Tests for execute() method."""
 
-    @pytest.mark.asyncio
     async def test_execute_empty_returns_empty_result(self) -> None:
         """execute() with empty list returns empty SaveResult."""
         pipeline, *_ = create_pipeline()
@@ -208,7 +207,6 @@ class TestExecute:
         assert result.failed == []
         assert result.success
 
-    @pytest.mark.asyncio
     async def test_execute_single_entity_success(self) -> None:
         """execute() handles single successful entity."""
         success = create_success_result(gid="123")
@@ -225,7 +223,6 @@ class TestExecute:
         assert len(result.failed) == 0
         assert result.success
 
-    @pytest.mark.asyncio
     async def test_execute_single_entity_failure(self) -> None:
         """execute() handles single failed entity."""
         failure = create_failure_result("Bad request", 400)
@@ -242,7 +239,6 @@ class TestExecute:
         assert result.failed[0].entity is task
         assert not result.success
 
-    @pytest.mark.asyncio
     async def test_execute_updates_gid_after_create(self) -> None:
         """execute() updates entity GID after successful create."""
         success = create_success_result(gid="real_gid_123")
@@ -256,7 +252,6 @@ class TestExecute:
         # Entity GID should be updated
         assert task.gid == "real_gid_123"
 
-    @pytest.mark.asyncio
     async def test_execute_cascading_dependency_failure(self) -> None:
         """execute() marks dependents as failed when parent fails."""
         # Parent fails, child should cascade fail
@@ -389,7 +384,6 @@ class TestBuildPayload:
 class TestGidResolution:
     """Tests for GID resolution during execution."""
 
-    @pytest.mark.asyncio
     async def test_execute_resolves_placeholder_gids(self) -> None:
         """execute() updates GIDs for newly created entities."""
         # Single entity created
@@ -413,7 +407,6 @@ class TestGidResolution:
         # GID should be updated to real value from API response
         assert task.gid == "real_gid_123"
 
-    @pytest.mark.asyncio
     async def test_execute_parent_child_with_dependency(self) -> None:
         """execute() handles parent-child with real GIDs."""
         # Parent is updated, child is updated
@@ -453,7 +446,6 @@ class TestGidResolution:
 class TestEventEmission:
     """Tests for event hook emission during execution."""
 
-    @pytest.mark.asyncio
     async def test_execute_emits_pre_save_hooks(self) -> None:
         """execute() emits pre_save for each entity."""
         success = create_success_result()
@@ -475,7 +467,6 @@ class TestEventEmission:
         assert pre_save_calls[0][0] is task
         assert pre_save_calls[0][1] == OperationType.UPDATE
 
-    @pytest.mark.asyncio
     async def test_execute_emits_post_save_on_success(self) -> None:
         """execute() emits post_save for successful entities."""
         success = create_success_result()
@@ -496,7 +487,6 @@ class TestEventEmission:
         assert len(post_save_calls) == 1
         assert post_save_calls[0][0] is task
 
-    @pytest.mark.asyncio
     async def test_execute_emits_error_on_failure(self) -> None:
         """execute() emits error for failed entities."""
         failure = create_failure_result()
@@ -541,7 +531,6 @@ class TestEdgeCases:
         operations = pipeline.preview([task])
         assert len(operations) == 1
 
-    @pytest.mark.asyncio
     async def test_execute_with_multiple_levels(self) -> None:
         """execute() handles multiple dependency levels correctly."""
         results = [
@@ -570,7 +559,6 @@ class TestEdgeCases:
         assert result.success
         assert len(result.succeeded) == 2
 
-    @pytest.mark.asyncio
     async def test_execute_partial_success(self) -> None:
         """execute() handles partial success correctly."""
         results = [
@@ -709,7 +697,6 @@ class TestExecuteWithActions:
         executor.execute_async = AsyncMock(return_value=[])
         return executor
 
-    @pytest.mark.asyncio
     async def test_execute_with_actions_empty(self, mock_action_executor: AsyncMock) -> None:
         """execute_with_actions handles empty entities and actions."""
         pipeline, *_ = create_pipeline()
@@ -723,7 +710,6 @@ class TestExecuteWithActions:
         assert crud_result.success
         assert action_results == []
 
-    @pytest.mark.asyncio
     async def test_execute_with_actions_crud_only(self, mock_action_executor: AsyncMock) -> None:
         """execute_with_actions handles CRUD without actions."""
         success = create_success_result(gid="123")
@@ -744,7 +730,6 @@ class TestExecuteWithActions:
         assert action_results == []
         mock_action_executor.execute_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_execute_with_actions_actions_only(self, mock_action_executor: AsyncMock) -> None:
         """execute_with_actions handles actions without CRUD."""
         pipeline, *_ = create_pipeline()
@@ -771,7 +756,6 @@ class TestExecuteWithActions:
         assert action_results[0].success
         mock_action_executor.execute_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_execute_with_actions_both(self, mock_action_executor: AsyncMock) -> None:
         """execute_with_actions handles both CRUD and actions."""
         success = create_success_result(gid="123")
@@ -802,7 +786,6 @@ class TestExecuteWithActions:
         assert len(action_results) == 1
         assert action_results[0].success
 
-    @pytest.mark.asyncio
     async def test_execute_with_actions_validates_unsupported(
         self, mock_action_executor: AsyncMock
     ) -> None:
@@ -820,7 +803,6 @@ class TestExecuteWithActions:
                 action_executor=mock_action_executor,
             )
 
-    @pytest.mark.asyncio
     async def test_execute_with_actions_passes_gid_map(
         self, mock_action_executor: AsyncMock
     ) -> None:

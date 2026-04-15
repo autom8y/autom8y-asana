@@ -63,7 +63,6 @@ class TestDataframeCacheDecorator:
         reset_settings()
         reset_dataframe_cache()
 
-    @pytest.mark.asyncio
     async def test_cache_hit_injects_dataframe(self) -> None:
         """On cache hit, injects _cached_dataframe and calls resolve."""
         mock_cache = make_mock_cache()
@@ -87,7 +86,6 @@ class TestDataframeCacheDecorator:
         mock_cache.get_async.assert_called_once_with("proj-1", "unit")
         mock_cache.acquire_build_lock_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_cache_miss_builds_and_caches(self) -> None:
         """On cache miss, acquires lock, builds, and caches result."""
         mock_cache = make_mock_cache()
@@ -114,7 +112,6 @@ class TestDataframeCacheDecorator:
         mock_cache.put_async.assert_called_once()
         mock_cache.release_build_lock_async.assert_called_once_with("proj-1", "unit", success=True)
 
-    @pytest.mark.asyncio
     async def test_build_in_progress_waits(self) -> None:
         """When build in progress, waits for completion."""
         mock_cache = make_mock_cache()
@@ -135,7 +132,6 @@ class TestDataframeCacheDecorator:
         assert result[0]["gid"] == "1"
         mock_cache.wait_for_build_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_wait_timeout_returns_503(self) -> None:
         """When wait times out, returns 503."""
         mock_cache = make_mock_cache()
@@ -158,7 +154,6 @@ class TestDataframeCacheDecorator:
         assert exc_info.value.status_code == 503
         assert exc_info.value.code == "CACHE_BUILD_IN_PROGRESS"
 
-    @pytest.mark.asyncio
     async def test_build_failure_returns_503(self) -> None:
         """When build fails, returns 503."""
         mock_cache = make_mock_cache()
@@ -185,7 +180,6 @@ class TestDataframeCacheDecorator:
         assert exc_info.value.code == "DATAFRAME_BUILD_FAILED"
         mock_cache.release_build_lock_async.assert_called_once_with("proj-1", "unit", success=False)
 
-    @pytest.mark.asyncio
     async def test_build_exception_returns_503(self) -> None:
         """When build raises exception, returns 503."""
         mock_cache = make_mock_cache()
@@ -211,7 +205,6 @@ class TestDataframeCacheDecorator:
         assert exc_info.value.status_code == 503
         assert "DATAFRAME_BUILD_ERROR" in exc_info.value.code
 
-    @pytest.mark.asyncio
     async def test_bypass_env_var(self, monkeypatch) -> None:
         """Bypass caching when env var is set."""
         from autom8_asana.settings import reset_settings
@@ -235,7 +228,6 @@ class TestDataframeCacheDecorator:
         assert result[0]["gid"] == "bypassed"
         mock_cache.get_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_no_cache_configured_falls_back(self) -> None:
         """When cache provider returns None, falls back to original."""
 
@@ -252,7 +244,6 @@ class TestDataframeCacheDecorator:
 
         assert result[0]["gid"] == "no-cache"
 
-    @pytest.mark.asyncio
     async def test_custom_build_method(self) -> None:
         """Uses custom build method name."""
         mock_cache = make_mock_cache()
@@ -277,7 +268,6 @@ class TestDataframeCacheDecorator:
 
         mock_cache.put_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_entity_specific_build_method_fallback(self) -> None:
         """Falls back to _build_{entity_type}_dataframe."""
         mock_cache = make_mock_cache()
@@ -301,7 +291,6 @@ class TestDataframeCacheDecorator:
 
         mock_cache.put_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_build_returns_single_value(self) -> None:
         """Handles build method returning just DataFrame."""
         mock_cache = make_mock_cache()

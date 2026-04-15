@@ -27,7 +27,6 @@ def _make_envelope(
 class TestInMemoryTransport:
     """Test InMemoryTransport stores and retrieves envelopes."""
 
-    @pytest.mark.asyncio
     async def test_publish_stores_envelope(self) -> None:
         transport = InMemoryTransport()
         envelope = _make_envelope()
@@ -37,7 +36,6 @@ class TestInMemoryTransport:
         assert transport.count == 1
         assert transport.published[0] == (envelope, "test://queue")
 
-    @pytest.mark.asyncio
     async def test_publish_multiple(self) -> None:
         transport = InMemoryTransport()
         e1 = _make_envelope(entity_gid="1")
@@ -48,7 +46,6 @@ class TestInMemoryTransport:
 
         assert transport.count == 2
 
-    @pytest.mark.asyncio
     async def test_clear(self) -> None:
         transport = InMemoryTransport()
         await transport.publish(_make_envelope(), "dest")
@@ -57,7 +54,6 @@ class TestInMemoryTransport:
 
         assert transport.count == 0
 
-    @pytest.mark.asyncio
     async def test_get_envelopes_all(self) -> None:
         transport = InMemoryTransport()
         e1 = _make_envelope(EventType.CREATED)
@@ -69,7 +65,6 @@ class TestInMemoryTransport:
         result = transport.get_envelopes()
         assert len(result) == 2
 
-    @pytest.mark.asyncio
     async def test_get_envelopes_filtered(self) -> None:
         transport = InMemoryTransport()
         e1 = _make_envelope(EventType.CREATED)
@@ -84,7 +79,6 @@ class TestInMemoryTransport:
         assert len(created) == 2
         assert all(e.event_type == EventType.CREATED for e in created)
 
-    @pytest.mark.asyncio
     async def test_get_envelopes_filtered_empty(self) -> None:
         transport = InMemoryTransport()
         await transport.publish(_make_envelope(EventType.CREATED), "dest")

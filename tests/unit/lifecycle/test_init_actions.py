@@ -31,7 +31,6 @@ from autom8_asana.lifecycle.init_actions import (
 class TestCommentHandler:
     """Tests for CommentHandler (create_comment action type)."""
 
-    @pytest.mark.asyncio
     async def test_comment_contains_source_link(
         self,
         lifecycle_config,
@@ -59,7 +58,6 @@ class TestCommentHandler:
         assert "https://app.asana.com/0/" in comment_text
         assert mock_process.gid in comment_text
 
-    @pytest.mark.asyncio
     async def test_comment_contains_business_name(
         self,
         lifecycle_config,
@@ -84,7 +82,6 @@ class TestCommentHandler:
         comment_text = call_kwargs.kwargs["text"]
         assert "Test Business" in comment_text
 
-    @pytest.mark.asyncio
     async def test_comment_contains_today_date(
         self,
         lifecycle_config,
@@ -109,7 +106,6 @@ class TestCommentHandler:
         comment_text = call_kwargs.kwargs["text"]
         assert date.today().isoformat() in comment_text
 
-    @pytest.mark.asyncio
     async def test_comment_contains_source_name(
         self,
         lifecycle_config,
@@ -134,7 +130,6 @@ class TestCommentHandler:
         comment_text = call_kwargs.kwargs["text"]
         assert "Test Process" in comment_text
 
-    @pytest.mark.asyncio
     async def test_comment_contains_pipeline_conversion_header(
         self,
         lifecycle_config,
@@ -159,7 +154,6 @@ class TestCommentHandler:
         comment_text = call_kwargs.kwargs["text"]
         assert comment_text.startswith("Pipeline Conversion")
 
-    @pytest.mark.asyncio
     async def test_comment_soft_fail_on_error(
         self,
         lifecycle_config,
@@ -185,7 +179,6 @@ class TestCommentHandler:
         assert result.success is True
         assert result.entity_gid == ""
 
-    @pytest.mark.asyncio
     async def test_comment_called_with_correct_task_gid(
         self,
         lifecycle_config,
@@ -211,7 +204,6 @@ class TestCommentHandler:
         call_kwargs = mock_client.stories.create_comment_async.call_args
         assert call_kwargs.kwargs["task"] == "target_task_999"
 
-    @pytest.mark.asyncio
     async def test_comment_source_with_no_memberships(
         self,
         lifecycle_config,
@@ -246,7 +238,6 @@ class TestCommentHandler:
 class TestEntityCreationHandler:
     """Tests for EntityCreationHandler (entity_creation action type)."""
 
-    @pytest.mark.asyncio
     async def test_entity_creation_delegates_to_creation_service(
         self,
         lifecycle_config,
@@ -280,7 +271,6 @@ class TestEntityCreationHandler:
             assert result.entity_gid == "new_entity_123"
             mock_service.create_entity_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_entity_creation_passes_correct_params(
         self,
         lifecycle_config,
@@ -317,7 +307,6 @@ class TestEntityCreationHandler:
             assert call_kwargs["ctx"] is mock_resolution_context
             assert call_kwargs["source_process"] is mock_process
 
-    @pytest.mark.asyncio
     async def test_entity_creation_default_holder_type(
         self,
         lifecycle_config,
@@ -350,7 +339,6 @@ class TestEntityCreationHandler:
             call_kwargs = mock_service.create_entity_async.call_args.kwargs
             assert call_kwargs["holder_type"] == "asset_edit_holder"
 
-    @pytest.mark.asyncio
     async def test_entity_creation_returns_service_result(
         self,
         lifecycle_config,
@@ -387,7 +375,6 @@ class TestEntityCreationHandler:
 
             assert result is service_result
 
-    @pytest.mark.asyncio
     async def test_entity_creation_handles_exception(
         self,
         lifecycle_config,
@@ -419,7 +406,6 @@ class TestEntityCreationHandler:
             assert result.success is False
             assert "Service unavailable" in result.error
 
-    @pytest.mark.asyncio
     async def test_entity_creation_no_stage_config(
         self,
         mock_client,
@@ -457,7 +443,6 @@ class TestEntityCreationHandler:
 class TestProductsCheckHandler:
     """Tests for ProductsCheckHandler (products_check action type)."""
 
-    @pytest.mark.asyncio
     async def test_video_match_creates_entity(
         self,
         lifecycle_config,
@@ -492,7 +477,6 @@ class TestProductsCheckHandler:
             assert result.entity_gid == "videographer_123"
             mock_service.create_entity_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_video_match_uses_videography_holder(
         self,
         lifecycle_config,
@@ -529,7 +513,6 @@ class TestProductsCheckHandler:
             # Falls back to VIDEOGRAPHY_HOLDER_PROJECT constant
             assert call_kwargs["project_gid"] == "1207984018149338"
 
-    @pytest.mark.asyncio
     async def test_no_match_returns_success(
         self,
         lifecycle_config,
@@ -554,7 +537,6 @@ class TestProductsCheckHandler:
         assert result.success is True
         assert result.entity_gid == ""
 
-    @pytest.mark.asyncio
     async def test_no_products_returns_success(
         self,
         lifecycle_config,
@@ -579,7 +561,6 @@ class TestProductsCheckHandler:
         assert result.success is True
         assert result.entity_gid == ""
 
-    @pytest.mark.asyncio
     async def test_string_products_match(
         self,
         lifecycle_config,
@@ -613,7 +594,6 @@ class TestProductsCheckHandler:
             assert result.success is True
             mock_service.create_entity_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_products_check_exception_handling(
         self,
         lifecycle_config,
@@ -647,7 +627,6 @@ class TestProductsCheckHandler:
             assert result.success is False
             assert "Network failure" in result.error
 
-    @pytest.mark.asyncio
     async def test_products_check_no_stage_config(
         self,
         mock_client,
@@ -683,7 +662,6 @@ class TestProductsCheckHandler:
 class TestPlayCreationHandler:
     """Tests for PlayCreationHandler (play_creation action type)."""
 
-    @pytest.mark.asyncio
     async def test_play_creation_success(
         self,
         lifecycle_config,
@@ -734,7 +712,6 @@ class TestPlayCreationHandler:
                 "created123", ["play123"]
             )
 
-    @pytest.mark.asyncio
     async def test_play_creation_already_linked(
         self,
         lifecycle_config,
@@ -770,7 +747,6 @@ class TestPlayCreationHandler:
         # Only one get_async call should be made (no N+1 per-dependency fetches)
         mock_client.tasks.get_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_play_creation_no_template(
         self,
         lifecycle_config,
@@ -806,7 +782,6 @@ class TestPlayCreationHandler:
             assert result.success is False
             assert "No play template" in result.error
 
-    @pytest.mark.asyncio
     async def test_play_creation_exception(
         self,
         lifecycle_config,
@@ -832,7 +807,6 @@ class TestPlayCreationHandler:
         assert result.success is False
         assert "Network error" in result.error
 
-    @pytest.mark.asyncio
     async def test_play_reopen_within_threshold(
         self,
         lifecycle_config,
@@ -881,7 +855,6 @@ class TestPlayCreationHandler:
             "created123", ["reopened_play_456"]
         )
 
-    @pytest.mark.asyncio
     async def test_play_create_new_when_outside_threshold(
         self,
         lifecycle_config,
@@ -935,7 +908,6 @@ class TestPlayCreationHandler:
             assert result.was_reopened is not True
             mock_client.tasks.duplicate_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_play_reopen_failure_falls_through_to_create(
         self,
         lifecycle_config,
@@ -986,7 +958,6 @@ class TestPlayCreationHandler:
             assert result.success is True
             assert result.entity_gid == "fallback_play"
 
-    @pytest.mark.asyncio
     async def test_play_no_reopen_threshold_creates_directly(
         self,
         lifecycle_config,
@@ -1047,7 +1018,6 @@ class TestPlayCreationHandler:
 class TestCampaignHandler:
     """Tests for CampaignHandler (activate/deactivate campaign types)."""
 
-    @pytest.mark.asyncio
     async def test_campaign_activate(
         self,
         lifecycle_config,
@@ -1066,7 +1036,6 @@ class TestCampaignHandler:
 
         assert result.success is True
 
-    @pytest.mark.asyncio
     async def test_campaign_deactivate(
         self,
         lifecycle_config,
@@ -1085,7 +1054,6 @@ class TestCampaignHandler:
 
         assert result.success is True
 
-    @pytest.mark.asyncio
     async def test_campaign_handler_exception(
         self,
         lifecycle_config,

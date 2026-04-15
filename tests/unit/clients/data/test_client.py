@@ -108,7 +108,6 @@ class TestDataServiceClientInit:
 class TestDataServiceClientContextManager:
     """Tests for async context manager protocol."""
 
-    @pytest.mark.asyncio
     async def test_aenter_returns_self(self) -> None:
         """__aenter__ returns the client instance."""
         client = DataServiceClient()
@@ -116,7 +115,6 @@ class TestDataServiceClientContextManager:
         async with client as entered:
             assert entered is client
 
-    @pytest.mark.asyncio
     async def test_aexit_closes_client(self) -> None:
         """__aexit__ calls close() to release resources."""
         client = DataServiceClient()
@@ -131,7 +129,6 @@ class TestDataServiceClientContextManager:
         mock_close.assert_called_once()
         assert client._client is None
 
-    @pytest.mark.asyncio
     async def test_context_manager_closes_on_exception(self) -> None:
         """Context manager closes client even on exception."""
         client = DataServiceClient()
@@ -143,7 +140,6 @@ class TestDataServiceClientContextManager:
 
             mock_close.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_context_manager_with_no_client_created(self) -> None:
         """Context manager handles case where client was never created."""
         client = DataServiceClient()
@@ -159,7 +155,6 @@ class TestDataServiceClientContextManager:
 class TestDataServiceClientClose:
     """Tests for close() method."""
 
-    @pytest.mark.asyncio
     async def test_close_closes_http_client(self) -> None:
         """close() calls close() on Autom8yHttpClient."""
         client = DataServiceClient()
@@ -172,7 +167,6 @@ class TestDataServiceClientClose:
         mock_http.close.assert_called_once()
         assert client._client is None
 
-    @pytest.mark.asyncio
     async def test_close_is_idempotent(self) -> None:
         """close() can be called multiple times safely."""
         client = DataServiceClient()
@@ -185,7 +179,6 @@ class TestDataServiceClientClose:
         await client.close()
         assert client._client is None
 
-    @pytest.mark.asyncio
     async def test_close_with_logger(self) -> None:
         """close() logs when logger is provided."""
         mock_logger = MagicMock()
@@ -202,7 +195,6 @@ class TestDataServiceClientClose:
 class TestDataServiceClientGetClient:
     """Tests for _get_client() method."""
 
-    @pytest.mark.asyncio
     async def test_creates_httpx_client(self) -> None:
         """_get_client creates Autom8yHttpClient with correct config."""
         config = DataServiceConfig(
@@ -225,7 +217,6 @@ class TestDataServiceClientGetClient:
             assert isinstance(http_config, HttpClientConfig)
             assert http_config.base_url == "https://test.example.com"
 
-    @pytest.mark.asyncio
     async def test_configures_timeouts_from_config(self) -> None:
         """_get_client configures timeouts from config."""
         config = DataServiceConfig(
@@ -255,7 +246,6 @@ class TestDataServiceClientGetClient:
             assert http_config.write_timeout == 45.0
             assert http_config.pool_timeout == 8.0
 
-    @pytest.mark.asyncio
     async def test_configures_connection_pool_from_config(self) -> None:
         """_get_client configures connection pool from config."""
         config = DataServiceConfig(
@@ -283,7 +273,6 @@ class TestDataServiceClientGetClient:
             assert http_config.max_keepalive_connections == 10
             assert http_config.keepalive_expiry == 60.0
 
-    @pytest.mark.asyncio
     async def test_includes_auth_header_when_token_available(self) -> None:
         """_get_client includes Authorization header when token is available."""
         mock_auth = MagicMock()
@@ -302,7 +291,6 @@ class TestDataServiceClientGetClient:
 
             assert mock_instance._client.headers["Authorization"] == "Bearer test-jwt-token"
 
-    @pytest.mark.asyncio
     async def test_no_auth_header_when_no_token(self) -> None:
         """_get_client omits Authorization header when no token."""
         config = DataServiceConfig(
@@ -323,7 +311,6 @@ class TestDataServiceClientGetClient:
 
             assert "Authorization" not in mock_instance._client.headers
 
-    @pytest.mark.asyncio
     async def test_includes_content_type_headers(self) -> None:
         """_get_client includes Accept and Content-Type headers."""
         client = DataServiceClient()
@@ -340,7 +327,6 @@ class TestDataServiceClientGetClient:
             assert mock_instance._client.headers["Accept"] == "application/json"
             assert mock_instance._client.headers["Content-Type"] == "application/json"
 
-    @pytest.mark.asyncio
     async def test_returns_same_client_on_subsequent_calls(self) -> None:
         """_get_client returns cached client on subsequent calls."""
         client = DataServiceClient()
@@ -359,7 +345,6 @@ class TestDataServiceClientGetClient:
             assert mock_class.call_count == 1
             assert result1 is result2
 
-    @pytest.mark.asyncio
     async def test_sets_is_initialized_after_creation(self) -> None:
         """_get_client sets is_initialized to True."""
         client = DataServiceClient()
@@ -377,7 +362,6 @@ class TestDataServiceClientGetClient:
 
         assert client.is_initialized is True
 
-    @pytest.mark.asyncio
     async def test_logs_when_logger_provided(self) -> None:
         """_get_client logs when logger is provided."""
         mock_logger = MagicMock()
@@ -500,7 +484,6 @@ class TestDataServiceClientGetAuthToken:
 class TestDataServiceClientConcurrency:
     """Tests for thread-safety and concurrent access."""
 
-    @pytest.mark.asyncio
     async def test_concurrent_get_client_creates_only_one(self) -> None:
         """Multiple concurrent _get_client calls create only one client."""
         client = DataServiceClient()

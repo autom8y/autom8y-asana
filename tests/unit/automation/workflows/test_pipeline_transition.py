@@ -161,14 +161,12 @@ async def _enumerate_and_execute(
 # --- Tests ---
 
 
-@pytest.mark.asyncio
 async def test_workflow_id(lifecycle_config, mock_client):
     """Test workflow_id property."""
     workflow = PipelineTransitionWorkflow(mock_client, lifecycle_config)
     assert workflow.workflow_id == "pipeline-transition"
 
 
-@pytest.mark.asyncio
 async def test_validate_async_success(lifecycle_config, mock_client):
     """Test validation passes with valid config."""
     workflow = PipelineTransitionWorkflow(mock_client, lifecycle_config)
@@ -178,7 +176,6 @@ async def test_validate_async_success(lifecycle_config, mock_client):
     assert errors == []
 
 
-@pytest.mark.asyncio
 async def test_validate_async_no_config(mock_client):
     """Test validation fails with no config."""
     workflow = PipelineTransitionWorkflow(mock_client, None)
@@ -189,7 +186,6 @@ async def test_validate_async_no_config(mock_client):
     assert "LifecycleConfig not provided" in errors[0]
 
 
-@pytest.mark.asyncio
 async def test_execute_async_no_processes(lifecycle_config, mock_client):
     """Test execution with no processes to transition."""
     workflow = PipelineTransitionWorkflow(mock_client, lifecycle_config)
@@ -212,7 +208,6 @@ async def test_execute_async_no_processes(lifecycle_config, mock_client):
     assert result.skipped == 0
 
 
-@pytest.mark.asyncio
 async def test_execute_async_converted_processes(lifecycle_config, mock_client):
     """Test execution with processes in CONVERTED section."""
     workflow = PipelineTransitionWorkflow(mock_client, lifecycle_config)
@@ -261,7 +256,6 @@ async def test_execute_async_converted_processes(lifecycle_config, mock_client):
         assert mock_engine.handle_transition_async.call_count == 2
 
 
-@pytest.mark.asyncio
 async def test_execute_async_did_not_convert_processes(lifecycle_config, mock_client):
     """Test execution with processes in DID NOT CONVERT section."""
     workflow = PipelineTransitionWorkflow(mock_client, lifecycle_config)
@@ -303,7 +297,6 @@ async def test_execute_async_did_not_convert_processes(lifecycle_config, mock_cl
         assert result.failed == 0
 
 
-@pytest.mark.asyncio
 async def test_execute_async_mixed_sections(lifecycle_config, mock_client):
     """Test execution with processes in mixed sections.
 
@@ -354,7 +347,6 @@ async def test_execute_async_mixed_sections(lifecycle_config, mock_client):
         assert result.succeeded == 2
 
 
-@pytest.mark.asyncio
 async def test_execute_async_transition_failure(lifecycle_config, mock_client):
     """Test execution when transition fails."""
     workflow = PipelineTransitionWorkflow(mock_client, lifecycle_config)
@@ -399,7 +391,6 @@ async def test_execute_async_transition_failure(lifecycle_config, mock_client):
         assert "Template not found" in result.errors[0].message
 
 
-@pytest.mark.asyncio
 async def test_execute_async_transition_exception(lifecycle_config, mock_client):
     """Test execution when transition raises exception."""
     workflow = PipelineTransitionWorkflow(mock_client, lifecycle_config)
@@ -432,7 +423,6 @@ async def test_execute_async_transition_exception(lifecycle_config, mock_client)
         assert "Network error" in result.errors[0].message
 
 
-@pytest.mark.asyncio
 async def test_execute_async_multiple_projects(lifecycle_config, mock_client):
     """Test execution with multiple projects."""
     workflow = PipelineTransitionWorkflow(mock_client, lifecycle_config)
@@ -501,7 +491,6 @@ async def test_execute_async_multiple_projects(lifecycle_config, mock_client):
         assert result.metadata["projects_scanned"] == 2
 
 
-@pytest.mark.asyncio
 async def test_execute_async_enumerate_error(lifecycle_config, mock_client):
     """Test execution when enumeration fails for a project.
 
@@ -580,7 +569,6 @@ async def test_execute_async_enumerate_error(lifecycle_config, mock_client):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_enumerate_section_targeted_happy_path(lifecycle_config, mock_client):
     """Primary path: section resolution succeeds, tasks fetched per section.
 
@@ -630,7 +618,6 @@ async def test_enumerate_section_targeted_happy_path(lifecycle_config, mock_clie
         assert outcomes == {"converted", "did_not_convert"}
 
 
-@pytest.mark.asyncio
 async def test_enumerate_fallback_on_section_resolution_failure(lifecycle_config, mock_client):
     """Fallback: section resolution raises, falls back to project-level fetch.
 
@@ -662,7 +649,6 @@ async def test_enumerate_fallback_on_section_resolution_failure(lifecycle_config
     assert result.total == 1
 
 
-@pytest.mark.asyncio
 async def test_enumerate_fallback_on_empty_resolution(lifecycle_config, mock_client):
     """Fallback: section resolution returns empty dict (no matching sections).
 
@@ -696,7 +682,6 @@ async def test_enumerate_fallback_on_empty_resolution(lifecycle_config, mock_cli
     assert result.total == 1
 
 
-@pytest.mark.asyncio
 async def test_enumerate_section_targeted_one_section_missing(lifecycle_config, mock_client):
     """Primary path with partial resolution: only CONVERTED section exists.
 
@@ -750,7 +735,6 @@ async def test_enumerate_section_targeted_one_section_missing(lifecycle_config, 
         assert call_args.args[1] == "converted"
 
 
-@pytest.mark.asyncio
 async def test_enumerate_per_project_fallback_isolation(lifecycle_config, mock_client):
     """Per-project fallback isolation: project 1 resolves, project 2 falls back.
 

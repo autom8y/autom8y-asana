@@ -134,7 +134,6 @@ def _make_manifest(
     )
 
 
-@pytest.mark.asyncio
 class TestDeltaCheckpointProducesIdenticalDataframe:
     """R5 comparison test: delta extraction must equal full extraction."""
 
@@ -226,7 +225,6 @@ class TestDeltaCheckpointProducesIdenticalDataframe:
         assert len(delta_df) == 200
 
 
-@pytest.mark.asyncio
 class TestDeltaCheckpointState:
     """Tests for delta checkpoint state management."""
 
@@ -295,7 +293,6 @@ class TestDeltaCheckpointState:
         assert builder._checkpoint_task_count == 400
 
 
-@pytest.mark.asyncio
 class TestDeltaBuildSectionDataframe:
     """Tests for _build_section_dataframe delta branches."""
 
@@ -349,7 +346,6 @@ class TestDeltaBuildSectionDataframe:
         assert len(df) == 150
 
 
-@pytest.mark.asyncio
 class TestDeltaCheckpointEndToEnd:
     """End-to-end tests through _fetch_and_persist_section with checkpoints."""
 
@@ -397,7 +393,6 @@ class TestDeltaCheckpointEndToEnd:
         assert len(written_df) == 50
 
 
-@pytest.mark.asyncio
 class TestPopulateStoreDoesNotUseCheckpointState:
     """Verify populate_store_with_tasks is independent of delta state."""
 

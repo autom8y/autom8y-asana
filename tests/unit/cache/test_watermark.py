@@ -427,7 +427,6 @@ class TestPersistenceIntegration:
 
         assert repo.get_watermark("project-123") == wm
 
-    @pytest.mark.asyncio
     async def test_set_watermark_triggers_async_persist(self) -> None:
         """set_watermark() triggers async persist when persistence configured."""
         from unittest.mock import AsyncMock, MagicMock, patch
@@ -446,7 +445,6 @@ class TestPersistenceIntegration:
             # Verify schedule_persist was called
             mock_schedule.assert_called_once_with("project-123", wm, mock_persistence)
 
-    @pytest.mark.asyncio
     async def test_persist_watermark_calls_persistence(self) -> None:
         """_persist_watermark() calls persistence.save_watermark()."""
         from unittest.mock import AsyncMock, MagicMock
@@ -461,7 +459,6 @@ class TestPersistenceIntegration:
 
         mock_persistence.save_watermark.assert_awaited_once_with("project-123", wm)
 
-    @pytest.mark.asyncio
     async def test_persist_watermark_handles_failure_gracefully(self) -> None:
         """_persist_watermark() catches and logs exceptions."""
         from unittest.mock import AsyncMock, MagicMock
@@ -475,7 +472,6 @@ class TestPersistenceIntegration:
         # Should not raise
         await repo._persist_watermark("project-123", wm, mock_persistence)
 
-    @pytest.mark.asyncio
     async def test_load_from_persistence_hydrates_watermarks(self) -> None:
         """load_from_persistence() loads watermarks into repository."""
         from unittest.mock import AsyncMock, MagicMock
@@ -495,7 +491,6 @@ class TestPersistenceIntegration:
         assert repo.get_watermark("proj-1") == wm1
         assert repo.get_watermark("proj-2") == wm2
 
-    @pytest.mark.asyncio
     async def test_load_from_persistence_uses_configured_persistence(self) -> None:
         """load_from_persistence() uses configured persistence if none passed."""
         from unittest.mock import AsyncMock, MagicMock
@@ -509,7 +504,6 @@ class TestPersistenceIntegration:
 
         mock_persistence.load_all_watermarks.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_load_from_persistence_returns_zero_without_persistence(self) -> None:
         """load_from_persistence() returns 0 when no persistence configured."""
         repo = get_watermark_repo()
@@ -518,7 +512,6 @@ class TestPersistenceIntegration:
 
         assert loaded == 0
 
-    @pytest.mark.asyncio
     async def test_load_from_persistence_returns_zero_on_empty(self) -> None:
         """load_from_persistence() returns 0 when S3 has no watermarks."""
         from unittest.mock import AsyncMock, MagicMock
@@ -531,7 +524,6 @@ class TestPersistenceIntegration:
 
         assert loaded == 0
 
-    @pytest.mark.asyncio
     async def test_load_from_persistence_handles_error_gracefully(self) -> None:
         """load_from_persistence() catches exceptions and returns 0."""
         from unittest.mock import AsyncMock, MagicMock
@@ -544,7 +536,6 @@ class TestPersistenceIntegration:
 
         assert loaded == 0
 
-    @pytest.mark.asyncio
     async def test_load_from_persistence_merges_with_existing(self) -> None:
         """load_from_persistence() merges with existing in-memory watermarks."""
         from unittest.mock import AsyncMock, MagicMock
@@ -591,7 +582,6 @@ class TestDataFrameStorageIntegration:
         repo.set_persistence(mock_storage)
         assert repo._persistence is mock_storage
 
-    @pytest.mark.asyncio
     async def test_persist_watermark_via_storage_protocol(self) -> None:
         """_persist_watermark() calls storage.save_watermark()."""
         from unittest.mock import AsyncMock, MagicMock
@@ -605,7 +595,6 @@ class TestDataFrameStorageIntegration:
 
         mock_storage.save_watermark.assert_awaited_once_with("proj_123", wm)
 
-    @pytest.mark.asyncio
     async def test_load_from_persistence_via_storage_protocol(self) -> None:
         """load_from_persistence() works with DataFrameStorage."""
         from unittest.mock import AsyncMock, MagicMock
@@ -622,7 +611,6 @@ class TestDataFrameStorageIntegration:
         assert repo.get_watermark("proj_a") == wm1
         assert repo.get_watermark("proj_b") == wm2
 
-    @pytest.mark.asyncio
     async def test_set_watermark_triggers_persist_via_storage(self) -> None:
         """set_watermark() triggers persist through DataFrameStorage."""
         from unittest.mock import MagicMock, patch

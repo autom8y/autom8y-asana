@@ -101,7 +101,6 @@ def _failure_batch_results(
 class TestSaveAsyncWithPartialFailures:
     """Tests for Task.save_async() with SaveSessionError."""
 
-    @pytest.mark.asyncio
     async def test_save_async_raises_savesession_error_on_failure(self) -> None:
         """SaveSession.commit_async() produces failures on batch API error.
 
@@ -132,7 +131,6 @@ class TestSaveAsyncWithPartialFailures:
         assert error.result is result
         assert len(error.result.failed) > 0
 
-    @pytest.mark.asyncio
     async def test_save_async_error_contains_full_result(self) -> None:
         """SaveSessionError from commit_async() contains full SaveResult.
 
@@ -166,7 +164,6 @@ class TestSaveAsyncWithPartialFailures:
         # Both failures should be present
         assert failure_count == 2
 
-    @pytest.mark.asyncio
     async def test_save_async_error_message_shows_all_failures(self) -> None:
         """SaveSessionError message includes all failure details."""
         mock_client = _create_mock_client(
@@ -193,7 +190,6 @@ class TestSaveAsyncWithPartialFailures:
         assert "failure" in error_msg.lower()
         assert "3" in error_msg
 
-    @pytest.mark.asyncio
     async def test_save_async_without_client_raises_value_error(self) -> None:
         """Task.save_async() raises ValueError if no client reference."""
         task = Task(gid="999", name="Orphan Task")
@@ -205,7 +201,6 @@ class TestSaveAsyncWithPartialFailures:
         error_msg = str(exc_info.value)
         assert "client reference" in error_msg.lower()
 
-    @pytest.mark.asyncio
     async def test_save_async_success_returns_updated_task(self, client: AsanaClient) -> None:
         """Task.save_async() returns updated task on success."""
         task = Task(gid="111", name="Original Name")
@@ -240,7 +235,6 @@ class TestSaveAsyncWithPartialFailures:
             assert result is task
             assert result.gid == "111"
 
-    @pytest.mark.asyncio
     async def test_save_async_error_includes_docstring_example(self) -> None:
         """Verify SaveSessionError can be used as shown in docstring example.
 

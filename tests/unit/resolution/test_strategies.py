@@ -28,7 +28,6 @@ from tests.unit.resolution.conftest import make_business_entity, make_mock_task
 class TestSessionCacheStrategy:
     """Tests for SessionCacheStrategy."""
 
-    @pytest.mark.asyncio
     async def test_returns_cached_entity(
         self, mock_client: MagicMock, mock_business: Business
     ) -> None:
@@ -49,7 +48,6 @@ class TestSessionCacheStrategy:
         assert result.api_calls_used == 0
         assert result.strategy_used == "session_cache"
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_not_cached(self, mock_client: MagicMock) -> None:
         """Test strategy returns None when entity not cached."""
         context = ResolutionContext(mock_client)
@@ -67,7 +65,6 @@ class TestSessionCacheStrategy:
 class TestNavigationRefStrategy:
     """Tests for NavigationRefStrategy."""
 
-    @pytest.mark.asyncio
     async def test_walks_refs_to_find_target(self, mock_client: MagicMock) -> None:
         """Test walking navigation references."""
         business = Business(gid="biz-123", name="Business", resource_type="task")
@@ -85,7 +82,6 @@ class TestNavigationRefStrategy:
         assert result.api_calls_used == 0
         assert result.strategy_used == "navigation_ref"
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_no_ref(self, mock_client: MagicMock) -> None:
         """Test returns None when no navigation ref found."""
         contact = Contact(gid="contact-123", name="Contact", resource_type="task")
@@ -103,7 +99,6 @@ class TestNavigationRefStrategy:
 class TestDependencyShortcutStrategy:
     """Tests for DependencyShortcutStrategy."""
 
-    @pytest.mark.asyncio
     async def test_resolves_via_dependency(self, mock_client: MagicMock) -> None:
         """Test resolving via dependency link."""
         from_entity = make_business_entity("source-123", "Source")
@@ -130,7 +125,6 @@ class TestDependencyShortcutStrategy:
         assert result.api_calls_used == 2
         assert result.strategy_used == "dependency_shortcut"
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_budget_too_low(self, mock_client: MagicMock) -> None:
         """Test returns None when budget < 2."""
         from_entity = make_business_entity("source-123", "Source")
@@ -148,7 +142,6 @@ class TestDependencyShortcutStrategy:
 class TestHierarchyTraversalStrategy:
     """Tests for HierarchyTraversalStrategy."""
 
-    @pytest.mark.asyncio
     @patch("autom8_asana.models.business.detection.detect_entity_type")
     async def test_traverses_to_business(
         self, mock_detect: MagicMock, mock_client: MagicMock
@@ -182,7 +175,6 @@ class TestHierarchyTraversalStrategy:
         assert budget.used >= 2  # At least 2 API calls made
         assert result is not None
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_budget_too_low(self, mock_client: MagicMock) -> None:
         """Test returns None when budget < 3."""
         from_entity = make_business_entity("child-123", "Child")
@@ -196,7 +188,6 @@ class TestHierarchyTraversalStrategy:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_returns_cached_business(self, mock_client: MagicMock) -> None:
         """Test returns cached business without traversal."""
         business = Business(gid="biz-123", name="Business", resource_type="task")
@@ -281,7 +272,6 @@ def _make_parent_chain_task(
 class TestHierarchyTraversalDetection:
     """Tests for detection-gated Business identification in _traverse_to_business_async."""
 
-    @pytest.mark.asyncio
     @patch("autom8_asana.models.business.detection.detect_entity_type")
     async def test_traverse_skips_non_business_finds_actual_business(
         self, mock_detect: MagicMock, mock_client: MagicMock
@@ -347,7 +337,6 @@ class TestHierarchyTraversalDetection:
         assert result.entity.gid == "biz-1"
         assert result.strategy_used == "hierarchy_traversal"
 
-    @pytest.mark.asyncio
     @patch("autom8_asana.models.business.detection.detect_entity_type")
     async def test_traverse_stops_at_real_business(
         self, mock_detect: MagicMock, mock_client: MagicMock
@@ -383,7 +372,6 @@ class TestHierarchyTraversalDetection:
         assert result.entity.gid == "biz-1"
         assert budget.used == 2
 
-    @pytest.mark.asyncio
     @patch("autom8_asana.models.business.detection.detect_entity_type")
     async def test_traverse_returns_none_when_no_business_found(
         self, mock_detect: MagicMock, mock_client: MagicMock
@@ -425,7 +413,6 @@ class TestHierarchyTraversalDetection:
 
         assert result is None
 
-    @pytest.mark.asyncio
     @patch("autom8_asana.models.business.detection.detect_entity_type")
     async def test_traverse_handles_task_without_memberships(
         self, mock_detect: MagicMock, mock_client: MagicMock

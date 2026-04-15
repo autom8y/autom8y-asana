@@ -66,7 +66,6 @@ class TestCacheKeyGeneration:
 class TestCacheHit:
     """Tests for cache hit behavior - successful response caching (Story 1.8)."""
 
-    @pytest.mark.asyncio
     async def test_successful_response_is_cached(self) -> None:
         """Successful response is stored in cache."""
         import respx
@@ -115,7 +114,6 @@ class TestCacheHit:
         # Check TTL
         assert call_args.kwargs.get("ttl") == 300  # Default TTL
 
-    @pytest.mark.asyncio
     async def test_custom_ttl_is_used(self) -> None:
         """Custom cache TTL from config is used."""
         import respx
@@ -151,7 +149,6 @@ class TestCacheHit:
         call_args = mock_cache.set.call_args
         assert call_args.kwargs.get("ttl") == 600
 
-    @pytest.mark.asyncio
     async def test_no_caching_without_cache_provider(self) -> None:
         """No caching happens when no cache_provider is configured."""
         import respx
@@ -190,7 +187,6 @@ class TestCacheHit:
 class TestCacheMiss:
     """Tests for cache miss behavior - fresh requests (Story 1.8)."""
 
-    @pytest.mark.asyncio
     async def test_fresh_request_when_cache_empty(self) -> None:
         """Fresh request proceeds normally when cache is empty."""
         import respx
@@ -233,7 +229,6 @@ class TestCacheMiss:
 class TestStaleFallback:
     """Tests for stale cache fallback on service errors (Story 1.8)."""
 
-    @pytest.mark.asyncio
     async def test_stale_fallback_on_500_error(self) -> None:
         """Returns stale cache on HTTP 500 error."""
         import respx
@@ -278,7 +273,6 @@ class TestStaleFallback:
         assert "stale cache" in response.warnings[-1]
 
     @pytest.mark.slow
-    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "status_code,error_msg",
         [
@@ -326,7 +320,6 @@ class TestStaleFallback:
         assert response.metadata.is_stale is True
 
     @pytest.mark.slow
-    @pytest.mark.asyncio
     async def test_stale_fallback_on_timeout(self) -> None:
         """Returns stale cache on request timeout."""
         import respx
@@ -365,7 +358,6 @@ class TestStaleFallback:
         assert response.metadata.is_stale is True
         assert response.data == [{"spend": 75.0}]
 
-    @pytest.mark.asyncio
     async def test_stale_fallback_on_connection_error(self) -> None:
         """Returns stale cache on connection error."""
         import respx
@@ -403,7 +395,6 @@ class TestStaleFallback:
 
         assert response.metadata.is_stale is True
 
-    @pytest.mark.asyncio
     async def test_raises_when_no_stale_cache_on_error(self) -> None:
         """Raises InsightsServiceError when no stale cache available."""
         import respx
@@ -432,7 +423,6 @@ class TestStaleFallback:
 
         assert exc.value.status_code == 500
 
-    @pytest.mark.asyncio
     async def test_no_stale_fallback_on_400_error(self) -> None:
         """No stale fallback on 400 validation errors."""
         import respx
@@ -473,7 +463,6 @@ class TestStaleFallback:
         # Cache get should NOT have been called for 400 errors
         # (validation errors are client-side, cache fallback doesn't help)
 
-    @pytest.mark.asyncio
     async def test_no_stale_fallback_on_404_error(self) -> None:
         """No stale fallback on 404 not found errors."""
         import respx
@@ -516,7 +505,6 @@ class TestStaleFallback:
 class TestCacheFailureGracefulDegradation:
     """Tests for graceful degradation when cache operations fail (Story 1.8)."""
 
-    @pytest.mark.asyncio
     async def test_cache_set_failure_does_not_break_request(self) -> None:
         """Cache set failure doesn't break the request."""
         import respx
@@ -553,7 +541,6 @@ class TestCacheFailureGracefulDegradation:
         # Request succeeded despite cache failure
         assert response.data == [{"spend": 100.0}]
 
-    @pytest.mark.asyncio
     async def test_cache_get_failure_does_not_break_fallback(self) -> None:
         """Cache get failure during fallback doesn't break error handling."""
         import respx
@@ -583,7 +570,6 @@ class TestCacheFailureGracefulDegradation:
         # Original error is raised (cache fallback failed silently)
         assert exc.value.status_code == 500
 
-    @pytest.mark.asyncio
     async def test_cache_set_logs_warning_on_failure(self) -> None:
         """Cache set failure logs a warning."""
         import respx
@@ -627,7 +613,6 @@ class TestCacheFailureGracefulDegradation:
 class TestStaleResponseMetadata:
     """Tests for stale response metadata (Story 1.8)."""
 
-    @pytest.mark.asyncio
     async def test_stale_response_has_is_stale_true(self) -> None:
         """Stale response has is_stale=True in metadata."""
         import respx
@@ -668,7 +653,6 @@ class TestStaleResponseMetadata:
         # Metadata should be updated
         assert response.metadata.is_stale is True
 
-    @pytest.mark.asyncio
     async def test_stale_response_has_cached_at_populated(self) -> None:
         """Stale response has cached_at populated from cache entry."""
         import respx
@@ -711,7 +695,6 @@ class TestStaleResponseMetadata:
         assert response.metadata.cached_at.month == 6
         assert response.metadata.cached_at.day == 15
 
-    @pytest.mark.asyncio
     async def test_stale_response_includes_warning(self) -> None:
         """Stale response includes warning about stale data."""
         import respx
@@ -752,7 +735,6 @@ class TestStaleResponseMetadata:
         assert "Original warning" in response.warnings
         assert any("stale cache" in w for w in response.warnings)
 
-    @pytest.mark.asyncio
     async def test_stale_response_uses_new_request_id(self) -> None:
         """Stale response uses new request_id, not cached one."""
         import respx

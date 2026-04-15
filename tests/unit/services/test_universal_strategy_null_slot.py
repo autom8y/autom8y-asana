@@ -33,7 +33,6 @@ def mock_client() -> MagicMock:
 class TestNullSlotLogging:
     """FIND-002: resolution_null_slot emits structured log."""
 
-    @pytest.mark.asyncio()
     async def test_null_slot_logs_criterion_index_and_entity_type(
         self,
         index_cache: DynamicIndexCache,
@@ -92,7 +91,6 @@ class TestNullSlotLogging:
             },
         )
 
-    @pytest.mark.asyncio()
     async def test_multiple_null_slots_log_each_index(
         self,
         index_cache: DynamicIndexCache,
@@ -154,7 +152,6 @@ class TestNullSlotLogging:
             extra = call.kwargs["extra"] if "extra" in call.kwargs else call[1]["extra"]
             assert extra["entity_type"] == "offer"
 
-    @pytest.mark.asyncio()
     async def test_no_null_slot_no_error_log(
         self,
         index_cache: DynamicIndexCache,

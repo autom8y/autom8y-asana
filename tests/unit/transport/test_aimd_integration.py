@@ -64,7 +64,6 @@ def _make_200_response(data: dict | None = None) -> MagicMock:
 class TestAIMDIntegration429:
     """Tests for 429 triggering AIMD decrease through _request()."""
 
-    @pytest.mark.asyncio
     async def test_429_triggers_aimd_decrease_in_request(self):
         """Mock 429 response, verify semaphore window decreased."""
         config = AsanaConfig(concurrency=ConcurrencyConfig(read_limit=50, write_limit=15))
@@ -88,7 +87,6 @@ class TestAIMDIntegration429:
         # AIMD should have halved the read window
         assert client._read_semaphore.current_limit == 25
 
-    @pytest.mark.asyncio
     async def test_success_triggers_aimd_increase_in_request(self):
         """Mock 200 response, verify semaphore window increased after decrease."""
         config = AsanaConfig(
@@ -122,7 +120,6 @@ class TestAIMDIntegration429:
         # Window should have increased by 1
         assert client._read_semaphore.current_limit == 26
 
-    @pytest.mark.asyncio
     async def test_429_does_not_affect_other_pool(self):
         """Mock 429 on read, verify write semaphore unchanged."""
         config = AsanaConfig(concurrency=ConcurrencyConfig(read_limit=50, write_limit=15))
@@ -173,7 +170,6 @@ class TestAIMDDisabled:
 class TestExistingAPIUnchanged:
     """Verify public API signatures remain unchanged."""
 
-    @pytest.mark.asyncio
     async def test_existing_client_api_unchanged(self):
         """Verify .get(), .post(), .put(), .delete(), .get_paginated(), .request()
         signatures unchanged."""
@@ -219,7 +215,6 @@ class TestExistingAPIUnchanged:
 class TestRetryReacquiresSlot:
     """Test that retry loop properly reacquires slots."""
 
-    @pytest.mark.asyncio
     async def test_retry_loop_reacquires_slot(self):
         """Mock 429 then 200, verify two slot acquisitions."""
         config = AsanaConfig(

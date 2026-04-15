@@ -66,7 +66,6 @@ class TestWarmStoryCachesForCompletedEntities:
             }
         )
 
-    @pytest.mark.asyncio
     async def test_warms_stories_for_all_task_gids(
         self,
         mock_dataframe_cache: MagicMock,
@@ -99,7 +98,6 @@ class TestWarmStoryCachesForCompletedEntities:
         for call in mock_client.stories.list_for_task_cached_async.call_args_list:
             assert call.kwargs.get("max_cache_age_seconds") == 7200
 
-    @pytest.mark.asyncio
     async def test_handles_timeout_exits_early(
         self,
         mock_dataframe_cache: MagicMock,
@@ -147,7 +145,6 @@ class TestWarmStoryCachesForCompletedEntities:
         assert stats["success"] == 100
         assert stats["total_tasks"] == 200
 
-    @pytest.mark.asyncio
     async def test_failure_is_isolated_does_not_raise(
         self,
         mock_dataframe_cache: MagicMock,
@@ -181,7 +178,6 @@ class TestWarmStoryCachesForCompletedEntities:
         assert stats["failure"] == 3
         assert stats["total_tasks"] == 3
 
-    @pytest.mark.asyncio
     async def test_skips_entity_with_no_dataframe(
         self,
         mock_dataframe_cache: MagicMock,
@@ -206,7 +202,6 @@ class TestWarmStoryCachesForCompletedEntities:
         assert stats["success"] == 0
         mock_client.stories.list_for_task_cached_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_skips_entity_with_no_gid_column(
         self,
         mock_dataframe_cache: MagicMock,
@@ -233,7 +228,6 @@ class TestWarmStoryCachesForCompletedEntities:
         assert stats["total_tasks"] == 0
         mock_client.stories.list_for_task_cached_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_skips_entity_with_no_project_gid(
         self,
         mock_dataframe_cache: MagicMock,
@@ -255,7 +249,6 @@ class TestWarmStoryCachesForCompletedEntities:
         assert stats["total_tasks"] == 0
         mock_client.stories.list_for_task_cached_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_emits_cloudwatch_metrics(
         self,
         mock_dataframe_cache: MagicMock,
@@ -285,7 +278,6 @@ class TestWarmStoryCachesForCompletedEntities:
         assert "StoriesWarmed" in metric_names
         assert "StoryWarmDuration" in metric_names
 
-    @pytest.mark.asyncio
     async def test_empty_completed_entities_is_noop(
         self,
         mock_dataframe_cache: MagicMock,
@@ -308,7 +300,6 @@ class TestWarmStoryCachesForCompletedEntities:
         assert stats["success"] == 0
         mock_client.stories.list_for_task_cached_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_fatal_error_is_caught(
         self,
         mock_dataframe_cache: MagicMock,
@@ -336,7 +327,6 @@ class TestWarmStoryCachesForCompletedEntities:
         # Stats may be partial but function returned cleanly
         assert isinstance(stats, dict)
 
-    @pytest.mark.asyncio
     async def test_multiple_entities_processes_all(
         self,
         mock_dataframe_cache: MagicMock,

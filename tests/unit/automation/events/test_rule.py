@@ -116,7 +116,6 @@ class TestShouldTrigger:
 class TestExecuteAsync:
     """Test execute_async method."""
 
-    @pytest.mark.asyncio
     async def test_builds_envelope_and_emits(
         self,
         emitter: EventEmitter,
@@ -140,7 +139,6 @@ class TestExecuteAsync:
         assert envelope.entity_gid == "999"
         assert envelope.source == "save_session"
 
-    @pytest.mark.asyncio
     async def test_transport_failure_returns_success(
         self,
         context: AutomationContext,
@@ -166,7 +164,6 @@ class TestExecuteAsync:
         assert result.success is True
         assert result.enhancement_results["events_failed"] == 1
 
-    @pytest.mark.asyncio
     async def test_payload_includes_process_type(
         self,
         emitter: EventEmitter,
@@ -182,7 +179,6 @@ class TestExecuteAsync:
         envelope = transport.published[0][0]
         assert envelope.payload["process_type"] == "sales"
 
-    @pytest.mark.asyncio
     async def test_unknown_event_type_skipped(
         self,
         emitter: EventEmitter,
@@ -201,7 +197,6 @@ class TestExecuteAsync:
         assert "unknown_event_type" in result.skipped_reason
         assert transport.count == 0
 
-    @pytest.mark.asyncio
     async def test_enhancement_results_tracking(
         self,
         emitter: EventEmitter,

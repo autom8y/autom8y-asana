@@ -131,7 +131,6 @@ def _make_holder(gid: str = "holder_gid") -> MagicMock:
 class TestReopenHappyPath:
     """Happy path: ProcessHolder has a Sales process, reopen succeeds."""
 
-    @pytest.mark.asyncio
     async def test_reopen_succeeds_with_matching_process(self) -> None:
         """A single matching Sales process is found, reopened, and moved."""
         client = _make_mock_client()
@@ -164,7 +163,6 @@ class TestReopenHappyPath:
         assert result.entity_gid == "task_001"
         assert result.error == ""
 
-    @pytest.mark.asyncio
     async def test_mark_incomplete_called(self) -> None:
         """Verify tasks.update_async is called with completed=False."""
         client = _make_mock_client()
@@ -195,7 +193,6 @@ class TestReopenHappyPath:
             completed=False,
         )
 
-    @pytest.mark.asyncio
     async def test_section_move_to_opportunity(self) -> None:
         """Verify section APIs called to move task to OPPORTUNITY."""
         client = _make_mock_client()
@@ -241,7 +238,6 @@ class TestReopenHappyPath:
 class TestMostRecentSelection:
     """Multiple candidates: picks most recent by created_at."""
 
-    @pytest.mark.asyncio
     async def test_picks_most_recent_by_created_at(self) -> None:
         """With three Sales processes, the newest one is selected."""
         client = _make_mock_client()
@@ -284,7 +280,6 @@ class TestMostRecentSelection:
         assert result.success is True
         assert result.entity_gid == "task_new"
 
-    @pytest.mark.asyncio
     async def test_filters_non_matching_process_types(self) -> None:
         """Non-matching ProcessType tasks are excluded from candidates."""
         client = _make_mock_client()
@@ -334,7 +329,6 @@ class TestMostRecentSelection:
 class TestNoCandidates:
     """No matching ProcessType in subtasks -> failure."""
 
-    @pytest.mark.asyncio
     async def test_no_matching_process_type_returns_failure(self) -> None:
         """When no subtask matches the target ProcessType, return failure."""
         client = _make_mock_client()
@@ -360,7 +354,6 @@ class TestNoCandidates:
         assert result.success is False
         assert "No sales process found to reopen" in result.error
 
-    @pytest.mark.asyncio
     async def test_empty_subtasks_returns_failure(self) -> None:
         """When ProcessHolder has no subtasks, return failure."""
         client = _make_mock_client()
@@ -387,7 +380,6 @@ class TestNoCandidates:
 class TestProcessHolderResolution:
     """ProcessHolder obtained from source_process or ctx fallback."""
 
-    @pytest.mark.asyncio
     async def test_uses_source_process_holder_when_available(self) -> None:
         """If source_process.process_holder is set, uses it directly."""
         client = _make_mock_client()
@@ -419,7 +411,6 @@ class TestProcessHolderResolution:
         assert call_args[0][0] == "direct_holder"
         ctx.resolve_holder_async.assert_not_awaited()
 
-    @pytest.mark.asyncio
     async def test_falls_back_to_resolve_holder_async(self) -> None:
         """When source_process.process_holder is None, uses ctx fallback."""
         client = _make_mock_client()
@@ -447,7 +438,6 @@ class TestProcessHolderResolution:
         assert result.success is True
         ctx.resolve_holder_async.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_resolve_holder_returns_none(self) -> None:
         """When resolve_holder_async returns None, return error."""
         client = _make_mock_client()
@@ -472,7 +462,6 @@ class TestProcessHolderResolution:
 class TestSectionMoveEdgeCases:
     """Edge cases for section move logic."""
 
-    @pytest.mark.asyncio
     async def test_section_not_found_is_graceful(self) -> None:
         """If target section name doesn't match any section, no error."""
         client = _make_mock_client()
@@ -504,7 +493,6 @@ class TestSectionMoveEdgeCases:
         assert result.entity_gid == "task_nosec"
         client.sections.add_task_async.assert_not_awaited()
 
-    @pytest.mark.asyncio
     async def test_section_match_is_case_insensitive(self) -> None:
         """Section name matching is case-insensitive."""
         client = _make_mock_client()
@@ -537,7 +525,6 @@ class TestSectionMoveEdgeCases:
             task="task_case",
         )
 
-    @pytest.mark.asyncio
     async def test_no_project_gid_skips_section_move(self) -> None:
         """When target_stage has no project_gid, skip section move entirely."""
         client = _make_mock_client()
@@ -569,7 +556,6 @@ class TestSectionMoveEdgeCases:
 class TestErrorHandling:
     """Exception during reopen -> caught, returns failure."""
 
-    @pytest.mark.asyncio
     async def test_api_error_caught_and_returned(self) -> None:
         """If Asana API raises, ReopenResult reflects the error."""
         client = _make_mock_client()
@@ -593,7 +579,6 @@ class TestErrorHandling:
         assert result.success is False
         assert "Asana unavailable" in result.error
 
-    @pytest.mark.asyncio
     async def test_update_async_error_caught(self) -> None:
         """If tasks.update_async raises, error is caught."""
         client = _make_mock_client()
@@ -619,7 +604,6 @@ class TestErrorHandling:
         assert result.success is False
         assert "update failed" in result.error
 
-    @pytest.mark.asyncio
     async def test_section_api_error_gracefully_degraded(self) -> None:
         """Section API error is caught by shared helper; reopen still succeeds.
 
@@ -764,7 +748,6 @@ class TestReopenResultStructure:
 class TestSubtaskListing:
     """Verify correct opt_fields passed to subtasks_async."""
 
-    @pytest.mark.asyncio
     async def test_subtasks_called_with_correct_opt_fields(self) -> None:
         """subtasks_async receives the required opt_fields for matching."""
         client = _make_mock_client()

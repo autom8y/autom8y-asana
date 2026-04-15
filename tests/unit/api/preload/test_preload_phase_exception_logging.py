@@ -184,7 +184,6 @@ def _build_patch_stack(
 class TestPreloadPhaseExceptionLogging:
     """H-01: asyncio.gather exception objects must be logged, not silently discarded."""
 
-    @pytest.mark.asyncio
     async def test_exception_in_phase_results_is_logged(self) -> None:
         """When asyncio.gather returns an exception object, logger.warning is called
         with 'preload_phase_exception_discarded'."""
@@ -236,7 +235,6 @@ class TestPreloadPhaseExceptionLogging:
         assert extra["exc_type"] == "RuntimeError"
         assert "simulated preload failure" in extra["exc_detail"]
 
-    @pytest.mark.asyncio
     async def test_cancelled_error_is_detected_as_base_exception(self) -> None:
         """asyncio.CancelledError (a BaseException subclass) is also caught."""
         import asyncio as _asyncio
@@ -278,7 +276,6 @@ class TestPreloadPhaseExceptionLogging:
         assert len(error_calls) == 1
         assert error_calls[0][1]["extra"]["exc_type"] == "CancelledError"
 
-    @pytest.mark.asyncio
     async def test_bool_false_is_not_logged_as_exception(self) -> None:
         """False results (normal failure returns) should NOT trigger the warning."""
         from autom8_asana.api.preload.progressive import (

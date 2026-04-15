@@ -50,7 +50,6 @@ PROJECT_GID = "1201081073731555"
 class TestExecutorDryRun:
     """Verify dry_run=True path is unchanged by executor wiring."""
 
-    @pytest.mark.asyncio
     async def test_dry_run_skips_all_actions(self) -> None:
         """dry_run=True should skip all actions without calling task_service."""
         actions = [_make_action(), _make_action(unit_gid="unit_2")]
@@ -60,7 +59,6 @@ class TestExecutorDryRun:
         assert result.succeeded == 0
         assert result.failed == 0
 
-    @pytest.mark.asyncio
     async def test_dry_run_ignores_injected_deps(self) -> None:
         """dry_run=True should not use task_service even if provided."""
         mock_ts = MagicMock()
@@ -79,7 +77,6 @@ class TestExecutorDryRun:
         assert result.skipped == 1
         mock_ts.move_to_section.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_empty_actions_returns_zero_counts(self) -> None:
         """Empty action list returns zero counts for both dry and live."""
         result = await execute_actions([], dry_run=True)
@@ -91,7 +88,6 @@ class TestExecutorDryRun:
 class TestExecutorLiveDependencyValidation:
     """Verify RuntimeError when required dependencies are missing."""
 
-    @pytest.mark.asyncio
     async def test_missing_task_service_raises(self) -> None:
         """dry_run=False without task_service raises RuntimeError."""
         with pytest.raises(RuntimeError, match="task_service"):
@@ -103,7 +99,6 @@ class TestExecutorLiveDependencyValidation:
                 section_name_to_gid=SECTION_MAP,
             )
 
-    @pytest.mark.asyncio
     async def test_missing_client_raises(self) -> None:
         """dry_run=False without client raises RuntimeError."""
         with pytest.raises(RuntimeError, match="client"):
@@ -115,7 +110,6 @@ class TestExecutorLiveDependencyValidation:
                 section_name_to_gid=SECTION_MAP,
             )
 
-    @pytest.mark.asyncio
     async def test_missing_project_gid_raises(self) -> None:
         """dry_run=False without project_gid raises RuntimeError."""
         with pytest.raises(RuntimeError, match="project_gid"):
@@ -127,7 +121,6 @@ class TestExecutorLiveDependencyValidation:
                 section_name_to_gid=SECTION_MAP,
             )
 
-    @pytest.mark.asyncio
     async def test_missing_section_map_raises(self) -> None:
         """dry_run=False without section_name_to_gid raises RuntimeError."""
         with pytest.raises(RuntimeError, match="section_name_to_gid"):
@@ -139,7 +132,6 @@ class TestExecutorLiveDependencyValidation:
                 project_gid=PROJECT_GID,
             )
 
-    @pytest.mark.asyncio
     async def test_missing_all_deps_lists_all(self) -> None:
         """RuntimeError message lists all missing dependencies."""
         with pytest.raises(RuntimeError) as exc_info:
@@ -153,7 +145,6 @@ class TestExecutorLiveDependencyValidation:
         assert "project_gid" in msg
         assert "section_name_to_gid" in msg
 
-    @pytest.mark.asyncio
     async def test_empty_actions_skips_validation(self) -> None:
         """Empty action list returns immediately without checking deps."""
         result = await execute_actions([], dry_run=False)
@@ -164,7 +155,6 @@ class TestExecutorLiveDependencyValidation:
 class TestExecutorLiveExecution:
     """Verify live execution correctly calls task_service.move_to_section."""
 
-    @pytest.mark.asyncio
     async def test_single_action_succeeds(self) -> None:
         """Single action calls move_to_section with resolved GID."""
         mock_ts = MagicMock()
@@ -190,7 +180,6 @@ class TestExecutorLiveExecution:
             project_gid=PROJECT_GID,
         )
 
-    @pytest.mark.asyncio
     async def test_multiple_actions_all_succeed(self) -> None:
         """Multiple successful actions increment succeeded count."""
         mock_ts = MagicMock()
@@ -215,7 +204,6 @@ class TestExecutorLiveExecution:
         assert result.failed == 0
         assert mock_ts.move_to_section.await_count == 3
 
-    @pytest.mark.asyncio
     async def test_api_error_records_failure_continues(self) -> None:
         """API exception records failure but does not abort remaining actions."""
         mock_ts = MagicMock()
@@ -252,7 +240,6 @@ class TestExecutorLiveExecution:
 class TestExecutorSectionResolution:
     """Verify section name -> GID resolution edge cases."""
 
-    @pytest.mark.asyncio
     async def test_unresolvable_section_name_fails(self) -> None:
         """Action with unknown target_section records failure."""
         mock_ts = MagicMock()
@@ -274,7 +261,6 @@ class TestExecutorSectionResolution:
         assert "NonExistentSection" in result.errors[0]
         mock_ts.move_to_section.assert_not_awaited()
 
-    @pytest.mark.asyncio
     async def test_none_target_section_fails(self) -> None:
         """Action with target_section=None records failure."""
         mock_ts = MagicMock()
@@ -294,7 +280,6 @@ class TestExecutorSectionResolution:
         assert result.failed == 1
         assert result.succeeded == 0
 
-    @pytest.mark.asyncio
     async def test_mixed_resolvable_and_unresolvable(self) -> None:
         """Mix of resolvable and unresolvable sections counts correctly."""
         mock_ts = MagicMock()

@@ -54,7 +54,6 @@ def invalidator_with_df(mock_cache: MagicMock, mock_df_cache: MagicMock) -> Muta
 class TestTaskMutationInvalidation:
     """Tests for task mutation handling."""
 
-    @pytest.mark.asyncio
     async def test_task_update_invalidates_entity_cache(
         self, invalidator: MutationInvalidator, mock_cache: MagicMock
     ) -> None:
@@ -70,7 +69,6 @@ class TestTaskMutationInvalidation:
             "12345", [EntryType.TASK, EntryType.SUBTASKS, EntryType.DETECTION]
         )
 
-    @pytest.mark.asyncio
     async def test_task_update_with_project_context_invalidates_dataframes(
         self, invalidator: MutationInvalidator, mock_cache: MagicMock
     ) -> None:
@@ -92,7 +90,6 @@ class TestTaskMutationInvalidation:
         # Entity cache still invalidated
         mock_cache.invalidate.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_task_create_triggers_project_dataframe_invalidation(
         self,
         invalidator_with_df: MutationInvalidator,
@@ -115,7 +112,6 @@ class TestTaskMutationInvalidation:
         # Project DataFrame invalidated
         mock_df_cache.invalidate_project.assert_called_once_with("proj1")
 
-    @pytest.mark.asyncio
     async def test_task_delete_triggers_project_dataframe_invalidation(
         self,
         invalidator_with_df: MutationInvalidator,
@@ -133,7 +129,6 @@ class TestTaskMutationInvalidation:
 
         mock_df_cache.invalidate_project.assert_called_once_with("proj1")
 
-    @pytest.mark.asyncio
     async def test_task_update_does_not_trigger_project_dataframe_invalidation(
         self,
         invalidator_with_df: MutationInvalidator,
@@ -150,7 +145,6 @@ class TestTaskMutationInvalidation:
 
         mock_df_cache.invalidate_project.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_task_move_invalidates_project_dataframes(
         self,
         invalidator_with_df: MutationInvalidator,
@@ -168,7 +162,6 @@ class TestTaskMutationInvalidation:
 
         mock_df_cache.invalidate_project.assert_called_once_with("proj1")
 
-    @pytest.mark.asyncio
     async def test_task_add_member_invalidates_project_dataframes(
         self,
         invalidator_with_df: MutationInvalidator,
@@ -185,7 +178,6 @@ class TestTaskMutationInvalidation:
 
         mock_df_cache.invalidate_project.assert_called_once_with("proj_new")
 
-    @pytest.mark.asyncio
     async def test_task_remove_member_invalidates_project_dataframes(
         self,
         invalidator_with_df: MutationInvalidator,
@@ -211,7 +203,6 @@ class TestStoryCacheInvalidation:
     can use the 'since' cursor for cheap incremental fetches (ADR-0020).
     """
 
-    @pytest.mark.asyncio
     async def test_delete_mutation_invalidates_stories(
         self, invalidator: MutationInvalidator, mock_cache: MagicMock
     ) -> None:
@@ -235,7 +226,6 @@ class TestStoryCacheInvalidation:
         )
         assert story_call.args == ("12345", [EntryType.STORIES])
 
-    @pytest.mark.asyncio
     async def test_update_mutation_does_not_invalidate_stories(
         self, invalidator: MutationInvalidator, mock_cache: MagicMock
     ) -> None:
@@ -252,7 +242,6 @@ class TestStoryCacheInvalidation:
             "12345", [EntryType.TASK, EntryType.SUBTASKS, EntryType.DETECTION]
         )
 
-    @pytest.mark.asyncio
     async def test_move_mutation_does_not_invalidate_stories(
         self, invalidator: MutationInvalidator, mock_cache: MagicMock
     ) -> None:
@@ -271,7 +260,6 @@ class TestStoryCacheInvalidation:
             entry_types = call.args[1]
             assert EntryType.STORIES not in entry_types
 
-    @pytest.mark.asyncio
     async def test_story_invalidation_failure_does_not_propagate(
         self, mock_cache: MagicMock
     ) -> None:
@@ -300,7 +288,6 @@ class TestStoryCacheInvalidation:
 class TestSectionMutationInvalidation:
     """Tests for section mutation handling."""
 
-    @pytest.mark.asyncio
     async def test_section_create_invalidates_section_cache(
         self,
         invalidator_with_df: MutationInvalidator,
@@ -317,7 +304,6 @@ class TestSectionMutationInvalidation:
 
         mock_cache.invalidate.assert_called_once_with("sect1", [EntryType.SECTION])
 
-    @pytest.mark.asyncio
     async def test_section_create_invalidates_project_dataframes(
         self,
         invalidator_with_df: MutationInvalidator,
@@ -334,7 +320,6 @@ class TestSectionMutationInvalidation:
 
         mock_df_cache.invalidate_project.assert_called_once_with("proj1")
 
-    @pytest.mark.asyncio
     async def test_section_update_invalidates_entity_and_project(
         self,
         invalidator_with_df: MutationInvalidator,
@@ -353,7 +338,6 @@ class TestSectionMutationInvalidation:
         mock_cache.invalidate.assert_called_once_with("sect1", [EntryType.SECTION])
         mock_df_cache.invalidate_project.assert_called_once_with("proj1")
 
-    @pytest.mark.asyncio
     async def test_section_delete_invalidates_entity(
         self,
         invalidator: MutationInvalidator,
@@ -369,7 +353,6 @@ class TestSectionMutationInvalidation:
 
         mock_cache.invalidate.assert_called_once_with("sect1", [EntryType.SECTION])
 
-    @pytest.mark.asyncio
     async def test_add_task_to_section_invalidates_task_entity(
         self,
         invalidator: MutationInvalidator,
@@ -402,7 +385,6 @@ class TestSectionMutationInvalidation:
 class TestGracefulDegradation:
     """Tests for error handling and graceful degradation."""
 
-    @pytest.mark.asyncio
     async def test_missing_dataframe_cache_skips_project_invalidation(
         self, invalidator: MutationInvalidator
     ) -> None:
@@ -416,7 +398,6 @@ class TestGracefulDegradation:
         # Should not raise
         await invalidator.invalidate_async(event)
 
-    @pytest.mark.asyncio
     async def test_cache_provider_failure_does_not_propagate(self, mock_cache: MagicMock) -> None:
         """Cache provider failure is caught and logged, not propagated."""
         mock_cache.invalidate.side_effect = ConnectionError("Redis down")
@@ -430,7 +411,6 @@ class TestGracefulDegradation:
         # Should not raise
         await inv.invalidate_async(event)
 
-    @pytest.mark.asyncio
     async def test_dataframe_cache_failure_does_not_propagate(
         self, mock_cache: MagicMock, mock_df_cache: MagicMock
     ) -> None:
@@ -447,7 +427,6 @@ class TestGracefulDegradation:
         # Should not raise
         await inv.invalidate_async(event)
 
-    @pytest.mark.asyncio
     async def test_unsupported_entity_kind_logs_warning(
         self, invalidator: MutationInvalidator
     ) -> None:
@@ -460,7 +439,6 @@ class TestGracefulDegradation:
         # Should not raise
         await invalidator.invalidate_async(event)
 
-    @pytest.mark.asyncio
     async def test_section_cache_failure_still_processes_dataframes(
         self, mock_cache: MagicMock, mock_df_cache: MagicMock
     ) -> None:
@@ -483,7 +461,6 @@ class TestGracefulDegradation:
 class TestFireAndForget:
     """Tests for the fire-and-forget pattern."""
 
-    @pytest.mark.asyncio
     async def test_fire_and_forget_creates_task(self, invalidator: MutationInvalidator) -> None:
         """fire_and_forget schedules an asyncio task."""
         event = MutationEvent(
@@ -496,7 +473,6 @@ class TestFireAndForget:
         # Let the event loop process the background task
         await asyncio.sleep(0.01)
 
-    @pytest.mark.asyncio
     async def test_fire_and_forget_task_has_name(self, invalidator: MutationInvalidator) -> None:
         """fire_and_forget creates a named task for debugging."""
         event = MutationEvent(

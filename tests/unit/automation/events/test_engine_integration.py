@@ -94,7 +94,6 @@ def disabled_emitter(transport: InMemoryTransport) -> EventEmitter:
 class TestEngineWithEmissionRule:
     """Test emission rule integrated with AutomationEngine."""
 
-    @pytest.mark.asyncio
     async def test_emission_rule_triggered_by_engine(
         self,
         enabled_emitter: EventEmitter,
@@ -124,7 +123,6 @@ class TestEngineWithEmissionRule:
         assert envelope.entity_gid == "test-123"
         assert envelope.event_type == EventType.UPDATED  # existing entity
 
-    @pytest.mark.asyncio
     async def test_emission_failure_does_not_affect_other_rules(
         self,
         transport: InMemoryTransport,
@@ -161,7 +159,6 @@ class TestEngineWithEmissionRule:
         # Emission rule also reports success (transport failures are non-fatal)
         assert results[1].success is True
 
-    @pytest.mark.asyncio
     async def test_emission_disabled_no_transport_call(
         self,
         disabled_emitter: EventEmitter,
@@ -182,7 +179,6 @@ class TestEngineWithEmissionRule:
         assert len(results) == 0
         assert transport.count == 0
 
-    @pytest.mark.asyncio
     async def test_new_entity_detected_as_created(
         self,
         enabled_emitter: EventEmitter,

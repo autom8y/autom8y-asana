@@ -450,7 +450,6 @@ class TestTrackWithHeal:
 class TestHealingExecution:
     """Tests for healing execution during commit."""
 
-    @pytest.mark.asyncio
     async def test_healing_executed_on_commit(self) -> None:
         """Healing is executed during commit_async()."""
         mock_client = create_mock_client()
@@ -473,7 +472,6 @@ class TestHealingExecution:
         assert result.healing_report.succeeded == 1
         assert result.healing_report.failed == 0
 
-    @pytest.mark.asyncio
     async def test_healing_report_on_success(self) -> None:
         """Successful healing populates HealingReport correctly."""
         mock_client = create_mock_client()
@@ -496,7 +494,6 @@ class TestHealingExecution:
         assert healing_result.success is True
         assert healing_result.error is None
 
-    @pytest.mark.asyncio
     async def test_healing_failure_non_blocking(self) -> None:
         """Healing failures are non-blocking - commit still succeeds."""
         mock_client = create_mock_client()
@@ -519,7 +516,6 @@ class TestHealingExecution:
         assert healing_result.success is False
         assert "API Error" in str(healing_result.error)
 
-    @pytest.mark.asyncio
     async def test_healing_queue_cleared_after_commit(self) -> None:
         """Healing queue is cleared after commit."""
         mock_client = create_mock_client()
@@ -535,7 +531,6 @@ class TestHealingExecution:
 
         assert len(session._healing_manager.queue) == 0
 
-    @pytest.mark.asyncio
     async def test_healing_queue_cleared_even_on_failure(self) -> None:
         """Healing queue is cleared even when healing fails."""
         mock_client = create_mock_client()
@@ -550,7 +545,6 @@ class TestHealingExecution:
         # Per TDD-TECH-DEBT-REMEDIATION: queue is managed by HealingManager
         assert len(session._healing_manager.queue) == 0
 
-    @pytest.mark.asyncio
     async def test_no_healing_when_queue_empty(self) -> None:
         """No healing HTTP calls when queue is empty."""
         mock_client = create_mock_client()
@@ -567,7 +561,6 @@ class TestHealingExecution:
         # The _http.request is only for healing; batch.execute_async for CRUD
         mock_client._http.request.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_healing_report_none_when_no_healing(self) -> None:
         """healing_report is None when no healing was queued."""
         mock_client = create_mock_client()
@@ -590,7 +583,6 @@ class TestHealingExecution:
 
         assert result.healing_report is None
 
-    @pytest.mark.asyncio
     async def test_multiple_entities_healed(self) -> None:
         """Multiple entities can be healed in one commit."""
         mock_client = create_mock_client()
@@ -617,7 +609,6 @@ class TestHealingExecution:
         assert result.healing_report.succeeded == 3
         assert mock_client._http.request.call_count == 3
 
-    @pytest.mark.asyncio
     async def test_partial_healing_failure(self) -> None:
         """Some healings succeed, some fail - all are reported."""
         mock_client = create_mock_client()
@@ -672,7 +663,6 @@ class TestSaveResultHealing:
         assert result.healing_report is report
         assert result.healing_report.attempted == 2
 
-    @pytest.mark.asyncio
     async def test_save_result_populated_after_commit(self) -> None:
         """SaveResult.healing_report is populated after commit with healing."""
         mock_client = create_mock_client()
@@ -695,7 +685,6 @@ class TestSaveResultHealing:
 class TestHealingEdgeCases:
     """Edge case tests for self-healing."""
 
-    @pytest.mark.asyncio
     async def test_healing_only_commit(self) -> None:
         """Commit with only healing (no CRUD or actions) works."""
         mock_client = create_mock_client()
@@ -711,7 +700,6 @@ class TestHealingEdgeCases:
         assert result.healing_report is not None
         assert result.healing_report.succeeded == 1
 
-    @pytest.mark.asyncio
     async def test_healing_with_crud_and_actions(self) -> None:
         """Healing works alongside CRUD and action operations."""
         mock_client = create_mock_client()
@@ -761,7 +749,6 @@ class TestHealingEdgeCases:
         # Per TDD-TECH-DEBT-REMEDIATION: queue is managed by HealingManager
         assert len(session._healing_manager.queue) == 0
 
-    @pytest.mark.asyncio
     async def test_session_with_logging(self) -> None:
         """Session with logging enabled logs healing events."""
         mock_client = create_mock_client()

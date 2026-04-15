@@ -110,7 +110,6 @@ def store(mock_cache_provider: MagicMock) -> UnifiedTaskStore:
 class TestBoundaryConditions:
     """Exact boundary probes around HIERARCHY_PACING_THRESHOLD (100)."""
 
-    @pytest.mark.asyncio
     async def test_exactly_100_parents_no_pacing(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -125,7 +124,6 @@ class TestBoundaryConditions:
 
         assert mock_tasks_client.get_async.call_count == 100
 
-    @pytest.mark.asyncio
     async def test_exactly_101_parents_pacing_activates(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -141,7 +139,6 @@ class TestBoundaryConditions:
 
         assert mock_tasks_client.get_async.call_count == 101
 
-    @pytest.mark.asyncio
     async def test_zero_parents(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -156,7 +153,6 @@ class TestBoundaryConditions:
 
         mock_tasks_client.get_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_single_parent(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -180,7 +176,6 @@ class TestBoundaryConditions:
 class TestBatchEdgeCases:
     """Verify batch arithmetic for divisible, non-divisible, and single-overflow cases."""
 
-    @pytest.mark.asyncio
     async def test_exactly_divisible_150(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -195,7 +190,6 @@ class TestBatchEdgeCases:
 
         assert mock_tasks_client.get_async.call_count == 150
 
-    @pytest.mark.asyncio
     async def test_not_divisible_151(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -210,7 +204,6 @@ class TestBatchEdgeCases:
 
         assert mock_tasks_client.get_async.call_count == 151
 
-    @pytest.mark.asyncio
     async def test_single_batch_above_threshold(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -231,7 +224,6 @@ class TestBatchEdgeCases:
             mock_sleep.assert_not_called()
         reset_settings()
 
-    @pytest.mark.asyncio
     async def test_all_parents_fetched_after_batching(
         self, store: UnifiedTaskStore, mock_tasks_client: MagicMock
     ) -> None:
@@ -255,7 +247,6 @@ class TestBatchEdgeCases:
 class TestErrorResilience:
     """Verify that batch failures do not abort subsequent batches."""
 
-    @pytest.mark.asyncio
     async def test_partial_failure_continues_subsequent_batches(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -292,7 +283,6 @@ class TestErrorResilience:
         # Total calls >= 120 (Phase 1) since Phase 2 retries uncached parents.
         assert client.get_async.call_count >= n
 
-    @pytest.mark.asyncio
     async def test_all_fetches_fail_no_crash(self, store: UnifiedTaskStore) -> None:
         """If every single fetch fails, the system does not crash.
 
@@ -311,7 +301,6 @@ class TestErrorResilience:
         # Phase 1 (110) + Phase 2 re-attempts for uncached parents
         assert client.get_async.call_count >= 110
 
-    @pytest.mark.asyncio
     async def test_failure_in_last_batch_still_counted(self, store: UnifiedTaskStore) -> None:
         """Failures in the final (remainder) batch are handled gracefully.
 
@@ -348,7 +337,6 @@ class TestErrorResilience:
 class TestConcurrencyInteraction:
     """Verify semaphore limits concurrency within paced batches."""
 
-    @pytest.mark.asyncio
     async def test_semaphore_limits_concurrency_within_batch(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -438,7 +426,6 @@ class TestDeadCodeRemoval:
 class TestRateLimitLogging:
     """Verify structured rate_limit_429_received log is emitted correctly."""
 
-    @pytest.mark.asyncio
     async def test_429_log_emitted_with_correct_fields(self) -> None:
         """When a RateLimitError occurs, rate_limit_429_received log has path,
         attempt, and retry_after fields."""
@@ -491,7 +478,6 @@ class TestPhase2Unaffected:
     def hierarchy_index(self) -> HierarchyIndex:
         return HierarchyIndex()
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_basic_traversal(self, hierarchy_index: HierarchyIndex) -> None:
         """Basic parent chain traversal still works."""
         hierarchy_index.register({"gid": "unit-1", "parent": {"gid": "biz-1"}})
@@ -516,7 +502,6 @@ class TestPhase2Unaffected:
         assert warmed == 1
         assert hierarchy_index.contains("biz-1")
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_multi_level(self, hierarchy_index: HierarchyIndex) -> None:
         """Multi-level traversal still works after dead code removal."""
         hierarchy_index.register({"gid": "unit-1", "parent": {"gid": "biz-1"}})
@@ -558,7 +543,6 @@ class TestPhase2Unaffected:
         assert hierarchy_index.contains("biz-1")
         assert hierarchy_index.contains("acct-1")
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_error_resilience(self, hierarchy_index: HierarchyIndex) -> None:
         """warm_ancestors_async handles fetch errors gracefully after refactor."""
         hierarchy_index.register({"gid": "u-1", "parent": {"gid": "b-1"}})
@@ -575,7 +559,6 @@ class TestPhase2Unaffected:
 
         assert warmed == 0
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_global_semaphore(self, hierarchy_index: HierarchyIndex) -> None:
         """Global semaphore parameter still works in warm_ancestors_async."""
         hierarchy_index.register({"gid": "u-1", "parent": {"gid": "b-1"}})

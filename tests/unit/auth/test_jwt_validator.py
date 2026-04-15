@@ -66,7 +66,6 @@ class TestValidateServiceTokenIntegration:
     error handling when JWKS is not available.
     """
 
-    @pytest.mark.asyncio
     async def test_validate_invalid_token_format(self) -> None:
         """Invalid token format raises error."""
         from autom8y_auth import AuthError
@@ -77,7 +76,6 @@ class TestValidateServiceTokenIntegration:
         with pytest.raises(AuthError):
             await validate_service_token("not.a.jwt")
 
-    @pytest.mark.asyncio
     async def test_validate_malformed_jwt(self) -> None:
         """Malformed JWT raises InvalidTokenError."""
         from autom8y_auth import InvalidTokenError

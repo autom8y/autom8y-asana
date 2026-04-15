@@ -225,7 +225,6 @@ class TestCacheLoggingPiiRedaction:
 class TestExportErrorPiiRedaction:
     """Tests for PII redaction in export error paths (XR-003 Vectors 2 & 3)."""
 
-    @pytest.mark.asyncio
     async def test_export_error_kwargs_use_masked_phone(self) -> None:
         """error_kwargs passed to retry callbacks contain masked phone."""
         import os
@@ -252,7 +251,6 @@ class TestExportErrorPiiRedaction:
         assert "+17705753103" not in exc.value.office_phone
         assert "+1770***3103" in exc.value.office_phone
 
-    @pytest.mark.asyncio
     async def test_export_circuit_breaker_error_uses_masked_phone(self) -> None:
         """ExportError from circuit breaker open contains masked phone."""
         import os
@@ -275,7 +273,6 @@ class TestExportErrorPiiRedaction:
         assert "+17705753103" not in exc.value.office_phone
         assert "+1770***3103" in exc.value.office_phone
 
-    @pytest.mark.asyncio
     async def test_export_client_error_uses_masked_phone(self) -> None:
         """ExportError from 4xx response contains masked phone."""
         import os
@@ -305,7 +302,6 @@ class TestExportErrorPiiRedaction:
 class TestSimpleCacheKeyPiiRedaction:
     """Tests for PII redaction in simple.py cache keys (XR-003 Vector 4)."""
 
-    @pytest.mark.asyncio
     async def test_appointments_cache_key_uses_masked_phone(self) -> None:
         """appointments error path builds cache key with masked phone."""
         import os
@@ -335,7 +331,6 @@ class TestSimpleCacheKeyPiiRedaction:
             cache_key_arg = mock_cache.get.call_args[0][0]
             assert "+17705753103" not in cache_key_arg
 
-    @pytest.mark.asyncio
     async def test_leads_cache_key_uses_masked_phone(self) -> None:
         """leads error path builds cache key with masked phone."""
         import os
@@ -375,7 +370,6 @@ class TestBatchErrorPiiRedaction:
         assert "+17705753103" not in sanitized
         assert "+1770***3103" in sanitized
 
-    @pytest.mark.asyncio
     async def test_batch_chunk_failure_error_sanitized(self) -> None:
         """client.py sanitizes chunk_result error string in batch processing."""
         import os

@@ -288,7 +288,6 @@ class TestConvertToTypedEntity:
 # --- Test: Upward Traversal ---
 
 
-@pytest.mark.asyncio
 class TestUpwardTraversal:
     """Tests for _traverse_upward_async function."""
 
@@ -398,7 +397,6 @@ class TestUpwardTraversal:
 # --- Test: Full Hydration Workflow ---
 
 
-@pytest.mark.asyncio
 class TestHydrateFromGidAsync:
     """Tests for hydrate_from_gid_async entry point."""
 
@@ -568,7 +566,6 @@ class TestHydrateFromGidAsync:
 # --- Test: Detection During Hydration ---
 
 
-@pytest.mark.asyncio
 class TestDetectionDuringHydration:
     """Tests for entity type detection during hydration."""
 
@@ -623,7 +620,6 @@ class TestDetectionDuringHydration:
 # --- Test: API Call Tracking ---
 
 
-@pytest.mark.asyncio
 class TestApiCallTracking:
     """Tests for API call counting in HydrationResult."""
 
@@ -677,7 +673,6 @@ class TestApiCallTracking:
 # --- Test: Edge Cases ---
 
 
-@pytest.mark.asyncio
 class TestHydrationEdgeCases:
     """Tests for edge cases in hydration."""
 

@@ -105,7 +105,6 @@ def _make_unit_df() -> pl.DataFrame:
 class TestStrategyResolveSpan:
     """T-G04: strategy.resolution.resolve span."""
 
-    @pytest.mark.asyncio()
     async def test_happy_path_attributes(self, otel_provider):
         """Resolve emits span with entity_type, criteria_count, resolved/group counts."""
         _, exporter = otel_provider
@@ -155,7 +154,6 @@ class TestStrategyResolveSpan:
         assert attrs["strategy.null_slot_count"] == 0
         assert span.status.status_code == StatusCode.UNSET
 
-    @pytest.mark.asyncio()
     async def test_null_slot_increments_count_and_adds_event(self, otel_provider):
         """Null slot sets null_slot_count=1, adds resolution.null_slot event, UNSET status."""
         _, exporter = otel_provider
@@ -213,7 +211,6 @@ class TestStrategyResolveSpan:
 class TestStrategyResolveGroupSpan:
     """T-G05: strategy.resolution.resolve_group span."""
 
-    @pytest.mark.asyncio()
     async def test_parent_child_relationship(self, otel_provider):
         """resolve_group span is a child of the resolve span."""
         _, exporter = otel_provider
@@ -249,7 +246,6 @@ class TestStrategyResolveGroupSpan:
         assert group_span.parent is not None
         assert group_span.parent.span_id == resolve_span.get_span_context().span_id
 
-    @pytest.mark.asyncio()
     async def test_index_build_failure_sets_error_attributes(self, otel_provider):
         """INDEX_UNAVAILABLE path sets error_code, error.type, StatusCode.ERROR."""
         _, exporter = otel_provider
@@ -295,7 +291,6 @@ class TestStrategyResolveGroupSpan:
         exception_events = [e for e in span.events if e.name == "exception"]
         assert len(exception_events) == 1
 
-    @pytest.mark.asyncio()
     async def test_lookup_failure_adds_event_and_partial_success(self, otel_provider):
         """Per-criterion lookup failure adds event, lookup_error_count=1, UNSET status."""
         _, exporter = otel_provider

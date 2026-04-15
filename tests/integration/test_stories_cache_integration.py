@@ -73,7 +73,6 @@ def stories_client(
 class TestEndToEndCacheFlow:
     """Test complete cache flow with EnhancedInMemoryCacheProvider."""
 
-    @pytest.mark.asyncio
     async def test_first_call_populates_cache(
         self,
         stories_client: StoriesClient,
@@ -116,7 +115,6 @@ class TestEndToEndCacheFlow:
         assert len(cache_entry.data["stories"]) == 3
         assert "last_fetched" in cache_entry.metadata
 
-    @pytest.mark.asyncio
     async def test_second_call_uses_incremental_fetch(
         self,
         stories_client: StoriesClient,
@@ -168,7 +166,6 @@ class TestEndToEndCacheFlow:
 class TestCachePersistenceAcrossCalls:
     """Test cache persistence and data integrity."""
 
-    @pytest.mark.asyncio
     async def test_cache_survives_multiple_calls(
         self,
         stories_client: StoriesClient,
@@ -225,7 +222,6 @@ class TestCachePersistenceAcrossCalls:
 class TestIncrementalMergeBehavior:
     """Test story merging and deduplication."""
 
-    @pytest.mark.asyncio
     async def test_duplicate_stories_deduplicated(
         self,
         stories_client: StoriesClient,
@@ -258,7 +254,6 @@ class TestIncrementalMergeBehavior:
         assert result[0].gid == "s1"
         assert result[0].text == "Updated text"
 
-    @pytest.mark.asyncio
     async def test_stories_sorted_by_created_at_after_merge(
         self,
         stories_client: StoriesClient,
@@ -346,7 +341,6 @@ class TestSyncWrapperIntegration:
 class TestMetricsIntegration:
     """Test that metrics are recorded correctly during cache operations."""
 
-    @pytest.mark.asyncio
     async def test_full_fetch_recorded_on_cache_miss(
         self,
         stories_client: StoriesClient,
@@ -372,7 +366,6 @@ class TestMetricsIntegration:
         assert metrics.full_fetches == 1
         assert metrics.incremental_fetches == 0
 
-    @pytest.mark.asyncio
     async def test_incremental_fetch_recorded_on_cache_hit(
         self,
         stories_client: StoriesClient,
@@ -399,7 +392,6 @@ class TestMetricsIntegration:
         assert metrics.full_fetches == 1
         assert metrics.incremental_fetches == 1
 
-    @pytest.mark.asyncio
     async def test_metrics_snapshot_includes_fetch_counts(
         self,
         stories_client: StoriesClient,
@@ -436,7 +428,6 @@ class TestMetricsIntegration:
 class TestOptFieldsPropagation:
     """Test that opt_fields are correctly propagated through cache path."""
 
-    @pytest.mark.asyncio
     async def test_opt_fields_included_in_api_request(
         self,
         stories_client: StoriesClient,

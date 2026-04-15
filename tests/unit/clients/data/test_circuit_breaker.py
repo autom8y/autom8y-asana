@@ -29,7 +29,6 @@ class TestCircuitBreaker:
     - Failed probe reopens circuit
     """
 
-    @pytest.mark.asyncio
     async def test_circuit_stays_closed_on_success(self) -> None:
         """Circuit stays closed when requests succeed."""
         import respx
@@ -66,7 +65,6 @@ class TestCircuitBreaker:
                 assert client.circuit_breaker.failure_count == 0
 
     @pytest.mark.slow
-    @pytest.mark.asyncio
     async def test_circuit_opens_after_threshold(self) -> None:
         """Circuit opens after 5 consecutive failures (503 responses)."""
         import respx
@@ -109,7 +107,6 @@ class TestCircuitBreaker:
                 assert client.circuit_breaker.state == CircuitState.OPEN
 
     @pytest.mark.slow
-    @pytest.mark.asyncio
     async def test_circuit_open_raises_immediately(self) -> None:
         """When circuit is open, raises InsightsServiceError with reason='circuit_breaker'."""
         import respx
@@ -162,7 +159,6 @@ class TestCircuitBreaker:
                 # No additional HTTP request should have been made
                 assert route.call_count == call_count_after_open
 
-    @pytest.mark.asyncio
     async def test_half_open_allows_probe_request(self) -> None:
         """Half-open state allows 1 probe request through."""
         import respx
@@ -217,7 +213,6 @@ class TestCircuitBreaker:
                 # Probe request should have been made
                 assert route.call_count == call_count_before_wait + 1
 
-    @pytest.mark.asyncio
     async def test_successful_probe_closes_circuit(self) -> None:
         """Successful probe in half-open state closes the circuit."""
         import respx
@@ -292,7 +287,6 @@ class TestCircuitBreaker:
                 assert response is not None
                 assert client.circuit_breaker.state == CircuitState.CLOSED
 
-    @pytest.mark.asyncio
     async def test_failed_probe_reopens_circuit(self) -> None:
         """Failed probe in half-open state reopens the circuit."""
         import respx

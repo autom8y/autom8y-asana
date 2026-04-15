@@ -50,7 +50,6 @@ def make_mock_project(gid: str, name: str) -> MagicMock:
 # --- Test: Basic Discovery ---
 
 
-@pytest.mark.asyncio
 class TestWorkspaceDiscovery:
     """Tests for workspace project discovery."""
 
@@ -133,7 +132,6 @@ class TestWorkspaceDiscovery:
 # --- Test: Pipeline Project Identification ---
 
 
-@pytest.mark.asyncio
 class TestPipelineProjectIdentification:
     """Tests for pipeline project identification during discovery."""
 
@@ -255,7 +253,6 @@ class TestPipelineProjectIdentification:
 # --- Test: Static Registry Integration ---
 
 
-@pytest.mark.asyncio
 class TestStaticRegistryIntegration:
     """Tests for integration with static ProjectTypeRegistry."""
 
@@ -299,7 +296,6 @@ class TestStaticRegistryIntegration:
 # --- Test: Lazy Discovery (lookup_or_discover_async) ---
 
 
-@pytest.mark.asyncio
 class TestLazyDiscovery:
     """Tests for lazy discovery via lookup_or_discover_async."""
 
@@ -374,7 +370,6 @@ class TestLazyDiscovery:
 # --- Test: ProcessType Lookup ---
 
 
-@pytest.mark.asyncio
 class TestProcessTypeLookup:
     """Tests for ProcessType lookup after discovery."""
 
@@ -471,7 +466,6 @@ class TestRegistryReset:
 # --- Test: Edge Cases ---
 
 
-@pytest.mark.asyncio
 class TestEdgeCases:
     """Tests for edge cases and error conditions."""
 

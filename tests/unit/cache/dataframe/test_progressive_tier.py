@@ -143,7 +143,6 @@ class TestProgressiveTierKeyParsing:
 class TestProgressiveTierGet:
     """Tests for get_async method."""
 
-    @pytest.mark.asyncio
     async def test_get_async_reads_from_storage(self) -> None:
         """Get reads DataFrame and watermark via DataFrameStorage."""
         df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})
@@ -167,7 +166,6 @@ class TestProgressiveTierGet:
         # load_json should NOT be called -- schema_version comes from metadata
         storage.load_json.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_get_async_returns_none_on_missing(self) -> None:
         """Get returns None when DataFrame doesn't exist."""
         storage = make_mock_storage()
@@ -184,7 +182,6 @@ class TestProgressiveTierGet:
         assert stats["not_found"] == 1
         assert stats["reads"] == 1
 
-    @pytest.mark.asyncio
     async def test_get_async_handles_missing_watermark(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -222,7 +219,6 @@ class TestProgressiveTierGet:
         # Schema version should come from registry, NOT "unknown"
         assert result.schema_version == "1.1.0"
 
-    @pytest.mark.asyncio
     async def test_get_async_metadata_missing_schema_version_uses_registry(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -257,7 +253,6 @@ class TestProgressiveTierGet:
         assert result.schema_version == "1.1.0"
         assert result.watermark == watermark
 
-    @pytest.mark.asyncio
     async def test_get_async_handles_storage_error(self) -> None:
         """Get returns None on storage read error."""
         storage = make_mock_storage()
@@ -273,7 +268,6 @@ class TestProgressiveTierGet:
         stats = tier.get_stats()
         assert stats["read_errors"] == 1
 
-    @pytest.mark.asyncio
     async def test_get_async_fallback_without_metadata_method(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -305,7 +299,6 @@ class TestProgressiveTierGet:
         assert result.schema_version == "2.0.0"
         storage.load_dataframe.assert_called_once_with("proj-123")
 
-    @pytest.mark.asyncio
     async def test_get_async_invalid_key_returns_none(self) -> None:
         """Get returns None for invalid key format."""
         persistence = make_mock_persistence()
@@ -322,7 +315,6 @@ class TestProgressiveTierGet:
 class TestProgressiveTierPut:
     """Tests for put_async method."""
 
-    @pytest.mark.asyncio
     async def test_put_async_delegates_to_persistence(self) -> None:
         """Put calls write_final_artifacts_async correctly."""
         persistence = make_mock_persistence()
@@ -344,7 +336,6 @@ class TestProgressiveTierPut:
         assert stats["writes"] == 1
         assert stats["bytes_written"] > 0
 
-    @pytest.mark.asyncio
     async def test_put_async_returns_false_on_error(self) -> None:
         """Put returns False when SectionPersistence write fails."""
         persistence = make_mock_persistence()
@@ -360,7 +351,6 @@ class TestProgressiveTierPut:
         stats = tier.get_stats()
         assert stats["write_errors"] == 1
 
-    @pytest.mark.asyncio
     async def test_put_async_handles_exception(self) -> None:
         """Put returns False on exception."""
         persistence = make_mock_persistence()
@@ -376,7 +366,6 @@ class TestProgressiveTierPut:
         stats = tier.get_stats()
         assert stats["write_errors"] == 1
 
-    @pytest.mark.asyncio
     async def test_put_async_invalid_key_returns_false(self) -> None:
         """Put returns False for invalid key format."""
         persistence = make_mock_persistence()
@@ -394,7 +383,6 @@ class TestProgressiveTierPut:
 class TestProgressiveTierExists:
     """Tests for exists_async method."""
 
-    @pytest.mark.asyncio
     async def test_exists_async_returns_true_when_found(self) -> None:
         """Exists returns True when DataFrame exists."""
         df = pl.DataFrame({"gid": ["gid-1"], "name": ["A"]})
@@ -408,7 +396,6 @@ class TestProgressiveTierExists:
 
         assert result is True
 
-    @pytest.mark.asyncio
     async def test_exists_async_returns_false_when_missing(self) -> None:
         """Exists returns False when file doesn't exist."""
         storage = make_mock_storage()
@@ -421,7 +408,6 @@ class TestProgressiveTierExists:
 
         assert result is False
 
-    @pytest.mark.asyncio
     async def test_exists_async_invalid_key_returns_false(self) -> None:
         """Exists returns False for invalid key format."""
         persistence = make_mock_persistence()
@@ -435,7 +421,6 @@ class TestProgressiveTierExists:
 class TestProgressiveTierDelete:
     """Tests for delete_async method."""
 
-    @pytest.mark.asyncio
     async def test_delete_async_delegates_to_storage(self) -> None:
         """Delete calls storage.delete_dataframe."""
         storage = make_mock_storage()
@@ -449,7 +434,6 @@ class TestProgressiveTierDelete:
         assert result is True
         storage.delete_dataframe.assert_called_once_with("proj-123")
 
-    @pytest.mark.asyncio
     async def test_delete_async_returns_false_on_failure(self) -> None:
         """Delete returns False if storage deletion fails."""
         storage = make_mock_storage()
@@ -462,7 +446,6 @@ class TestProgressiveTierDelete:
 
         assert result is False
 
-    @pytest.mark.asyncio
     async def test_delete_async_invalid_key_returns_false(self) -> None:
         """Delete returns False for invalid key format."""
         persistence = make_mock_persistence()
@@ -491,7 +474,6 @@ class TestProgressiveTierStats:
         assert stats["bytes_written"] == 0
         assert stats["not_found"] == 0
 
-    @pytest.mark.asyncio
     async def test_stats_tracking(self) -> None:
         """Stats correctly track reads, writes, errors."""
         df = pl.DataFrame({"gid": ["gid-1", "gid-2"], "name": ["A", "B"]})

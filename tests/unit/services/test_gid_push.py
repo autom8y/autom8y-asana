@@ -188,7 +188,6 @@ class TestPushGidMappingsToDataService:
             created_at=datetime(2026, 2, 16, 12, 0, 0, tzinfo=UTC),
         )
 
-    @pytest.mark.asyncio
     async def test_push_disabled_returns_false(self, sample_index: GidLookupIndex) -> None:
         """Returns False when push is disabled via feature flag."""
         with patch.dict("os.environ", {GID_PUSH_ENABLED_ENV_VAR: "false"}):
@@ -199,7 +198,6 @@ class TestPushGidMappingsToDataService:
 
         assert result is False
 
-    @pytest.mark.asyncio
     async def test_skips_when_no_data_service_url(self, sample_index: GidLookupIndex) -> None:
         """Returns False when AUTOM8Y_DATA_URL is not configured."""
         with patch.dict("os.environ", {}, clear=True):
@@ -210,7 +208,6 @@ class TestPushGidMappingsToDataService:
 
         assert result is False
 
-    @pytest.mark.asyncio
     async def test_skips_when_no_auth_token(self, sample_index: GidLookupIndex) -> None:
         """Returns False when auth token is not available."""
         with patch.dict("os.environ", {"AUTOM8Y_DATA_URL": "http://localhost:8000"}, clear=True):
@@ -221,7 +218,6 @@ class TestPushGidMappingsToDataService:
 
         assert result is False
 
-    @pytest.mark.asyncio
     async def test_empty_index_returns_true(self, empty_index: GidLookupIndex) -> None:
         """Returns True (no-op success) when index has no mappings."""
         with patch.dict("os.environ", {"AUTOM8Y_DATA_URL": "http://localhost:8000"}):
@@ -233,7 +229,6 @@ class TestPushGidMappingsToDataService:
 
         assert result is True
 
-    @pytest.mark.asyncio
     async def test_successful_push(self, sample_index: GidLookupIndex) -> None:
         """Returns True and sends correct payload on HTTP 200."""
         mock_response = httpx.Response(
@@ -268,7 +263,6 @@ class TestPushGidMappingsToDataService:
         headers = call_args.kwargs["headers"]
         assert headers["Authorization"] == "Bearer test-token"
 
-    @pytest.mark.asyncio
     async def test_payload_mapping_shape(self, sample_index: GidLookupIndex) -> None:
         """Each mapping in the payload has phone, vertical, task_gid keys."""
         mock_response = httpx.Response(
@@ -300,7 +294,6 @@ class TestPushGidMappingsToDataService:
             assert "vertical" in mapping
             assert "task_gid" in mapping
 
-    @pytest.mark.asyncio
     async def test_http_error_returns_false(self, sample_index: GidLookupIndex) -> None:
         """Returns False on HTTP 500 error (non-blocking)."""
         mock_response = httpx.Response(
@@ -320,7 +313,6 @@ class TestPushGidMappingsToDataService:
 
         assert result is False
 
-    @pytest.mark.asyncio
     async def test_timeout_returns_false(self, sample_index: GidLookupIndex) -> None:
         """Returns False on HTTP timeout (non-blocking)."""
         with patch("autom8_asana.services.gid_push.Autom8yHttpClient") as mock_http_cls:
@@ -338,7 +330,6 @@ class TestPushGidMappingsToDataService:
 
         assert result is False
 
-    @pytest.mark.asyncio
     async def test_unexpected_exception_returns_false(self, sample_index: GidLookupIndex) -> None:
         """Returns False on unexpected exceptions (non-blocking)."""
         with patch("autom8_asana.services.gid_push.Autom8yHttpClient") as mock_http_cls:
@@ -356,7 +347,6 @@ class TestPushGidMappingsToDataService:
 
         assert result is False
 
-    @pytest.mark.asyncio
     async def test_url_override(self, sample_index: GidLookupIndex) -> None:
         """data_service_url parameter overrides environment variable."""
         mock_response = httpx.Response(status_code=200, json={"accepted": 2})
@@ -374,7 +364,6 @@ class TestPushGidMappingsToDataService:
         call_args = mock_raw_client.post.call_args
         assert "custom-url.example.com" in call_args.args[0]
 
-    @pytest.mark.asyncio
     async def test_trailing_slash_in_url_handled(self, sample_index: GidLookupIndex) -> None:
         """Trailing slash in base URL does not cause double-slash."""
         mock_response = httpx.Response(status_code=200, json={"accepted": 2})
@@ -397,7 +386,6 @@ class TestPushGidMappingsToDataService:
 class TestPiiMaskingInLogs:
     """Verify that PII masking is applied to log fields in gid_push."""
 
-    @pytest.mark.asyncio
     async def test_http_error_response_text_is_masked(self) -> None:
         """Phone numbers in HTTP error response body are masked in warning log."""
         phone_in_body = "error: +15551234567 not found"

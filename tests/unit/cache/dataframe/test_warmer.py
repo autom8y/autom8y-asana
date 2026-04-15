@@ -177,7 +177,6 @@ class TestCacheWarmer:
         assert stats["warm_skipped"] == 0
         assert stats["total_rows_warmed"] == 0
 
-    @pytest.mark.asyncio
     async def test_warm_all_skipped_no_project(
         self,
         mock_cache: MagicMock,
@@ -201,7 +200,6 @@ class TestCacheWarmer:
         assert results[0].result == WarmResult.SKIPPED
         assert results[0].error == "No project GID configured"
 
-    @pytest.mark.asyncio
     async def test_warm_all_success(
         self,
         mock_cache: MagicMock,
@@ -238,7 +236,6 @@ class TestCacheWarmer:
         # Verify cache.put_async was called
         mock_cache.put_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_warm_all_failure_strict_mode(
         self,
         mock_cache: MagicMock,
@@ -268,7 +265,6 @@ class TestCacheWarmer:
 
         assert "Cache warm failed for unit" in str(exc_info.value)
 
-    @pytest.mark.asyncio
     async def test_warm_all_failure_non_strict_mode(
         self,
         mock_cache: MagicMock,
@@ -311,7 +307,6 @@ class TestCacheWarmer:
         assert results[0].result == WarmResult.FAILURE
         assert results[1].result == WarmResult.SUCCESS
 
-    @pytest.mark.asyncio
     async def test_warm_entity_single(
         self,
         mock_cache: MagicMock,
@@ -341,7 +336,6 @@ class TestCacheWarmer:
         assert status.entity_type == "unit"
         assert status.row_count == 3
 
-    @pytest.mark.asyncio
     async def test_warm_entity_no_project(
         self,
         mock_cache: MagicMock,
@@ -383,7 +377,6 @@ class TestCacheWarmer:
 
         assert strategy is None
 
-    @pytest.mark.asyncio
     async def test_warm_all_no_strategy(
         self,
         mock_cache: MagicMock,
@@ -410,7 +403,6 @@ class TestCacheWarmer:
         assert results[0].result == WarmResult.FAILURE
         assert "No resolution strategy registered" in results[0].error
 
-    @pytest.mark.asyncio
     async def test_warm_all_no_build_method(
         self,
         mock_cache: MagicMock,
@@ -440,7 +432,6 @@ class TestCacheWarmer:
         assert results[0].result == WarmResult.FAILURE
         assert "no _build_dataframe method" in results[0].error
 
-    @pytest.mark.asyncio
     async def test_warm_all_dataframe_returns_none(
         self,
         mock_cache: MagicMock,
@@ -484,7 +475,6 @@ class TestCacheWarmer:
         assert stats["warm_attempts"] == 0
         assert stats["warm_successes"] == 0
 
-    @pytest.mark.asyncio
     async def test_warm_all_updates_stats(
         self,
         mock_cache: MagicMock,

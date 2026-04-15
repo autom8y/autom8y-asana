@@ -200,7 +200,6 @@ def _make_request(request_id: str = "test-req-id") -> MagicMock:
 class TestApiAuthErrorHandler:
     """Tests for api_auth_error_handler producing canonical ErrorResponse."""
 
-    @pytest.mark.asyncio
     async def test_produces_canonical_envelope(self) -> None:
         """Handler produces canonical ErrorResponse format."""
         from autom8_asana.api.errors import api_auth_error_handler
@@ -219,7 +218,6 @@ class TestApiAuthErrorHandler:
         assert body["error"]["message"] == "Authorization header required"
         assert body["meta"]["request_id"] == "auth-req-001"
 
-    @pytest.mark.asyncio
     async def test_includes_www_authenticate_header(self) -> None:
         """Handler includes WWW-Authenticate header from exception."""
         from autom8_asana.api.errors import api_auth_error_handler
@@ -231,7 +229,6 @@ class TestApiAuthErrorHandler:
 
         assert response.headers.get("www-authenticate") == "Bearer"
 
-    @pytest.mark.asyncio
     async def test_missing_request_id_uses_unknown(self) -> None:
         """Handler uses 'unknown' when request.state has no request_id."""
         from autom8_asana.api.errors import api_auth_error_handler
@@ -251,7 +248,6 @@ class TestApiAuthErrorHandler:
 class TestApiServiceUnavailableHandler:
     """Tests for api_service_unavailable_handler."""
 
-    @pytest.mark.asyncio
     async def test_produces_503_canonical_envelope(self) -> None:
         """Handler produces 503 with canonical ErrorResponse."""
         from autom8_asana.api.errors import api_service_unavailable_handler
@@ -275,7 +271,6 @@ class TestApiServiceUnavailableHandler:
 class TestApiDataFrameBuildErrorHandler:
     """Tests for api_dataframe_build_error_handler."""
 
-    @pytest.mark.asyncio
     async def test_produces_503_with_retry_details(self) -> None:
         """Handler produces 503 with retry_after_seconds in details."""
         from autom8_asana.api.errors import api_dataframe_build_error_handler
@@ -297,7 +292,6 @@ class TestApiDataFrameBuildErrorHandler:
         assert body["error"]["details"]["retry_after_seconds"] == 5
         assert body["meta"]["request_id"] == "df-req-001"
 
-    @pytest.mark.asyncio
     async def test_produces_503_without_retry(self) -> None:
         """Handler produces 503 without retry details when not provided."""
         from autom8_asana.api.errors import api_dataframe_build_error_handler
@@ -322,7 +316,6 @@ class TestApiDataFrameBuildErrorHandler:
 class TestApiErrorHandler:
     """Tests for the generic api_error_handler (catch-all for ApiError)."""
 
-    @pytest.mark.asyncio
     async def test_catches_base_api_error(self) -> None:
         """Generic handler catches ApiError instances."""
         from autom8_asana.api.errors import api_error_handler

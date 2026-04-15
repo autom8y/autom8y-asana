@@ -325,14 +325,12 @@ class TestPermanentlyDisabledMode:
         storage._permanently_disabled = True
         return storage
 
-    @pytest.mark.asyncio()
     async def test_save_dataframe_skips_when_disabled(
         self, disabled_storage: S3DataFrameStorage
     ) -> None:
         result = await disabled_storage.save_dataframe("proj_123", _make_df(), _make_watermark())
         assert result is False
 
-    @pytest.mark.asyncio()
     async def test_load_dataframe_skips_when_disabled(
         self, disabled_storage: S3DataFrameStorage
     ) -> None:
@@ -340,56 +338,48 @@ class TestPermanentlyDisabledMode:
         assert df is None
         assert wm is None
 
-    @pytest.mark.asyncio()
     async def test_save_watermark_skips_when_disabled(
         self, disabled_storage: S3DataFrameStorage
     ) -> None:
         result = await disabled_storage.save_watermark("proj_123", _make_watermark())
         assert result is False
 
-    @pytest.mark.asyncio()
     async def test_get_watermark_skips_when_disabled(
         self, disabled_storage: S3DataFrameStorage
     ) -> None:
         result = await disabled_storage.get_watermark("proj_123")
         assert result is None
 
-    @pytest.mark.asyncio()
     async def test_save_index_skips_when_disabled(
         self, disabled_storage: S3DataFrameStorage
     ) -> None:
         result = await disabled_storage.save_index("proj_123", {"key": "val"})
         assert result is False
 
-    @pytest.mark.asyncio()
     async def test_load_index_skips_when_disabled(
         self, disabled_storage: S3DataFrameStorage
     ) -> None:
         result = await disabled_storage.load_index("proj_123")
         assert result is None
 
-    @pytest.mark.asyncio()
     async def test_list_projects_skips_when_disabled(
         self, disabled_storage: S3DataFrameStorage
     ) -> None:
         result = await disabled_storage.list_projects()
         assert result == []
 
-    @pytest.mark.asyncio()
     async def test_load_all_watermarks_skips_when_disabled(
         self, disabled_storage: S3DataFrameStorage
     ) -> None:
         result = await disabled_storage.load_all_watermarks()
         assert result == {}
 
-    @pytest.mark.asyncio()
     async def test_save_section_skips_when_disabled(
         self, disabled_storage: S3DataFrameStorage
     ) -> None:
         result = await disabled_storage.save_section("proj_123", "sec_456", _make_df())
         assert result is False
 
-    @pytest.mark.asyncio()
     async def test_delete_dataframe_skips_when_disabled(
         self, disabled_storage: S3DataFrameStorage
     ) -> None:
@@ -405,7 +395,6 @@ class TestPermanentlyDisabledMode:
 class TestEnabledFalse:
     """Test that enabled=False disables all operations."""
 
-    @pytest.mark.asyncio()
     async def test_all_ops_return_failure(self) -> None:
         """All operations return failure when enabled=False."""
         storage = _make_storage(enabled=False)
@@ -429,7 +418,6 @@ class TestEnabledFalse:
 class TestNaiveWatermarkValidation:
     """Test ValueError on timezone-naive watermarks."""
 
-    @pytest.mark.asyncio()
     async def test_save_dataframe_naive_watermark_raises(self) -> None:
         """save_dataframe raises ValueError for naive watermark."""
         storage = _make_storage()
@@ -437,7 +425,6 @@ class TestNaiveWatermarkValidation:
         with pytest.raises(ValueError, match="timezone-aware"):
             await storage.save_dataframe("proj_123", _make_df(), naive_wm)
 
-    @pytest.mark.asyncio()
     async def test_save_watermark_naive_watermark_raises(self) -> None:
         """save_watermark raises ValueError for naive watermark."""
         storage = _make_storage()
@@ -466,7 +453,6 @@ class TestDataFrameRoundTrip:
         storage._client = mock_s3
         return storage
 
-    @pytest.mark.asyncio()
     async def test_save_dataframe_happy_path(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -491,7 +477,6 @@ class TestDataFrameRoundTrip:
         assert second_call.kwargs["Key"] == "dataframes/proj_123/watermark.json"
         assert second_call.kwargs["ContentType"] == "application/json"
 
-    @pytest.mark.asyncio()
     async def test_save_and_load_roundtrip(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -531,7 +516,6 @@ class TestDataFrameRoundTrip:
         assert loaded_df.columns == df.columns
         assert loaded_wm == wm
 
-    @pytest.mark.asyncio()
     async def test_load_dataframe_not_found(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -542,7 +526,6 @@ class TestDataFrameRoundTrip:
         assert df is None
         assert wm is None
 
-    @pytest.mark.asyncio()
     async def test_load_dataframe_orphan_watermark(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -586,7 +569,6 @@ class TestWatermarkPersistence:
         storage._client = mock_s3
         return storage
 
-    @pytest.mark.asyncio()
     async def test_save_watermark_happy_path(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -600,7 +582,6 @@ class TestWatermarkPersistence:
         body = json.loads(call.kwargs["Body"].decode())
         assert body["watermark"] == wm.isoformat()
 
-    @pytest.mark.asyncio()
     async def test_get_watermark_happy_path(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -614,7 +595,6 @@ class TestWatermarkPersistence:
         result = await storage_with_mock.get_watermark("proj_123")
         assert result == wm
 
-    @pytest.mark.asyncio()
     async def test_get_watermark_not_found(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -642,7 +622,6 @@ class TestIndexPersistence:
         storage._client = mock_s3
         return storage
 
-    @pytest.mark.asyncio()
     async def test_save_and_load_index_roundtrip(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -678,7 +657,6 @@ class TestIndexPersistence:
         loaded = await storage_with_mock.load_index("proj_123")
         assert loaded == index_data
 
-    @pytest.mark.asyncio()
     async def test_load_index_not_found(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -687,7 +665,6 @@ class TestIndexPersistence:
         result = await storage_with_mock.load_index("proj_missing")
         assert result is None
 
-    @pytest.mark.asyncio()
     async def test_delete_index(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -718,7 +695,6 @@ class TestSectionOperations:
         storage._client = mock_s3
         return storage
 
-    @pytest.mark.asyncio()
     async def test_save_section_key_format(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -730,7 +706,6 @@ class TestSectionOperations:
         call = mock_s3.put_object.call_args
         assert call.kwargs["Key"] == "dataframes/proj_123/sections/sec_456.parquet"
 
-    @pytest.mark.asyncio()
     async def test_save_section_with_metadata(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -742,7 +717,6 @@ class TestSectionOperations:
         call = mock_s3.put_object.call_args
         assert call.kwargs["Metadata"] == meta
 
-    @pytest.mark.asyncio()
     async def test_section_roundtrip(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -769,7 +743,6 @@ class TestSectionOperations:
         assert loaded.shape == df.shape
         assert loaded.columns == df.columns
 
-    @pytest.mark.asyncio()
     async def test_delete_section(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -800,7 +773,6 @@ class TestRawJsonOperations:
         storage._client = mock_s3
         return storage
 
-    @pytest.mark.asyncio()
     async def test_save_json_and_load_json_roundtrip(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -847,7 +819,6 @@ class TestListProjects:
         storage._client = mock_s3
         return storage
 
-    @pytest.mark.asyncio()
     async def test_list_projects_extracts_gids(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -886,7 +857,6 @@ class TestLoadAllWatermarks:
         storage._client = mock_s3
         return storage
 
-    @pytest.mark.asyncio()
     async def test_load_all_watermarks(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -932,7 +902,6 @@ class TestLoadAllWatermarks:
 class TestRetryIntegration:
     """Test that S3 operations properly integrate with RetryOrchestrator."""
 
-    @pytest.mark.asyncio()
     async def test_retry_on_transient_error(self) -> None:
         """Transient S3 errors trigger retry through orchestrator."""
         orchestrator = _make_orchestrator(max_attempts=3)
@@ -958,7 +927,6 @@ class TestRetryIntegration:
         assert result is True
         assert call_count == 2
 
-    @pytest.mark.asyncio()
     async def test_not_found_errors_return_none(self) -> None:
         """NoSuchKey errors are handled gracefully, returning None.
 
@@ -988,7 +956,6 @@ class TestRetryIntegration:
 class TestErrorWrapping:
     """Test that S3 errors are wrapped as S3TransportError at the boundary."""
 
-    @pytest.mark.asyncio()
     async def test_permanent_errors_do_not_permanently_disable(self) -> None:
         """AccessDenied errors fail the operation but do not permanently disable storage.
 
@@ -1007,7 +974,6 @@ class TestErrorWrapping:
         # Permanent errors no longer set _permanently_disabled
         assert storage._permanently_disabled is False
 
-    @pytest.mark.asyncio()
     async def test_circuit_breaker_opens_on_repeated_failure(self) -> None:
         """Circuit breaker opens after threshold failures.
 
@@ -1047,7 +1013,6 @@ class TestErrorWrapping:
         # But is_available reflects CB state
         assert storage.is_available is False
 
-    @pytest.mark.asyncio()
     async def test_budget_exhaustion_fails_fast(self) -> None:
         """Operations fail when retry budget is exhausted."""
         # Create tiny budget
@@ -1084,7 +1049,6 @@ class TestDeleteOperations:
         storage._client = mock_s3
         return storage
 
-    @pytest.mark.asyncio()
     async def test_delete_dataframe_deletes_all_keys(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -1098,7 +1062,6 @@ class TestDeleteOperations:
         assert "dataframes/proj_123/watermark.json" in deleted_keys
         assert "dataframes/proj_123/gid_lookup_index.json" in deleted_keys
 
-    @pytest.mark.asyncio()
     async def test_delete_object_raw_key(
         self, storage_with_mock: S3DataFrameStorage, mock_s3: MagicMock
     ) -> None:
@@ -1162,7 +1125,6 @@ class TestSerializationHelpers:
 class TestAsyncContextManager:
     """Test async context manager lifecycle."""
 
-    @pytest.mark.asyncio()
     async def test_context_manager_init_and_cleanup(self) -> None:
         """Context manager initializes client and cleans up."""
         storage = _make_storage()
@@ -1175,7 +1137,6 @@ class TestAsyncContextManager:
         # After exit, client is reset
         assert storage._client is None
 
-    @pytest.mark.asyncio()
     async def test_context_manager_permanently_disabled_skips_init(self) -> None:
         """Context manager skips client init when permanently disabled."""
         storage = _make_storage(enabled=False)
@@ -1195,7 +1156,6 @@ class TestDegradationModelFix:
     _permanently_disabled (config-time only) + CB-based health checks.
     """
 
-    @pytest.mark.asyncio()
     async def test_storage_recovers_after_cb_open(self) -> None:
         """After CB opens from transient failures, storage recovers via HALF_OPEN.
 
@@ -1242,7 +1202,6 @@ class TestDegradationModelFix:
         assert cb.state == CBState.CLOSED
         assert storage.is_available is True
 
-    @pytest.mark.asyncio()
     async def test_permanently_disabled_never_attempts_s3(self) -> None:
         """Storage with enabled=False never makes boto3 calls.
 
@@ -1270,7 +1229,6 @@ class TestDegradationModelFix:
         mock_client.get_object.assert_not_called()
         mock_client.delete_object.assert_not_called()
 
-    @pytest.mark.asyncio()
     async def test_cb_open_returns_none_not_permanent_death(self) -> None:
         """CB open returns None/False but recovery is possible.
 
@@ -1322,7 +1280,6 @@ class TestDegradationModelFix:
         assert result is not None
         assert cb.state == CBState.CLOSED
 
-    @pytest.mark.asyncio()
     async def test_nosuchkey_does_not_set_permanently_disabled(self) -> None:
         """NoSuchKey in _get_object does not set _permanently_disabled.
 

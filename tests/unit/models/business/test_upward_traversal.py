@@ -31,7 +31,6 @@ from autom8_asana.models.task import Task
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestParentChainNavigation:
     """Tests for navigating parent chains during upward traversal."""
 
@@ -262,7 +261,6 @@ class TestParentChainNavigation:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestCycleDetection:
     """Tests for cycle detection in upward traversal."""
 
@@ -369,7 +367,6 @@ class TestCycleDetection:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestMaxDepthEnforcement:
     """Tests for max depth limits in upward traversal."""
 
@@ -490,7 +487,6 @@ class TestMaxDepthEnforcement:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestRootWithoutBusiness:
     """Tests for reaching root without finding Business."""
 
@@ -543,7 +539,6 @@ class TestRootWithoutBusiness:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestTypeDetectionDuringTraversal:
     """Tests for entity type detection during upward traversal."""
 
@@ -640,7 +635,6 @@ class TestTypeDetectionDuringTraversal:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestEntityToBusinessAsync:
     """Tests for to_business_async() instance methods."""
 
@@ -864,7 +858,6 @@ class TestEntityToBusinessAsync:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestReferenceUpdates:
     """Tests for reference updates after to_business_async()."""
 

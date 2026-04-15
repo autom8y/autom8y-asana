@@ -41,7 +41,6 @@ class TestWiringResult:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_wire_defaults_unit_dependent(
     lifecycle_config,
     mock_client,
@@ -59,7 +58,6 @@ async def test_wire_defaults_unit_dependent(
     mock_client.tasks.add_dependent_async.assert_called()
 
 
-@pytest.mark.asyncio
 async def test_wire_defaults_offer_holder_dependent(
     lifecycle_config, mock_client, mock_resolution_context, mock_unit
 ):
@@ -82,7 +80,6 @@ async def test_wire_defaults_offer_holder_dependent(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_wire_defaults_open_plays(
     lifecycle_config, mock_client, mock_resolution_context, mock_business
 ):
@@ -110,7 +107,6 @@ async def test_wire_defaults_open_plays(
     assert "dna2" not in result.wired
 
 
-@pytest.mark.asyncio
 async def test_wire_defaults_multiple_open_plays(
     lifecycle_config, mock_client, mock_resolution_context, mock_business
 ):
@@ -138,7 +134,6 @@ async def test_wire_defaults_multiple_open_plays(
     assert mock_client.tasks.add_dependency_async.call_count == 3
 
 
-@pytest.mark.asyncio
 async def test_wire_defaults_no_dna_holder(
     lifecycle_config, mock_client, mock_resolution_context, mock_business
 ):
@@ -158,7 +153,6 @@ async def test_wire_defaults_no_dna_holder(
     assert result.warnings == []
 
 
-@pytest.mark.asyncio
 async def test_wire_defaults_dna_holder_resolved_via_context(
     lifecycle_config, mock_client, mock_resolution_context, mock_business
 ):
@@ -190,7 +184,6 @@ async def test_wire_defaults_dna_holder_resolved_via_context(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_wire_defaults_no_rules_configured(mock_client):
     """Returns empty WiringResult when no wiring rules are configured."""
     config = MagicMock()
@@ -213,7 +206,6 @@ async def test_wire_defaults_no_rules_configured(mock_client):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_wire_dependent_failure_is_nonfatal(
     lifecycle_config, mock_client, mock_resolution_context, mock_unit
 ):
@@ -230,7 +222,6 @@ async def test_wire_dependent_failure_is_nonfatal(
     assert any("unit" in w for w in result.warnings)
 
 
-@pytest.mark.asyncio
 async def test_wire_open_plays_failure_is_nonfatal(
     lifecycle_config, mock_client, mock_resolution_context, mock_business
 ):
@@ -255,7 +246,6 @@ async def test_wire_open_plays_failure_is_nonfatal(
     assert any("play1" in w for w in result.warnings)
 
 
-@pytest.mark.asyncio
 async def test_dependent_failure_does_not_prevent_play_wiring(
     lifecycle_config, mock_client, mock_resolution_context, mock_business
 ):
@@ -284,7 +274,6 @@ async def test_dependent_failure_does_not_prevent_play_wiring(
     assert any("dependent" in w.lower() or "unit" in w for w in result.warnings)
 
 
-@pytest.mark.asyncio
 async def test_one_play_failure_does_not_prevent_others(
     lifecycle_config, mock_client, mock_resolution_context, mock_business
 ):
@@ -326,7 +315,6 @@ async def test_one_play_failure_does_not_prevent_others(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_wire_entity_as_dependency(lifecycle_config, mock_client):
     """Created entity is wired as dependency of the target entity."""
     mock_client.tasks.add_dependency_async = AsyncMock()
@@ -341,7 +329,6 @@ async def test_wire_entity_as_dependency(lifecycle_config, mock_client):
     mock_client.tasks.add_dependency_async.assert_called_once_with("target456", "created123")
 
 
-@pytest.mark.asyncio
 async def test_wire_entity_as_dependency_no_target_gid(lifecycle_config, mock_client):
     """Missing target GID produces warning without API call."""
     mock_client.tasks.add_dependency_async = AsyncMock()
@@ -356,7 +343,6 @@ async def test_wire_entity_as_dependency_no_target_gid(lifecycle_config, mock_cl
     mock_client.tasks.add_dependency_async.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_wire_entity_as_dependency_api_failure(lifecycle_config, mock_client):
     """API failure on entity dependency wiring produces warning, not exception."""
     mock_client.tasks.add_dependency_async = AsyncMock(side_effect=ConnectionError("API timeout"))
@@ -378,7 +364,6 @@ async def test_wire_entity_as_dependency_api_failure(lifecycle_config, mock_clie
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_wire_defaults_business_async_failure(
     lifecycle_config, mock_client, mock_resolution_context
 ):

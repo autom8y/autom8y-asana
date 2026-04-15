@@ -19,7 +19,6 @@ from autom8_asana.clients.data.client import DataServiceClient
 class TestIsHealthy:
     """Tests for DataServiceClient.is_healthy()."""
 
-    @pytest.mark.asyncio
     async def test_is_healthy_when_circuit_breaker_closed(self) -> None:
         """is_healthy() completes without raising when circuit breaker is closed."""
         client = DataServiceClient()
@@ -30,7 +29,6 @@ class TestIsHealthy:
 
         client._circuit_breaker.check.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_is_healthy_raises_when_circuit_breaker_open(self) -> None:
         """is_healthy() propagates CircuitBreakerOpenError unchanged."""
         client = DataServiceClient()
@@ -43,7 +41,6 @@ class TestIsHealthy:
         # Same instance, not wrapped
         assert exc_info.value is original_error
 
-    @pytest.mark.asyncio
     async def test_is_healthy_raises_when_half_open_fails(self) -> None:
         """is_healthy() propagates exception from half-open state check."""
         client = DataServiceClient()

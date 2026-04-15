@@ -684,7 +684,6 @@ class TestEmptyDataFrame:
             ],
         )
 
-    @pytest.mark.asyncio
     async def test_query_empty_df_no_filter(
         self, empty_engine: QueryEngine, empty_schema: DataFrameSchema
     ) -> None:
@@ -704,7 +703,6 @@ class TestEmptyDataFrame:
         assert result.meta.returned_count == 0
         assert result.data == []
 
-    @pytest.mark.asyncio
     async def test_query_all_filtered_out(self, empty_schema: DataFrameSchema) -> None:
         """DataFrame with data but filter matches nothing."""
         df = pl.DataFrame(
@@ -772,7 +770,6 @@ class TestSectionEdgeCases:
         service.get_dataframe = AsyncMock(return_value=section_df)  # type: ignore[method-assign]
         return QueryEngine(provider=service)
 
-    @pytest.mark.asyncio
     async def test_nonexistent_section(
         self, section_engine: QueryEngine, section_schema: DataFrameSchema
     ) -> None:
@@ -791,7 +788,6 @@ class TestSectionEdgeCases:
             )
         assert exc.value.section == "Nonexistent"
 
-    @pytest.mark.asyncio
     async def test_empty_string_section(
         self, section_engine: QueryEngine, section_schema: DataFrameSchema
     ) -> None:
@@ -824,7 +820,6 @@ class TestSectionEdgeCases:
         assert d["error"] == "UNKNOWN_SECTION"
         assert d["section"] == "Bogus"
 
-    @pytest.mark.asyncio
     async def test_section_param_and_section_predicate_simultaneously(
         self, section_schema: DataFrameSchema
     ) -> None:
@@ -873,7 +868,6 @@ class TestSectionEdgeCases:
         assert result.data[0]["name"] == "A"
         assert result.data[0]["section"] == "Active"
 
-    @pytest.mark.asyncio
     async def test_section_case_sensitive_filter(self, section_schema: DataFrameSchema) -> None:
         """Section name filter on DataFrame is case-sensitive (per ADR-DQS-003)."""
         from autom8_asana.metrics.resolve import SectionIndex
@@ -1027,7 +1021,6 @@ class TestFieldValidation:
         req = RowsRequest.model_validate({"select": None})
         assert req.select is None
 
-    @pytest.mark.asyncio
     async def test_unknown_field_in_select(self) -> None:
         schema = DataFrameSchema(
             name="test",
@@ -1058,7 +1051,6 @@ class TestFieldValidation:
                 )
             assert exc.value.field == "bogus"
 
-    @pytest.mark.asyncio
     async def test_select_gid_only_no_duplication(self) -> None:
         """select: ['gid'] should not produce gid twice in output."""
         schema = DataFrameSchema(
@@ -1090,7 +1082,6 @@ class TestFieldValidation:
         # gid should appear exactly once
         assert list(result.data[0].keys()).count("gid") == 1
 
-    @pytest.mark.asyncio
     async def test_predicate_field_in_schema_but_not_in_dataframe(self) -> None:
         """Column exists in schema but not in the actual DataFrame.
 
@@ -1554,7 +1545,6 @@ class TestPaginationEdgeCases:
         service.get_dataframe = AsyncMock(return_value=small_df)  # type: ignore[method-assign]
         return QueryEngine(provider=service)
 
-    @pytest.mark.asyncio
     async def test_offset_beyond_dataset(
         self, small_engine: QueryEngine, small_schema: DataFrameSchema
     ) -> None:
@@ -1575,7 +1565,6 @@ class TestPaginationEdgeCases:
         assert result.meta.returned_count == 0
         assert result.data == []
 
-    @pytest.mark.asyncio
     async def test_offset_equals_total(
         self, small_engine: QueryEngine, small_schema: DataFrameSchema
     ) -> None:
@@ -1594,7 +1583,6 @@ class TestPaginationEdgeCases:
             )
         assert result.meta.returned_count == 0
 
-    @pytest.mark.asyncio
     async def test_limit_1_returns_one(
         self, small_engine: QueryEngine, small_schema: DataFrameSchema
     ) -> None:
@@ -1612,7 +1600,6 @@ class TestPaginationEdgeCases:
             )
         assert result.meta.returned_count == 1
 
-    @pytest.mark.asyncio
     async def test_offset_plus_limit_exceeds_total(
         self, small_engine: QueryEngine, small_schema: DataFrameSchema
     ) -> None:
@@ -1631,7 +1618,6 @@ class TestPaginationEdgeCases:
             )
         assert result.meta.returned_count == 1
 
-    @pytest.mark.asyncio
     async def test_limit_clamped_by_max_result_rows(self) -> None:
         """limit: 50000 with MAX_RESULT_ROWS=10000 is clamped."""
         # RowsRequest caps at 1000, but QueryLimits clamps further
@@ -1871,7 +1857,6 @@ class TestEngineIntegrationAdversarial:
         service.get_dataframe = AsyncMock(return_value=df)  # type: ignore[method-assign]
         return QueryEngine(provider=service)
 
-    @pytest.mark.asyncio
     async def test_response_query_ms_positive(self, engine_schema: DataFrameSchema) -> None:
         """query_ms in response metadata should be >= 0."""
         df = pl.DataFrame({"gid": ["1"], "name": ["A"], "section": ["S"], "score": [1.0]})
@@ -1890,7 +1875,6 @@ class TestEngineIntegrationAdversarial:
             )
         assert result.meta.query_ms >= 0
 
-    @pytest.mark.asyncio
     async def test_depth_guard_fires_before_io(self, engine_schema: DataFrameSchema) -> None:
         """Depth guard should reject BEFORE loading DataFrame (fail-fast)."""
         service = EntityQueryService()
@@ -1910,7 +1894,6 @@ class TestEngineIntegrationAdversarial:
         # get_dataframe should NOT have been called
         service.get_dataframe.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_default_select_includes_gid_name_section(
         self, engine_schema: DataFrameSchema
     ) -> None:

@@ -71,7 +71,6 @@ class TestInvalidateProjectAsync:
         # We set clear_tasks=False in most tests, so this is only needed
         # when clear_tasks is True. Provided as a convenience fixture.
 
-    @pytest.mark.asyncio
     async def test_invalidate_project_deletes_manifest_and_sections(
         self,
         mock_persistence: MagicMock,
@@ -92,7 +91,6 @@ class TestInvalidateProjectAsync:
         mock_persistence.delete_section_files_async.assert_awaited_once_with("1234567890")
         mock_persistence.delete_manifest_async.assert_awaited_once_with("1234567890")
 
-    @pytest.mark.asyncio
     async def test_invalidate_project_idempotent(
         self,
         mock_persistence: MagicMock,
@@ -121,7 +119,6 @@ class TestInvalidateProjectAsync:
         assert mock_persistence.delete_section_files_async.await_count == 2
         assert mock_persistence.delete_manifest_async.await_count == 2
 
-    @pytest.mark.asyncio
     async def test_invalidate_project_with_clear_tasks(
         self,
         mock_persistence: MagicMock,
@@ -160,7 +157,6 @@ class TestInvalidateProjectAsync:
         mock_persistence.delete_manifest_async.assert_awaited_once_with("9876543210")
         mock_cache.clear_all_tasks.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_invalidate_project_missing_gid_noop(self) -> None:
         """Invoke without invalidate_project, no section persistence calls."""
         with patch(
@@ -177,7 +173,6 @@ class TestInvalidateProjectAsync:
         # Factory should never be called when invalidate_project is None
         mock_factory.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_invalidate_project_response_includes_count(
         self,
         mock_persistence: MagicMock,
@@ -199,7 +194,6 @@ class TestInvalidateProjectAsync:
         assert response.success is True
         assert "manifest(s) invalidated" in response.message
 
-    @pytest.mark.asyncio
     async def test_invalidate_project_no_project_response_zero_count(self) -> None:
         """Without invalidate_project, projects_invalidated is 0 in response."""
         response = await _invalidate_cache_async(
@@ -222,7 +216,6 @@ class TestHandlerAsyncInvalidateProject:
         with patch("autom8_asana.lambda_handlers.cache_invalidate.emit_metric"):
             yield
 
-    @pytest.mark.asyncio
     async def test_handler_async_passes_invalidate_project(self) -> None:
         """handler_async threads invalidate_project to _invalidate_cache_async."""
         mock_persistence = MagicMock()
@@ -246,7 +239,6 @@ class TestHandlerAsyncInvalidateProject:
         mock_persistence.delete_section_files_async.assert_awaited_once_with("7777777777")
         mock_persistence.delete_manifest_async.assert_awaited_once_with("7777777777")
 
-    @pytest.mark.asyncio
     async def test_handler_async_no_invalidate_project_in_event(self) -> None:
         """handler_async with no invalidate_project key produces zero count."""
         result = await handler_async(

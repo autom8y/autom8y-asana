@@ -121,7 +121,6 @@ class TestInsightsRequestContract:
     autom8_data's Pydantic schema expectations.
     """
 
-    @pytest.mark.asyncio
     @respx.mock
     async def test_request_body_structure(self):
         """Validate HTTP request body has required fields with correct types.
@@ -194,7 +193,6 @@ class TestInsightsRequestContract:
             f"period must be one of {VALID_PERIODS}, got: {body_json['period']}"
         )
 
-    @pytest.mark.asyncio
     @respx.mock
     async def test_frame_type_mapping_for_all_factories(self):
         """Validate frame_type is correctly mapped for each factory.
@@ -267,7 +265,6 @@ class TestPeriodNormalizationContract:
     and normalizes them to autom8_data's expected format.
     """
 
-    @pytest.mark.asyncio
     @respx.mock
     @pytest.mark.parametrize(
         "input_period,expected_period",
@@ -352,7 +349,6 @@ class TestPhoneVerticalPairContract:
       - phone_vertical_pairs: list with 1-1000 items
     """
 
-    @pytest.mark.asyncio
     @respx.mock
     async def test_phone_vertical_pair_structure(self):
         """Validate PVP list contains dicts with phone and vertical fields."""
@@ -406,7 +402,6 @@ class TestPhoneVerticalPairContract:
         assert "phone" in pvp, "PVP must have phone field"
         assert "vertical" in pvp, "PVP must have vertical field"
 
-    @pytest.mark.asyncio
     @respx.mock
     async def test_phone_format_validation(self):
         r"""Validate phone field matches E.164 format.
@@ -476,7 +471,6 @@ class TestPhoneVerticalPairContract:
             # Reset for next iteration
             route.reset()
 
-    @pytest.mark.asyncio
     @respx.mock
     async def test_vertical_format_validation(self):
         """Validate vertical field is non-empty.
@@ -548,7 +542,6 @@ class TestPhoneVerticalPairContract:
             # Reset for next iteration
             route.reset()
 
-    @pytest.mark.asyncio
     @respx.mock
     async def test_pvp_list_count_validation(self):
         """Validate phone_vertical_pairs list contains exactly 1 item for single requests.
@@ -611,7 +604,6 @@ class TestEndpointContract:
     instead of the incorrect POST /api/v1/data-service/{factory}/insights.
     """
 
-    @pytest.mark.asyncio
     @respx.mock
     async def test_endpoint_path(self):
         """Validate client sends POST /api/v1/data-service/insights.

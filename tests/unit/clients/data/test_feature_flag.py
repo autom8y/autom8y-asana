@@ -27,7 +27,6 @@ class TestFeatureFlagDisabled:
     Per D-011: Tests patch get_settings() directly since Settings is cached at import time.
     """
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "scenario",
         [
@@ -57,7 +56,6 @@ class TestFeatureFlagDisabled:
         assert exc.value.reason == "feature_disabled"
         assert "Insights integration is disabled" in str(exc.value)
 
-    @pytest.mark.asyncio
     async def test_disabled_with_case_variations(self) -> None:
         """get_insights_async raises InsightsServiceError when insights_enabled=False.
 
@@ -85,7 +83,6 @@ class TestFeatureFlagDisabled:
 
                 assert exc.value.reason == "feature_disabled"
 
-    @pytest.mark.asyncio
     async def test_feature_check_happens_before_validation(self) -> None:
         """Feature flag check happens before any other validation."""
         from autom8_asana.errors import InsightsServiceError
@@ -115,7 +112,6 @@ class TestFeatureFlagEnabled:
     Per Story 2.7: Feature is now enabled by default.
     """
 
-    @pytest.mark.asyncio
     async def test_enabled_by_default_when_env_var_not_set(self) -> None:
         """get_insights_async succeeds when env var is not set (Story 2.7)."""
         import respx
@@ -148,7 +144,6 @@ class TestFeatureFlagEnabled:
 
                 assert response.metadata.factory == "account"
 
-    @pytest.mark.asyncio
     async def test_enabled_when_env_var_empty(self) -> None:
         """get_insights_async succeeds when env var is empty string (Story 2.7)."""
         import respx
@@ -180,7 +175,6 @@ class TestFeatureFlagEnabled:
 
                 assert response is not None
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "env_value",
         [

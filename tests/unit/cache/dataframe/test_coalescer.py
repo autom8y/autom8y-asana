@@ -16,7 +16,6 @@ from autom8_asana.cache.dataframe.coalescer import (
 class TestDataFrameCacheCoalescer:
     """Tests for DataFrameCacheCoalescer."""
 
-    @pytest.mark.asyncio
     async def test_first_request_acquires(self) -> None:
         """First request acquires lock."""
         coalescer = DataFrameCacheCoalescer()
@@ -26,7 +25,6 @@ class TestDataFrameCacheCoalescer:
         assert acquired is True
         assert coalescer.is_building("key-1")
 
-    @pytest.mark.asyncio
     async def test_second_request_does_not_acquire(self) -> None:
         """Second request does not acquire while first building."""
         coalescer = DataFrameCacheCoalescer()
@@ -36,7 +34,6 @@ class TestDataFrameCacheCoalescer:
 
         assert acquired is False
 
-    @pytest.mark.asyncio
     async def test_different_keys_can_acquire(self) -> None:
         """Different keys can acquire independently."""
         coalescer = DataFrameCacheCoalescer()
@@ -49,7 +46,6 @@ class TestDataFrameCacheCoalescer:
         assert coalescer.is_building("key-1")
         assert coalescer.is_building("key-2")
 
-    @pytest.mark.asyncio
     async def test_waiter_notified_on_success(self) -> None:
         """Waiters notified when build completes successfully."""
         coalescer = DataFrameCacheCoalescer()
@@ -70,7 +66,6 @@ class TestDataFrameCacheCoalescer:
 
         assert result is True
 
-    @pytest.mark.asyncio
     async def test_waiter_notified_on_failure(self) -> None:
         """Waiters notified when build fails."""
         coalescer = DataFrameCacheCoalescer()
@@ -91,7 +86,6 @@ class TestDataFrameCacheCoalescer:
 
         assert result is False
 
-    @pytest.mark.asyncio
     async def test_wait_timeout(self) -> None:
         """Wait times out if build takes too long."""
         coalescer = DataFrameCacheCoalescer()
@@ -104,7 +98,6 @@ class TestDataFrameCacheCoalescer:
         # Clean up
         await coalescer.release_async("key-1", success=False)
 
-    @pytest.mark.asyncio
     async def test_wait_on_nonexistent_key(self) -> None:
         """Wait on nonexistent key returns False immediately."""
         coalescer = DataFrameCacheCoalescer()
@@ -113,7 +106,6 @@ class TestDataFrameCacheCoalescer:
 
         assert result is False
 
-    @pytest.mark.asyncio
     async def test_is_building_false_after_release(self) -> None:
         """is_building returns False after release (eventually)."""
         coalescer = DataFrameCacheCoalescer()
@@ -125,7 +117,6 @@ class TestDataFrameCacheCoalescer:
         # Build status changes from BUILDING
         assert not coalescer.is_building("key-1")
 
-    @pytest.mark.asyncio
     async def test_can_reacquire_after_cleanup(self) -> None:
         """Can acquire same key after cleanup."""
         coalescer = DataFrameCacheCoalescer()
@@ -141,7 +132,6 @@ class TestDataFrameCacheCoalescer:
         acquired = await coalescer.try_acquire_async("key-1")
         assert acquired is True
 
-    @pytest.mark.asyncio
     async def test_stats(self) -> None:
         """Stats track operations correctly."""
         coalescer = DataFrameCacheCoalescer()
@@ -160,7 +150,6 @@ class TestDataFrameCacheCoalescer:
         assert stats["completions_success"] == 1
         assert stats["completions_failure"] == 1
 
-    @pytest.mark.asyncio
     async def test_multiple_waiters(self) -> None:
         """Multiple waiters all get notified."""
         coalescer = DataFrameCacheCoalescer()

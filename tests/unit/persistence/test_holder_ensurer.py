@@ -192,7 +192,6 @@ class TestSC001MissingHoldersCreated:
     re-fetch subtasks -> 7 holder subtasks exist."
     """
 
-    @pytest.mark.asyncio
     async def test_all_seven_holders_created_for_dirty_business(self) -> None:
         """When a Business is dirty with no holders, all 7 holders are created.
 
@@ -242,7 +241,6 @@ class TestSC001MissingHoldersCreated:
         }
         assert holder_types == expected_types
 
-    @pytest.mark.asyncio
     async def test_contact_holder_created_with_correct_properties(self) -> None:
         """ContactHolder is created with correct name, temp GID, and parent ref."""
         from autom8_asana.models.business.contact import ContactHolder
@@ -269,7 +267,6 @@ class TestSC001MissingHoldersCreated:
         assert holder.gid.startswith("temp_")
         assert holder.parent.gid == "biz_real_gid"
 
-    @pytest.mark.asyncio
     async def test_holders_wired_onto_parent(self) -> None:
         """Created holders are wired onto the parent Business's private attrs."""
         business = make_business(gid="biz_real_gid")
@@ -302,7 +299,6 @@ class TestSC001MissingHoldersCreated:
 class TestSC002ExistingHoldersReused:
     """SC-002: Pre-existing holders are detected and reused, not duplicated."""
 
-    @pytest.mark.asyncio
     async def test_existing_holder_reused(self) -> None:
         """When a ContactHolder already exists in Asana, it is reused."""
         from autom8_asana.models.business.contact import ContactHolder
@@ -335,7 +331,6 @@ class TestSC002ExistingHoldersReused:
         # Other 6 holders should still be created
         assert len(new_entities) == 6
 
-    @pytest.mark.asyncio
     async def test_partial_existing_only_creates_missing(self) -> None:
         """When 1/7 holders exist, only the 6 missing ones are created."""
         from autom8_asana.models.business.contact import ContactHolder
@@ -381,7 +376,6 @@ class TestSC003ChildrenParented:
     """SC-003: Children tracked beneath a newly-created holder are saved as
     subtasks of that holder."""
 
-    @pytest.mark.asyncio
     async def test_contact_parent_set_to_new_holder(self) -> None:
         """New Contact's parent is set to the new ContactHolder's temp GID.
 
@@ -415,7 +409,6 @@ class TestSC003ChildrenParented:
         assert isinstance(contact.parent, NameGid)
         assert contact.parent.gid == holder.gid
 
-    @pytest.mark.asyncio
     async def test_contact_parent_set_to_existing_holder(self) -> None:
         """Contact's parent is set to the existing holder's GID."""
         from autom8_asana.models.business.contact import ContactHolder
@@ -444,7 +437,6 @@ class TestSC003ChildrenParented:
         assert isinstance(contact.parent, NameGid)
         assert contact.parent.gid == "existing_ch_gid"
 
-    @pytest.mark.asyncio
     async def test_unit_parent_set_to_new_holder(self) -> None:
         """New Unit's parent is set to the new UnitHolder's temp GID."""
         business = make_business(gid="biz_real_gid")
@@ -472,7 +464,6 @@ class TestSC003ChildrenParented:
         assert isinstance(unit.parent, NameGid)
         assert unit.parent.gid == holder.gid
 
-    @pytest.mark.asyncio
     async def test_children_not_belonging_to_parent_are_not_wired(self) -> None:
         """Children with _business pointing to a different Business are not wired."""
         business_a = make_business(gid="biz_a")
@@ -543,7 +534,6 @@ class TestSC005OptOut:
         session = SaveSession(client, auto_create_holders=False)
         assert session.auto_create_holders is False
 
-    @pytest.mark.asyncio
     async def test_opt_out_skips_ensure_holders(self) -> None:
         """When auto_create_holders=False, the ensurer would create holders
         but the session skips the phase entirely."""
@@ -586,7 +576,6 @@ class TestSC005OptOut:
 class TestHolderEnsurerInternals:
     """Tests for HolderEnsurer internal logic."""
 
-    @pytest.mark.asyncio
     async def test_empty_entities_returns_same_list(self) -> None:
         """Empty dirty list returns empty list."""
         mock_client = make_mock_client()
@@ -597,7 +586,6 @@ class TestHolderEnsurerInternals:
         result = await ensurer.ensure_holders_for_entities([])
         assert result == []
 
-    @pytest.mark.asyncio
     async def test_entities_without_holder_key_map_pass_through(self) -> None:
         """Entities without HOLDER_KEY_MAP are returned unchanged."""
         mock_client = make_mock_client()
@@ -613,7 +601,6 @@ class TestHolderEnsurerInternals:
 
         assert len(result) == len(dirty)
 
-    @pytest.mark.asyncio
     async def test_detection_failure_still_creates_holders(self) -> None:
         """If detection API fails, holders are still created (fallback to create)."""
         business = make_business(gid="biz_real_gid")
@@ -637,7 +624,6 @@ class TestHolderEnsurerInternals:
         new_holders = [e for e in result if e not in dirty]
         assert len(new_holders) == 7
 
-    @pytest.mark.asyncio
     async def test_new_business_skips_detection(self) -> None:
         """For a new Business (temp GID), detection is skipped."""
         # Use gid="" which gets temp GID -> EntityState.NEW
@@ -665,7 +651,6 @@ class TestHolderEnsurerInternals:
         for holder in new_holders:
             assert holder.parent.gid == business.gid
 
-    @pytest.mark.asyncio
     async def test_already_tracked_holder_is_skipped(self) -> None:
         """If a holder is already populated AND tracked, it is not re-created."""
         from autom8_asana.models.business.contact import ContactHolder
@@ -797,7 +782,6 @@ class TestDependencyGraphIntegration:
 class TestS2001UnitLevelHolders:
     """S2-001: HolderEnsurer creates OfferHolder and ProcessHolder for Units."""
 
-    @pytest.mark.asyncio
     async def test_unit_holders_created_when_unit_in_dirty_list(self) -> None:
         """When a Unit with HOLDER_KEY_MAP is dirty, its 2 holders are created.
 
@@ -834,7 +818,6 @@ class TestS2001UnitLevelHolders:
         assert unit._offer_holder is not None
         assert unit._process_holder is not None
 
-    @pytest.mark.asyncio
     async def test_offer_wired_to_offer_holder(self) -> None:
         """New Offer's parent is set to the new OfferHolder's temp GID.
 
@@ -868,7 +851,6 @@ class TestS2001UnitLevelHolders:
         assert isinstance(offer.parent, NameGid)
         assert offer.parent.gid == oh.gid
 
-    @pytest.mark.asyncio
     async def test_process_wired_to_process_holder(self) -> None:
         """New Process's parent is set to the new ProcessHolder's temp GID."""
         from autom8_asana.models.business.process import ProcessHolder
@@ -898,7 +880,6 @@ class TestS2001UnitLevelHolders:
         assert isinstance(process.parent, NameGid)
         assert process.parent.gid == ph.gid
 
-    @pytest.mark.asyncio
     async def test_unit_holder_parent_references_unit_temp_gid(self) -> None:
         """OfferHolder created for a new Unit references the Unit's temp GID."""
         from autom8_asana.models.business.offer import OfferHolder
@@ -1099,7 +1080,6 @@ class TestS2004Concurrency:
     prevents duplicate creation.
     """
 
-    @pytest.mark.asyncio
     async def test_concurrent_saves_no_duplicate_holders(self) -> None:
         """Two coroutines saving same Business produce 7 holders, not 14.
 
@@ -1145,7 +1125,6 @@ class TestS2004Concurrency:
             f"(coroutine1={len(result1_new)}, coroutine2={len(result2_new)})"
         )
 
-    @pytest.mark.asyncio
     async def test_different_businesses_can_proceed_in_parallel(self) -> None:
         """Lock granularity: different Businesses can proceed in parallel.
 
@@ -1186,7 +1165,6 @@ class TestS2005FullTreeFromScratch:
     Business(temp) -> UnitHolder(temp) -> Unit(temp) -> OfferHolder(temp) -> Offer(temp)
     """
 
-    @pytest.mark.asyncio
     async def test_full_tree_all_new_entities(self) -> None:
         """Business + Unit + Offer, all new -> ensurer creates all holders.
 
@@ -1234,7 +1212,6 @@ class TestS2005FullTreeFromScratch:
         assert len(offer_holders) == 1
         assert len(process_holders) == 1
 
-    @pytest.mark.asyncio
     async def test_full_tree_graph_produces_five_levels(self) -> None:
         """Full new tree -> dependency graph produces exactly 5 levels.
 
@@ -1315,7 +1292,6 @@ class TestS2005FullTreeFromScratch:
 
         assert offer_level == 4, f"Offer at level {offer_level}"
 
-    @pytest.mark.asyncio
     async def test_full_tree_parent_chain_intact(self) -> None:
         """All parent references form a complete chain from Offer up to Business."""
         from autom8_asana.models.business.offer import OfferHolder
@@ -1371,7 +1347,6 @@ class TestS2005FullTreeFromScratch:
 class TestS2006UnitNestedHolders:
     """SC-006: Unit nested holders auto-created when saving a Unit with children."""
 
-    @pytest.mark.asyncio
     async def test_unit_with_offers_creates_offer_holder(self) -> None:
         """Unit + Offers -> OfferHolder auto-created under Unit.
 
@@ -1405,7 +1380,6 @@ class TestS2006UnitNestedHolders:
         assert offer.parent is not None
         assert offer.parent.gid == offer_holders[0].gid
 
-    @pytest.mark.asyncio
     async def test_unit_with_processes_creates_process_holder(self) -> None:
         """Unit + Processes -> ProcessHolder auto-created under Unit."""
         from autom8_asana.models.business.process import ProcessHolder
@@ -1431,7 +1405,6 @@ class TestS2006UnitNestedHolders:
         assert process.parent is not None
         assert process.parent.gid == process_holders[0].gid
 
-    @pytest.mark.asyncio
     async def test_unit_both_holders_created(self) -> None:
         """Unit with both Offers and Processes -> both holders created."""
         from autom8_asana.models.business.offer import OfferHolder
@@ -1469,7 +1442,6 @@ class TestS2006UnitNestedHolders:
 class TestS2007EdgeCases:
     """Edge case tests from PRD table."""
 
-    @pytest.mark.asyncio
     async def test_business_has_no_children_noop(self) -> None:
         """Business with no children in dirty list still creates all holders.
 
@@ -1493,7 +1465,6 @@ class TestS2007EdgeCases:
         new_entities = _new_entities(result, dirty)
         assert len(new_entities) == 7
 
-    @pytest.mark.asyncio
     async def test_multiple_units_each_get_holders(self) -> None:
         """Multiple Units each get their own OfferHolder and ProcessHolder."""
         from autom8_asana.models.business.offer import OfferHolder
@@ -1531,7 +1502,6 @@ class TestS2007EdgeCases:
         assert unit_a.gid in oh_parents
         assert unit_b.gid in oh_parents
 
-    @pytest.mark.asyncio
     async def test_holder_with_existing_real_gid_unit_detects_holders(self) -> None:
         """Unit with real GID calls detection API for existing holders."""
         from autom8_asana.models.business.offer import OfferHolder
@@ -1561,7 +1531,6 @@ class TestS2007EdgeCases:
         # The existing holder should be tracked
         assert tracker.is_tracked("existing_oh_gid")
 
-    @pytest.mark.asyncio
     async def test_offer_for_different_unit_not_wired(self) -> None:
         """Offers belonging to a different Unit are not wired to wrong holder.
 
@@ -1603,7 +1572,6 @@ class TestS2007EdgeCases:
 class TestS2008Observability:
     """S2-008: Structured logging for holder lifecycle events."""
 
-    @pytest.mark.asyncio
     async def test_wave_logging_emitted(self) -> None:
         """Wave start/complete log events are emitted for multi-level processing."""
         business = make_business(gid="")
@@ -1628,7 +1596,6 @@ class TestS2008Observability:
         new_entities = _new_entities(result, dirty)
         assert len(new_entities) == 9  # 7 Business + 2 Unit
 
-    @pytest.mark.asyncio
     async def test_holder_construction_complete_logged(self) -> None:
         """holder_construction_complete log event includes expected fields.
 

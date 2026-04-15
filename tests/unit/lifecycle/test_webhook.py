@@ -51,7 +51,6 @@ def test_webhook_response_model():
     assert response.message == "OK"
 
 
-@pytest.mark.asyncio
 async def test_handle_asana_webhook_section_change(test_app):
     """Test webhook handler for section change."""
     client = TestClient(test_app)
@@ -72,7 +71,6 @@ async def test_handle_asana_webhook_section_change(test_app):
     assert data["accepted"] is True
 
 
-@pytest.mark.asyncio
 async def test_handle_asana_webhook_tag_added(test_app):
     """Test webhook handler for tag addition."""
     client = TestClient(test_app)

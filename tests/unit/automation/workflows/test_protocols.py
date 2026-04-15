@@ -48,7 +48,6 @@ class TestDataSourceProtocol:
 
         assert not isinstance(_NotADataSource(), DataSource)
 
-    @pytest.mark.asyncio
     async def test_is_healthy_can_be_awaited(self) -> None:
         """is_healthy() returns a coroutine that can be awaited."""
 

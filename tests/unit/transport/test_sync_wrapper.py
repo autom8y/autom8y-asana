@@ -31,7 +31,6 @@ class TestSyncWrapper:
         result = wrapped_func(2, 3, multiplier=4)
         assert result == 20
 
-    @pytest.mark.asyncio
     async def test_fails_in_async_context(self) -> None:
         """Test that sync wrapper fails fast in async context."""
 
@@ -66,7 +65,6 @@ class TestSyncWrapper:
         with pytest.raises(ValueError, match="Test error"):
             wrapped_func()
 
-    @pytest.mark.asyncio
     async def test_error_message_strips_underscore(self) -> None:
         """Test that leading underscores are stripped from method name."""
 

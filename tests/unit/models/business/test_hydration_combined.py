@@ -28,7 +28,6 @@ from autom8_asana.models.task import Task
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestHydrateFromBusinessGid:
     """Tests for hydrate_from_gid_async starting from Business GID."""
 
@@ -129,7 +128,6 @@ class TestHydrateFromBusinessGid:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestHydrateFromContactGid:
     """Tests for hydrate_from_gid_async starting from Contact GID."""
 
@@ -226,7 +224,6 @@ class TestHydrateFromContactGid:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestHydrateFromOfferGid:
     """Tests for hydrate_from_gid_async starting from Offer GID."""
 
@@ -349,7 +346,6 @@ class TestHydrateFromOfferGid:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestHydrateFromUnitGid:
     """Tests for hydrate_from_gid_async starting from Unit GID."""
 
@@ -400,7 +396,6 @@ class TestHydrateFromUnitGid:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestHydrateFullParameter:
     """Tests for hydrate_full parameter."""
 
@@ -457,7 +452,6 @@ class TestHydrateFullParameter:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestPartialOkParameter:
     """Tests for partial_ok parameter."""
 
@@ -557,7 +551,6 @@ class TestPartialOkParameter:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestHydrationResultProperties:
     """Tests for HydrationResult properties and attributes."""
 
@@ -687,7 +680,6 @@ class TestHydrationResultProperties:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestHydrateFromGidErrorHandling:
     """Tests for error handling in hydrate_from_gid_async."""
 
@@ -731,7 +723,6 @@ class TestHydrateFromGidErrorHandling:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestHydrateFromGidIntegration:
     """Integration-style tests for hydrate_from_gid_async."""
 

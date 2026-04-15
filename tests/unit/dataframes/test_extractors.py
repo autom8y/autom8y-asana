@@ -575,7 +575,6 @@ class TestBaseExtractor:
 class TestCascadeAsyncExtraction:
     """Tests for async cascade: prefix extraction."""
 
-    @pytest.mark.asyncio
     async def test_extract_column_async_handles_cascade_source(self, minimal_task: Task) -> None:
         """Test that _extract_column_async handles cascade: sources."""
         from unittest.mock import AsyncMock, MagicMock, patch
@@ -600,7 +599,6 @@ class TestCascadeAsyncExtraction:
             assert result == "555-1234"
             mock_resolver.resolve_async.assert_called_once_with(minimal_task, "Office Phone")
 
-    @pytest.mark.asyncio
     async def test_extract_column_async_case_insensitive_prefix(self, minimal_task: Task) -> None:
         """Test that cascade: prefix matching is case-insensitive."""
         from unittest.mock import AsyncMock, MagicMock, patch
@@ -626,7 +624,6 @@ class TestCascadeAsyncExtraction:
             assert result == "555-9999"
             mock_resolver.resolve_async.assert_called_once_with(minimal_task, "Office Phone")
 
-    @pytest.mark.asyncio
     async def test_extract_async_full_extraction(self, full_task: Task) -> None:
         """Test full async extraction with cascade: source.
 
@@ -649,7 +646,6 @@ class TestCascadeAsyncExtraction:
             assert isinstance(row, UnitRow)
             assert row.office_phone == "555-4321"
 
-    @pytest.mark.asyncio
     async def test_extract_async_cf_sources_still_work(self, full_task: Task) -> None:
         """Test that cf: sources still work with async extraction.
 
@@ -740,7 +736,6 @@ class TestUnitExtractor:
         # BaseExtractor catches the ValueError and sets office to None
         assert row.office is None
 
-    @pytest.mark.asyncio
     async def test_office_resolved_via_cascade_business_name(self) -> None:
         """Test that office is resolved via cascade:Business Name.
 
@@ -781,7 +776,6 @@ class TestUnitExtractor:
             assert row.office == "Acme Dental Corp"
             assert row.office_phone == "555-1234"
 
-    @pytest.mark.asyncio
     async def test_office_none_when_cascade_returns_none(self) -> None:
         """Test that office is None when cascade resolution returns None.
 
@@ -809,7 +803,6 @@ class TestUnitExtractor:
 
             assert row.office is None
 
-    @pytest.mark.asyncio
     async def test_office_phone_extracted_via_cascade(
         self,
         full_task: Task,
@@ -834,7 +827,6 @@ class TestUnitExtractor:
 
             assert row.office_phone == "555-123-4567"
 
-    @pytest.mark.asyncio
     async def test_office_phone_none_when_cascade_returns_none(
         self,
         minimal_task: Task,

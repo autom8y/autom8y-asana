@@ -460,7 +460,6 @@ class TestEdgeCases:
 # --- Test: Async Detection with Discovery ---
 
 
-@pytest.mark.asyncio
 class TestAsyncDetection:
     """Async detection with workspace discovery.
 

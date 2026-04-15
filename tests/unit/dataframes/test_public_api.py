@@ -189,7 +189,6 @@ def empty_dataframe() -> pl.DataFrame:
 class TestBuildForProject:
     """Test build_for_project() service function (replaces Project.to_dataframe)."""
 
-    @pytest.mark.asyncio
     async def test_returns_polars(
         self,
         project_with_tasks: Project,
@@ -203,7 +202,6 @@ class TestBuildForProject:
         df = await build_for_project(project_with_tasks, task_type="Unit", client=mock_client)
         assert isinstance(df, pl.DataFrame)
 
-    @pytest.mark.asyncio
     async def test_has_base_columns(
         self,
         project_with_tasks: Project,
@@ -220,7 +218,6 @@ class TestBuildForProject:
         assert "name" in df.columns
         assert "created" in df.columns
 
-    @pytest.mark.asyncio
     async def test_extracts_task_data(
         self,
         project_with_tasks: Project,
@@ -237,7 +234,6 @@ class TestBuildForProject:
         assert df["gid"][0] == "unit-001"
         assert df["name"][0] == "Test Unit"
 
-    @pytest.mark.asyncio
     async def test_empty_project(
         self,
         mock_client: MagicMock,
@@ -256,7 +252,6 @@ class TestBuildForProject:
         assert len(df) == 0
         assert "gid" in df.columns
 
-    @pytest.mark.asyncio
     async def test_with_use_cache_false(
         self,
         project_with_tasks: Project,
@@ -273,7 +268,6 @@ class TestBuildForProject:
         assert isinstance(df, pl.DataFrame)
         assert len(df) == 1
 
-    @pytest.mark.asyncio
     async def test_sync_wrapper_returns_polars(
         self,
         project_with_tasks: Project,
@@ -298,13 +292,11 @@ class TestBuildForProject:
 class TestBuildForSection:
     """Test build_for_section() service function (replaces Section.to_dataframe)."""
 
-    @pytest.mark.asyncio
     async def test_returns_polars(self, section_with_tasks: Section) -> None:
         """build_for_section() should return a Polars DataFrame."""
         df = await build_for_section(section_with_tasks, task_type="Unit")
         assert isinstance(df, pl.DataFrame)
 
-    @pytest.mark.asyncio
     async def test_extracts_task_data(self, section_with_tasks: Section) -> None:
         """build_for_section() should extract task data correctly."""
         df = await build_for_section(section_with_tasks, task_type="Unit")
@@ -313,7 +305,6 @@ class TestBuildForSection:
         assert df["gid"][0] == "unit-001"
         assert df["name"][0] == "Test Unit"
 
-    @pytest.mark.asyncio
     async def test_empty_section(self) -> None:
         """build_for_section() should handle empty section."""
         section = Section(
@@ -328,7 +319,6 @@ class TestBuildForSection:
         assert isinstance(df, pl.DataFrame)
         assert len(df) == 0
 
-    @pytest.mark.asyncio
     async def test_section_without_project_gid(self) -> None:
         """build_for_section() should handle section without project."""
         section = Section(
@@ -351,7 +341,6 @@ class TestBuildForSection:
 class TestPublicAPIIntegration:
     """Integration tests for service functions."""
 
-    @pytest.mark.asyncio
     async def test_project_dataframe_section_filtering(
         self, mock_client: MagicMock, mocker: MockerFixture
     ) -> None:
@@ -393,7 +382,6 @@ class TestPublicAPIIntegration:
         assert registry.has_schema("Contact")
         assert registry.has_schema("*")
 
-    @pytest.mark.asyncio
     async def test_async_produces_correct_data(
         self,
         project_with_tasks: Project,
@@ -410,7 +398,6 @@ class TestPublicAPIIntegration:
         assert len(df) == 1
         assert df["gid"][0] == "unit-001"
 
-    @pytest.mark.asyncio
     async def test_unit_schema_columns_present(
         self,
         project_with_tasks: Project,
@@ -427,7 +414,6 @@ class TestPublicAPIIntegration:
         assert "name" in df.columns
         assert len(df) >= 0
 
-    @pytest.mark.asyncio
     async def test_project_with_none_tasks(
         self,
         mock_client: MagicMock,

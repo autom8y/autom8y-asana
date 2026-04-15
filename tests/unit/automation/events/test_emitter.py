@@ -55,7 +55,6 @@ class PartialTransport:
 class TestEmitterRouting:
     """Test emitter routes to matching subscriptions."""
 
-    @pytest.mark.asyncio
     async def test_routes_to_matching_subs(self) -> None:
         transport = InMemoryTransport()
         config = EventRoutingConfig(
@@ -72,7 +71,6 @@ class TestEmitterRouting:
         assert result.failed == 0
         assert transport.count == 1
 
-    @pytest.mark.asyncio
     async def test_no_matching_subs(self) -> None:
         transport = InMemoryTransport()
         config = EventRoutingConfig(
@@ -94,7 +92,6 @@ class TestEmitterRouting:
         assert result.failed == 0
         assert transport.count == 0
 
-    @pytest.mark.asyncio
     async def test_multiple_matching_destinations(self) -> None:
         transport = InMemoryTransport()
         config = EventRoutingConfig(
@@ -113,7 +110,6 @@ class TestEmitterRouting:
         assert result.succeeded == 2
         assert transport.count == 2
 
-    @pytest.mark.asyncio
     async def test_disabled_config_no_emission(self) -> None:
         transport = InMemoryTransport()
         config = EventRoutingConfig(
@@ -132,7 +128,6 @@ class TestEmitterRouting:
 class TestEmitterFailureIsolation:
     """Test that transport failures are caught and logged."""
 
-    @pytest.mark.asyncio
     async def test_transport_failure_logged_not_raised(self) -> None:
         """SC-004: Emission failures do not propagate."""
         transport = FailingTransport()
@@ -150,7 +145,6 @@ class TestEmitterFailureIsolation:
         assert result.succeeded == 0
         assert result.failed == 1
 
-    @pytest.mark.asyncio
     async def test_partial_failure(self) -> None:
         transport = PartialTransport(fail_destinations={"dest-b"})
         config = EventRoutingConfig(
@@ -171,7 +165,6 @@ class TestEmitterFailureIsolation:
         assert result.partial is True
         assert len(transport.published) == 1
 
-    @pytest.mark.asyncio
     async def test_all_succeeded_property(self) -> None:
         transport = InMemoryTransport()
         config = EventRoutingConfig(

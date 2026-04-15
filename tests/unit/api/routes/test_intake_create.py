@@ -570,7 +570,6 @@ class TestCreateIntakeBusinessEndpoint:
 class TestPhase3VerticalCustomField:
     """Tests for the Vertical enum custom field write in Phase 3."""
 
-    @pytest.mark.asyncio()
     async def test_phase3_writes_vertical_custom_field(self) -> None:
         """Verifies update_async is called with correct custom_fields payload.
 
@@ -628,7 +627,6 @@ class TestPhase3VerticalCustomField:
             data={"custom_fields": {"cf_vertical": {"gid": "enum_dental"}}},
         )
 
-    @pytest.mark.asyncio()
     async def test_phase3_vertical_cf_not_found_no_raise(self) -> None:
         """Verifies graceful degradation when Vertical custom field is absent.
 
@@ -665,7 +663,6 @@ class TestPhase3VerticalCustomField:
         # update_async should NOT have been called (no field to write)
         mock_client.tasks.update_async.assert_not_called()
 
-    @pytest.mark.asyncio()
     async def test_phase3_vertical_enum_option_not_found_no_raise(self) -> None:
         """Verifies graceful degradation when enum option does not match.
 
@@ -710,7 +707,6 @@ class TestPhase3VerticalCustomField:
         # update_async should NOT have been called (no matching enum option)
         mock_client.tasks.update_async.assert_not_called()
 
-    @pytest.mark.asyncio()
     async def test_phase3_vertical_case_insensitive_match(self) -> None:
         """Verifies case-insensitive matching of vertical to enum option."""
         mock_client = MagicMock()
@@ -797,7 +793,6 @@ class TestCreateBusinessHierarchyOrchestration:
             kwargs["address"] = IntakeAddress(city="Springfield", postal_code="62701")
         return IntakeBusinessCreateRequest(**kwargs)
 
-    @pytest.mark.asyncio()
     async def test_phases_execute_in_strict_dependency_order(self) -> None:
         """Phase 1 completes before Phase 2; Phase 2 before Phase 3.
 
@@ -856,7 +851,6 @@ class TestCreateBusinessHierarchyOrchestration:
         assert response.contact_gid == CONTACT_GID
         assert len(response.holders) == 7
 
-    @pytest.mark.asyncio()
     async def test_phase2_holder_failure_propagates_and_aborts_hierarchy(
         self,
     ) -> None:
@@ -897,7 +891,6 @@ class TestCreateBusinessHierarchyOrchestration:
 
         assert phase3_called is False, "Phase 3 must not execute when Phase 2 partially fails"
 
-    @pytest.mark.asyncio()
     async def test_phase5_skipped_when_process_not_requested(self) -> None:
         """Phase 5 (process routing) is skipped when request.process is None."""
         from autom8_asana.services.intake_create_service import IntakeCreateService

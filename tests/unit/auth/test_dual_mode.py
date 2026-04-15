@@ -126,7 +126,6 @@ class TestAuthMode:
 class TestGetAuthMode:
     """Tests for get_auth_mode() header extraction and validation."""
 
-    @pytest.mark.asyncio
     async def test_missing_authorization_header_raises_401(self) -> None:
         """Missing Authorization header should raise ApiAuthError MISSING_AUTH."""
         with pytest.raises(ApiAuthError) as exc_info:
@@ -136,7 +135,6 @@ class TestGetAuthMode:
         assert exc_info.value.code == "MISSING_AUTH"
         assert exc_info.value.headers["WWW-Authenticate"] == "Bearer"
 
-    @pytest.mark.asyncio
     async def test_invalid_scheme_raises_401(self) -> None:
         """Non-Bearer scheme should raise ApiAuthError INVALID_SCHEME."""
         with pytest.raises(ApiAuthError) as exc_info:
@@ -146,7 +144,6 @@ class TestGetAuthMode:
         assert exc_info.value.code == "INVALID_SCHEME"
         assert "Bearer scheme required" in exc_info.value.message
 
-    @pytest.mark.asyncio
     async def test_token_too_short_raises_401(self) -> None:
         """Token shorter than 10 characters should raise ApiAuthError INVALID_TOKEN."""
         with pytest.raises(ApiAuthError) as exc_info:
@@ -156,7 +153,6 @@ class TestGetAuthMode:
         assert exc_info.value.code == "INVALID_TOKEN"
         assert "too short" in exc_info.value.message
 
-    @pytest.mark.asyncio
     async def test_valid_jwt_returns_jwt_mode(self) -> None:
         """Valid JWT token should return (AuthMode.JWT, token)."""
         jwt_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signature"
@@ -165,7 +161,6 @@ class TestGetAuthMode:
         assert auth_mode == AuthMode.JWT
         assert token == jwt_token
 
-    @pytest.mark.asyncio
     async def test_valid_pat_returns_pat_mode(self) -> None:
         """Valid PAT token should return (AuthMode.PAT, token)."""
         pat_token = "0/1234567890abcdef1234567890abcdef"
@@ -174,7 +169,6 @@ class TestGetAuthMode:
         assert auth_mode == AuthMode.PAT
         assert token == pat_token
 
-    @pytest.mark.asyncio
     async def test_bearer_case_sensitive(self) -> None:
         """Bearer prefix must be exact case (Bearer, not bearer)."""
         with pytest.raises(ApiAuthError) as exc_info:
@@ -183,7 +177,6 @@ class TestGetAuthMode:
         assert exc_info.value.status_code == 401
         assert exc_info.value.code == "INVALID_SCHEME"
 
-    @pytest.mark.asyncio
     async def test_token_extraction_removes_bearer_prefix(self) -> None:
         """Token extraction should remove exactly 'Bearer ' (7 chars)."""
         pat_token = "0/1234567890abcdef1234567890"
@@ -192,7 +185,6 @@ class TestGetAuthMode:
         assert token == pat_token
         assert not token.startswith("Bearer")
 
-    @pytest.mark.asyncio
     async def test_minimum_valid_token_length(self) -> None:
         """Token of exactly 10 characters should be accepted."""
         min_token = "0123456789"  # Exactly 10 chars

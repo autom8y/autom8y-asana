@@ -61,7 +61,6 @@ def _setup_sections(
 # --- Test: All 3 section types updated ---
 
 
-@pytest.mark.asyncio
 async def test_cascade_all_three_entities(mock_client, mock_resolution_context):
     """When offer, unit, and business sections are configured, all three
     entities are resolved and moved to their target sections."""
@@ -109,7 +108,6 @@ async def test_cascade_all_three_entities(mock_client, mock_resolution_context):
 # --- Test: Missing section config -> skip entity ---
 
 
-@pytest.mark.asyncio
 async def test_cascade_skips_unconfigured_entities(mock_client, mock_resolution_context):
     """When only some sections are configured, only those entities
     are resolved and updated. Others are skipped entirely."""
@@ -138,7 +136,6 @@ async def test_cascade_skips_unconfigured_entities(mock_client, mock_resolution_
     mock_resolution_context.business_async.assert_not_awaited()
 
 
-@pytest.mark.asyncio
 async def test_cascade_empty_config_does_nothing(mock_client, mock_resolution_context):
     """When no sections are configured, no entities are resolved."""
     service = CascadingSectionService(mock_client)
@@ -153,7 +150,6 @@ async def test_cascade_empty_config_does_nothing(mock_client, mock_resolution_co
 # --- Test: Section not found in project -> warning ---
 
 
-@pytest.mark.asyncio
 async def test_cascade_section_not_found_logs_warning(mock_client, mock_resolution_context):
     """When the target section name does not exist in the entity's project,
     a warning is recorded and the entity is not moved."""
@@ -179,7 +175,6 @@ async def test_cascade_section_not_found_logs_warning(mock_client, mock_resoluti
     assert "offer" in result.warnings[0]
 
 
-@pytest.mark.asyncio
 async def test_cascade_empty_sections_list(mock_client, mock_resolution_context):
     """When the project has no sections at all, a warning is recorded."""
     offer = _make_entity("offer1", "offer_proj")
@@ -204,7 +199,6 @@ async def test_cascade_empty_sections_list(mock_client, mock_resolution_context)
 # --- Test: API failure -> warning, continue ---
 
 
-@pytest.mark.asyncio
 async def test_cascade_entity_resolution_error(mock_client, mock_resolution_context):
     """When entity resolution fails, a warning is logged and remaining
     entities are still processed (fail-forward)."""
@@ -235,7 +229,6 @@ async def test_cascade_entity_resolution_error(mock_client, mock_resolution_cont
     assert "offer" in result.warnings[0]
 
 
-@pytest.mark.asyncio
 async def test_cascade_add_task_api_error(mock_client, mock_resolution_context):
     """When the Asana add_task API call fails, a warning is recorded
     and remaining entities are processed."""
@@ -272,7 +265,6 @@ async def test_cascade_add_task_api_error(mock_client, mock_resolution_context):
 # --- Test: Case-insensitive section matching ---
 
 
-@pytest.mark.asyncio
 async def test_cascade_case_insensitive_section_match(mock_client, mock_resolution_context):
     """Section names are matched case-insensitively."""
     business = _make_entity("biz1", "biz_proj")
@@ -300,7 +292,6 @@ async def test_cascade_case_insensitive_section_match(mock_client, mock_resoluti
 # --- Test: Entity with no memberships ---
 
 
-@pytest.mark.asyncio
 async def test_cascade_entity_no_memberships(mock_client, mock_resolution_context):
     """When an entity has no memberships, a warning is recorded."""
     offer = MagicMock()
@@ -321,7 +312,6 @@ async def test_cascade_entity_no_memberships(mock_client, mock_resolution_contex
 # --- Test: Entity with memberships but no project GID ---
 
 
-@pytest.mark.asyncio
 async def test_cascade_entity_no_project_gid(mock_client, mock_resolution_context):
     """When an entity's memberships have no project GID, a warning is recorded."""
     offer = MagicMock()
@@ -341,7 +331,6 @@ async def test_cascade_entity_no_project_gid(mock_client, mock_resolution_contex
 # --- Test: Onboarding stage section mapping (integration-style) ---
 
 
-@pytest.mark.asyncio
 async def test_cascade_onboarding_stage_sections(mock_client, mock_resolution_context):
     """Verify the correct sections for Onboarding stage per Appendix C:
     Offer=ACTIVATING, Unit=Onboarding, Business=ONBOARDING."""

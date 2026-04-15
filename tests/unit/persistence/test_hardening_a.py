@@ -192,7 +192,6 @@ class TestObservabilityHook:
 class TestNullObservabilityHook:
     """Tests for NullObservabilityHook default implementation."""
 
-    @pytest.mark.asyncio
     async def test_all_methods_are_noop(self) -> None:
         """All NullObservabilityHook methods are no-ops."""
         from autom8_asana._defaults.observability import NullObservabilityHook

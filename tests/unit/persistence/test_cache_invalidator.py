@@ -96,7 +96,6 @@ class TestCacheInvalidatorNoOp:
     """Tests that CacheInvalidator with dataframe_cache=None behaves identically
     to pre-CACHE-1 behavior (no project-level DataFrame invalidation)."""
 
-    @pytest.mark.asyncio
     async def test_no_dataframe_cache_does_not_call_invalidate_project(self) -> None:
         """When dataframe_cache is None, no invalidate_project call is made.
 
@@ -126,7 +125,6 @@ class TestCacheInvalidatorNoOp:
 class TestProjectLevelInvalidation:
     """Tests for project-level DataFrameCache invalidation after commit."""
 
-    @pytest.mark.asyncio
     async def test_invalidate_project_called_for_each_affected_project(self) -> None:
         """invalidate_project is called for each unique project GID in memberships.
 
@@ -155,7 +153,6 @@ class TestProjectLevelInvalidation:
         called_gids = {c.args[0] for c in mock_df_cache.invalidate_project.call_args_list}
         assert called_gids == {PROJECT_GID_1, PROJECT_GID_2}
 
-    @pytest.mark.asyncio
     async def test_deduplication_across_entities_in_same_project(self) -> None:
         """invalidate_project is called once per project, not per entity.
 
@@ -193,7 +190,6 @@ class TestProjectLevelInvalidation:
 class TestProjectInvalidationFailureIsolation:
     """Tests that project-level invalidation failures do not propagate."""
 
-    @pytest.mark.asyncio
     async def test_invalidation_failure_does_not_fail_commit(self) -> None:
         """RuntimeError in invalidate_project does not propagate.
 
@@ -216,7 +212,6 @@ class TestProjectInvalidationFailureIsolation:
         # Must not raise
         await invalidator.invalidate_for_commit(crud_result, [], gid_lookup)
 
-    @pytest.mark.asyncio
     async def test_invalidation_failure_logs_warning(self) -> None:
         """Warning logged with 'project_dataframe_invalidation_failed' on failure."""
         mock_df_cache = _make_dataframe_cache()
@@ -251,7 +246,6 @@ class TestProjectInvalidationFailureIsolation:
 class TestProjectInvalidationEdgeCases:
     """Tests for edge cases in project-level invalidation."""
 
-    @pytest.mark.asyncio
     async def test_empty_commit_batch_no_invalidation(self) -> None:
         """Empty succeeded list triggers no invalidation calls.
 
@@ -270,7 +264,6 @@ class TestProjectInvalidationEdgeCases:
 
         mock_df_cache.invalidate_project.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_entity_without_memberships_no_project_invalidation(self) -> None:
         """Entity without memberships does not contribute project GIDs.
 

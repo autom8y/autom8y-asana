@@ -84,7 +84,6 @@ class TestParentChainGapTolerance:
     collecting remaining ancestors.
     """
 
-    @pytest.mark.asyncio
     async def test_parent_chain_skips_gap_returns_remaining(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -114,7 +113,6 @@ class TestParentChainGapTolerance:
         assert chain[0]["gid"] == "A"
         assert chain[1]["gid"] == "C"
 
-    @pytest.mark.asyncio
     async def test_parent_chain_no_gaps_unchanged_behavior(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -145,7 +143,6 @@ class TestParentChainGapTolerance:
         assert chain[1]["gid"] == "B"
         assert chain[2]["gid"] == "C"
 
-    @pytest.mark.asyncio
     async def test_parent_chain_all_missing_returns_empty(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -166,7 +163,6 @@ class TestParentChainGapTolerance:
 
         assert chain == []
 
-    @pytest.mark.asyncio
     async def test_parent_chain_gap_logged_at_info(
         self,
         store: UnifiedTaskStore,
@@ -200,7 +196,6 @@ class TestParentChainGapTolerance:
         assert "task-1" in captured.out
         assert "found_count" in captured.out
 
-    @pytest.mark.asyncio
     async def test_parent_chain_gap_stat_counter_incremented(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -223,7 +218,6 @@ class TestParentChainGapTolerance:
         stats = store.get_stats()
         assert stats["parent_chain_gaps"] == 2
 
-    @pytest.mark.asyncio
     async def test_parent_chain_gap_stat_accumulates_across_calls(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:

@@ -929,7 +929,6 @@ class TestPollingSchedulerExecuteWorkflowAsync:
     def mock_log(self) -> MagicMock:
         return MagicMock()
 
-    @pytest.mark.asyncio
     async def test_validation_failure_stops_execution(
         self, scheduler: PollingScheduler, mock_rule: MagicMock, mock_log: MagicMock
     ) -> None:
@@ -946,7 +945,6 @@ class TestPollingSchedulerExecuteWorkflowAsync:
         assert mock_log.error.call_args[0][0] == "workflow_validation_failed"
         mock_workflow.execute_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_successful_execution_logs_result(
         self, scheduler: PollingScheduler, mock_rule: MagicMock, mock_log: MagicMock
     ) -> None:
@@ -984,7 +982,6 @@ class TestPollingSchedulerExecuteWorkflowAsync:
         assert call_kwargs["succeeded"] == 4
         assert call_kwargs["failed"] == 1
 
-    @pytest.mark.asyncio
     async def test_execution_error_caught_and_logged(
         self, scheduler: PollingScheduler, mock_rule: MagicMock, mock_log: MagicMock
     ) -> None:

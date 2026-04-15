@@ -101,7 +101,6 @@ class TestWarmCacheAsync:
             }
         )
 
-    @pytest.mark.asyncio
     async def test_no_cache_available(self) -> None:
         """Return failure when cache cannot be initialized."""
         # Need to patch where the imports happen (inside the function)
@@ -121,7 +120,6 @@ class TestWarmCacheAsync:
         assert response.success is False
         assert "Failed to initialize DataFrameCache" in response.message
 
-    @pytest.mark.asyncio
     async def test_registry_not_ready(self, mock_cache: MagicMock) -> None:
         """Return failure when registry not ready and discovery fails."""
         mock_registry = MagicMock()
@@ -148,7 +146,6 @@ class TestWarmCacheAsync:
         assert response.success is False
         assert "EntityProjectRegistry not initialized" in response.message
 
-    @pytest.mark.asyncio
     async def test_invalid_entity_types(self, mock_cache: MagicMock) -> None:
         """Return failure for invalid entity types."""
         mock_registry = MagicMock()
@@ -170,7 +167,6 @@ class TestWarmCacheAsync:
         assert response.success is False
         assert "Invalid entity types" in response.message
 
-    @pytest.mark.asyncio
     async def test_missing_bot_pat(self, mock_cache: MagicMock) -> None:
         """Return failure when bot PAT not available."""
         mock_registry = MagicMock()
@@ -199,7 +195,6 @@ class TestWarmCacheAsync:
         assert response.success is False
         assert "Failed to get bot PAT" in response.message
 
-    @pytest.mark.asyncio
     async def test_missing_workspace_gid(self, mock_cache: MagicMock) -> None:
         """Return failure when workspace GID not set."""
         mock_registry = MagicMock()
@@ -325,7 +320,6 @@ class TestHandler:
 class TestHandlerAsync:
     """Tests for async Lambda handler function."""
 
-    @pytest.mark.asyncio
     async def test_handler_async_success(self) -> None:
         """Async handler returns 200 on success."""
         mock_response = WarmResponse(
@@ -344,7 +338,6 @@ class TestHandlerAsync:
         assert result["statusCode"] == 200
         assert result["body"]["success"] is True
 
-    @pytest.mark.asyncio
     async def test_handler_async_failure(self) -> None:
         """Async handler returns 500 on failure."""
         mock_response = WarmResponse(
@@ -362,7 +355,6 @@ class TestHandlerAsync:
         assert result["statusCode"] == 500
         assert result["body"]["success"] is False
 
-    @pytest.mark.asyncio
     async def test_handler_async_with_event(self) -> None:
         """Async handler passes event parameters."""
         mock_response = WarmResponse(
@@ -557,7 +549,6 @@ class TestCheckpointIntegration:
         cache.put_async = AsyncMock()
         return cache
 
-    @pytest.mark.asyncio
     async def test_resumes_from_fresh_checkpoint(
         self,
         mock_checkpoint_manager: MagicMock,
@@ -642,7 +633,6 @@ class TestCheckpointIntegration:
         # Verify checkpoint was loaded
         mock_checkpoint_manager.load_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_ignores_stale_checkpoint(self) -> None:
         """Warming ignores stale checkpoint."""
         from autom8_asana.lambda_handlers.checkpoint import CheckpointRecord
@@ -661,7 +651,6 @@ class TestCheckpointIntegration:
         # is_stale() should return True for this checkpoint
         assert stale_checkpoint.is_stale() is True
 
-    @pytest.mark.asyncio
     async def test_saves_checkpoint_on_timeout(
         self,
         mock_checkpoint_manager: MagicMock,
@@ -718,7 +707,6 @@ class TestCheckpointIntegration:
         # Checkpoint should have been saved
         mock_checkpoint_manager.save_async.assert_called()
 
-    @pytest.mark.asyncio
     async def test_clears_checkpoint_on_success(
         self,
         mock_checkpoint_manager: MagicMock,
@@ -874,7 +862,6 @@ class TestHandlerContextPassing:
             context=None,
         )
 
-    @pytest.mark.asyncio
     async def test_handler_async_passes_context(self) -> None:
         """Async handler passes Lambda context to _warm_cache_async."""
         mock_response = WarmResponse(
@@ -1062,7 +1049,6 @@ class TestReconciliationShadowIntegration:
         )
         return stack
 
-    @pytest.mark.asyncio
     async def test_shadow_called_with_correct_args(self) -> None:
         """_run_reconciliation_shadow is called with the right arguments after warming."""
         shadow_mock = AsyncMock()
@@ -1088,7 +1074,6 @@ class TestReconciliationShadowIntegration:
         assert call_kwargs["get_project_gid"] is not None
         assert call_kwargs["invocation_id"] is not None
 
-    @pytest.mark.asyncio
     async def test_shadow_exception_does_not_propagate(self) -> None:
         """An exception in _run_reconciliation_shadow does not propagate as unhandled.
 
@@ -1118,7 +1103,6 @@ class TestReconciliationShadowIntegration:
         # Top-level except returns a WarmResponse -- no unhandled crash
         assert isinstance(response, WarmResponse)
 
-    @pytest.mark.asyncio
     async def test_shadow_called_even_when_flag_not_set(self) -> None:
         """The cache warmer always calls _run_reconciliation_shadow.
 

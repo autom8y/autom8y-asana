@@ -62,7 +62,6 @@ def make_entry(
 class TestStalenessFlowUnchanged:
     """Test E2E flow for unchanged entities."""
 
-    @pytest.mark.asyncio
     async def test_unchanged_entity_gets_extended_ttl(self) -> None:
         """Test that unchanged entity gets TTL extended."""
         cache = EnhancedInMemoryCacheProvider()
@@ -100,7 +99,6 @@ class TestStalenessFlowUnchanged:
         assert result.metadata.get("extension_count") == 1
         assert result.data["name"] == "Task 123"  # Data preserved
 
-    @pytest.mark.asyncio
     async def test_progressive_ttl_extension_over_multiple_checks(self) -> None:
         """Test that TTL progressively extends with each check."""
         cache = EnhancedInMemoryCacheProvider()
@@ -147,7 +145,6 @@ class TestStalenessFlowUnchanged:
 class TestStalenessFlowChanged:
     """Test E2E flow for changed entities."""
 
-    @pytest.mark.asyncio
     async def test_changed_entity_returns_none(self) -> None:
         """Test that changed entity returns None for full fetch."""
         cache = EnhancedInMemoryCacheProvider()
@@ -189,7 +186,6 @@ class TestStalenessFlowChanged:
 class TestBatchCoalescing:
     """Test batch coalescing behavior."""
 
-    @pytest.mark.asyncio
     async def test_multiple_requests_batched_together(self) -> None:
         """Test that concurrent requests are batched into single API call."""
         cache = EnhancedInMemoryCacheProvider()
@@ -231,7 +227,6 @@ class TestBatchCoalescing:
         # Should have been batched into single call
         assert batch_client.execute_async.call_count == 1
 
-    @pytest.mark.asyncio
     async def test_deduplication_same_gid_concurrent(self) -> None:
         """Test that same GID requested concurrently is deduplicated."""
         cache = EnhancedInMemoryCacheProvider()
@@ -276,7 +271,6 @@ class TestBatchCoalescing:
 class TestGracefulDegradation:
     """Test graceful degradation on errors."""
 
-    @pytest.mark.asyncio
     async def test_api_error_returns_none(self) -> None:
         """Test that API errors return None without raising."""
         cache = EnhancedInMemoryCacheProvider()
@@ -304,7 +298,6 @@ class TestGracefulDegradation:
         stats = coordinator.get_extension_stats()
         assert stats["error_count"] == 1
 
-    @pytest.mark.asyncio
     async def test_deleted_entity_returns_none(self) -> None:
         """Test that deleted entity (404) returns None."""
         cache = EnhancedInMemoryCacheProvider()
@@ -331,7 +324,6 @@ class TestGracefulDegradation:
         # Should return None
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_partial_batch_failure_handled(self) -> None:
         """Test that partial batch failure is handled gracefully."""
         cache = EnhancedInMemoryCacheProvider()
@@ -370,7 +362,6 @@ class TestGracefulDegradation:
         assert results[1] is None  # Failed
         assert results[2] is not None
 
-    @pytest.mark.asyncio
     async def test_disabled_coordinator_returns_none(self) -> None:
         """Test that disabled coordinator returns None immediately."""
         cache = EnhancedInMemoryCacheProvider()
@@ -394,7 +385,6 @@ class TestGracefulDegradation:
 class TestCacheIntegration:
     """Test integration with cache provider."""
 
-    @pytest.mark.asyncio
     async def test_extended_entry_stored_in_cache(self) -> None:
         """Test that extended entry is stored back in cache."""
         cache = EnhancedInMemoryCacheProvider()
@@ -423,7 +413,6 @@ class TestCacheIntegration:
         assert cached.ttl == 600  # Extended
         assert cached.metadata.get("extension_count") == 1
 
-    @pytest.mark.asyncio
     async def test_api_calls_saved_tracked(self) -> None:
         """Test that API calls saved are tracked correctly."""
         cache = EnhancedInMemoryCacheProvider()

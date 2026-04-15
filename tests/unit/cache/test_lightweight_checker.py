@@ -43,13 +43,11 @@ def make_entry(gid: str, modified_at: str = "2025-12-23T10:00:00.000Z") -> Cache
 class TestLightweightChecker:
     """Tests for LightweightChecker."""
 
-    @pytest.mark.asyncio
     async def test_empty_batch_returns_empty_dict(self, checker: LightweightChecker) -> None:
         """Test that empty batch returns empty dict."""
         result = await checker.check_batch_async([])
         assert result == {}
 
-    @pytest.mark.asyncio
     async def test_builds_correct_batch_requests(
         self, checker: LightweightChecker, mock_batch_client: MagicMock
     ) -> None:
@@ -81,7 +79,6 @@ class TestLightweightChecker:
         assert requests[1].relative_path == "/tasks/456"
         assert requests[1].method == "GET"
 
-    @pytest.mark.asyncio
     async def test_parses_successful_responses(
         self, checker: LightweightChecker, mock_batch_client: MagicMock
     ) -> None:
@@ -106,7 +103,6 @@ class TestLightweightChecker:
             "456": "2025-12-24T08:15:00.000Z",
         }
 
-    @pytest.mark.asyncio
     async def test_handles_deleted_entity_404(
         self, checker: LightweightChecker, mock_batch_client: MagicMock
     ) -> None:
@@ -129,7 +125,6 @@ class TestLightweightChecker:
         assert result["123"] == "2025-12-23T10:30:00.000Z"
         assert result["456"] is None
 
-    @pytest.mark.asyncio
     async def test_handles_partial_failure(
         self, checker: LightweightChecker, mock_batch_client: MagicMock
     ) -> None:
@@ -157,7 +152,6 @@ class TestLightweightChecker:
         assert result["456"] is None  # Failed
         assert result["789"] == "2025-12-24T09:00:00.000Z"
 
-    @pytest.mark.asyncio
     async def test_handles_malformed_response(
         self, checker: LightweightChecker, mock_batch_client: MagicMock
     ) -> None:
@@ -175,7 +169,6 @@ class TestLightweightChecker:
 
         assert result["123"] is None
 
-    @pytest.mark.asyncio
     async def test_chunks_large_batches(
         self, checker: LightweightChecker, mock_batch_client: MagicMock
     ) -> None:
@@ -216,7 +209,6 @@ class TestLightweightChecker:
         # Verify all 25 results are present
         assert len(result) == 25
 
-    @pytest.mark.asyncio
     async def test_chunk_failure_doesnt_affect_other_chunks(
         self, checker: LightweightChecker, mock_batch_client: MagicMock
     ) -> None:
@@ -250,7 +242,6 @@ class TestLightweightChecker:
         for i in range(10, 15):
             assert result[str(i)] is None
 
-    @pytest.mark.asyncio
     async def test_stats_tracking(
         self, checker: LightweightChecker, mock_batch_client: MagicMock
     ) -> None:
@@ -335,7 +326,6 @@ class TestMalformedModifiedAt:
         with pytest.raises(ValueError):
             _parse_datetime("2025-13-45T99:99:99")
 
-    @pytest.mark.asyncio
     async def test_missing_modified_at_in_response_returns_none(self) -> None:
         """Test that missing modified_at in response returns None."""
         mock_batch_client = MagicMock()
@@ -353,7 +343,6 @@ class TestMalformedModifiedAt:
         result = await checker.check_batch_async(entries)
         assert result["123"] is None
 
-    @pytest.mark.asyncio
     async def test_null_modified_at_in_response_returns_none(self) -> None:
         """Test that null modified_at in response returns None."""
         mock_batch_client = MagicMock()
@@ -371,7 +360,6 @@ class TestMalformedModifiedAt:
         result = await checker.check_batch_async(entries)
         assert result["123"] is None
 
-    @pytest.mark.asyncio
     async def test_non_string_modified_at_in_response_returns_none(self) -> None:
         """Test that non-string modified_at (e.g. int) returns None."""
         mock_batch_client = MagicMock()
@@ -393,7 +381,6 @@ class TestMalformedModifiedAt:
 class TestChunkingAtAsanaLimit:
     """Verify LightweightChecker chunks at Asana's 10-action limit (FR-BATCH-002)."""
 
-    @pytest.mark.asyncio
     async def test_25_entries_chunked_10_10_5(self) -> None:
         """25 entries become 3 chunks: 10, 10, 5."""
         mock_batch_client = MagicMock()
@@ -423,7 +410,6 @@ class TestChunkingAtAsanaLimit:
         assert len(result) == 25
         assert chunks_called == [10, 10, 5]
 
-    @pytest.mark.asyncio
     async def test_partial_chunk_failure_isolated(self) -> None:
         """One chunk failing doesn't prevent other chunks from succeeding."""
         mock_batch_client = MagicMock()
@@ -469,7 +455,6 @@ class TestChunkingAtAsanaLimit:
 class TestMixedSuccessFailure:
     """Mixed success/failure handling tests (FR-DEGRADE-003)."""
 
-    @pytest.mark.asyncio
     async def test_mixed_200_404_500_responses(self) -> None:
         """Mix of success (200), deleted (404), and error (500) responses."""
         mock_batch_client = MagicMock()

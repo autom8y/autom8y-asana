@@ -537,7 +537,6 @@ def _make_business_schema() -> DataFrameSchema:
 class TestEngineJoinAdversarial:
     """Adversarial engine-level join tests."""
 
-    @pytest.mark.asyncio
     async def test_join_plus_section_plus_predicate(self) -> None:
         """Join + section filter + predicate all compose correctly."""
         offer_schema = _make_offer_schema()
@@ -608,7 +607,6 @@ class TestEngineJoinAdversarial:
         assert result.data[0]["business_booking_type"] == "Online"
         assert result.meta.join_entity == "business"
 
-    @pytest.mark.asyncio
     async def test_join_no_project_configured(self) -> None:
         """Join target entity type has no project configured -> JoinError."""
         offer_schema = _make_offer_schema()
@@ -657,7 +655,6 @@ class TestEngineJoinAdversarial:
                     entity_project_registry=mock_epr,
                 )
 
-    @pytest.mark.asyncio
     async def test_join_select_without_join_key_column(self) -> None:
         """Select list doesn't include join key -> join still works."""
         offer_schema = _make_offer_schema()
@@ -720,7 +717,6 @@ class TestEngineJoinAdversarial:
         assert "business_booking_type" in result.data[0]
         assert result.meta.join_matched == 1
 
-    @pytest.mark.asyncio
     async def test_join_offset_larger_than_result(self) -> None:
         """Offset larger than result count -> empty data with join meta."""
         offer_schema = _make_offer_schema()
@@ -903,7 +899,6 @@ class TestTDDDeviationProbes:
         null_row = result.df.filter(pl.col("gid") == "o2")
         assert null_row["business_booking_type"][0] is None
 
-    @pytest.mark.asyncio
     async def test_entity_project_registry_passed_not_singleton(self) -> None:
         """EntityProjectRegistry is passed as parameter, not used as singleton.
 

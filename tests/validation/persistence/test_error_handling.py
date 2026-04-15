@@ -51,7 +51,6 @@ from .conftest import (
 class TestPartialFailure:
     """Test partial failure handling (FR-ERROR-001, FR-ERROR-002)."""
 
-    @pytest.mark.asyncio
     async def test_some_succeed_some_fail(self) -> None:
         """SaveResult contains both succeeded and failed (FR-ERROR-002)."""
         mock_client = create_mock_client()
@@ -76,7 +75,6 @@ class TestPartialFailure:
         assert len(result.succeeded) == 1
         assert len(result.failed) == 1
 
-    @pytest.mark.asyncio
     async def test_all_fail(self) -> None:
         """All operations failing returns failed result."""
         mock_client = create_mock_client()
@@ -102,7 +100,6 @@ class TestPartialFailure:
         assert len(result.succeeded) == 0
         assert len(result.failed) == 2
 
-    @pytest.mark.asyncio
     async def test_save_error_contains_entity_info(self) -> None:
         """SaveError contains entity, operation, error, and payload (FR-ERROR-003)."""
         mock_client = create_mock_client()
@@ -128,7 +125,6 @@ class TestPartialFailure:
         assert error.error is not None
         assert isinstance(error.payload, dict)
 
-    @pytest.mark.asyncio
     async def test_cascading_dependency_failure(self) -> None:
         """Child fails with DependencyResolutionError when parent fails (FR-ERROR-006)."""
         mock_client = create_mock_client()
@@ -162,7 +158,6 @@ class TestPartialFailure:
         assert child_error is not None
         assert isinstance(child_error.error, DependencyResolutionError)
 
-    @pytest.mark.asyncio
     async def test_partial_success_commits_succeeded_entities(self) -> None:
         """Successful entities are committed even when others fail (FR-ERROR-001)."""
         mock_client = create_mock_client()
@@ -188,7 +183,6 @@ class TestPartialFailure:
             # One should be CLEAN (succeeded), one should be MODIFIED (failed)
             assert EntityState.CLEAN in states
 
-    @pytest.mark.asyncio
     async def test_multi_level_cascading_failure(self) -> None:
         """Cascading failure propagates through multiple levels."""
         mock_client = create_mock_client()
@@ -257,7 +251,6 @@ class TestExceptionTypes:
         with pytest.raises(SessionClosedError):
             session.untrack(task)
 
-    @pytest.mark.asyncio
     async def test_session_closed_error_on_commit(self) -> None:
         """commit_async() on closed session raises SessionClosedError."""
         mock_client = create_mock_client()
@@ -431,7 +424,6 @@ class TestSaveResultProperties:
 class TestErrorEdgeCases:
     """Test error handling edge cases."""
 
-    @pytest.mark.asyncio
     async def test_delete_without_gid_raises_value_error(self) -> None:
         """delete() on entity without GID raises ValueError."""
         mock_client = create_mock_client()
@@ -442,7 +434,6 @@ class TestErrorEdgeCases:
             with pytest.raises(ValueError, match="Cannot delete"):
                 session.delete(task)
 
-    @pytest.mark.asyncio
     async def test_delete_empty_gid_raises_value_error(self) -> None:
         """delete() on entity with empty string GID raises ValueError.
 
@@ -468,7 +459,6 @@ class TestErrorEdgeCases:
         with pytest.raises(ValueError, match="not tracked"):
             session.get_state(task)
 
-    @pytest.mark.asyncio
     async def test_batch_result_with_empty_body(self) -> None:
         """Handle batch result with empty body gracefully."""
         mock_client = create_mock_client()
@@ -486,7 +476,6 @@ class TestErrorEdgeCases:
         # Should handle gracefully
         assert result.success
 
-    @pytest.mark.asyncio
     async def test_batch_result_with_missing_data_field(self) -> None:
         """Handle batch result without data field."""
         mock_client = create_mock_client()
@@ -504,7 +493,6 @@ class TestErrorEdgeCases:
         # Should handle gracefully
         assert result.success
 
-    @pytest.mark.asyncio
     async def test_5xx_error_code_handling(self) -> None:
         """Server errors (5xx) are properly captured."""
         mock_client = create_mock_client()
@@ -524,7 +512,6 @@ class TestErrorEdgeCases:
         assert not result.success
         assert len(result.failed) == 1
 
-    @pytest.mark.asyncio
     async def test_rate_limit_error_handling(self) -> None:
         """Rate limit errors (429) are captured."""
         mock_client = create_mock_client()
@@ -543,7 +530,6 @@ class TestErrorEdgeCases:
 
         assert not result.success
 
-    @pytest.mark.asyncio
     async def test_auth_error_handling(self) -> None:
         """Authentication errors (401, 403) are captured."""
         mock_client = create_mock_client()

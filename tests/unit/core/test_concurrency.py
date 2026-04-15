@@ -38,13 +38,11 @@ async def _fail(msg: str) -> None:
 class TestGatherWithSemaphore:
     """Core behavior tests for gather_with_semaphore."""
 
-    @pytest.mark.asyncio
     async def test_empty_returns_empty(self) -> None:
         """Passing an empty iterable returns an empty list."""
         result = await gather_with_semaphore([])
         assert result == []
 
-    @pytest.mark.asyncio
     async def test_all_exceptions(self) -> None:
         """All coros raise; returns list of exceptions with return_exceptions=True."""
         coros = [_fail(f"err-{i}") for i in range(5)]
@@ -55,7 +53,6 @@ class TestGatherWithSemaphore:
             assert isinstance(r, ValueError)
             assert str(r) == f"err-{i}"
 
-    @pytest.mark.asyncio
     async def test_mixed_success_failure(self) -> None:
         """Mix of succeeding and failing coros preserves order."""
         coros = [
@@ -74,7 +71,6 @@ class TestGatherWithSemaphore:
         assert isinstance(results[3], ValueError) and str(results[3]) == "boom"
         assert results[4] == 4
 
-    @pytest.mark.asyncio
     async def test_generator_input(self) -> None:
         """Generator expression (not a list) is eagerly consumed and executed."""
         gen = (_succeed(i) for i in range(5))
@@ -82,7 +78,6 @@ class TestGatherWithSemaphore:
 
         assert results == [0, 1, 2, 3, 4]
 
-    @pytest.mark.asyncio
     async def test_large_input(self) -> None:
         """100+ coros all complete without deadlock."""
         count = 150
@@ -92,7 +87,6 @@ class TestGatherWithSemaphore:
         assert len(results) == count
         assert results == list(range(count))
 
-    @pytest.mark.asyncio
     async def test_preserves_order(self) -> None:
         """Results match input order regardless of completion timing."""
 
@@ -121,7 +115,6 @@ class TestGatherWithSemaphore:
 class TestErrorPropagation:
     """Tests for return_exceptions=False behavior."""
 
-    @pytest.mark.asyncio
     async def test_return_exceptions_false(self) -> None:
         """With return_exceptions=False, first exception propagates."""
         coros = [
@@ -144,7 +137,6 @@ class TestErrorPropagation:
 class TestConcurrencyBound:
     """Tests that the semaphore actually limits concurrency."""
 
-    @pytest.mark.asyncio
     async def test_concurrency_bound(self) -> None:
         """With concurrency=2 and 10 coros, at most 2 run simultaneously."""
         max_concurrent = 0
@@ -179,7 +171,6 @@ class TestConcurrencyBound:
 class TestStructuredLogging:
     """Tests for structured log output."""
 
-    @pytest.mark.asyncio
     async def test_label_in_log(self) -> None:
         """Label appears in structured log output.
 

@@ -207,7 +207,6 @@ class TestTaskCacheResult:
 class TestTaskCacheCoordinatorLookup:
     """Tests for TaskCacheCoordinator.lookup_tasks_async()."""
 
-    @pytest.mark.asyncio
     async def test_lookup_cache_miss(self, coordinator: TaskCacheCoordinator) -> None:
         """Test lookup returns None for cache misses."""
         result = await coordinator.lookup_tasks_async(["task123", "task456"])
@@ -215,7 +214,6 @@ class TestTaskCacheCoordinatorLookup:
         assert result["task123"] is None
         assert result["task456"] is None
 
-    @pytest.mark.asyncio
     async def test_lookup_cache_hit(
         self,
         coordinator: TaskCacheCoordinator,
@@ -242,7 +240,6 @@ class TestTaskCacheCoordinatorLookup:
         assert result["task123"].gid == "task123"
         assert result["task123"].name == "Test Task"
 
-    @pytest.mark.asyncio
     async def test_lookup_partial_hits(
         self,
         coordinator: TaskCacheCoordinator,
@@ -268,7 +265,6 @@ class TestTaskCacheCoordinatorLookup:
         assert result["task123"] is not None  # Hit
         assert result["task456"] is None  # Miss
 
-    @pytest.mark.asyncio
     async def test_lookup_expired_entry(
         self,
         coordinator: TaskCacheCoordinator,
@@ -293,14 +289,12 @@ class TestTaskCacheCoordinatorLookup:
 
         assert result["task123"] is None
 
-    @pytest.mark.asyncio
     async def test_lookup_empty_gids(self, coordinator: TaskCacheCoordinator) -> None:
         """Test lookup with empty GID list."""
         result = await coordinator.lookup_tasks_async([])
 
         assert result == {}
 
-    @pytest.mark.asyncio
     async def test_lookup_no_cache_provider(
         self, coordinator_no_cache: TaskCacheCoordinator
     ) -> None:
@@ -310,7 +304,6 @@ class TestTaskCacheCoordinatorLookup:
         # Should return all misses
         assert result["task123"] is None
 
-    @pytest.mark.asyncio
     async def test_lookup_graceful_degradation(self) -> None:
         """Test lookup handles cache errors gracefully."""
         # Create a failing cache
@@ -335,7 +328,6 @@ class TestTaskCacheCoordinatorLookup:
 class TestTaskCacheCoordinatorPopulate:
     """Tests for TaskCacheCoordinator.populate_tasks_async()."""
 
-    @pytest.mark.asyncio
     async def test_populate_single_task(
         self,
         coordinator: TaskCacheCoordinator,
@@ -351,7 +343,6 @@ class TestTaskCacheCoordinatorPopulate:
         assert result["task123"] is not None
         assert result["task123"].name == "Test Task"
 
-    @pytest.mark.asyncio
     async def test_populate_multiple_tasks(
         self,
         coordinator: TaskCacheCoordinator,
@@ -371,14 +362,12 @@ class TestTaskCacheCoordinatorPopulate:
         assert result["task456"] is not None
         assert result["task789"] is not None
 
-    @pytest.mark.asyncio
     async def test_populate_empty_list(self, coordinator: TaskCacheCoordinator) -> None:
         """Test populating with empty task list."""
         count = await coordinator.populate_tasks_async([])
 
         assert count == 0
 
-    @pytest.mark.asyncio
     async def test_populate_no_cache_provider(
         self,
         coordinator_no_cache: TaskCacheCoordinator,
@@ -389,7 +378,6 @@ class TestTaskCacheCoordinatorPopulate:
 
         assert count == 0
 
-    @pytest.mark.asyncio
     async def test_populate_graceful_degradation(self, sample_task: Task) -> None:
         """Test populate handles cache errors gracefully."""
         failing_cache = MagicMock()
@@ -402,7 +390,6 @@ class TestTaskCacheCoordinatorPopulate:
 
         assert count == 0
 
-    @pytest.mark.asyncio
     async def test_populate_with_custom_ttl_resolver(
         self,
         coordinator: TaskCacheCoordinator,
@@ -421,7 +408,6 @@ class TestTaskCacheCoordinatorPopulate:
 
         assert count == 1
 
-    @pytest.mark.asyncio
     async def test_populate_minimal_task(self, coordinator: TaskCacheCoordinator) -> None:
         """Test populate handles minimal task with only GID."""
         # Task with only required GID field
@@ -436,7 +422,6 @@ class TestTaskCacheCoordinatorPopulate:
         result = await coordinator.lookup_tasks_async(["minimal123"])
         assert result["minimal123"] is not None
 
-    @pytest.mark.asyncio
     async def test_populate_task_without_modified_at(
         self, coordinator: TaskCacheCoordinator
     ) -> None:
@@ -582,7 +567,6 @@ class TestTaskCacheCoordinatorMerge:
 class TestTaskCacheCoordinatorTTL:
     """Tests for TTL resolution logic."""
 
-    @pytest.mark.asyncio
     async def test_default_ttl_used(
         self,
         coordinator: TaskCacheCoordinator,
@@ -648,7 +632,6 @@ class TestTaskCacheCoordinatorEdgeCases:
 
         assert before <= result <= after
 
-    @pytest.mark.asyncio
     async def test_roundtrip_task_data(
         self,
         coordinator: TaskCacheCoordinator,
@@ -682,7 +665,6 @@ class TestTaskCacheCoordinatorEdgeCases:
         assert cached_task.completed == task.completed
         assert cached_task.due_on == task.due_on
 
-    @pytest.mark.asyncio
     async def test_with_null_cache_provider(self, sample_task: Task) -> None:
         """Test coordinator with NullCacheProvider."""
         null_cache = NullCacheProvider()
@@ -697,7 +679,6 @@ class TestTaskCacheCoordinatorEdgeCases:
         # NullCacheProvider's get_batch returns {} or misses
         assert result.get("task123") is None
 
-    @pytest.mark.asyncio
     async def test_large_batch_lookup(self, coordinator: TaskCacheCoordinator) -> None:
         """Test lookup with large batch of GIDs."""
         gids = [f"task{i}" for i in range(500)]
@@ -708,7 +689,6 @@ class TestTaskCacheCoordinatorEdgeCases:
         assert len(result) == 500
         assert all(v is None for v in result.values())
 
-    @pytest.mark.asyncio
     async def test_large_batch_populate(
         self, coordinator: TaskCacheCoordinator, now: datetime
     ) -> None:
@@ -741,7 +721,6 @@ class TestTaskCacheCoordinatorEdgeCases:
 class TestTaskCacheCoordinatorIntegration:
     """Integration tests simulating real-world usage patterns."""
 
-    @pytest.mark.asyncio
     async def test_full_workflow_cold_cache(
         self,
         coordinator: TaskCacheCoordinator,
@@ -775,7 +754,6 @@ class TestTaskCacheCoordinatorIntegration:
         assert warm_lookup["task456"] is not None
         assert warm_lookup["task789"] is not None
 
-    @pytest.mark.asyncio
     async def test_full_workflow_partial_cache(
         self,
         coordinator: TaskCacheCoordinator,
@@ -817,7 +795,6 @@ class TestTaskCacheCoordinatorIntegration:
         # Verify order preserved
         assert [t.gid for t in result.all_tasks] == ["task123", "task456", "task789"]
 
-    @pytest.mark.asyncio
     async def test_workflow_with_cache_failure(
         self,
         sample_task: Task,

@@ -606,7 +606,6 @@ class TestRetryOrchestratorAsync:
             subsystem=Subsystem.S3,
         )
 
-    @pytest.mark.asyncio
     async def test_happy_path_async(self) -> None:
         orch = self._make_orchestrator()
 
@@ -616,7 +615,6 @@ class TestRetryOrchestratorAsync:
         result = await orch.execute_with_retry_async(op, operation_name="test")
         assert result == 42
 
-    @pytest.mark.asyncio
     async def test_retry_on_transient_error_async(self) -> None:
         orch = self._make_orchestrator()
         call_count = 0
@@ -632,7 +630,6 @@ class TestRetryOrchestratorAsync:
         assert result == "success"
         assert call_count == 3
 
-    @pytest.mark.asyncio
     async def test_permanent_error_no_retry_async(self) -> None:
         orch = self._make_orchestrator()
         call_count = 0
@@ -647,7 +644,6 @@ class TestRetryOrchestratorAsync:
 
         assert call_count == 1
 
-    @pytest.mark.asyncio
     async def test_all_retries_exhausted_async(self) -> None:
         orch = self._make_orchestrator(max_attempts=2)
         call_count = 0
@@ -662,7 +658,6 @@ class TestRetryOrchestratorAsync:
 
         assert call_count == 2
 
-    @pytest.mark.asyncio
     async def test_budget_denial_async(self) -> None:
         budget_config = BudgetConfig(per_subsystem_max=0, global_max=0)
         orch = self._make_orchestrator(budget_config=budget_config)
@@ -678,7 +673,6 @@ class TestRetryOrchestratorAsync:
 
         assert call_count == 1
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_open_async(self) -> None:
         orch = self._make_orchestrator()
         orch.circuit_breaker.force_open("test")
@@ -813,7 +807,6 @@ class TestRetryOrchestratorIntegration:
         # Redis gets 1 call (initial), then budget denied on retry
         assert redis_call_count == 1
 
-    @pytest.mark.asyncio
     async def test_concurrent_async_retries(self) -> None:
         """Multiple concurrent async operations share budget correctly."""
         budget = RetryBudget(BudgetConfig(per_subsystem_max=5, global_max=5))
@@ -1176,7 +1169,6 @@ class TestCBNotIncrementedForPermanentErrors:
         assert orch.circuit_breaker.state == CBState.CLOSED
         assert orch.circuit_breaker._failure_count == 0
 
-    @pytest.mark.asyncio
     async def test_cb_not_incremented_for_permanent_error_async(self) -> None:
         """Async: NoSuchKey does not increment CB failure count."""
         orch = self._make_orchestrator(max_attempts=1)
@@ -1191,7 +1183,6 @@ class TestCBNotIncrementedForPermanentErrors:
         assert orch.circuit_breaker._failure_count == 0
         assert orch.circuit_breaker.state == CBState.CLOSED
 
-    @pytest.mark.asyncio
     async def test_cb_incremented_for_transient_error_async(self) -> None:
         """Async: Throttling increments CB failure count."""
         orch = self._make_orchestrator(max_attempts=1)

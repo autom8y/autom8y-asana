@@ -93,7 +93,6 @@ class MockSaveResult:
 class TestPlaceInHierarchyAsync:
     """Tests for _place_in_hierarchy_async method."""
 
-    @pytest.mark.asyncio
     async def test_places_task_under_process_holder_from_process(self) -> None:
         """Test placing task when ProcessHolder found via source_process."""
         rule = PipelineConversionRule()
@@ -128,7 +127,6 @@ class TestPlaceInHierarchyAsync:
             insert_after=source_process,
         )
 
-    @pytest.mark.asyncio
     async def test_places_task_under_process_holder_from_unit(self) -> None:
         """Test placing task when ProcessHolder found via unit."""
         rule = PipelineConversionRule()
@@ -157,7 +155,6 @@ class TestPlaceInHierarchyAsync:
         assert result is True
         mock_session.set_parent.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_graceful_degradation_no_process_holder(self) -> None:
         """Test graceful degradation when no ProcessHolder available (FR-HIER-003)."""
         rule = PipelineConversionRule()
@@ -180,7 +177,6 @@ class TestPlaceInHierarchyAsync:
         warning_call = str(mock_logger.warning.call_args)
         assert "pipeline_no_process_holder" in warning_call
 
-    @pytest.mark.asyncio
     async def test_graceful_degradation_commit_fails(self) -> None:
         """Test graceful degradation when commit fails (FR-HIER-003)."""
         rule = PipelineConversionRule()
@@ -215,7 +211,6 @@ class TestPlaceInHierarchyAsync:
         assert result is False
         mock_logger.warning.assert_called()
 
-    @pytest.mark.asyncio
     async def test_graceful_degradation_exception(self) -> None:
         """Test graceful degradation when exception occurs (FR-HIER-003)."""
         rule = PipelineConversionRule()
@@ -249,7 +244,6 @@ class TestPlaceInHierarchyAsync:
         warning_call = str(mock_logger.warning.call_args)
         assert "API Error" in warning_call
 
-    @pytest.mark.asyncio
     async def test_graceful_degradation_when_no_hydrated_holder(self) -> None:
         """Test graceful degradation when ProcessHolder not available via public API.
 
@@ -283,7 +277,6 @@ class TestPlaceInHierarchyAsync:
         warning_call = str(mock_logger.warning.call_args)
         assert "pipeline_no_process_holder" in warning_call
 
-    @pytest.mark.asyncio
     async def test_resolve_holder_async_used_as_fallback(self) -> None:
         """Test that resolve_holder_async is called as final fallback strategy.
 
@@ -324,7 +317,6 @@ class TestPlaceInHierarchyAsync:
         call_args = mock_session.set_parent.call_args
         assert call_args[0][1] == process_holder
 
-    @pytest.mark.asyncio
     async def test_disables_automation_in_nested_session(self) -> None:
         """Test that nested SaveSession has automation disabled to prevent loops."""
         rule = PipelineConversionRule()

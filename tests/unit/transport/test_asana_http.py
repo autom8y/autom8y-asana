@@ -116,7 +116,6 @@ class TestAsanaHttpClientRequest:
         client = AsanaHttpClient(config, auth)
         return client
 
-    @pytest.mark.asyncio
     async def test_get_returns_unwrapped_data(self, client):
         """GET request unwraps {"data": ...} envelope."""
         mock_response = MagicMock()
@@ -129,7 +128,6 @@ class TestAsanaHttpClientRequest:
         result = await client.get("/tasks/123")
         assert result == {"gid": "123", "name": "Task"}
 
-    @pytest.mark.asyncio
     async def test_post_includes_json_body(self, client):
         """POST request sends JSON body."""
         mock_response = MagicMock()
@@ -151,7 +149,6 @@ class TestAsanaHttpClientRequest:
             data=None,
         )
 
-    @pytest.mark.asyncio
     async def test_put_request(self, client):
         """PUT request works correctly."""
         mock_response = MagicMock()
@@ -164,7 +161,6 @@ class TestAsanaHttpClientRequest:
         result = await client.put("/tasks/123", json={"name": "Updated"})
         assert result == {"gid": "123", "name": "Updated"}
 
-    @pytest.mark.asyncio
     async def test_delete_request(self, client):
         """DELETE request works correctly."""
         mock_response = MagicMock()
@@ -189,7 +185,6 @@ class TestAsanaHttpClientPagination:
         client = AsanaHttpClient(config, auth)
         return client
 
-    @pytest.mark.asyncio
     async def test_get_paginated_returns_data_and_offset(self, client):
         """get_paginated returns tuple of (data, next_offset)."""
         mock_response = MagicMock()
@@ -206,7 +201,6 @@ class TestAsanaHttpClientPagination:
         assert data == [{"gid": "1"}, {"gid": "2"}]
         assert next_offset == "abc123"
 
-    @pytest.mark.asyncio
     async def test_get_paginated_returns_none_on_last_page(self, client):
         """get_paginated returns None offset on last page."""
         mock_response = MagicMock()
@@ -235,7 +229,6 @@ class TestAsanaHttpClientErrors:
         client = AsanaHttpClient(config, auth)
         return client
 
-    @pytest.mark.asyncio
     async def test_raises_rate_limit_error(self, client):
         """Raises RateLimitError on 429."""
         mock_response = MagicMock()
@@ -256,7 +249,6 @@ class TestAsanaHttpClientErrors:
         with pytest.raises(RateLimitError):
             await client.get("/tasks")
 
-    @pytest.mark.asyncio
     async def test_raises_server_error(self, client):
         """Raises ServerError on 5xx."""
         mock_response = MagicMock()
@@ -273,7 +265,6 @@ class TestAsanaHttpClientErrors:
         with pytest.raises(ServerError):
             await client.get("/tasks")
 
-    @pytest.mark.asyncio
     async def test_raises_timeout_error(self, client):
         """Raises TimeoutError on httpx.TimeoutException."""
         mock_httpx_client = AsyncMock()
@@ -292,7 +283,6 @@ class TestAsanaHttpClientErrors:
 class TestAsanaHttpClientRateLimiting:
     """Test rate limiting behavior."""
 
-    @pytest.mark.asyncio
     async def test_acquires_rate_limit_token(self):
         """Request acquires rate limit token."""
         config = AsanaConfig()
@@ -318,7 +308,6 @@ class TestAsanaHttpClientRateLimiting:
 class TestAsanaHttpClientClose:
     """Test client cleanup."""
 
-    @pytest.mark.asyncio
     async def test_close_releases_resources(self):
         """close() releases platform client resources."""
         config = AsanaConfig()
@@ -335,7 +324,6 @@ class TestAsanaHttpClientClose:
         mock_platform.close.assert_called_once()
         assert client._platform_client is None
 
-    @pytest.mark.asyncio
     async def test_close_is_idempotent(self):
         """close() can be called multiple times safely."""
         config = AsanaConfig()

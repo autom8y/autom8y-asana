@@ -95,7 +95,6 @@ class TestCascadeViewPluginInit:
 class TestCascadeViewPluginResolve:
     """Tests for CascadeViewPlugin.resolve_async()."""
 
-    @pytest.mark.asyncio
     async def test_resolve_unregistered_field_returns_none(
         self, cascade_plugin: CascadeViewPlugin, mock_task: MagicMock
     ) -> None:
@@ -105,7 +104,6 @@ class TestCascadeViewPluginResolve:
         assert result is None
         assert cascade_plugin.get_stats()["field_not_found"] == 1
 
-    @pytest.mark.asyncio
     async def test_resolve_local_override_when_allowed(self, mock_store: MagicMock) -> None:
         """Test local value is returned when allow_override=True."""
         from autom8_asana.models.business.fields import CascadingFieldDef
@@ -142,7 +140,6 @@ class TestCascadeViewPluginResolve:
         assert result == "local-value"
         assert plugin.get_stats()["field_found"] == 1
 
-    @pytest.mark.asyncio
     async def test_resolve_traverses_parent_chain(
         self, mock_store: MagicMock, mock_task: MagicMock
     ) -> None:
@@ -183,7 +180,6 @@ class TestCascadeViewPluginResolve:
         assert result == "+16146362433"
         mock_store.get_with_upgrade_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_resolve_returns_none_when_chain_empty(
         self, cascade_plugin: CascadeViewPlugin, mock_task: MagicMock
     ) -> None:
@@ -195,7 +191,6 @@ class TestCascadeViewPluginResolve:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_resolve_respects_max_depth(
         self, mock_store: MagicMock, mock_task: MagicMock
     ) -> None:
@@ -221,14 +216,12 @@ class TestCascadeViewPluginResolve:
 class TestCascadeViewPluginPrefetch:
     """Tests for CascadeViewPlugin.prefetch_parents_async()."""
 
-    @pytest.mark.asyncio
     async def test_prefetch_empty_list(self, cascade_plugin: CascadeViewPlugin) -> None:
         """Test prefetch with empty task list."""
         await cascade_plugin.prefetch_parents_async([])
 
         assert cascade_plugin.get_stats()["prefetch_calls"] == 1
 
-    @pytest.mark.asyncio
     async def test_prefetch_triggers_cache_lookup(self, mock_store: MagicMock) -> None:
         """Test prefetch triggers parent chain lookups."""
         mock_store.get_parent_chain_async = AsyncMock(return_value=[])
@@ -248,7 +241,6 @@ class TestCascadeViewPluginPrefetch:
         # Should have called get_parent_chain_async for each task with parent
         assert mock_store.get_parent_chain_async.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_prefetch_skips_orphan_tasks(self, mock_store: MagicMock) -> None:
         """Test prefetch skips tasks without parents."""
         mock_store.get_parent_chain_async = AsyncMock(return_value=[])
@@ -418,7 +410,6 @@ class TestCascadeViewPluginClassMapping:
 class TestCascadeViewPluginStats:
     """Tests for statistics tracking."""
 
-    @pytest.mark.asyncio
     async def test_stats_tracking(
         self, cascade_plugin: CascadeViewPlugin, mock_task: MagicMock
     ) -> None:
@@ -448,7 +439,6 @@ class TestCascadeViewPluginStats:
 class TestCascadeViewPluginEdgeCases:
     """Tests for edge cases."""
 
-    @pytest.mark.asyncio
     async def test_task_with_none_custom_fields(
         self, cascade_plugin: CascadeViewPlugin, mock_task_no_custom_fields: MagicMock
     ) -> None:
@@ -458,7 +448,6 @@ class TestCascadeViewPluginEdgeCases:
         # Should handle gracefully
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_resolve_with_case_insensitive_field_name(self, mock_store: MagicMock) -> None:
         """Test field name lookup is case insensitive.
 
@@ -510,7 +499,6 @@ class TestCascadeViewPluginEdgeCases:
         # Per GAP-B: Office Phone values are normalized to E.164 on cascade read
         assert result == "+16146362433"
 
-    @pytest.mark.asyncio
     async def test_resolve_from_root_fallback(self, mock_store: MagicMock) -> None:
         """Test Business field found at root task (fallback behavior).
 

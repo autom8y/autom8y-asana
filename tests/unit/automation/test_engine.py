@@ -210,7 +210,6 @@ class TestAutomationEngineEvaluate:
         """Create SaveResult with one succeeded entity."""
         return SaveResult(succeeded=[mock_entity])
 
-    @pytest.mark.asyncio
     async def test_evaluate_disabled_returns_empty(
         self,
         mock_client: MagicMock,
@@ -227,7 +226,6 @@ class TestAutomationEngineEvaluate:
         assert results == []
         assert rule.execute_called is False
 
-    @pytest.mark.asyncio
     async def test_evaluate_no_rules_returns_empty(
         self,
         engine: AutomationEngine,
@@ -239,7 +237,6 @@ class TestAutomationEngineEvaluate:
 
         assert results == []
 
-    @pytest.mark.asyncio
     async def test_evaluate_rule_should_not_trigger(
         self,
         engine: AutomationEngine,
@@ -255,7 +252,6 @@ class TestAutomationEngineEvaluate:
         assert results == []
         assert rule.execute_called is False
 
-    @pytest.mark.asyncio
     async def test_evaluate_rule_triggers_and_executes(
         self,
         engine: AutomationEngine,
@@ -275,7 +271,6 @@ class TestAutomationEngineEvaluate:
         assert results[0].success is True
         assert rule.execute_called is True
 
-    @pytest.mark.asyncio
     async def test_evaluate_rule_execution_error_captured(
         self,
         engine: AutomationEngine,
@@ -296,7 +291,6 @@ class TestAutomationEngineEvaluate:
         assert results[0].success is False
         assert "Execution failed" in results[0].error
 
-    @pytest.mark.asyncio
     async def test_evaluate_multiple_rules(
         self,
         engine: AutomationEngine,
@@ -315,7 +309,6 @@ class TestAutomationEngineEvaluate:
         assert rule1.execute_called is True
         assert rule2.execute_called is True
 
-    @pytest.mark.asyncio
     async def test_evaluate_loop_prevention_skips(
         self,
         mock_client: MagicMock,
@@ -343,7 +336,6 @@ class TestAutomationEngineEvaluate:
         assert results[1].success is True
         assert results[1].skipped_reason == "circular_reference_prevented"
 
-    @pytest.mark.asyncio
     async def test_evaluate_empty_succeeded_returns_empty(
         self,
         engine: AutomationEngine,

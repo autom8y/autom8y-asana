@@ -119,7 +119,6 @@ class TestTraversalUsesStandardFields:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestParentGidFromCachedTasks:
     """FR-BUSINESS-001: Verify parent.gid available for traversal."""
 
@@ -215,7 +214,6 @@ class TestParentGidFromCachedTasks:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestCustomFieldsFromCachedBusiness:
     """FR-BUSINESS-003: Verify custom_fields available on Business."""
 
@@ -375,7 +373,6 @@ class TestCachePopulationPath:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestHydrationWithCachedTasks:
     """FR-BUSINESS-002: Hydration works with cached tasks."""
 

@@ -27,7 +27,6 @@ from .conftest import (
 class TestGetInsightsBatchAsync:
     """Tests for get_insights_batch_async method (Story 2.4)."""
 
-    @pytest.mark.asyncio
     async def test_batch_success_all_pvps(self, sample_pvps: list) -> None:
         """Happy path - batch with 3 PVPs, all succeed in single request."""
         import respx
@@ -64,7 +63,6 @@ class TestGetInsightsBatchAsync:
             assert batch_result.response is not None
             assert batch_result.error is None
 
-    @pytest.mark.asyncio
     async def test_partial_failure_one_pvp_fails(self, sample_pvps: list) -> None:
         """Partial failure - 3 PVPs, 1 fails via HTTP 207 partial success."""
         import respx
@@ -106,7 +104,6 @@ class TestGetInsightsBatchAsync:
             assert success_result.success is True
             assert success_result.response is not None
 
-    @pytest.mark.asyncio
     async def test_batch_size_exceeds_max_raises_validation_error(self, sample_pvps: list) -> None:
         """Batch size validation - exceeds max_batch_size raises InsightsValidationError."""
         from autom8_asana.errors import InsightsValidationError
@@ -129,7 +126,6 @@ class TestGetInsightsBatchAsync:
         assert exc.value.field == "pairs"
         assert exc.value.request_id is not None
 
-    @pytest.mark.asyncio
     async def test_invalid_factory_raises_validation_error(self, sample_pvps: list) -> None:
         """Invalid factory - raises InsightsValidationError."""
         from autom8_asana.errors import InsightsValidationError
@@ -147,7 +143,6 @@ class TestGetInsightsBatchAsync:
         assert "not_a_valid_factory" in str(exc.value)
         assert exc.value.field == "factory"
 
-    @pytest.mark.asyncio
     async def test_feature_flag_disabled_raises_service_error(self, sample_pvps: list) -> None:
         """Feature flag disabled - raises InsightsServiceError with reason='feature_disabled'.
 
@@ -172,7 +167,6 @@ class TestGetInsightsBatchAsync:
         assert exc.value.reason == "feature_disabled"
         assert "Insights integration is disabled" in str(exc.value)
 
-    @pytest.mark.asyncio
     async def test_single_request_for_batch(self, sample_pvps: list) -> None:
         """IMP-20: Verify batch sends single HTTP request instead of N requests."""
         import json
@@ -199,7 +193,6 @@ class TestGetInsightsBatchAsync:
         assert len(request_body["phone_vertical_pairs"]) == 3
         assert result.success_count == 3
 
-    @pytest.mark.asyncio
     async def test_metrics_emission(self, sample_pvps: list) -> None:
         """Metrics emission - verify all 4 batch metrics emitted."""
         import respx
@@ -251,7 +244,6 @@ class TestGetInsightsBatchAsync:
         failure_count = next(m for m in emitted_metrics if m[0] == "insights_batch_failure_count")
         assert failure_count[1] == 1.0
 
-    @pytest.mark.asyncio
     async def test_empty_batch_graceful_handling(self) -> None:
         """Empty batch - verify graceful handling."""
         import respx
@@ -271,7 +263,6 @@ class TestGetInsightsBatchAsync:
         assert result.results == {}
         assert result.request_id is not None
 
-    @pytest.mark.asyncio
     async def test_batch_result_to_dataframe(self, sample_pvps: list) -> None:
         """Test that batch results can be converted to DataFrame."""
         import respx
@@ -294,7 +285,6 @@ class TestGetInsightsBatchAsync:
         assert "spend" in df.columns
         assert "_pvp_key" in df.columns  # Added by to_dataframe
 
-    @pytest.mark.asyncio
     async def test_batch_get_by_pvp(self, sample_pvps: list) -> None:
         """Test that results can be retrieved by PVP."""
         import respx
@@ -318,7 +308,6 @@ class TestGetInsightsBatchAsync:
         assert batch_result.pvp == first_pvp
         assert batch_result.success is True
 
-    @pytest.mark.asyncio
     async def test_factory_case_insensitive(self, sample_pvps: list) -> None:
         """Factory name is case-insensitive."""
         import respx
@@ -337,7 +326,6 @@ class TestGetInsightsBatchAsync:
 
         assert result.success_count == 3
 
-    @pytest.mark.asyncio
     async def test_batch_with_custom_period_and_refresh(self, sample_pvps: list) -> None:
         """Batch passes period and refresh parameters in single request."""
         import json
@@ -370,7 +358,6 @@ class TestGetInsightsBatchAsync:
         assert body["refresh"] is True
         assert len(body["phone_vertical_pairs"]) == 3
 
-    @pytest.mark.asyncio
     async def test_request_body_contains_all_pvps(self, sample_pvps: list) -> None:
         """IMP-20: Verify request body has all PVPs with correct phone/vertical fields."""
         import json
@@ -403,7 +390,6 @@ class TestGetInsightsBatchAsync:
         actual_pvps = {(p["phone"], p["vertical"]) for p in pvp_list}
         assert actual_pvps == expected_pvps
 
-    @pytest.mark.asyncio
     async def test_total_server_error_marks_all_pvps_failed(self, sample_pvps: list) -> None:
         """IMP-20: HTTP 500 from server marks all PVPs as failed."""
         import respx
@@ -431,7 +417,6 @@ class TestGetInsightsBatchAsync:
             assert batch_result.success is False
             assert "Internal server error" in batch_result.error
 
-    @pytest.mark.asyncio
     async def test_chunking_for_large_batches(self) -> None:
         """IMP-20: Batches exceeding chunk size are split into multiple requests."""
         import json
@@ -509,7 +494,6 @@ class TestGetInsightsBatchAsync:
         assert result.success_count == 500
         assert result.failure_count == 0
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_open_marks_all_failed(self, sample_pvps: list) -> None:
         """IMP-20: Circuit breaker open marks all PVPs as failed without HTTP."""
         import respx

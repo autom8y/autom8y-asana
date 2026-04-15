@@ -85,7 +85,6 @@ class TestStorageConstruction:
 class TestStorageContextManager:
     """Test async context manager with storage path."""
 
-    @pytest.mark.asyncio()
     async def test_context_manager_noop(self) -> None:
         """Context manager enter/exit are no-ops (storage manages lifecycle)."""
         storage = _make_mock_storage()
@@ -103,7 +102,6 @@ class TestStorageContextManager:
 class TestManifestViaStorage:
     """Test manifest CRUD operations delegated to DataFrameStorage."""
 
-    @pytest.mark.asyncio()
     async def test_create_manifest_saves_via_storage(self) -> None:
         """create_manifest_async writes manifest JSON via storage.save_json."""
         storage = _make_mock_storage()
@@ -119,7 +117,6 @@ class TestManifestViaStorage:
         call_key = storage.save_json.call_args[0][0]
         assert call_key == "dataframes/proj_123/manifest.json"
 
-    @pytest.mark.asyncio()
     async def test_get_manifest_loads_via_storage(self) -> None:
         """get_manifest_async reads manifest JSON via storage.load_json."""
         storage = _make_mock_storage()
@@ -141,7 +138,6 @@ class TestManifestViaStorage:
         assert "sec_1" in manifest.sections
         storage.load_json.assert_called_once_with("dataframes/proj_123/manifest.json")
 
-    @pytest.mark.asyncio()
     async def test_get_manifest_returns_none_when_not_found(self) -> None:
         """get_manifest_async returns None when storage.load_json returns None."""
         storage = _make_mock_storage()
@@ -152,7 +148,6 @@ class TestManifestViaStorage:
 
         assert manifest is None
 
-    @pytest.mark.asyncio()
     async def test_delete_manifest_via_storage(self) -> None:
         """delete_manifest_async delegates to storage.delete_object."""
         storage = _make_mock_storage()
@@ -172,7 +167,6 @@ class TestManifestViaStorage:
 class TestSectionWriteViaStorage:
     """Test section DataFrame write operations delegated to storage."""
 
-    @pytest.mark.asyncio()
     async def test_write_section_delegates_to_storage(self) -> None:
         """write_section_async calls storage.save_section."""
         storage = _make_mock_storage()
@@ -198,7 +192,6 @@ class TestSectionWriteViaStorage:
         # Third positional arg is the DataFrame
         assert isinstance(call_args[0][2], pl.DataFrame)
 
-    @pytest.mark.asyncio()
     async def test_write_section_failure_marks_manifest_failed(self) -> None:
         """When storage.save_section returns False, manifest is marked FAILED."""
         storage = _make_mock_storage()
@@ -229,7 +222,6 @@ class TestSectionWriteViaStorage:
 class TestSectionReadViaStorage:
     """Test section DataFrame read operations delegated to storage."""
 
-    @pytest.mark.asyncio()
     async def test_read_section_delegates_to_storage(self) -> None:
         """read_section_async calls storage.load_section."""
         storage = _make_mock_storage()
@@ -242,7 +234,6 @@ class TestSectionReadViaStorage:
         assert df is expected_df
         storage.load_section.assert_called_once_with("proj_123", "sec_1")
 
-    @pytest.mark.asyncio()
     async def test_read_section_returns_none_when_not_found(self) -> None:
         """read_section_async returns None when storage returns None."""
         storage = _make_mock_storage()
@@ -262,7 +253,6 @@ class TestSectionReadViaStorage:
 class TestCheckpointViaStorage:
     """Test checkpoint writes delegated to storage."""
 
-    @pytest.mark.asyncio()
     async def test_write_checkpoint_delegates_to_storage(self) -> None:
         """write_checkpoint_async calls storage.save_section with checkpoint metadata."""
         storage = _make_mock_storage()
@@ -298,7 +288,6 @@ class TestCheckpointViaStorage:
 class TestFinalArtifactsViaStorage:
     """Test write_final_artifacts_async delegation to storage."""
 
-    @pytest.mark.asyncio()
     async def test_write_final_artifacts_delegates_to_storage(self) -> None:
         """write_final_artifacts_async calls storage.save_dataframe and save_index."""
         storage = _make_mock_storage()
@@ -318,7 +307,6 @@ class TestFinalArtifactsViaStorage:
         )
         storage.save_index.assert_called_once_with("proj_123", index_data)
 
-    @pytest.mark.asyncio()
     async def test_write_final_artifacts_without_index(self) -> None:
         """write_final_artifacts_async works without index data."""
         storage = _make_mock_storage()
@@ -342,7 +330,6 @@ class TestFinalArtifactsViaStorage:
 class TestDeleteViaStorage:
     """Test delete operations delegated to storage."""
 
-    @pytest.mark.asyncio()
     async def test_delete_section_files_delegates_to_storage(self) -> None:
         """delete_section_files_async uses storage.delete_section."""
         storage = _make_mock_storage()

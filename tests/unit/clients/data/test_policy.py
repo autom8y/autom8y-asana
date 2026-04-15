@@ -128,7 +128,6 @@ class TestEndpointPolicyProtocol:
 class TestExecuteHappyPath:
     """test_execute_happy_path: CB passes, 200 response, success_handler called."""
 
-    @pytest.mark.asyncio
     async def test_happy_path(self) -> None:
         policy, mocks = _make_policy(execute_response_status=200)
         desc = _StubDescriptor(
@@ -160,7 +159,6 @@ class TestExecuteHappyPath:
 class TestCircuitBreakerOpenRaises:
     """test_execute_circuit_breaker_open_raises: CB raises, factory raises."""
 
-    @pytest.mark.asyncio
     async def test_cb_open_raises(self) -> None:
         from autom8y_http import CircuitBreakerOpenError
 
@@ -191,7 +189,6 @@ class TestCircuitBreakerOpenRaises:
 class TestCircuitBreakerOpenReturns:
     """test_execute_circuit_breaker_open_returns: batch case, returns result."""
 
-    @pytest.mark.asyncio
     async def test_cb_open_returns_result(self) -> None:
         from autom8y_http import CircuitBreakerOpenError
 
@@ -222,7 +219,6 @@ class TestCircuitBreakerOpenReturns:
 class TestExecuteErrorResponse:
     """test_execute_error_response: 500 response routes to error_handler."""
 
-    @pytest.mark.asyncio
     async def test_error_response(self) -> None:
         error_result = {"error": "server_error"}
         error_handler = AsyncMock(return_value=error_result)
@@ -252,7 +248,6 @@ class TestExecuteErrorResponse:
 class TestPreExecuteErrorHandlerReturns:
     """test_execute_pre_execute_error_handler_returns: stale fallback case."""
 
-    @pytest.mark.asyncio
     async def test_pre_execute_returns_stale(self) -> None:
         stale_response = {"data": "stale"}
 
@@ -283,7 +278,6 @@ class TestPreExecuteErrorHandlerReturns:
 class TestPreExecuteErrorHandlerNoneReraises:
     """test_execute_pre_execute_error_handler_none_reraises."""
 
-    @pytest.mark.asyncio
     async def test_pre_execute_returns_none_reraises(self) -> None:
         def always_none(exc: Exception, req: Any) -> None:
             return None
@@ -302,7 +296,6 @@ class TestPreExecuteErrorHandlerNoneReraises:
         with pytest.raises(ValueError, match="unrecoverable"):
             await policy.execute(desc)
 
-    @pytest.mark.asyncio
     async def test_no_pre_execute_handler_reraises(self) -> None:
         """Without pre_execute_error_handler, exceptions propagate."""
         policy, _ = _make_policy(
@@ -322,7 +315,6 @@ class TestPreExecuteErrorHandlerNoneReraises:
 class TestExecuteTiming:
     """test_execute_timing: elapsed_ms passed to handlers is reasonable."""
 
-    @pytest.mark.asyncio
     async def test_elapsed_ms_is_positive(self) -> None:
         success_handler = AsyncMock(return_value="ok")
         policy, mocks = _make_policy(success_handler=success_handler)
@@ -341,7 +333,6 @@ class TestExecuteTiming:
         # Should be well under 1 second in unit tests
         assert elapsed_ms < 5000.0
 
-    @pytest.mark.asyncio
     async def test_elapsed_ms_reflects_delay(self) -> None:
         """Elapsed time includes execute_with_retry delay."""
 

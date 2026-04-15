@@ -123,7 +123,6 @@ class TestHierarchyContainsVsCache:
 class TestImmediateParentFetch:
     """Test that put_batch_async fetches uncached parents."""
 
-    @pytest.mark.asyncio
     async def test_put_batch_fetches_uncached_parents(self) -> None:
         """put_batch_async should fetch parents not in cache.
 
@@ -155,7 +154,6 @@ class TestImmediateParentFetch:
 class TestCascadeResolution:
     """Test cascade field resolution through parent hierarchy."""
 
-    @pytest.mark.asyncio
     async def test_cascade_resolution_populates_fields(self) -> None:
         """Test that cascade fields are populated from Business parent.
 
@@ -195,7 +193,6 @@ class TestCascadeResolution:
         assert chain[0]["custom_fields"][1]["name"] == "Vertical"
         assert chain[0]["custom_fields"][1]["enum_value"]["name"] == "Chiropractic"
 
-    @pytest.mark.asyncio
     async def test_dataframe_cascade_fields_populated(self) -> None:
         """Test that DataFrame extraction populates cascade columns.
 
@@ -263,7 +260,6 @@ class TestCascadeResolution:
 class TestWarmAncestorsAsync:
     """Test warm_ancestors_async with cache-based fetching."""
 
-    @pytest.mark.asyncio
     async def test_warm_ancestors_fetches_uncached_parents(self) -> None:
         """warm_ancestors_async should fetch parents not in cache.
 
@@ -309,7 +305,6 @@ class TestWarmAncestorsAsync:
 class TestNoDuplicateFetches:
     """Test that parents are not fetched multiple times."""
 
-    @pytest.mark.asyncio
     async def test_single_parent_fetched_once(self) -> None:
         """Multiple Units with same parent should only trigger one fetch.
 

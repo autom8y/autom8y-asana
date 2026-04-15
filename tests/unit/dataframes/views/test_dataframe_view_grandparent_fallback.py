@@ -75,7 +75,6 @@ class TestGrandparentFallback:
     grandparent of the last chain entry.
     """
 
-    @pytest.mark.asyncio
     async def test_grandparent_fallback_resolves_field(
         self, mock_store: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:
@@ -105,7 +104,6 @@ class TestGrandparentFallback:
         call_kwargs = mock_store.get_with_upgrade_async.call_args
         assert call_kwargs[0][0] == "business-1"
 
-    @pytest.mark.asyncio
     async def test_grandparent_fallback_skips_when_already_in_chain(
         self, mock_store: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:
@@ -133,7 +131,6 @@ class TestGrandparentFallback:
         # Grandparent fetch should NOT be called because business-1 is in chain
         mock_store.get_with_upgrade_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_grandparent_fallback_noop_when_no_parent_on_last(
         self, mock_store: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:
@@ -159,7 +156,6 @@ class TestGrandparentFallback:
         assert result is None
         mock_store.get_with_upgrade_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_grandparent_fallback_noop_when_chain_empty(
         self, mock_store: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:
@@ -180,7 +176,6 @@ class TestGrandparentFallback:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_grandparent_fallback_noop_when_grandparent_fetch_returns_none(
         self, mock_store: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:

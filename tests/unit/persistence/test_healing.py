@@ -167,7 +167,6 @@ class TestHealEntityAsync:
     Per TDD-SPRINT-5-CLEANUP/ABS-001: Updated to check entity_type and project_gid.
     """
 
-    @pytest.mark.asyncio
     async def test_dry_run_success(
         self, mock_client: MagicMock, mock_entity_needs_healing: MagicMock
     ) -> None:
@@ -184,7 +183,6 @@ class TestHealEntityAsync:
         # No API call should be made
         mock_client.tasks.add_to_project_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_actual_healing_success(
         self, mock_client: MagicMock, mock_entity_needs_healing: MagicMock
     ) -> None:
@@ -204,7 +202,6 @@ class TestHealEntityAsync:
             project_gid="expected_project_gid_456",
         )
 
-    @pytest.mark.asyncio
     async def test_actual_healing_api_error(
         self, mock_client: MagicMock, mock_entity_needs_healing: MagicMock
     ) -> None:
@@ -218,7 +215,6 @@ class TestHealEntityAsync:
         assert result.dry_run is False
         assert result.error == "API error"  # Now a string, not Exception
 
-    @pytest.mark.asyncio
     async def test_raises_for_no_detection_result(
         self, mock_client: MagicMock, mock_entity_no_detection: MagicMock
     ) -> None:
@@ -226,7 +222,6 @@ class TestHealEntityAsync:
         with pytest.raises(ValueError, match="has no detection result"):
             await heal_entity_async(mock_entity_no_detection, mock_client)
 
-    @pytest.mark.asyncio
     async def test_raises_for_no_healing_needed(
         self, mock_client: MagicMock, mock_entity_no_healing_needed: MagicMock
     ) -> None:
@@ -234,7 +229,6 @@ class TestHealEntityAsync:
         with pytest.raises(ValueError, match="does not need healing"):
             await heal_entity_async(mock_entity_no_healing_needed, mock_client)
 
-    @pytest.mark.asyncio
     async def test_raises_for_no_expected_project_gid(self, mock_client: MagicMock) -> None:
         """Raises ValueError if expected_project_gid is None."""
         entity = MagicMock()
@@ -292,7 +286,6 @@ class TestHealEntitiesAsync:
 
         return [entity1, entity2, entity3]
 
-    @pytest.mark.asyncio
     async def test_filters_to_entities_needing_healing(
         self, mock_client: MagicMock, mock_entities_mixed: list[MagicMock]
     ) -> None:
@@ -305,14 +298,12 @@ class TestHealEntitiesAsync:
         assert results[0].entity_gid == "entity_1"
         assert results[1].entity_gid == "entity_3"
 
-    @pytest.mark.asyncio
     async def test_empty_list_returns_empty(self, mock_client: MagicMock) -> None:
         """Empty entity list returns empty results."""
         results = await heal_entities_async([], mock_client)
 
         assert results == []
 
-    @pytest.mark.asyncio
     async def test_no_entities_need_healing_returns_empty(
         self, mock_client: MagicMock, mock_entity_no_healing_needed: MagicMock
     ) -> None:
@@ -321,7 +312,6 @@ class TestHealEntitiesAsync:
 
         assert results == []
 
-    @pytest.mark.asyncio
     async def test_concurrent_healing_respects_semaphore(self, mock_client: MagicMock) -> None:
         """Batch healing respects max_concurrent limit."""
         # Create 10 entities needing healing
@@ -344,7 +334,6 @@ class TestHealEntitiesAsync:
         assert len(results) == 10
         assert all(r.success for r in results)
 
-    @pytest.mark.asyncio
     async def test_actual_healing_calls_api_for_each(
         self, mock_client: MagicMock, mock_entities_mixed: list[MagicMock]
     ) -> None:
@@ -355,7 +344,6 @@ class TestHealEntitiesAsync:
         assert len(results) == 2
         assert mock_client.tasks.add_to_project_async.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_partial_failure_returns_all_results(self, mock_client: MagicMock) -> None:
         """Partial failures still return results for all attempts."""
         # Create 3 entities needing healing
@@ -388,7 +376,6 @@ class TestHealEntitiesAsync:
         assert success_count == 2
         assert failure_count == 1
 
-    @pytest.mark.asyncio
     async def test_entities_without_detection_result_skipped(
         self, mock_client: MagicMock, mock_entity_no_detection: MagicMock
     ) -> None:

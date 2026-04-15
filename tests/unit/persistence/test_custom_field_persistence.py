@@ -517,7 +517,6 @@ class TestCustomFieldEdgeCases:
         assert len(crud_ops) == 1
         assert crud_ops[0].operation == OperationType.UPDATE
 
-    @pytest.mark.asyncio
     async def test_commit_with_custom_fields(self) -> None:
         """commit_async() works with custom fields."""
         mock_client = create_mock_client()

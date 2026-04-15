@@ -117,7 +117,6 @@ PROJECT_GID_3 = "3333333333333"
 class TestDataFrameInvalidation:
     """Tests for DataFrame cache invalidation after SaveSession commit."""
 
-    @pytest.mark.asyncio
     async def test_invalidation_includes_dataframe_entry_type(self) -> None:
         """Verify EntryType.DATAFRAME is invalidated (FR-INVALIDATE-002).
 
@@ -158,7 +157,6 @@ class TestDataFrameInvalidation:
         invalidated_keys = [key for key, _ in dataframe_invalidations]
         assert expected_key in invalidated_keys
 
-    @pytest.mark.asyncio
     async def test_invalidation_multi_homed_task(self) -> None:
         """Verify multi-homed task invalidates all projects (FR-INVALIDATE-003).
 
@@ -201,7 +199,6 @@ class TestDataFrameInvalidation:
 
         assert expected_keys.issubset(invalidated_keys)
 
-    @pytest.mark.asyncio
     async def test_invalidation_fallback_single_project(self) -> None:
         """Verify task without memberships still gets TASK/SUBTASKS invalidation.
 
@@ -235,7 +232,6 @@ class TestDataFrameInvalidation:
         # DataFrame may or may not be invalidated depending on context
         # The key assertion is that commit succeeded and TASK/SUBTASKS were invalidated
 
-    @pytest.mark.asyncio
     async def test_invalidation_failure_doesnt_fail_commit(self) -> None:
         """Verify invalidation failure doesn't fail commit (FR-INVALIDATE-005).
 
@@ -269,7 +265,6 @@ class TestDataFrameInvalidation:
         # Assert: Commit succeeded despite DataFrame cache error
         assert result.success
 
-    @pytest.mark.asyncio
     async def test_invalidation_failure_logs_warning(self) -> None:
         """Verify invalidation failure logs warning with structured data."""
         # Arrange
@@ -304,7 +299,6 @@ class TestDataFrameInvalidation:
         warning_calls = [str(call) for call in mock_log.warning.call_args_list]
         assert any("dataframe_cache_invalidation_failed" in call for call in warning_calls)
 
-    @pytest.mark.asyncio
     async def test_invalidation_all_operation_types(self) -> None:
         """Verify CREATE, UPDATE, DELETE all trigger invalidation (FR-INVALIDATE-006).
 
@@ -355,7 +349,6 @@ class TestDataFrameInvalidation:
 class TestDataFrameInvalidationWithActions:
     """Tests for DataFrame cache invalidation after action operations."""
 
-    @pytest.mark.asyncio
     async def test_action_invalidates_dataframe_cache(self) -> None:
         """Verify action operations trigger DataFrame invalidation.
 

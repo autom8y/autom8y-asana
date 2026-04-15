@@ -71,7 +71,6 @@ class TestCreateOnboardingCommentAsync:
         client.stories.create_comment_async = AsyncMock(return_value=MagicMock())
         return client
 
-    @pytest.mark.asyncio
     async def test_comment_created_successfully(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -95,7 +94,6 @@ class TestCreateOnboardingCommentAsync:
         assert call_kwargs["task"] == "new_task_gid"
         assert "text" in call_kwargs
 
-    @pytest.mark.asyncio
     async def test_comment_includes_source_name_and_type_and_date(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -126,7 +124,6 @@ class TestCreateOnboardingCommentAsync:
         today = date.today().isoformat()
         assert today in comment_text
 
-    @pytest.mark.asyncio
     async def test_comment_includes_asana_link(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -155,7 +152,6 @@ class TestCreateOnboardingCommentAsync:
         # Check link format
         assert "https://app.asana.com/0/source_project_gid/source_process_gid" in comment_text
 
-    @pytest.mark.asyncio
     async def test_create_comment_async_fails_returns_false_gracefully(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -180,7 +176,6 @@ class TestCreateOnboardingCommentAsync:
         assert result is False
         mock_client.stories.create_comment_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_comment_includes_business_name(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -203,7 +198,6 @@ class TestCreateOnboardingCommentAsync:
 
         assert "Acme Corp" in comment_text
 
-    @pytest.mark.asyncio
     async def test_comment_with_none_business_uses_unknown(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:

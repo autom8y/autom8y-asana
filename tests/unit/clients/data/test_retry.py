@@ -28,7 +28,6 @@ class TestRetryHandler:
     - Timeout errors trigger retry
     """
 
-    @pytest.mark.asyncio
     async def test_retry_on_503_succeeds_after_retry(self) -> None:
         """First request returns 503, second returns 200."""
         import respx
@@ -78,7 +77,6 @@ class TestRetryHandler:
             assert response.data == [{"spend": 100.0}]
             assert route.call_count == 2  # First call failed, second succeeded
 
-    @pytest.mark.asyncio
     async def test_retry_on_502_succeeds_after_retry(self) -> None:
         """First request returns 502, second returns 200."""
         import respx
@@ -127,7 +125,6 @@ class TestRetryHandler:
             assert response.data == [{"spend": 200.0}]
             assert route.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_retry_on_504_succeeds_after_retry(self) -> None:
         """First request returns 504, second returns 200."""
         import respx
@@ -176,7 +173,6 @@ class TestRetryHandler:
             assert response.data == [{"spend": 300.0}]
             assert route.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_retry_exhaustion_raises_error(self) -> None:
         """After max_retries, raises InsightsServiceError."""
         import respx
@@ -217,7 +213,6 @@ class TestRetryHandler:
             # 1 initial call + 2 retries = 3 total calls
             assert route.call_count == 3
 
-    @pytest.mark.asyncio
     async def test_429_respects_retry_after_header(self) -> None:
         """429 with Retry-After header respects the delay."""
         import respx
@@ -277,7 +272,6 @@ class TestRetryHandler:
             call_args = mock_sleep.call_args[0]
             assert call_args[0] == 2.0
 
-    @pytest.mark.asyncio
     async def test_400_is_not_retried(self) -> None:
         """400 validation error is NOT retried."""
         import respx
@@ -311,7 +305,6 @@ class TestRetryHandler:
             # Should only be called once - no retry for 400
             assert route.call_count == 1
 
-    @pytest.mark.asyncio
     async def test_404_is_not_retried(self) -> None:
         """404 not found error is NOT retried."""
         import respx
@@ -345,7 +338,6 @@ class TestRetryHandler:
             # Should only be called once - no retry for 404
             assert route.call_count == 1
 
-    @pytest.mark.asyncio
     async def test_timeout_triggers_retry(self) -> None:
         """Timeout error triggers retry, then succeeds."""
         import respx
@@ -398,7 +390,6 @@ class TestRetryHandler:
             assert response.data == [{"spend": 500.0}]
             assert call_count == 2  # First timed out, second succeeded
 
-    @pytest.mark.asyncio
     async def test_timeout_exhaustion_raises_error(self) -> None:
         """After max_retries of timeout, raises InsightsServiceError."""
         import respx

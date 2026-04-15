@@ -256,7 +256,6 @@ class TestResolveClassification:
 class TestClassificationQueryExecution:
     """Integration tests for classification filtering through execute_rows."""
 
-    @pytest.mark.asyncio
     async def test_active_classification_filters_correctly(
         self,
         engine: QueryEngine,
@@ -281,7 +280,6 @@ class TestClassificationQueryExecution:
             classification = OFFER_CLASSIFIER.classify(section_name)
             assert classification == AccountActivity.ACTIVE
 
-    @pytest.mark.asyncio
     async def test_activating_classification_filters_correctly(
         self,
         engine: QueryEngine,
@@ -302,7 +300,6 @@ class TestClassificationQueryExecution:
         assert result.meta.total_count == 1
         assert result.data[0]["section"] == "ACTIVATING"
 
-    @pytest.mark.asyncio
     async def test_classification_with_where_predicate(
         self,
         engine: QueryEngine,
@@ -330,7 +327,6 @@ class TestClassificationQueryExecution:
         assert result.data[0]["name"] == "Offer A"
         assert result.data[0]["vertical"] == "dental"
 
-    @pytest.mark.asyncio
     async def test_classification_none_no_effect(
         self,
         engine: QueryEngine,
@@ -349,7 +345,6 @@ class TestClassificationQueryExecution:
 
         assert result.meta.total_count == 7  # All rows
 
-    @pytest.mark.asyncio
     async def test_unknown_entity_type_raises_classification_error(
         self,
         mock_client: AsyncMock,
@@ -374,7 +369,6 @@ class TestClassificationQueryExecution:
                     request=request,
                 )
 
-    @pytest.mark.asyncio
     async def test_invalid_classification_value_raises(
         self,
         engine: QueryEngine,
@@ -392,7 +386,6 @@ class TestClassificationQueryExecution:
                     request=request,
                 )
 
-    @pytest.mark.asyncio
     async def test_classification_case_insensitive_section_match(
         self,
         mock_client: AsyncMock,
@@ -428,7 +421,6 @@ class TestClassificationQueryExecution:
         # All three rows should match regardless of case
         assert result.meta.total_count == 3
 
-    @pytest.mark.asyncio
     async def test_classification_with_select(
         self,
         engine: QueryEngine,
@@ -456,7 +448,6 @@ class TestClassificationQueryExecution:
             assert "name" in row
             assert "section" in row
 
-    @pytest.mark.asyncio
     async def test_classification_with_pagination(
         self,
         engine: QueryEngine,

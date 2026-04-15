@@ -41,7 +41,6 @@ class TestOfflineDataFrameProviderProtocol:
 class TestOfflineDataFrameProviderCaching:
     """Verify in-process cache behavior."""
 
-    @pytest.mark.asyncio
     async def test_get_dataframe_returns_cached(self) -> None:
         """Second call returns same DataFrame object (no S3 re-read)."""
         sample_df = pl.DataFrame({"gid": ["1", "2"], "name": ["A", "B"]})
@@ -61,7 +60,6 @@ class TestOfflineDataFrameProviderCaching:
             # load_project_dataframe_with_meta called only once
             mock_load.assert_called_once_with("123", bucket="test-bucket", region="us-east-1")
 
-    @pytest.mark.asyncio
     async def test_different_project_gids_not_cached(self) -> None:
         """Different project GIDs trigger separate S3 loads."""
         df1 = pl.DataFrame({"gid": ["1"]})
@@ -80,7 +78,6 @@ class TestOfflineDataFrameProviderCaching:
             assert first is not second
             assert mock_load.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_freshness_info_after_load(self) -> None:
         """After loading, freshness_info reflects s3_offline status."""
         sample_df = pl.DataFrame({"gid": ["1"]})
@@ -100,13 +97,11 @@ class TestOfflineDataFrameProviderCaching:
             assert info.staleness_ratio == 0.0
             assert info.data_age_seconds >= 0
 
-    @pytest.mark.asyncio
     async def test_last_freshness_info_none_before_load(self) -> None:
         """Before any load, last_freshness_info is None."""
         provider = OfflineDataFrameProvider(bucket="test-bucket")
         assert provider.last_freshness_info is None
 
-    @pytest.mark.asyncio
     async def test_freshness_info_with_last_modified(self) -> None:
         """Freshness should include real data_age_seconds from S3 LastModified."""
         from datetime import UTC, datetime, timedelta

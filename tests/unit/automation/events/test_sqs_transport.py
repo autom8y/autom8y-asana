@@ -31,7 +31,6 @@ def _make_envelope(
 class TestSQSTransport:
     """Test SQSTransport with mocked boto3 client."""
 
-    @pytest.mark.asyncio
     async def test_publish_calls_send_message(self) -> None:
         sqs_client = MagicMock()
         transport = SQSTransport(sqs_client=sqs_client)
@@ -44,7 +43,6 @@ class TestSQSTransport:
         call_kwargs = sqs_client.send_message.call_args
         assert call_kwargs.kwargs["QueueUrl"] == queue_url
 
-    @pytest.mark.asyncio
     async def test_message_body_is_json_envelope(self) -> None:
         sqs_client = MagicMock()
         transport = SQSTransport(sqs_client=sqs_client)
@@ -59,7 +57,6 @@ class TestSQSTransport:
         assert body["entity_gid"] == "1234567890"
         assert body["payload"]["process_type"] == "sales"
 
-    @pytest.mark.asyncio
     async def test_message_attributes_set(self) -> None:
         sqs_client = MagicMock()
         transport = SQSTransport(sqs_client=sqs_client)
@@ -73,7 +70,6 @@ class TestSQSTransport:
         assert attrs["entity_type"]["StringValue"] == "Process"
         assert attrs["schema_version"]["StringValue"] == "1.0"
 
-    @pytest.mark.asyncio
     async def test_publish_propagates_transport_error(self) -> None:
         sqs_client = MagicMock()
         sqs_client.send_message.side_effect = ConnectionError("SQS unreachable")

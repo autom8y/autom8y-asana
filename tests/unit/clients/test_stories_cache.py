@@ -153,7 +153,6 @@ TASK_GID = "task123"
 class TestListForTaskCachedAsyncCacheMiss:
     """Tests for cache miss scenarios (FR-CACHE-001)."""
 
-    @pytest.mark.asyncio
     async def test_list_for_task_cached_async_cache_miss(
         self,
         stories_client: StoriesClient,
@@ -191,7 +190,6 @@ class TestListForTaskCachedAsyncCacheMiss:
 class TestListForTaskCachedAsyncCacheHit:
     """Tests for cache hit scenarios (FR-CACHE-001, FR-FETCH-002)."""
 
-    @pytest.mark.asyncio
     async def test_list_for_task_cached_async_cache_hit(
         self,
         stories_client: StoriesClient,
@@ -234,7 +232,6 @@ class TestListForTaskCachedAsyncCacheHit:
 class TestListForTaskCachedAsyncNoCache:
     """Tests for no cache provider scenarios (FR-DEGRADE-001)."""
 
-    @pytest.mark.asyncio
     async def test_list_for_task_cached_async_no_cache(
         self,
         stories_client_no_cache: StoriesClient,
@@ -261,7 +258,6 @@ class TestListForTaskCachedAsyncNoCache:
 class TestListForTaskCachedAsyncCacheFailure:
     """Tests for cache failure scenarios (FR-DEGRADE-002, FR-DEGRADE-003)."""
 
-    @pytest.mark.asyncio
     async def test_list_for_task_cached_async_cache_failure(
         self,
         mock_http: MockHTTPClient,
@@ -295,7 +291,6 @@ class TestListForTaskCachedAsyncCacheFailure:
 class TestMakeStoriesFetcher:
     """Tests for _make_stories_fetcher() (FR-FETCH-*)."""
 
-    @pytest.mark.asyncio
     async def test_make_stories_fetcher_with_since(
         self,
         stories_client: StoriesClient,
@@ -314,7 +309,6 @@ class TestMakeStoriesFetcher:
         call_args = mock_http.get_paginated.call_args
         assert call_args[1]["params"]["since"] == since_timestamp
 
-    @pytest.mark.asyncio
     async def test_make_stories_fetcher_without_since(
         self,
         stories_client: StoriesClient,
@@ -332,7 +326,6 @@ class TestMakeStoriesFetcher:
         call_args = mock_http.get_paginated.call_args
         assert "since" not in call_args[1]["params"]
 
-    @pytest.mark.asyncio
     async def test_make_stories_fetcher_with_opt_fields(
         self,
         stories_client: StoriesClient,
@@ -351,7 +344,6 @@ class TestMakeStoriesFetcher:
         assert "opt_fields" in call_args[1]["params"]
         assert call_args[1]["params"]["opt_fields"] == "gid,text,created_at"
 
-    @pytest.mark.asyncio
     async def test_make_stories_fetcher_returns_raw_dicts(
         self,
         stories_client: StoriesClient,
@@ -371,7 +363,6 @@ class TestMakeStoriesFetcher:
         assert all(isinstance(s, dict) for s in result)
         assert result[0]["gid"] == "s1"
 
-    @pytest.mark.asyncio
     async def test_make_stories_fetcher_collects_all_pages(
         self,
         stories_client: StoriesClient,
@@ -424,7 +415,6 @@ class TestListForTaskCachedSync:
 class TestOptFieldsPropagation:
     """Tests for opt_fields parameter handling."""
 
-    @pytest.mark.asyncio
     async def test_opt_fields_passed_to_fetcher(
         self,
         stories_client: StoriesClient,
@@ -449,7 +439,6 @@ class TestOptFieldsPropagation:
 class TestTaskModifiedAtVersioning:
     """Tests for task_modified_at parameter (FR-CACHE-005)."""
 
-    @pytest.mark.asyncio
     async def test_task_modified_at_used_for_cache_versioning(
         self,
         stories_client: StoriesClient,
@@ -481,7 +470,6 @@ class TestTaskModifiedAtVersioning:
 class TestFetchAllStoriesUncached:
     """Tests for _fetch_all_stories_uncached fallback method."""
 
-    @pytest.mark.asyncio
     async def test_fetch_all_stories_uncached_single_page(
         self,
         stories_client: StoriesClient,
@@ -499,7 +487,6 @@ class TestFetchAllStoriesUncached:
         assert len(result) == 2
         assert all(isinstance(s, Story) for s in result)
 
-    @pytest.mark.asyncio
     async def test_fetch_all_stories_uncached_multiple_pages(
         self,
         stories_client: StoriesClient,

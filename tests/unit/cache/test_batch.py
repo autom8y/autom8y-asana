@@ -285,7 +285,6 @@ class TestFetchTaskModifications:
         """Reset global cache after each test."""
         reset_modification_cache()
 
-    @pytest.mark.asyncio
     async def test_fetches_all_on_empty_cache(self) -> None:
         """Test all GIDs are fetched when cache is empty."""
         mock_api = AsyncMock(
@@ -303,7 +302,6 @@ class TestFetchTaskModifications:
         }
         mock_api.assert_called_once_with(["123", "456"])
 
-    @pytest.mark.asyncio
     async def test_uses_cache_for_cached_gids(self) -> None:
         """Test cached GIDs are not refetched."""
         # Pre-populate cache
@@ -321,7 +319,6 @@ class TestFetchTaskModifications:
         # Only uncached GID should be fetched
         mock_api.assert_called_once_with(["456"])
 
-    @pytest.mark.asyncio
     async def test_no_api_call_when_all_cached(self) -> None:
         """Test no API call when all GIDs are cached."""
         cache = get_modification_cache()
@@ -342,7 +339,6 @@ class TestFetchTaskModifications:
         }
         mock_api.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_caches_fetched_results(self) -> None:
         """Test fetched results are cached."""
         mock_api = AsyncMock(return_value={"123": "2025-01-01T00:00:00Z"})
@@ -355,7 +351,6 @@ class TestFetchTaskModifications:
         assert check is not None
         assert check.modified_at == "2025-01-01T00:00:00Z"
 
-    @pytest.mark.asyncio
     async def test_empty_gids_list(self) -> None:
         """Test with empty GIDs list."""
         mock_api = AsyncMock(return_value={})
@@ -365,7 +360,6 @@ class TestFetchTaskModifications:
         assert result == {}
         mock_api.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_custom_ttl(self) -> None:
         """Test custom TTL is used."""
         reset_modification_cache()
@@ -385,7 +379,6 @@ class TestFetchTaskModifications:
         assert result["123"] == "v2"
         mock_api.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_api_returns_partial_results(self) -> None:
         """Test handling when API returns fewer GIDs than requested."""
 
@@ -395,7 +388,6 @@ class TestFetchTaskModifications:
         result = await fetch_task_modifications(["1", "2", "3", "4"], mock_api)
         assert len(result) == 2
 
-    @pytest.mark.asyncio
     async def test_api_returns_extra_gids(self) -> None:
         """Test handling when API returns more GIDs than requested."""
 
@@ -419,7 +411,6 @@ class TestTtlCachedModificationsDecorator:
         """Reset global cache after each test."""
         reset_modification_cache()
 
-    @pytest.mark.asyncio
     async def test_decorator_caches_results(self) -> None:
         """Test decorator adds caching to function."""
         call_count = 0
@@ -440,7 +431,6 @@ class TestTtlCachedModificationsDecorator:
 
         assert result1 == result2
 
-    @pytest.mark.asyncio
     async def test_decorator_only_fetches_uncached(self) -> None:
         """Test decorator only passes uncached GIDs to function."""
         fetched_gids: list[list[str]] = []
@@ -458,7 +448,6 @@ class TestTtlCachedModificationsDecorator:
         await fetch_modifications(["123", "789"])
         assert fetched_gids[-1] == ["789"]  # Only uncached
 
-    @pytest.mark.asyncio
     async def test_decorator_preserves_function_metadata(self) -> None:
         """Test decorator preserves function name and docstring."""
 
@@ -470,7 +459,6 @@ class TestTtlCachedModificationsDecorator:
         assert fetch_modifications.__name__ == "fetch_modifications"
         assert fetch_modifications.__doc__ == "Fetch modification timestamps."
 
-    @pytest.mark.asyncio
     async def test_decorator_with_extra_args(self) -> None:
         """Test decorator handles functions with extra arguments."""
 
@@ -485,7 +473,6 @@ class TestTtlCachedModificationsDecorator:
         result = await fetch_modifications(["123"], "project_1")
         assert result == {"123": "project_1:123"}
 
-    @pytest.mark.asyncio
     async def test_decorator_respects_ttl(self) -> None:
         """Test decorator respects TTL expiration."""
         reset_modification_cache()
@@ -542,7 +529,6 @@ class TestLargeBatchHandling:
         """Reset global cache after each test."""
         reset_modification_cache()
 
-    @pytest.mark.asyncio
     async def test_handles_100_plus_gids(self) -> None:
         """Test handling 100+ GIDs efficiently."""
         gids = [str(i) for i in range(150)]
@@ -554,7 +540,6 @@ class TestLargeBatchHandling:
         assert len(result) == 150
         mock_api.assert_called_once_with(gids)
 
-    @pytest.mark.asyncio
     async def test_partial_cache_with_large_batch(self) -> None:
         """Test partial cache hit with large batch."""
         # Pre-cache first 50

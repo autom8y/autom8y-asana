@@ -163,7 +163,6 @@ class TestDataFrameViewPluginInit:
 class TestDataFrameViewPluginMaterialize:
     """Tests for DataFrameViewPlugin.materialize_async()."""
 
-    @pytest.mark.asyncio
     async def test_materialize_empty_gids(self, dataframe_plugin: DataFrameViewPlugin) -> None:
         """Test materialize with empty GID list."""
         result = await dataframe_plugin.materialize_async([])
@@ -171,7 +170,6 @@ class TestDataFrameViewPluginMaterialize:
         assert isinstance(result, pl.DataFrame)
         assert len(result) == 0
 
-    @pytest.mark.asyncio
     async def test_materialize_no_tasks_found(
         self, dataframe_plugin: DataFrameViewPlugin, mock_store: MagicMock
     ) -> None:
@@ -183,7 +181,6 @@ class TestDataFrameViewPluginMaterialize:
         assert isinstance(result, pl.DataFrame)
         assert len(result) == 0
 
-    @pytest.mark.asyncio
     async def test_materialize_single_task(
         self,
         mock_store: MagicMock,
@@ -205,7 +202,6 @@ class TestDataFrameViewPluginMaterialize:
         assert result["type"][0] == "default_task"
         assert result["is_completed"][0] is False
 
-    @pytest.mark.asyncio
     async def test_materialize_multiple_tasks(
         self, mock_store: MagicMock, simple_schema: DataFrameSchema
     ) -> None:
@@ -235,7 +231,6 @@ class TestDataFrameViewPluginMaterialize:
         assert "task-1" in result["gid"].to_list()
         assert "task-2" in result["gid"].to_list()
 
-    @pytest.mark.asyncio
     async def test_materialize_respects_freshness_mode(
         self, mock_store: MagicMock, simple_schema: DataFrameSchema
     ) -> None:
@@ -249,7 +244,6 @@ class TestDataFrameViewPluginMaterialize:
 
         mock_store.get_batch_async.assert_called_with(["task-1"], freshness=FreshnessIntent.STRICT)
 
-    @pytest.mark.asyncio
     async def test_materialize_with_project_gid(
         self,
         mock_store: MagicMock,
@@ -271,7 +265,6 @@ class TestDataFrameViewPluginMaterialize:
 class TestDataFrameViewPluginExtraction:
     """Tests for field extraction methods."""
 
-    @pytest.mark.asyncio
     async def test_extract_datetime_fields(
         self, mock_store: MagicMock, full_schema: DataFrameSchema
     ) -> None:
@@ -300,7 +293,6 @@ class TestDataFrameViewPluginExtraction:
         # Due_on should be a date
         assert result["due_on"][0] is not None
 
-    @pytest.mark.asyncio
     async def test_extract_tags(self, mock_store: MagicMock, full_schema: DataFrameSchema) -> None:
         """Test tags extraction."""
         task_data = {
@@ -328,7 +320,6 @@ class TestDataFrameViewPluginExtraction:
         assert "Important" in tags
         assert "Review" in tags
 
-    @pytest.mark.asyncio
     async def test_extract_section(
         self, mock_store: MagicMock, full_schema: DataFrameSchema
     ) -> None:
@@ -358,7 +349,6 @@ class TestDataFrameViewPluginExtraction:
 
         assert result["section"][0] == "Active"
 
-    @pytest.mark.asyncio
     async def test_extract_custom_field_enum(
         self, mock_store: MagicMock, full_schema: DataFrameSchema
     ) -> None:
@@ -390,7 +380,6 @@ class TestDataFrameViewPluginExtraction:
 
         assert result["vertical"][0] == "Dental"
 
-    @pytest.mark.asyncio
     async def test_extract_custom_field_number(
         self, mock_store: MagicMock, full_schema: DataFrameSchema
     ) -> None:
@@ -426,7 +415,6 @@ class TestDataFrameViewPluginExtraction:
 class TestDataFrameViewPluginCascadeFields:
     """Tests for cascade field resolution."""
 
-    @pytest.mark.asyncio
     async def test_cascade_field_local_value(
         self, mock_store: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:
@@ -452,7 +440,6 @@ class TestDataFrameViewPluginCascadeFields:
 
         assert result["office_phone"][0] == "555-LOCAL"
 
-    @pytest.mark.asyncio
     async def test_cascade_field_from_parent(
         self, mock_store: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:
@@ -493,7 +480,6 @@ class TestDataFrameViewPluginCascadeFallback:
     but task has parent.gid, try direct fetch from cache.
     """
 
-    @pytest.mark.asyncio
     async def test_cascade_fallback_when_parent_chain_empty(
         self, mock_store: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:
@@ -538,7 +524,6 @@ class TestDataFrameViewPluginCascadeFallback:
         assert mock_store.get_with_upgrade_async.called
         assert result["office_phone"][0] == "555-FALLBACK"
 
-    @pytest.mark.asyncio
     async def test_cascade_fallback_not_triggered_when_chain_populated(
         self, mock_store: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:
@@ -576,7 +561,6 @@ class TestDataFrameViewPluginCascadeFallback:
         assert not mock_store.get_with_upgrade_async.called
         assert result["office_phone"][0] == "555-FROM-CHAIN"
 
-    @pytest.mark.asyncio
     async def test_cascade_fallback_returns_none_when_no_parent(
         self, mock_store: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:
@@ -600,7 +584,6 @@ class TestDataFrameViewPluginCascadeFallback:
         assert not mock_store.get_with_upgrade_async.called
         assert result["office_phone"][0] is None
 
-    @pytest.mark.asyncio
     async def test_resolve_cascade_from_populated_chain(
         self, mock_store: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:
@@ -641,7 +624,6 @@ class TestDataFrameViewPluginCascadeFallback:
 class TestDataFrameViewPluginIncremental:
     """Tests for incremental materialization."""
 
-    @pytest.mark.asyncio
     async def test_incremental_with_existing_df(
         self, mock_store: MagicMock, simple_schema: DataFrameSchema
     ) -> None:
@@ -680,7 +662,6 @@ class TestDataFrameViewPluginIncremental:
 class TestDataFrameViewPluginStats:
     """Tests for statistics tracking."""
 
-    @pytest.mark.asyncio
     async def test_stats_tracking(
         self,
         mock_store: MagicMock,
@@ -720,7 +701,6 @@ class TestDataFrameViewPluginStats:
 class TestDataFrameViewPluginEdgeCases:
     """Tests for edge cases."""
 
-    @pytest.mark.asyncio
     async def test_task_with_missing_fields(
         self, mock_store: MagicMock, simple_schema: DataFrameSchema
     ) -> None:
@@ -741,7 +721,6 @@ class TestDataFrameViewPluginEdgeCases:
         assert result["gid"][0] == "task-1"
         assert result["name"][0] == ""  # Default empty string
 
-    @pytest.mark.asyncio
     async def test_task_with_null_custom_fields(
         self, mock_store: MagicMock, full_schema: DataFrameSchema
     ) -> None:
@@ -768,7 +747,6 @@ class TestDataFrameViewPluginEdgeCases:
         assert len(result) == 1
         assert result["vertical"][0] is None
 
-    @pytest.mark.asyncio
     async def test_url_generation(
         self, mock_store: MagicMock, full_schema: DataFrameSchema
     ) -> None:
@@ -818,7 +796,6 @@ class TestDataFrameViewPluginMixedTypes:
             version="1.0.0",
         )
 
-    @pytest.mark.asyncio
     async def test_extract_cf_value_prefers_number_over_display(
         self, mock_store: MagicMock, percentage_schema: DataFrameSchema
     ) -> None:
@@ -935,7 +912,6 @@ class TestDataFrameViewPluginMixedTypes:
         assert result == 0.0
         assert not isinstance(result, str)
 
-    @pytest.mark.asyncio
     async def test_polars_dataframe_creation_with_percentage(
         self, mock_store: MagicMock, percentage_schema: DataFrameSchema
     ) -> None:
@@ -1041,7 +1017,6 @@ class TestDataFrameViewPluginMultiEnumCoercion:
             version="1.0.0",
         )
 
-    @pytest.mark.asyncio
     async def test_multi_enum_list_dtype_preserves_list(
         self, mock_store: MagicMock, multi_enum_list_schema: DataFrameSchema
     ) -> None:
@@ -1076,7 +1051,6 @@ class TestDataFrameViewPluginMultiEnumCoercion:
         assert "Corrective Care" in platforms
         assert "Preventive Care" in platforms
 
-    @pytest.mark.asyncio
     async def test_multi_enum_string_dtype_coerces_to_csv(
         self, mock_store: MagicMock, multi_enum_string_schema: DataFrameSchema
     ) -> None:
@@ -1112,7 +1086,6 @@ class TestDataFrameViewPluginMultiEnumCoercion:
         assert "Corrective Care" in platforms
         assert "Preventive Care" in platforms
 
-    @pytest.mark.asyncio
     async def test_multi_enum_mixed_none_and_values_no_crash(
         self, mock_store: MagicMock, multi_enum_list_schema: DataFrameSchema
     ) -> None:

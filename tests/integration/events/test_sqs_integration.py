@@ -101,7 +101,6 @@ def sqs_client():
 class TestSQSIntegration:
     """Integration tests with real SQS (via LocalStack)."""
 
-    @pytest.mark.asyncio
     async def test_publish_and_receive(
         self,
         sqs_transport: SQSTransport,
@@ -134,7 +133,6 @@ class TestSQSIntegration:
         assert body["entity_gid"] == "1234567890"
         assert body["event_type"] == "section_changed"
 
-    @pytest.mark.asyncio
     async def test_message_attributes(
         self,
         sqs_transport: SQSTransport,
@@ -166,7 +164,6 @@ class TestSQSIntegration:
         assert attrs["entity_type"]["StringValue"] == "Offer"
         assert attrs["schema_version"]["StringValue"] == "1.0"
 
-    @pytest.mark.asyncio
     async def test_json_body_deserializable(
         self,
         sqs_transport: SQSTransport,

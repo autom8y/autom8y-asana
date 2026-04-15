@@ -32,7 +32,6 @@ pytestmark = [
 ]
 
 
-@pytest.mark.asyncio
 async def test_e2e_offer_write_proof():
     """Full end-to-end proof: create offer, write fields, verify, clean up.
 

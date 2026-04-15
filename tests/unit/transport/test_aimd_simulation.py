@@ -106,7 +106,6 @@ async def _run_simulation_aimd(
 class TestAIMDSimulation:
     """Deterministic simulation tests."""
 
-    @pytest.mark.asyncio
     async def test_aimd_fewer_429s_than_fixed(self):
         """SC-003: Under 429 pressure, AIMD produces fewer total 429s.
 
@@ -144,7 +143,6 @@ class TestAIMDSimulation:
         # (otherwise the test is not exercising the scenario)
         assert fixed_429s > 0, "Fixed semaphore should have produced some 429s"
 
-    @pytest.mark.asyncio
     async def test_aimd_converges_under_sustained_pressure(self):
         """AIMD eventually converges to a window near the server capacity.
 

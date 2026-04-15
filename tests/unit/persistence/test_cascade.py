@@ -149,14 +149,12 @@ class TestCascadeExecutor:
         """Create CascadeExecutor with mock client."""
         return CascadeExecutor(mock_client)
 
-    @pytest.mark.asyncio
     async def test_execute_empty_operations(self, executor: CascadeExecutor) -> None:
         """execute with empty list returns empty result."""
         result = await executor.execute([])
         assert result.operations_queued == 0
         assert result.success is True
 
-    @pytest.mark.asyncio
     async def test_execute_returns_result(self, executor: CascadeExecutor) -> None:
         """execute returns CascadeResult."""
         business = Business(gid="123")
@@ -169,7 +167,6 @@ class TestCascadeExecutor:
         assert isinstance(result, CascadeResult)
         assert result.operations_queued == 1
 
-    @pytest.mark.asyncio
     async def test_execute_handles_missing_field_def(self, executor: CascadeExecutor) -> None:
         """execute handles missing cascading field definition."""
         business = Business(gid="123")

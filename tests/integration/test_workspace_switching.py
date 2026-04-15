@@ -45,7 +45,6 @@ class TestWorkspaceSwitching:
             "plain attribute with no isolation enforcement."
         )
     )
-    @pytest.mark.asyncio
     async def test_task_belongs_to_single_workspace(self) -> None:
         """Each Task should carry workspace affinity and reject cross-workspace ops."""
 
@@ -57,7 +56,6 @@ class TestWorkspaceSwitching:
             "any GID without workspace validation."
         )
     )
-    @pytest.mark.asyncio
     async def test_custom_fields_vary_by_workspace(self) -> None:
         """Custom field GIDs from workspace A should not resolve in workspace B."""
 
@@ -69,7 +67,6 @@ class TestWorkspaceSwitching:
             "validation exists for assignee or team operations."
         )
     )
-    @pytest.mark.asyncio
     async def test_team_membership_workspace_specific(self) -> None:
         """Team/assignee GIDs should be validated against workspace context."""
 
@@ -81,7 +78,6 @@ class TestWorkspaceSwitching:
             "enforcement of scope boundaries."
         )
     )
-    @pytest.mark.asyncio
     async def test_project_scope_is_workspace_scoped(self) -> None:
         """Project workspace scope should be enforced for task operations."""
 
@@ -137,7 +133,6 @@ class TestCustomFieldResolutionAcrossWorkspaces:
             "cross-check."
         )
     )
-    @pytest.mark.asyncio
     async def test_field_name_resolution_workspace_specific(self) -> None:
         """Field name resolution should validate against workspace context."""
 
@@ -149,6 +144,5 @@ class TestCustomFieldResolutionAcrossWorkspaces:
             "does not accept a workspace_gid parameter at all."
         )
     )
-    @pytest.mark.asyncio
     async def test_field_resolver_requires_workspace_context(self) -> None:
         """FieldResolver should require or validate workspace context."""

@@ -297,7 +297,6 @@ class TestExtractOfferId:
 
 
 class TestBuildTimelineForOffer:
-    @pytest.mark.asyncio()
     async def test_with_stories(self) -> None:
         """FR-1, FR-2: End-to-end single offer timeline."""
         client = MagicMock()
@@ -337,7 +336,6 @@ class TestBuildTimelineForOffer:
         assert timeline.intervals[1].section_name == "ACTIVE"
         assert timeline.intervals[1].exited_at is None  # last is open
 
-    @pytest.mark.asyncio()
     async def test_never_moved(self) -> None:
         """FR-3: Imputation when no section_changed stories."""
         client = MagicMock()
@@ -740,7 +738,6 @@ class TestScaleBoundary:
     ~3,800 production scale that triggered SCAR-015.
     """
 
-    @pytest.mark.asyncio()
     async def test_timeline_computation_under_threshold_at_production_scale(
         self,
     ) -> None:

@@ -215,7 +215,6 @@ class TestDataServiceJoinFetcher:
             }
         )
 
-    @pytest.mark.asyncio
     async def test_basic_fetch(self, primary_df: pl.DataFrame, spend_df: pl.DataFrame) -> None:
         """Successful batch fetch returns combined DataFrame."""
         mock_client = AsyncMock()
@@ -255,7 +254,6 @@ class TestDataServiceJoinFetcher:
         assert "cps" in result.columns
         mock_client.get_insights_batch_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_pvp_deduplication(self, primary_df: pl.DataFrame) -> None:
         """Duplicate phone/vertical pairs are deduplicated before fetch."""
         mock_client = AsyncMock()
@@ -271,7 +269,6 @@ class TestDataServiceJoinFetcher:
         pairs = call_args.kwargs.get("pairs") or call_args.args[0]
         assert len(pairs) == 3
 
-    @pytest.mark.asyncio
     async def test_empty_primary_returns_empty(self) -> None:
         """Empty primary DataFrame returns empty result without calling client."""
         mock_client = AsyncMock()
@@ -284,7 +281,6 @@ class TestDataServiceJoinFetcher:
         assert result.height == 0
         mock_client.get_insights_batch_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_missing_join_key_returns_empty(self) -> None:
         """Primary without join key column returns empty."""
         mock_client = AsyncMock()
@@ -297,7 +293,6 @@ class TestDataServiceJoinFetcher:
         assert result.height == 0
         mock_client.get_insights_batch_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_all_failures_returns_empty(self, primary_df: pl.DataFrame) -> None:
         """All batch failures return empty DataFrame."""
         mock_client = AsyncMock()
@@ -321,7 +316,6 @@ class TestDataServiceJoinFetcher:
         )
         assert result.height == 0
 
-    @pytest.mark.asyncio
     async def test_partial_success(self, primary_df: pl.DataFrame) -> None:
         """Partial batch success returns available data."""
         success_df = pl.DataFrame(
@@ -354,7 +348,6 @@ class TestDataServiceJoinFetcher:
         assert result.height == 1
         assert result["office_phone"][0] == "+17175551111"
 
-    @pytest.mark.asyncio
     async def test_no_vertical_column_uses_unknown(self) -> None:
         """Primary without vertical column uses 'unknown' as default."""
         df = pl.DataFrame(
@@ -377,7 +370,6 @@ class TestDataServiceJoinFetcher:
         for pair in pairs:
             assert pair.vertical == "unknown"
 
-    @pytest.mark.asyncio
     async def test_null_phones_skipped(self) -> None:
         """Null phone values are filtered out during PVP extraction."""
         df = pl.DataFrame(
@@ -570,7 +562,6 @@ class TestQueryEngineDataServiceDispatch:
         )
         return client
 
-    @pytest.mark.asyncio
     async def test_data_service_join_dispatches(
         self,
         mock_provider: MagicMock,
@@ -625,7 +616,6 @@ class TestQueryEngineDataServiceDispatch:
         if result.data:
             assert "spend_spend" in result.data[0]
 
-    @pytest.mark.asyncio
     async def test_data_service_join_requires_data_client(self, mock_provider: MagicMock) -> None:
         """Data-service join without data_client raises JoinError."""
         from autom8_asana.query.engine import QueryEngine
@@ -656,7 +646,6 @@ class TestQueryEngineDataServiceDispatch:
                 request=request,
             )
 
-    @pytest.mark.asyncio
     async def test_data_service_join_empty_target(self, mock_provider: MagicMock) -> None:
         """Data-service join with empty response returns primary data with null join cols."""
         from autom8_asana.query.engine import QueryEngine

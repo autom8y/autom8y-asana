@@ -47,7 +47,6 @@ class TestWarmerManifestPreservation:
         mgr.clear_async = AsyncMock(return_value=True)
         return mgr
 
-    @pytest.mark.asyncio
     async def test_warmer_preserves_manifest_on_success(
         self,
         mock_cache: MagicMock,
@@ -151,7 +150,6 @@ class TestWarmerManifestPreservation:
         mock_section_persistence.delete_manifest_async.assert_not_called()
         assert response.success is True
 
-    @pytest.mark.asyncio
     async def test_warmer_does_not_touch_manifest_on_failure(
         self,
         mock_cache: MagicMock,

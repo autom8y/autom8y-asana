@@ -190,7 +190,6 @@ class TestAC002NoLostTracks:
     next commit. None silently lost.
     """
 
-    @pytest.mark.asyncio
     async def test_track_during_commit_not_lost(self) -> None:
         """FS-002: Entities tracked during commit must not be silently lost.
 
@@ -239,7 +238,6 @@ class TestAC002NoLostTracks:
 
         assert is_tracked, "Entity tracked during commit was lost"
 
-    @pytest.mark.asyncio
     async def test_track_during_commit_in_next_batch(self) -> None:
         """Entities tracked during commit appear in subsequent commit.
 
@@ -303,7 +301,6 @@ class TestAC003NoDoubleCommits:
     (if new dirty entities) OR returns indicating concurrent commit.
     """
 
-    @pytest.mark.asyncio
     async def test_concurrent_commits_serialize(self) -> None:
         """FS-004: Concurrent commits must serialize correctly.
 
@@ -356,7 +353,6 @@ class TestAC003NoDoubleCommits:
             f"Unexpected number of saves: {api_calls}"
         )
 
-    @pytest.mark.asyncio
     async def test_concurrent_commits_no_corruption(self) -> None:
         """Multiple concurrent commits don't corrupt session state."""
         mock_client = create_mock_client()
@@ -398,7 +394,6 @@ class TestAC004StateInspectionAccuracy:
     Expected: State accurately reflects session status at read time.
     """
 
-    @pytest.mark.asyncio
     async def test_state_property_consistent(self) -> None:
         """FS-003: State reads must return consistent values.
 
@@ -490,7 +485,6 @@ class TestAC005BackwardCompatibility:
         assert result.success
         assert session.state == SessionState.CLOSED
 
-    @pytest.mark.asyncio
     async def test_async_context_manager(self) -> None:
         """Async context manager works as before."""
         mock_client = create_mock_client()
@@ -689,7 +683,6 @@ class TestRLockReentrance:
     This is important for hooks that might call track() during commit.
     """
 
-    @pytest.mark.asyncio
     async def test_hook_can_call_track(self) -> None:
         """Pre-save hook calling track() doesn't deadlock.
 
@@ -768,7 +761,6 @@ class TestConcurrencyEdgeCases:
 
         assert len(errors) == 0, f"Errors during rapid cycles: {errors}"
 
-    @pytest.mark.asyncio
     async def test_many_entities_concurrent_track(self) -> None:
         """Many entities tracked concurrently are all preserved."""
         mock_client = create_mock_client()

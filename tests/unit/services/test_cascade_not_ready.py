@@ -413,7 +413,6 @@ class TestCheckCascadeHealthGateSkipPath:
 class TestResolveGroupCascadeNotReady:
     """CascadeNotReadyError propagates from _get_or_build_index through _resolve_group."""
 
-    @pytest.mark.asyncio
     async def test_cascade_not_ready_propagates(self) -> None:
         strategy = UniversalResolutionStrategy(
             entity_type="unit",
@@ -468,7 +467,6 @@ class TestResolveGroupCascadeNotReady:
 class TestIndexCacheHitBypassesHealthCheck:
     """Health check not called when index is served from cache."""
 
-    @pytest.mark.asyncio
     async def test_cache_hit_skips_health_check(self) -> None:
         cache = DynamicIndexCache(max_per_entity=5, ttl_seconds=3600)
         strategy = UniversalResolutionStrategy(

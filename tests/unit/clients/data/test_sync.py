@@ -53,7 +53,6 @@ class TestSyncWrapper:
                 assert response.metadata.factory == "account"
                 assert response.metadata.row_count == 1
 
-    @pytest.mark.asyncio
     async def test_sync_wrapper_raises_in_async_context(self) -> None:
         """Sync wrapper raises SyncInAsyncContextError in async context."""
         from autom8_asana.errors import SyncInAsyncContextError
@@ -143,7 +142,6 @@ class TestSyncWrapper:
             assert entered is client
             assert client.is_initialized is False  # lazy init
 
-    @pytest.mark.asyncio
     async def test_sync_exit_raises_in_async_context(self) -> None:
         """Sync __exit__ raises SyncInAsyncContextError in async context."""
         from autom8_asana.errors import SyncInAsyncContextError

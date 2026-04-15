@@ -111,7 +111,6 @@ class TestWorkspaceProjectRegistrySingleton:
 class TestDiscoverAsync:
     """Tests for discover_async() method."""
 
-    @pytest.mark.asyncio
     async def test_discover_populates_name_to_gid(self) -> None:
         """discover_async() populates name-to-GID mapping."""
         projects = [
@@ -128,7 +127,6 @@ class TestDiscoverAsync:
         assert registry.get_by_name("Onboarding Process") == "gid_456"
         assert registry.get_by_name("Internal Docs") == "gid_789"
 
-    @pytest.mark.asyncio
     async def test_discover_identifies_pipeline_projects(
         self,
     ) -> None:
@@ -152,7 +150,6 @@ class TestDiscoverAsync:
         # Non-pipeline projects should return None
         assert registry.get_process_type("docs_gid") is None
 
-    @pytest.mark.asyncio
     async def test_discover_registers_pipeline_as_process_entity(
         self,
     ) -> None:
@@ -169,7 +166,6 @@ class TestDiscoverAsync:
         type_registry = get_registry()
         assert type_registry.lookup("sales_gid") == EntityType.PROCESS
 
-    @pytest.mark.asyncio
     async def test_discover_requires_workspace_gid(
         self,
     ) -> None:
@@ -183,7 +179,6 @@ class TestDiscoverAsync:
 
         assert "default_workspace_gid is not set" in str(exc_info.value)
 
-    @pytest.mark.asyncio
     async def test_discover_marks_discovered(self) -> None:
         """discover_async() marks registry as discovered."""
         mock_client = create_mock_client(projects=[])
@@ -195,7 +190,6 @@ class TestDiscoverAsync:
 
         assert registry.is_discovered()
 
-    @pytest.mark.asyncio
     async def test_discover_idempotent_refresh(self) -> None:
         """Repeated discover_async() calls refresh the registry."""
         projects_v1 = [MockProject(gid="gid_1", name="Project One")]
@@ -219,7 +213,6 @@ class TestDiscoverAsync:
         assert registry.get_by_name("Project One") == "gid_1"
         assert registry.get_by_name("Project Two") == "gid_2"
 
-    @pytest.mark.asyncio
     async def test_discover_does_not_overwrite_static_registration(
         self,
     ) -> None:
@@ -247,7 +240,6 @@ class TestDiscoverAsync:
 class TestLookupOrDiscoverAsync:
     """Tests for lookup_or_discover_async() method."""
 
-    @pytest.mark.asyncio
     async def test_returns_static_registration_without_discovery(
         self,
     ) -> None:
@@ -266,7 +258,6 @@ class TestLookupOrDiscoverAsync:
         assert not registry.is_discovered()
         mock_client.projects.list_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_triggers_discovery_on_unknown_gid(
         self,
     ) -> None:
@@ -284,7 +275,6 @@ class TestLookupOrDiscoverAsync:
         assert registry.is_discovered()
         assert result == EntityType.PROCESS
 
-    @pytest.mark.asyncio
     async def test_returns_none_for_truly_unknown_after_discovery(
         self,
     ) -> None:
@@ -304,7 +294,6 @@ class TestLookupOrDiscoverAsync:
         assert result is None
         mock_client.projects.list_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_discovery_only_once(self) -> None:
         """lookup_or_discover_async() only triggers discovery once."""
         projects = [MockProject(gid="gid_1", name="Project")]
@@ -327,7 +316,6 @@ class TestLookupOrDiscoverAsync:
 class TestGetByName:
     """Tests for get_by_name() method."""
 
-    @pytest.mark.asyncio
     async def test_case_insensitive_lookup(self) -> None:
         """get_by_name() is case-insensitive."""
         projects = [MockProject(gid="gid_123", name="Sales Pipeline")]
@@ -341,7 +329,6 @@ class TestGetByName:
         assert registry.get_by_name("SALES PIPELINE") == "gid_123"
         assert registry.get_by_name("SaLeS PiPeLiNe") == "gid_123"
 
-    @pytest.mark.asyncio
     async def test_whitespace_normalized(self) -> None:
         """get_by_name() normalizes whitespace."""
         projects = [MockProject(gid="gid_123", name="Sales Pipeline")]
@@ -359,7 +346,6 @@ class TestGetByName:
 
         assert registry.get_by_name("Any Project") is None
 
-    @pytest.mark.asyncio
     async def test_returns_none_for_unknown_name(self) -> None:
         """get_by_name() returns None for unknown project name."""
         projects = [MockProject(gid="gid_123", name="Known Project")]
@@ -377,7 +363,6 @@ class TestGetByName:
 class TestGetProcessType:
     """Tests for get_process_type() method."""
 
-    @pytest.mark.asyncio
     async def test_returns_correct_process_type(self) -> None:
         """get_process_type() returns correct ProcessType for pipeline projects."""
         projects = [
@@ -406,7 +391,6 @@ class TestGetProcessType:
 
         assert registry.get_process_type("unknown_gid") is None
 
-    @pytest.mark.asyncio
     async def test_returns_none_for_non_pipeline(self) -> None:
         """get_process_type() returns None for non-pipeline projects."""
         projects = [MockProject(gid="docs_gid", name="Documentation")]
@@ -424,7 +408,6 @@ class TestGetProcessType:
 class TestProcessTypeMatching:
     """Tests for ProcessType matching logic."""
 
-    @pytest.mark.asyncio
     async def test_first_match_wins(self) -> None:
         """First ProcessType match wins when multiple could match."""
         # "Sales Outreach" contains both "sales" and "outreach"
@@ -439,7 +422,6 @@ class TestProcessTypeMatching:
 
         assert registry.get_process_type("combo_gid") == ProcessType.SALES
 
-    @pytest.mark.asyncio
     async def test_generic_is_never_matched(self) -> None:
         """GENERIC ProcessType is never matched from project names."""
         # Even if "generic" appears in the name, it shouldn't match
@@ -453,7 +435,6 @@ class TestProcessTypeMatching:
 
         assert registry.get_process_type("gen_gid") is None
 
-    @pytest.mark.asyncio
     async def test_contains_match_variations(self) -> None:
         """Contains matching handles various name patterns.
 
@@ -484,7 +465,6 @@ class TestProcessTypeMatching:
                 f"Expected {name!r} to match {expected_type}"
             )
 
-    @pytest.mark.asyncio
     async def test_only_one_project_per_process_type(
         self,
     ) -> None:
@@ -530,7 +510,6 @@ class TestSyncLookup:
         assert workspace_registry.lookup("static_gid") == EntityType.BUSINESS
         assert workspace_registry.lookup("unknown_gid") is None
 
-    @pytest.mark.asyncio
     async def test_lookup_includes_discovered_pipeline_projects(
         self,
     ) -> None:
@@ -551,7 +530,6 @@ class TestSyncLookup:
 class TestEdgeCases:
     """Tests for edge cases."""
 
-    @pytest.mark.asyncio
     async def test_empty_workspace(self) -> None:
         """Discovery handles empty workspace (no projects)."""
         mock_client = create_mock_client(projects=[])
@@ -563,7 +541,6 @@ class TestEdgeCases:
         assert len(registry._name_to_gid) == 0
         assert len(registry._gid_to_process_type) == 0
 
-    @pytest.mark.asyncio
     async def test_no_pipeline_projects(self) -> None:
         """Discovery handles workspace with no pipeline projects."""
         projects = [
@@ -580,7 +557,6 @@ class TestEdgeCases:
         assert len(registry._name_to_gid) == 3
         assert len(registry._gid_to_process_type) == 0
 
-    @pytest.mark.asyncio
     async def test_project_without_name_skipped(self) -> None:
         """Projects without name are skipped."""
         projects = [
@@ -595,7 +571,6 @@ class TestEdgeCases:
         assert registry.get_by_name("Valid Project") == "gid_1"
         assert len(registry._name_to_gid) == 1
 
-    @pytest.mark.asyncio
     async def test_project_without_gid_skipped(self) -> None:
         """Projects without GID are skipped."""
         projects = [
@@ -624,7 +599,6 @@ class TestCompositionWithProjectTypeRegistry:
         assert isinstance(workspace_registry._type_registry, ProjectTypeRegistry)
         assert workspace_registry._type_registry is get_registry()
 
-    @pytest.mark.asyncio
     async def test_static_takes_precedence(self) -> None:
         """Static registrations take precedence over dynamic discovery."""
         # Pre-register statically
@@ -649,7 +623,6 @@ class TestCompositionWithProjectTypeRegistry:
 class TestReset:
     """Tests for registry reset functionality."""
 
-    @pytest.mark.asyncio
     async def test_reset_clears_all_state(self) -> None:
         """reset() clears all discovered state."""
         projects = [MockProject(gid="gid_1", name="Sales Pipeline")]
@@ -674,7 +647,6 @@ class TestReset:
 class TestO1Lookup:
     """Tests verifying O(1) lookup performance requirements."""
 
-    @pytest.mark.asyncio
     async def test_name_lookup_is_dict_based(self) -> None:
         """Verify name lookup uses dict (O(1) by design)."""
         projects = [MockProject(gid=f"gid_{i}", name=f"Project {i}") for i in range(100)]
@@ -687,7 +659,6 @@ class TestO1Lookup:
         assert isinstance(registry._name_to_gid, dict)
         assert len(registry._name_to_gid) == 100
 
-    @pytest.mark.asyncio
     async def test_process_type_lookup_is_dict_based(
         self,
     ) -> None:
@@ -720,7 +691,6 @@ class TestExactMatchPrecedence:
     "Onboarding/Review Calls" can claim it via contains matching.
     """
 
-    @pytest.mark.asyncio
     async def test_exact_match_wins_over_contains_match(
         self,
     ) -> None:
@@ -744,7 +714,6 @@ class TestExactMatchPrecedence:
         # The contains match should NOT have ProcessType (already claimed)
         assert registry.get_process_type("review_calls_gid") is None
 
-    @pytest.mark.asyncio
     async def test_exact_match_case_insensitive(self) -> None:
         """Exact match is case-insensitive."""
         projects = [
@@ -761,7 +730,6 @@ class TestExactMatchPrecedence:
         # "Sales Pipeline" should not get ProcessType (already claimed)
         assert registry.get_process_type("sales_pipeline_gid") is None
 
-    @pytest.mark.asyncio
     async def test_contains_match_used_when_no_exact_match(
         self,
     ) -> None:
@@ -778,7 +746,6 @@ class TestExactMatchPrecedence:
         # Should match via contains since no exact match
         assert registry.get_process_type("sales_pipeline_gid") == ProcessType.SALES
 
-    @pytest.mark.asyncio
     async def test_multiple_process_types_exact_wins_each(
         self,
     ) -> None:
@@ -803,7 +770,6 @@ class TestExactMatchPrecedence:
         assert registry.get_process_type("sales_team_gid") is None
         assert registry.get_process_type("onboarding_calls_gid") is None
 
-    @pytest.mark.asyncio
     async def test_exact_match_with_whitespace_trim(
         self,
     ) -> None:
@@ -821,7 +787,6 @@ class TestExactMatchPrecedence:
         assert registry.get_process_type("onboard_ws_gid") == ProcessType.ONBOARDING
         assert registry.get_process_type("onboard_slash_gid") is None
 
-    @pytest.mark.asyncio
     async def test_all_process_types_have_exact_match_priority(
         self,
     ) -> None:
@@ -863,7 +828,6 @@ class TestExactMatchPrecedence:
         assert registry.get_process_type("ret_ext_gid") is None
         assert registry.get_process_type("react_ext_gid") is None
 
-    @pytest.mark.asyncio
     async def test_mixed_exact_and_contains_matches(
         self,
     ) -> None:

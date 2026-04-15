@@ -96,7 +96,6 @@ def make_cache(
 class TestDataFrameCache:
     """Tests for DataFrameCache orchestrator."""
 
-    @pytest.mark.asyncio
     async def test_get_memory_hit(self) -> None:
         """Get returns entry from memory tier."""
         memory = MemoryTier(max_entries=100)
@@ -113,7 +112,6 @@ class TestDataFrameCache:
         stats = cache.get_stats()
         assert stats["unit"]["memory_hits"] == 1
 
-    @pytest.mark.asyncio
     async def test_get_memory_miss_progressive_hit(self) -> None:
         """Get falls back to progressive tier on memory miss."""
         memory = MemoryTier(max_entries=100)
@@ -135,7 +133,6 @@ class TestDataFrameCache:
         assert stats["unit"]["memory_misses"] == 1
         assert stats["unit"]["s3_hits"] == 1
 
-    @pytest.mark.asyncio
     async def test_get_both_miss(self) -> None:
         """Get returns None when both tiers miss."""
         memory = MemoryTier(max_entries=100)
@@ -152,7 +149,6 @@ class TestDataFrameCache:
         assert stats["unit"]["memory_misses"] == 1
         assert stats["unit"]["s3_misses"] == 1
 
-    @pytest.mark.asyncio
     async def test_get_circuit_open(self) -> None:
         """Get returns None when circuit is open and no cached data exists."""
         circuit = CircuitBreaker(failure_threshold=1)
@@ -170,7 +166,6 @@ class TestDataFrameCache:
         stats = cache.get_stats()
         assert stats["unit"]["circuit_breaks"] == 1
 
-    @pytest.mark.asyncio
     async def test_get_expired_entry_served_as_lkg(self) -> None:
         """Get serves entries beyond SWR grace window as LKG."""
         memory = MemoryTier(max_entries=100)
@@ -191,7 +186,6 @@ class TestDataFrameCache:
         stats = cache.get_stats()
         assert stats["unit"]["lkg_serves"] == 1
 
-    @pytest.mark.asyncio
     async def test_get_wrong_schema_version_rejected(self) -> None:
         """Get rejects entries with wrong schema version."""
         memory = MemoryTier(max_entries=100)
@@ -211,7 +205,6 @@ class TestDataFrameCache:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_get_stale_watermark_rejected(self) -> None:
         """Get rejects entries with stale watermark."""
         memory = MemoryTier(max_entries=100)
@@ -229,7 +222,6 @@ class TestDataFrameCache:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_put_writes_to_both_tiers(self) -> None:
         """Put writes to progressive tier first, then memory."""
         memory = MemoryTier(max_entries=100)
@@ -248,7 +240,6 @@ class TestDataFrameCache:
         # Memory should also have entry
         assert memory.get("unit:proj-1") is not None
 
-    @pytest.mark.asyncio
     async def test_put_clears_circuit_breaker(self) -> None:
         """Put clears circuit breaker on success."""
         circuit = CircuitBreaker(failure_threshold=2)
@@ -324,7 +315,6 @@ class TestDataFrameCache:
 
         assert len(memory) == 1
 
-    @pytest.mark.asyncio
     async def test_acquire_build_lock(self) -> None:
         """Acquire build lock delegates to coalescer."""
         coalescer = DataFrameCacheCoalescer()
@@ -337,7 +327,6 @@ class TestDataFrameCache:
         stats = cache.get_stats()
         assert stats["unit"]["builds_triggered"] == 1
 
-    @pytest.mark.asyncio
     async def test_release_build_lock_failure_records_circuit(self) -> None:
         """Release with failure records circuit breaker failure."""
         circuit = CircuitBreaker(failure_threshold=1)
@@ -363,7 +352,6 @@ class TestDataFrameCache:
 class TestEntityTTLAndSWR:
     """Tests for entity-level TTL enforcement and stale-while-revalidate."""
 
-    @pytest.mark.asyncio
     async def test_fresh_entry_served_immediately(self) -> None:
         """Entry within entity TTL is served as fresh (no SWR triggered)."""
         memory = MemoryTier(max_entries=100)
@@ -379,7 +367,6 @@ class TestEntityTTLAndSWR:
         assert stats["unit"]["memory_hits"] == 1
         assert stats["unit"]["swr_serves"] == 0
 
-    @pytest.mark.asyncio
     async def test_stale_entry_within_grace_triggers_swr(self) -> None:
         """Entry past TTL but within grace window is served + SWR fires."""
         memory = MemoryTier(max_entries=100)
@@ -400,7 +387,6 @@ class TestEntityTTLAndSWR:
         assert stats["unit"]["swr_refreshes_triggered"] == 1
         mock_task.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_expired_entry_beyond_grace_served_as_lkg(self) -> None:
         """Entry beyond SWR grace window is served as LKG."""
         memory = MemoryTier(max_entries=100)
@@ -421,7 +407,6 @@ class TestEntityTTLAndSWR:
         stats = cache.get_stats()
         assert stats["unit"]["lkg_serves"] == 1
 
-    @pytest.mark.asyncio
     async def test_offer_entity_ttl_respected(self) -> None:
         """Offer entity (TTL=180s) goes stale faster than unit (TTL=900s)."""
         memory = MemoryTier(max_entries=100)
@@ -438,7 +423,6 @@ class TestEntityTTLAndSWR:
         stats = cache.get_stats()
         assert stats["offer"]["swr_serves"] == 1
 
-    @pytest.mark.asyncio
     async def test_offer_expired_beyond_grace_served_as_lkg(self) -> None:
         """Offer entity beyond 3x TTL (540s) served as LKG."""
         memory = MemoryTier(max_entries=100)
@@ -456,7 +440,6 @@ class TestEntityTTLAndSWR:
         stats = cache.get_stats()
         assert stats["offer"]["lkg_serves"] == 1
 
-    @pytest.mark.asyncio
     async def test_business_entity_ttl_respected(self) -> None:
         """Business entity (TTL=3600s) stays fresh for longer."""
         memory = MemoryTier(max_entries=100)
@@ -471,7 +454,6 @@ class TestEntityTTLAndSWR:
         stats = cache.get_stats()
         assert stats["business"]["swr_serves"] == 0
 
-    @pytest.mark.asyncio
     async def test_swr_deduplicates_concurrent_refreshes(self) -> None:
         """Coalescer prevents duplicate SWR refreshes for same key."""
         memory = MemoryTier(max_entries=100)
@@ -497,7 +479,6 @@ class TestEntityTTLAndSWR:
         assert stats["unit"]["swr_serves"] == 1
         assert stats["unit"]["swr_refreshes_triggered"] == 0
 
-    @pytest.mark.asyncio
     async def test_swr_on_s3_tier_hydrates_memory(self) -> None:
         """SWR entry from S3 tier is served and hydrated to memory."""
         memory = MemoryTier(max_entries=100)
@@ -548,7 +529,6 @@ class TestEntityTTLAndSWR:
 class TestLKGCacheFallback:
     """Tests for Last-Known-Good (LKG) cache fallback behavior."""
 
-    @pytest.mark.asyncio
     async def test_lkg_serves_expired_entry(self) -> None:
         """Expired entry beyond grace window is served as LKG."""
         memory = MemoryTier(max_entries=100)
@@ -568,7 +548,6 @@ class TestLKGCacheFallback:
         assert stats["unit"]["lkg_serves"] == 1
         assert stats["unit"]["memory_hits"] == 1
 
-    @pytest.mark.asyncio
     async def test_schema_mismatch_never_served_lkg(self) -> None:
         """Schema mismatch entries are never served as LKG."""
         memory = MemoryTier(max_entries=100)
@@ -591,7 +570,6 @@ class TestLKGCacheFallback:
         stats = cache.get_stats()
         assert stats["unit"]["lkg_serves"] == 0
 
-    @pytest.mark.asyncio
     async def test_watermark_stale_never_served_lkg(self) -> None:
         """Watermark stale entries are never served as LKG."""
         memory = MemoryTier(max_entries=100)
@@ -616,7 +594,6 @@ class TestLKGCacheFallback:
         stats = cache.get_stats()
         assert stats["unit"]["lkg_serves"] == 0
 
-    @pytest.mark.asyncio
     async def test_lkg_triggers_swr_refresh(self) -> None:
         """LKG serve triggers SWR refresh in background."""
         memory = MemoryTier(max_entries=100)
@@ -638,7 +615,6 @@ class TestLKGCacheFallback:
         stats = cache.get_stats()
         assert stats["unit"]["swr_refreshes_triggered"] == 1
 
-    @pytest.mark.asyncio
     async def test_lkg_stats_tracked(self) -> None:
         """LKG serves are tracked in statistics."""
         memory = MemoryTier(max_entries=100)
@@ -660,7 +636,6 @@ class TestLKGCacheFallback:
         # SWR refresh triggered twice (no build in progress to coalese with mock)
         assert stats["unit"]["swr_refreshes_triggered"] == 2
 
-    @pytest.mark.asyncio
     async def test_lkg_from_s3_tier(self) -> None:
         """LKG entry from S3 tier is served and hydrated to memory."""
         memory = MemoryTier(max_entries=100)
@@ -751,7 +726,6 @@ class TestDataFrameCacheSingleton:
 class TestCircuitBreakerLKG:
     """Tests for circuit breaker LKG serving behavior."""
 
-    @pytest.mark.asyncio
     async def test_circuit_open_serves_valid_memory_entry(self) -> None:
         """Circuit open with valid cached entry in memory serves it."""
         memory = MemoryTier(max_entries=100)
@@ -770,7 +744,6 @@ class TestCircuitBreakerLKG:
         assert stats["unit"]["lkg_circuit_serves"] == 1
         assert stats["unit"]["memory_hits"] == 1
 
-    @pytest.mark.asyncio
     async def test_circuit_open_serves_valid_s3_entry(self) -> None:
         """Circuit open, memory miss, S3 hit with valid schema serves and hydrates."""
         memory = MemoryTier(max_entries=100)
@@ -796,7 +769,6 @@ class TestCircuitBreakerLKG:
         assert stats["unit"]["lkg_circuit_serves"] == 1
         assert stats["unit"]["s3_hits"] == 1
 
-    @pytest.mark.asyncio
     async def test_circuit_open_rejects_schema_mismatch(self) -> None:
         """Circuit open with schema-mismatched entry returns None."""
         memory = MemoryTier(max_entries=100)
@@ -819,7 +791,6 @@ class TestCircuitBreakerLKG:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_circuit_open_no_data_returns_none(self) -> None:
         """Circuit open with no data in any tier returns None."""
         memory = MemoryTier(max_entries=100)
@@ -841,7 +812,6 @@ class TestCircuitBreakerLKG:
         stats = cache.get_stats()
         assert stats["unit"]["circuit_breaks"] == 1
 
-    @pytest.mark.asyncio
     async def test_circuit_open_no_refresh_triggered(self) -> None:
         """Circuit open serve does NOT trigger SWR refresh."""
         memory = MemoryTier(max_entries=100)
@@ -861,7 +831,6 @@ class TestCircuitBreakerLKG:
         assert result is entry
         mock_task.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_circuit_open_tracks_lkg_circuit_serves_stat(self) -> None:
         """Circuit open with valid entry increments lkg_circuit_serves stat."""
         memory = MemoryTier(max_entries=100)
@@ -882,7 +851,6 @@ class TestCircuitBreakerLKG:
 class TestMaxStalenessEnforcement:
     """Tests for LKG_MAX_STALENESS_MULTIPLIER enforcement."""
 
-    @pytest.mark.asyncio
     async def test_max_staleness_zero_serves_unlimited(self) -> None:
         """With LKG_MAX_STALENESS_MULTIPLIER=0.0 (default), very old entry is served."""
         memory = MemoryTier(max_entries=100)
@@ -897,7 +865,6 @@ class TestMaxStalenessEnforcement:
 
         assert result is entry
 
-    @pytest.mark.asyncio
     async def test_max_staleness_within_limit_served(self) -> None:
         """With multiplier=10.0, entry aged at 8x TTL is served."""
         memory = MemoryTier(max_entries=100)
@@ -915,7 +882,6 @@ class TestMaxStalenessEnforcement:
         stats = cache.get_stats()
         assert stats["unit"]["lkg_serves"] == 1
 
-    @pytest.mark.asyncio
     async def test_max_staleness_exceeded_rejected(self) -> None:
         """With multiplier=5.0, entry aged at 6x TTL is rejected."""
         memory = MemoryTier(max_entries=100)
@@ -932,7 +898,6 @@ class TestMaxStalenessEnforcement:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_max_staleness_evicts_from_memory(self) -> None:
         """Rejected entry is removed from memory tier."""
         memory = MemoryTier(max_entries=100)
@@ -950,7 +915,6 @@ class TestMaxStalenessEnforcement:
         # Should be evicted from memory
         assert memory.get("unit:proj-1") is None
 
-    @pytest.mark.asyncio
     async def test_max_staleness_not_applied_to_fresh_or_swr(self) -> None:
         """Fresh and SWR entries not affected by staleness cap."""
         memory = MemoryTier(max_entries=100)
@@ -1010,7 +974,6 @@ class TestSchemaIsValid:
 class TestFreshnessInfoSideChannel:
     """Tests for FreshnessInfo side-channel storage."""
 
-    @pytest.mark.asyncio
     async def test_freshness_info_stored_on_fresh_hit(self) -> None:
         """Fresh entry produces FreshnessInfo with freshness='fresh'."""
         memory = MemoryTier(max_entries=100)
@@ -1027,7 +990,6 @@ class TestFreshnessInfoSideChannel:
         assert info.staleness_ratio < 1.0
         assert info.data_age_seconds >= 59.0  # Allow for small timing variance
 
-    @pytest.mark.asyncio
     async def test_freshness_info_stored_on_stale_serve(self) -> None:
         """Stale entry produces FreshnessInfo with freshness='approaching_stale'."""
         memory = MemoryTier(max_entries=100)
@@ -1044,7 +1006,6 @@ class TestFreshnessInfoSideChannel:
         assert info.freshness == "approaching_stale"
         assert info.staleness_ratio > 1.0
 
-    @pytest.mark.asyncio
     async def test_freshness_info_stored_on_lkg_serve(self) -> None:
         """LKG entry produces FreshnessInfo with freshness='stale'."""
         memory = MemoryTier(max_entries=100)
@@ -1061,7 +1022,6 @@ class TestFreshnessInfoSideChannel:
         assert info.freshness == "stale"
         assert info.staleness_ratio > 1.0
 
-    @pytest.mark.asyncio
     async def test_freshness_info_not_stored_on_schema_reject(self) -> None:
         """Schema mismatch does NOT populate FreshnessInfo."""
         memory = MemoryTier(max_entries=100)
@@ -1083,7 +1043,6 @@ class TestFreshnessInfoSideChannel:
         info = cache.get_freshness_info("nonexistent", "unit")
         assert info is None
 
-    @pytest.mark.asyncio
     async def test_freshness_info_stored_on_circuit_lkg(self) -> None:
         """Circuit breaker LKG serve stores FreshnessInfo with freshness='circuit_fallback'."""
         memory = MemoryTier(max_entries=100)
@@ -1109,7 +1068,6 @@ class TestSWRBuildLockRelease:
     even when the build callback raises an unexpected error.
     """
 
-    @pytest.mark.asyncio
     async def test_swr_build_lock_released_on_callback_error(self) -> None:
         """Build lock is released when build callback raises an error.
 
@@ -1133,7 +1091,6 @@ class TestSWRBuildLockRelease:
         acquired = await coalescer.try_acquire_async("unit:proj-1")
         assert acquired is True, "Build lock was not released after callback error"
 
-    @pytest.mark.asyncio
     async def test_swr_build_lock_released_on_success(self) -> None:
         """Build lock is released on successful callback execution."""
         coalescer = DataFrameCacheCoalescer()
@@ -1155,7 +1112,6 @@ class TestSWRBuildLockRelease:
         acquired = await coalescer.try_acquire_async("unit:proj-1")
         assert acquired is True, "Build lock was not released after success"
 
-    @pytest.mark.asyncio
     async def test_swr_build_lock_released_on_no_callback(self) -> None:
         """Build lock is released when no callback is registered."""
         coalescer = DataFrameCacheCoalescer()
@@ -1168,7 +1124,6 @@ class TestSWRBuildLockRelease:
         acquired = await coalescer.try_acquire_async("unit:proj-1")
         assert acquired is True, "Build lock was not released when no callback set"
 
-    @pytest.mark.asyncio
     async def test_swr_circuit_breaker_records_failure_on_error(self) -> None:
         """Circuit breaker records failure when build callback raises."""
         circuit = CircuitBreaker(failure_threshold=1)

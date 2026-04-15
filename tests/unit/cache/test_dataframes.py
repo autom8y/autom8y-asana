@@ -125,7 +125,6 @@ class TestLoadDataframeCached:
         """Create a mock compute function."""
         return AsyncMock()
 
-    @pytest.mark.asyncio
     async def test_cache_miss_computes_and_caches(
         self, cache: MockCacheProvider, compute_fn: AsyncMock
     ) -> None:
@@ -147,7 +146,6 @@ class TestLoadDataframeCached:
         # Verify cached
         assert cache.get_versioned("task123:project456", EntryType.DATAFRAME) is not None
 
-    @pytest.mark.asyncio
     async def test_cache_hit_returns_cached(
         self, cache: MockCacheProvider, compute_fn: AsyncMock
     ) -> None:
@@ -174,7 +172,6 @@ class TestLoadDataframeCached:
         assert result == cached_dataframe
         assert was_hit
 
-    @pytest.mark.asyncio
     async def test_stale_cache_recomputes(
         self, cache: MockCacheProvider, compute_fn: AsyncMock
     ) -> None:
@@ -207,7 +204,6 @@ class TestLoadDataframeCached:
         assert result == new_dataframe
         assert not was_hit
 
-    @pytest.mark.asyncio
     async def test_force_refresh_bypasses_cache(
         self, cache: MockCacheProvider, compute_fn: AsyncMock
     ) -> None:
@@ -237,7 +233,6 @@ class TestLoadDataframeCached:
         assert result == new_dataframe
         assert not was_hit
 
-    @pytest.mark.asyncio
     async def test_entry_has_project_gid(
         self, cache: MockCacheProvider, compute_fn: AsyncMock
     ) -> None:
@@ -254,7 +249,6 @@ class TestLoadDataframeCached:
         assert entry is not None
         assert entry.project_gid == "project456"
 
-    @pytest.mark.asyncio
     async def test_version_from_modified_at(
         self, cache: MockCacheProvider, compute_fn: AsyncMock
     ) -> None:
@@ -367,7 +361,6 @@ class TestLoadBatchDataframesCached:
 
         return AsyncMock(side_effect=compute)
 
-    @pytest.mark.asyncio
     async def test_batch_load_all_misses(
         self, cache: MockCacheProvider, compute_fn: AsyncMock
     ) -> None:
@@ -390,7 +383,6 @@ class TestLoadBatchDataframesCached:
         assert results["task1:project1"][1] is False
         assert results["task2:project2"][1] is False
 
-    @pytest.mark.asyncio
     async def test_batch_load_with_hits(
         self, cache: MockCacheProvider, compute_fn: AsyncMock
     ) -> None:
@@ -421,7 +413,6 @@ class TestLoadBatchDataframesCached:
         # task2 should be miss
         assert results["task2:project2"][1] is False
 
-    @pytest.mark.asyncio
     async def test_batch_load_with_modifications(
         self, cache: MockCacheProvider, compute_fn: AsyncMock
     ) -> None:
@@ -449,7 +440,6 @@ class TestLoadBatchDataframesCached:
         # Should recompute due to staleness
         assert results["task1:project1"][1] is False
 
-    @pytest.mark.asyncio
     async def test_batch_load_force_refresh(
         self, cache: MockCacheProvider, compute_fn: AsyncMock
     ) -> None:

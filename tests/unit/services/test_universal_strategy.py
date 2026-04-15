@@ -113,7 +113,6 @@ def cleanup():
 class TestUniversalResolutionStrategy:
     """Tests for UniversalResolutionStrategy class."""
 
-    @pytest.mark.asyncio
     async def test_resolve_single_criterion(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -136,7 +135,6 @@ class TestUniversalResolutionStrategy:
         assert results[0].error is None
         assert results[0].is_unique
 
-    @pytest.mark.asyncio
     async def test_resolve_multiple_criteria(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -164,7 +162,6 @@ class TestUniversalResolutionStrategy:
         assert results[2].gid is None
         assert results[2].error == "NOT_FOUND"
 
-    @pytest.mark.asyncio
     async def test_resolve_multi_match(
         self, contact_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -200,7 +197,6 @@ class TestUniversalResolutionStrategy:
         assert result.is_ambiguous  # Multiple matches
         assert result.match_count == 2
 
-    @pytest.mark.asyncio
     async def test_resolve_not_found(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -223,7 +219,6 @@ class TestUniversalResolutionStrategy:
         assert results[0].error == "NOT_FOUND"
         assert results[0].match_count == 0
 
-    @pytest.mark.asyncio
     async def test_resolve_empty_criteria(self, index_cache: DynamicIndexCache) -> None:
         """Test resolution with empty criteria list."""
         strategy = UniversalResolutionStrategy(
@@ -240,7 +235,6 @@ class TestUniversalResolutionStrategy:
 
         assert results == []
 
-    @pytest.mark.asyncio
     async def test_legacy_field_mapping(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -263,7 +257,6 @@ class TestUniversalResolutionStrategy:
         assert results[0].gid == "unit-1"
         assert results[0].error is None
 
-    @pytest.mark.asyncio
     async def test_index_caching(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -359,7 +352,6 @@ class TestUniversalResolutionStrategy:
 class TestUniversalStrategyBackwardsCompatibility:
     """Tests for backwards compatibility with existing Unit phone/vertical behavior."""
 
-    @pytest.mark.asyncio
     async def test_unit_phone_vertical_lookup(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -382,7 +374,6 @@ class TestUniversalStrategyBackwardsCompatibility:
         # Backwards compatible gid property
         assert results[0].gid == results[0].gids[0]
 
-    @pytest.mark.asyncio
     async def test_case_insensitive_vertical(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -408,7 +399,6 @@ class TestUniversalStrategyBackwardsCompatibility:
 class TestCriterionValidationIntegration:
     """Tests for criterion validation integration."""
 
-    @pytest.mark.asyncio
     async def test_invalid_criterion_returns_error(self, index_cache: DynamicIndexCache) -> None:
         """Test that invalid criterion returns INVALID_CRITERIA error."""
         strategy = UniversalResolutionStrategy(
@@ -439,7 +429,6 @@ class TestCriterionValidationIntegration:
 class TestIndexUnavailable:
     """Tests for handling unavailable indexes."""
 
-    @pytest.mark.asyncio
     async def test_no_cached_dataframe_no_cache_returns_error(
         self, index_cache: DynamicIndexCache
     ) -> None:
@@ -530,7 +519,6 @@ class TestResolverIntegration:
 class TestResolutionResultIntegration:
     """Tests for ResolutionResult integration."""
 
-    @pytest.mark.asyncio
     async def test_result_to_dict(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -557,7 +545,6 @@ class TestResolutionResultIntegration:
         assert result_dict["gids"] == ["unit-1"]
         assert result_dict["match_count"] == 1
 
-    @pytest.mark.asyncio
     async def test_not_found_result_to_dict(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -586,7 +573,6 @@ class TestResolutionResultIntegration:
 class TestDynamicIndexBuilding:
     """Tests for dynamic index building behavior."""
 
-    @pytest.mark.asyncio
     async def test_builds_index_for_criterion_columns(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -613,7 +599,6 @@ class TestDynamicIndexBuilding:
         assert cached_index is not None
         assert sorted(cached_index.key_columns) == ["office_phone", "vertical"]
 
-    @pytest.mark.asyncio
     async def test_different_column_combos_different_indexes(
         self, contact_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -833,7 +818,6 @@ class TestResolveWithFields:
     Per TDD-FIELDS-ENRICHMENT-001: Tests for field enrichment integration.
     """
 
-    @pytest.mark.asyncio
     async def test_resolve_without_fields_no_enrichment(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -856,7 +840,6 @@ class TestResolveWithFields:
         assert results[0].gid == "unit-1"
         assert results[0].match_context is None
 
-    @pytest.mark.asyncio
     async def test_resolve_with_fields_returns_data(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -882,7 +865,6 @@ class TestResolveWithFields:
         assert results[0].match_context[0]["gid"] == "unit-1"
         assert results[0].match_context[0]["name"] == "Unit A"
 
-    @pytest.mark.asyncio
     async def test_resolve_not_found_with_fields_no_data(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -905,7 +887,6 @@ class TestResolveWithFields:
         assert results[0].error == "NOT_FOUND"
         assert results[0].match_context is None  # No enrichment for no matches
 
-    @pytest.mark.asyncio
     async def test_resolve_multi_match_with_fields(
         self, contact_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -954,7 +935,6 @@ class TestBatchParallelization:
     result ordering and error isolation.
     """
 
-    @pytest.mark.asyncio
     async def test_multi_group_parallel_execution(self, index_cache: DynamicIndexCache) -> None:
         """Criteria with different key_columns produce distinct groups.
 
@@ -1033,7 +1013,6 @@ class TestBatchParallelization:
         # All 3 criteria should have results
         assert len(results) == 3
 
-    @pytest.mark.asyncio
     async def test_result_ordering_preserved(self, index_cache: DynamicIndexCache) -> None:
         """Results match input order regardless of group execution order.
 
@@ -1105,7 +1084,6 @@ class TestBatchParallelization:
         assert results[3].gid == "g-3"
         assert results[4].gid == "g-4"
 
-    @pytest.mark.asyncio
     async def test_per_criterion_error_isolation(self, index_cache: DynamicIndexCache) -> None:
         """One criterion's lookup error does not affect others in same group.
 
@@ -1190,7 +1168,6 @@ class TestBatchParallelization:
         assert results[1].error == "LOOKUP_ERROR"
         assert results[1].gid is None
 
-    @pytest.mark.asyncio
     async def test_cross_group_error_isolation(self, index_cache: DynamicIndexCache) -> None:
         """One group's index build failure does not affect other groups.
 
@@ -1259,7 +1236,6 @@ class TestBatchParallelization:
         assert results[1].error == "INDEX_UNAVAILABLE"
         assert results[1].gid is None
 
-    @pytest.mark.asyncio
     async def test_single_criterion_no_regression(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -1286,7 +1262,6 @@ class TestBatchParallelization:
         assert results[0].error is None
         assert results[0].is_unique
 
-    @pytest.mark.asyncio
     async def test_all_same_key_columns_single_group(self, index_cache: DynamicIndexCache) -> None:
         """Homogeneous batch creates single group with 1 index build.
 
@@ -1345,7 +1320,6 @@ class TestBatchParallelization:
             assert results[i].gid == f"g-{i}"
             assert results[i].error is None
 
-    @pytest.mark.asyncio
     async def test_validation_failures_excluded_from_groups(
         self, index_cache: DynamicIndexCache
     ) -> None:

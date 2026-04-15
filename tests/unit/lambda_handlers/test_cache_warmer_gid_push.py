@@ -61,7 +61,6 @@ class TestPushGidMappingsForCompletedEntities:
             }
         )
 
-    @pytest.mark.asyncio
     async def test_pushes_for_unit_entity_with_gid_columns(
         self,
         mock_cache: MagicMock,
@@ -96,7 +95,6 @@ class TestPushGidMappingsForCompletedEntities:
         # The index should have 2 entries (from the unit DataFrame)
         assert len(call_kwargs["index"]) == 2
 
-    @pytest.mark.asyncio
     async def test_skips_entity_without_gid_columns(
         self,
         mock_cache: MagicMock,
@@ -126,7 +124,6 @@ class TestPushGidMappingsForCompletedEntities:
         # push should NOT have been called (no GID columns)
         mock_push.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_push_failure_does_not_raise(
         self,
         mock_cache: MagicMock,
@@ -161,7 +158,6 @@ class TestPushGidMappingsForCompletedEntities:
         ]
         assert len(metric_calls) == 1
 
-    @pytest.mark.asyncio
     async def test_push_exception_is_caught(
         self,
         mock_cache: MagicMock,
@@ -190,7 +186,6 @@ class TestPushGidMappingsForCompletedEntities:
                 invocation_id="test-invoke-4",
             )
 
-    @pytest.mark.asyncio
     async def test_skips_entity_with_no_project_gid(
         self,
         mock_cache: MagicMock,
@@ -214,7 +209,6 @@ class TestPushGidMappingsForCompletedEntities:
 
         mock_push.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_skips_entity_with_no_cached_entry(
         self,
         mock_cache: MagicMock,
@@ -240,7 +234,6 @@ class TestPushGidMappingsForCompletedEntities:
 
         mock_push.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_handles_multiple_entities(
         self,
         mock_cache: MagicMock,
@@ -289,7 +282,6 @@ class TestPushGidMappingsForCompletedEntities:
         assert mock_push.call_count == 1
         assert mock_push.call_args.kwargs["project_gid"] == "project-111"
 
-    @pytest.mark.asyncio
     async def test_empty_completed_entities_is_noop(
         self,
         mock_cache: MagicMock,

@@ -47,7 +47,6 @@ class TestBusinessGetInsightsAsync:
             ],
         )
 
-    @pytest.mark.asyncio
     async def test_valid_business_returns_insights_response(
         self,
         valid_business: Business,
@@ -66,7 +65,6 @@ class TestBusinessGetInsightsAsync:
             vertical="Chiropractic",
         )
 
-    @pytest.mark.asyncio
     async def test_missing_office_phone_raises_validation_error(
         self,
         mock_data_client: MagicMock,
@@ -91,7 +89,6 @@ class TestBusinessGetInsightsAsync:
         assert "office_phone" in str(exc_info.value)
         mock_data_client.get_insights_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_missing_vertical_raises_validation_error(
         self,
         mock_data_client: MagicMock,
@@ -112,7 +109,6 @@ class TestBusinessGetInsightsAsync:
         assert "vertical" in str(exc_info.value)
         mock_data_client.get_insights_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_empty_string_office_phone_raises_validation_error(
         self,
         mock_data_client: MagicMock,
@@ -137,7 +133,6 @@ class TestBusinessGetInsightsAsync:
         assert exc_info.value.field == "office_phone"
         mock_data_client.get_insights_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_empty_string_vertical_raises_validation_error(
         self,
         mock_data_client: MagicMock,
@@ -166,7 +161,6 @@ class TestBusinessGetInsightsAsync:
         assert exc_info.value.field == "vertical"
         mock_data_client.get_insights_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_kwargs_passed_through_to_client(
         self,
         valid_business: Business,
@@ -193,7 +187,6 @@ class TestBusinessGetInsightsAsync:
             refresh=True,
         )
 
-    @pytest.mark.asyncio
     async def test_default_factory_is_account(
         self,
         valid_business: Business,
@@ -208,7 +201,6 @@ class TestBusinessGetInsightsAsync:
         call_kwargs = mock_data_client.get_insights_async.call_args[1]
         assert call_kwargs["factory"] == "account"
 
-    @pytest.mark.asyncio
     async def test_period_not_included_when_none(
         self,
         valid_business: Business,
@@ -223,7 +215,6 @@ class TestBusinessGetInsightsAsync:
         call_kwargs = mock_data_client.get_insights_async.call_args[1]
         assert "period" not in call_kwargs
 
-    @pytest.mark.asyncio
     async def test_period_included_when_specified(
         self,
         valid_business: Business,

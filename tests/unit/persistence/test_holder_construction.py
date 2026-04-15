@@ -365,7 +365,6 @@ class TestDetectExistingHolders:
             memberships = [{"project": {"gid": project_gid}}]
         return Task(gid=gid, name=name, memberships=memberships)
 
-    @pytest.mark.asyncio
     async def test_all_holders_present(
         self,
         mock_client: MagicMock,
@@ -402,7 +401,6 @@ class TestDetectExistingHolders:
 
         assert len(result) == 7
 
-    @pytest.mark.asyncio
     async def test_no_holders_present(
         self,
         mock_client: MagicMock,
@@ -418,7 +416,6 @@ class TestDetectExistingHolders:
 
         assert len(result) == 0
 
-    @pytest.mark.asyncio
     async def test_partial_holders_present(
         self,
         mock_client: MagicMock,
@@ -445,7 +442,6 @@ class TestDetectExistingHolders:
         assert "dna_holder" in result
         assert "unit_holder" not in result
 
-    @pytest.mark.asyncio
     async def test_non_holder_subtasks_ignored(
         self,
         mock_client: MagicMock,

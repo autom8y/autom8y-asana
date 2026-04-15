@@ -8,7 +8,6 @@ from autom8_asana.lifecycle.dispatch import AutomationDispatch
 from autom8_asana.persistence.models import AutomationResult
 
 
-@pytest.mark.asyncio
 async def test_dispatch_section_changed(mock_client, lifecycle_config):
     """Test dispatching section change event."""
     # Create mock engine
@@ -47,7 +46,6 @@ async def test_dispatch_section_changed(mock_client, lifecycle_config):
     mock_engine.handle_transition_async.assert_called_once()
 
 
-@pytest.mark.asyncio
 async def test_dispatch_circular_prevention(mock_client, lifecycle_config):
     """Test circular trigger prevention."""
     mock_engine = MagicMock()
@@ -66,7 +64,6 @@ async def test_dispatch_circular_prevention(mock_client, lifecycle_config):
     assert result["error"] == "circular_trigger"
 
 
-@pytest.mark.asyncio
 async def test_dispatch_tag_trigger(mock_client, lifecycle_config):
     """Test dispatching tag-based trigger."""
     mock_engine = MagicMock()
@@ -89,7 +86,6 @@ async def test_dispatch_tag_trigger(mock_client, lifecycle_config):
     assert "lifecycle:onboarding" in result["routed_to"]
 
 
-@pytest.mark.asyncio
 async def test_dispatch_unknown_trigger_type(mock_client, lifecycle_config):
     """Test unknown trigger type handling."""
     mock_engine = MagicMock()

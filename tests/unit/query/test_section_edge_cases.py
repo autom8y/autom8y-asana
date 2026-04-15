@@ -58,7 +58,6 @@ def section_engine(section_df: pl.DataFrame) -> QueryEngine:
 class TestSectionEdgeCases:
     """Adversarial section parameter inputs."""
 
-    @pytest.mark.asyncio
     async def test_nonexistent_section(
         self, section_engine: QueryEngine, section_schema: DataFrameSchema
     ) -> None:
@@ -77,7 +76,6 @@ class TestSectionEdgeCases:
             )
         assert exc.value.section == "Nonexistent"
 
-    @pytest.mark.asyncio
     async def test_empty_string_section(
         self, section_engine: QueryEngine, section_schema: DataFrameSchema
     ) -> None:
@@ -110,7 +108,6 @@ class TestSectionEdgeCases:
         assert d["error"] == "UNKNOWN_SECTION"
         assert d["section"] == "Bogus"
 
-    @pytest.mark.asyncio
     async def test_section_param_and_section_predicate_simultaneously(
         self, section_schema: DataFrameSchema
     ) -> None:
@@ -159,7 +156,6 @@ class TestSectionEdgeCases:
         assert result.data[0]["name"] == "A"
         assert result.data[0]["section"] == "Active"
 
-    @pytest.mark.asyncio
     async def test_section_case_sensitive_filter(self, section_schema: DataFrameSchema) -> None:
         """Section name filter on DataFrame is case-sensitive (per ADR-DQS-003)."""
         from autom8_asana.metrics.resolve import SectionIndex
@@ -198,7 +194,6 @@ class TestSectionEdgeCases:
 class TestSchemaDriftEdgeCases:
     """Edge cases for schema/DataFrame drift (field in schema but not in data)."""
 
-    @pytest.mark.asyncio
     async def test_predicate_field_in_schema_but_not_in_dataframe(self) -> None:
         """Column exists in schema but not in the actual DataFrame.
 

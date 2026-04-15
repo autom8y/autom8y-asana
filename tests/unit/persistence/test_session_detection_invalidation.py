@@ -127,7 +127,6 @@ PROJECT_GID = "2222222222222"
 class TestDetectionCacheInvalidationOnCrudSuccess:
     """Tests for detection cache invalidation after successful CRUD operations."""
 
-    @pytest.mark.asyncio
     async def test_update_invalidates_detection_cache(self) -> None:
         """UPDATE operations invalidate detection cache (FR-INVALIDATE-001).
 
@@ -158,7 +157,6 @@ class TestDetectionCacheInvalidationOnCrudSuccess:
         assert EntryType.SUBTASKS in entry_types
         assert EntryType.DETECTION in entry_types
 
-    @pytest.mark.asyncio
     async def test_create_invalidates_detection_cache(self) -> None:
         """CREATE operations invalidate detection cache (FR-INVALIDATE-002).
 
@@ -186,7 +184,6 @@ class TestDetectionCacheInvalidationOnCrudSuccess:
         _, entry_types = cache.invalidate_calls[0]
         assert EntryType.DETECTION in entry_types
 
-    @pytest.mark.asyncio
     async def test_multiple_updates_invalidate_all_detection_caches(self) -> None:
         """Multiple updates invalidate detection cache for all modified GIDs.
 
@@ -223,7 +220,6 @@ class TestDetectionCacheInvalidationOnCrudSuccess:
 class TestDetectionCacheInvalidationOnActionSuccess:
     """Tests for detection cache invalidation after successful action operations."""
 
-    @pytest.mark.asyncio
     async def test_add_tag_action_invalidates_detection_cache(self) -> None:
         """add_tag action invalidates detection cache (FR-INVALIDATE-003).
 
@@ -247,7 +243,6 @@ class TestDetectionCacheInvalidationOnActionSuccess:
         gid, _ = detection_invalidations[0]
         assert gid == TASK_GID_1
 
-    @pytest.mark.asyncio
     async def test_add_to_project_action_invalidates_detection_cache(self) -> None:
         """add_to_project action invalidates detection cache (FR-INVALIDATE-003).
 
@@ -271,7 +266,6 @@ class TestDetectionCacheInvalidationOnActionSuccess:
         gid, _ = detection_invalidations[0]
         assert gid == TASK_GID_1
 
-    @pytest.mark.asyncio
     async def test_remove_from_project_action_invalidates_detection_cache(self) -> None:
         """remove_from_project action invalidates detection cache (FR-INVALIDATE-003).
 
@@ -295,7 +289,6 @@ class TestDetectionCacheInvalidationOnActionSuccess:
         gid, _ = detection_invalidations[0]
         assert gid == TASK_GID_1
 
-    @pytest.mark.asyncio
     async def test_set_parent_action_invalidates_detection_cache(self) -> None:
         """set_parent action invalidates detection cache (FR-INVALIDATE-003).
 
@@ -323,7 +316,6 @@ class TestDetectionCacheInvalidationOnActionSuccess:
 class TestDetectionCacheInvalidationGracefulDegradation:
     """Tests for graceful degradation on cache errors."""
 
-    @pytest.mark.asyncio
     async def test_invalidation_failure_does_not_fail_commit(self) -> None:
         """Cache invalidation failure does not fail commit (FR-INVALIDATE-004).
 
@@ -351,7 +343,6 @@ class TestDetectionCacheInvalidationGracefulDegradation:
         # Assert: Commit succeeded despite cache error
         assert result.success
 
-    @pytest.mark.asyncio
     async def test_invalidation_failure_logs_warning(self) -> None:
         """Cache invalidation failure logs warning."""
         # Arrange
@@ -384,7 +375,6 @@ class TestDetectionCacheInvalidationGracefulDegradation:
 class TestDetectionCacheInvalidationNoCacheProvider:
     """Tests when no cache provider is configured."""
 
-    @pytest.mark.asyncio
     async def test_commit_works_without_cache_provider(self) -> None:
         """Commit works when no cache provider is configured."""
         # Arrange
@@ -409,7 +399,6 @@ class TestDetectionCacheInvalidationNoCacheProvider:
 class TestDetectionCacheInvalidationDeduplication:
     """Tests for GID deduplication in detection cache invalidation."""
 
-    @pytest.mark.asyncio
     async def test_same_gid_crud_and_action_invalidated_once(self) -> None:
         """Same GID in CRUD and action is only invalidated once."""
         # Arrange
@@ -438,7 +427,6 @@ class TestDetectionCacheInvalidationDeduplication:
 class TestDetectionCacheInvalidationNoChanges:
     """Tests that no invalidation happens without changes."""
 
-    @pytest.mark.asyncio
     async def test_empty_commit_no_detection_invalidation(self) -> None:
         """Empty commit does not trigger detection invalidation."""
         # Arrange
@@ -453,7 +441,6 @@ class TestDetectionCacheInvalidationNoChanges:
         cache = mock_client._cache_provider
         assert len(cache.invalidate_calls) == 0
 
-    @pytest.mark.asyncio
     async def test_tracked_but_unchanged_no_detection_invalidation(self) -> None:
         """Tracking entity without changes does not trigger detection invalidation."""
         # Arrange

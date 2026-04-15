@@ -102,7 +102,6 @@ def _make_builder(
     return builder
 
 
-@pytest.mark.asyncio
 class TestResumeFromCheckpoint:
     """Resume detection when IN_PROGRESS + rows_fetched > 0 + parquet exists."""
 
@@ -145,7 +144,6 @@ class TestResumeFromCheckpoint:
         builder._persistence.read_section_async.assert_called_once_with("proj_123", "sec_1")
 
 
-@pytest.mark.asyncio
 class TestResumeMissingCheckpoint:
     """Missing parquet on resume falls back to full refetch."""
 
@@ -179,7 +177,6 @@ class TestResumeMissingCheckpoint:
         assert len(written_df) == 50
 
 
-@pytest.mark.asyncio
 class TestResumeCorruptCheckpoint:
     """Corrupt parquet on resume falls back to full refetch."""
 
@@ -213,7 +210,6 @@ class TestResumeCorruptCheckpoint:
         assert len(written_df) == 50
 
 
-@pytest.mark.asyncio
 class TestNoResumeForPendingSection:
     """PENDING status should not trigger resume."""
 

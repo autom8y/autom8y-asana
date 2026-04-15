@@ -210,7 +210,6 @@ class TestWorkflowIdentity:
 class TestEnumerateEntities:
     """Tests for enumerate_entities (full enumeration path)."""
 
-    @pytest.mark.asyncio
     async def test_enumerate_entities_full_path(self) -> None:
         """enumerate_entities fetches non-completed units from project."""
         tasks = [
@@ -236,7 +235,6 @@ class TestEnumerateEntities:
             or call_kwargs[1].get("project") == UNIT_PROJECT_GID
         )
 
-    @pytest.mark.asyncio
     async def test_enumerate_entities_excludes_completed(self) -> None:
         """Completed tasks are filtered out."""
         tasks = [
@@ -250,7 +248,6 @@ class TestEnumerateEntities:
 
         assert len(result) == 0
 
-    @pytest.mark.asyncio
     async def test_enumerate_entities_section_filter(self) -> None:
         """When section_filter is populated, tasks in non-matching sections are excluded."""
         task = _make_task("u1", "Unit 1")
@@ -267,7 +264,6 @@ class TestEnumerateEntities:
 
         assert len(result) == 1
 
-    @pytest.mark.asyncio
     async def test_enumerate_entities_section_filter_excludes(self) -> None:
         """Tasks not in any matching section are excluded by section_filter."""
         task = _make_task("u1", "Unit 1")
@@ -292,7 +288,6 @@ class TestEnumerateEntities:
 class TestProcessEntityHappyPath:
     """Tests for process_entity happy path."""
 
-    @pytest.mark.asyncio
     async def test_process_entity_happy_path(self) -> None:
         """Full pipeline: resolve, fetch, format, upload, delete-old."""
         wf, mock_asana, mock_data, mock_attachments = _make_workflow()
@@ -328,7 +323,6 @@ class TestProcessEntityHappyPath:
         # Verify upload was called
         mock_attachments.upload_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_upload_before_delete_ordering(self) -> None:
         """Upload is called before delete-old attachments."""
         wf, mock_asana, mock_data, mock_attachments = _make_workflow()
@@ -372,7 +366,6 @@ class TestProcessEntityHappyPath:
 class TestProcessEntitySkipScenarios:
     """Tests for process_entity skip and failure paths."""
 
-    @pytest.mark.asyncio
     async def test_process_entity_resolution_failure(self) -> None:
         """_resolve_unit returns None -> skipped with no_resolution."""
         wf, mock_asana, _, _ = _make_workflow()
@@ -388,7 +381,6 @@ class TestProcessEntitySkipScenarios:
         assert result.status == "skipped"
         assert result.reason == "no_resolution"
 
-    @pytest.mark.asyncio
     async def test_process_entity_empty_data(self) -> None:
         """Empty reconciliation data -> skipped with no_data."""
         wf, mock_asana, mock_data, _ = _make_workflow()
@@ -411,7 +403,6 @@ class TestProcessEntitySkipScenarios:
         assert result.status == "skipped"
         assert result.reason == "no_data"
 
-    @pytest.mark.asyncio
     async def test_process_entity_dry_run(self) -> None:
         """dry_run=True skips upload and delete."""
         wf, mock_asana, mock_data, mock_attachments = _make_workflow()
@@ -432,7 +423,6 @@ class TestProcessEntitySkipScenarios:
         assert result.status == "succeeded"
         mock_attachments.upload_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_process_entity_missing_phone(self) -> None:
         """Resolution returns business with no phone -> skipped."""
         wf, mock_asana, _, _ = _make_workflow()
@@ -451,7 +441,6 @@ class TestProcessEntitySkipScenarios:
         assert result.status == "skipped"
         assert result.reason == "no_resolution"
 
-    @pytest.mark.asyncio
     async def test_process_entity_missing_vertical(self) -> None:
         """Resolution returns business with no vertical -> skipped."""
         wf, mock_asana, _, _ = _make_workflow()
@@ -479,7 +468,6 @@ class TestProcessEntitySkipScenarios:
 class TestResolveUnitCache:
     """Tests for _resolve_unit caching behavior."""
 
-    @pytest.mark.asyncio
     async def test_resolve_unit_cache_hit(self) -> None:
         """Second resolution with same business uses cache."""
         wf, mock_asana, mock_data, mock_attachments = _make_workflow()
@@ -501,7 +489,6 @@ class TestResolveUnitCache:
         assert result1[0] == result2[0]  # Same phone
         assert "biz_shared" in wf._business_cache
 
-    @pytest.mark.asyncio
     async def test_resolve_unit_missing_parent(self) -> None:
         """Unit with no parent returns None."""
         wf, mock_asana, _, _ = _make_workflow()
@@ -582,7 +569,6 @@ class TestUnitOutcome:
 class TestPIIMasking:
     """Tests for PII masking in log calls."""
 
-    @pytest.mark.asyncio
     async def test_pii_masking_in_process_entity(self) -> None:
         """mask_phone_number is called before any log emission."""
         wf, mock_asana, mock_data, mock_attachments = _make_workflow()

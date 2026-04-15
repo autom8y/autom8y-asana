@@ -49,7 +49,6 @@ def _make_section(gid: str, name: str) -> Section:
 # --- Tests ---
 
 
-@pytest.mark.asyncio
 async def test_resolve_all_names_found():
     """All target names match sections in the project."""
     sections = [
@@ -70,7 +69,6 @@ async def test_resolve_all_names_found():
     mock_client.list_for_project_async.assert_called_once_with("proj-123")
 
 
-@pytest.mark.asyncio
 async def test_resolve_partial_match(caplog):
     """Some target names match, others produce WARNING log."""
     sections = [
@@ -91,7 +89,6 @@ async def test_resolve_partial_match(caplog):
     assert "nonexistent" not in result
 
 
-@pytest.mark.asyncio
 async def test_resolve_no_match():
     """No target names match, returns empty dict."""
     sections = [
@@ -110,7 +107,6 @@ async def test_resolve_no_match():
     assert result == {}
 
 
-@pytest.mark.asyncio
 async def test_resolve_case_insensitive():
     """'CONVERTED' matches section named 'Converted' (case-insensitive)."""
     sections = [
@@ -132,7 +128,6 @@ async def test_resolve_case_insensitive():
     assert result["did not convert"] == "sec-2"
 
 
-@pytest.mark.asyncio
 async def test_resolve_empty_sections_list():
     """Project has no sections, returns empty dict."""
     mock_client = MagicMock()
@@ -147,7 +142,6 @@ async def test_resolve_empty_sections_list():
     assert result == {}
 
 
-@pytest.mark.asyncio
 async def test_resolve_propagates_exception():
     """SectionsClient raises, exception propagates to caller."""
 
@@ -182,7 +176,6 @@ def test_offer_active_section_count():
     assert len(active) == 22
 
 
-@pytest.mark.asyncio
 async def test_resolve_with_frozenset_target():
     """Accepts frozenset as target_names (type union contract)."""
     sections = [
@@ -201,7 +194,6 @@ async def test_resolve_with_frozenset_target():
     assert result == {"active": "sec-1", "inactive": "sec-2"}
 
 
-@pytest.mark.asyncio
 async def test_resolve_section_with_none_name_skipped():
     """Sections with name=None are excluded from the lookup."""
     sections = [

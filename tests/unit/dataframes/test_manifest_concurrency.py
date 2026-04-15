@@ -38,7 +38,6 @@ def _make_persistence() -> SectionPersistence:
     return SectionPersistence(storage=storage)
 
 
-@pytest.mark.asyncio
 async def test_concurrent_complete_updates_all_preserved() -> None:
     """8 concurrent COMPLETE updates all reflected in manifest.
 
@@ -76,7 +75,6 @@ async def test_concurrent_complete_updates_all_preserved() -> None:
     assert manifest.completed_sections == 8
 
 
-@pytest.mark.asyncio
 async def test_create_manifest_populates_cache() -> None:
     """Cache is seeded after create_manifest_async."""
     persistence = _make_persistence()
@@ -87,7 +85,6 @@ async def test_create_manifest_populates_cache() -> None:
     assert persistence._manifest_cache["proj_1"].project_gid == "proj_1"
 
 
-@pytest.mark.asyncio
 async def test_get_manifest_returns_cached() -> None:
     """Cache hit skips storage call."""
     persistence = _make_persistence()
@@ -105,7 +102,6 @@ async def test_get_manifest_returns_cached() -> None:
     persistence._storage.load_json.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_get_manifest_falls_through_to_storage() -> None:
     """Cache miss reads from storage and populates cache."""
     persistence = _make_persistence()
@@ -128,7 +124,6 @@ async def test_get_manifest_falls_through_to_storage() -> None:
     assert "proj_1" in persistence._manifest_cache
 
 
-@pytest.mark.asyncio
 async def test_delete_manifest_invalidates_cache() -> None:
     """Cache is cleared on delete."""
     persistence = _make_persistence()
@@ -141,7 +136,6 @@ async def test_delete_manifest_invalidates_cache() -> None:
     assert "proj_1" not in persistence._manifest_cache
 
 
-@pytest.mark.asyncio
 async def test_concurrent_mixed_statuses() -> None:
     """Mix of IN_PROGRESS, COMPLETE, FAILED concurrent updates all preserved."""
     persistence = _make_persistence()
@@ -178,7 +172,6 @@ async def test_concurrent_mixed_statuses() -> None:
     assert manifest.completed_sections == 3
 
 
-@pytest.mark.asyncio
 async def test_storage_write_called_per_update() -> None:
     """Each update flushes to storage for durability."""
     persistence = _make_persistence()

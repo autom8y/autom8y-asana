@@ -111,14 +111,12 @@ class TestSectionFreshnessProber:
         )
         return prober, client
 
-    @pytest.mark.asyncio
     async def test_probe_no_complete_sections(self) -> None:
         manifest = _make_manifest({"sec_1": SectionInfo(status=SectionStatus.PENDING)})
         prober, _ = self._make_prober(manifest)
         results = await prober.probe_all_async()
         assert results == []
 
-    @pytest.mark.asyncio
     async def test_probe_no_baseline_when_gid_hash_none(self) -> None:
         """Section with no stored gid_hash should get NO_BASELINE verdict."""
         manifest = _make_manifest(
@@ -141,7 +139,6 @@ class TestSectionFreshnessProber:
         assert len(results) == 1
         assert results[0].verdict == ProbeVerdict.NO_BASELINE
 
-    @pytest.mark.asyncio
     async def test_probe_structure_changed(self) -> None:
         """Hash mismatch → STRUCTURE_CHANGED."""
         stored_hash = compute_gid_hash(["t1", "t2", "t3"])
@@ -170,7 +167,6 @@ class TestSectionFreshnessProber:
         assert len(results) == 1
         assert results[0].verdict == ProbeVerdict.STRUCTURE_CHANGED
 
-    @pytest.mark.asyncio
     async def test_probe_content_changed(self) -> None:
         """Hash matches but modified_since returns >1 → CONTENT_CHANGED."""
         gids = ["t1", "t2"]
@@ -205,7 +201,6 @@ class TestSectionFreshnessProber:
         assert len(results) == 1
         assert results[0].verdict == ProbeVerdict.CONTENT_CHANGED
 
-    @pytest.mark.asyncio
     async def test_probe_clean(self) -> None:
         """Hash matches and modified_since returns <=1 → CLEAN."""
         gids = ["t1", "t2"]
@@ -239,7 +234,6 @@ class TestSectionFreshnessProber:
         assert len(results) == 1
         assert results[0].verdict == ProbeVerdict.CLEAN
 
-    @pytest.mark.asyncio
     async def test_probe_clean_zero_modified(self) -> None:
         """Hash matches and modified_since returns 0 → CLEAN."""
         gids = ["t1"]
@@ -269,7 +263,6 @@ class TestSectionFreshnessProber:
         assert len(results) == 1
         assert results[0].verdict == ProbeVerdict.CLEAN
 
-    @pytest.mark.asyncio
     async def test_probe_failed_on_api_error(self) -> None:
         """API error → PROBE_FAILED (graceful degradation)."""
         manifest = _make_manifest(

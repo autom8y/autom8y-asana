@@ -70,7 +70,6 @@ def make_entry(
 class TestStalenessCheckCoordinator:
     """Tests for StalenessCheckCoordinator."""
 
-    @pytest.mark.asyncio
     async def test_unchanged_extends_ttl(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test that unchanged entity gets TTL extended."""
         entry = make_entry("123", modified_at="2025-12-23T10:00:00.000Z")
@@ -89,7 +88,6 @@ class TestStalenessCheckCoordinator:
         assert result.ttl == 600  # 300 * 2^1
         assert result.metadata.get("extension_count") == 1
 
-    @pytest.mark.asyncio
     async def test_changed_returns_none(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test that changed entity returns None."""
         entry = make_entry("123", modified_at="2025-12-23T10:00:00.000Z")
@@ -109,7 +107,6 @@ class TestStalenessCheckCoordinator:
         stats = coordinator.get_extension_stats()
         assert stats["changed_count"] == 1
 
-    @pytest.mark.asyncio
     async def test_error_returns_none_and_invalidates(
         self,
         coordinator: StalenessCheckCoordinator,
@@ -136,7 +133,6 @@ class TestStalenessCheckCoordinator:
         stats = coordinator.get_extension_stats()
         assert stats["error_count"] == 1
 
-    @pytest.mark.asyncio
     async def test_exception_graceful_degradation(
         self, coordinator: StalenessCheckCoordinator
     ) -> None:
@@ -158,7 +154,6 @@ class TestStalenessCheckCoordinator:
         stats = coordinator.get_extension_stats()
         assert stats["error_count"] == 1
 
-    @pytest.mark.asyncio
     async def test_disabled_returns_none(
         self,
         mock_cache_provider: MagicMock,
@@ -176,7 +171,6 @@ class TestStalenessCheckCoordinator:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_cache_update_on_extension(
         self,
         coordinator: StalenessCheckCoordinator,
@@ -199,7 +193,6 @@ class TestStalenessCheckCoordinator:
         stored_entry = call_args[0][1]
         assert stored_entry.ttl == 600  # Extended TTL
 
-    @pytest.mark.asyncio
     async def test_cache_update_failure_still_returns_entry(
         self,
         coordinator: StalenessCheckCoordinator,
@@ -220,7 +213,6 @@ class TestStalenessCheckCoordinator:
         assert result is not None
         assert result.ttl == 600
 
-    @pytest.mark.asyncio
     async def test_stats_tracking(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test that stats are tracked correctly."""
         entry = make_entry("123", modified_at="2025-12-23T10:00:00.000Z")
@@ -243,7 +235,6 @@ class TestStalenessCheckCoordinator:
 class TestTTLExtension:
     """Tests for TTL extension algorithm."""
 
-    @pytest.mark.asyncio
     async def test_first_extension(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test first TTL extension (base * 2^1 = 600)."""
         entry = make_entry("123", ttl=300, extension_count=0)
@@ -259,7 +250,6 @@ class TestTTLExtension:
         assert result.ttl == 600  # 300 * 2
         assert result.metadata.get("extension_count") == 1
 
-    @pytest.mark.asyncio
     async def test_second_extension(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test second TTL extension (base * 2^2 = 1200)."""
         entry = make_entry("123", ttl=600, extension_count=1)
@@ -275,7 +265,6 @@ class TestTTLExtension:
         assert result.ttl == 1200  # 300 * 4
         assert result.metadata.get("extension_count") == 2
 
-    @pytest.mark.asyncio
     async def test_ttl_ceiling_enforced(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test that max_ttl ceiling is enforced (FR-TTL-002)."""
         # At count 8: 300 * 2^9 = 153600, but ceiling is 86400
@@ -292,7 +281,6 @@ class TestTTLExtension:
         assert result.ttl == 86400  # Ceiling
         assert result.metadata.get("extension_count") == 9
 
-    @pytest.mark.asyncio
     async def test_cached_at_reset_on_extension(
         self, coordinator: StalenessCheckCoordinator
     ) -> None:
@@ -318,7 +306,6 @@ class TestTTLExtension:
         # cached_at should be reset to now (not old time)
         assert result.cached_at > old_cached_at
 
-    @pytest.mark.asyncio
     async def test_version_preserved_on_extension(
         self, coordinator: StalenessCheckCoordinator
     ) -> None:
@@ -344,7 +331,6 @@ class TestTTLExtension:
         assert result.version == original_version  # Preserved
         assert result.data == {"gid": "123", "name": "Original"}  # Preserved
 
-    @pytest.mark.asyncio
     async def test_entry_immutability(self, coordinator: StalenessCheckCoordinator) -> None:
         """Test that original entry is not mutated (FR-TTL-006)."""
         entry = make_entry("123", ttl=300, extension_count=0)
@@ -460,7 +446,6 @@ class TestStalenessCheckSettings:
 class TestDeletedEntityHandling:
     """Deleted entity (404) handling tests (FR-STALE-006)."""
 
-    @pytest.mark.asyncio
     async def test_404_response_returns_none_and_records_error(self) -> None:
         """404 response returns None and records in error stats."""
         cache = EnhancedInMemoryCacheProvider()
@@ -505,7 +490,6 @@ class TestTTLCeilingBoundaryAdversarial:
         settings = StalenessCheckSettings(base_ttl=300, max_ttl=86400)
         assert settings.calculate_extended_ttl(8) == 76800
 
-    @pytest.mark.asyncio
     async def test_progressive_extension_respects_ceiling(self) -> None:
         """Progressive extension never exceeds max_ttl ceiling."""
         cache = EnhancedInMemoryCacheProvider()
@@ -560,7 +544,6 @@ class TestExtensionCountOverflowAdversarial:
         assert settings.calculate_extended_ttl(1000) == 86400
         assert settings.calculate_extended_ttl(999999) == 86400
 
-    @pytest.mark.asyncio
     async def test_entry_with_large_extension_count_increments_correctly(self) -> None:
         """Entry already at large extension count increments by 1 on next check."""
         cache = EnhancedInMemoryCacheProvider()
@@ -602,7 +585,6 @@ class TestExtensionCountOverflowAdversarial:
 class TestCoordinatorGracefulDegradation:
     """Coordinator graceful degradation when cache operations fail."""
 
-    @pytest.mark.asyncio
     async def test_cache_write_failure_still_returns_result(self) -> None:
         """Cache write failure (RedisTransportError) doesn't prevent returning result."""
         mock_cache = MagicMock()
@@ -636,7 +618,6 @@ class TestCoordinatorGracefulDegradation:
         assert result is not None
         assert result.ttl == 600  # Extended TTL
 
-    @pytest.mark.asyncio
     async def test_invalidate_failure_on_404_handled_gracefully(self) -> None:
         """Invalidation failure on 404 response returns None without raising."""
         mock_cache = MagicMock()

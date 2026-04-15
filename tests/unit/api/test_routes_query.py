@@ -846,7 +846,6 @@ class TestQueryResponseStructure:
 class TestEntityQueryService:
     """Unit tests for EntityQueryService."""
 
-    @pytest.mark.asyncio
     async def test_query_applies_filters_correctly(self) -> None:
         """EntityQueryService applies where filters correctly."""
         from autom8_asana.services.query_service import EntityQueryService
@@ -873,7 +872,6 @@ class TestEntityQueryService:
         assert result.total_count == 3  # 3 ACTIVE
         assert len(result.data) == 3
 
-    @pytest.mark.asyncio
     async def test_query_raises_on_cache_miss(self) -> None:
         """EntityQueryService raises CacheNotWarmError on cache miss."""
         from autom8_asana.services.query_service import EntityQueryService
@@ -896,7 +894,6 @@ class TestEntityQueryService:
                 offset=0,
             )
 
-    @pytest.mark.asyncio
     async def test_query_pagination(self) -> None:
         """EntityQueryService applies pagination correctly."""
         from autom8_asana.services.query_service import EntityQueryService

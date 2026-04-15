@@ -145,7 +145,6 @@ class TestBackfillResult:
 class TestBackfillFromDataframe:
     """Test the main entry point for backfill."""
 
-    @pytest.mark.asyncio
     async def test_identifies_empty_vertical_rows(self, service, mock_client) -> None:
         """Rows with null/empty vertical are identified for backfill."""
         mock_client.tasks.get_async.return_value = _make_task_response(
@@ -165,7 +164,6 @@ class TestBackfillFromDataframe:
         assert result.attempted == 2
         assert result.succeeded == 2
 
-    @pytest.mark.asyncio
     async def test_skips_tasks_with_existing_vertical(self, service, mock_client) -> None:
         """Rows with non-empty vertical are skipped entirely."""
         unit_df = pl.DataFrame(
@@ -180,7 +178,6 @@ class TestBackfillFromDataframe:
         assert result.attempted == 0
         mock_client.tasks.get_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_skips_rows_without_gid(self, service, mock_client) -> None:
         """Rows with missing GID are silently skipped."""
         unit_df = pl.DataFrame(
@@ -199,7 +196,6 @@ class TestBackfillFromDataframe:
         # Only task_2 is a valid candidate
         assert result.attempted == 1
 
-    @pytest.mark.asyncio
     async def test_vertical_parsed_from_notes(self, service, mock_client) -> None:
         """Vertical value is extracted from notes and written to custom field."""
         mock_client.tasks.get_async.return_value = _make_task_response(
@@ -223,7 +219,6 @@ class TestBackfillFromDataframe:
             data={"custom_fields": {"cf_111": {"gid": "opt_dental"}}},
         )
 
-    @pytest.mark.asyncio
     async def test_notes_without_vertical_prefix_skipped(self, service, mock_client) -> None:
         """Tasks with notes lacking 'Vertical: ' prefix are skipped."""
         mock_client.tasks.get_async.return_value = _make_task_response(
@@ -244,7 +239,6 @@ class TestBackfillFromDataframe:
         assert result.succeeded == 0
         mock_client.tasks.update_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_result_counts_correct(self, service, mock_client) -> None:
         """Result counts reflect attempted, succeeded, skipped, and failed."""
         # task_1: success (Dental in notes)  # noqa: ERA001
@@ -285,7 +279,6 @@ class TestBackfillFromDataframe:
         assert len(result.errors) == 1
         assert result.errors[0][0] == "task_3"
 
-    @pytest.mark.asyncio
     async def test_individual_task_failure_does_not_stop_batch(self, service, mock_client) -> None:
         """A failure on one task does not prevent processing of subsequent tasks."""
         responses = [
@@ -319,7 +312,6 @@ class TestBackfillFromDataframe:
         assert result.failed == 1
         assert result.succeeded == 1
 
-    @pytest.mark.asyncio
     async def test_missing_gid_column_returns_empty_result(self, service) -> None:
         """DataFrame without 'gid' column returns empty result."""
         unit_df = pl.DataFrame(
@@ -332,7 +324,6 @@ class TestBackfillFromDataframe:
 
         assert result.attempted == 0
 
-    @pytest.mark.asyncio
     async def test_missing_vertical_column_returns_empty_result(self, service) -> None:
         """DataFrame without 'vertical' column returns empty result."""
         unit_df = pl.DataFrame(
@@ -345,7 +336,6 @@ class TestBackfillFromDataframe:
 
         assert result.attempted == 0
 
-    @pytest.mark.asyncio
     async def test_no_vertical_custom_field_on_task_skipped(self, service, mock_client) -> None:
         """Task with no 'Vertical' custom field is skipped."""
         mock_client.tasks.get_async.return_value = _make_task_response(
@@ -365,7 +355,6 @@ class TestBackfillFromDataframe:
         assert result.skipped == 1
         mock_client.tasks.update_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_no_matching_enum_option_skipped(self, service, mock_client) -> None:
         """Task where vertical value doesn't match any enum option is skipped."""
         mock_client.tasks.get_async.return_value = _make_task_response(
@@ -384,7 +373,6 @@ class TestBackfillFromDataframe:
         assert result.skipped == 1
         mock_client.tasks.update_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_case_insensitive_enum_matching(self, service, mock_client) -> None:
         """Enum option matching is case-insensitive."""
         mock_client.tasks.get_async.return_value = _make_task_response(

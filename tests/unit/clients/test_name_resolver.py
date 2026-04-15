@@ -113,7 +113,6 @@ def mock_client() -> MockAsanaClient:
 class TestNameResolverTag:
     """Tests for tag resolution."""
 
-    @pytest.mark.asyncio
     async def test_resolve_tag_by_name(self, mock_client: MockAsanaClient) -> None:
         """resolve_tag_async returns GID for matching tag name."""
         mock_client._tags = [
@@ -126,7 +125,6 @@ class TestNameResolverTag:
 
         assert gid == "tag_123"
 
-    @pytest.mark.asyncio
     async def test_resolve_tag_passthrough_gid(self, mock_client: MockAsanaClient) -> None:
         """resolve_tag_async passes through if input looks like GID."""
         resolver = NameResolver(mock_client)
@@ -136,7 +134,6 @@ class TestNameResolverTag:
         # Should return as-is without fetching
         assert gid == "12345678901234567890"
 
-    @pytest.mark.asyncio
     async def test_resolve_tag_case_insensitive(self, mock_client: MockAsanaClient) -> None:
         """resolve_tag_async matches case-insensitively."""
         mock_client._tags = [MockResource(gid="tag_123", name="Urgent")]
@@ -146,7 +143,6 @@ class TestNameResolverTag:
 
         assert gid == "tag_123"
 
-    @pytest.mark.asyncio
     async def test_resolve_tag_whitespace_stripped(self, mock_client: MockAsanaClient) -> None:
         """resolve_tag_async strips whitespace."""
         mock_client._tags = [MockResource(gid="tag_123", name="Urgent")]
@@ -156,7 +152,6 @@ class TestNameResolverTag:
 
         assert gid == "tag_123"
 
-    @pytest.mark.asyncio
     async def test_resolve_tag_not_found_raises(self, mock_client: MockAsanaClient) -> None:
         """resolve_tag_async raises NameNotFoundError for missing tag."""
         mock_client._tags = [MockResource(gid="tag_123", name="Urgent")]
@@ -168,7 +163,6 @@ class TestNameResolverTag:
         assert exc_info.value.resource_type == "tag"
         assert exc_info.value.name == "NonExistent"
 
-    @pytest.mark.asyncio
     async def test_resolve_tag_suggests_alternatives(self, mock_client: MockAsanaClient) -> None:
         """resolve_tag_async suggests similar names in error."""
         mock_client._tags = [
@@ -183,7 +177,6 @@ class TestNameResolverTag:
         # Should suggest "Urgent"
         assert "Urgent" in exc_info.value.suggestions
 
-    @pytest.mark.asyncio
     async def test_resolve_tag_caches_result(self, mock_client: MockAsanaClient) -> None:
         """resolve_tag_async uses cache on second call (no API call)."""
         mock_client._tags = [MockResource(gid="tag_123", name="Urgent")]
@@ -200,7 +193,6 @@ class TestNameResolverTag:
 
         assert gid1 == gid2 == "tag_123"
 
-    @pytest.mark.asyncio
     async def test_resolve_tag_different_caches(self, mock_client: MockAsanaClient) -> None:
         """Different resolver instances have different caches."""
         mock_client._tags = [MockResource(gid="tag_123", name="Urgent")]
@@ -222,7 +214,6 @@ class TestNameResolverTag:
 class TestNameResolverSection:
     """Tests for section resolution."""
 
-    @pytest.mark.asyncio
     async def test_resolve_section_by_name(self, mock_client: MockAsanaClient) -> None:
         """resolve_section_async returns GID for section in project."""
         mock_client._sections = [
@@ -235,7 +226,6 @@ class TestNameResolverSection:
 
         assert gid == "sec_123"
 
-    @pytest.mark.asyncio
     async def test_resolve_section_not_found(self, mock_client: MockAsanaClient) -> None:
         """resolve_section_async raises for missing section."""
         mock_client._sections = [MockResource(gid="sec_123", name="Backlog")]
@@ -246,7 +236,6 @@ class TestNameResolverSection:
 
         assert exc_info.value.resource_type == "section"
 
-    @pytest.mark.asyncio
     async def test_resolve_section_passthrough_gid(self, mock_client: MockAsanaClient) -> None:
         """resolve_section_async passes through GID."""
         resolver = NameResolver(mock_client)
@@ -259,7 +248,6 @@ class TestNameResolverSection:
 class TestNameResolverProject:
     """Tests for project resolution."""
 
-    @pytest.mark.asyncio
     async def test_resolve_project_by_name(self, mock_client: MockAsanaClient) -> None:
         """resolve_project_async returns GID for project in workspace."""
         mock_client._projects = [
@@ -272,7 +260,6 @@ class TestNameResolverProject:
 
         assert gid == "proj_123"
 
-    @pytest.mark.asyncio
     async def test_resolve_project_not_found(self, mock_client: MockAsanaClient) -> None:
         """resolve_project_async raises for missing project."""
         mock_client._projects = [MockResource(gid="proj_123", name="Q4 Planning")]
@@ -283,7 +270,6 @@ class TestNameResolverProject:
 
         assert exc_info.value.resource_type == "project"
 
-    @pytest.mark.asyncio
     async def test_resolve_project_passthrough_gid(self, mock_client: MockAsanaClient) -> None:
         """resolve_project_async passes through GID."""
         resolver = NameResolver(mock_client)
@@ -296,7 +282,6 @@ class TestNameResolverProject:
 class TestNameResolverAssignee:
     """Tests for assignee/user resolution."""
 
-    @pytest.mark.asyncio
     async def test_resolve_assignee_by_name(self, mock_client: MockAsanaClient) -> None:
         """resolve_assignee_async matches user by name."""
         mock_client._users = [
@@ -308,7 +293,6 @@ class TestNameResolverAssignee:
 
         assert gid == "user_123"
 
-    @pytest.mark.asyncio
     async def test_resolve_assignee_by_email(self, mock_client: MockAsanaClient) -> None:
         """resolve_assignee_async matches user by email."""
         mock_client._users = [
@@ -320,7 +304,6 @@ class TestNameResolverAssignee:
 
         assert gid == "user_123"
 
-    @pytest.mark.asyncio
     async def test_resolve_assignee_not_found(self, mock_client: MockAsanaClient) -> None:
         """resolve_assignee_async raises for missing user."""
         mock_client._users = [
@@ -333,7 +316,6 @@ class TestNameResolverAssignee:
 
         assert exc_info.value.resource_type == "user"
 
-    @pytest.mark.asyncio
     async def test_resolve_assignee_case_insensitive_email(
         self, mock_client: MockAsanaClient
     ) -> None:
@@ -347,7 +329,6 @@ class TestNameResolverAssignee:
 
         assert gid == "user_123"
 
-    @pytest.mark.asyncio
     async def test_resolve_assignee_passthrough_gid(self, mock_client: MockAsanaClient) -> None:
         """resolve_assignee_async passes through GID."""
         resolver = NameResolver(mock_client)
@@ -433,7 +414,6 @@ class TestNameResolverLooksLikeGid:
 class TestNameResolverPerSessionCaching:
     """Tests for per-session caching behavior."""
 
-    @pytest.mark.asyncio
     async def test_cache_populated_on_resolve(self, mock_client: MockAsanaClient) -> None:
         """Cache is populated when resolve is called."""
         mock_client._tags = [MockResource(gid="tag_123", name="Urgent")]
@@ -450,7 +430,6 @@ class TestNameResolverPerSessionCaching:
         assert len(resolver._cache) > 0
         assert any("tag" in key for key in resolver._cache)
 
-    @pytest.mark.asyncio
     async def test_cache_hit_prevents_api_call(self, mock_client: MockAsanaClient) -> None:
         """Second resolve uses cache and doesn't call API."""
         call_count = {"tags": 0}

@@ -82,7 +82,6 @@ class TestParseContentDispositionFilename:
 class TestGetExportCsvAsyncSuccess:
     """Tests for successful export requests."""
 
-    @pytest.mark.asyncio
     async def test_success_with_headers(self) -> None:
         """Successful 200 with CSV body and expected headers."""
         client = _make_client()
@@ -109,7 +108,6 @@ class TestGetExportCsvAsyncSuccess:
         assert result.filename == "conversations_17705753103_20260210.csv"
         assert result.csv_content == b"date,direction,body\n2026-02-01,inbound,Hello\n"
 
-    @pytest.mark.asyncio
     async def test_truncated_header_true(self) -> None:
         """Parse X-Export-Truncated=true from headers."""
         client = _make_client()
@@ -129,7 +127,6 @@ class TestGetExportCsvAsyncSuccess:
         assert result.truncated is True
         assert result.row_count == 10000
 
-    @pytest.mark.asyncio
     async def test_fallback_filename_when_no_content_disposition(self) -> None:
         """Generate fallback filename when Content-Disposition is missing."""
         client = _make_client()
@@ -151,7 +148,6 @@ class TestGetExportCsvAsyncSuccess:
         assert result.filename.startswith("conversations_17705753103_")
         assert result.filename.endswith(".csv")
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_records_success(self) -> None:
         """Circuit breaker records success on 200."""
         client = _make_client()
@@ -168,7 +164,6 @@ class TestGetExportCsvAsyncSuccess:
 
         mock_cb.record_success.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_checked_before_request(self) -> None:
         """Circuit breaker check called before request."""
         client = _make_client()
@@ -185,7 +180,6 @@ class TestGetExportCsvAsyncSuccess:
 
         mock_cb.check.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_custom_date_range(self) -> None:
         """Pass start_date and end_date as query params."""
         client = _make_client()
@@ -210,7 +204,6 @@ class TestGetExportCsvAsyncSuccess:
 class TestGetExportCsvAsyncErrors:
     """Tests for error scenarios."""
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_open(self) -> None:
         """Circuit breaker open -> ExportError with reason=circuit_breaker."""
         from autom8y_http import CircuitBreakerOpenError as SdkCBOpen
@@ -225,7 +218,6 @@ class TestGetExportCsvAsyncErrors:
 
         assert exc_info.value.reason == "circuit_breaker"
 
-    @pytest.mark.asyncio
     async def test_4xx_error(self) -> None:
         """4xx response -> ExportError with reason=client_error."""
         client = _make_client()
@@ -240,7 +232,6 @@ class TestGetExportCsvAsyncErrors:
 
         assert exc_info.value.reason == "client_error"
 
-    @pytest.mark.asyncio
     async def test_5xx_error_records_failure(self) -> None:
         """5xx response -> ExportError, circuit breaker records failure."""
         client = _make_client()
@@ -259,7 +250,6 @@ class TestGetExportCsvAsyncErrors:
         assert exc_info.value.reason == "server_error"
         mock_cb.record_failure.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_timeout_with_retry_exhausted(self) -> None:
         """Timeout -> retry, then ExportError with reason=timeout."""
         from dataclasses import replace as dc_replace
@@ -283,7 +273,6 @@ class TestGetExportCsvAsyncErrors:
 
         assert exc_info.value.reason == "timeout"
 
-    @pytest.mark.asyncio
     async def test_http_error(self) -> None:
         """Generic HTTP error -> ExportError with reason=http_error."""
         client = _make_client()

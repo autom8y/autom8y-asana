@@ -66,7 +66,6 @@ def _make_batch_result(success: bool = True, gid: str = "111111") -> BatchResult
 class TestSaveSessionCommitBatchesActions:
     """Test full SaveSession commit with batched actions."""
 
-    @pytest.mark.asyncio
     async def test_save_session_commit_batches_actions(self) -> None:
         """Full SaveSession flow: track entity, add 5 tags, commit -> batch used."""
         from autom8_asana.persistence.session import SaveSession
@@ -95,7 +94,6 @@ class TestSaveSessionCommitBatchesActions:
         # Verify batch client was used (not individual HTTP calls for actions)
         mock_client.batch.execute_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_save_session_commit_mixed_crud_and_batched_actions(self) -> None:
         """CRUD entities + batched actions in single commit -> both execute."""
         from autom8_asana.persistence.session import SaveSession
@@ -138,7 +136,6 @@ class TestSaveSessionCommitBatchesActions:
         # batch.execute_async called at least once for CRUD and once for actions
         assert mock_client.batch.execute_async.call_count >= 2
 
-    @pytest.mark.asyncio
     async def test_save_session_action_fallback_to_sequential(self) -> None:
         """When batch fails for actions, falls back to sequential HTTP calls."""
         from autom8_asana.persistence.session import SaveSession

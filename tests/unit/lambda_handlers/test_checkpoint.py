@@ -336,7 +336,6 @@ class TestCheckpointManager:
         )
         assert mgr._checkpoint_key() == "custom/path/latest.json"
 
-    @pytest.mark.asyncio
     async def test_save_and_load_roundtrip(
         self,
         manager: CheckpointManager,
@@ -360,7 +359,6 @@ class TestCheckpointManager:
         assert checkpoint.pending_entities == ["business", "offer"]
         assert checkpoint.entity_results == [{"entity_type": "unit", "result": "success"}]
 
-    @pytest.mark.asyncio
     async def test_load_missing_checkpoint_returns_none(
         self,
         manager: CheckpointManager,
@@ -369,7 +367,6 @@ class TestCheckpointManager:
         checkpoint = await manager.load_async()
         assert checkpoint is None
 
-    @pytest.mark.asyncio
     async def test_stale_checkpoint_returns_none(
         self,
         manager: CheckpointManager,
@@ -394,7 +391,6 @@ class TestCheckpointManager:
         checkpoint = await manager.load_async()
         assert checkpoint is None
 
-    @pytest.mark.asyncio
     async def test_clear_checkpoint(
         self,
         manager: CheckpointManager,
@@ -420,7 +416,6 @@ class TestCheckpointManager:
         checkpoint = await manager.load_async()
         assert checkpoint is None
 
-    @pytest.mark.asyncio
     async def test_clear_nonexistent_checkpoint(
         self,
         manager: CheckpointManager,
@@ -429,7 +424,6 @@ class TestCheckpointManager:
         success = await manager.clear_async()
         assert success is True
 
-    @pytest.mark.asyncio
     async def test_s3_get_error_returns_none_with_warning(
         self,
         manager: CheckpointManager,
@@ -452,7 +446,6 @@ class TestCheckpointManager:
             call_args = mock_logger.warning.call_args
             assert call_args[0][0] == "checkpoint_load_error"
 
-    @pytest.mark.asyncio
     async def test_s3_put_error_returns_false(
         self,
         manager: CheckpointManager,
@@ -479,7 +472,6 @@ class TestCheckpointManager:
             call_args = mock_logger.error.call_args
             assert call_args[0][0] == "checkpoint_save_error"
 
-    @pytest.mark.asyncio
     async def test_s3_delete_error_returns_false_with_warning(
         self,
         manager: CheckpointManager,
@@ -501,7 +493,6 @@ class TestCheckpointManager:
             call_args = mock_logger.warning.call_args
             assert call_args[0][0] == "checkpoint_clear_error"
 
-    @pytest.mark.asyncio
     async def test_custom_staleness_hours(
         self,
         mock_s3: MockS3Client,
@@ -528,7 +519,6 @@ class TestCheckpointManager:
         delta = checkpoint.expires_at - checkpoint.created_at
         assert 25 < (delta.total_seconds() / 60) < 35  # ~30 minutes
 
-    @pytest.mark.asyncio
     async def test_save_logs_checkpoint_info(
         self,
         manager: CheckpointManager,
@@ -551,7 +541,6 @@ class TestCheckpointManager:
             assert extra["completed"] == ["unit", "business"]
             assert extra["pending"] == ["offer"]
 
-    @pytest.mark.asyncio
     async def test_load_logs_checkpoint_info(
         self,
         manager: CheckpointManager,
@@ -575,7 +564,6 @@ class TestCheckpointManager:
             assert extra["completed"] == ["unit"]
             assert extra["pending"] == ["business", "offer"]
 
-    @pytest.mark.asyncio
     async def test_multiple_saves_overwrite(
         self,
         manager: CheckpointManager,
@@ -603,7 +591,6 @@ class TestCheckpointManager:
         assert checkpoint.invocation_id == "second-456"
         assert checkpoint.completed_entities == ["unit", "business"]
 
-    @pytest.mark.asyncio
     async def test_ensure_client_creates_boto3_client(self) -> None:
         """_ensure_client creates boto3 S3 client if not provided."""
         manager = CheckpointManager(bucket="test-bucket")
@@ -620,7 +607,6 @@ class TestCheckpointManager:
             manager._ensure_client()
             assert mock_boto3.call_count == 1
 
-    @pytest.mark.asyncio
     async def test_entity_results_preserved(
         self,
         manager: CheckpointManager,
@@ -668,7 +654,6 @@ class TestCheckpointManagerIntegration:
         """Create fresh mock S3 client for each test."""
         return MockS3Client()
 
-    @pytest.mark.asyncio
     async def test_resume_workflow_scenario(
         self,
         mock_s3: MockS3Client,
@@ -728,7 +713,6 @@ class TestCheckpointManagerIntegration:
         checkpoint = await manager.load_async()
         assert checkpoint is None
 
-    @pytest.mark.asyncio
     async def test_fresh_start_no_checkpoint(
         self,
         mock_s3: MockS3Client,

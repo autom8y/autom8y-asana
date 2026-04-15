@@ -115,7 +115,6 @@ class TestDataSourceProtocol:
 class TestValidateAsync:
     """Tests for BridgeWorkflowAction.validate_async."""
 
-    @pytest.mark.asyncio
     async def test_feature_flag_disabled_false(self) -> None:
         bridge = _make_test_bridge()
         with patch.dict(os.environ, {"TEST_BRIDGE_ENABLED": "false"}):
@@ -124,28 +123,24 @@ class TestValidateAsync:
         assert "disabled" in errors[0].lower()
         assert "TEST_BRIDGE_ENABLED" in errors[0]
 
-    @pytest.mark.asyncio
     async def test_feature_flag_disabled_zero(self) -> None:
         bridge = _make_test_bridge()
         with patch.dict(os.environ, {"TEST_BRIDGE_ENABLED": "0"}):
             errors = await bridge.validate_async()
         assert len(errors) == 1
 
-    @pytest.mark.asyncio
     async def test_feature_flag_disabled_no(self) -> None:
         bridge = _make_test_bridge()
         with patch.dict(os.environ, {"TEST_BRIDGE_ENABLED": "no"}):
             errors = await bridge.validate_async()
         assert len(errors) == 1
 
-    @pytest.mark.asyncio
     async def test_feature_flag_enabled_true(self) -> None:
         bridge = _make_test_bridge()
         with patch.dict(os.environ, {"TEST_BRIDGE_ENABLED": "true"}):
             errors = await bridge.validate_async()
         assert errors == []
 
-    @pytest.mark.asyncio
     async def test_feature_flag_enabled_default(self) -> None:
         """Unset env var means enabled."""
         bridge = _make_test_bridge()
@@ -154,7 +149,6 @@ class TestValidateAsync:
             errors = await bridge.validate_async()
         assert errors == []
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_open(self) -> None:
         from autom8y_http import CircuitBreakerOpenError as SdkCBOpen
 
@@ -169,7 +163,6 @@ class TestValidateAsync:
         assert len(errors) == 1
         assert "circuit breaker" in errors[0].lower()
 
-    @pytest.mark.asyncio
     async def test_data_client_none(self) -> None:
         """No health check when data_client is None."""
         bridge = _TestBridge(
@@ -182,7 +175,6 @@ class TestValidateAsync:
             errors = await bridge.validate_async()
         assert errors == []
 
-    @pytest.mark.asyncio
     async def test_connection_error_ignored(self) -> None:
         """ConnectionError from is_healthy is NOT a pre-flight failure."""
         mock_dc = MagicMock()
@@ -200,7 +192,6 @@ class TestValidateAsync:
 class TestEnumerateAsync:
     """Tests for BridgeWorkflowAction.enumerate_async."""
 
-    @pytest.mark.asyncio
     async def test_targeted_fast_path(self) -> None:
         bridge = _make_test_bridge()
         scope = EntityScope(entity_ids=("gid1", "gid2"))
@@ -210,7 +201,6 @@ class TestEnumerateAsync:
             {"gid": "gid2", "name": None},
         ]
 
-    @pytest.mark.asyncio
     async def test_full_path_delegates(self) -> None:
         bridge = _make_test_bridge()
         scope = EntityScope()
@@ -219,7 +209,6 @@ class TestEnumerateAsync:
         assert len(result) == 1
         assert result[0]["gid"] == "test-1"
 
-    @pytest.mark.asyncio
     async def test_limit_truncation(self) -> None:
         """Limit is applied after full enumeration."""
 
@@ -245,7 +234,6 @@ class TestEnumerateAsync:
 class TestExecuteAsync:
     """Tests for BridgeWorkflowAction.execute_async."""
 
-    @pytest.mark.asyncio
     async def test_happy_path(self) -> None:
         bridge = _make_test_bridge()
         entities = [
@@ -260,7 +248,6 @@ class TestExecuteAsync:
         assert result.skipped == 0
         assert result.workflow_id == "test-bridge"
 
-    @pytest.mark.asyncio
     async def test_broad_catch(self) -> None:
         """process_entity raising Exception results in failed outcome."""
 
@@ -286,7 +273,6 @@ class TestExecuteAsync:
         assert result.errors[0].item_id == "e1"
         assert "boom e1" in result.errors[0].message
 
-    @pytest.mark.asyncio
     async def test_mixed_outcomes(self) -> None:
         """Mix of succeeded, failed, and skipped outcomes."""
         call_count = 0
@@ -334,7 +320,6 @@ class TestExecuteAsync:
         assert result.skipped == 1
         assert call_count == 3
 
-    @pytest.mark.asyncio
     async def test_concurrency_param(self) -> None:
         """max_concurrency param is respected."""
         bridge = _make_test_bridge()

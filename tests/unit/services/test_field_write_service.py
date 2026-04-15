@@ -151,7 +151,6 @@ def _make_mock_client(
 class TestFieldWriteService:
     """Per TDD-ENTITY-WRITE-API Section 16.3."""
 
-    @pytest.mark.asyncio
     async def test_write_success_single_field(self) -> None:
         """Single field write returns fields_written=1."""
         client = _make_mock_client()
@@ -170,7 +169,6 @@ class TestFieldWriteService:
         assert result.entity_type == "offer"
         client.tasks.update_async.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_write_partial_success(self) -> None:
         """3 valid + 1 invalid returns fields_written=3, fields_skipped=1."""
         client = _make_mock_client()
@@ -195,7 +193,6 @@ class TestFieldWriteService:
         assert len(skipped) == 1
         assert skipped[0].input_name == "nonexistent_field"
 
-    @pytest.mark.asyncio
     async def test_write_all_invalid_raises(self) -> None:
         """All fields invalid raises NoValidFieldsError."""
         client = _make_mock_client()
@@ -209,7 +206,6 @@ class TestFieldWriteService:
                 fields={"bogus_field_1": "x", "bogus_field_2": "y"},
             )
 
-    @pytest.mark.asyncio
     async def test_task_not_found_raises(self) -> None:
         """Asana 404 raises TaskNotFoundError."""
         client = _make_mock_client(get_side_effect=NotFoundError("Not found", status_code=404))
@@ -224,7 +220,6 @@ class TestFieldWriteService:
             )
         assert "0000000000" in str(exc_info.value)
 
-    @pytest.mark.asyncio
     async def test_entity_type_mismatch_raises(self) -> None:
         """Task in wrong project raises EntityTypeMismatchError."""
         wrong_project_data = {
@@ -246,7 +241,6 @@ class TestFieldWriteService:
         assert exc_info.value.expected_project == PROJECT_GID
         assert "WRONG_PROJECT_GID" in exc_info.value.actual_projects
 
-    @pytest.mark.asyncio
     async def test_core_and_custom_single_api_call(self) -> None:
         """Verifies one update_async call with both core kwargs and custom_fields dict."""
         client = _make_mock_client()
@@ -268,7 +262,6 @@ class TestFieldWriteService:
         assert "cf_111" in call_kwargs.kwargs.get("custom_fields", {})
         assert call_kwargs.kwargs["custom_fields"]["cf_111"] == 750
 
-    @pytest.mark.asyncio
     async def test_mutation_event_emitted(self) -> None:
         """MutationEvent is created after successful write."""
         client = _make_mock_client()
@@ -295,7 +288,6 @@ class TestFieldWriteService:
         assert PROJECT_GID in event.project_gids
         assert result.fields_written == 1
 
-    @pytest.mark.asyncio
     async def test_include_updated_refetch(self) -> None:
         """include_updated=True triggers a re-fetch and returns values."""
         # The second get_async call (re-fetch) returns updated data
@@ -321,7 +313,6 @@ class TestFieldWriteService:
         # Two get_async calls: fetch + re-fetch
         assert client.tasks.get_async.await_count == 2
 
-    @pytest.mark.asyncio
     async def test_asana_rate_limit_propagates(self) -> None:
         """Asana RateLimitError propagates to caller."""
         client = _make_mock_client(
@@ -338,7 +329,6 @@ class TestFieldWriteService:
             )
         assert exc_info.value.retry_after == 30
 
-    @pytest.mark.asyncio
     async def test_multi_enum_all_unresolved_skips_field(self) -> None:
         """Multi-enum with all-unresolved options is skipped, not silently cleared.
 
@@ -383,7 +373,6 @@ class TestFieldWriteService:
                 fields={"form_questions": ["Bogus Q1", "Bogus Q2"]},
             )
 
-    @pytest.mark.asyncio
     async def test_multi_enum_partial_unresolved_writes_matched(self) -> None:
         """Multi-enum with some unresolved options writes matched values.
 

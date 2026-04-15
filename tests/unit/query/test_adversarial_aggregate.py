@@ -244,7 +244,6 @@ class TestGroupByEdgeCases:
         with pytest.raises(AggregationError, match="Too many group_by"):
             limits.check_group_by(["gid", "name", "vertical"], offer_schema)
 
-    @pytest.mark.asyncio
     async def test_group_by_all_null_values_produces_single_null_group(
         self,
         mock_client: AsyncMock,
@@ -287,7 +286,6 @@ class TestGroupByEdgeCases:
         assert result.data[0]["vertical"] is None
         assert result.data[0]["cnt"] == 3
 
-    @pytest.mark.asyncio
     async def test_group_by_single_unique_value_produces_single_group(
         self,
         mock_client: AsyncMock,
@@ -329,7 +327,6 @@ class TestGroupByEdgeCases:
         assert result.data[0]["vertical"] == "dental"
         assert result.data[0]["cnt"] == 3
 
-    @pytest.mark.asyncio
     async def test_group_by_exceeding_max_aggregate_groups_raises(
         self,
         mock_client: AsyncMock,
@@ -381,7 +378,6 @@ class TestGroupByEdgeCases:
 class TestHavingEdgeCases:
     """Adversarial tests for HAVING clause."""
 
-    @pytest.mark.asyncio
     async def test_having_nonexistent_alias_raises(
         self,
         mock_client: AsyncMock,
@@ -422,7 +418,6 @@ class TestHavingEdgeCases:
                 )
             assert exc_info.value.field == "nonexistent_alias"
 
-    @pytest.mark.asyncio
     async def test_having_complex_nested_predicates(
         self,
         mock_client: AsyncMock,
@@ -483,7 +478,6 @@ class TestHavingEdgeCases:
         assert "vet" in verts
         assert "medical" not in verts
 
-    @pytest.mark.asyncio
     async def test_having_filters_all_groups_returns_empty(
         self,
         mock_client: AsyncMock,
@@ -525,7 +519,6 @@ class TestHavingEdgeCases:
         assert result.data == []
         assert result.meta.group_count == 0
 
-    @pytest.mark.asyncio
     async def test_having_on_group_by_column_works(
         self,
         mock_client: AsyncMock,
@@ -568,7 +561,6 @@ class TestHavingEdgeCases:
         assert result.data[0]["vertical"] == "dental"
         assert result.data[0]["cnt"] == 2
 
-    @pytest.mark.asyncio
     async def test_having_numeric_comparison_on_count(
         self,
         mock_client: AsyncMock,
@@ -637,7 +629,6 @@ class TestHavingEdgeCases:
         )
         assert req.having is None
 
-    @pytest.mark.asyncio
     async def test_having_depth_guard(
         self,
         mock_client: AsyncMock,
@@ -803,7 +794,6 @@ class TestAggregationCompilationEdgeCases:
 class TestEngineIntegrationAdversarial:
     """Adversarial tests for QueryEngine.execute_aggregate()."""
 
-    @pytest.mark.asyncio
     async def test_full_pipeline_where_section_having(
         self,
         mock_client: AsyncMock,
@@ -859,7 +849,6 @@ class TestEngineIntegrationAdversarial:
         assert result.data[0]["vertical"] == "dental"
         assert result.data[0]["total"] == 800.0
 
-    @pytest.mark.asyncio
     async def test_where_depth_guard(
         self,
         mock_client: AsyncMock,
@@ -902,7 +891,6 @@ class TestEngineIntegrationAdversarial:
                     request=request,
                 )
 
-    @pytest.mark.asyncio
     async def test_alias_collision_at_engine_level(
         self,
         mock_client: AsyncMock,
@@ -944,7 +932,6 @@ class TestEngineIntegrationAdversarial:
                     request=request,
                 )
 
-    @pytest.mark.asyncio
     async def test_alias_collides_with_group_by_column_at_engine(
         self,
         mock_client: AsyncMock,
@@ -985,7 +972,6 @@ class TestEngineIntegrationAdversarial:
                     request=request,
                 )
 
-    @pytest.mark.asyncio
     async def test_response_format_data_is_list_of_dicts(
         self,
         mock_client: AsyncMock,
@@ -1036,7 +1022,6 @@ class TestEngineIntegrationAdversarial:
         assert result.meta.group_count == len(result.data)
         assert result.meta.aggregation_count == 2
 
-    @pytest.mark.asyncio
     async def test_meta_has_group_count(
         self,
         mock_client: AsyncMock,

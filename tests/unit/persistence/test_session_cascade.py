@@ -116,7 +116,6 @@ class TestCascadeOperationQueuing:
 class TestCascadeExecutionDuringCommit:
     """Tests for cascade execution during commit_async()."""
 
-    @pytest.mark.asyncio
     async def test_cascades_executed_during_commit(self) -> None:
         """Cascade executor is called with pending cascades during commit.
 
@@ -146,7 +145,6 @@ class TestCascadeExecutionDuringCommit:
         assert len(call_args) == 1
         assert call_args[0].field_name == "Office Phone"
 
-    @pytest.mark.asyncio
     async def test_cascades_cleared_on_success(self) -> None:
         """Successful cascades are cleared from pending list.
 
@@ -174,7 +172,6 @@ class TestCascadeExecutionDuringCommit:
         pending = session.get_pending_cascades()
         assert len(pending) == 0
 
-    @pytest.mark.asyncio
     async def test_cascades_preserved_on_failure(self) -> None:
         """Failed cascades remain in pending list for retry.
 
@@ -203,7 +200,6 @@ class TestCascadeExecutionDuringCommit:
         pending = session.get_pending_cascades()
         assert len(pending) == 1
 
-    @pytest.mark.asyncio
     async def test_cascade_result_in_save_result(self) -> None:
         """SaveResult.cascade_results is populated after commit.
 
@@ -231,7 +227,6 @@ class TestCascadeExecutionDuringCommit:
         assert len(result.cascade_results) == 1
         assert result.cascade_results[0] is mock_result
 
-    @pytest.mark.asyncio
     async def test_save_result_success_includes_cascades(self) -> None:
         """SaveResult.success is False when cascade fails.
 
@@ -258,7 +253,6 @@ class TestCascadeExecutionDuringCommit:
         # Verify success is False due to cascade failure
         assert result.success is False
 
-    @pytest.mark.asyncio
     async def test_no_cascades_results_in_empty_cascade_results(self) -> None:
         """When no cascades queued, cascade_results is empty list."""
         mock_client = create_mock_client()
@@ -340,7 +334,6 @@ class TestSaveResultCascadeProperties:
 class TestCascadeIntegration:
     """Integration tests for cascade execution flow."""
 
-    @pytest.mark.asyncio
     async def test_cascades_only_commit_executes_cascades(self) -> None:
         """Commit with only cascades (no CRUD/actions) executes successfully."""
         mock_client = create_mock_client()
@@ -364,7 +357,6 @@ class TestCascadeIntegration:
         assert result.success is True
         assert len(result.cascade_results) == 1
 
-    @pytest.mark.asyncio
     async def test_cascade_executor_initialized_in_init(self) -> None:
         """CascadeExecutor is initialized in SaveSession.__init__.
 
@@ -377,7 +369,6 @@ class TestCascadeIntegration:
         assert hasattr(session, "_cascade_executor")
         assert session._cascade_executor is not None
 
-    @pytest.mark.asyncio
     async def test_cascade_operations_list_initialized_in_init(self) -> None:
         """_cascade_operations list is initialized in SaveSession.__init__.
 

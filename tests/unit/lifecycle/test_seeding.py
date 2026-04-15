@@ -68,7 +68,6 @@ def _make_mock_process(custom_fields: list[dict[str, Any]] | None = None) -> Mag
 class TestSeedAsyncTargetTaskPassthrough:
     """Tests for target_task parameter on seed_async (IMP-02)."""
 
-    @pytest.mark.asyncio
     async def test_skips_fetch_when_target_task_provided(self) -> None:
         """When target_task is provided, seed_async should not fetch the task."""
         client = _make_mock_client()
@@ -91,7 +90,6 @@ class TestSeedAsyncTargetTaskPassthrough:
         # the target_task through, that should also be skipped)
         client.tasks.get_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_fetches_when_target_task_not_provided(self) -> None:
         """When target_task is None, seed_async fetches the task as before."""
         client = _make_mock_client()
@@ -114,7 +112,6 @@ class TestSeedAsyncTargetTaskPassthrough:
         call_args = client.tasks.get_async.call_args
         assert call_args.args[0] == "task_123"
 
-    @pytest.mark.asyncio
     async def test_threads_task_to_write_fields_async(self) -> None:
         """Verify seed_async passes target_task to write_fields_async."""
         client = _make_mock_client()
@@ -150,7 +147,6 @@ class TestSeedAsyncTargetTaskPassthrough:
             assert "target_task" in call_kwargs
             assert call_kwargs["target_task"] is target_task
 
-    @pytest.mark.asyncio
     async def test_returns_correct_result_with_passthrough(self) -> None:
         """Verify seed_async produces correct SeedingResult with target_task."""
         client = _make_mock_client()
@@ -184,7 +180,6 @@ class TestSeedAsyncTargetTaskPassthrough:
             assert result.fields_skipped == []
             assert result.warnings == []
 
-    @pytest.mark.asyncio
     async def test_backward_compatible_without_target_task(self) -> None:
         """Existing callers that don't pass target_task still work."""
         client = _make_mock_client()

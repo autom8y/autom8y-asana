@@ -135,7 +135,6 @@ def parent_hierarchy() -> dict[str, MockTask]:
 class TestConcurrencyController:
     """Tests for ConcurrencyController integration."""
 
-    @pytest.mark.asyncio
     async def test_gather_with_limit_bounds_concurrency(self) -> None:
         """Test that gather_with_limit respects concurrency limit."""
         max_concurrent = 5
@@ -166,7 +165,6 @@ class TestConcurrencyController:
             f"Max concurrent {max_observed} exceeded limit {max_concurrent}"
         )
 
-    @pytest.mark.asyncio
     async def test_gather_with_limit_preserves_order(self) -> None:
         """Test that results are returned in input order."""
         controller = ConcurrencyController(config=ConcurrencyConfig(max_concurrent=10))
@@ -181,7 +179,6 @@ class TestConcurrencyController:
         expected = [i * 2 for i in range(20)]
         assert results == expected
 
-    @pytest.mark.asyncio
     async def test_controller_stats_tracking(self) -> None:
         """Test that controller tracks statistics correctly."""
         controller = ConcurrencyController(config=ConcurrencyConfig(max_concurrent=5))
@@ -200,7 +197,6 @@ class TestConcurrencyController:
 class TestHierarchyAwareResolver:
     """Tests for HierarchyAwareResolver integration."""
 
-    @pytest.mark.asyncio
     @pytest.mark.skip(
         reason="RS-021: resolve_batch cache miss — fetch_count=4 on second call, "
         "needs architect-enforcer investigation per B-001"
@@ -235,7 +231,6 @@ class TestHierarchyAwareResolver:
         # Note: HierarchyAwareResolver cache is within the resolver instance
         # so second call should still hit cache (fetch_count unchanged)
 
-    @pytest.mark.asyncio
     async def test_resolve_with_ancestors_fetches_chain(
         self, mock_client: MagicMock, parent_hierarchy: dict[str, MockTask]
     ) -> None:
@@ -268,7 +263,6 @@ class TestHierarchyAwareResolver:
 class TestCascadingFieldResolverIntegration:
     """Tests for CascadingFieldResolver with platform primitives."""
 
-    @pytest.mark.asyncio
     async def test_warm_parents_batches_fetches(
         self, mock_client: MagicMock, parent_hierarchy: dict[str, MockTask]
     ) -> None:
@@ -300,7 +294,6 @@ class TestCascadingFieldResolverIntegration:
         assert "unit-1" in resolver._parent_cache
         assert "business-1" in resolver._parent_cache
 
-    @pytest.mark.asyncio
     async def test_fetch_parent_uses_cache(
         self, mock_client: MagicMock, parent_hierarchy: dict[str, MockTask]
     ) -> None:
@@ -367,7 +360,6 @@ class TestSchemaHasCascadeColumns:
 class TestPerformanceBoundaries:
     """Tests to verify performance stays within acceptable bounds."""
 
-    @pytest.mark.asyncio
     async def test_large_batch_completes_within_timeout(self) -> None:
         """Test that large batches complete within reasonable time."""
         controller = ConcurrencyController(config=ConcurrencyConfig(max_concurrent=25))
@@ -389,7 +381,6 @@ class TestPerformanceBoundaries:
         # Should complete in under 1 second (vs 1s sequential)
         assert elapsed < 1.0, f"Took {elapsed:.2f}s, expected < 1.0s"
 
-    @pytest.mark.asyncio
     async def test_chunking_handles_large_batches(self) -> None:
         """Test that chunking works for very large batches."""
         controller = ConcurrencyController(

@@ -313,7 +313,6 @@ class TestFilteringAndSorting:
     Per TDD-STATUS-AWARE-RESOLUTION / FR-1, FR-8, FR-9, FR-11.
     """
 
-    @pytest.mark.asyncio
     async def test_active_only_true_filters_inactive_and_ignored(
         self, index_cache: DynamicIndexCache, mock_client: MagicMock
     ) -> None:
@@ -377,7 +376,6 @@ class TestFilteringAndSorting:
         assert result.match_count == 2
         assert set(result.gids) == {"u-active", "u-activating"}
 
-    @pytest.mark.asyncio
     async def test_active_only_true_filters_unknown_null_status(
         self, index_cache: DynamicIndexCache, mock_client: MagicMock
     ) -> None:
@@ -417,7 +415,6 @@ class TestFilteringAndSorting:
         assert results[0].error == "NOT_FOUND"
         assert results[0].gid is None
 
-    @pytest.mark.asyncio
     async def test_active_only_true_all_inactive_returns_not_found(
         self, index_cache: DynamicIndexCache, mock_client: MagicMock
     ) -> None:
@@ -457,7 +454,6 @@ class TestFilteringAndSorting:
         assert results[0].error == "NOT_FOUND"
         assert results[0].match_count == 0
 
-    @pytest.mark.asyncio
     async def test_active_only_false_returns_all_with_annotations(
         self, index_cache: DynamicIndexCache, mock_client: MagicMock
     ) -> None:
@@ -533,7 +529,6 @@ class TestFilteringAndSorting:
         assert sorted_pairs[1][0] == "gid-second"
         assert sorted_pairs[2][0] == "gid-third"
 
-    @pytest.mark.asyncio
     async def test_mixed_status_six_gids_sorted_and_filtered(
         self, index_cache: DynamicIndexCache, mock_client: MagicMock
     ) -> None:
@@ -576,7 +571,6 @@ class TestFilteringAndSorting:
         assert result.gids[1] == "g-ing"  # ACTIVATING second
         assert result.total_match_count == 4  # Pre-filter count
 
-    @pytest.mark.asyncio
     async def test_total_match_count_set_when_active_only(
         self, index_cache: DynamicIndexCache, mock_client: MagicMock
     ) -> None:
@@ -617,7 +611,6 @@ class TestFilteringAndSorting:
         assert result.total_match_count == 3  # All 3 before filtering
         assert result.match_count == 1  # Only Active passes filter
 
-    @pytest.mark.asyncio
     async def test_total_match_count_null_when_active_only_false(
         self, index_cache: DynamicIndexCache, mock_client: MagicMock
     ) -> None:
@@ -670,7 +663,6 @@ class TestNoClassifierDegradation:
     Per TDD-STATUS-AWARE-RESOLUTION / FR-7.
     """
 
-    @pytest.mark.asyncio
     async def test_no_classifier_active_only_ignored(
         self, index_cache: DynamicIndexCache, mock_client: MagicMock
     ) -> None:
@@ -709,7 +701,6 @@ class TestNoClassifierDegradation:
         assert result.gid == "g1"
         assert result.match_count == 1
 
-    @pytest.mark.asyncio
     async def test_no_classifier_no_status_annotations(
         self, index_cache: DynamicIndexCache, mock_client: MagicMock
     ) -> None:
@@ -746,7 +737,6 @@ class TestNoClassifierDegradation:
 
         assert results[0].status_annotations is None
 
-    @pytest.mark.asyncio
     async def test_no_classifier_gid_returns_first(
         self, index_cache: DynamicIndexCache, mock_client: MagicMock
     ) -> None:
@@ -784,7 +774,6 @@ class TestNoClassifierDegradation:
         result = results[0]
         assert result.gid == result.gids[0]
 
-    @pytest.mark.asyncio
     async def test_no_classifier_no_error(
         self, index_cache: DynamicIndexCache, mock_client: MagicMock
     ) -> None:

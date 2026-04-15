@@ -143,7 +143,6 @@ def _make_mock_task(gid: str = "new_task_gid", name: str = "New Task") -> MagicM
 # ------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_create_process_template_happy_path():
     """Template-based creation: template found, duplicated, configured."""
     client = _make_mock_client()
@@ -208,7 +207,6 @@ async def test_create_process_template_happy_path():
 # ------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_create_process_blank_fallback():
     """When template not found, create blank task with warning."""
     client = _make_mock_client()
@@ -344,7 +342,6 @@ def test_generate_name_case_insensitive():
 # ------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_auto_cascade_matching_field_cascades():
     """Fields with matching names on source and target cascade automatically."""
     client = _make_mock_client()
@@ -403,7 +400,6 @@ async def test_auto_cascade_matching_field_cascades():
     assert len(result.fields_skipped) == 0
 
 
-@pytest.mark.asyncio
 async def test_auto_cascade_exclusion_prevents_cascade():
     """Excluded fields are not cascaded even if names match."""
     client = _make_mock_client()
@@ -462,7 +458,6 @@ async def test_auto_cascade_exclusion_prevents_cascade():
     assert "Internal Notes" not in fields_arg
 
 
-@pytest.mark.asyncio
 async def test_auto_cascade_computed_field_overrides():
     """Computed fields override source values."""
     client = _make_mock_client()
@@ -515,7 +510,6 @@ async def test_auto_cascade_computed_field_overrides():
     assert fields_arg["Status"] == "New"
 
 
-@pytest.mark.asyncio
 async def test_auto_cascade_precedence_process_overrides_unit_overrides_business():
     """Precedence: Process > Unit > Business for same-named field."""
     client = _make_mock_client()
@@ -568,7 +562,6 @@ async def test_auto_cascade_precedence_process_overrides_unit_overrides_business
     assert fields_arg["Priority"] == "High"
 
 
-@pytest.mark.asyncio
 async def test_auto_cascade_enum_field_gid_resolution():
     """Enum fields have names extracted, GID resolution happens at write time."""
     client = _make_mock_client()
@@ -628,7 +621,6 @@ async def test_auto_cascade_enum_field_gid_resolution():
 # ------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_duplicate_detected_skips_creation():
     """Existing non-completed process with same ProcessType skips creation."""
     client = _make_mock_client()
@@ -669,7 +661,6 @@ async def test_duplicate_detected_skips_creation():
     client.tasks.create_async.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_duplicate_check_completed_tasks_skipped():
     """Completed tasks in holder are not considered duplicates."""
     client = _make_mock_client()
@@ -735,7 +726,6 @@ async def test_duplicate_check_completed_tasks_skipped():
 # ------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_assignee_stage_specific_field():
     """Assignee from stage-specific field on source process."""
     client = _make_mock_client()
@@ -772,7 +762,6 @@ async def test_assignee_stage_specific_field():
     )
 
 
-@pytest.mark.asyncio
 async def test_assignee_fixed_gid():
     """Assignee from fixed GID when stage-specific field is empty."""
     client = _make_mock_client()
@@ -803,7 +792,6 @@ async def test_assignee_fixed_gid():
     )
 
 
-@pytest.mark.asyncio
 async def test_assignee_fallback_to_unit_rep():
     """Assignee falls back to Unit.rep[0]."""
     client = _make_mock_client()
@@ -834,7 +822,6 @@ async def test_assignee_fallback_to_unit_rep():
     )
 
 
-@pytest.mark.asyncio
 async def test_assignee_fallback_to_business_rep():
     """Assignee falls back to Business.rep[0] when Unit.rep is empty."""
     client = _make_mock_client()
@@ -865,7 +852,6 @@ async def test_assignee_fallback_to_business_rep():
     )
 
 
-@pytest.mark.asyncio
 async def test_assignee_none_available_returns_warning():
     """No assignee available produces warning."""
     client = _make_mock_client()
@@ -899,7 +885,6 @@ async def test_assignee_none_available_returns_warning():
 # ------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_hierarchy_placement_via_process_holder():
     """When source has process_holder, use it directly (no resolution needed)."""
     client = _make_mock_client()
@@ -924,7 +909,6 @@ async def test_hierarchy_placement_via_process_holder():
     ctx.resolve_holder_async.assert_not_called()
 
 
-@pytest.mark.asyncio
 async def test_hierarchy_placement_fallback_to_context():
     """When process_holder not on source, resolve via context."""
     client = _make_mock_client()
@@ -954,7 +938,6 @@ async def test_hierarchy_placement_fallback_to_context():
 # ------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_due_date_calculation():
     """Due date = today + offset_days from stage config."""
     client = _make_mock_client()
@@ -998,7 +981,6 @@ async def test_due_date_calculation():
     )
 
 
-@pytest.mark.asyncio
 async def test_merged_due_date_and_assignee_single_call():
     """R1 boy-scout: due_date + assignee merged into single update_async call."""
     client = _make_mock_client()
@@ -1051,7 +1033,6 @@ async def test_merged_due_date_and_assignee_single_call():
 # ------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_section_placement_case_insensitive():
     """Section found by case-insensitive name match via shared helper."""
     client = _make_mock_client()
@@ -1079,7 +1060,6 @@ async def test_section_placement_case_insensitive():
     )
 
 
-@pytest.mark.asyncio
 async def test_section_placement_not_found():
     """Returns False when section not found via shared helper."""
     client = _make_mock_client()
@@ -1104,7 +1084,6 @@ async def test_section_placement_not_found():
 # ------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_creation_failure_returns_error_result():
     """Exception during creation returns error result with diagnostics."""
     client = _make_mock_client()
@@ -1132,7 +1111,6 @@ async def test_creation_failure_returns_error_result():
     assert result.entity_gid is None
 
 
-@pytest.mark.asyncio
 async def test_seeding_failure_non_fatal():
     """Field seeding failure is non-fatal -- creation still succeeds."""
     client = _make_mock_client()
@@ -1192,7 +1170,6 @@ def test_creation_result_is_frozen():
 # ------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 async def test_full_creation_flow_with_all_configure_steps():
     """End-to-end: template found, section placed, due date set,
     fields seeded, assignee set, hierarchy placed."""

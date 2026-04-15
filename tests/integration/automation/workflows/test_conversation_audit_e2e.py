@@ -99,7 +99,6 @@ class _AsyncIterator:
 class TestConversationAuditE2E:
     """Full lifecycle integration test with mocked externals."""
 
-    @pytest.mark.asyncio
     async def test_full_lifecycle_mixed_outcomes(self) -> None:
         """Test with 4 holders: 2 succeed, 1 skip (no phone), 1 fail (export error).
 
@@ -227,7 +226,6 @@ class TestConversationAuditE2E:
         # Verify activity_skipped_count metadata
         assert result.metadata["activity_skipped_count"] == 0
 
-    @pytest.mark.asyncio
     async def test_validate_then_execute(self) -> None:
         """Test the full validate -> execute lifecycle as called by scheduler/lambda."""
         mock_asana = MagicMock()

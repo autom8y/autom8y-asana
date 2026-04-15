@@ -121,7 +121,6 @@ def _make_merged_df_with_parent_gids() -> pl.DataFrame:
 class TestWarmHierarchyGapsFetchesFullData:
     """Verify that _warm_hierarchy_gaps_async fetches full task data from API."""
 
-    @pytest.mark.asyncio
     async def test_fetches_from_api_not_stubs(self) -> None:
         """The fix must fetch full task data, not pass GID-only stubs.
 
@@ -194,7 +193,6 @@ class TestWarmHierarchyGapsFetchesFullData:
         # Verify: returned count is correct
         assert result == 1
 
-    @pytest.mark.asyncio
     async def test_skips_already_cached_parents(self) -> None:
         """Parents that are already cached should not be re-fetched."""
         from autom8_asana.dataframes.builders.progressive import (
@@ -238,7 +236,6 @@ class TestWarmHierarchyGapsFetchesFullData:
         # Verify: returned 0 (nothing to warm)
         assert result == 0
 
-    @pytest.mark.asyncio
     async def test_handles_api_fetch_failure_gracefully(self) -> None:
         """If API fetch fails for a parent, continue with remaining parents."""
         from autom8_asana.dataframes.builders.progressive import (
@@ -285,7 +282,6 @@ class TestWarmHierarchyGapsFetchesFullData:
         # Result is 0 (nothing successfully warmed)
         assert result == 0
 
-    @pytest.mark.asyncio
     async def test_no_store_returns_zero(self) -> None:
         """Without a store, warm_hierarchy_gaps_async returns 0."""
         from autom8_asana.dataframes.builders.hierarchy_warmer import HierarchyWarmer
@@ -303,7 +299,6 @@ class TestWarmHierarchyGapsFetchesFullData:
         result = await warmer.warm_hierarchy_gaps_async(df)
         assert result == 0
 
-    @pytest.mark.asyncio
     async def test_multiple_uncached_parents_fetched(self) -> None:
         """Multiple distinct uncached parents should all be fetched."""
         from autom8_asana.dataframes.builders.progressive import (
@@ -393,7 +388,6 @@ class TestWarmHierarchyGapsRootCause:
     Cascade resolution for office_phone then failed.
     """
 
-    @pytest.mark.asyncio
     async def test_stub_dicts_lack_parent_field(self) -> None:
         """Demonstrate that GID-only stubs lack the parent field.
 

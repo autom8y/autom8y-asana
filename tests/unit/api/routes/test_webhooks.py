@@ -455,7 +455,6 @@ class TestReceiveInboundWebhook:
 class TestNoOpDispatcher:
     """Tests for the NoOpDispatcher default implementation."""
 
-    @pytest.mark.asyncio
     async def test_dispatch_logs_task_gid(self):
         """NoOpDispatcher should log the task GID."""
         dispatcher = NoOpDispatcher()
@@ -471,7 +470,6 @@ class TestNoOpDispatcher:
             assert call_args[0][0] == "webhook_task_dispatched_noop"
             assert call_args[1]["extra"]["task_gid"] == "9876543210"
 
-    @pytest.mark.asyncio
     async def test_dispatch_does_not_raise(self):
         """NoOpDispatcher.dispatch should complete without raising."""
         dispatcher = NoOpDispatcher()
@@ -524,7 +522,6 @@ class TestSetDispatcher:
 class TestProcessInboundTask:
     """Tests for the _process_inbound_task background function."""
 
-    @pytest.mark.asyncio
     async def test_calls_cache_invalidation(self, mock_cache_provider):
         """Background task should call invalidate_stale_task_cache."""
         from autom8_asana.api.routes.webhooks import _process_inbound_task
@@ -548,7 +545,6 @@ class TestProcessInboundTask:
                 cache_provider=mock_cache_provider,
             )
 
-    @pytest.mark.asyncio
     async def test_calls_dispatcher(self):
         """Background task should call the dispatcher."""
         from autom8_asana.api.routes.webhooks import _process_inbound_task
@@ -562,7 +558,6 @@ class TestProcessInboundTask:
 
         mock_dispatcher.dispatch.assert_awaited_once_with(task)
 
-    @pytest.mark.asyncio
     async def test_dispatch_error_does_not_propagate(self):
         """Dispatch errors should be caught and logged, not raised."""
         from autom8_asana.api.routes.webhooks import _process_inbound_task
@@ -999,7 +994,6 @@ class TestAdversarialDispatchProtocol:
 
         assert not isinstance(BadDispatcher(), WebhookDispatcher)
 
-    @pytest.mark.asyncio
     async def test_dispatcher_swap_during_background_task(self):
         """Swapping dispatcher during background processing uses new dispatcher.
 

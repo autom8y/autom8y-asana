@@ -23,7 +23,6 @@ from autom8_asana.clients.data.config import DataServiceConfig
 class TestGetInsightsAsyncValidation:
     """Tests for get_insights_async input validation."""
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "factory_name",
         [
@@ -73,7 +72,6 @@ class TestGetInsightsAsyncValidation:
                 )
                 assert response.metadata.factory == factory_name
 
-    @pytest.mark.asyncio
     async def test_rejects_invalid_factory(self) -> None:
         """Invalid factory names are rejected with helpful error listing valid factories."""
         from autom8_asana.errors import InsightsValidationError
@@ -99,7 +97,6 @@ class TestGetInsightsAsyncValidation:
         assert exc.value.field == "factory"
         assert exc.value.request_id is not None
 
-    @pytest.mark.asyncio
     async def test_rejects_invalid_phone_format(self) -> None:
         """Invalid E.164 phone format is rejected."""
         from autom8_asana.errors import InsightsValidationError
@@ -117,7 +114,6 @@ class TestGetInsightsAsyncValidation:
         assert "Invalid E.164 format" in str(exc.value)
         assert exc.value.field == "office_phone"
 
-    @pytest.mark.asyncio
     async def test_validates_period_format(self) -> None:
         """Invalid period format raises error during request construction."""
         from pydantic import ValidationError
@@ -137,7 +133,6 @@ class TestGetInsightsAsyncValidation:
 class TestGetInsightsAsyncHTTPContract:
     """Contract tests for get_insights_async HTTP behavior using respx."""
 
-    @pytest.mark.asyncio
     async def test_posts_to_correct_endpoint(self) -> None:
         """Request is POST to /api/v1/data-service/insights."""
         import respx
@@ -168,7 +163,6 @@ class TestGetInsightsAsyncHTTPContract:
 
             assert route.called
 
-    @pytest.mark.asyncio
     async def test_includes_request_id_header(self) -> None:
         """Request includes X-Request-Id header."""
         import respx
@@ -210,7 +204,6 @@ class TestGetInsightsAsyncHTTPContract:
 
         uuid.UUID(captured_headers["x-request-id"])
 
-    @pytest.mark.asyncio
     async def test_sends_correct_request_body(self) -> None:
         """Request body matches InsightsRequest schema."""
         import respx
@@ -264,7 +257,6 @@ class TestGetInsightsAsyncHTTPContract:
         assert captured_body["metrics"] == ["spend", "leads"]
         assert captured_body["refresh"] is True
 
-    @pytest.mark.asyncio
     async def test_excludes_none_values_from_body(self) -> None:
         """Request body excludes None values (exclude_none=True)."""
         import respx
@@ -314,7 +306,6 @@ class TestGetInsightsAsyncHTTPContract:
 class TestGetInsightsAsyncErrorMapping:
     """Tests for HTTP error response mapping."""
 
-    @pytest.mark.asyncio
     async def test_400_maps_to_validation_error(self) -> None:
         """HTTP 400 maps to InsightsValidationError."""
         import respx
@@ -340,7 +331,6 @@ class TestGetInsightsAsyncErrorMapping:
         assert "Invalid phone format" in str(exc.value)
         assert exc.value.request_id is not None
 
-    @pytest.mark.asyncio
     async def test_404_maps_to_not_found_error(self) -> None:
         """HTTP 404 maps to InsightsNotFoundError."""
         import respx
@@ -366,7 +356,6 @@ class TestGetInsightsAsyncErrorMapping:
         assert "No insights found" in str(exc.value)
         assert exc.value.request_id is not None
 
-    @pytest.mark.asyncio
     async def test_500_maps_to_service_error(self) -> None:
         """HTTP 500 maps to InsightsServiceError."""
         import respx
@@ -394,7 +383,6 @@ class TestGetInsightsAsyncErrorMapping:
         assert exc.value.reason == "server_error"
 
     @pytest.mark.slow
-    @pytest.mark.asyncio
     async def test_502_maps_to_service_error(self) -> None:
         """HTTP 502 maps to InsightsServiceError."""
         import respx
@@ -421,7 +409,6 @@ class TestGetInsightsAsyncErrorMapping:
         assert exc.value.reason == "server_error"
 
     @pytest.mark.slow
-    @pytest.mark.asyncio
     async def test_503_maps_to_service_error(self) -> None:
         """HTTP 503 maps to InsightsServiceError."""
         import respx
@@ -447,7 +434,6 @@ class TestGetInsightsAsyncErrorMapping:
         assert exc.value.status_code == 503
 
     @pytest.mark.slow
-    @pytest.mark.asyncio
     async def test_504_maps_to_service_error(self) -> None:
         """HTTP 504 maps to InsightsServiceError."""
         import respx
@@ -473,7 +459,6 @@ class TestGetInsightsAsyncErrorMapping:
         assert exc.value.status_code == 504
 
     @pytest.mark.slow
-    @pytest.mark.asyncio
     async def test_timeout_maps_to_service_error(self) -> None:
         """Request timeout maps to InsightsServiceError."""
         import respx
@@ -498,7 +483,6 @@ class TestGetInsightsAsyncErrorMapping:
         assert "timed out" in str(exc.value)
         assert exc.value.reason == "timeout"
 
-    @pytest.mark.asyncio
     async def test_http_error_maps_to_service_error(self) -> None:
         """Generic HTTP error maps to InsightsServiceError."""
         import respx
@@ -522,7 +506,6 @@ class TestGetInsightsAsyncErrorMapping:
 
         assert exc.value.reason == "http_error"
 
-    @pytest.mark.asyncio
     async def test_error_includes_detail_field(self) -> None:
         """Error response with 'detail' field is extracted."""
         import respx
@@ -552,7 +535,6 @@ class TestGetInsightsAsyncErrorMapping:
 class TestGetInsightsAsyncSuccessResponse:
     """Tests for successful response parsing."""
 
-    @pytest.mark.asyncio
     async def test_parses_successful_response(self) -> None:
         """Successful response is parsed to InsightsResponse."""
         import respx
@@ -602,7 +584,6 @@ class TestGetInsightsAsyncSuccessResponse:
         assert response.warnings == ["Some data may be incomplete"]
         assert response.request_id is not None
 
-    @pytest.mark.asyncio
     async def test_parses_empty_response(self) -> None:
         """Empty data response is handled correctly."""
         import respx
@@ -639,7 +620,6 @@ class TestGetInsightsAsyncSuccessResponse:
         assert response.metadata.row_count == 0
         assert len(response.metadata.columns) == 3
 
-    @pytest.mark.asyncio
     async def test_uses_client_request_id_not_server(self) -> None:
         """Response uses client-generated request_id, not server's."""
         import respx
@@ -682,7 +662,6 @@ class TestGetInsightsAsyncSuccessResponse:
 class TestGetInsightsAsyncIntegration:
     """Integration test for successful call pattern (mocked)."""
 
-    @pytest.mark.asyncio
     async def test_full_successful_flow(self) -> None:
         """Full successful call flow: validate -> request -> parse -> return."""
         import respx
@@ -740,7 +719,6 @@ class TestGetInsightsAsyncIntegration:
         assert "spend" in df.columns
         assert "leads" in df.columns
 
-    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "input_case,expected",
         [
@@ -782,7 +760,6 @@ class TestGetInsightsAsyncIntegration:
                 assert response is not None
                 assert response.metadata.factory == expected
 
-    @pytest.mark.asyncio
     async def test_with_all_optional_parameters(self) -> None:
         """Call with all optional parameters."""
         from datetime import date

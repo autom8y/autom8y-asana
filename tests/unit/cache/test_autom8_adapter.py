@@ -179,7 +179,6 @@ class TestMigrateTaskCollectionLoading:
             ]
         )
 
-    @pytest.mark.asyncio
     async def test_empty_task_dicts(
         self,
         mock_cache: EnhancedInMemoryCacheProvider,
@@ -201,7 +200,6 @@ class TestMigrateTaskCollectionLoading:
         mock_batch_api.assert_not_called()
         mock_task_fetcher.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_task_dicts_without_gids(
         self,
         mock_cache: EnhancedInMemoryCacheProvider,
@@ -220,7 +218,6 @@ class TestMigrateTaskCollectionLoading:
         assert result.tasks == [{"name": "No GID"}]
         mock_batch_api.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_cold_cache_all_misses(
         self,
         mock_cache: EnhancedInMemoryCacheProvider,
@@ -244,7 +241,6 @@ class TestMigrateTaskCollectionLoading:
         mock_batch_api.assert_called_once()
         mock_task_fetcher.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_warm_cache_all_hits(
         self,
         mock_cache: EnhancedInMemoryCacheProvider,
@@ -288,7 +284,6 @@ class TestMigrateTaskCollectionLoading:
         assert len(result.tasks) == 2
         mock_task_fetcher.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_mixed_hits_and_misses(
         self,
         mock_cache: EnhancedInMemoryCacheProvider,
@@ -338,7 +333,6 @@ class TestMigrateTaskCollectionLoading:
         # Fetcher should only be called for "456"
         mock_task_fetcher.assert_called_once_with(["456"])
 
-    @pytest.mark.asyncio
     async def test_tasks_cached_after_fetch(
         self,
         mock_cache: EnhancedInMemoryCacheProvider,
@@ -361,7 +355,6 @@ class TestMigrateTaskCollectionLoading:
         assert entry is not None
         assert entry.data["gid"] == "123"
 
-    @pytest.mark.asyncio
     async def test_custom_ttl(
         self,
         mock_cache: EnhancedInMemoryCacheProvider,
@@ -383,7 +376,6 @@ class TestMigrateTaskCollectionLoading:
         assert entry is not None
         assert entry.ttl == 600
 
-    @pytest.mark.asyncio
     async def test_fetch_errors_counted(
         self,
         mock_cache: EnhancedInMemoryCacheProvider,
@@ -408,7 +400,6 @@ class TestMigrateTaskCollectionLoading:
 class TestWarmProjectTasks:
     """Tests for warm_project_tasks function."""
 
-    @pytest.mark.asyncio
     async def test_warms_all_tasks(self) -> None:
         """Test that all project tasks are cached."""
         cache = EnhancedInMemoryCacheProvider()
@@ -434,7 +425,6 @@ class TestWarmProjectTasks:
         assert entry1 is not None
         assert entry2 is not None
 
-    @pytest.mark.asyncio
     async def test_empty_project(self) -> None:
         """Test warming empty project."""
         cache = EnhancedInMemoryCacheProvider()
@@ -448,7 +438,6 @@ class TestWarmProjectTasks:
 
         assert warmed == 0
 
-    @pytest.mark.asyncio
     async def test_custom_ttl(self) -> None:
         """Test that custom TTL is applied during warming."""
         cache = EnhancedInMemoryCacheProvider()
@@ -469,7 +458,6 @@ class TestWarmProjectTasks:
         assert entry is not None
         assert entry.ttl == 600
 
-    @pytest.mark.asyncio
     async def test_tasks_without_gid_skipped(self) -> None:
         """Test that tasks without GID are skipped."""
         cache = EnhancedInMemoryCacheProvider()

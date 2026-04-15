@@ -60,7 +60,6 @@ def _last_event(mock_invalidator: MagicMock):
 
 
 class TestGetSection:
-    @pytest.mark.asyncio()
     async def test_get_section(self, service: SectionService, mock_client: AsyncMock) -> None:
         mock_client.sections.get_async.return_value = {
             "gid": "sec-1",
@@ -79,7 +78,6 @@ class TestGetSection:
 
 
 class TestCreateSection:
-    @pytest.mark.asyncio()
     async def test_create_fires_invalidation(
         self,
         service: SectionService,
@@ -100,7 +98,6 @@ class TestCreateSection:
         assert event.mutation_type == MutationType.CREATE
         assert event.project_gids == ["proj-1"]
 
-    @pytest.mark.asyncio()
     async def test_create_passes_params(
         self,
         service: SectionService,
@@ -122,7 +119,6 @@ class TestCreateSection:
 
 
 class TestUpdateSection:
-    @pytest.mark.asyncio()
     async def test_update_fires_invalidation(
         self,
         service: SectionService,
@@ -143,7 +139,6 @@ class TestUpdateSection:
         assert event.entity_gid == "sec-1"
         assert event.project_gids == ["proj-1"]
 
-    @pytest.mark.asyncio()
     async def test_update_no_project_in_response(
         self,
         service: SectionService,
@@ -168,7 +163,6 @@ class TestUpdateSection:
 
 
 class TestDeleteSection:
-    @pytest.mark.asyncio()
     async def test_delete_fires_invalidation(
         self,
         service: SectionService,
@@ -190,7 +184,6 @@ class TestDeleteSection:
 
 
 class TestAddTask:
-    @pytest.mark.asyncio()
     async def test_add_task_fires_invalidation(
         self,
         service: SectionService,
@@ -213,7 +206,6 @@ class TestAddTask:
 
 
 class TestReorder:
-    @pytest.mark.asyncio()
     async def test_reorder_before(self, service: SectionService, mock_client: AsyncMock) -> None:
         await service.reorder(mock_client, "sec-1", "proj-1", before_section="sec-2")
 
@@ -224,7 +216,6 @@ class TestReorder:
             after_section=None,
         )
 
-    @pytest.mark.asyncio()
     async def test_reorder_after(self, service: SectionService, mock_client: AsyncMock) -> None:
         await service.reorder(mock_client, "sec-1", "proj-1", after_section="sec-0")
 
@@ -235,14 +226,12 @@ class TestReorder:
             after_section="sec-0",
         )
 
-    @pytest.mark.asyncio()
     async def test_reorder_neither_raises(
         self, service: SectionService, mock_client: AsyncMock
     ) -> None:
         with pytest.raises(InvalidParameterError, match="before_section.*after_section"):
             await service.reorder(mock_client, "sec-1", "proj-1")
 
-    @pytest.mark.asyncio()
     async def test_reorder_both_raises(
         self, service: SectionService, mock_client: AsyncMock
     ) -> None:

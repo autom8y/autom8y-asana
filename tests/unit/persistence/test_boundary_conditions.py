@@ -115,7 +115,6 @@ class TestInputBoundaries:
 class TestEmptySession:
     """Tests for empty session handling."""
 
-    @pytest.mark.asyncio
     async def test_empty_session_commit_logs_warning(self) -> None:
         """Committing empty session logs a warning."""
         mock_client = create_mock_client_with_logger()
@@ -134,7 +133,6 @@ class TestEmptySession:
         assert "commit_empty_session" in call_args[0]
         assert "track()" in str(call_args)
 
-    @pytest.mark.asyncio
     async def test_empty_session_returns_empty_result(self) -> None:
         """Committing empty session returns SaveResult with no operations."""
         mock_client = create_mock_client()

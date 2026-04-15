@@ -159,7 +159,6 @@ def base_schema() -> DataFrameSchema:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestCacheColdToWarmLifecycle:
     """Test full cache lifecycle from cold to warm state."""
 
@@ -267,7 +266,6 @@ class TestCacheColdToWarmLifecycle:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestPartialCacheScenarios:
     """Test mixed cache hit/miss scenarios."""
 
@@ -345,7 +343,6 @@ class TestPartialCacheScenarios:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestCacheGracefulDegradation:
     """Test graceful degradation on cache failures."""
 
@@ -382,7 +379,6 @@ class TestCacheGracefulDegradation:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestCachePerformanceTiming:
     """Test that cache operations meet performance targets."""
 
@@ -520,7 +516,6 @@ class TestTaskCacheResultMetrics:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestCacheLoggingObservability:
     """Test that cache operations produce structured log events.
 

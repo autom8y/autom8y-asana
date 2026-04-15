@@ -48,7 +48,6 @@ class TestNestedSessionBehavior:
     This test documents the current behavior for reference.
     """
 
-    @pytest.mark.asyncio
     async def test_sequential_sessions_work(self) -> None:
         """Sequential (non-overlapping) SaveSession instances work correctly.
 
@@ -76,7 +75,6 @@ class TestNestedSessionBehavior:
         assert result is not None
         # Second session should complete without interference from first
 
-    @pytest.mark.asyncio
     async def test_same_entity_in_different_sessions(self) -> None:
         """Same entity can be tracked in different SaveSession instances.
 
@@ -119,7 +117,6 @@ class TestNestedSessionBehavior:
         assert action_ops1 == []
         assert action_ops2 == []
 
-    @pytest.mark.asyncio
     async def test_session_isolation_prevents_cross_contamination(self) -> None:
         """SaveSession isolation ensures operations don't cross contaminate.
 
@@ -163,7 +160,6 @@ class TestSessionAndAsyncInteraction:
     Per ADR-0053: SaveSession supports composite async operations.
     """
 
-    @pytest.mark.asyncio
     async def test_session_commit_during_async_operations(self) -> None:
         """SaveSession.commit_async() works correctly during async operations.
 
@@ -184,7 +180,6 @@ class TestSessionAndAsyncInteraction:
         result = await create_task_in_session()
         assert result is not None
 
-    @pytest.mark.asyncio
     async def test_multiple_concurrent_sessions(self) -> None:
         """Multiple SaveSession instances can run concurrently.
 
@@ -219,7 +214,6 @@ class TestSessionStateTransitions:
     Tests verify the expected state transitions through session lifecycle.
     """
 
-    @pytest.mark.asyncio
     async def test_session_transitions_from_empty_to_tracked(self) -> None:
         """SaveSession transitions from empty to tracked state correctly.
 
@@ -251,7 +245,6 @@ class TestSessionStateTransitions:
             assert crud_ops_dirty[0].operation == OperationType.UPDATE
             assert action_ops_dirty == []
 
-    @pytest.mark.asyncio
     async def test_session_retracking_same_entity_is_idempotent(self) -> None:
         """Re-tracking the same entity (by Python id) is idempotent.
 
@@ -286,7 +279,6 @@ class TestSessionErrorRecovery:
     Documents expected behavior for error conditions.
     """
 
-    @pytest.mark.asyncio
     async def test_session_context_manager_cleanup_on_error(self) -> None:
         """SaveSession context manager cleans up properly even on error.
 
@@ -326,7 +318,6 @@ class TestSessionMixedOperations:
     Tests complex scenarios with multiple operation types.
     """
 
-    @pytest.mark.asyncio
     async def test_session_tracks_creates_and_modifications(self) -> None:
         """SaveSession correctly distinguishes between creates and modifications.
 

@@ -86,7 +86,6 @@ def create_failure_result(
 class TestContextManager:
     """Tests for context manager protocol."""
 
-    @pytest.mark.asyncio
     async def test_context_manager_async(self) -> None:
         """SaveSession works as async context manager."""
         mock_client = create_mock_client()
@@ -111,7 +110,6 @@ class TestContextManager:
 
         assert session.state == SessionState.CLOSED
 
-    @pytest.mark.asyncio
     async def test_async_context_closes_on_exception(self) -> None:
         """Async context manager closes session on exception."""
         mock_client = create_mock_client()
@@ -489,7 +487,6 @@ class TestPreviewActions:
 class TestCommit:
     """Tests for commit operations."""
 
-    @pytest.mark.asyncio
     async def test_commit_async_executes_pipeline(self) -> None:
         """commit_async() executes pipeline and returns result."""
         mock_client = create_mock_client()
@@ -507,7 +504,6 @@ class TestCommit:
         assert len(result.succeeded) == 1
         assert result.success
 
-    @pytest.mark.asyncio
     async def test_commit_async_marks_succeeded_clean(self) -> None:
         """commit_async() marks succeeded entities as clean."""
         mock_client = create_mock_client()
@@ -525,7 +521,6 @@ class TestCommit:
 
         assert session.get_state(task) == EntityState.CLEAN
 
-    @pytest.mark.asyncio
     async def test_commit_async_empty_session(self) -> None:
         """commit_async() with no dirty entities returns empty result."""
         mock_client = create_mock_client()
@@ -537,7 +532,6 @@ class TestCommit:
         assert result.succeeded == []
         assert result.failed == []
 
-    @pytest.mark.asyncio
     async def test_commit_async_on_closed_raises(self) -> None:
         """commit_async() raises on closed session."""
         mock_client = create_mock_client()
@@ -564,7 +558,6 @@ class TestCommit:
         assert isinstance(result, SaveResult)
         assert result.success
 
-    @pytest.mark.asyncio
     async def test_commit_multiple_times(self) -> None:
         """Multiple commits within same session work."""
         mock_client = create_mock_client()
@@ -630,7 +623,6 @@ class TestEventHooks:
 
         assert len(session._events._error_hooks) == 1
 
-    @pytest.mark.asyncio
     async def test_hooks_called_during_commit(self) -> None:
         """Hooks are called during commit execution."""
         mock_client = create_mock_client()
@@ -682,7 +674,6 @@ class TestEdgeCases:
         assert "name" in changes
         assert changes["name"] == ("Original", "Modified")
 
-    @pytest.mark.asyncio
     async def test_commit_updates_gid_for_new_entities(self) -> None:
         """commit() updates GID for new entities after creation."""
         mock_client = create_mock_client()
@@ -710,7 +701,6 @@ class TestEdgeCases:
         # Verify logging was called
         mock_log.debug.assert_called()
 
-    @pytest.mark.asyncio
     async def test_partial_failure_handling(self) -> None:
         """Session handles partial failures correctly."""
         mock_client = create_mock_client()
@@ -908,7 +898,6 @@ class TestActionMethods:
 class TestActionCommit:
     """Tests for commit with actions."""
 
-    @pytest.mark.asyncio
     async def test_commit_actions_only(self) -> None:
         """commit_async() executes pending actions."""
         mock_client = create_mock_client()
@@ -923,7 +912,6 @@ class TestActionCommit:
         # HTTP request should have been made for action
         mock_client._http.request.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_commit_clears_pending_actions(self) -> None:
         """commit_async() clears pending actions after commit."""
         mock_client = create_mock_client()
@@ -936,7 +924,6 @@ class TestActionCommit:
 
         assert session.get_pending_actions() == []
 
-    @pytest.mark.asyncio
     async def test_commit_crud_and_actions(self) -> None:
         """commit_async() handles both CRUD and actions."""
         mock_client = create_mock_client()
@@ -961,7 +948,6 @@ class TestActionCommit:
         # HTTP should be called for action
         mock_client._http.request.assert_called()
 
-    @pytest.mark.asyncio
     async def test_commit_empty_with_actions(self) -> None:
         """commit_async() with actions but no CRUD entities."""
         mock_client = create_mock_client()
@@ -976,7 +962,6 @@ class TestActionCommit:
         # HTTP should be called for action
         mock_client._http.request.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_multiple_commits_with_actions(self) -> None:
         """Multiple commits with actions work independently."""
         mock_client = create_mock_client()
@@ -1689,7 +1674,6 @@ class TestParentMethods:
 class TestSelectiveActionClearing:
     """Tests for selective action clearing after commit (Issue 10/ADR-0066)."""
 
-    @pytest.mark.asyncio
     async def test_all_success_clears_all_actions(self) -> None:
         """When all actions succeed, pending actions list is empty."""
         mock_client = create_mock_client()
@@ -1707,7 +1691,6 @@ class TestSelectiveActionClearing:
         assert result.success
         assert session.get_pending_actions() == []
 
-    @pytest.mark.asyncio
     async def test_all_failure_keeps_all_actions(self) -> None:
         """When all actions fail, all pending actions remain."""
         mock_client = create_mock_client()
@@ -1733,7 +1716,6 @@ class TestSelectiveActionClearing:
         remaining = session.get_pending_actions()
         assert len(remaining) == 3
 
-    @pytest.mark.asyncio
     async def test_partial_keeps_only_failed(self) -> None:
         """When some actions fail, only failed actions remain pending."""
         mock_client = create_mock_client()
@@ -1771,7 +1753,6 @@ class TestSelectiveActionClearing:
         assert "1002" in remaining_targets  # Failed, kept
         assert "1003" in remaining_targets  # Failed, kept
 
-    @pytest.mark.asyncio
     async def test_duplicate_operations_both_cleared(self) -> None:
         """Duplicate operations (same identity) are both cleared on success."""
         mock_client = create_mock_client()
@@ -1790,7 +1771,6 @@ class TestSelectiveActionClearing:
         # Both should be cleared (same identity means one success clears both)
         assert session.get_pending_actions() == []
 
-    @pytest.mark.asyncio
     async def test_different_tasks_handled_independently(self) -> None:
         """Operations on different tasks are tracked separately."""
         mock_client = create_mock_client()
@@ -1824,7 +1804,6 @@ class TestSelectiveActionClearing:
         assert len(remaining) == 1
         assert remaining[0].task.gid == "task_b"
 
-    @pytest.mark.asyncio
     async def test_retry_workflow_succeeds(self) -> None:
         """Failed actions can be retried after fixing issues."""
         mock_client = create_mock_client()
@@ -1856,7 +1835,6 @@ class TestSelectiveActionClearing:
         assert result2.success
         assert session.get_pending_actions() == []
 
-    @pytest.mark.asyncio
     async def test_empty_results_clears_all(self) -> None:
         """When no action results (no actions), pending is cleared."""
         mock_client = create_mock_client()
@@ -1868,7 +1846,6 @@ class TestSelectiveActionClearing:
         assert result.success
         assert session.get_pending_actions() == []
 
-    @pytest.mark.asyncio
     async def test_none_target_gid_handled_correctly(self) -> None:
         """Actions with None target_gid (like ADD_LIKE) handled correctly."""
         mock_client = create_mock_client()
@@ -1898,7 +1875,6 @@ class TestCustomFieldTrackingReset:
     Per ADR-0074: SaveSession coordinates reset across all tracking systems.
     """
 
-    @pytest.mark.asyncio
     async def test_savesession_calls_reset_on_success(self) -> None:
         """commit_async() calls reset_custom_field_tracking() on success.
 
@@ -1930,7 +1906,6 @@ class TestCustomFieldTrackingReset:
         # Accessor changes should be cleared after successful commit
         assert accessor.has_changes() is False
 
-    @pytest.mark.asyncio
     async def test_savesession_reset_updates_snapshot(self) -> None:
         """commit_async() updates _original_custom_fields snapshot on success.
 
@@ -1961,7 +1936,6 @@ class TestCustomFieldTrackingReset:
         # Direct changes should not be detected after commit (snapshot updated)
         assert task._has_direct_custom_field_changes() is False
 
-    @pytest.mark.asyncio
     async def test_savesession_reset_only_on_success(self) -> None:
         """Failed entities are NOT reset (FR-009).
 
@@ -2000,7 +1974,6 @@ class TestCustomFieldTrackingReset:
         # Accessor changes should NOT be cleared (failed entity)
         assert accessor.has_changes() is True
 
-    @pytest.mark.asyncio
     async def test_savesession_reset_partial_failure(self) -> None:
         """Partial failure: only successful entities are reset.
 
@@ -2053,7 +2026,6 @@ class TestCustomFieldTrackingReset:
         assert has_changes_list.count(True) == 1, "Exactly one entity should retain changes"
         assert has_changes_list.count(False) == 1, "Exactly one entity should be reset"
 
-    @pytest.mark.asyncio
     async def test_savesession_reset_with_non_task_entity(self) -> None:
         """SaveSession handles entities without reset method gracefully.
 

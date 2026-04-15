@@ -152,7 +152,6 @@ class TestDerivePipelineType:
 class TestZeroPipelineEntities:
     """Returns None when no pipeline entities are in completed_entities."""
 
-    @pytest.mark.asyncio
     async def test_returns_none_with_no_pipeline_entities(self) -> None:
         """completed_entities has no process_ entries -> returns None."""
         result = await _aggregate_pipeline_stages(
@@ -162,7 +161,6 @@ class TestZeroPipelineEntities:
         )
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_returns_none_with_empty_completed(self) -> None:
         """Empty completed_entities -> returns None."""
         result = await _aggregate_pipeline_stages(
@@ -181,7 +179,6 @@ class TestZeroPipelineEntities:
 class TestSinglePipelineDF:
     """One pipeline DF produces correct summary columns."""
 
-    @pytest.mark.asyncio
     async def test_single_pipeline_returns_summary(
         self,
     ) -> None:
@@ -228,7 +225,6 @@ class TestSinglePipelineDF:
 class TestMultiplePipelineDFs:
     """Multiple pipeline DFs are concatenated and latest-by-created is picked."""
 
-    @pytest.mark.asyncio
     async def test_concatenation_picks_latest_by_created(self) -> None:
         """Two pipelines for same phone/vertical -> picks most recent created."""
         # Sales: created 2 hours ago
@@ -271,7 +267,6 @@ class TestMultiplePipelineDFs:
         assert row["latest_process_type"] == "onboarding"
         assert row["latest_process_section"] == "Welcome Call"
 
-    @pytest.mark.asyncio
     async def test_different_units_produce_separate_rows(self) -> None:
         """Two units in same pipeline -> two summary rows."""
         df = _make_pipeline_df(
@@ -304,7 +299,6 @@ class TestMultiplePipelineDFs:
 class TestCompletedTaskFiltering:
     """Completed tasks (is_completed=True) must be excluded."""
 
-    @pytest.mark.asyncio
     async def test_completed_tasks_are_excluded(self) -> None:
         """Mix of active and completed -> only active appear in summary."""
         df = _make_pipeline_df(
@@ -331,7 +325,6 @@ class TestCompletedTaskFiltering:
         row = result.row(0, named=True)
         assert row["latest_process_section"] == "Active Section"
 
-    @pytest.mark.asyncio
     async def test_all_completed_returns_none(self) -> None:
         """All tasks completed -> no active processes -> returns None."""
         df = _make_pipeline_df(
@@ -365,7 +358,6 @@ class TestGroupingPicksMostRecent:
     """When multiple active processes exist for the same (phone, vertical),
     the one with the most recent 'created' timestamp wins."""
 
-    @pytest.mark.asyncio
     async def test_same_pipeline_two_tasks_picks_latest(self) -> None:
         """Two active tasks in same pipeline for same unit -> picks latest."""
         df = _make_pipeline_df(
@@ -391,7 +383,6 @@ class TestGroupingPicksMostRecent:
         row = result.row(0, named=True)
         assert row["latest_process_section"] == "New Section"
 
-    @pytest.mark.asyncio
     async def test_cross_pipeline_picks_latest(self) -> None:
         """Two pipelines, same unit: the one with more recent 'created' wins."""
         # Retention: created 10 hours ago
@@ -442,7 +433,6 @@ class TestGroupingPicksMostRecent:
 class TestPipelineTypeDiscriminator:
     """pipeline_type column is correctly derived from entity name."""
 
-    @pytest.mark.asyncio
     async def test_pipeline_type_set_from_entity_name(self) -> None:
         """process_implementation -> latest_process_type='implementation'."""
         df = _make_pipeline_df(
@@ -476,7 +466,6 @@ class TestPipelineTypeDiscriminator:
 class TestNullGroupingKeys:
     """Rows with null office_phone or vertical are dropped before grouping."""
 
-    @pytest.mark.asyncio
     async def test_null_office_phone_excluded(self) -> None:
         """Row with null office_phone is dropped."""
         df = _make_pipeline_df(
@@ -501,7 +490,6 @@ class TestNullGroupingKeys:
         assert len(result) == 1
         assert result.row(0, named=True)["office_phone"] == "555-1234"
 
-    @pytest.mark.asyncio
     async def test_null_vertical_excluded(self) -> None:
         """Row with null vertical is dropped."""
         df = _make_pipeline_df(
@@ -526,7 +514,6 @@ class TestNullGroupingKeys:
         assert len(result) == 1
         assert result.row(0, named=True)["vertical"] == "chiro"
 
-    @pytest.mark.asyncio
     async def test_all_null_keys_returns_none(self) -> None:
         """All rows have null grouping keys -> returns None."""
         df = _make_pipeline_df(
@@ -558,7 +545,6 @@ class TestNullGroupingKeys:
 class TestErrorIsolation:
     """Exceptions must be caught and logged, never propagated."""
 
-    @pytest.mark.asyncio
     async def test_cache_exception_returns_none(self) -> None:
         """Exception in cache.get_async -> returns None, no crash."""
         cache = MagicMock()
@@ -575,7 +561,6 @@ class TestErrorIsolation:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_registry_exception_returns_none(self) -> None:
         """Exception in entity registry -> returns None, no crash."""
         with stdlib_patch(_REGISTRY_PATCH_TARGET, side_effect=RuntimeError("registry boom")):
@@ -596,7 +581,6 @@ class TestErrorIsolation:
 class TestCacheEdgeCases:
     """Edge cases in cache retrieval."""
 
-    @pytest.mark.asyncio
     async def test_cache_returns_none_entry_skipped(self) -> None:
         """Cache returns None for a pipeline entity -> skipped, others still processed."""
         df_sales = _make_pipeline_df(
@@ -622,7 +606,6 @@ class TestCacheEdgeCases:
         assert len(result) == 1
         assert result.row(0, named=True)["latest_process_type"] == "sales"
 
-    @pytest.mark.asyncio
     async def test_all_cache_entries_none_returns_none(self) -> None:
         """All pipeline cache entries are None -> returns None."""
         entity_dfs: dict[str, pl.DataFrame] = {}  # Nothing in cache

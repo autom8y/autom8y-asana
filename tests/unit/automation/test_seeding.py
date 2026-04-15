@@ -157,7 +157,6 @@ class TestFieldSeeder:
 class TestCascadeFromHierarchy:
     """Tests for cascade_from_hierarchy_async."""
 
-    @pytest.mark.asyncio
     async def test_cascade_from_business_with_defaults_empty(self) -> None:
         """Test cascading fields from Business with empty defaults."""
         client = create_mock_client()
@@ -174,7 +173,6 @@ class TestCascadeFromHierarchy:
         # Default business cascade is empty, so no fields should be returned
         assert result == {}
 
-    @pytest.mark.asyncio
     async def test_cascade_from_business_with_custom_fields(self) -> None:
         """Test cascading fields from Business with custom field list."""
         client = create_mock_client()
@@ -194,7 +192,6 @@ class TestCascadeFromHierarchy:
         assert result["Office Phone"] == "555-1234"
         assert result["Company ID"] == "COMP-001"
 
-    @pytest.mark.asyncio
     async def test_cascade_from_unit(self) -> None:
         """Test cascading fields from Unit with default field list."""
         client = create_mock_client()
@@ -213,7 +210,6 @@ class TestCascadeFromHierarchy:
         assert "Platforms" not in result  # Not in default list
         assert "Booking Type" not in result  # Not in default list
 
-    @pytest.mark.asyncio
     async def test_cascade_from_unit_with_custom_fields(self) -> None:
         """Test cascading fields from Unit with custom field list."""
         client = create_mock_client()
@@ -234,7 +230,6 @@ class TestCascadeFromHierarchy:
         assert result["Platforms"] == ["facebook", "google"]
         assert result["Booking Type"] == "direct"
 
-    @pytest.mark.asyncio
     async def test_cascade_from_both(self) -> None:
         """Test cascading fields from both Business and Unit with custom fields."""
         client = create_mock_client()
@@ -258,7 +253,6 @@ class TestCascadeFromHierarchy:
         # Unit fields (default includes Vertical)
         assert result["Vertical"] == "dental"
 
-    @pytest.mark.asyncio
     async def test_cascade_with_none_values(self) -> None:
         """Test that None values are excluded from result."""
         client = create_mock_client()
@@ -277,7 +271,6 @@ class TestCascadeFromHierarchy:
         assert result["Office Phone"] == "555-1234"
         assert "Company ID" not in result
 
-    @pytest.mark.asyncio
     async def test_cascade_with_no_entities(self) -> None:
         """Test cascading with no entities returns empty dict."""
         client = create_mock_client()
@@ -291,7 +284,6 @@ class TestCascadeFromHierarchy:
 class TestCarryThroughFromProcess:
     """Tests for carry_through_from_process_async."""
 
-    @pytest.mark.asyncio
     async def test_carry_through_fields(self) -> None:
         """Test carrying through fields from source Process."""
         client = create_mock_client()
@@ -309,7 +301,6 @@ class TestCarryThroughFromProcess:
         assert result["Priority"] == "high"  # Enum value extracted
         # Note: "Assigned To" removed from defaults per Efficient Field Seeding Fix
 
-    @pytest.mark.asyncio
     async def test_carry_through_with_none_values(self) -> None:
         """Test that None values are excluded."""
         client = create_mock_client()
@@ -329,7 +320,6 @@ class TestCarryThroughFromProcess:
 class TestComputeFields:
     """Tests for compute_fields_async."""
 
-    @pytest.mark.asyncio
     async def test_compute_launch_date(self) -> None:
         """Test computing Launch Date field."""
         client = create_mock_client()
@@ -350,7 +340,6 @@ class TestComputeFields:
 class TestSeedFields:
     """Tests for seed_fields_async (main seeding method)."""
 
-    @pytest.mark.asyncio
     async def test_combines_all_sources(self) -> None:
         """Test that seed_fields combines cascade, carry-through, and computed."""
         client = create_mock_client()
@@ -385,7 +374,6 @@ class TestSeedFields:
         # Computed
         assert "Launch Date" in result
 
-    @pytest.mark.asyncio
     async def test_precedence_later_overrides_earlier(self) -> None:
         """Test that later sources override earlier sources."""
         client = create_mock_client()
@@ -404,7 +392,6 @@ class TestSeedFields:
         # Unit's Vertical should be present (no Process override for this field)
         assert result["Vertical"] == "dental"
 
-    @pytest.mark.asyncio
     async def test_with_minimal_entities(self) -> None:
         """Test seeding with minimal/empty entities."""
         client = create_mock_client()
@@ -655,7 +642,6 @@ class TestResolveEnumValue:
 class TestWriteFieldsEnumResolution:
     """Integration tests for write_fields_async enum resolution."""
 
-    @pytest.mark.asyncio
     async def test_write_enum_field_resolves_to_gid(self) -> None:
         """Test that enum fields are resolved to GIDs before writing."""
         from unittest.mock import AsyncMock
@@ -699,7 +685,6 @@ class TestWriteFieldsEnumResolution:
         assert "cf_vertical" in custom_fields
         assert custom_fields["cf_vertical"] == "opt_dental"
 
-    @pytest.mark.asyncio
     async def test_write_enum_field_skips_on_invalid_value(self) -> None:
         """Test that invalid enum values skip the field with warning."""
         from unittest.mock import AsyncMock
@@ -736,7 +721,6 @@ class TestWriteFieldsEnumResolution:
         # No update should be called since no valid fields
         client.tasks.update_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_write_mixed_fields_with_enum(self) -> None:
         """Test writing both enum and non-enum fields together."""
         from unittest.mock import AsyncMock
@@ -918,7 +902,6 @@ class TestResolveEnumValueWithObjects:
 class TestWriteFieldsAsyncWithObjectCustomFields:
     """Integration tests for write_fields_async with object-based custom fields."""
 
-    @pytest.mark.asyncio
     async def test_write_with_object_custom_fields(self) -> None:
         """Test that write_fields_async works when custom_fields are objects."""
         from unittest.mock import AsyncMock

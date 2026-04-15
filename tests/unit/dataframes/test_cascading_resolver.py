@@ -91,7 +91,6 @@ def mock_client() -> MagicMock:
 class TestResolveUnknownField:
     """Test that resolving unknown fields returns None."""
 
-    @pytest.mark.asyncio
     async def test_resolve_returns_none_for_unknown_field(self, mock_client: MagicMock) -> None:
         """Test resolve returns None for field not in registry."""
         resolver = CascadingFieldResolver(mock_client)
@@ -105,7 +104,6 @@ class TestResolveUnknownField:
         # Should not make any API calls
         mock_client.tasks.get_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_resolve_returns_none_for_empty_field_name(self, mock_client: MagicMock) -> None:
         """Test resolve returns None for empty field name."""
         resolver = CascadingFieldResolver(mock_client)
@@ -125,7 +123,6 @@ class TestResolveUnknownField:
 class TestResolveImmediateParent:
     """Test resolving field values from immediate parent."""
 
-    @pytest.mark.asyncio
     async def test_resolve_finds_value_on_immediate_parent(self, mock_client: MagicMock) -> None:
         """Test resolve finds field value on immediate parent."""
         resolver = CascadingFieldResolver(mock_client)
@@ -164,7 +161,6 @@ class TestResolveImmediateParent:
 
         assert result == "555-1234"
 
-    @pytest.mark.asyncio
     async def test_resolve_uses_local_value_when_override_allowed(
         self, mock_client: MagicMock
     ) -> None:
@@ -210,7 +206,6 @@ class TestResolveImmediateParent:
 class TestResolveGrandparent:
     """Test resolving field values from grandparent (2 levels up)."""
 
-    @pytest.mark.asyncio
     async def test_resolve_finds_value_on_grandparent(self, mock_client: MagicMock) -> None:
         """Test resolve finds field value on grandparent (2 levels up)."""
         resolver = CascadingFieldResolver(mock_client)
@@ -262,7 +257,6 @@ class TestResolveGrandparent:
 class TestMaxDepthLimit:
     """Test that max_depth limit is respected."""
 
-    @pytest.mark.asyncio
     async def test_resolve_respects_max_depth_limit(self, mock_client: MagicMock) -> None:
         """Test resolve returns None when max_depth is exceeded."""
         resolver = CascadingFieldResolver(mock_client)
@@ -298,7 +292,6 @@ class TestMaxDepthLimit:
 class TestAllowOverrideBehavior:
     """Test allow_override=True and allow_override=False behaviors."""
 
-    @pytest.mark.asyncio
     async def test_resolve_respects_allow_override_true(self, mock_client: MagicMock) -> None:
         """Test resolve keeps local value when allow_override=True."""
         resolver = CascadingFieldResolver(mock_client)
@@ -329,7 +322,6 @@ class TestAllowOverrideBehavior:
         assert result == ["Google", "Bing"]
         mock_client.tasks.get_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_resolve_respects_allow_override_false(self, mock_client: MagicMock) -> None:
         """Test resolve uses parent value when allow_override=False."""
         resolver = CascadingFieldResolver(mock_client)
@@ -390,7 +382,6 @@ class TestAllowOverrideBehavior:
 class TestParentCache:
     """Test parent task caching behavior."""
 
-    @pytest.mark.asyncio
     async def test_parent_cache_is_populated_on_traversal(self, mock_client: MagicMock) -> None:
         """Test parent cache is populated when fetching parents."""
         resolver = CascadingFieldResolver(mock_client)
@@ -423,7 +414,6 @@ class TestParentCache:
         assert resolver.get_cache_size() == 1
         assert "business_123" in resolver._parent_cache
 
-    @pytest.mark.asyncio
     async def test_parent_cache_prevents_duplicate_fetches(self, mock_client: MagicMock) -> None:
         """Test parent cache prevents duplicate API calls."""
         resolver = CascadingFieldResolver(mock_client)
@@ -475,7 +465,6 @@ class TestParentCache:
 class TestBrokenParentChain:
     """Test handling of broken parent chains."""
 
-    @pytest.mark.asyncio
     async def test_broken_parent_chain_returns_none(self, mock_client: MagicMock) -> None:
         """Test resolve returns None when parent chain is broken."""
         resolver = CascadingFieldResolver(mock_client)
@@ -509,7 +498,6 @@ class TestBrokenParentChain:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_parent_fetch_failure_returns_none(self, mock_client: MagicMock) -> None:
         """Test resolve returns None when parent fetch fails."""
         resolver = CascadingFieldResolver(mock_client)
@@ -552,7 +540,6 @@ class TestBrokenParentChain:
 class TestCircularReferenceDetection:
     """Test detection of circular parent references."""
 
-    @pytest.mark.asyncio
     async def test_circular_reference_detected(self, mock_client: MagicMock) -> None:
         """Test resolve detects and handles circular parent references."""
         resolver = CascadingFieldResolver(mock_client)
@@ -803,7 +790,6 @@ class TestGetFieldValueSourceField:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_business_name_resolved_via_source_field_in_resolver(
         self, mock_client: MagicMock
     ) -> None:
@@ -845,7 +831,6 @@ class TestGetFieldValueSourceField:
 class TestIntegrationWithRegistry:
     """Integration tests using the real CASCADING_FIELD_REGISTRY."""
 
-    @pytest.mark.asyncio
     async def test_office_phone_resolution(self, mock_client: MagicMock) -> None:
         """Test Office Phone field resolution from real registry."""
         resolver = CascadingFieldResolver(mock_client)

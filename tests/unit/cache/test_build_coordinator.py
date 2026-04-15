@@ -74,7 +74,6 @@ def coordinator() -> BuildCoordinator:
 class TestBuildCoordinatorBasic:
     """Basic functionality tests."""
 
-    @pytest.mark.asyncio
     async def test_single_build_no_coalescing(self, coordinator: BuildCoordinator) -> None:
         """One caller, no contention: outcome is BUILT."""
         key = _make_key()
@@ -88,7 +87,6 @@ class TestBuildCoordinatorBasic:
         assert result.error is None
         assert result.build_duration_ms >= 0
 
-    @pytest.mark.asyncio
     async def test_two_callers_coalesced(self, coordinator: BuildCoordinator) -> None:
         """Two concurrent callers for same key: one BUILT, one COALESCED."""
         key = _make_key()
@@ -110,7 +108,6 @@ class TestBuildCoordinatorBasic:
             assert r.dataframe is not None
             assert r.dataframe.shape[0] == 5
 
-    @pytest.mark.asyncio
     async def test_different_keys_independent(self, coordinator: BuildCoordinator) -> None:
         """Two callers with different keys: both BUILT independently."""
         key1 = _make_key("proj-1", "unit")
@@ -132,7 +129,6 @@ class TestBuildCoordinatorBasic:
         assert results[1].outcome == BuildOutcome.BUILT
         assert build_count == 2
 
-    @pytest.mark.asyncio
     async def test_is_building_during_build(self, coordinator: BuildCoordinator) -> None:
         """is_building returns True during build, False after."""
         key = _make_key()
@@ -154,7 +150,6 @@ class TestBuildCoordinatorBasic:
 
         assert coordinator.is_building(key) is False
 
-    @pytest.mark.asyncio
     async def test_cleanup_after_completion(self, coordinator: BuildCoordinator) -> None:
         """After build completes, key is removed from _in_flight."""
         key = _make_key()
@@ -162,7 +157,6 @@ class TestBuildCoordinatorBasic:
 
         assert key not in coordinator._in_flight
 
-    @pytest.mark.asyncio
     async def test_make_coalescing_key(self) -> None:
         """make_coalescing_key returns correct tuple."""
         key = make_coalescing_key("1234", "unit")
@@ -179,7 +173,6 @@ class TestBuildCoordinatorBasic:
 class TestBuildCoordinatorTimeout:
     """Timeout behavior tests."""
 
-    @pytest.mark.asyncio
     async def test_timeout_returns_timed_out(self, coordinator: BuildCoordinator) -> None:
         """Waiter that exceeds timeout gets TIMED_OUT outcome."""
         key = _make_key()
@@ -211,7 +204,6 @@ class TestBuildCoordinatorTimeout:
         builder_result = await builder_task
         assert builder_result.outcome == BuildOutcome.BUILT
 
-    @pytest.mark.asyncio
     async def test_timeout_does_not_cancel_build(self, coordinator: BuildCoordinator) -> None:
         """Timed-out waiter does not cancel the in-flight build."""
         key = _make_key()
@@ -238,7 +230,6 @@ class TestBuildCoordinatorTimeout:
         await builder_task
         assert build_completed.is_set()
 
-    @pytest.mark.asyncio
     async def test_timeout_under_slow_build(self) -> None:
         """build_fn sleeps 2s, waiter timeout 0.2s: waiter gets TIMED_OUT, builder completes."""
         coordinator = BuildCoordinator(default_timeout_seconds=5.0, max_concurrent_builds=4)
@@ -272,7 +263,6 @@ class TestBuildCoordinatorTimeout:
 class TestBuildCoordinatorErrors:
     """Error propagation tests."""
 
-    @pytest.mark.asyncio
     async def test_build_failure_propagates_to_builder(self, coordinator: BuildCoordinator) -> None:
         """Build that raises returns FAILED outcome to the builder."""
         key = _make_key()
@@ -284,7 +274,6 @@ class TestBuildCoordinatorErrors:
         assert "Build exploded" in str(result.error)
         assert result.dataframe is None
 
-    @pytest.mark.asyncio
     async def test_build_failure_propagates_to_waiters(self, coordinator: BuildCoordinator) -> None:
         """Build failure propagates FAILED result to all coalesced waiters."""
         key = _make_key()
@@ -311,7 +300,6 @@ class TestBuildCoordinatorErrors:
         assert waiter_result.outcome == BuildOutcome.FAILED
         assert waiter_result.error is not None
 
-    @pytest.mark.asyncio
     async def test_failure_cleans_up_in_flight(self, coordinator: BuildCoordinator) -> None:
         """After build failure, key is removed from _in_flight."""
         key = _make_key()
@@ -319,7 +307,6 @@ class TestBuildCoordinatorErrors:
 
         assert key not in coordinator._in_flight
 
-    @pytest.mark.asyncio
     async def test_new_build_after_failure(self, coordinator: BuildCoordinator) -> None:
         """A new build can start after a previous failure for the same key."""
         key = _make_key()
@@ -342,7 +329,6 @@ class TestBuildCoordinatorErrors:
 class TestBuildCoordinatorStaleness:
     """Staleness-aware coalescing tests."""
 
-    @pytest.mark.asyncio
     async def test_mark_invalidated_during_build(self, coordinator: BuildCoordinator) -> None:
         """mark_invalidated causes new callers to start fresh builds."""
         key = _make_key("proj-1", "unit")
@@ -379,7 +365,6 @@ class TestBuildCoordinatorStaleness:
         first_result = await builder_task
         assert first_result.outcome == BuildOutcome.BUILT
 
-    @pytest.mark.asyncio
     async def test_mark_invalidated_all_entity_types(self, coordinator: BuildCoordinator) -> None:
         """mark_invalidated with entity_type=None marks all entity types."""
         build_events = {}
@@ -421,7 +406,6 @@ class TestBuildCoordinatorStaleness:
         await t1
         await t2
 
-    @pytest.mark.asyncio
     async def test_existing_waiters_still_receive_result(
         self, coordinator: BuildCoordinator
     ) -> None:
@@ -462,13 +446,11 @@ class TestBuildCoordinatorStaleness:
         assert waiter_result.dataframe is not None
         assert waiter_result.dataframe.shape[0] == 10
 
-    @pytest.mark.asyncio
     async def test_mark_invalidated_no_match(self, coordinator: BuildCoordinator) -> None:
         """mark_invalidated returns 0 when no in-flight builds match."""
         result = coordinator.mark_invalidated("nonexistent-project")
         assert result == 0
 
-    @pytest.mark.asyncio
     async def test_concurrent_mark_invalidated(self, coordinator: BuildCoordinator) -> None:
         """Multiple concurrent mark_invalidated calls are safe."""
         key = _make_key("proj-1", "unit")
@@ -491,7 +473,6 @@ class TestBuildCoordinatorStaleness:
         proceed.set()
         await task
 
-    @pytest.mark.asyncio
     async def test_stale_rejected_stats(self, coordinator: BuildCoordinator) -> None:
         """builds_stale_rejected stat increments on staleness rejection."""
         key = _make_key("proj-1", "unit")
@@ -524,7 +505,6 @@ class TestBuildCoordinatorStaleness:
         stats = coordinator.get_stats()
         assert stats["builds_stale_rejected"] == 1
 
-    @pytest.mark.asyncio
     async def test_build_fn_raises_after_invalidation(self, coordinator: BuildCoordinator) -> None:
         """Build marked stale, then build_fn raises: new build can start cleanly."""
         key = _make_key("proj-1", "unit")
@@ -559,7 +539,6 @@ class TestBuildCoordinatorStaleness:
 class TestBuildCoordinatorConcurrency:
     """Concurrency limit (semaphore) tests."""
 
-    @pytest.mark.asyncio
     async def test_max_concurrent_builds_honored(self) -> None:
         """Semaphore limits concurrent builds to max_concurrent_builds."""
         max_builds = 2
@@ -591,7 +570,6 @@ class TestBuildCoordinatorConcurrency:
         assert all(r.outcome == BuildOutcome.BUILT for r in results)
         assert max_observed <= max_builds
 
-    @pytest.mark.asyncio
     async def test_semaphore_does_not_block_coalesced_waiters(
         self, coordinator: BuildCoordinator
     ) -> None:
@@ -622,7 +600,6 @@ class TestBuildCoordinatorConcurrency:
 class TestBuildCoordinatorCancellation:
     """Cancellation isolation tests (asyncio.shield)."""
 
-    @pytest.mark.asyncio
     async def test_shield_prevents_waiter_cancellation(self, coordinator: BuildCoordinator) -> None:
         """Cancel one waiter; other waiters still receive the result."""
         key = _make_key()
@@ -672,7 +649,6 @@ class TestBuildCoordinatorCancellation:
 class TestBuildCoordinatorStats:
     """Statistics tracking tests."""
 
-    @pytest.mark.asyncio
     async def test_stats_accuracy(self, coordinator: BuildCoordinator) -> None:
         """Run mixed scenario, check all stat counters."""
         key1 = _make_key("proj-1", "unit")
@@ -705,7 +681,6 @@ class TestBuildCoordinatorStats:
         assert stats["builds_timed_out"] == 0
         assert stats["builds_stale_rejected"] == 0
 
-    @pytest.mark.asyncio
     async def test_get_stats_returns_copy(self, coordinator: BuildCoordinator) -> None:
         """get_stats returns a copy, not a reference to internal state."""
         stats1 = coordinator.get_stats()
@@ -723,7 +698,6 @@ class TestBuildCoordinatorStats:
 class TestBuildCoordinatorForceCleanup:
     """force_cleanup tests."""
 
-    @pytest.mark.asyncio
     async def test_force_cleanup_removes_in_flight(self, coordinator: BuildCoordinator) -> None:
         """force_cleanup removes key from _in_flight and cancels future."""
         key = _make_key()
@@ -749,7 +723,6 @@ class TestBuildCoordinatorForceCleanup:
         with contextlib.suppress(asyncio.CancelledError, Exception):
             await task
 
-    @pytest.mark.asyncio
     async def test_force_cleanup_nonexistent_key(self, coordinator: BuildCoordinator) -> None:
         """force_cleanup on nonexistent key is a no-op."""
         key = _make_key("nonexistent")
@@ -765,7 +738,6 @@ class TestBuildCoordinatorForceCleanup:
 class TestBuildCoordinatorStress:
     """Concurrent stress tests per TDD test strategy."""
 
-    @pytest.mark.asyncio
     async def test_100_concurrent_same_key(self) -> None:
         """100 concurrent callers for same key: exactly 1 BUILT, 99 COALESCED."""
         coordinator = BuildCoordinator(
@@ -797,7 +769,6 @@ class TestBuildCoordinatorStress:
         assert stats["builds_started"] == 1
         assert stats["builds_coalesced"] == 99
 
-    @pytest.mark.asyncio
     async def test_rapid_invalidation_cycles(self) -> None:
         """Build -> invalidate -> build -> invalidate, 5 cycles: no deadlock."""
         coordinator = BuildCoordinator(
@@ -843,7 +814,6 @@ class TestBuildCoordinatorStress:
         # No orphaned futures
         assert len(coordinator._in_flight) == 0
 
-    @pytest.mark.asyncio
     async def test_mixed_keys_under_contention(self) -> None:
         """50 callers across 5 different keys: proper coalescing per key."""
         coordinator = BuildCoordinator(

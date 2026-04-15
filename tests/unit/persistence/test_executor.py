@@ -59,7 +59,6 @@ def create_failure_result(
 class TestExecuteLevel:
     """Tests for execute_level() method."""
 
-    @pytest.mark.asyncio
     async def test_execute_level_empty(self) -> None:
         """execute_level() with empty list returns empty."""
         mock_client = create_mock_batch_client()
@@ -70,7 +69,6 @@ class TestExecuteLevel:
         assert result == []
         mock_client.execute_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_execute_level_single_create(self) -> None:
         """execute_level() handles single CREATE operation."""
         success = create_success_result(gid="new_123")
@@ -89,7 +87,6 @@ class TestExecuteLevel:
         assert batch_result.success
         assert batch_result.data["gid"] == "new_123"
 
-    @pytest.mark.asyncio
     async def test_execute_level_single_update(self) -> None:
         """execute_level() handles single UPDATE operation."""
         success = create_success_result(gid="123")
@@ -107,7 +104,6 @@ class TestExecuteLevel:
         assert op_type == OperationType.UPDATE
         assert batch_result.success
 
-    @pytest.mark.asyncio
     async def test_execute_level_single_delete(self) -> None:
         """execute_level() handles single DELETE operation."""
         success = BatchResult(status_code=204, body=None, request_index=0)
@@ -125,7 +121,6 @@ class TestExecuteLevel:
         assert op_type == OperationType.DELETE
         assert batch_result.success
 
-    @pytest.mark.asyncio
     async def test_execute_level_correlates_results(self) -> None:
         """execute_level() correlates results to correct entities."""
         results_data = [
@@ -154,7 +149,6 @@ class TestExecuteLevel:
         assert results[1][0] is task2
         assert results[2][0] is task3
 
-    @pytest.mark.asyncio
     async def test_execute_level_mixed_results(self) -> None:
         """execute_level() handles mix of success and failure."""
         results_data = [
@@ -292,7 +286,6 @@ class TestResourceToPath:
 class TestIntegration:
     """Integration tests verifying full flow."""
 
-    @pytest.mark.asyncio
     async def test_batch_client_receives_correct_requests(self) -> None:
         """Verify BatchClient receives correctly built requests."""
         mock_client = create_mock_batch_client(

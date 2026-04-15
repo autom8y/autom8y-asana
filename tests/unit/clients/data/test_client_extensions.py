@@ -60,7 +60,6 @@ def _make_insights_response(
 class TestGetAppointmentsAsync:
     """Tests for get_appointments_async (AC-W04.1, AC-W04.2, AC-W04.10)."""
 
-    @pytest.mark.asyncio
     async def test_success_returns_insights_response(self) -> None:
         """Successful 200 returns InsightsResponse with appointment rows."""
         client = _make_client()
@@ -76,7 +75,6 @@ class TestGetAppointmentsAsync:
         assert result.metadata.row_count == 3
         assert len(result.data) == 3
 
-    @pytest.mark.asyncio
     async def test_passes_correct_params(self) -> None:
         """GET /api/v1/appointments called with correct query params."""
         client = _make_client()
@@ -96,7 +94,6 @@ class TestGetAppointmentsAsync:
         assert params["days"] == "60"
         assert params["limit"] == "50"
 
-    @pytest.mark.asyncio
     async def test_default_params(self) -> None:
         """Default days=90 and limit=100 are used."""
         client = _make_client()
@@ -113,7 +110,6 @@ class TestGetAppointmentsAsync:
         assert params["days"] == "90"
         assert params["limit"] == "100"
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_checked_before_request(self) -> None:
         """Circuit breaker check() is called before the HTTP request."""
         client = _make_client()
@@ -130,7 +126,6 @@ class TestGetAppointmentsAsync:
 
         mock_cb.check.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_records_success(self) -> None:
         """Circuit breaker records success on 200 response."""
         client = _make_client()
@@ -147,7 +142,6 @@ class TestGetAppointmentsAsync:
 
         mock_cb.record_success.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_open_raises(self) -> None:
         """Circuit breaker open raises InsightsServiceError."""
         from autom8y_http import CircuitBreakerOpenError as SdkCBOpen
@@ -162,7 +156,6 @@ class TestGetAppointmentsAsync:
 
         assert exc_info.value.reason == "circuit_breaker"
 
-    @pytest.mark.asyncio
     async def test_pii_masking_in_logs(self) -> None:
         """Phone number is masked in log output (AC-W04.10)."""
         client = _make_client()
@@ -187,7 +180,6 @@ class TestGetAppointmentsAsync:
             assert call_kwargs["office_phone"] == "+1770***3103"
             assert "+17705753103" not in str(call_kwargs)
 
-    @pytest.mark.asyncio
     async def test_sends_request_id_header(self) -> None:
         """X-Request-Id header is sent with the GET request."""
         client = _make_client()
@@ -212,7 +204,6 @@ class TestGetAppointmentsAsync:
 class TestGetLeadsAsync:
     """Tests for get_leads_async (AC-W04.3, AC-W04.4, AC-W04.10)."""
 
-    @pytest.mark.asyncio
     async def test_success_returns_insights_response(self) -> None:
         """Successful 200 returns InsightsResponse with lead rows."""
         client = _make_client()
@@ -228,7 +219,6 @@ class TestGetLeadsAsync:
         assert result.metadata.row_count == 7
         assert len(result.data) == 7
 
-    @pytest.mark.asyncio
     async def test_exclude_appointments_true_by_default(self) -> None:
         """exclude_appointments=True adds param to request by default."""
         client = _make_client()
@@ -244,7 +234,6 @@ class TestGetLeadsAsync:
         params = call_kwargs[1]["params"]
         assert params["exclude_appointments"] == "true"
 
-    @pytest.mark.asyncio
     async def test_exclude_appointments_false(self) -> None:
         """exclude_appointments=False omits the param from request."""
         client = _make_client()
@@ -260,7 +249,6 @@ class TestGetLeadsAsync:
         params = call_kwargs[1]["params"]
         assert "exclude_appointments" not in params
 
-    @pytest.mark.asyncio
     async def test_passes_correct_path_and_params(self) -> None:
         """GET /api/v1/leads called with correct query params."""
         client = _make_client()
@@ -279,7 +267,6 @@ class TestGetLeadsAsync:
         assert params["days"] == "14"
         assert params["limit"] == "200"
 
-    @pytest.mark.asyncio
     async def test_default_params(self) -> None:
         """Default days=30 and limit=100 are used."""
         client = _make_client()
@@ -296,7 +283,6 @@ class TestGetLeadsAsync:
         assert params["days"] == "30"
         assert params["limit"] == "100"
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_checked_before_request(self) -> None:
         """Circuit breaker check() is called before the HTTP request."""
         client = _make_client()
@@ -313,7 +299,6 @@ class TestGetLeadsAsync:
 
         mock_cb.check.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_records_success(self) -> None:
         """Circuit breaker records success on 200 response."""
         client = _make_client()
@@ -330,7 +315,6 @@ class TestGetLeadsAsync:
 
         mock_cb.record_success.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_open_raises(self) -> None:
         """Circuit breaker open raises InsightsServiceError."""
         from autom8y_http import CircuitBreakerOpenError as SdkCBOpen
@@ -345,7 +329,6 @@ class TestGetLeadsAsync:
 
         assert exc_info.value.reason == "circuit_breaker"
 
-    @pytest.mark.asyncio
     async def test_pii_masking_in_logs(self) -> None:
         """Phone number is masked in log output (AC-W04.10)."""
         client = _make_client()

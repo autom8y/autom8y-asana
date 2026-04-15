@@ -174,7 +174,6 @@ def _clear_computation_locks():
 
 
 class TestCacheHitPath:
-    @pytest.mark.asyncio
     async def test_returns_entries_from_cached_timelines(self) -> None:
         """Derived cache hit: returns OfferTimelineEntry list without enumeration."""
         derived_entry = _make_derived_entry()
@@ -207,7 +206,6 @@ class TestCacheHitPath:
             mock_batch.assert_not_called()
             client.tasks.list_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_cache_hit_computes_day_counts(self) -> None:
         """Cached timelines are used to compute day counts for the period."""
         # Build a timeline where ACTIVE interval covers entire January
@@ -242,7 +240,6 @@ class TestCacheHitPath:
 
 
 class TestCacheMissPath:
-    @pytest.mark.asyncio
     async def test_enumerates_tasks_on_miss(self) -> None:
         """Cache miss: enumerates tasks, reads stories, builds timelines."""
         task = _make_task_mock("t1", section_name="ACTIVE", project_gid="proj1")
@@ -293,7 +290,6 @@ class TestCacheMissPath:
 
             assert len(result) >= 1
 
-    @pytest.mark.asyncio
     async def test_cache_miss_with_no_stories_imputes(self) -> None:
         """EC-6: Entity with no cached stories imputes from task data."""
         task = _make_task_mock(
@@ -343,7 +339,6 @@ class TestCacheMissPath:
 
 
 class TestLockRecheck:
-    @pytest.mark.asyncio
     async def test_second_request_finds_cache_after_lock(self) -> None:
         """EC-3: Concurrent request waits for lock, then finds cache."""
         derived_entry = _make_derived_entry()
@@ -397,7 +392,6 @@ class TestLockRecheck:
 
 
 class TestErrorCases:
-    @pytest.mark.asyncio
     async def test_unknown_classifier_returns_empty(self) -> None:
         """Unknown classifier_name returns empty list."""
         client = _make_client_with_cache(cache_provider=MagicMock())
@@ -412,7 +406,6 @@ class TestErrorCases:
 
         assert result == []
 
-    @pytest.mark.asyncio
     async def test_no_cache_provider_returns_empty(self) -> None:
         """Client without _cache_provider returns empty list."""
         client = _make_client_with_cache(cache_provider=None)
@@ -427,7 +420,6 @@ class TestErrorCases:
 
         assert result == []
 
-    @pytest.mark.asyncio
     async def test_cache_store_failure_still_returns_results(self) -> None:
         """Per TDD Section 8.2: Store failure returns computed results."""
         task = _make_task_mock(
@@ -469,7 +461,6 @@ class TestErrorCases:
 
             assert isinstance(result, list)
 
-    @pytest.mark.asyncio
     async def test_task_enumeration_failure_raises(self) -> None:
         """Task enumeration failure propagates as exception."""
         cache = MagicMock()
@@ -503,7 +494,6 @@ class TestErrorCases:
 
 
 class TestGenericParameterization:
-    @pytest.mark.asyncio
     async def test_offer_classifier(self) -> None:
         """offer classifier resolves and works."""
         derived_entry = _make_derived_entry(classifier_name="offer")
@@ -524,7 +514,6 @@ class TestGenericParameterization:
 
             assert len(result) >= 1
 
-    @pytest.mark.asyncio
     async def test_unit_classifier(self) -> None:
         """unit classifier resolves and works (SC-3)."""
         derived_entry = _make_derived_entry(classifier_name="unit")
@@ -545,7 +534,6 @@ class TestGenericParameterization:
 
             assert len(result) >= 1
 
-    @pytest.mark.asyncio
     async def test_different_classifiers_use_different_cache_keys(
         self,
     ) -> None:
@@ -566,7 +554,6 @@ _PATCH_CLIENT_STORIES = "autom8_asana.services.section_timeline_service.asyncio"
 class TestSelfHealingInlineFetch:
     """Tests for bounded self-healing when story cache has gaps."""
 
-    @pytest.mark.asyncio
     async def test_zero_misses_no_inline_fetch(self) -> None:
         """When all stories are cached, no inline fetch occurs."""
         task = _make_task_mock("t1", section_name="ACTIVE", project_gid="proj1")
@@ -617,7 +604,6 @@ class TestSelfHealingInlineFetch:
             client.stories.list_for_task_cached_async.assert_not_called()
             assert len(result) >= 1
 
-    @pytest.mark.asyncio
     async def test_misses_below_threshold_triggers_inline_fetch(self) -> None:
         """Misses <= 50 triggers inline fetch and re-read."""
         task1 = _make_task_mock("t1", section_name="ACTIVE", project_gid="proj1")
@@ -703,7 +689,6 @@ class TestSelfHealingInlineFetch:
             # Both tasks should produce results
             assert len(result) == 2
 
-    @pytest.mark.asyncio
     async def test_misses_above_threshold_logs_warning_no_fetch(self) -> None:
         """Misses > 50 logs WARNING but does NOT trigger inline fetch."""
         # Create 60 tasks, all cache misses
@@ -757,7 +742,6 @@ class TestSelfHealingInlineFetch:
             # Results should still be returned (via imputation)
             assert isinstance(result, list)
 
-    @pytest.mark.asyncio
     async def test_inline_fetch_failure_is_caught_per_task(self) -> None:
         """Individual inline fetch failures are caught, not propagated."""
         task1 = _make_task_mock("t1", section_name="ACTIVE", project_gid="proj1")

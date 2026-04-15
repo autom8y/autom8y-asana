@@ -243,7 +243,6 @@ class TestConversationAuditWorkflowId:
 class TestValidateAsync:
     """Tests for validate_async pre-flight checks."""
 
-    @pytest.mark.asyncio
     async def test_feature_flag_disabled(self) -> None:
         wf, _, _, _ = _make_workflow()
         with patch.dict(os.environ, {AUDIT_ENABLED_ENV_VAR: "false"}):
@@ -251,21 +250,18 @@ class TestValidateAsync:
         assert len(errors) == 1
         assert "disabled" in errors[0].lower()
 
-    @pytest.mark.asyncio
     async def test_feature_flag_disabled_zero(self) -> None:
         wf, _, _, _ = _make_workflow()
         with patch.dict(os.environ, {AUDIT_ENABLED_ENV_VAR: "0"}):
             errors = await wf.validate_async()
         assert len(errors) == 1
 
-    @pytest.mark.asyncio
     async def test_feature_flag_disabled_no(self) -> None:
         wf, _, _, _ = _make_workflow()
         with patch.dict(os.environ, {AUDIT_ENABLED_ENV_VAR: "no"}):
             errors = await wf.validate_async()
         assert len(errors) == 1
 
-    @pytest.mark.asyncio
     async def test_feature_flag_enabled_default(self) -> None:
         wf, _, _, _ = _make_workflow()
         # Ensure env var is not set
@@ -275,7 +271,6 @@ class TestValidateAsync:
             errors = await wf.validate_async()
         assert errors == []
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_open(self) -> None:
         wf, _, mock_data, _ = _make_workflow()
 
@@ -295,7 +290,6 @@ class TestValidateAsync:
 class TestExecuteAsyncHappyPath:
     """Tests for happy path execution."""
 
-    @pytest.mark.asyncio
     async def test_three_holders_all_succeed(self) -> None:
         """Happy path: 3 holders, all succeed."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -326,7 +320,6 @@ class TestExecuteAsyncHappyPath:
 class TestExecuteAsyncSkipNoPhone:
     """Tests for skip-no-phone scenarios."""
 
-    @pytest.mark.asyncio
     async def test_skip_no_phone(self) -> None:
         """1 of 3 holders has no parent.office_phone -> skipped=1."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -350,7 +343,6 @@ class TestExecuteAsyncSkipNoPhone:
         assert result.succeeded == 2
         assert result.skipped == 1
 
-    @pytest.mark.asyncio
     async def test_skip_no_parent(self) -> None:
         """Holder with no parent reference -> skipped."""
         h1 = _make_task("h1", "Orphan Holder")  # No parent_gid
@@ -366,7 +358,6 @@ class TestExecuteAsyncSkipNoPhone:
 class TestExecuteAsyncSkipZeroRows:
     """Tests for skip-zero-rows scenario."""
 
-    @pytest.mark.asyncio
     async def test_skip_zero_rows(self) -> None:
         """Export returns row_count=0 -> skipped."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -393,7 +384,6 @@ class TestExecuteAsyncSkipZeroRows:
 class TestExecuteAsyncExportFailure:
     """Tests for export failure scenarios."""
 
-    @pytest.mark.asyncio
     async def test_export_failure_captured(self) -> None:
         """DataServiceClient raises ExportError -> failed=1, error captured."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -420,7 +410,6 @@ class TestExecuteAsyncExportFailure:
         assert result.errors[0].error_type == "export_server_error"
         assert result.errors[0].recoverable is True
 
-    @pytest.mark.asyncio
     async def test_export_client_error_not_recoverable(self) -> None:
         """Client error (4xx) -> failed, not recoverable."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -447,7 +436,6 @@ class TestExecuteAsyncExportFailure:
 class TestExecuteAsyncCircuitBreakerOpen:
     """Tests for circuit breaker open scenario."""
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_all_fail(self) -> None:
         """All exports fail with circuit breaker -> all failed."""
         holders = [_make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}") for i in range(3)]
@@ -479,7 +467,6 @@ class TestExecuteAsyncCircuitBreakerOpen:
 class TestExecuteAsyncUploadFirstOrdering:
     """Tests for upload-first attachment replacement."""
 
-    @pytest.mark.asyncio
     async def test_upload_before_delete(self) -> None:
         """Assert upload_async is called before delete_async."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -508,7 +495,6 @@ class TestExecuteAsyncUploadFirstOrdering:
 class TestExecuteAsyncTruncated:
     """Tests for truncated export scenario."""
 
-    @pytest.mark.asyncio
     async def test_truncated_counted_in_metadata(self) -> None:
         """Truncated export -> metadata has truncated_count."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -541,7 +527,6 @@ class TestExecuteAsyncTruncated:
 class TestExecuteAsyncDeleteFailureTolerance:
     """Tests for delete failure tolerance (EC-05)."""
 
-    @pytest.mark.asyncio
     async def test_delete_failure_still_succeeded(self) -> None:
         """Delete-old fails -> holder still counted as succeeded."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -568,7 +553,6 @@ class TestExecuteAsyncDeleteFailureTolerance:
 class TestExecuteAsyncConcurrency:
     """Tests for concurrency semaphore."""
 
-    @pytest.mark.asyncio
     async def test_max_concurrency_from_params(self) -> None:
         """Verify max_concurrency is taken from params."""
         holders = [_make_task(f"h{i}", f"Holder {i}", parent_gid=f"biz{i}") for i in range(10)]
@@ -596,7 +580,6 @@ class TestExecuteAsyncConcurrency:
 class TestExecuteAsyncFeatureFlagDisabled:
     """Tests for feature flag disabling the workflow."""
 
-    @pytest.mark.asyncio
     async def test_validate_blocks_execution(self) -> None:
         """validate_async returns error when disabled; workflow should not execute."""
         wf, mock_asana, _, _ = _make_workflow()
@@ -613,7 +596,6 @@ class TestExecuteAsyncFeatureFlagDisabled:
 class TestExecuteAsyncEmptyProject:
     """Tests for empty project (no holders)."""
 
-    @pytest.mark.asyncio
     async def test_no_holders(self) -> None:
         """Empty project -> total=0, all zeros."""
         wf, _, _, _ = _make_workflow(holders=[])
@@ -633,7 +615,6 @@ class TestExecuteAsyncDateRange:
     to get_export_csv_async. Verify the fix passes start_date/end_date through.
     """
 
-    @pytest.mark.asyncio
     async def test_date_range_days_passed_to_export(self) -> None:
         """date_range_days from params -> start_date/end_date forwarded to export."""
         from datetime import date, timedelta
@@ -660,7 +641,6 @@ class TestExecuteAsyncDateRange:
         assert call_kwargs["start_date"] == expected_start
         assert call_kwargs["end_date"] == expected_end
 
-    @pytest.mark.asyncio
     async def test_default_date_range_30_days(self) -> None:
         """Default date_range_days=30 when not specified in params."""
         from datetime import date, timedelta
@@ -693,7 +673,6 @@ class TestPreResolveBusinessActivities:
     filters inactive holders before they reach execute_async.
     """
 
-    @pytest.mark.asyncio
     async def test_prefilter_skips_inactive_holders(self) -> None:
         """Holders with INACTIVE parent Business are pre-filtered by enumerate_async."""
         h_active = _make_task("h1", "Active Holder", parent_gid="biz-active")
@@ -724,7 +703,6 @@ class TestPreResolveBusinessActivities:
         assert mock_data.get_export_csv_async.call_count == 1
         assert mock_att.upload_async.call_count == 1
 
-    @pytest.mark.asyncio
     async def test_prefilter_skips_none_activity(self) -> None:
         """Holders with None activity (hydration failed) are pre-filtered by enumerate_async."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz-unknown")
@@ -749,7 +727,6 @@ class TestPreResolveBusinessActivities:
         assert result.total == 0
         mock_data.get_export_csv_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_prefilter_passes_holders_without_parent(self) -> None:
         """Holders with no parent_gid pass through pre-filter to processing."""
         h_orphan = _make_task("h1", "Orphan Holder")  # No parent_gid
@@ -762,7 +739,6 @@ class TestPreResolveBusinessActivities:
         assert result.total == 1
         assert result.skipped == 1
 
-    @pytest.mark.asyncio
     async def test_preresolution_deduplicates_business_gids(self) -> None:
         """Multiple holders sharing a parent Business hydrate it only once."""
         h1 = _make_task("h1", "Holder 1", parent_gid="shared-biz")
@@ -798,7 +774,6 @@ class TestPreResolveBusinessActivities:
         assert result.total == 3
         assert result.succeeded == 3
 
-    @pytest.mark.asyncio
     async def test_preresolution_handles_hydration_failure(self) -> None:
         """If hydration fails for a Business, its holders are filtered out by enumerate_async."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz-fail")
@@ -828,7 +803,6 @@ class TestPreResolveBusinessActivities:
         assert result.total == 0
         mock_data.get_export_csv_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_prefilter_mixed_activities(self) -> None:
         """Mix of ACTIVE, INACTIVE, ACTIVATING parents: only ACTIVE processed.
 
@@ -870,7 +844,6 @@ class TestResolveOfficePhonePassthrough:
     task fetch is skipped, saving 1 API call per holder.
     """
 
-    @pytest.mark.asyncio
     async def test_parent_gid_skips_holder_fetch(self) -> None:
         """When parent_gid is provided, no get_async call for the holder task."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -889,7 +862,6 @@ class TestResolveOfficePhonePassthrough:
         call_gids = [call.args[0] for call in mock_asana.tasks.get_async.call_args_list]
         assert "h1" not in call_gids
 
-    @pytest.mark.asyncio
     async def test_no_parent_gid_falls_back_to_fetch(self) -> None:
         """When parent_gid is None, holder task is fetched for parent reference."""
         h1 = _make_task("h1", "Orphan Holder")  # No parent_gid
@@ -909,7 +881,6 @@ class TestResolveOfficePhonePassthrough:
 class TestEnumerateContactHolders:
     """Tests for _enumerate_contact_holders return shape."""
 
-    @pytest.mark.asyncio
     async def test_returns_parent_gid_field(self) -> None:
         """Enumeration returns parent_gid (not parent object) in dicts."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -927,7 +898,6 @@ class TestEnumerateContactHolders:
         h2_dict = next(h for h in holders if h["gid"] == "h2")
         assert h2_dict["parent_gid"] is None
 
-    @pytest.mark.asyncio
     async def test_excludes_completed_tasks(self) -> None:
         """Completed holders are excluded from enumeration."""
         h1 = _make_task("h1", "Active Holder", parent_gid="biz1")
@@ -970,7 +940,6 @@ class TestResolveBusinessActivity:
         mock_result.business = mock_business
         return mock_result
 
-    @pytest.mark.asyncio
     async def test_returns_active_for_active_business(self) -> None:
         """Active business returns AccountActivity.ACTIVE."""
         wf, _, _, _ = self._make_clean_workflow()
@@ -982,7 +951,6 @@ class TestResolveBusinessActivity:
 
         assert result == AccountActivity.ACTIVE
 
-    @pytest.mark.asyncio
     async def test_caches_activity_result(self) -> None:
         """Second call for same business_gid returns cached result."""
         wf, _, _, _ = self._make_clean_workflow()
@@ -999,7 +967,6 @@ class TestResolveBusinessActivity:
         # hydrate_from_gid_async should only be called once (cached)
         assert mock_hydrate.call_count == 1
 
-    @pytest.mark.asyncio
     async def test_returns_none_on_resolution_failure(self) -> None:
         """Resolution failure caches and returns None."""
         wf, _, _, _ = self._make_clean_workflow()
@@ -1012,7 +979,6 @@ class TestResolveBusinessActivity:
         assert "biz-bad" in wf._activity_map
         assert wf._activity_map["biz-bad"] is None
 
-    @pytest.mark.asyncio
     async def test_caches_none_on_failure(self) -> None:
         """Failed resolution is cached so subsequent calls do not retry."""
         wf, _, _, _ = self._make_clean_workflow()
@@ -1037,7 +1003,6 @@ class TestActivityFiltering:
     filtered out during enumeration and never reach execute_async.
     """
 
-    @pytest.mark.asyncio
     async def test_enumerate_filters_inactive_business(self) -> None:
         """enumerate_async excludes holder with INACTIVE parent."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -1053,7 +1018,6 @@ class TestActivityFiltering:
         assert len(entities) == 0
         mock_data.get_export_csv_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_enumerate_filters_activating_business(self) -> None:
         """enumerate_async excludes holder with ACTIVATING parent."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -1069,7 +1033,6 @@ class TestActivityFiltering:
         assert len(entities) == 0
         mock_data.get_export_csv_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_enumerate_filters_unknown_activity(self) -> None:
         """enumerate_async excludes holder with None (unknown) activity."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -1085,7 +1048,6 @@ class TestActivityFiltering:
         assert len(entities) == 0
         mock_data.get_export_csv_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_enumerate_passes_active_business(self) -> None:
         """enumerate_async includes holder with ACTIVE parent."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -1106,7 +1068,6 @@ class TestActivityFiltering:
         mock_data.get_export_csv_async.assert_called_once()
         mock_att.upload_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_enumerate_passes_orphan_holder(self) -> None:
         """Holder with no parent_gid passes through enumerate_async."""
         h1 = _make_task("h1", "Orphan Holder")  # No parent_gid
@@ -1122,7 +1083,6 @@ class TestActivityFiltering:
         assert result.skipped == 1
         assert result.metadata["activity_skipped_count"] == 0
 
-    @pytest.mark.asyncio
     async def test_enumerate_mixed_activity_outcomes(self) -> None:
         """enumerate_async with mixed activities: only ACTIVE passes through."""
         h1 = _make_task("h1", "Active Holder", parent_gid="biz1")
@@ -1152,7 +1112,6 @@ class TestActivityFiltering:
         assert result.total == 1
         assert result.succeeded == 1
 
-    @pytest.mark.asyncio
     async def test_activity_map_deduplication(self) -> None:
         """Multiple holders sharing the same parent should resolve activity once."""
         h1 = _make_task("h1", "Holder 1", parent_gid="shared-biz")
@@ -1176,7 +1135,6 @@ class TestActivityFiltering:
         assert result.total == 3
         assert result.succeeded == 3
 
-    @pytest.mark.asyncio
     async def test_workflow_result_metadata_has_activity_skipped_count(self) -> None:
         """WorkflowResult metadata always includes activity_skipped_count."""
         wf, _, _, _ = _make_workflow(holders=[])
@@ -1190,7 +1148,6 @@ class TestActivityFiltering:
 class TestResolveOfficePhone:
     """Tests for _resolve_office_phone parent_gid optimization."""
 
-    @pytest.mark.asyncio
     async def test_uses_parent_gid_when_provided(self) -> None:
         """When parent_gid is known, skips the holder GET call."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -1223,7 +1180,6 @@ class TestEnumerateAsyncConversationAudit:
     skips pre-resolution and full scope triggers pre-resolution + filtering.
     """
 
-    @pytest.mark.asyncio
     async def test_enumerate_with_entity_ids_skips_pre_resolution(self) -> None:
         """Targeted scope returns synthetic dicts without pre-resolution."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -1247,7 +1203,6 @@ class TestEnumerateAsyncConversationAudit:
         # Should NOT have called list_async (no project enumeration)
         mock_asana.tasks.list_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_enumerate_without_entity_ids_calls_pre_resolution(self) -> None:
         """Full scope triggers project enumeration and pre-resolution."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -1269,7 +1224,6 @@ class TestEnumerateAsyncConversationAudit:
         assert entities[0]["gid"] == "h1"
         assert entities[0]["parent_gid"] == "biz1"
 
-    @pytest.mark.asyncio
     async def test_enumerate_filters_inactive_businesses(self) -> None:
         """Full enumeration filters out holders with non-ACTIVE parents."""
         h_active = _make_task("h1", "Active", parent_gid="biz-a")
@@ -1306,7 +1260,6 @@ class TestDryRunConversationAudit:
     skips CSV upload and includes metadata.
     """
 
-    @pytest.mark.asyncio
     async def test_dry_run_skips_csv_upload(self) -> None:
         """When dry_run=True, upload_async is NOT called."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")
@@ -1333,7 +1286,6 @@ class TestDryRunConversationAudit:
         assert result.succeeded == 1
         assert result.metadata.get("dry_run") is True
 
-    @pytest.mark.asyncio
     async def test_dry_run_metadata_flag(self) -> None:
         """When dry_run=True, metadata includes dry_run=True."""
         wf, _, _, _ = _make_workflow(holders=[])
@@ -1347,7 +1299,6 @@ class TestDryRunConversationAudit:
 
         assert result.metadata.get("dry_run") is True
 
-    @pytest.mark.asyncio
     async def test_dry_run_metadata_csv_row_count(self) -> None:
         """DEF-002: metadata['csv_row_count'] present in dry-run."""
         h1 = _make_task("h1", "Holder 1", parent_gid="biz1")

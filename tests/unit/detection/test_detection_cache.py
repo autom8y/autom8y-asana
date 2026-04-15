@@ -369,7 +369,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         subtask.name = "Contacts"
         return subtask
 
-    @pytest.mark.asyncio
     async def test_cache_hit_returns_result_without_api_call(
         self,
         mock_client_with_cache: MagicMock,
@@ -390,7 +389,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         # Verify no API call was made
         mock_client_with_cache.tasks.subtasks_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_cache_miss_executes_tier4_and_stores(
         self,
         mock_client_with_cache: MagicMock,
@@ -417,7 +415,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         # Verify cache was populated
         mock_cache.set.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_no_cache_check_for_tier1_success(
         self,
         mock_client_with_cache: MagicMock,
@@ -446,7 +443,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         mock_cache.get.assert_not_called()
         mock_cache.set.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_no_cache_check_for_tier2_success(
         self,
         mock_client_with_cache: MagicMock,
@@ -465,7 +461,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         mock_cache.get.assert_not_called()
         mock_cache.set.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_cache_check_failure_degrades_gracefully(
         self,
         mock_client_with_cache: MagicMock,
@@ -489,7 +484,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         assert result.entity_type == EntityType.BUSINESS
         assert result.tier_used == 4
 
-    @pytest.mark.asyncio
     async def test_cache_store_failure_degrades_gracefully(
         self,
         mock_client_with_cache: MagicMock,
@@ -514,7 +508,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         assert result.entity_type == EntityType.BUSINESS
         assert result.tier_used == 4
 
-    @pytest.mark.asyncio
     async def test_no_cache_provider_proceeds_normally(
         self,
         mock_client: MagicMock,
@@ -534,7 +527,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         assert result.entity_type == EntityType.BUSINESS
         assert result.tier_used == 4
 
-    @pytest.mark.asyncio
     async def test_tier4_none_result_not_cached(
         self,
         mock_client_with_cache: MagicMock,
@@ -568,7 +560,6 @@ class TestDetectEntityTypeAsyncCacheIntegration:
 class TestCacheWithStructureInspectionDisabled:
     """Tests for cache behavior when structure_inspection is disabled."""
 
-    @pytest.mark.asyncio
     async def test_no_cache_interaction_when_inspection_disabled(
         self,
         mock_client_with_cache: MagicMock,

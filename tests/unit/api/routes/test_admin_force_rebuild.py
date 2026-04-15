@@ -57,7 +57,6 @@ def mock_dataframe_cache():
 class TestForceRebuildDeletesS3Data:
     """Verify force rebuild deletes both manifest and section files."""
 
-    @pytest.mark.asyncio
     async def test_force_rebuild_deletes_manifest_and_sections(
         self, mock_registry, mock_persistence, mock_dataframe_cache
     ) -> None:
@@ -81,7 +80,6 @@ class TestForceRebuildDeletesS3Data:
         assert "proj-unit" in manifest_calls
         assert "proj-contact" in manifest_calls
 
-    @pytest.mark.asyncio
     async def test_force_rebuild_invalidates_memory_cache(
         self, mock_registry, mock_persistence, mock_dataframe_cache
     ) -> None:
@@ -102,7 +100,6 @@ class TestForceRebuildDeletesS3Data:
 class TestForceRebuildLambdaInvocation:
     """Verify Lambda cache warmer invocation behavior."""
 
-    @pytest.mark.asyncio
     async def test_force_rebuild_invokes_lambda_when_arn_set(
         self, mock_registry, mock_persistence, mock_dataframe_cache
     ) -> None:
@@ -129,7 +126,6 @@ class TestForceRebuildLambdaInvocation:
             "test-refresh-id",
         )
 
-    @pytest.mark.asyncio
     async def test_force_rebuild_no_lambda_when_arn_not_set(
         self, mock_registry, mock_persistence, mock_dataframe_cache
     ) -> None:
@@ -198,7 +194,6 @@ class TestInvokeCacheWarmerLambda:
 class TestForceRebuildNoInProcessBuilder:
     """Verify that force path does NOT instantiate ProgressiveProjectBuilder."""
 
-    @pytest.mark.asyncio
     async def test_force_rebuild_no_in_process_builder(
         self, mock_registry, mock_persistence, mock_dataframe_cache
     ) -> None:
@@ -222,7 +217,6 @@ class TestForceRebuildNoInProcessBuilder:
         source = inspect.getsource(_perform_force_rebuild)
         assert "ProgressiveProjectBuilder" not in source
 
-    @pytest.mark.asyncio
     async def test_force_rebuild_skips_unknown_project_gid(
         self, mock_persistence, mock_dataframe_cache
     ) -> None:
@@ -252,7 +246,6 @@ class TestForceRebuildDeletesMergedArtifacts:
     Per ADR-HOTFIX-002: prevents ProgressiveTier from re-hydrating stale data.
     """
 
-    @pytest.mark.asyncio
     async def test_force_rebuild_deletes_merged_artifacts(
         self, mock_registry, mock_persistence, mock_dataframe_cache
     ) -> None:

@@ -255,7 +255,6 @@ benchmark = pytest.mark.benchmark
 
 
 @benchmark
-@pytest.mark.asyncio
 @pytest.mark.benchmark
 @pytest.mark.usefixtures("enable_insights_feature")
 class TestSingleRequestBenchmark:
@@ -398,7 +397,6 @@ class TestSingleRequestBenchmark:
 
 
 @benchmark
-@pytest.mark.asyncio
 @pytest.mark.benchmark
 @pytest.mark.usefixtures("enable_insights_feature")
 class TestBatchRequestBenchmark:

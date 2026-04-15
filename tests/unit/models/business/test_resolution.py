@@ -208,7 +208,6 @@ class TestBatchResolution:
     Per ADR-0073: Tests for resolve_units_async and resolve_offers_async.
     """
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_empty_list_returns_empty_dict(self) -> None:
         """Empty input returns empty dict."""
         client = MagicMock()
@@ -217,7 +216,6 @@ class TestBatchResolution:
 
         assert results == {}
 
-    @pytest.mark.asyncio
     async def test_resolve_offers_async_empty_list_returns_empty_dict(self) -> None:
         """Empty input returns empty dict for offers."""
         client = MagicMock()
@@ -226,7 +224,6 @@ class TestBatchResolution:
 
         assert results == {}
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_single_asset_edit(self) -> None:
         """Single AssetEdit is resolved correctly."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -251,7 +248,6 @@ class TestBatchResolution:
         assert results["ae1"].entity == unit
         assert results["ae1"].success is True
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_multiple_same_business(self) -> None:
         """Multiple AssetEdits from same Business share hydration."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -288,7 +284,6 @@ class TestBatchResolution:
         assert results["ae1"].entity == unit1
         assert results["ae2"].entity == unit1
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_multiple_different_businesses(self) -> None:
         """Multiple AssetEdits from different Businesses are resolved."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -322,7 +317,6 @@ class TestBatchResolution:
         assert "ae1" in results
         assert "ae2" in results
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_partial_failure(self) -> None:
         """Partial failures still return results for all inputs."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -361,7 +355,6 @@ class TestBatchResolution:
         assert results["ae2"].success is False
         assert results["ae2"].error == "No matching Unit found"
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_with_dependent_tasks_strategy(self) -> None:
         """Strategy parameter is passed correctly."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -387,7 +380,6 @@ class TestBatchResolution:
                 client, strategy=ResolutionStrategy.DEPENDENT_TASKS
             )
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_with_custom_field_strategy(self) -> None:
         """CUSTOM_FIELD_MAPPING strategy is passed correctly."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -412,7 +404,6 @@ class TestBatchResolution:
                 client, strategy=ResolutionStrategy.CUSTOM_FIELD_MAPPING
             )
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_with_explicit_offer_id_strategy(self) -> None:
         """EXPLICIT_OFFER_ID strategy is passed correctly."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -437,7 +428,6 @@ class TestBatchResolution:
                 client, strategy=ResolutionStrategy.EXPLICIT_OFFER_ID
             )
 
-    @pytest.mark.asyncio
     async def test_resolve_offers_async_delegates_correctly(self) -> None:
         """resolve_offers_async delegates to instance method."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -460,7 +450,6 @@ class TestBatchResolution:
         assert results["ae1"].entity == offer
         assert results["ae1"].success is True
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_exception_creates_error_result(self) -> None:
         """Exception during resolution creates error result."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -485,7 +474,6 @@ class TestBatchResolution:
         assert result.entity is None
         assert "Network error" in result.error
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_returns_dict_keyed_by_gid(self) -> None:
         """Results are keyed by asset_edit.gid."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -515,7 +503,6 @@ class TestBatchResolutionEdgeCases:
     Per QA validation: Tests for edge cases not covered by primary test suite.
     """
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_asset_edit_without_business_context(
         self,
     ) -> None:
@@ -545,7 +532,6 @@ class TestBatchResolutionEdgeCases:
         assert results["ae1"].success is False
         assert "Business context" in results["ae1"].error
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_all_fail_resolution(self) -> None:
         """All AssetEdits failing resolution returns all error entries."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -578,7 +564,6 @@ class TestBatchResolutionEdgeCases:
         assert all(not r.success for r in results.values())
         assert all(r.error == "No matching Unit found" for r in results.values())
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_duplicate_gids_last_wins(self) -> None:
         """Duplicate AssetEdits with same GID - last result overwrites."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -613,7 +598,6 @@ class TestBatchResolutionEdgeCases:
         assert results["ae1"].entity == unit2
         assert results["ae1"].strategy_used == ResolutionStrategy.CUSTOM_FIELD_MAPPING
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_hydration_exception_continues(self) -> None:
         """Exception during hydration doesn't prevent resolution attempts."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -654,7 +638,6 @@ class TestBatchResolutionEdgeCases:
         # Resolution succeeded even though hydration failed
         assert results["ae1"].success is True
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_shared_hydration_optimization(self) -> None:
         """CRITICAL: Business.units fetched once per unique Business, not per AssetEdit."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -696,7 +679,6 @@ class TestBatchResolutionEdgeCases:
         # All three AssetEdits got results
         assert len(results) == 3
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_multiple_businesses_separate_hydration(
         self,
     ) -> None:
@@ -739,7 +721,6 @@ class TestBatchResolutionEdgeCases:
         # All three AssetEdits got results
         assert len(results) == 3
 
-    @pytest.mark.asyncio
     async def test_resolve_offers_async_exception_creates_error_result(self) -> None:
         """Exception during offer resolution creates error result."""
         from autom8_asana.models.business.asset_edit import AssetEdit
@@ -764,7 +745,6 @@ class TestBatchResolutionEdgeCases:
         assert result.entity is None
         assert "Offer resolution error" in result.error
 
-    @pytest.mark.asyncio
     async def test_resolve_units_async_mixed_with_and_without_business(self) -> None:
         """Mix of AssetEdits with and without Business context."""
         from autom8_asana.models.business.asset_edit import AssetEdit

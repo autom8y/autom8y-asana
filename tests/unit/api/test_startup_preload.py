@@ -71,7 +71,6 @@ def mock_entity_registry():
 class TestPreloadDataframeCacheFunction:
     """Tests for the _preload_dataframe_cache function."""
 
-    @pytest.mark.asyncio
     async def test_preload_skips_when_registry_not_ready(self) -> None:
         """Preload skips when entity registry is not ready."""
         from autom8_asana.api.preload.legacy import _preload_dataframe_cache
@@ -86,7 +85,6 @@ class TestPreloadDataframeCacheFunction:
 
         assert is_cache_ready() is True
 
-    @pytest.mark.asyncio
     async def test_preload_skips_when_no_registered_projects(
         self, mock_entity_registry: MagicMock
     ) -> None:
@@ -103,7 +101,6 @@ class TestPreloadDataframeCacheFunction:
 
         assert is_cache_ready() is True
 
-    @pytest.mark.asyncio
     async def test_preload_skips_when_s3_unavailable(self, mock_entity_registry: MagicMock) -> None:
         """Preload skips when S3 persistence is unavailable."""
         from autom8_asana.api.preload.legacy import _preload_dataframe_cache
@@ -123,7 +120,6 @@ class TestPreloadDataframeCacheFunction:
         assert is_cache_ready() is True
 
     @pytest.mark.slow
-    @pytest.mark.asyncio
     async def test_preload_loads_index_from_s3_and_does_incremental_catchup(
         self,
         mock_entity_registry: MagicMock,
@@ -172,7 +168,6 @@ class TestPreloadDataframeCacheFunction:
 
         assert is_cache_ready() is True
 
-    @pytest.mark.asyncio
     async def test_preload_does_full_rebuild_when_no_persisted_state(
         self,
         mock_entity_registry: MagicMock,
@@ -221,7 +216,6 @@ class TestPreloadDataframeCacheFunction:
 class TestDoIncrementalCatchup:
     """Tests for the _do_incremental_catchup function."""
 
-    @pytest.mark.asyncio
     async def test_incremental_catchup_returns_existing_when_no_bot_pat(
         self,
         sample_dataframe: pl.DataFrame,
@@ -248,7 +242,6 @@ class TestDoIncrementalCatchup:
             assert result_wm == watermark
             assert was_incremental is False
 
-    @pytest.mark.asyncio
     async def test_incremental_catchup_returns_existing_when_no_workspace(
         self,
         sample_dataframe: pl.DataFrame,
@@ -279,7 +272,6 @@ class TestDoIncrementalCatchup:
 class TestDoFullRebuild:
     """Tests for the _do_full_rebuild function."""
 
-    @pytest.mark.asyncio
     async def test_full_rebuild_returns_none_when_no_bot_pat(self) -> None:
         """Full rebuild returns None DataFrame when bot PAT unavailable."""
         from autom8_asana.api.preload.legacy import _do_full_rebuild
@@ -296,7 +288,6 @@ class TestDoFullRebuild:
             assert result_df is None
             assert result_wm is not None  # Should return current timestamp
 
-    @pytest.mark.asyncio
     async def test_full_rebuild_returns_none_when_no_workspace(self) -> None:
         """Full rebuild returns None DataFrame when workspace not configured."""
         from autom8_asana.api.preload.legacy import _do_full_rebuild
@@ -317,7 +308,6 @@ class TestDoFullRebuild:
 class TestGracefulDegradation:
     """Tests for graceful degradation scenarios."""
 
-    @pytest.mark.asyncio
     async def test_preload_continues_on_project_failure(
         self, mock_entity_registry: MagicMock
     ) -> None:
@@ -370,7 +360,6 @@ class TestGracefulDegradation:
 
         assert is_cache_ready() is True
 
-    @pytest.mark.asyncio
     async def test_preload_sets_cache_ready_on_exception(self) -> None:
         """Preload sets cache ready even when exception occurs."""
         from autom8_asana.api.preload.legacy import _preload_dataframe_cache
@@ -393,7 +382,6 @@ class TestGracefulDegradation:
 class TestCacheIntegration:
     """Tests for cache integration during startup."""
 
-    @pytest.mark.asyncio
     async def test_index_persisted_after_successful_preload(
         self,
         mock_entity_registry: MagicMock,
@@ -437,7 +425,6 @@ class TestCacheIntegration:
                     # Verify incremental catch-up was called
                     mock_catchup.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_state_persisted_after_incremental_catchup_with_changes(
         self,
         mock_entity_registry: MagicMock,

@@ -116,7 +116,6 @@ class TestFreshnessMode:
 class TestFreshnessCoordinatorImmediate:
     """Tests for IMMEDIATE mode."""
 
-    @pytest.mark.asyncio
     async def test_immediate_returns_fresh_without_api(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -135,7 +134,6 @@ class TestFreshnessCoordinatorImmediate:
             assert result.action == "use_cache"
             assert result.current_version is None
 
-    @pytest.mark.asyncio
     async def test_immediate_stats_tracking(self, coordinator: FreshnessCoordinator) -> None:
         """Test that IMMEDIATE mode tracks stats correctly."""
         entries = [make_entry("123"), make_entry("456"), make_entry("789")]
@@ -151,7 +149,6 @@ class TestFreshnessCoordinatorImmediate:
 class TestFreshnessCoordinatorEventual:
     """Tests for EVENTUAL mode."""
 
-    @pytest.mark.asyncio
     async def test_eventual_non_expired_returns_fresh(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -168,7 +165,6 @@ class TestFreshnessCoordinatorEventual:
         assert results[0].is_fresh is True
         assert results[0].action == "use_cache"
 
-    @pytest.mark.asyncio
     async def test_eventual_expired_checks_api(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -190,7 +186,6 @@ class TestFreshnessCoordinatorEventual:
         assert results[0].is_fresh is True
         assert results[0].action == "extend_ttl"
 
-    @pytest.mark.asyncio
     async def test_eventual_mixed_expired_non_expired(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -224,7 +219,6 @@ class TestFreshnessCoordinatorEventual:
 class TestFreshnessCoordinatorStrict:
     """Tests for STRICT mode."""
 
-    @pytest.mark.asyncio
     async def test_strict_always_checks_api(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -244,7 +238,6 @@ class TestFreshnessCoordinatorStrict:
         assert len(results) == 1
         assert results[0].is_fresh is True
 
-    @pytest.mark.asyncio
     async def test_strict_detects_changed(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -266,7 +259,6 @@ class TestFreshnessCoordinatorStrict:
 class TestFreshnessCoordinatorBatching:
     """Tests for batch chunking behavior."""
 
-    @pytest.mark.asyncio
     async def test_chunks_by_asana_limit(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -295,7 +287,6 @@ class TestFreshnessCoordinatorBatching:
         stats = coordinator.get_stats()
         assert stats["api_calls"] == 3
 
-    @pytest.mark.asyncio
     async def test_empty_entries_no_api_call(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -309,7 +300,6 @@ class TestFreshnessCoordinatorBatching:
 class TestFreshnessCoordinatorErrorHandling:
     """Tests for error handling."""
 
-    @pytest.mark.asyncio
     async def test_batch_failure_returns_fetch(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -324,7 +314,6 @@ class TestFreshnessCoordinatorErrorHandling:
         assert results[0].is_fresh is False
         assert results[0].action == "fetch"
 
-    @pytest.mark.asyncio
     async def test_deleted_entity_returns_fetch(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -341,7 +330,6 @@ class TestFreshnessCoordinatorErrorHandling:
         assert results[0].is_fresh is False
         assert results[0].action == "fetch"
 
-    @pytest.mark.asyncio
     async def test_missing_modified_at_returns_fetch(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -359,7 +347,6 @@ class TestFreshnessCoordinatorErrorHandling:
         assert results[0].is_fresh is False
         assert results[0].action == "fetch"
 
-    @pytest.mark.asyncio
     async def test_no_batch_client_returns_fetch(self) -> None:
         """Test that missing batch client results in fetch action."""
         coordinator = FreshnessCoordinator(batch_client=None)
@@ -375,7 +362,6 @@ class TestFreshnessCoordinatorErrorHandling:
 class TestFreshnessCoordinatorHierarchy:
     """Tests for hierarchy-based freshness checking."""
 
-    @pytest.mark.asyncio
     async def test_check_hierarchy_immediate(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -390,7 +376,6 @@ class TestFreshnessCoordinatorHierarchy:
         assert result.is_fresh is True
         assert result.action == "use_cache"
 
-    @pytest.mark.asyncio
     async def test_check_hierarchy_eventual_non_expired(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -405,7 +390,6 @@ class TestFreshnessCoordinatorHierarchy:
         assert result.is_fresh is True
         assert result.action == "use_cache"
 
-    @pytest.mark.asyncio
     async def test_check_hierarchy_strict_unchanged(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -424,7 +408,6 @@ class TestFreshnessCoordinatorHierarchy:
         assert result.is_fresh is True
         assert result.action == "extend_ttl"
 
-    @pytest.mark.asyncio
     async def test_check_hierarchy_strict_changed(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -442,7 +425,6 @@ class TestFreshnessCoordinatorHierarchy:
         assert result.is_fresh is False
         assert result.action == "fetch"
 
-    @pytest.mark.asyncio
     async def test_check_hierarchy_no_batch_client(self) -> None:
         """Test hierarchy check with no batch client."""
         coordinator = FreshnessCoordinator(batch_client=None)
@@ -455,7 +437,6 @@ class TestFreshnessCoordinatorHierarchy:
         assert result.is_fresh is False
         assert result.action == "fetch"
 
-    @pytest.mark.asyncio
     async def test_check_hierarchy_api_error(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -475,7 +456,6 @@ class TestFreshnessCoordinatorHierarchy:
 class TestFreshnessCoordinatorStats:
     """Tests for statistics tracking."""
 
-    @pytest.mark.asyncio
     async def test_stats_tracking(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -504,7 +484,6 @@ class TestFreshnessCoordinatorStats:
         assert stats["stale_count"] == 1  # stale_entry changed
         assert stats["api_calls"] == 1
 
-    @pytest.mark.asyncio
     async def test_reset_stats(self, coordinator: FreshnessCoordinator) -> None:
         """Test that reset_stats clears all statistics."""
         entries = [make_entry("123")]
@@ -522,7 +501,6 @@ class TestFreshnessCoordinatorStats:
 class TestFreshnessCoordinatorVersionComparison:
     """Tests for version comparison logic."""
 
-    @pytest.mark.asyncio
     async def test_same_version_is_fresh(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -539,7 +517,6 @@ class TestFreshnessCoordinatorVersionComparison:
 
         assert results[0].is_fresh is True
 
-    @pytest.mark.asyncio
     async def test_older_api_version_is_fresh(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:
@@ -558,7 +535,6 @@ class TestFreshnessCoordinatorVersionComparison:
         # Cached is newer or equal, so fresh
         assert results[0].is_fresh is True
 
-    @pytest.mark.asyncio
     async def test_newer_api_version_is_stale(
         self, coordinator: FreshnessCoordinator, mock_batch_client: MagicMock
     ) -> None:

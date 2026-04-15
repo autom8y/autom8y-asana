@@ -104,7 +104,6 @@ class TestValidateFields:
 class TestResolveSection:
     """Tests for resolve_section() function."""
 
-    @pytest.mark.asyncio
     async def test_resolves_via_manifest(self) -> None:
         """Section resolved via manifest returns the section name."""
         mock_index = MagicMock()
@@ -130,7 +129,6 @@ class TestResolveSection:
 
         assert result == "ACTIVE"
 
-    @pytest.mark.asyncio
     async def test_falls_back_to_enum(self) -> None:
         """Falls back to enum when manifest resolution returns None."""
         # Manifest index returns None for the section
@@ -165,7 +163,6 @@ class TestResolveSection:
 
         assert result == "ACTIVE"
 
-    @pytest.mark.asyncio
     async def test_falls_back_to_enum_on_s3_error(self) -> None:
         """Falls back to enum when S3 transport error occurs."""
         mock_enum_index = MagicMock()
@@ -190,7 +187,6 @@ class TestResolveSection:
 
         assert result == "ACTIVE"
 
-    @pytest.mark.asyncio
     async def test_raises_unknown_section_error(self) -> None:
         """Raises UnknownSectionError when section cannot be resolved."""
         mock_enum_index = MagicMock()
@@ -214,7 +210,6 @@ class TestResolveSection:
 
             assert exc_info.value.section_name == "NONEXISTENT"
 
-    @pytest.mark.asyncio
     async def test_persistence_not_available_uses_enum(self) -> None:
         """When persistence is not available, falls through to enum."""
         mock_enum_index = MagicMock()
@@ -241,13 +236,11 @@ class TestResolveSection:
 class TestResolveSectionIndex:
     """Tests for resolve_section_index() function."""
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_section_name_is_none(self) -> None:
         """Returns None when section_name is None (no section filtering)."""
         result = await resolve_section_index(None, "offer", "proj-123")
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_manifest_first_strategy(self) -> None:
         """Returns manifest-based section index when manifest resolves."""
         mock_manifest_index = MagicMock()
@@ -269,7 +262,6 @@ class TestResolveSectionIndex:
 
         assert result is mock_manifest_index
 
-    @pytest.mark.asyncio
     async def test_enum_fallback_when_manifest_fails(self) -> None:
         """Falls back to enum when manifest resolution returns None."""
         mock_manifest_index = MagicMock()
@@ -407,7 +399,6 @@ class TestEntityServiceProjectRegistry:
 class TestResolveSectionIndexAdversarial:
     """Adversarial tests for resolve_section_index() edge cases."""
 
-    @pytest.mark.asyncio
     async def test_empty_string_section_name_not_treated_as_none(self) -> None:
         """Empty string section_name should NOT return None -- it enters the
         manifest path (unlike None which short-circuits).
@@ -441,7 +432,6 @@ class TestResolveSectionIndexAdversarial:
         # Empty string is NOT None -- should attempt resolution, hit enum fallback
         assert result is mock_enum_index
 
-    @pytest.mark.asyncio
     async def test_s3_transport_error_propagates_unhandled(self) -> None:
         """resolve_section_index does NOT catch S3 transport errors.
 
@@ -465,7 +455,6 @@ class TestResolveSectionIndexAdversarial:
             with pytest.raises(ConnectionError, match="S3 network failure"):
                 await resolve_section_index("ACTIVE", "offer", "proj-123")
 
-    @pytest.mark.asyncio
     async def test_create_persistence_failure_propagates(self) -> None:
         """If create_section_persistence() itself throws, error propagates."""
         with patch(
@@ -475,7 +464,6 @@ class TestResolveSectionIndexAdversarial:
             with pytest.raises(RuntimeError, match="S3 config missing"):
                 await resolve_section_index("ACTIVE", "offer", "proj-123")
 
-    @pytest.mark.asyncio
     async def test_manifest_returns_empty_index_falls_back_to_enum(self) -> None:
         """When manifest returns an empty SectionIndex (no sections in manifest),
         should fall back to enum because resolve() returns None for any name.
@@ -505,7 +493,6 @@ class TestResolveSectionIndexAdversarial:
 
         assert result is mock_enum_index
 
-    @pytest.mark.asyncio
     async def test_unknown_entity_type_enum_returns_empty_index(self) -> None:
         """For unknown entity types, enum fallback returns empty SectionIndex.
 
@@ -845,7 +832,6 @@ class TestResolveSectionContractParity:
     behave consistently for shared paths (manifest-first, enum-fallback).
     """
 
-    @pytest.mark.asyncio
     async def test_both_return_when_manifest_resolves(self) -> None:
         """Both functions succeed when manifest resolves the section."""
         mock_manifest_index = MagicMock()
@@ -879,7 +865,6 @@ class TestResolveSectionContractParity:
             result_index = await resolve_section_index("ACTIVE", "offer", "proj-123")
             assert result_index is mock_manifest_index
 
-    @pytest.mark.asyncio
     async def test_both_fall_back_to_enum_on_empty_manifest(self) -> None:
         """Both functions fall back to enum when manifest returns empty index."""
         mock_manifest_index = MagicMock()

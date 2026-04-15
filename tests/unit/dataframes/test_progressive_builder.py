@@ -188,7 +188,6 @@ class TestBuildIndexData:
             assert result is None
 
 
-@pytest.mark.asyncio
 class TestProgressiveBuild:
     """Tests for progressive build process."""
 
@@ -335,7 +334,6 @@ class TestProgressiveBuild:
         assert result.sections_resumed == 0
 
 
-@pytest.mark.asyncio
 class TestConvenienceFunction:
     """Tests for build_project_progressive_async convenience function."""
 
@@ -380,7 +378,6 @@ class TestConvenienceFunction:
             assert result.total_rows == 0
 
 
-@pytest.mark.asyncio
 class TestPopulateStoreWithTasks:
     """Tests for HierarchyWarmer.populate_store_with_tasks cascade warming."""
 

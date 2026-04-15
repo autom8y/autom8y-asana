@@ -379,7 +379,6 @@ class TestHasCascadeFields:
 class TestBusinessFastPathPopulatesStore:
     """WS-2: Business S3 fast-path populates shared_store."""
 
-    @pytest.mark.asyncio
     async def test_business_fast_path_populates_shared_store(self) -> None:
         """Business parquet load puts task dicts into shared_store."""
         from autom8_asana.api.preload.progressive import (
@@ -438,7 +437,6 @@ class TestBusinessFastPathPopulatesStore:
 class TestBusinessFastPathSkipsCascadeValidation:
     """WS-1 negative: Business does NOT run cascade validation."""
 
-    @pytest.mark.asyncio
     async def test_business_fast_path_skips_cascade_validation(self) -> None:
         """Business entity is the cascade source, not a target."""
         from autom8_asana.api.preload.progressive import (
@@ -484,7 +482,6 @@ class TestBusinessFastPathSkipsCascadeValidation:
 class TestUnitFastPathRunsCascadeValidation:
     """WS-1: Unit S3 fast-path triggers cascade validation."""
 
-    @pytest.mark.asyncio
     async def test_unit_fast_path_runs_cascade_validation(self) -> None:
         """Unit parquet load runs validate_cascade_fields_async."""
         from autom8_asana.api.preload.progressive import (
@@ -551,7 +548,6 @@ class TestUnitFastPathRunsCascadeValidation:
 class TestFastPathCascadeSelfHeals:
     """WS-1 self-heal: corrected DataFrame re-persisted to S3."""
 
-    @pytest.mark.asyncio
     async def test_fast_path_cascade_self_heals_to_s3(self) -> None:
         """When cascade validation corrects rows, save back to S3."""
         from autom8_asana.api.preload.progressive import (
@@ -620,7 +616,6 @@ class TestFastPathCascadeSelfHeals:
 class TestFastPathCascadeGracefulDegradation:
     """Cascade validation failures must not block the load."""
 
-    @pytest.mark.asyncio
     async def test_fast_path_cascade_degrades_gracefully_on_empty_store(
         self,
     ) -> None:
@@ -680,7 +675,6 @@ class TestFastPathCascadeGracefulDegradation:
         # DataFrame still loaded into cache
         mock_cache.put_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_fast_path_cascade_exception_does_not_block_load(
         self,
     ) -> None:
@@ -742,7 +736,6 @@ class TestFastPathCascadeGracefulDegradation:
 class TestUnitFastPathPopulatesStore:
     """Unit entity is a cascade provider AND consumer (both paths fire)."""
 
-    @pytest.mark.asyncio
     async def test_unit_fast_path_populates_shared_store(self) -> None:
         """Unit parquet load populates shared_store via cascade_provider_field_mapping."""
         from autom8_asana.api.preload.progressive import (
@@ -813,7 +806,6 @@ class TestUnitFastPathPopulatesStore:
         assert "Vertical" in field_names
         assert "MRR" in field_names
 
-    @pytest.mark.asyncio
     async def test_unit_fast_path_populates_and_validates(self) -> None:
         """Unit does BOTH store population AND cascade validation."""
         from autom8_asana.api.preload.progressive import (
@@ -888,7 +880,6 @@ class TestUnitFastPathPopulatesStore:
 class TestCascadeValidationPassesSchema:
     """Verify the schema kwarg is forwarded to validate_cascade_fields_async."""
 
-    @pytest.mark.asyncio
     async def test_cascade_validation_passes_schema(self) -> None:
         """The schema kwarg must be forwarded from preload to validator."""
         from autom8_asana.api.preload.progressive import (

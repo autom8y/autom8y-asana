@@ -80,7 +80,6 @@ class TestMetricsHook:
 class TestObservabilityLogging:
     """Tests for structured logging (Story 1.9)."""
 
-    @pytest.mark.asyncio
     async def test_request_started_log_emitted(self) -> None:
         """insights_request_started log is emitted at request start."""
         import respx
@@ -125,7 +124,6 @@ class TestObservabilityLogging:
         assert extra["frame_type"] == "business"  # Now includes frame_type
         assert "request_id" in extra
 
-    @pytest.mark.asyncio
     async def test_request_completed_log_emitted(self) -> None:
         """insights_request_completed log is emitted on success."""
         import respx
@@ -169,7 +167,6 @@ class TestObservabilityLogging:
         assert "duration_ms" in extra
         assert "request_id" in extra
 
-    @pytest.mark.asyncio
     async def test_request_failed_log_emitted_on_error(self) -> None:
         """insights_request_failed log is emitted on error."""
         import respx
@@ -207,7 +204,6 @@ class TestObservabilityLogging:
         assert "request_id" in extra
         assert "duration_ms" in extra
 
-    @pytest.mark.asyncio
     async def test_phone_is_masked_in_logs(self) -> None:
         """Phone number is masked in pvp_canonical_key log field."""
         import respx
@@ -253,7 +249,6 @@ class TestObservabilityLogging:
 class TestObservabilityMetrics:
     """Tests for metrics emission (Story 1.9)."""
 
-    @pytest.mark.asyncio
     async def test_success_metrics_emitted(self) -> None:
         """Success metrics are emitted on successful request."""
         import respx
@@ -304,7 +299,6 @@ class TestObservabilityMetrics:
         assert latency_call[1] > 0
         assert latency_call[2]["factory"] == "account"
 
-    @pytest.mark.asyncio
     async def test_error_metrics_emitted_on_500(self) -> None:
         """Error metrics are emitted on 500 error."""
         import respx
@@ -347,7 +341,6 @@ class TestObservabilityMetrics:
         assert error_call[2]["status_code"] == "500"
 
     @pytest.mark.slow
-    @pytest.mark.asyncio
     async def test_error_metrics_emitted_on_timeout(self) -> None:
         """Error metrics are emitted on timeout."""
         import respx
@@ -379,7 +372,6 @@ class TestObservabilityMetrics:
         error_call = next(c for c in metrics_calls if c[0] == "insights_request_error_total")
         assert error_call[2]["error_type"] == "timeout"
 
-    @pytest.mark.asyncio
     async def test_latency_metric_has_positive_value(self) -> None:
         """Latency metric has a positive value reflecting actual duration."""
         import respx
@@ -425,7 +417,6 @@ class TestObservabilityMetrics:
 class TestObservabilityIntegration:
     """Integration tests for full observability stack (Story 1.9)."""
 
-    @pytest.mark.asyncio
     async def test_full_observability_on_success(self) -> None:
         """Full observability: logging + metrics on successful request."""
         import respx
@@ -477,7 +468,6 @@ class TestObservabilityIntegration:
         assert "insights_request_total" in metric_names
         assert "insights_request_latency_ms" in metric_names
 
-    @pytest.mark.asyncio
     async def test_full_observability_on_error(self) -> None:
         """Full observability: logging + metrics on error."""
         import respx

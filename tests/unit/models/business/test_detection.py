@@ -398,7 +398,6 @@ class TestDetectByStructureAsync:
         subtask.name = name
         return subtask
 
-    @pytest.mark.asyncio
     async def test_business_structure_detected(
         self,
         mock_client: MagicMock,
@@ -422,7 +421,6 @@ class TestDetectByStructureAsync:
         assert result.tier_used == 4
         assert result.needs_healing is True
 
-    @pytest.mark.asyncio
     async def test_unit_structure_detected(
         self,
         mock_client: MagicMock,
@@ -445,7 +443,6 @@ class TestDetectByStructureAsync:
         assert result.tier_used == 4
         assert result.needs_healing is True
 
-    @pytest.mark.asyncio
     async def test_no_structure_match_returns_none(
         self,
         mock_client: MagicMock,
@@ -464,7 +461,6 @@ class TestDetectByStructureAsync:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_partial_business_indicators_still_match(
         self,
         mock_client: MagicMock,
@@ -554,7 +550,6 @@ class TestDetectEntityTypeAsync:
         """Create a mock AsanaClient."""
         return MagicMock()
 
-    @pytest.mark.asyncio
     async def test_sync_tiers_used_first(
         self,
         registered_business_project: str,
@@ -576,7 +571,6 @@ class TestDetectEntityTypeAsync:
         assert result.tier_used == 1
         mock_client.tasks.subtasks_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_tier_4_disabled_by_default(
         self,
         mock_client: MagicMock,
@@ -590,7 +584,6 @@ class TestDetectEntityTypeAsync:
         assert result.tier_used == 5
         mock_client.tasks.subtasks_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_tier_4_enabled_when_requested(
         self,
         mock_client: MagicMock,
@@ -613,7 +606,6 @@ class TestDetectEntityTypeAsync:
         assert result.tier_used == 4
         mock_client.tasks.subtasks_async.assert_called_once_with(task.gid)
 
-    @pytest.mark.asyncio
     async def test_tier_4_falls_to_tier_5_on_no_match(
         self,
         mock_client: MagicMock,
@@ -777,7 +769,6 @@ class TestAsyncTier1WithLazyDiscovery:
         project.name = name
         return project
 
-    @pytest.mark.asyncio
     async def test_async_tier1_returns_static_registry_hit(
         self,
         mock_client_with_workspace: MagicMock,
@@ -804,7 +795,6 @@ class TestAsyncTier1WithLazyDiscovery:
         # Discovery should NOT have been triggered (no API call)
         mock_client_with_workspace.projects.list_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_async_tier1_triggers_discovery_on_unregistered_gid(
         self,
         mock_client_with_workspace: MagicMock,
@@ -838,7 +828,6 @@ class TestAsyncTier1WithLazyDiscovery:
         # Discovery should have been triggered
         mock_client_with_workspace.projects.list_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_async_tier1_discovers_multiple_pipeline_projects(
         self,
         mock_client_with_workspace: MagicMock,
@@ -882,7 +871,6 @@ class TestAsyncTier1WithLazyDiscovery:
         # Non-pipeline project should NOT be registered
         assert static_registry.lookup("other_gid") is None
 
-    @pytest.mark.asyncio
     async def test_async_tier1_returns_none_for_non_pipeline_project(
         self,
         mock_client_with_workspace: MagicMock,
@@ -910,7 +898,6 @@ class TestAsyncTier1WithLazyDiscovery:
         # Discovery was triggered
         mock_client_with_workspace.projects.list_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_async_tier1_no_memberships_returns_none(
         self,
         mock_client_with_workspace: MagicMock,
@@ -927,7 +914,6 @@ class TestAsyncTier1WithLazyDiscovery:
         assert result is None
         mock_client_with_workspace.projects.list_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_async_tier1_empty_memberships_returns_none(
         self,
         mock_client_with_workspace: MagicMock,
@@ -967,7 +953,6 @@ class TestDetectEntityTypeAsyncWithLazyDiscovery:
         project.name = name
         return project
 
-    @pytest.mark.asyncio
     async def test_detect_async_discovers_pipeline_project(
         self,
         mock_client_with_workspace: MagicMock,
@@ -993,7 +978,6 @@ class TestDetectEntityTypeAsyncWithLazyDiscovery:
         assert result.tier_used == 1
         assert result.needs_healing is False
 
-    @pytest.mark.asyncio
     async def test_detect_async_static_registry_takes_precedence(
         self,
         mock_client_with_workspace: MagicMock,
@@ -1018,7 +1002,6 @@ class TestDetectEntityTypeAsyncWithLazyDiscovery:
         # No discovery API call
         mock_client_with_workspace.projects.list_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_detect_async_falls_through_to_name_pattern(
         self,
         mock_client_with_workspace: MagicMock,
@@ -1044,7 +1027,6 @@ class TestDetectEntityTypeAsyncWithLazyDiscovery:
         assert result.entity_type == EntityType.CONTACT_HOLDER
         assert result.tier_used == 2
 
-    @pytest.mark.asyncio
     async def test_detect_async_idempotent_discovery(
         self,
         mock_client_with_workspace: MagicMock,
@@ -1080,7 +1062,6 @@ class TestDetectEntityTypeAsyncWithLazyDiscovery:
         # Discovery API called only once
         mock_client_with_workspace.projects.list_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_detect_async_process_type_available_after_discovery(
         self,
         mock_client_with_workspace: MagicMock,

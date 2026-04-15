@@ -66,7 +66,6 @@ def _last_event(mock_invalidator: MagicMock):
 
 
 class TestListTasks:
-    @pytest.mark.asyncio()
     async def test_list_by_project(self, service: TaskService, mock_client: AsyncMock) -> None:
         mock_client._http.get_paginated.return_value = (
             [{"gid": "1"}, {"gid": "2"}],
@@ -83,7 +82,6 @@ class TestListTasks:
             "/projects/proj-1/tasks", params={"limit": 100}
         )
 
-    @pytest.mark.asyncio()
     async def test_list_by_section(self, service: TaskService, mock_client: AsyncMock) -> None:
         mock_client._http.get_paginated.return_value = ([], None)
 
@@ -95,21 +93,18 @@ class TestListTasks:
             "/sections/sec-1/tasks", params={"limit": 100}
         )
 
-    @pytest.mark.asyncio()
     async def test_neither_project_nor_section_raises(
         self, service: TaskService, mock_client: AsyncMock
     ) -> None:
         with pytest.raises(InvalidParameterError, match="project.*section"):
             await service.list_tasks(mock_client)
 
-    @pytest.mark.asyncio()
     async def test_both_project_and_section_raises(
         self, service: TaskService, mock_client: AsyncMock
     ) -> None:
         with pytest.raises(InvalidParameterError, match="Only one"):
             await service.list_tasks(mock_client, project="p", section="s")
 
-    @pytest.mark.asyncio()
     async def test_limit_and_offset(self, service: TaskService, mock_client: AsyncMock) -> None:
         mock_client._http.get_paginated.return_value = ([], None)
 
@@ -126,7 +121,6 @@ class TestListTasks:
 
 
 class TestGetTask:
-    @pytest.mark.asyncio()
     async def test_get_task(self, service: TaskService, mock_client: AsyncMock) -> None:
         mock_client.tasks.get_async.return_value = {"gid": "123", "name": "Test"}
 
@@ -135,7 +129,6 @@ class TestGetTask:
         assert result["gid"] == "123"
         mock_client.tasks.get_async.assert_called_once_with("123", opt_fields=None, raw=True)
 
-    @pytest.mark.asyncio()
     async def test_get_task_with_opt_fields(
         self, service: TaskService, mock_client: AsyncMock
     ) -> None:
@@ -154,7 +147,6 @@ class TestGetTask:
 
 
 class TestCreateTask:
-    @pytest.mark.asyncio()
     async def test_create_fires_invalidation(
         self,
         service: TaskService,
@@ -178,14 +170,12 @@ class TestCreateTask:
         assert event.mutation_type == MutationType.CREATE
         assert "proj-1" in event.project_gids
 
-    @pytest.mark.asyncio()
     async def test_create_without_projects_or_workspace_raises(
         self, service: TaskService, mock_client: AsyncMock
     ) -> None:
         with pytest.raises(InvalidParameterError, match="projects.*workspace"):
             await service.create_task(mock_client, CreateTaskParams(name="Test"))
 
-    @pytest.mark.asyncio()
     async def test_create_with_optional_fields(
         self,
         service: TaskService,
@@ -210,7 +200,6 @@ class TestCreateTask:
         assert call_kwargs.kwargs.get("assignee") == "user-1"
         assert call_kwargs.kwargs.get("due_on") == "2026-03-01"
 
-    @pytest.mark.asyncio()
     async def test_create_with_workspace(
         self,
         service: TaskService,
@@ -234,7 +223,6 @@ class TestCreateTask:
 
 
 class TestUpdateTask:
-    @pytest.mark.asyncio()
     async def test_update_fires_invalidation(
         self,
         service: TaskService,
@@ -253,7 +241,6 @@ class TestUpdateTask:
         assert event.mutation_type == MutationType.UPDATE
         assert event.entity_gid == "123"
 
-    @pytest.mark.asyncio()
     async def test_update_no_fields_raises(
         self, service: TaskService, mock_client: AsyncMock
     ) -> None:
@@ -267,7 +254,6 @@ class TestUpdateTask:
 
 
 class TestDeleteTask:
-    @pytest.mark.asyncio()
     async def test_delete_fires_invalidation(
         self,
         service: TaskService,
@@ -289,7 +275,6 @@ class TestDeleteTask:
 
 
 class TestDuplicateTask:
-    @pytest.mark.asyncio()
     async def test_duplicate_fires_create_event(
         self,
         service: TaskService,
@@ -316,7 +301,6 @@ class TestDuplicateTask:
 
 
 class TestTagOperations:
-    @pytest.mark.asyncio()
     async def test_add_tag(
         self,
         service: TaskService,
@@ -333,7 +317,6 @@ class TestTagOperations:
         event = _last_event(mock_invalidator)
         assert event.mutation_type == MutationType.UPDATE
 
-    @pytest.mark.asyncio()
     async def test_remove_tag(
         self,
         service: TaskService,
@@ -357,7 +340,6 @@ class TestTagOperations:
 
 
 class TestMembershipOperations:
-    @pytest.mark.asyncio()
     async def test_move_to_section(
         self,
         service: TaskService,
@@ -377,7 +359,6 @@ class TestMembershipOperations:
         # Falls back to provided project_gid since model_dump has no memberships
         assert "proj-1" in event.project_gids
 
-    @pytest.mark.asyncio()
     async def test_set_assignee(
         self,
         service: TaskService,
@@ -394,7 +375,6 @@ class TestMembershipOperations:
         event = _last_event(mock_invalidator)
         assert event.mutation_type == MutationType.UPDATE
 
-    @pytest.mark.asyncio()
     async def test_unset_assignee(
         self,
         service: TaskService,
@@ -408,7 +388,6 @@ class TestMembershipOperations:
         assert result["gid"] == "123"
         mock_client.tasks.update_async.assert_called_once_with("123", raw=True, assignee=None)
 
-    @pytest.mark.asyncio()
     async def test_add_to_project(
         self,
         service: TaskService,
@@ -426,7 +405,6 @@ class TestMembershipOperations:
         assert event.mutation_type == MutationType.ADD_MEMBER
         assert event.project_gids == ["proj-2"]
 
-    @pytest.mark.asyncio()
     async def test_remove_from_project(
         self,
         service: TaskService,
@@ -451,7 +429,6 @@ class TestMembershipOperations:
 
 
 class TestSubtasksAndDependents:
-    @pytest.mark.asyncio()
     async def test_list_subtasks(self, service: TaskService, mock_client: AsyncMock) -> None:
         mock_client._http.get_paginated.return_value = (
             [{"gid": "sub-1"}],
@@ -466,7 +443,6 @@ class TestSubtasksAndDependents:
             "/tasks/123/subtasks", params={"limit": 100}
         )
 
-    @pytest.mark.asyncio()
     async def test_list_dependents(self, service: TaskService, mock_client: AsyncMock) -> None:
         mock_client._http.get_paginated.return_value = (
             [{"gid": "dep-1"}],

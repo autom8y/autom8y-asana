@@ -87,7 +87,6 @@ class TestTemplateDiscovery:
 class TestFindTemplateSection:
     """Tests for find_template_section_async."""
 
-    @pytest.mark.asyncio
     async def test_finds_template_section(self) -> None:
         """Test finding a section named 'Template'."""
         sections = [
@@ -105,7 +104,6 @@ class TestFindTemplateSection:
         assert result.name == "Template"
         client.sections.list_for_project_async.assert_called_once_with("project_123")
 
-    @pytest.mark.asyncio
     async def test_finds_templates_plural(self) -> None:
         """Test finding a section named 'Templates'."""
         sections = [
@@ -120,7 +118,6 @@ class TestFindTemplateSection:
         assert result is not None
         assert result.gid == "section_2"
 
-    @pytest.mark.asyncio
     async def test_finds_template_tasks_section(self) -> None:
         """Test finding a section named 'Template Tasks'."""
         sections = [
@@ -135,7 +132,6 @@ class TestFindTemplateSection:
         assert result is not None
         assert result.gid == "section_2"
 
-    @pytest.mark.asyncio
     async def test_case_insensitive_matching(self) -> None:
         """Test case-insensitive template pattern matching."""
         sections = [
@@ -150,7 +146,6 @@ class TestFindTemplateSection:
         assert result is not None
         assert result.gid == "section_2"
 
-    @pytest.mark.asyncio
     async def test_finds_first_match(self) -> None:
         """Test that first matching section is returned."""
         sections = [
@@ -165,7 +160,6 @@ class TestFindTemplateSection:
         assert result is not None
         assert result.gid == "section_1"
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_no_match(self) -> None:
         """Test returning None when no template section exists."""
         sections = [
@@ -179,7 +173,6 @@ class TestFindTemplateSection:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_returns_none_for_empty_project(self) -> None:
         """Test returning None when project has no sections."""
         client = create_mock_client(sections=[])
@@ -189,7 +182,6 @@ class TestFindTemplateSection:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_skips_sections_with_none_name(self) -> None:
         """Test skipping sections with None name."""
         sections = [
@@ -208,7 +200,6 @@ class TestFindTemplateSection:
 class TestFindTemplateTask:
     """Tests for find_template_task_async."""
 
-    @pytest.mark.asyncio
     async def test_finds_first_task_in_template_section(self) -> None:
         """Test finding first task in template section when no name specified."""
         sections = [MockSection("section_template", "Template")]
@@ -225,7 +216,6 @@ class TestFindTemplateTask:
         assert result.gid == "task_1"
         assert result.name == "First Template"
 
-    @pytest.mark.asyncio
     async def test_finds_specific_template_by_name(self) -> None:
         """Test finding specific template task by name."""
         sections = [MockSection("section_template", "Template")]
@@ -244,7 +234,6 @@ class TestFindTemplateTask:
         assert result.gid == "task_2"
         assert result.name == "Onboarding Template"
 
-    @pytest.mark.asyncio
     async def test_case_insensitive_template_name_matching(self) -> None:
         """Test case-insensitive template name matching."""
         sections = [MockSection("section_template", "Template")]
@@ -259,7 +248,6 @@ class TestFindTemplateTask:
         assert result is not None
         assert result.gid == "task_1"
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_template_name_not_found(self) -> None:
         """Test returning None when specific template name not found."""
         sections = [MockSection("section_template", "Template")]
@@ -273,7 +261,6 @@ class TestFindTemplateTask:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_no_template_section(self) -> None:
         """Test returning None when no template section exists."""
         sections = [MockSection("section_1", "Active")]
@@ -284,7 +271,6 @@ class TestFindTemplateTask:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_returns_none_when_template_section_empty(self) -> None:
         """Test returning None when template section has no tasks."""
         sections = [MockSection("section_template", "Template")]
@@ -295,7 +281,6 @@ class TestFindTemplateTask:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_uses_correct_section_gid_for_task_listing(self) -> None:
         """Test that tasks are listed from correct section."""
         sections = [MockSection("template_section_gid", "Template")]
@@ -314,7 +299,6 @@ class TestFindTemplateTask:
 class TestTemplateSectionGidShortcut:
     """Tests for template_section_gid fast path (IMP-07)."""
 
-    @pytest.mark.asyncio
     async def test_section_gid_skips_listing(self) -> None:
         """When template_section_gid is provided, skip section listing entirely."""
         client = create_mock_client()
@@ -329,7 +313,6 @@ class TestTemplateSectionGidShortcut:
         # Section listing should NOT have been called
         client.sections.list_for_project_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_section_gid_uses_section_name_when_provided(self) -> None:
         """When both template_section_gid and section_name are provided."""
         client = create_mock_client()
@@ -345,7 +328,6 @@ class TestTemplateSectionGidShortcut:
         assert result.gid == "pre_configured_gid"
         assert result.name == "My Template Section"
 
-    @pytest.mark.asyncio
     async def test_section_gid_default_name(self) -> None:
         """When template_section_gid is provided without section_name."""
         client = create_mock_client()
@@ -357,7 +339,6 @@ class TestTemplateSectionGidShortcut:
 
         assert result.name == "Template"
 
-    @pytest.mark.asyncio
     async def test_task_with_section_gid_skips_section_listing(self) -> None:
         """find_template_task_async with template_section_gid skips section listing."""
         tasks = [MockTask("task_1", "Template Task")]
@@ -377,7 +358,6 @@ class TestTemplateSectionGidShortcut:
             section="pre_configured_gid", opt_fields=None
         )
 
-    @pytest.mark.asyncio
     async def test_none_section_gid_falls_back_to_discovery(self) -> None:
         """When template_section_gid is None, fall back to normal discovery."""
         sections = [MockSection("section_2", "Template")]

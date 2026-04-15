@@ -326,7 +326,6 @@ class TestSalesConvertedToOnboarding:
     """Sales CONVERTED transition: template creation, section cascade,
     auto-complete source, create_comment init action."""
 
-    @pytest.mark.asyncio
     async def test_full_pipeline(
         self,
         lifecycle_config: LifecycleConfig,
@@ -386,7 +385,6 @@ class TestSalesConvertedToOnboarding:
         # Comment was created on the new process
         mock_client.stories.create_comment_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_rule_id_reflects_transition(
         self,
         lifecycle_config: LifecycleConfig,
@@ -435,7 +433,6 @@ class TestOnboardingConvertedToImplementation:
     """Onboarding CONVERTED: template creation, computed fields (Launch Date=today),
     play_creation (BOAB), entity_creation (AssetEdit), products_check, create_comment."""
 
-    @pytest.mark.asyncio
     async def test_full_pipeline_with_init_actions(
         self,
         lifecycle_config: LifecycleConfig,
@@ -536,7 +533,6 @@ class TestOnboardingConvertedToImplementation:
         # Entities created should include the new process at minimum
         assert len(result.entities_created) >= 1
 
-    @pytest.mark.asyncio
     async def test_pre_validation_warn_mode(
         self,
         lifecycle_config: LifecycleConfig,
@@ -588,7 +584,6 @@ class TestOnboardingConvertedToImplementation:
 class TestImplementationConvertedTerminal:
     """Implementation CONVERTED has no target stage -- terminal handling."""
 
-    @pytest.mark.asyncio
     async def test_terminal_transition(
         self,
         lifecycle_config: LifecycleConfig,
@@ -623,7 +618,6 @@ class TestImplementationConvertedTerminal:
 class TestOutreachConvertedToSales:
     """Outreach CONVERTED -> Sales: template creation, section cascade, create_comment."""
 
-    @pytest.mark.asyncio
     async def test_full_pipeline(
         self,
         lifecycle_config: LifecycleConfig,
@@ -678,7 +672,6 @@ class TestOutreachConvertedToSales:
 class TestSalesDncCreateNew:
     """Sales DNC -> Outreach: create_new routing, standard pipeline."""
 
-    @pytest.mark.asyncio
     async def test_dnc_create_new(
         self,
         lifecycle_config: LifecycleConfig,
@@ -733,7 +726,6 @@ class TestSalesDncCreateNew:
 class TestOnboardingDncReopen:
     """Onboarding DNC -> Sales: reopen routing, finds and reopens Sales process."""
 
-    @pytest.mark.asyncio
     async def test_dnc_reopen(
         self,
         lifecycle_config: LifecycleConfig,
@@ -789,7 +781,6 @@ class TestOnboardingDncReopen:
         assert "reopened_sales_gid" in result.entities_updated
         assert "reopen" in result.rule_id
 
-    @pytest.mark.asyncio
     async def test_dnc_reopen_no_candidate(
         self,
         lifecycle_config: LifecycleConfig,
@@ -828,7 +819,6 @@ class TestOnboardingDncReopen:
 class TestImplementationDncCreateNew:
     """Implementation DNC -> Outreach: create_new routing with corrected target."""
 
-    @pytest.mark.asyncio
     async def test_dnc_create_new(
         self,
         lifecycle_config: LifecycleConfig,
@@ -881,7 +871,6 @@ class TestImplementationDncCreateNew:
 class TestOutreachDncDeferred:
     """Outreach DNC: deferred action, no entity creation."""
 
-    @pytest.mark.asyncio
     async def test_dnc_deferred(
         self,
         lifecycle_config: LifecycleConfig,
@@ -911,7 +900,6 @@ class TestOutreachDncDeferred:
 class TestEdgeCases:
     """Edge cases: unknown stage, creation failure, init action failure."""
 
-    @pytest.mark.asyncio
     async def test_unknown_stage_returns_error(
         self,
         lifecycle_config: LifecycleConfig,
@@ -931,7 +919,6 @@ class TestEdgeCases:
         assert "No stage config" in result.error
         assert "unknown" in result.rule_id
 
-    @pytest.mark.asyncio
     async def test_creation_failure_is_hard_failure(
         self,
         lifecycle_config: LifecycleConfig,
@@ -965,7 +952,6 @@ class TestEdgeCases:
         assert result.success is False
         assert "creation failed" in result.error.lower() or "asana api" in result.error.lower()
 
-    @pytest.mark.asyncio
     async def test_init_action_failure_is_warning_not_hard_failure(
         self,
         lifecycle_config: LifecycleConfig,
@@ -1012,7 +998,6 @@ class TestEdgeCases:
         assert result.success is True
         assert "create_process" in result.actions_executed
 
-    @pytest.mark.asyncio
     async def test_pre_validation_block_mode(
         self,
         lifecycle_config: LifecycleConfig,
@@ -1047,7 +1032,6 @@ class TestEdgeCases:
             "validation" in result.rule_id.lower() or "validation" in (result.error or "").lower()
         )
 
-    @pytest.mark.asyncio
     async def test_cascade_sections_updates_entities(
         self,
         lifecycle_config: LifecycleConfig,
@@ -1104,7 +1088,6 @@ class TestEdgeCases:
         # All three entities should be updated
         assert len(result.entities_updated) >= 3
 
-    @pytest.mark.asyncio
     async def test_wiring_phase_runs(
         self,
         lifecycle_config: LifecycleConfig,

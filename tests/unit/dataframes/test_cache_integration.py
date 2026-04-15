@@ -273,7 +273,6 @@ class TestDataFrameCacheIntegration:
     # Async Cache Operations
     # -------------------------------------------------------------------------
 
-    @pytest.mark.asyncio
     async def test_get_cached_row_async_miss(
         self,
         cache_integration: DataFrameCacheIntegration,
@@ -287,7 +286,6 @@ class TestDataFrameCacheIntegration:
 
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_cache_row_async_then_get(
         self,
         cache_integration: DataFrameCacheIntegration,
@@ -319,7 +317,6 @@ class TestDataFrameCacheIntegration:
         assert cached.data == data
         assert cached.schema_version == "1.0.0"
 
-    @pytest.mark.asyncio
     async def test_get_cached_row_async_schema_mismatch_invalidates(
         self,
         cache_integration: DataFrameCacheIntegration,
@@ -355,7 +352,6 @@ class TestDataFrameCacheIntegration:
         )
         assert cached_again is None
 
-    @pytest.mark.asyncio
     async def test_get_cached_row_async_stale_version_invalidates(
         self,
         cache_integration: DataFrameCacheIntegration,
@@ -385,7 +381,6 @@ class TestDataFrameCacheIntegration:
         # Should return None (stale)
         assert cached is None
 
-    @pytest.mark.asyncio
     async def test_get_cached_row_async_fresh_version(
         self,
         cache_integration: DataFrameCacheIntegration,
@@ -416,7 +411,6 @@ class TestDataFrameCacheIntegration:
         assert cached is not None
         assert cached.data == data
 
-    @pytest.mark.asyncio
     async def test_get_cached_batch_async(
         self,
         cache_integration: DataFrameCacheIntegration,
@@ -454,7 +448,6 @@ class TestDataFrameCacheIntegration:
         assert results["task2:proj1"] is not None
         assert results["task3:proj1"] is None  # Not cached
 
-    @pytest.mark.asyncio
     async def test_cache_batch_async(
         self,
         cache_integration: DataFrameCacheIntegration,
@@ -488,7 +481,6 @@ class TestDataFrameCacheIntegration:
         assert cached1 is not None
         assert cached2 is not None
 
-    @pytest.mark.asyncio
     async def test_invalidate_async(
         self,
         cache_integration: DataFrameCacheIntegration,
@@ -607,7 +599,6 @@ class TestDataFrameCacheIntegration:
     # Error Handling (FR-CACHE-008)
     # -------------------------------------------------------------------------
 
-    @pytest.mark.asyncio
     async def test_get_cached_row_graceful_degradation(
         self,
         mock_logger: MagicMock,
@@ -633,7 +624,6 @@ class TestDataFrameCacheIntegration:
         # Should have logged error
         mock_logger.log_cache_event.assert_called()
 
-    @pytest.mark.asyncio
     async def test_cache_row_graceful_degradation(
         self,
         mock_logger: MagicMock,
@@ -663,7 +653,6 @@ class TestDataFrameCacheIntegration:
     # Logging
     # -------------------------------------------------------------------------
 
-    @pytest.mark.asyncio
     async def test_logging_with_cache_logging_provider(
         self,
         in_memory_cache: InMemoryCacheProvider,
@@ -695,7 +684,6 @@ class TestDataFrameCacheIntegration:
 class TestCacheIntegrationErrorHandling:
     """Tests for error handling paths."""
 
-    @pytest.mark.asyncio
     async def test_cache_batch_graceful_degradation(
         self,
         mock_logger: MagicMock,
@@ -721,7 +709,6 @@ class TestCacheIntegrationErrorHandling:
         assert count == 0
         mock_logger.log_cache_event.assert_called()
 
-    @pytest.mark.asyncio
     async def test_warm_dataframe_graceful_degradation(
         self,
         mock_logger: MagicMock,
@@ -744,7 +731,6 @@ class TestCacheIntegrationErrorHandling:
 
         assert count == 0
 
-    @pytest.mark.asyncio
     async def test_invalidate_graceful_degradation(
         self,
         mock_logger: MagicMock,
@@ -770,7 +756,6 @@ class TestCacheIntegrationErrorHandling:
 class TestCacheIntegrationLogging:
     """Tests for logging edge cases."""
 
-    @pytest.mark.asyncio
     async def test_logging_without_log_cache_event_method(
         self,
         in_memory_cache: InMemoryCacheProvider,
@@ -801,7 +786,6 @@ class TestCacheIntegrationLogging:
         # Should have called debug for write event
         basic_logger.debug.assert_called()
 
-    @pytest.mark.asyncio
     async def test_logging_error_event_uses_error_level(
         self,
         mock_logger: MagicMock,
@@ -831,7 +815,6 @@ class TestCacheIntegrationLogging:
         # Should have called error for error event
         basic_logger.error.assert_called()
 
-    @pytest.mark.asyncio
     async def test_staleness_check_with_naive_datetimes(
         self,
         in_memory_cache: InMemoryCacheProvider,

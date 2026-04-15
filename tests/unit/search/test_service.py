@@ -106,7 +106,6 @@ class TestSearchServiceInit:
 class TestFindAsync:
     """Tests for find_async method."""
 
-    @pytest.mark.asyncio
     async def test_find_no_dataframe_returns_empty(
         self,
         search_service: SearchService,
@@ -120,7 +119,6 @@ class TestFindAsync:
         assert result.hits == []
         assert result.total_count == 0
 
-    @pytest.mark.asyncio
     async def test_find_single_field_match(
         self,
         service_with_df: SearchService,
@@ -133,7 +131,6 @@ class TestFindAsync:
         assert result.total_count == 4
         assert all(hit.matched_fields.get("Vertical") == "Medical" for hit in result.hits)
 
-    @pytest.mark.asyncio
     async def test_find_compound_and(
         self,
         service_with_df: SearchService,
@@ -146,7 +143,6 @@ class TestFindAsync:
         # task1 and task2 match both conditions
         assert result.total_count == 2
 
-    @pytest.mark.asyncio
     async def test_find_no_match_returns_empty(
         self,
         service_with_df: SearchService,
@@ -159,7 +155,6 @@ class TestFindAsync:
         assert result.total_count == 0
         assert result.hits == []
 
-    @pytest.mark.asyncio
     async def test_find_with_entity_type_filter(
         self,
         service_with_df: SearchService,
@@ -174,7 +169,6 @@ class TestFindAsync:
         assert result.total_count == 1
         assert result.hits[0].gid == "task1"
 
-    @pytest.mark.asyncio
     async def test_find_with_limit(
         self,
         service_with_df: SearchService,
@@ -187,7 +181,6 @@ class TestFindAsync:
         )
         assert result.total_count == 2
 
-    @pytest.mark.asyncio
     async def test_find_with_search_criteria(
         self,
         service_with_df: SearchService,
@@ -203,7 +196,6 @@ class TestFindAsync:
         result = await service_with_df.find_async("proj123", criteria)
         assert result.total_count == 3
 
-    @pytest.mark.asyncio
     async def test_find_returns_from_cache_true(
         self,
         service_with_df: SearchService,
@@ -215,7 +207,6 @@ class TestFindAsync:
         )
         assert result.from_cache is True
 
-    @pytest.mark.asyncio
     async def test_find_records_query_time(
         self,
         service_with_df: SearchService,
@@ -227,7 +218,6 @@ class TestFindAsync:
         )
         assert result.query_time_ms >= 0
 
-    @pytest.mark.asyncio
     async def test_find_extracts_matched_fields(
         self,
         service_with_df: SearchService,
@@ -251,7 +241,6 @@ class TestFindAsync:
 class TestFindOneAsync:
     """Tests for find_one_async method."""
 
-    @pytest.mark.asyncio
     async def test_find_one_single_match(
         self,
         service_with_df: SearchService,
@@ -264,7 +253,6 @@ class TestFindOneAsync:
         assert result is not None
         assert result.gid == "task4"
 
-    @pytest.mark.asyncio
     async def test_find_one_no_match_returns_none(
         self,
         service_with_df: SearchService,
@@ -276,7 +264,6 @@ class TestFindOneAsync:
         )
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_find_one_multiple_matches_raises(
         self,
         service_with_df: SearchService,
@@ -297,7 +284,6 @@ class TestFindOneAsync:
 class TestConvenienceMethods:
     """Tests for convenience methods."""
 
-    @pytest.mark.asyncio
     async def test_find_offers_async(
         self,
         service_with_df: SearchService,
@@ -310,7 +296,6 @@ class TestConvenienceMethods:
         assert "task1" in gids
         assert "task2" not in gids  # Unit, not Offer
 
-    @pytest.mark.asyncio
     async def test_find_units_async(
         self,
         service_with_df: SearchService,
@@ -324,7 +309,6 @@ class TestConvenienceMethods:
         assert "task5" in gids
         assert "task1" not in gids  # Offer, not Unit
 
-    @pytest.mark.asyncio
     async def test_find_businesses_async(
         self,
         service_with_df: SearchService,
@@ -336,7 +320,6 @@ class TestConvenienceMethods:
         )
         assert "task3" in gids
 
-    @pytest.mark.asyncio
     async def test_convenience_method_normalizes_field_names(
         self,
         service_with_df: SearchService,
@@ -444,7 +427,6 @@ class TestDataFrameCacheManagement:
 class TestFieldNameNormalization:
     """Tests for field name normalization in search."""
 
-    @pytest.mark.asyncio
     async def test_case_insensitive_field_match(
         self,
         null_cache: NullCacheProvider,
@@ -467,7 +449,6 @@ class TestFieldNameNormalization:
         )
         assert result.total_count == 1
 
-    @pytest.mark.asyncio
     async def test_snake_case_to_title_case(
         self,
         null_cache: NullCacheProvider,
@@ -499,7 +480,6 @@ class TestFieldNameNormalization:
 class TestErrorHandling:
     """Tests for error handling and graceful degradation."""
 
-    @pytest.mark.asyncio
     async def test_invalid_field_returns_empty(
         self,
         service_with_df: SearchService,
@@ -512,7 +492,6 @@ class TestErrorHandling:
         # No valid conditions -> empty result
         assert result.total_count == 0
 
-    @pytest.mark.asyncio
     async def test_empty_criteria_returns_empty(
         self,
         service_with_df: SearchService,
@@ -524,7 +503,6 @@ class TestErrorHandling:
         )
         assert result.total_count == 0
 
-    @pytest.mark.asyncio
     async def test_uncached_project_returns_empty(
         self,
         search_service: SearchService,

@@ -331,7 +331,6 @@ class TestShouldTrigger:
 class TestExecuteAsync:
     """Tests for execute_async method."""
 
-    @pytest.mark.asyncio
     async def test_successful_execution(self) -> None:
         """Test successful pipeline conversion."""
         rule = PipelineConversionRule()
@@ -367,7 +366,6 @@ class TestExecuteAsync:
         assert "new_task_123" in result.entities_created
         assert result.execution_time_ms > 0
 
-    @pytest.mark.asyncio
     async def test_fails_when_no_target_project_configured(self) -> None:
         """Test failure when target project not in config."""
         rule = PipelineConversionRule()
@@ -384,7 +382,6 @@ class TestExecuteAsync:
         assert "No target project configured" in result.error
         assert result.triggered_by_gid == "process_123"
 
-    @pytest.mark.asyncio
     async def test_fails_when_no_template_found(self) -> None:
         """Test failure when no template in target project."""
         rule = PipelineConversionRule()
@@ -406,7 +403,6 @@ class TestExecuteAsync:
         # discover_template is not in actions because we failed during that step
         assert "discover_template" not in result.actions_executed
 
-    @pytest.mark.asyncio
     async def test_fails_for_wrong_entity_type(self) -> None:
         """Test failure when entity is not a Process."""
         rule = PipelineConversionRule()
@@ -422,7 +418,6 @@ class TestExecuteAsync:
         assert "Expected Process" in result.error
         assert result.triggered_by_type == "MockOffer"
 
-    @pytest.mark.asyncio
     async def test_handles_exception_gracefully(self) -> None:
         """Test graceful handling of exceptions."""
         rule = PipelineConversionRule()
@@ -453,7 +448,6 @@ class TestExecuteAsync:
         assert "API Error" in result.error
         assert result.execution_time_ms > 0
 
-    @pytest.mark.asyncio
     async def test_uses_template_name_with_placeholder_replacement(self) -> None:
         """Test that new task uses template name with bracketed placeholder replacement."""
         rule = PipelineConversionRule()
@@ -486,7 +480,6 @@ class TestExecuteAsync:
         call_kwargs = context.client.tasks.duplicate_async.call_args.kwargs
         assert call_kwargs["name"] == "Onboarding Process - Nation of Wellness"
 
-    @pytest.mark.asyncio
     async def test_uses_default_name_when_template_has_none(self) -> None:
         """Test default name when template task has no name."""
         rule = PipelineConversionRule()
@@ -511,7 +504,6 @@ class TestExecuteAsync:
         call_kwargs = context.client.tasks.duplicate_async.call_args.kwargs
         assert call_kwargs["name"] == "New Onboarding"
 
-    @pytest.mark.asyncio
     async def test_copies_subtasks_with_duplicate(self) -> None:
         """Test that duplicate_async is called with include=['subtasks', 'notes']."""
         rule = PipelineConversionRule()
@@ -546,7 +538,6 @@ class TestExecuteAsync:
         call_args = context.client.tasks.duplicate_async.call_args.args
         assert call_args[0] == "template_123"
 
-    @pytest.mark.asyncio
     async def test_adds_to_target_project(self) -> None:
         """Test that new task is added to target project after duplication."""
         rule = PipelineConversionRule()
@@ -812,7 +803,6 @@ class TestGenerateTaskName:
 class TestSectionPlacement:
     """Tests for section placement functionality (G3 Gap Fix)."""
 
-    @pytest.mark.asyncio
     async def test_task_moved_to_target_section(self) -> None:
         """Test task is moved to target section after creation."""
         rule = PipelineConversionRule()
@@ -855,7 +845,6 @@ class TestSectionPlacement:
             task="new_task_123",
         )
 
-    @pytest.mark.asyncio
     async def test_section_placement_case_insensitive(self) -> None:
         """Test section name matching is case-insensitive."""
         rule = PipelineConversionRule()
@@ -888,7 +877,6 @@ class TestSectionPlacement:
         assert result.success is True
         assert "section_placement" in result.actions_executed
 
-    @pytest.mark.asyncio
     async def test_section_not_found_graceful_degradation(self) -> None:
         """Test graceful handling when target section not found."""
         rule = PipelineConversionRule()
@@ -926,14 +914,12 @@ class TestSectionPlacement:
         # add_task_async should NOT be called
         context.client.sections.add_task_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_default_target_section_is_opportunity(self) -> None:
         """Test that default target section is 'Opportunity'."""
         # Verify PipelineStage default
         stage = PipelineStage(project_gid="123")
         assert stage.target_section == "Opportunity"
 
-    @pytest.mark.asyncio
     async def test_pipeline_stages_with_default_section(self) -> None:
         """Test pipeline_stages without target_section uses default Opportunity."""
         rule = PipelineConversionRule()
@@ -970,7 +956,6 @@ class TestSectionPlacement:
 class TestDueDateHandling:
     """Tests for due date handling functionality (G4 Gap Fix)."""
 
-    @pytest.mark.asyncio
     async def test_due_date_set_when_configured(self) -> None:
         """Test due date is set when due_date_offset_days is configured."""
         from datetime import date, timedelta
@@ -1013,7 +998,6 @@ class TestDueDateHandling:
             due_on=expected_due_date,
         )
 
-    @pytest.mark.asyncio
     async def test_due_date_not_set_when_none(self) -> None:
         """Test due date is not set when due_date_offset_days is None."""
         rule = PipelineConversionRule()
@@ -1050,7 +1034,6 @@ class TestDueDateHandling:
         # Verify update_async was NOT called
         context.client.tasks.update_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_due_date_offset_zero_is_today(self) -> None:
         """Test offset 0 sets due date to today."""
         from datetime import date
@@ -1091,7 +1074,6 @@ class TestDueDateHandling:
             due_on=expected_due_date,
         )
 
-    @pytest.mark.asyncio
     async def test_due_date_negative_offset_is_past(self) -> None:
         """Test negative offset sets due date in the past."""
         from datetime import date, timedelta
@@ -1132,7 +1114,6 @@ class TestDueDateHandling:
             due_on=expected_due_date,
         )
 
-    @pytest.mark.asyncio
     async def test_due_date_api_failure_graceful_degradation(self) -> None:
         """Test graceful handling when due date API call fails."""
         rule = PipelineConversionRule()
@@ -1170,13 +1151,11 @@ class TestDueDateHandling:
         assert "set_due_date" not in result.actions_executed
         assert result.enhancement_results.get("due_date_set") is False
 
-    @pytest.mark.asyncio
     async def test_default_due_date_offset_is_none(self) -> None:
         """Test that default due_date_offset_days is None."""
         stage = PipelineStage(project_gid="123")
         assert stage.due_date_offset_days is None
 
-    @pytest.mark.asyncio
     async def test_pipeline_stages_no_due_date_when_not_configured(self) -> None:
         """Test pipeline_stages without due_date_offset_days skips due date."""
         rule = PipelineConversionRule()
@@ -1355,7 +1334,6 @@ class TestPostTransitionValidation:
 class TestPreValidationInExecuteAsync:
     """Tests for pre-validation integration in execute_async."""
 
-    @pytest.mark.asyncio
     async def test_pre_validation_executed_when_configured(self) -> None:
         """Test pre_validation is performed when required_source_fields set."""
         rule = PipelineConversionRule(
@@ -1384,7 +1362,6 @@ class TestPreValidationInExecuteAsync:
         assert result.pre_validation is not None
         assert result.pre_validation.valid is True
 
-    @pytest.mark.asyncio
     async def test_pre_validation_warn_mode_continues_on_failure(self) -> None:
         """Test transition continues when validate_mode='warn' and validation fails."""
         rule = PipelineConversionRule(
@@ -1416,7 +1393,6 @@ class TestPreValidationInExecuteAsync:
         assert result.pre_validation.valid is False  # Validation failed
         assert "duplicate_task" in result.actions_executed  # But transition continued
 
-    @pytest.mark.asyncio
     async def test_pre_validation_block_mode_stops_on_failure(self) -> None:
         """Test transition stops when validate_mode='block' and validation fails."""
         rule = PipelineConversionRule(
@@ -1450,7 +1426,6 @@ class TestPreValidationInExecuteAsync:
         # Transition should NOT have continued
         assert "duplicate_task" not in result.actions_executed
 
-    @pytest.mark.asyncio
     async def test_pre_validation_block_mode_continues_on_success(self) -> None:
         """Test transition continues when validate_mode='block' and validation passes."""
         rule = PipelineConversionRule(
@@ -1482,7 +1457,6 @@ class TestPreValidationInExecuteAsync:
         assert result.pre_validation.valid is True
         assert "duplicate_task" in result.actions_executed
 
-    @pytest.mark.asyncio
     async def test_no_validation_when_no_required_fields(self) -> None:
         """Test pre_validation not in actions when no required fields."""
         rule = PipelineConversionRule()  # No required_source_fields
@@ -1512,7 +1486,6 @@ class TestPreValidationInExecuteAsync:
 class TestPostValidationInExecuteAsync:
     """Tests for post-validation integration in execute_async."""
 
-    @pytest.mark.asyncio
     async def test_post_validation_executed_when_configured(self) -> None:
         """Test post_validation is performed when required_source_fields set."""
         rule = PipelineConversionRule(
@@ -1541,7 +1514,6 @@ class TestPostValidationInExecuteAsync:
         assert result.post_validation is not None
         assert result.post_validation.valid is True  # Post-validation always valid
 
-    @pytest.mark.asyncio
     async def test_no_post_validation_when_no_required_fields(self) -> None:
         """Test post_validation not in actions when no required fields."""
         rule = PipelineConversionRule()  # No required_source_fields
@@ -1621,7 +1593,6 @@ class TestOnboardingToImplementationTransition:
         assert rule._required_source_fields == ["go_live_date", "onboarding_specialist"]
         assert rule._validate_mode == "warn"
 
-    @pytest.mark.asyncio
     async def test_onboarding_to_implementation_execution(self) -> None:
         """Test execution of Onboarding -> Implementation transition."""
         rule = PipelineConversionRule(

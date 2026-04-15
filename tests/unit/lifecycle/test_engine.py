@@ -205,7 +205,6 @@ class TestTransitionResult:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestConvertedRouting:
     """CONVERTED transitions for all 4 stages."""
 
@@ -301,7 +300,6 @@ class TestConvertedRouting:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestDncRouting:
     """DID NOT CONVERT routing for all stage types."""
 
@@ -385,7 +383,6 @@ class TestDncRouting:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestAutoCompletion:
     """Auto-completion per-transition flag."""
 
@@ -433,7 +430,6 @@ class TestAutoCompletion:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestResultAccumulator:
     """Result accumulation: hard failures vs soft failures."""
 
@@ -554,7 +550,6 @@ class TestResultAccumulator:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestErrorHandling:
     """Error conditions and edge cases."""
 
@@ -613,7 +608,6 @@ class TestErrorHandling:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestPhaseOrdering:
     """Verify phase execution order: Create -> Configure -> Actions -> Wire."""
 
@@ -706,7 +700,6 @@ class TestPhaseOrdering:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestTerminalTransitions:
     """Terminal state handling."""
 
@@ -760,7 +753,6 @@ class TestTerminalTransitions:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestDncCreateNewPipeline:
     """DNC create_new uses the same 4-phase pipeline as CONVERTED."""
 
@@ -814,7 +806,6 @@ class TestDncCreateNewPipeline:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestInitActions:
     """Init action execution in Phase 3."""
 
@@ -872,7 +863,6 @@ class TestInitActions:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestPreTransitionValidation:
     """Onboarding has pre_transition validation (Contact Phone, mode=warn)."""
 
@@ -899,7 +889,6 @@ class TestPreTransitionValidation:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestStructuredLogging:
     """Verify structured audit logging via autom8y_log."""
 
@@ -953,7 +942,6 @@ class TestStructuredLogging:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestServiceInjection:
     """Verify services are injectable via constructor kwargs."""
 
@@ -984,7 +972,6 @@ class TestServiceInjection:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestEdgeCases:
     """Edge cases and boundary conditions."""
 

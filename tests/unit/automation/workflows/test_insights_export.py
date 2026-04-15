@@ -266,7 +266,6 @@ class TestWorkflowId:
 class TestValidateAsync:
     """Tests for validate_async pre-flight checks (AC-W01.2, AC-W01.3, AC-W05.5, AC-W05.6)."""
 
-    @pytest.mark.asyncio
     async def test_feature_flag_disabled_false(self) -> None:
         wf, _, _, _ = _make_workflow()
         with patch.dict(os.environ, {EXPORT_ENABLED_ENV_VAR: "false"}):
@@ -274,21 +273,18 @@ class TestValidateAsync:
         assert len(errors) == 1
         assert "disabled" in errors[0].lower()
 
-    @pytest.mark.asyncio
     async def test_feature_flag_disabled_zero(self) -> None:
         wf, _, _, _ = _make_workflow()
         with patch.dict(os.environ, {EXPORT_ENABLED_ENV_VAR: "0"}):
             errors = await wf.validate_async()
         assert len(errors) == 1
 
-    @pytest.mark.asyncio
     async def test_feature_flag_disabled_no(self) -> None:
         wf, _, _, _ = _make_workflow()
         with patch.dict(os.environ, {EXPORT_ENABLED_ENV_VAR: "no"}):
             errors = await wf.validate_async()
         assert len(errors) == 1
 
-    @pytest.mark.asyncio
     async def test_feature_flag_enabled_default(self) -> None:
         """Unset env var means enabled."""
         wf, _, _, _ = _make_workflow()
@@ -297,14 +293,12 @@ class TestValidateAsync:
             errors = await wf.validate_async()
         assert errors == []
 
-    @pytest.mark.asyncio
     async def test_feature_flag_enabled_true(self) -> None:
         wf, _, _, _ = _make_workflow()
         with patch.dict(os.environ, {EXPORT_ENABLED_ENV_VAR: "true"}):
             errors = await wf.validate_async()
         assert errors == []
 
-    @pytest.mark.asyncio
     async def test_circuit_breaker_open(self) -> None:
         wf, _, mock_data, _ = _make_workflow()
 
@@ -327,7 +321,6 @@ class TestValidateAsync:
 class TestEnumeration:
     """Tests for offer enumeration (AC-W01.4) -- via fallback path."""
 
-    @pytest.mark.asyncio
     async def test_only_non_completed_offers(self, mock_resolution_context) -> None:
         """Only non-completed offers are enumerated."""
         active_offer = _make_task("o1", "Active Offer", parent_gid="biz1")
@@ -341,7 +334,6 @@ class TestEnumeration:
         # Only 1 active offer processed
         assert result.total == 1
 
-    @pytest.mark.asyncio
     async def test_enumeration_calls_correct_project(self) -> None:
         """Enumeration targets the correct project GID."""
         wf, mock_asana, _, _ = _make_workflow(offers=[])
@@ -363,7 +355,6 @@ class TestEnumeration:
 class TestActivityFiltering:
     """Tests for section-based activity filtering in _enumerate_offers."""
 
-    @pytest.mark.asyncio
     async def test_offers_in_inactive_section_excluded(self, mock_resolution_context) -> None:
         """Offers in an INACTIVE section are excluded by enumeration."""
         active = _make_task("o1", "Active Offer", parent_gid="biz1", section_name="ACTIVE")
@@ -376,7 +367,6 @@ class TestActivityFiltering:
         assert result.total == 1
         assert result.succeeded == 1
 
-    @pytest.mark.asyncio
     async def test_offers_in_unknown_section_excluded(self, mock_resolution_context) -> None:
         """Offers in an unknown/unclassified section are excluded."""
         active = _make_task("o1", "Active Offer", parent_gid="biz1", section_name="ACTIVE")
@@ -393,7 +383,6 @@ class TestActivityFiltering:
         assert result.total == 1
         assert result.succeeded == 1
 
-    @pytest.mark.asyncio
     async def test_offers_with_no_memberships_excluded(self, mock_resolution_context) -> None:
         """Offers with no memberships (section_name=None) are excluded."""
         active = _make_task("o1", "Active Offer", parent_gid="biz1", section_name="ACTIVE")
@@ -405,7 +394,6 @@ class TestActivityFiltering:
         assert result.total == 1
         assert result.succeeded == 1
 
-    @pytest.mark.asyncio
     async def test_activating_section_excluded(self, mock_resolution_context) -> None:
         """Offers in ACTIVATING sections are excluded (only ACTIVE passes)."""
         active = _make_task("o1", "Active", parent_gid="biz1", section_name="ACTIVE")
@@ -422,7 +410,6 @@ class TestActivityFiltering:
 class TestResolution:
     """Tests for offer resolution (AC-W01.5, AC-W01.6) -- via fallback path."""
 
-    @pytest.mark.asyncio
     async def test_successful_resolution(self, mock_resolution_context) -> None:
         """Successful resolution -> offer processed."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -439,7 +426,6 @@ class TestResolution:
         assert result.succeeded == 1
         assert result.skipped == 0
 
-    @pytest.mark.asyncio
     async def test_skip_missing_phone(self, mock_resolution_context) -> None:
         """Missing office_phone -> offer skipped."""
         o1 = _make_task("o1", "Offer No Phone", parent_gid="biz1")
@@ -453,7 +439,6 @@ class TestResolution:
         assert result.skipped == 1
         assert result.succeeded == 0
 
-    @pytest.mark.asyncio
     async def test_skip_missing_vertical(self, mock_resolution_context) -> None:
         """Missing vertical -> offer skipped."""
         o1 = _make_task("o1", "Offer No Vertical", parent_gid="biz1")
@@ -466,7 +451,6 @@ class TestResolution:
         assert result.total == 1
         assert result.skipped == 1
 
-    @pytest.mark.asyncio
     async def test_skip_no_parent(self) -> None:
         """Offer with no parent reference -> skipped."""
         o1 = _make_task("o1", "Orphan Offer")  # No parent_gid
@@ -484,7 +468,6 @@ class TestResolution:
 class TestFetchAllTables:
     """Tests for table fetching (AC-W01.7) -- via fallback path."""
 
-    @pytest.mark.asyncio
     async def test_all_twelve_api_calls_dispatched(self, mock_resolution_context) -> None:
         """All 12 API calls are dispatched (each table independently)."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -497,7 +480,6 @@ class TestFetchAllTables:
         assert mock_data.get_appointments_async.call_count == 1
         assert mock_data.get_leads_async.call_count == 1
 
-    @pytest.mark.asyncio
     async def test_correct_factory_params(self, mock_resolution_context) -> None:
         """Each table uses the correct factory and period."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -536,7 +518,6 @@ class TestFetchAllTables:
 class TestUnusedAssetsApiCall:
     """Tests for UNUSED ASSETS via data-service include_unused=True."""
 
-    @pytest.mark.asyncio
     async def test_unused_assets_fetched_via_api(self) -> None:
         """UNUSED ASSETS is fetched as its own API call with include_unused=True."""
         unused_data = [
@@ -568,7 +549,6 @@ class TestUnusedAssetsApiCall:
         assert unused_result.row_count == 2
         assert len(unused_result.data) == 2
 
-    @pytest.mark.asyncio
     async def test_unused_assets_independent_of_asset_table(self) -> None:
         """UNUSED ASSETS succeeds even when ASSET TABLE fails."""
         unused_data = [{"name": "Unused", "spend": 0, "leads": 0}]
@@ -599,7 +579,6 @@ class TestUnusedAssetsApiCall:
         assert table_results["UNUSED ASSETS"].success is True
         assert table_results["UNUSED ASSETS"].row_count == 1
 
-    @pytest.mark.asyncio
     async def test_unused_assets_passes_include_unused_true(self) -> None:
         """Verify get_insights_async is called with include_unused=True for UNUSED ASSETS."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -624,7 +603,6 @@ class TestUnusedAssetsApiCall:
 class TestUploadAndCleanup:
     """Tests for upload and attachment cleanup (AC-W01.8-W01.10, AC-W03.11) -- via fallback."""
 
-    @pytest.mark.asyncio
     async def test_upload_called_with_correct_params(self, mock_resolution_context) -> None:
         """Upload creates .md file with correct content type."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -639,7 +617,6 @@ class TestUploadAndCleanup:
         assert call_kwargs["name"].startswith("insights_export_")
         assert call_kwargs["name"].endswith(".html")
 
-    @pytest.mark.asyncio
     async def test_old_attachments_deleted(self, mock_resolution_context) -> None:
         """Old matching attachments are deleted after upload."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -655,7 +632,6 @@ class TestUploadAndCleanup:
         assert mock_att.delete_async.call_count == 1
         assert mock_att.delete_async.call_args[0][0] == "old-att-1"
 
-    @pytest.mark.asyncio
     async def test_non_matching_attachments_not_deleted(self, mock_resolution_context) -> None:
         """Non-matching attachments are left alone."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -670,7 +646,6 @@ class TestUploadAndCleanup:
 
         mock_att.delete_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_upload_before_delete(self, mock_resolution_context) -> None:
         """Upload-first: upload happens before delete (AC-W03.11)."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -707,7 +682,6 @@ class TestUploadAndCleanup:
 class TestConcurrency:
     """Tests for semaphore concurrency bounds (AC-W01.11) -- via fallback path."""
 
-    @pytest.mark.asyncio
     async def test_max_concurrency_from_params(self, mock_resolution_context) -> None:
         """Verify max_concurrency parameter is respected."""
         offers = [_make_task(f"o{i}", f"Offer {i}", parent_gid=f"biz{i}") for i in range(10)]
@@ -720,7 +694,6 @@ class TestConcurrency:
         assert result.total == 10
         assert result.succeeded == 10
 
-    @pytest.mark.asyncio
     async def test_default_concurrency_used(self) -> None:
         """Default max_concurrency is used when not specified."""
         wf, _, _, _ = _make_workflow(offers=[])
@@ -733,7 +706,6 @@ class TestConcurrency:
 class TestWorkflowResult:
     """Tests for WorkflowResult structure (AC-W01.12, AC-W02.4) -- via fallback path."""
 
-    @pytest.mark.asyncio
     async def test_result_includes_per_offer_table_counts(self, mock_resolution_context) -> None:
         """Result metadata includes per-offer table counts."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -748,7 +720,6 @@ class TestWorkflowResult:
         assert result.metadata["total_tables_succeeded"] == TOTAL_TABLE_COUNT
         assert result.metadata["total_tables_failed"] == 0
 
-    @pytest.mark.asyncio
     async def test_result_totals(self, mock_resolution_context) -> None:
         """Result has correct total/succeeded/failed/skipped."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -769,7 +740,6 @@ class TestWorkflowResult:
 class TestPartialFailure:
     """Tests for partial table failure (AC-W02.1, AC-W02.2) -- via fallback path."""
 
-    @pytest.mark.asyncio
     async def test_one_table_fails_rest_succeed(self, mock_resolution_context) -> None:
         """1 of 12 tables fails -> 11 succeed, report still uploaded."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -804,7 +774,6 @@ class TestPartialFailure:
 class TestTotalFailure:
     """Tests for total table failure (AC-W02.3) -- via fallback path."""
 
-    @pytest.mark.asyncio
     async def test_all_tables_fail_no_upload(self, mock_resolution_context) -> None:
         """All 12 tables fail -> no upload, offer marked failed."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -830,7 +799,6 @@ class TestTotalFailure:
 class TestDeleteFailureTolerance:
     """Tests for non-fatal delete failure -- via fallback path."""
 
-    @pytest.mark.asyncio
     async def test_delete_failure_still_succeeded(self, mock_resolution_context) -> None:
         """Delete-old fails -> offer still counted as succeeded."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -855,7 +823,6 @@ class TestDeleteFailureTolerance:
 class TestEmptyProject:
     """Tests for empty project (no offers) -- via fallback path."""
 
-    @pytest.mark.asyncio
     async def test_no_offers(self) -> None:
         """Empty project -> total=0, all zeros."""
         wf, _, _, _ = _make_workflow(offers=[])
@@ -931,7 +898,6 @@ class TestConstants:
 class TestAdversarialFeatureFlag:
     """QA-ADVERSARY: Feature flag edge cases (AC-W05.5, AC-W05.6)."""
 
-    @pytest.mark.asyncio
     async def test_feature_flag_empty_string_means_enabled(self) -> None:
         """AUTOM8_EXPORT_ENABLED='' (empty string) means enabled."""
         wf, _, _, _ = _make_workflow()
@@ -939,7 +905,6 @@ class TestAdversarialFeatureFlag:
             errors = await wf.validate_async()
         assert errors == []
 
-    @pytest.mark.asyncio
     async def test_feature_flag_uppercase_FALSE(self) -> None:
         """AUTOM8_EXPORT_ENABLED='FALSE' (uppercase) means disabled."""
         wf, _, _, _ = _make_workflow()
@@ -948,7 +913,6 @@ class TestAdversarialFeatureFlag:
         assert len(errors) == 1
         assert "disabled" in errors[0].lower()
 
-    @pytest.mark.asyncio
     async def test_feature_flag_mixed_case_No(self) -> None:
         """AUTOM8_EXPORT_ENABLED='No' (mixed case) means disabled."""
         wf, _, _, _ = _make_workflow()
@@ -956,7 +920,6 @@ class TestAdversarialFeatureFlag:
             errors = await wf.validate_async()
         assert len(errors) == 1
 
-    @pytest.mark.asyncio
     async def test_feature_flag_truthy_strings_mean_enabled(self) -> None:
         """Various truthy strings all mean enabled."""
         for value in ["true", "TRUE", "1", "yes", "enabled", "anything"]:
@@ -970,7 +933,6 @@ class TestAdversarialFeatureFlag:
 class TestAdversarialUploadFailure:
     """QA-ADVERSARY: Upload failure prevents delete loop (AC-W01.10) -- via fallback."""
 
-    @pytest.mark.asyncio
     async def test_upload_failure_prevents_delete(self, mock_resolution_context) -> None:
         """If upload_async raises, delete_old_attachments is never called."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -997,7 +959,6 @@ class TestAdversarialUploadFailure:
 class TestAdversarialComposeRaisesPreventsUpload:
     """QA-ADVERSARY: If compose_report raises, no upload occurs -- via fallback."""
 
-    @pytest.mark.asyncio
     async def test_compose_failure_marks_offer_failed(self, mock_resolution_context) -> None:
         """An exception in compose_report is caught by _process_offer."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -1041,7 +1002,6 @@ def _make_section_task(
 class TestEnumerateOffersSectionTargeted:
     """Section-targeted primary path: resolve + parallel fetch + dedup."""
 
-    @pytest.mark.asyncio
     async def test_enumerate_offers_section_targeted(self) -> None:
         """Mock resolution + section fetches; verify dedup and dict construction."""
         t1 = _make_section_task("t1", "Offer A", parent_gid="biz1")
@@ -1074,7 +1034,6 @@ class TestEnumerateOffersSectionTargeted:
             assert "gid" in o
             assert "name" in o
 
-    @pytest.mark.asyncio
     async def test_section_targeted_skips_completed(self) -> None:
         """Completed tasks from section fetch are excluded."""
         t1 = _make_section_task("t1", "Active", parent_gid="biz1")
@@ -1092,7 +1051,6 @@ class TestEnumerateOffersSectionTargeted:
         assert len(offers) == 1
         assert offers[0]["gid"] == "t1"
 
-    @pytest.mark.asyncio
     async def test_section_targeted_no_parent_gid_in_dict(self) -> None:
         """Enumeration dicts do not include parent_gid (resolution handles traversal)."""
         t1 = _make_section_task("t1", "No Parent")
@@ -1109,7 +1067,6 @@ class TestEnumerateOffersSectionTargeted:
         assert len(offers) == 1
         assert "parent_gid" not in offers[0]
 
-    @pytest.mark.asyncio
     async def test_section_targeted_opt_fields(self) -> None:
         """Section-level fetch uses reduced opt_fields (no memberships)."""
         wf, mock_asana, _, _ = _make_workflow()
@@ -1132,7 +1089,6 @@ class TestEnumerateOffersSectionTargeted:
 class TestEnumerateOffersFallbackOnResolutionFailure:
     """Fallback path triggered by resolution failure."""
 
-    @pytest.mark.asyncio
     async def test_fallback_on_resolution_exception(self) -> None:
         """resolve_section_gids raises -> project-level fetch is used."""
         t1 = _make_task("t1", "Offer 1", parent_gid="biz1")
@@ -1160,7 +1116,6 @@ class TestEnumerateOffersFallbackOnResolutionFailure:
             completed_since="now",
         )
 
-    @pytest.mark.asyncio
     async def test_fallback_on_empty_resolution(self) -> None:
         """resolve_section_gids returns empty dict -> project-level fetch is used."""
         t1 = _make_task("t1", "Offer 1", parent_gid="biz1")
@@ -1184,7 +1139,6 @@ class TestEnumerateOffersFallbackOnResolutionFailure:
 class TestEnumerateOffersFallbackOnPartialFetchFailure:
     """Fallback triggered when one section fetch raises during gather."""
 
-    @pytest.mark.asyncio
     async def test_partial_fetch_failure_triggers_full_fallback(self) -> None:
         """One section fetch raises -> full fallback to project-level fetch."""
         t1 = _make_task("t1", "Offer 1", parent_gid="biz1")
@@ -1225,7 +1179,6 @@ class TestEnumerateOffersFallbackOnPartialFetchFailure:
 class TestEnumerateOffersDedup:
     """Deduplication when same task appears in multiple sections."""
 
-    @pytest.mark.asyncio
     async def test_dedup_multi_homed_task(self) -> None:
         """Same task GID in 2 sections appears exactly once in result."""
         # Same task in both sections
@@ -1263,7 +1216,6 @@ class TestEnumerateOffersDedup:
 class TestEnumerateAsync:
     """Tests for the enumerate_async protocol method."""
 
-    @pytest.mark.asyncio
     async def test_enumerate_with_entity_ids_returns_synthetic_dicts(self) -> None:
         """Targeted scope returns synthetic dicts with gid, name=None."""
         wf, _, _, _ = _make_workflow()
@@ -1273,7 +1225,6 @@ class TestEnumerateAsync:
         assert result[0] == {"gid": "111", "name": None}
         assert result[1] == {"gid": "222", "name": None}
 
-    @pytest.mark.asyncio
     @pytest.mark.usefixtures("_force_fallback")
     async def test_enumerate_without_entity_ids_calls_enumerate_offers(self) -> None:
         """Full scope triggers _enumerate_offers."""
@@ -1284,7 +1235,6 @@ class TestEnumerateAsync:
         assert len(result) == 1
         assert result[0]["gid"] == "o1"
 
-    @pytest.mark.asyncio
     @pytest.mark.usefixtures("_force_fallback")
     async def test_enumerate_with_limit_truncates(self) -> None:
         """scope.limit=2 with 5 offers returns 2."""
@@ -1294,7 +1244,6 @@ class TestEnumerateAsync:
         result = await wf.enumerate_async(scope)
         assert len(result) == 2
 
-    @pytest.mark.asyncio
     async def test_enumerate_targeted_does_not_call_enumerate_offers(self) -> None:
         """_enumerate_offers mock NOT called when entity_ids are provided."""
         wf, mock_asana, _, _ = _make_workflow()
@@ -1310,7 +1259,6 @@ class TestEnumerateAsync:
 class TestDryRun:
     """Tests for dry_run gating in _process_offer."""
 
-    @pytest.mark.asyncio
     @pytest.mark.usefixtures("_force_fallback")
     async def test_dry_run_skips_upload(self, mock_resolution_context) -> None:
         """_attachments_client.upload_async NOT called in dry_run mode."""
@@ -1324,7 +1272,6 @@ class TestDryRun:
 
         mock_att.upload_async.assert_not_called()
 
-    @pytest.mark.asyncio
     @pytest.mark.usefixtures("_force_fallback")
     async def test_dry_run_skips_delete(self, mock_resolution_context) -> None:
         """_delete_old_attachments NOT called in dry_run mode."""
@@ -1342,7 +1289,6 @@ class TestDryRun:
 
         mock_att.delete_async.assert_not_called()
 
-    @pytest.mark.asyncio
     @pytest.mark.usefixtures("_force_fallback")
     async def test_dry_run_metadata_flag(self, mock_resolution_context) -> None:
         """metadata['dry_run'] is True when dry_run=True."""
@@ -1356,7 +1302,6 @@ class TestDryRun:
 
         assert result.metadata.get("dry_run") is True
 
-    @pytest.mark.asyncio()
     async def test_dry_run_writes_preview_files(self, mock_resolution_context) -> None:
         """Dry-run writes full HTML to .wip/ and reports paths in metadata."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
@@ -1394,7 +1339,6 @@ class TestReconciliationPhoneFiltering:
     queried office_phone.
     """
 
-    @pytest.mark.asyncio
     async def test_lifetime_recon_filters_to_queried_phone(self) -> None:
         """LIFETIME RECONCILIATIONS: multi-phone response filtered to queried phone."""
         queried_phone = "+17705753103"
@@ -1429,7 +1373,6 @@ class TestReconciliationPhoneFiltering:
         for row in result.data:
             assert row["office_phone"] == queried_phone
 
-    @pytest.mark.asyncio
     async def test_t14_recon_filters_to_queried_phone(self) -> None:
         """T14 RECONCILIATIONS: multi-phone response filtered to queried phone."""
         queried_phone = "+17705753103"
@@ -1462,7 +1405,6 @@ class TestReconciliationPhoneFiltering:
         assert result.row_count == 1
         assert result.data[0]["office_phone"] == queried_phone
 
-    @pytest.mark.asyncio
     async def test_single_phone_no_filtering(self) -> None:
         """When all rows share the same phone, no filtering occurs."""
         queried_phone = "+17705753103"
@@ -1492,7 +1434,6 @@ class TestReconciliationPhoneFiltering:
         assert result.success is True
         assert result.row_count == 2
 
-    @pytest.mark.asyncio
     async def test_response_data_not_mutated(self) -> None:
         """Original response.data is not mutated by phone filtering (F-08)."""
         queried_phone = "+17705753103"
@@ -1536,7 +1477,6 @@ class TestBusinessCacheDedup:
     - Return identical (phone, vertical, name) tuples
     """
 
-    @pytest.mark.asyncio
     async def test_sibling_offers_share_business_cache_entry(self, mock_resolution_context) -> None:
         """Two offers resolving to the same business_gid share one cache entry."""
         shared_business_gid = "biz-shared-123"
@@ -1570,7 +1510,6 @@ class TestBusinessCacheDedup:
         # Sibling detection incremented cache_hits
         assert wf._cache_hits >= 1
 
-    @pytest.mark.asyncio
     async def test_same_offer_gid_hits_offer_cache(self, mock_resolution_context) -> None:
         """Re-resolving the same offer_gid returns from _offer_to_business cache."""
         offer = _make_task("offer-1", "Offer 1", parent_gid="holder-1")
@@ -1587,7 +1526,6 @@ class TestBusinessCacheDedup:
         # ResolutionContext should only have been entered once
         assert mock_resolution_context.mock_rc.return_value.__aenter__.call_count == 1
 
-    @pytest.mark.asyncio
     async def test_failed_resolution_cached_as_none(self) -> None:
         """Offer whose parent has no GID is cached as None in _offer_to_business."""
         offer = _make_task("offer-orphan", "Orphan", parent_gid=None)

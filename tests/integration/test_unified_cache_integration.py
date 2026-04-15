@@ -156,7 +156,6 @@ def cascade_schema() -> DataFrameSchema:
 class TestProjectDataFrameBuilderUnifiedIntegration:
     """Tests for unified cache integration with DataFrame schema."""
 
-    @pytest.mark.asyncio
     async def test_unified_and_existing_paths_produce_same_columns(
         self,
         simple_schema: DataFrameSchema,
@@ -181,7 +180,6 @@ class TestProjectDataFrameBuilderUnifiedIntegration:
 class TestCascadingFieldResolverUnifiedIntegration:
     """Tests for CascadingFieldResolver with cascade_plugin parameter."""
 
-    @pytest.mark.asyncio
     async def test_resolver_delegates_to_cascade_plugin(
         self,
         mock_unified_store: UnifiedTaskStore,
@@ -212,7 +210,6 @@ class TestCascadingFieldResolverUnifiedIntegration:
         )
         assert result == "555-123-4567"
 
-    @pytest.mark.asyncio
     async def test_resolver_without_plugin_uses_existing_path(
         self,
     ) -> None:
@@ -230,7 +227,6 @@ class TestCascadingFieldResolverUnifiedIntegration:
         # Verify parent cache exists
         assert resolver._parent_cache == {}
 
-    @pytest.mark.asyncio
     async def test_both_paths_return_same_value_for_unregistered_field(
         self,
         mock_unified_store: UnifiedTaskStore,
@@ -281,7 +277,6 @@ class TestTaskCacheCoordinatorUnifiedAdapter:
         # Cache is set to the unified store's cache backend
         assert coordinator._cache is mock_unified_store.cache
 
-    @pytest.mark.asyncio
     async def test_adapter_lookup_delegates_to_store(
         self,
         mock_cache_provider: MagicMock,
@@ -313,7 +308,6 @@ class TestTaskCacheCoordinatorUnifiedAdapter:
         assert "task-001" in result
         assert result["task-001"] is not None
 
-    @pytest.mark.asyncio
     async def test_adapter_populate_delegates_to_store(
         self,
         mock_cache_provider: MagicMock,
@@ -339,7 +333,6 @@ class TestTaskCacheCoordinatorUnifiedAdapter:
         mock_cache_provider.set_batch.assert_called()
         assert count == 1
 
-    @pytest.mark.asyncio
     async def test_adapter_preserves_merge_results_behavior(
         self,
         mock_unified_store: UnifiedTaskStore,
@@ -373,7 +366,6 @@ class TestTaskCacheCoordinatorUnifiedAdapter:
 class TestWarmCachePathSharedCache:
     """Tests for warm cache path using shared cache."""
 
-    @pytest.mark.asyncio
     async def test_second_build_uses_cached_data(
         self,
         mock_cache_provider: MagicMock,
@@ -473,7 +465,6 @@ class TestNoRegression:
 class TestPerformanceTiming:
     """Informational tests for performance timing comparison."""
 
-    @pytest.mark.asyncio
     async def test_unified_store_lookup_timing(
         self,
         mock_cache_provider: MagicMock,
@@ -508,7 +499,6 @@ class TestPerformanceTiming:
         print(f"\n100 unified store lookups: {elapsed_ms:.2f}ms")
         assert elapsed_ms < 1000.0, f"100 lookups took {elapsed_ms:.2f}ms, expected < 1000ms"
 
-    @pytest.mark.asyncio
     async def test_legacy_coordinator_lookup_timing(
         self,
         mock_cache_provider: MagicMock,

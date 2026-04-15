@@ -274,7 +274,6 @@ class TestRuleRegistrationEndToEnd:
 class TestSaveSessionAutomationTrigger:
     """Tests for SaveSession commit triggering automation (FR-001, FR-002, FR-003)."""
 
-    @pytest.mark.asyncio
     async def test_commit_triggers_automation_evaluation(self) -> None:
         """FR-001: SaveSession.commit_async calls AutomationEngine.evaluate_async."""
         # Create mock client components
@@ -338,7 +337,6 @@ class TestSaveSessionAutomationTrigger:
                         assert len(result.automation_results) == 1
                         assert result.automation_results[0].rule_id == "test_rule"
 
-    @pytest.mark.asyncio
     async def test_automation_disabled_skips_evaluation(self) -> None:
         """FR-001: Automation disabled skips evaluation."""
         mock_http = MagicMock()
@@ -477,7 +475,6 @@ class TestAutomationResultInSaveResult:
 class TestAutomationFailureIsolation:
     """Tests for automation failure isolation (NFR-003)."""
 
-    @pytest.mark.asyncio
     async def test_automation_failure_does_not_fail_commit(self) -> None:
         """NFR-003: Automation failures do not propagate to commit."""
         mock_http = MagicMock()
@@ -533,7 +530,6 @@ class TestAutomationFailureIsolation:
 class TestFullFlowIntegration:
     """Full integration test demonstrating complete flow."""
 
-    @pytest.mark.asyncio
     async def test_full_flow_savesession_to_automation_result(self) -> None:
         """Integration test: SaveSession -> AutomationEngine -> AutomationResult.
 
@@ -674,7 +670,6 @@ class TestFullFlowIntegration:
 class TestPostCommitHook:
     """Tests for post-commit hook with automation results (FR-002)."""
 
-    @pytest.mark.asyncio
     async def test_post_commit_hook_receives_automation_results(self) -> None:
         """FR-002: Post-commit hooks receive SaveResult with automation_results."""
         mock_http = MagicMock()

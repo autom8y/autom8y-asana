@@ -65,7 +65,6 @@ class TestEntityType:
         assert EntityType.UNKNOWN.value == "unknown"
 
 
-@pytest.mark.asyncio
 class TestDetectEntityTypeAsync:
     """Tests for detect_entity_type_async function.
 
@@ -190,7 +189,6 @@ class TestHydrationError:
         assert isinstance(error, AsanaError)
 
 
-@pytest.mark.asyncio
 class TestBusinessFetchHoldersAsync:
     """Tests for Business._fetch_holders_async()."""
 
@@ -333,7 +331,6 @@ class TestBusinessFetchHoldersAsync:
         assert business.contacts == []
 
 
-@pytest.mark.asyncio
 class TestUnitFetchHoldersAsync:
     """Tests for Unit._fetch_holders_async()."""
 
@@ -389,7 +386,6 @@ class TestUnitFetchHoldersAsync:
         assert len(unit.processes) == 1
 
 
-@pytest.mark.asyncio
 class TestBusinessFromGidAsync:
     """Tests for Business.from_gid_async()."""
 
@@ -464,7 +460,6 @@ class TestBusinessFromGidAsync:
 class TestIntegrationDownwardHydration:
     """Integration-style tests for full downward hydration."""
 
-    @pytest.mark.asyncio
     async def test_full_hierarchy_hydration(self) -> None:
         """Full hierarchy is hydrated with correct structure."""
         business = Business(gid="b1", name="Acme Corp")
@@ -552,7 +547,6 @@ class TestIntegrationDownwardHydration:
         assert unit2._process_holder is not None
         assert len(unit2.processes) == 0  # Empty
 
-    @pytest.mark.asyncio
     async def test_bidirectional_references_throughout_hierarchy(self) -> None:
         """All entities have correct bidirectional references."""
         business = Business(gid="b1", name="Acme Corp")
@@ -599,7 +593,6 @@ class TestIntegrationDownwardHydration:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestTraverseUpwardAsync:
     """Tests for _traverse_upward_async function."""
 
@@ -899,7 +892,6 @@ class TestConvertToTypedEntity:
         assert result is None
 
 
-@pytest.mark.asyncio
 class TestContactToBusinessAsync:
     """Tests for Contact.to_business_async()."""
 
@@ -1030,7 +1022,6 @@ class TestContactToBusinessAsync:
         assert business._contact_holder is None
 
 
-@pytest.mark.asyncio
 class TestOfferToBusinessAsync:
     """Tests for Offer.to_business_async()."""
 
@@ -1145,7 +1136,6 @@ class TestOfferToBusinessAsync:
         assert offer._offer_holder is not None
 
 
-@pytest.mark.asyncio
 class TestUnitToBusinessAsync:
     """Tests for Unit.to_business_async()."""
 
@@ -1236,7 +1226,6 @@ class TestUnitToBusinessAsync:
 class TestIntegrationUpwardHydration:
     """Integration-style tests for upward traversal with full hydration."""
 
-    @pytest.mark.asyncio
     async def test_offer_entry_found_in_hydrated_hierarchy(self) -> None:
         """Entry Offer is findable within hydrated Business hierarchy.
 
@@ -1298,7 +1287,6 @@ class TestIntegrationUpwardHydration:
                     break
         assert found, "Entry offer should be findable in hydrated hierarchy"
 
-    @pytest.mark.asyncio
     async def test_contact_entry_found_in_hydrated_hierarchy(self) -> None:
         """Entry Contact is findable within hydrated Business hierarchy."""
         contact = Contact(
@@ -1522,7 +1510,6 @@ class TestIsRecoverable:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestHydrateFromGidAsync:
     """Tests for hydrate_from_gid_async function."""
 
@@ -1732,7 +1719,6 @@ class TestHydrateFromGidAsync:
 # =============================================================================
 
 
-@pytest.mark.asyncio
 class TestPartialOkParameter:
     """Tests for partial_ok parameter across hydration API."""
 

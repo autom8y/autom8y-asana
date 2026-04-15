@@ -18,7 +18,6 @@ from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 class TestLoadTaskEntry:
     """Tests for load_task_entry function."""
 
-    @pytest.mark.asyncio
     async def test_cache_miss_fetches_data(self) -> None:
         """Test that cache miss triggers API fetch."""
         cache = EnhancedInMemoryCacheProvider()
@@ -42,7 +41,6 @@ class TestLoadTaskEntry:
         assert entry.data["name"] == "Test Task"
         fetcher.assert_called_once_with("123")
 
-    @pytest.mark.asyncio
     async def test_cache_hit_returns_cached(self) -> None:
         """Test that cache hit returns cached entry without fetch."""
         cache = EnhancedInMemoryCacheProvider()
@@ -72,7 +70,6 @@ class TestLoadTaskEntry:
         assert entry.data["name"] == "Cached Task"
         fetcher.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_stale_entry_refetches_strict_mode(self) -> None:
         """Test that stale entry triggers refetch in STRICT mode."""
         cache = EnhancedInMemoryCacheProvider()
@@ -111,7 +108,6 @@ class TestLoadTaskEntry:
         assert entry.data["name"] == "New Task"
         fetcher.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_eventual_mode_ignores_version(self) -> None:
         """Test that EVENTUAL mode ignores version staleness."""
         cache = EnhancedInMemoryCacheProvider()
@@ -145,7 +141,6 @@ class TestLoadTaskEntry:
         assert entry.data["name"] == "Cached Task"
         fetcher.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_empty_fetch_returns_none(self) -> None:
         """Test that empty fetch result returns None."""
         cache = EnhancedInMemoryCacheProvider()
@@ -161,7 +156,6 @@ class TestLoadTaskEntry:
         assert hit is False
         assert entry is None
 
-    @pytest.mark.asyncio
     async def test_none_fetch_returns_none(self) -> None:
         """Test that None fetch result returns None."""
         cache = EnhancedInMemoryCacheProvider()
@@ -177,7 +171,6 @@ class TestLoadTaskEntry:
         assert hit is False
         assert entry is None
 
-    @pytest.mark.asyncio
     async def test_caches_fetched_data(self) -> None:
         """Test that fetched data is cached."""
         cache = EnhancedInMemoryCacheProvider()
@@ -201,7 +194,6 @@ class TestLoadTaskEntry:
         assert cached is not None
         assert cached.data["name"] == "Test Task"
 
-    @pytest.mark.asyncio
     async def test_custom_ttl(self) -> None:
         """Test custom TTL is applied to cached entry."""
         cache = EnhancedInMemoryCacheProvider()
@@ -224,7 +216,6 @@ class TestLoadTaskEntry:
         assert entry is not None
         assert entry.ttl == 600
 
-    @pytest.mark.asyncio
     async def test_project_gid_stored(self) -> None:
         """Test project_gid is stored in cache entry."""
         cache = EnhancedInMemoryCacheProvider()
@@ -247,7 +238,6 @@ class TestLoadTaskEntry:
         assert entry is not None
         assert entry.project_gid == "project_456"
 
-    @pytest.mark.asyncio
     async def test_version_extracted_from_data(self) -> None:
         """Test version is extracted from fetched data."""
         cache = EnhancedInMemoryCacheProvider()
@@ -269,7 +259,6 @@ class TestLoadTaskEntry:
         assert entry is not None
         assert entry.version == datetime(2025, 6, 15, 12, 30, 0, tzinfo=UTC)
 
-    @pytest.mark.asyncio
     async def test_missing_modified_at_uses_now(self) -> None:
         """Test missing modified_at uses current time as version."""
         cache = EnhancedInMemoryCacheProvider()
@@ -299,7 +288,6 @@ class TestLoadTaskEntry:
 class TestLoadTaskEntries:
     """Tests for load_task_entries function."""
 
-    @pytest.mark.asyncio
     async def test_loads_multiple_types_concurrently(self) -> None:
         """Test loading multiple entry types concurrently."""
         cache = EnhancedInMemoryCacheProvider()
@@ -340,7 +328,6 @@ class TestLoadTaskEntries:
         assert subtasks_hit is False
         assert subtasks_entry is not None
 
-    @pytest.mark.asyncio
     async def test_partial_cache_hit(self) -> None:
         """Test mix of cache hits and misses."""
         cache = EnhancedInMemoryCacheProvider()
@@ -384,7 +371,6 @@ class TestLoadTaskEntries:
         assert subtasks_hit is False
         subtasks_fetcher.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_missing_fetcher_returns_none(self) -> None:
         """Test missing fetcher returns None for that type."""
         cache = EnhancedInMemoryCacheProvider()
@@ -413,7 +399,6 @@ class TestLoadTaskEntries:
         assert subtasks_entry is None
         assert subtasks_hit is False
 
-    @pytest.mark.asyncio
     async def test_fetcher_exception_continues_others(self) -> None:
         """Test that one fetcher exception doesn't stop others."""
         cache = EnhancedInMemoryCacheProvider()
@@ -444,7 +429,6 @@ class TestLoadTaskEntries:
         subtasks_entry, _ = results[EntryType.SUBTASKS]
         assert subtasks_entry is not None
 
-    @pytest.mark.asyncio
     async def test_empty_entry_types_list(self) -> None:
         """Test with empty entry types list."""
         cache = EnhancedInMemoryCacheProvider()
@@ -462,7 +446,6 @@ class TestLoadTaskEntries:
 class TestLoadBatchEntries:
     """Tests for load_batch_entries function."""
 
-    @pytest.mark.asyncio
     async def test_fetches_all_on_empty_cache(self) -> None:
         """Test all GIDs are fetched when cache is empty."""
         cache = EnhancedInMemoryCacheProvider()
@@ -503,7 +486,6 @@ class TestLoadBatchEntries:
 
         batch_fetcher.assert_called_once_with(["123", "456"])
 
-    @pytest.mark.asyncio
     async def test_uses_cache_for_cached_gids(self) -> None:
         """Test cached GIDs are not refetched."""
         cache = EnhancedInMemoryCacheProvider()
@@ -551,7 +533,6 @@ class TestLoadBatchEntries:
         # Only uncached should be fetched
         batch_fetcher.assert_called_once_with(["456"])
 
-    @pytest.mark.asyncio
     async def test_no_api_call_when_all_cached(self) -> None:
         """Test no API call when all GIDs are cached."""
         cache = EnhancedInMemoryCacheProvider()
@@ -585,7 +566,6 @@ class TestLoadBatchEntries:
 
         batch_fetcher.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_strict_mode_refetches_stale(self) -> None:
         """Test STRICT mode refetches stale entries."""
         cache = EnhancedInMemoryCacheProvider()
@@ -628,7 +608,6 @@ class TestLoadBatchEntries:
         assert entry is not None
         assert entry.data["name"] == "New Task"
 
-    @pytest.mark.asyncio
     async def test_caches_fetched_entries(self) -> None:
         """Test fetched entries are batch cached."""
         cache = EnhancedInMemoryCacheProvider()
@@ -659,7 +638,6 @@ class TestLoadBatchEntries:
         assert cache.get_versioned("123", EntryType.TASK) is not None
         assert cache.get_versioned("456", EntryType.TASK) is not None
 
-    @pytest.mark.asyncio
     async def test_missing_gid_in_fetch_returns_none(self) -> None:
         """Test GIDs not returned by fetcher have None entries."""
         cache = EnhancedInMemoryCacheProvider()
@@ -689,7 +667,6 @@ class TestLoadBatchEntries:
         assert entry2 is None
         assert hit2 is False
 
-    @pytest.mark.asyncio
     async def test_empty_gids_list(self) -> None:
         """Test with empty GIDs list."""
         cache = EnhancedInMemoryCacheProvider()
@@ -705,7 +682,6 @@ class TestLoadBatchEntries:
         assert results == {}
         batch_fetcher.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_custom_ttl(self) -> None:
         """Test custom TTL is applied to cached entries."""
         cache = EnhancedInMemoryCacheProvider()
@@ -732,7 +708,6 @@ class TestLoadBatchEntries:
         assert entry is not None
         assert entry.ttl == 600
 
-    @pytest.mark.asyncio
     async def test_handles_100_plus_gids(self) -> None:
         """Test handling 100+ GIDs efficiently."""
         cache = EnhancedInMemoryCacheProvider()
@@ -759,7 +734,6 @@ class TestLoadBatchEntries:
         assert len(results) == 150
         batch_fetcher.assert_called_once_with(gids)
 
-    @pytest.mark.asyncio
     async def test_partial_cache_with_large_batch(self) -> None:
         """Test partial cache hit with large batch."""
         cache = EnhancedInMemoryCacheProvider()

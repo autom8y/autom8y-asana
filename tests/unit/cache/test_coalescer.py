@@ -49,7 +49,6 @@ def make_entry(gid: str, modified_at: str = "2025-12-23T10:00:00.000Z") -> Cache
 class TestRequestCoalescer:
     """Tests for RequestCoalescer."""
 
-    @pytest.mark.asyncio
     async def test_single_request_waits_for_window(
         self, coalescer: RequestCoalescer, mock_checker: MagicMock
     ) -> None:
@@ -62,7 +61,6 @@ class TestRequestCoalescer:
         assert result == "2025-12-23T10:30:00.000Z"
         mock_checker.check_batch_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_multiple_requests_batched_together(
         self, coalescer: RequestCoalescer, mock_checker: MagicMock
     ) -> None:
@@ -83,7 +81,6 @@ class TestRequestCoalescer:
         call_entries = mock_checker.check_batch_async.call_args[0][0]
         assert len(call_entries) == 5
 
-    @pytest.mark.asyncio
     async def test_deduplication_same_gid(
         self, coalescer: RequestCoalescer, mock_checker: MagicMock
     ) -> None:
@@ -118,7 +115,6 @@ class TestRequestCoalescer:
         stats = coalescer.get_stats()
         assert stats["total_deduped"] == 1
 
-    @pytest.mark.asyncio
     async def test_max_batch_immediate_flush(self, mock_checker: MagicMock) -> None:
         """Test that reaching max batch triggers immediate flush (FR-BATCH-005)."""
         # Create coalescer with small max batch
@@ -143,7 +139,6 @@ class TestRequestCoalescer:
         assert len(results) == 5
         mock_checker.check_batch_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_multiple_batches_sequential(self, mock_checker: MagicMock) -> None:
         """Test that multiple batches are processed sequentially."""
         coalescer = RequestCoalescer(
@@ -177,7 +172,6 @@ class TestRequestCoalescer:
         assert results2 == ["t3", "t4"]
         assert mock_checker.check_batch_async.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_batch_failure_sets_none_results(
         self, coalescer: RequestCoalescer, mock_checker: MagicMock
     ) -> None:
@@ -190,7 +184,6 @@ class TestRequestCoalescer:
         # All results should be None
         assert results == [None, None, None]
 
-    @pytest.mark.asyncio
     async def test_stats_tracking(
         self, coalescer: RequestCoalescer, mock_checker: MagicMock
     ) -> None:
@@ -207,7 +200,6 @@ class TestRequestCoalescer:
         assert stats["total_batches"] == 1
         assert stats["total_deduped"] == 0
 
-    @pytest.mark.asyncio
     async def test_flush_pending(
         self, coalescer: RequestCoalescer, mock_checker: MagicMock
     ) -> None:
@@ -226,7 +218,6 @@ class TestRequestCoalescer:
         result = await task
         assert result == "2025-12-23T10:30:00.000Z"
 
-    @pytest.mark.asyncio
     async def test_window_timing(self, mock_checker: MagicMock) -> None:
         """Test that window timing works correctly."""
         coalescer = RequestCoalescer(
@@ -246,7 +237,6 @@ class TestRequestCoalescer:
         # Allow some tolerance for timing variations
         assert 50 < elapsed < 200
 
-    @pytest.mark.asyncio
     async def test_concurrent_callers_get_same_result_for_same_gid(
         self, coalescer: RequestCoalescer, mock_checker: MagicMock
     ) -> None:
@@ -293,7 +283,6 @@ class TestRequestCoalescerConfiguration:
 class TestRaceConditionsCoalescer:
     """Race condition tests -- 100+ concurrent requests (NFR-REL-003)."""
 
-    @pytest.mark.asyncio
     async def test_100_concurrent_requests_for_same_gid_deduplicated(self) -> None:
         """100+ concurrent requests for same GID share single result, one API call."""
         mock_checker = MagicMock()
@@ -315,7 +304,6 @@ class TestRaceConditionsCoalescer:
         assert all(r == "2025-12-23T10:30:00.000Z" for r in results)
         assert call_count == 1, f"Expected 1 API call, got {call_count}"
 
-    @pytest.mark.asyncio
     async def test_concurrent_different_gids_batched_into_single_call(self) -> None:
         """Concurrent requests for different GIDs are batched into single API call."""
         mock_checker = MagicMock()
@@ -341,7 +329,6 @@ class TestRaceConditionsCoalescer:
 class TestTimerEdgeCasesCoalescer:
     """Timer boundary condition tests for RequestCoalescer."""
 
-    @pytest.mark.asyncio
     async def test_request_within_window_batched_with_first(self) -> None:
         """Request arriving within coalesce window is included in same batch.
 
@@ -375,7 +362,6 @@ class TestTimerEdgeCasesCoalescer:
         assert len(batches_received) == 1
         assert set(batches_received[0]) == {"1", "2"}
 
-    @pytest.mark.asyncio
     async def test_zero_window_executes_immediately(self) -> None:
         """Zero coalesce window executes immediately with no waiting."""
         import time
@@ -396,7 +382,6 @@ class TestTimerEdgeCasesCoalescer:
 class TestBatchOverflowCoalescer:
     """Batch overflow handling tests (FR-BATCH-002, FR-BATCH-005)."""
 
-    @pytest.mark.asyncio
     async def test_200_requests_split_at_max_batch_boundary(self) -> None:
         """200+ requests split at max_batch=100 into at least 2 batches."""
         mock_checker = MagicMock()

@@ -57,7 +57,6 @@ def make_entry(
 class TestRaceConditionsCoalescer:
     """Race condition tests for RequestCoalescer (NFR-REL-003)."""
 
-    @pytest.mark.asyncio
     async def test_100_concurrent_requests_for_same_gid(self) -> None:
         """Test 100+ concurrent requests for same GID share single result.
 
@@ -92,7 +91,6 @@ class TestRaceConditionsCoalescer:
         # Only ONE API call should have been made (deduplication)
         assert call_count == 1, f"Expected 1 API call, got {call_count}"
 
-    @pytest.mark.asyncio
     async def test_concurrent_different_gids_batched(self) -> None:
         """Test concurrent requests for different GIDs are batched efficiently."""
         mock_checker = MagicMock()
@@ -126,7 +124,6 @@ class TestRaceConditionsCoalescer:
 class TestTimerEdgeCases:
     """Timer boundary condition tests."""
 
-    @pytest.mark.asyncio
     async def test_request_at_window_boundary(self) -> None:
         """Test request arriving within coalesce window gets batched.
 
@@ -169,7 +166,6 @@ class TestTimerEdgeCases:
         assert len(batches_received) == 1
         assert set(batches_received[0]) == {"1", "2"}
 
-    @pytest.mark.asyncio
     async def test_zero_window_immediate_execution(self) -> None:
         """Test that zero coalesce window executes immediately."""
         mock_checker = MagicMock()
@@ -195,7 +191,6 @@ class TestTimerEdgeCases:
 class TestBatchOverflow:
     """Batch overflow handling tests (FR-BATCH-002, FR-BATCH-005)."""
 
-    @pytest.mark.asyncio
     async def test_200_requests_split_into_multiple_batches(self) -> None:
         """Test 200+ requests are split at max_batch boundary."""
         mock_checker = MagicMock()
@@ -227,7 +222,6 @@ class TestBatchOverflow:
         # First batch should be exactly 100 (max_batch)
         assert batches_received[0] == 100
 
-    @pytest.mark.asyncio
     async def test_chunking_at_asana_limit(self) -> None:
         """Test LightweightChecker chunks at Asana's 10-action limit."""
         mock_batch_client = MagicMock()
@@ -263,7 +257,6 @@ class TestBatchOverflow:
 class TestAPITimeoutHandling:
     """API timeout and error handling tests (FR-DEGRADE-*)."""
 
-    @pytest.mark.asyncio
     async def test_batch_timeout_returns_none(self) -> None:
         """Test that API timeout returns None for all entries."""
         mock_checker = MagicMock()
@@ -287,7 +280,6 @@ class TestAPITimeoutHandling:
                 timeout=0.2,
             )
 
-    @pytest.mark.asyncio
     async def test_partial_chunk_failure_isolated(self) -> None:
         """Test that one chunk failing doesn't affect other chunks."""
         mock_batch_client = MagicMock()
@@ -350,7 +342,6 @@ class TestMalformedModifiedAt:
         with pytest.raises(ValueError):
             _parse_datetime("2025-13-45T99:99:99")
 
-    @pytest.mark.asyncio
     async def test_missing_modified_at_in_response(self) -> None:
         """Test that missing modified_at in response returns None."""
         mock_batch_client = MagicMock()
@@ -371,7 +362,6 @@ class TestMalformedModifiedAt:
         # Missing modified_at should return None
         assert result["123"] is None
 
-    @pytest.mark.asyncio
     async def test_null_modified_at_in_response(self) -> None:
         """Test that null modified_at in response returns None."""
         mock_batch_client = MagicMock()
@@ -391,7 +381,6 @@ class TestMalformedModifiedAt:
 
         assert result["123"] is None
 
-    @pytest.mark.asyncio
     async def test_non_string_modified_at_in_response(self) -> None:
         """Test that non-string modified_at returns None."""
         mock_batch_client = MagicMock()
@@ -415,7 +404,6 @@ class TestMalformedModifiedAt:
 class TestDeletedEntityHandling:
     """Deleted entity (404) handling tests (FR-STALE-006)."""
 
-    @pytest.mark.asyncio
     async def test_404_invalidates_cache(self) -> None:
         """Test that 404 response invalidates cache entry."""
         cache = EnhancedInMemoryCacheProvider()
@@ -469,7 +457,6 @@ class TestTTLCeilingBoundary:
         # At count 8: 300 * 256 = 76800 (below ceiling)
         assert settings.calculate_extended_ttl(8) == 76800
 
-    @pytest.mark.asyncio
     async def test_progressive_extension_respects_ceiling(self) -> None:
         """Test that progressive extension never exceeds ceiling."""
         cache = EnhancedInMemoryCacheProvider()
@@ -535,7 +522,6 @@ class TestExtensionCountOverflow:
         with pytest.raises(ValueError, match="extension_count must be non-negative"):
             settings.calculate_extended_ttl(-1)
 
-    @pytest.mark.asyncio
     async def test_entry_with_large_extension_count(self) -> None:
         """Test entry with already large extension count."""
         cache = EnhancedInMemoryCacheProvider()
@@ -596,7 +582,6 @@ class TestEdgeCaseBatches:
         """Test negative chunk size returns empty."""
         assert _chunk(["a", "b"], -1) == []
 
-    @pytest.mark.asyncio
     async def test_single_entry_batch(self) -> None:
         """Test single entry batch works correctly."""
         mock_batch_client = MagicMock()
@@ -626,7 +611,6 @@ class TestEdgeCaseBatches:
 class TestMixedSuccessFailure:
     """Mixed success/failure handling tests (FR-DEGRADE-003)."""
 
-    @pytest.mark.asyncio
     async def test_mixed_200_404_500_responses(self) -> None:
         """Test handling mix of success, deleted, and error responses."""
         mock_batch_client = MagicMock()
@@ -668,7 +652,6 @@ class TestMixedSuccessFailure:
 class TestCoordinatorGracefulDegradation:
     """Coordinator graceful degradation tests."""
 
-    @pytest.mark.asyncio
     async def test_cache_unavailable_handled(self) -> None:
         """Test that cache unavailability is handled gracefully."""
         mock_cache = MagicMock()
@@ -704,7 +687,6 @@ class TestCoordinatorGracefulDegradation:
         assert result is not None
         assert result.ttl == 600  # Extended TTL
 
-    @pytest.mark.asyncio
     async def test_invalidate_failure_handled(self) -> None:
         """Test that cache invalidation failure is handled gracefully."""
         mock_cache = MagicMock()

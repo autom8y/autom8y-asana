@@ -171,7 +171,6 @@ def _patch_pacing(
 # ===================================================================
 
 
-@pytest.mark.asyncio
 class TestSectionSizeBoundaries:
     """Probe the 100-task heuristic boundary in both directions."""
 
@@ -293,7 +292,6 @@ class TestSectionSizeBoundaries:
 # ===================================================================
 
 
-@pytest.mark.asyncio
 class TestS3WriteFailureDuringCheckpoint:
     """S3 write failure during checkpoint should not crash the fetch."""
 
@@ -322,7 +320,6 @@ class TestS3WriteFailureDuringCheckpoint:
         assert len(written_df) == 5000
 
 
-@pytest.mark.asyncio
 class TestManifestUpdateFailureDuringCheckpoint:
     """Manifest save failure during checkpoint should not crash the fetch."""
 
@@ -355,7 +352,6 @@ class TestManifestUpdateFailureDuringCheckpoint:
         assert len(written_df) == 5000
 
 
-@pytest.mark.asyncio
 class TestTaskToDictExceptionMidLoop:
     """Exception during task-to-dict conversion mid-pacing loop."""
 
@@ -388,7 +384,6 @@ class TestTaskToDictExceptionMidLoop:
         )
 
 
-@pytest.mark.asyncio
 class TestRowExtractionExceptionAtCheckpoint:
     """Exception during row extraction at checkpoint time."""
 
@@ -434,7 +429,6 @@ class TestRowExtractionExceptionAtCheckpoint:
 # ===================================================================
 
 
-@pytest.mark.asyncio
 class TestConcurrentLargeSections:
     """Two concurrent large sections using the same manifest lock."""
 
@@ -488,7 +482,6 @@ class TestConcurrentLargeSections:
 # ===================================================================
 
 
-@pytest.mark.asyncio
 class TestResumeEdgeCases:
     """Edge cases for the resume-from-checkpoint path."""
 
@@ -584,7 +577,6 @@ class TestResumeEdgeCases:
 # ===================================================================
 
 
-@pytest.mark.asyncio
 class TestConfigurationBoundaries:
     """Test extreme configuration values."""
 
@@ -656,7 +648,6 @@ class TestConfigurationBoundaries:
 # ===================================================================
 
 
-@pytest.mark.asyncio
 class TestDataIntegrity:
     """Verify all accumulated tasks appear in the final DataFrame."""
 
@@ -749,7 +740,6 @@ class TestDataIntegrity:
 # ===================================================================
 
 
-@pytest.mark.asyncio
 class TestMixedCheckpointResults:
     """Some checkpoint writes succeed, some fail."""
 
@@ -795,7 +785,6 @@ class TestMixedCheckpointResults:
 # ===================================================================
 
 
-@pytest.mark.asyncio
 class TestPageBoundaryAccounting:
     """Verify page counting with various task counts."""
 

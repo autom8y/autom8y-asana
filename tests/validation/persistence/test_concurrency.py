@@ -83,7 +83,6 @@ class TestSessionIsolation:
             # Task was not modified in session2, so it should be CLEAN
             assert state == EntityState.CLEAN
 
-    @pytest.mark.asyncio
     async def test_concurrent_sessions_commit_independently(self) -> None:
         """Multiple sessions can be active and commit independently."""
 
@@ -276,7 +275,6 @@ class TestThreadSafety:
 class TestConcurrentCommits:
     """Test concurrent async commits."""
 
-    @pytest.mark.asyncio
     async def test_concurrent_session_commits(self) -> None:
         """Multiple sessions can commit concurrently."""
 
@@ -301,7 +299,6 @@ class TestConcurrentCommits:
         assert all(r.success for r in results)
         assert len(results) == 10
 
-    @pytest.mark.asyncio
     async def test_concurrent_commits_with_delays(self) -> None:
         """Concurrent commits with varying delays complete correctly."""
 
@@ -331,7 +328,6 @@ class TestConcurrentCommits:
         for idx, result in results:
             assert result.success, f"Session {idx} failed"
 
-    @pytest.mark.asyncio
     async def test_sequential_sessions_with_shared_entity(self) -> None:
         """Different sessions can track same entity object independently via sequential execution."""
         shared_task = Task(gid="shared", name="Shared Task")
@@ -440,7 +436,6 @@ class TestRaceConditions:
 
         assert len(errors) == 0
 
-    @pytest.mark.asyncio
     async def test_commit_during_modifications(self) -> None:
         """Commit captures consistent state even during modifications."""
         client = create_mock_client()

@@ -243,7 +243,6 @@ class TestGetSchema:
 class TestBuildProjectDataframe:
     """Tests for DataFrameService.build_project_dataframe()."""
 
-    @pytest.mark.asyncio
     async def test_happy_path(self, service: DataFrameService, mock_client: MagicMock):
         """Builds DataFrame from paginated task data."""
         schema = service.get_schema("base")
@@ -286,7 +285,6 @@ class TestBuildProjectDataframe:
         assert result.has_more is False
         assert result.next_offset is None
 
-    @pytest.mark.asyncio
     async def test_empty_results(self, service: DataFrameService, mock_client: MagicMock):
         """Returns empty DataFrame when no tasks found."""
         schema = service.get_schema("base")
@@ -304,7 +302,6 @@ class TestBuildProjectDataframe:
         assert result.has_more is False
         assert result.next_offset is None
 
-    @pytest.mark.asyncio
     async def test_pagination_metadata(self, service: DataFrameService, mock_client: MagicMock):
         """Propagates pagination info from HTTP response."""
         schema = service.get_schema("base")
@@ -321,7 +318,6 @@ class TestBuildProjectDataframe:
         assert result.has_more is True
         assert result.next_offset == "next_cursor"
 
-    @pytest.mark.asyncio
     async def test_passes_offset(self, service: DataFrameService, mock_client: MagicMock):
         """Passes offset parameter to HTTP client when provided."""
         schema = service.get_schema("base")
@@ -338,7 +334,6 @@ class TestBuildProjectDataframe:
         call_args = mock_client._http.get_paginated.call_args
         assert call_args[1]["params"]["offset"] == "cursor123"
 
-    @pytest.mark.asyncio
     async def test_uses_task_opt_fields(self, service: DataFrameService, mock_client: MagicMock):
         """Uses TASK_OPT_FIELDS for the opt_fields parameter."""
         schema = service.get_schema("base")
@@ -366,7 +361,6 @@ class TestBuildProjectDataframe:
 class TestBuildSectionDataframe:
     """Tests for DataFrameService.build_section_dataframe()."""
 
-    @pytest.mark.asyncio
     async def test_happy_path(self, service: DataFrameService, mock_client: MagicMock):
         """Builds DataFrame from section tasks."""
         schema = service.get_schema("base")
@@ -414,7 +408,6 @@ class TestBuildSectionDataframe:
         assert result.has_more is False
         assert project_gid == "proj1"
 
-    @pytest.mark.asyncio
     async def test_missing_project_raises(self, service: DataFrameService, mock_client: MagicMock):
         """Raises EntityNotFoundError when section has no parent project."""
         mock_client._http.get.return_value = {
@@ -434,7 +427,6 @@ class TestBuildSectionDataframe:
 
         assert "Section not found" in str(exc_info.value)
 
-    @pytest.mark.asyncio
     async def test_no_project_key_raises(self, service: DataFrameService, mock_client: MagicMock):
         """Raises EntityNotFoundError when section response has no project key."""
         mock_client._http.get.return_value = {
@@ -452,7 +444,6 @@ class TestBuildSectionDataframe:
                 offset=None,
             )
 
-    @pytest.mark.asyncio
     async def test_pagination_metadata(self, service: DataFrameService, mock_client: MagicMock):
         """Propagates pagination info from HTTP response."""
         schema = service.get_schema("base")
@@ -474,7 +465,6 @@ class TestBuildSectionDataframe:
         assert result.has_more is True
         assert result.next_offset == "next_xyz"
 
-    @pytest.mark.asyncio
     async def test_passes_offset(self, service: DataFrameService, mock_client: MagicMock):
         """Passes offset parameter to HTTP client when provided."""
         schema = service.get_schema("base")
@@ -496,7 +486,6 @@ class TestBuildSectionDataframe:
         call_args = mock_client._http.get_paginated.call_args
         assert call_args[1]["params"]["offset"] == "cursor456"
 
-    @pytest.mark.asyncio
     async def test_fetches_section_first(self, service: DataFrameService, mock_client: MagicMock):
         """Fetches section metadata before tasks."""
         schema = service.get_schema("base")
@@ -811,7 +800,6 @@ class TestAdversarialBuildSectionProjectKeyVariants:
     unusual 'project' key values.
     """
 
-    @pytest.mark.asyncio
     async def test_project_none_raises_entity_not_found(
         self, service: DataFrameService, mock_client: MagicMock
     ):
@@ -837,7 +825,6 @@ class TestAdversarialBuildSectionProjectKeyVariants:
                 offset=None,
             )
 
-    @pytest.mark.asyncio
     async def test_project_gid_empty_string_raises(
         self, service: DataFrameService, mock_client: MagicMock
     ):
@@ -857,7 +844,6 @@ class TestAdversarialBuildSectionProjectKeyVariants:
                 offset=None,
             )
 
-    @pytest.mark.asyncio
     async def test_project_gid_none_raises(self, service: DataFrameService, mock_client: MagicMock):
         """project.gid=None triggers EntityNotFoundError."""
         mock_client._http.get.return_value = {
@@ -875,7 +861,6 @@ class TestAdversarialBuildSectionProjectKeyVariants:
                 offset=None,
             )
 
-    @pytest.mark.asyncio
     async def test_completely_empty_response_raises(
         self, service: DataFrameService, mock_client: MagicMock
     ):
@@ -896,7 +881,6 @@ class TestAdversarialBuildSectionProjectKeyVariants:
 class TestAdversarialPaginationPassthrough:
     """Adversarial: Offset passthrough fidelity for both endpoints."""
 
-    @pytest.mark.asyncio
     async def test_project_offset_none_not_in_params(
         self, service: DataFrameService, mock_client: MagicMock
     ):
@@ -915,7 +899,6 @@ class TestAdversarialPaginationPassthrough:
         call_args = mock_client._http.get_paginated.call_args
         assert "offset" not in call_args[1]["params"]
 
-    @pytest.mark.asyncio
     async def test_project_offset_empty_string_not_in_params(
         self, service: DataFrameService, mock_client: MagicMock
     ):
@@ -937,7 +920,6 @@ class TestAdversarialPaginationPassthrough:
         call_args = mock_client._http.get_paginated.call_args
         assert "offset" not in call_args[1]["params"]
 
-    @pytest.mark.asyncio
     async def test_section_offset_none_not_in_params(
         self, service: DataFrameService, mock_client: MagicMock
     ):
@@ -960,7 +942,6 @@ class TestAdversarialPaginationPassthrough:
         call_args = mock_client._http.get_paginated.call_args
         assert "offset" not in call_args[1]["params"]
 
-    @pytest.mark.asyncio
     async def test_section_offset_passthrough_exact(
         self, service: DataFrameService, mock_client: MagicMock
     ):
@@ -984,7 +965,6 @@ class TestAdversarialPaginationPassthrough:
         call_args = mock_client._http.get_paginated.call_args
         assert call_args[1]["params"]["offset"] == cursor
 
-    @pytest.mark.asyncio
     async def test_project_limit_passthrough_exact(
         self, service: DataFrameService, mock_client: MagicMock
     ):
@@ -1084,7 +1064,6 @@ class TestAdversarialContentNegotiation:
 class TestAdversarialBuildProjectEmptyDataFrame:
     """Adversarial: Empty DataFrame schema conformance."""
 
-    @pytest.mark.asyncio
     async def test_empty_df_has_correct_columns(
         self, service: DataFrameService, mock_client: MagicMock
     ):
@@ -1104,7 +1083,6 @@ class TestAdversarialBuildProjectEmptyDataFrame:
         expected_columns = schema.column_names()
         assert result.dataframe.columns == expected_columns
 
-    @pytest.mark.asyncio
     async def test_empty_df_has_correct_dtypes(
         self, service: DataFrameService, mock_client: MagicMock
     ):

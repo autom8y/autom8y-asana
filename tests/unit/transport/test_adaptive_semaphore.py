@@ -75,7 +75,6 @@ def _make_semaphore(
 class TestAcquireAndReject:
     """Tests for acquire, release, and reject (multiplicative decrease)."""
 
-    @pytest.mark.asyncio
     async def test_acquire_below_limit_does_not_block(self):
         """Acquire when in_flight < window returns immediately."""
         sem, _ = _make_semaphore(ceiling=10)
@@ -85,7 +84,6 @@ class TestAcquireAndReject:
         await slot.__aexit__(None, None, None)
         assert sem.in_flight == 0
 
-    @pytest.mark.asyncio
     async def test_acquire_at_limit_blocks(self):
         """Acquire when in_flight == window blocks until release."""
         sem, _ = _make_semaphore(ceiling=2)
@@ -116,7 +114,6 @@ class TestAcquireAndReject:
         await slot2.__aexit__(None, None, None)
         await slot3.__aexit__(None, None, None)
 
-    @pytest.mark.asyncio
     async def test_reject_halves_window(self):
         """After reject(), window = old * 0.5."""
         sem, _ = _make_semaphore(ceiling=50)
@@ -127,7 +124,6 @@ class TestAcquireAndReject:
 
         assert sem.current_limit == 25
 
-    @pytest.mark.asyncio
     async def test_reject_at_floor_stays_at_floor(self):
         """Window never drops below floor (SC-004)."""
         sem, _ = _make_semaphore(ceiling=4, floor=2)
@@ -142,7 +138,6 @@ class TestAcquireAndReject:
             slot.reject()
         assert sem.current_limit == 2
 
-    @pytest.mark.asyncio
     async def test_reject_at_floor_logs_warning(self):
         """aimd_at_minimum event emitted when window hits floor (SC-005)."""
         mock_logger = MagicMock()
@@ -158,7 +153,6 @@ class TestAcquireAndReject:
         assert len(warning_calls) == 1
         assert warning_calls[0].kwargs["extra"]["floor"] == 1
 
-    @pytest.mark.asyncio
     async def test_epoch_coalescing_single_halving(self):
         """N simultaneous rejects cause exactly 1 halving (SC-001)."""
         sem, _ = _make_semaphore(ceiling=50)
@@ -180,7 +174,6 @@ class TestAcquireAndReject:
         for s in slots:
             await s.__aexit__(None, None, None)
 
-    @pytest.mark.asyncio
     async def test_stale_epoch_success_ignored(self):
         """Success from pre-decrease epoch does not increase window (SC-001)."""
         sem, clock = _make_semaphore(ceiling=50, grace_period_seconds=0.0)
@@ -211,7 +204,6 @@ class TestAcquireAndReject:
 class TestSuccessAndRecovery:
     """Tests for succeed (additive increase) and full recovery."""
 
-    @pytest.mark.asyncio
     async def test_succeed_increases_window(self):
         """After succeed(), window = old + 1.0 (SC-002)."""
         sem, clock = _make_semaphore(
@@ -231,7 +223,6 @@ class TestSuccessAndRecovery:
             slot.succeed()
         assert sem.current_limit == 26
 
-    @pytest.mark.asyncio
     async def test_succeed_at_ceiling_stays_at_ceiling(self):
         """Window never exceeds ceiling (SC-002)."""
         sem, clock = _make_semaphore(
@@ -245,7 +236,6 @@ class TestSuccessAndRecovery:
             slot.succeed()
         assert sem.current_limit == 50
 
-    @pytest.mark.asyncio
     async def test_grace_period_suppresses_increase(self):
         """Success during grace period does not increase window (SC-002)."""
         sem, clock = _make_semaphore(
@@ -266,7 +256,6 @@ class TestSuccessAndRecovery:
             slot.succeed()
         assert sem.current_limit == 25  # Unchanged
 
-    @pytest.mark.asyncio
     async def test_grace_period_expires_allows_increase(self):
         """Success after grace period increases window (SC-002)."""
         sem, clock = _make_semaphore(
@@ -287,7 +276,6 @@ class TestSuccessAndRecovery:
             slot.succeed()
         assert sem.current_limit == 26
 
-    @pytest.mark.asyncio
     async def test_increase_throttle_respected(self):
         """Successive successes within interval only increase once (SC-002, FR-007)."""
         sem, clock = _make_semaphore(
@@ -322,7 +310,6 @@ class TestSuccessAndRecovery:
             slot.succeed()
         assert sem.current_limit == 27
 
-    @pytest.mark.asyncio
     async def test_full_recovery_to_ceiling(self):
         """After decrease, N successes bring window back to ceiling (SC-002)."""
         sem, clock = _make_semaphore(
@@ -362,7 +349,6 @@ class TestSuccessAndRecovery:
 class TestSafety:
     """Tests for exception safety and concurrent correctness."""
 
-    @pytest.mark.asyncio
     async def test_concurrent_acquire_correctness(self):
         """Multiple concurrent coroutines maintain consistent state (NFR-003)."""
         sem, clock = _make_semaphore(
@@ -386,7 +372,6 @@ class TestSafety:
         # in_flight should be 0
         assert sem.in_flight == 0
 
-    @pytest.mark.asyncio
     async def test_slot_releases_on_exception(self):
         """Slot releases even when request raises exception (NFR-002)."""
         sem, _ = _make_semaphore(ceiling=5)
@@ -407,7 +392,6 @@ class TestSafety:
 class TestSlotBehavior:
     """Tests for Slot edge cases."""
 
-    @pytest.mark.asyncio
     async def test_slot_reject_idempotent(self):
         """Calling reject() twice is safe."""
         sem, _ = _make_semaphore(ceiling=50)
@@ -419,7 +403,6 @@ class TestSlotBehavior:
         # Only one halving
         assert sem.current_limit == 25
 
-    @pytest.mark.asyncio
     async def test_slot_succeed_idempotent(self):
         """Calling succeed() twice is safe."""
         sem, clock = _make_semaphore(
@@ -440,7 +423,6 @@ class TestSlotBehavior:
         # Only one increase
         assert sem.current_limit == 26
 
-    @pytest.mark.asyncio
     async def test_slot_silent_release(self):
         """Not calling reject/succeed releases without feedback."""
         sem, _ = _make_semaphore(ceiling=50)
@@ -461,7 +443,6 @@ class TestSlotBehavior:
 class TestStatsAPI:
     """Tests for the get_stats() introspection API."""
 
-    @pytest.mark.asyncio
     async def test_stats_api(self):
         """get_stats() returns all documented fields (FR-006)."""
         sem, clock = _make_semaphore(ceiling=50, name="read")
@@ -499,7 +480,6 @@ class TestStatsAPI:
 class TestCooldownStub:
     """Tests for the cooldown counter and threshold warning."""
 
-    @pytest.mark.asyncio
     async def test_cooldown_counter_increments(self):
         """Consecutive rejects increment counter (FR-008)."""
         sem, _ = _make_semaphore(ceiling=50, cooldown_trigger=10)
@@ -511,7 +491,6 @@ class TestCooldownStub:
 
         assert sem._consecutive_rejects == 3
 
-    @pytest.mark.asyncio
     async def test_cooldown_counter_resets_on_success(self):
         """Success resets consecutive reject counter (FR-008)."""
         sem, clock = _make_semaphore(
@@ -536,7 +515,6 @@ class TestCooldownStub:
             slot.succeed()
         assert sem._consecutive_rejects == 0
 
-    @pytest.mark.asyncio
     async def test_cooldown_threshold_logs_warning(self):
         """Warning emitted at threshold (FR-008)."""
         mock_logger = MagicMock()
@@ -564,7 +542,6 @@ class TestCooldownStub:
 class TestStructuredLogging:
     """Tests for structured log events."""
 
-    @pytest.mark.asyncio
     async def test_structured_log_decrease(self):
         """aimd_decrease event has correct fields (SC-005)."""
         mock_logger = MagicMock()
@@ -583,7 +560,6 @@ class TestStructuredLogging:
         assert extra["epoch"] == 1
         assert extra["trigger"] == "429"
 
-    @pytest.mark.asyncio
     async def test_structured_log_increase(self):
         """aimd_increase event at DEBUG level (SC-005)."""
         mock_logger = MagicMock()
@@ -622,7 +598,6 @@ class TestStructuredLogging:
 class TestInjectableClock:
     """Tests for injectable clock (NFR-005)."""
 
-    @pytest.mark.asyncio
     async def test_injectable_clock(self):
         """Grace period and throttle use injected clock (NFR-005)."""
         clock = FakeClock(start=100.0)
@@ -712,7 +687,6 @@ class TestConfigValidation:
 class TestNoLogger:
     """Tests that all paths work without a logger."""
 
-    @pytest.mark.asyncio
     async def test_no_logger_does_not_raise(self):
         """All paths work without a logger."""
         sem, clock = _make_semaphore(
@@ -751,7 +725,6 @@ class TestNoLogger:
 class TestFixedSemaphoreAdapter:
     """Tests for the AIMD-disabled adapter."""
 
-    @pytest.mark.asyncio
     async def test_adapter_acquire_and_release(self):
         """Adapter provides acquire()->NoOpSlot pattern."""
         adapter = FixedSemaphoreAdapter(limit=5)
@@ -769,7 +742,6 @@ class TestFixedSemaphoreAdapter:
         assert stats["current_limit"] == 5
         assert stats["decrease_count"] == 0
 
-    @pytest.mark.asyncio
     async def test_adapter_concurrent_limit(self):
         """Adapter respects concurrency limit."""
         adapter = FixedSemaphoreAdapter(limit=2)

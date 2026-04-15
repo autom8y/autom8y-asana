@@ -151,7 +151,6 @@ class TestUnitSchemaCascadeSource:
 class TestEndToEndCascadingResolution:
     """Integration tests for end-to-end cascading field resolution."""
 
-    @pytest.mark.asyncio
     async def test_unit_task_resolves_office_phone_from_business_grandparent(
         self, mock_client: MagicMock
     ) -> None:
@@ -205,7 +204,6 @@ class TestEndToEndCascadingResolution:
         assert result == "+12604442080"
         assert mock_client.tasks.get_async.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_parent_cache_efficiency_for_batch_extraction(
         self, mock_client: MagicMock
     ) -> None:
@@ -378,7 +376,6 @@ class TestBaseExtractorCascadeSupport:
         # office_phone should be None because extraction failed with ValueError
         assert result["office_phone"] is None
 
-    @pytest.mark.asyncio
     async def test_async_extract_resolves_cascade_source(self, mock_client: MagicMock) -> None:
         """Test async extract_async() resolves cascade: sources."""
         schema = DataFrameSchema(
@@ -439,7 +436,6 @@ class TestBaseExtractorCascadeSupport:
 class TestCascadingErrorHandling:
     """Test error handling in cascading resolution."""
 
-    @pytest.mark.asyncio
     async def test_missing_client_returns_none_for_cascade_field(self) -> None:
         """Test extractor returns None for cascade: field if client not provided.
 
@@ -471,7 +467,6 @@ class TestCascadingErrorHandling:
         # office_phone should be None because extraction failed (no client)
         assert result["office_phone"] is None
 
-    @pytest.mark.asyncio
     async def test_broken_parent_chain_returns_none(self, mock_client: MagicMock) -> None:
         """Test cascading returns None when parent chain is broken."""
         resolver = CascadingFieldResolver(mock_client)
@@ -499,7 +494,6 @@ class TestProductionValidationScenarios:
     Per TDD Task 4: Document what needs to be validated in production.
     """
 
-    @pytest.mark.asyncio
     async def test_scenario_chiropractic_unit_with_known_phone(
         self, mock_client: MagicMock
     ) -> None:
@@ -568,7 +562,6 @@ class TestProductionValidationScenarios:
         # This should NOT be None after the cascading fix
         assert resolved_gid == "unit_prod_001"
 
-    @pytest.mark.asyncio
     async def test_scenario_second_chiropractic_unit(self, mock_client: MagicMock) -> None:
         """Test: +19127481506 / chiropractic should return Unit GID."""
         business_task = MockTask(

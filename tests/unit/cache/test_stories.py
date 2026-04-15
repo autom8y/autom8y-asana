@@ -64,7 +64,6 @@ class TestLoadStoriesIncremental:
         """Create a mock fetcher function."""
         return AsyncMock()
 
-    @pytest.mark.asyncio
     async def test_full_fetch_when_no_cache(
         self, cache: MockCacheProvider, fetcher: AsyncMock
     ) -> None:
@@ -87,7 +86,6 @@ class TestLoadStoriesIncremental:
         assert entry is not None
         assert not was_incremental
 
-    @pytest.mark.asyncio
     async def test_full_fetch_when_cache_corrupted(
         self, cache: MockCacheProvider, fetcher: AsyncMock
     ) -> None:
@@ -115,7 +113,6 @@ class TestLoadStoriesIncremental:
         fetcher.assert_called_once_with("task123", None)
         assert not was_incremental
 
-    @pytest.mark.asyncio
     async def test_incremental_fetch_with_cache(
         self, cache: MockCacheProvider, fetcher: AsyncMock
     ) -> None:
@@ -155,7 +152,6 @@ class TestLoadStoriesIncremental:
         assert result[0]["gid"] == "s1"
         assert result[1]["gid"] == "s2"
 
-    @pytest.mark.asyncio
     async def test_merge_dedupes_by_gid(self, cache: MockCacheProvider, fetcher: AsyncMock) -> None:
         """Test that merge deduplicates stories by GID."""
         # Pre-populate cache
@@ -188,7 +184,6 @@ class TestLoadStoriesIncremental:
         assert len(result) == 1
         assert result[0]["text"] == "Updated"
 
-    @pytest.mark.asyncio
     async def test_cache_entry_has_last_fetched(
         self, cache: MockCacheProvider, fetcher: AsyncMock
     ) -> None:
@@ -242,7 +237,6 @@ class TestModifiedAtFreshnessProbe:
         )
         cache._cache["stories:task123"] = entry
 
-    @pytest.mark.asyncio
     async def test_modified_at_probe_bypasses_max_age_when_stale(
         self, cache: MockCacheProvider, fetcher: AsyncMock
     ) -> None:
@@ -271,7 +265,6 @@ class TestModifiedAtFreshnessProbe:
         # Merged result includes both old cached story and new fetched story
         assert len(result) == 2
 
-    @pytest.mark.asyncio
     async def test_modified_at_probe_no_change_when_none(
         self, cache: MockCacheProvider, fetcher: AsyncMock
     ) -> None:
@@ -296,7 +289,6 @@ class TestModifiedAtFreshnessProbe:
         assert len(result) == 1
         assert result[0]["gid"] == "s1"
 
-    @pytest.mark.asyncio
     async def test_modified_at_probe_allows_age_skip_when_current(
         self, cache: MockCacheProvider, fetcher: AsyncMock
     ) -> None:
@@ -322,7 +314,6 @@ class TestModifiedAtFreshnessProbe:
         assert was_incremental
         assert len(result) == 1
 
-    @pytest.mark.asyncio
     async def test_incremental_fetch_uses_since_cursor(
         self, cache: MockCacheProvider, fetcher: AsyncMock
     ) -> None:

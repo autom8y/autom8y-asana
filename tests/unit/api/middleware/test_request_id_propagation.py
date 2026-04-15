@@ -38,7 +38,6 @@ def _make_test_app() -> FastAPI:
     return app
 
 
-@pytest.mark.asyncio
 class TestRequestIdPropagation:
     """F-09: Asana reads X-Request-ID header before fallback generation."""
 

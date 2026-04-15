@@ -143,7 +143,6 @@ def _build_patch_stack(
 class TestPreloadParquetFallback:
     """Tests for loading dataframe.parquet when manifest is missing."""
 
-    @pytest.mark.asyncio
     async def test_loads_parquet_when_manifest_missing(self) -> None:
         """When manifest is None but dataframe.parquet exists, load it directly."""
         from autom8_asana.api.preload.progressive import (
@@ -187,7 +186,6 @@ class TestPreloadParquetFallback:
         # Verify watermark was set
         mock_watermark_repo.set_watermark.assert_called_once_with("proj_offer", s3_watermark)
 
-    @pytest.mark.asyncio
     async def test_delegates_to_lambda_when_no_parquet_either(self) -> None:
         """When both manifest and parquet are missing, delegate to Lambda."""
         from autom8_asana.api.preload.progressive import (
@@ -228,7 +226,6 @@ class TestPreloadParquetFallback:
         # Cache should NOT have been populated
         mock_cache.put_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_skips_empty_parquet(self) -> None:
         """When parquet exists but has 0 rows, delegate to Lambda."""
         from autom8_asana.api.preload.progressive import (
@@ -270,7 +267,6 @@ class TestPreloadParquetFallback:
 
         mock_cache.put_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_parquet_load_error_falls_through_to_lambda(self) -> None:
         """When parquet load raises an exception, delegate to Lambda."""
         from autom8_asana.api.preload.progressive import (
@@ -307,7 +303,6 @@ class TestPreloadParquetFallback:
 class TestPreloadColdStartBuild:
     """Tests for cold-start build from Asana API when S3 is empty."""
 
-    @pytest.mark.asyncio
     async def test_cold_start_build_in_local_env(self) -> None:
         """When local env, no manifest, no parquet, no Lambda — builder is called."""
         from autom8_asana.api.preload.progressive import (
@@ -360,7 +355,6 @@ class TestPreloadColdStartBuild:
         # Cache should have been populated with the build result
         mock_cache.put_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_skips_cold_start_in_production_env(self) -> None:
         """When production env, no manifest, no parquet, no Lambda — skip."""
         from autom8_asana.api.preload.progressive import (

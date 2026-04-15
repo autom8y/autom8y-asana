@@ -77,7 +77,6 @@ class TestSetAssigneeFromRepAsync:
         client.tasks.set_assignee_async = AsyncMock(return_value=MockTask())
         return client
 
-    @pytest.mark.asyncio
     async def test_unit_rep_present_uses_unit_rep(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -98,7 +97,6 @@ class TestSetAssigneeFromRepAsync:
         assert result is True
         mock_client.tasks.set_assignee_async.assert_called_once_with("new_task_gid", "unit_rep_123")
 
-    @pytest.mark.asyncio
     async def test_unit_rep_empty_fallback_to_business_rep(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -121,7 +119,6 @@ class TestSetAssigneeFromRepAsync:
             "new_task_gid", "business_rep_456"
         )
 
-    @pytest.mark.asyncio
     async def test_unit_rep_none_fallback_to_business_rep(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -144,7 +141,6 @@ class TestSetAssigneeFromRepAsync:
             "new_task_gid", "business_rep_456"
         )
 
-    @pytest.mark.asyncio
     async def test_both_rep_empty_logs_warning_returns_false(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -165,7 +161,6 @@ class TestSetAssigneeFromRepAsync:
         assert result is False
         mock_client.tasks.set_assignee_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_unit_none_uses_business_rep(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -187,7 +182,6 @@ class TestSetAssigneeFromRepAsync:
             "new_task_gid", "business_rep_456"
         )
 
-    @pytest.mark.asyncio
     async def test_rep_list_with_multiple_users_uses_first(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -215,7 +209,6 @@ class TestSetAssigneeFromRepAsync:
             "new_task_gid", "first_rep_123"
         )
 
-    @pytest.mark.asyncio
     async def test_set_assignee_async_fails_logs_warning_continues(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -239,7 +232,6 @@ class TestSetAssigneeFromRepAsync:
         assert result is False
         mock_client.tasks.set_assignee_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_unit_and_business_none_returns_false(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:
@@ -258,7 +250,6 @@ class TestSetAssigneeFromRepAsync:
         assert result is False
         mock_client.tasks.set_assignee_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_rep_dict_without_gid_skips_and_falls_back(
         self, rule: PipelineConversionRule, mock_client: MagicMock
     ) -> None:

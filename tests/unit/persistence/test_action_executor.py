@@ -63,13 +63,11 @@ class TestActionExecutorInit:
 class TestActionExecutorExecuteAsync:
     """Tests for execute_async method."""
 
-    @pytest.mark.asyncio
     async def test_execute_empty_actions(self, executor: ActionExecutor) -> None:
         """execute_async handles empty action list."""
         results = await executor.execute_async([], {})
         assert results == []
 
-    @pytest.mark.asyncio
     async def test_execute_single_action(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -92,7 +90,6 @@ class TestActionExecutorExecuteAsync:
             json={"data": {"tag": "tag_456"}},
         )
 
-    @pytest.mark.asyncio
     async def test_execute_multiple_actions(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -110,7 +107,6 @@ class TestActionExecutorExecuteAsync:
         assert all(r.success for r in results)
         assert mock_http.request.call_count == 3
 
-    @pytest.mark.asyncio
     async def test_execute_with_api_error(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -131,7 +127,6 @@ class TestActionExecutorExecuteAsync:
         assert isinstance(results[0].error, RuntimeError)
         assert "API error" in str(results[0].error)
 
-    @pytest.mark.asyncio
     async def test_execute_continues_after_error(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -157,7 +152,6 @@ class TestActionExecutorExecuteAsync:
         assert results[1].success is False
         assert results[2].success is True
 
-    @pytest.mark.asyncio
     async def test_execute_preserves_order(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -184,7 +178,6 @@ class TestActionExecutorExecuteAsync:
 class TestActionExecutorGidResolution:
     """Tests for temp GID resolution."""
 
-    @pytest.mark.asyncio
     async def test_resolve_target_temp_gid(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -207,7 +200,6 @@ class TestActionExecutorGidResolution:
             json={"data": {"tag": "real_tag_789"}},
         )
 
-    @pytest.mark.asyncio
     async def test_no_resolution_for_non_temp_gid(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -230,7 +222,6 @@ class TestActionExecutorGidResolution:
             json={"data": {"tag": "tag_456"}},
         )
 
-    @pytest.mark.asyncio
     async def test_no_resolution_for_unmatched_temp_gid(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -257,7 +248,6 @@ class TestActionExecutorGidResolution:
 class TestActionExecutorApiCalls:
     """Tests for correct API call generation."""
 
-    @pytest.mark.asyncio
     async def test_add_tag_api_call(self, executor: ActionExecutor, mock_http: AsyncMock) -> None:
         """ADD_TAG generates correct API call."""
         task = Task(gid="task_123")
@@ -273,7 +263,6 @@ class TestActionExecutorApiCalls:
             json={"data": {"tag": "tag_456"}},
         )
 
-    @pytest.mark.asyncio
     async def test_remove_tag_api_call(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -291,7 +280,6 @@ class TestActionExecutorApiCalls:
             json={"data": {"tag": "tag_456"}},
         )
 
-    @pytest.mark.asyncio
     async def test_add_to_project_api_call(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -309,7 +297,6 @@ class TestActionExecutorApiCalls:
             json={"data": {"project": "proj_789"}},
         )
 
-    @pytest.mark.asyncio
     async def test_remove_from_project_api_call(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -329,7 +316,6 @@ class TestActionExecutorApiCalls:
             json={"data": {"project": "proj_789"}},
         )
 
-    @pytest.mark.asyncio
     async def test_add_dependency_api_call(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -347,7 +333,6 @@ class TestActionExecutorApiCalls:
             json={"data": {"dependencies": ["task_456"]}},
         )
 
-    @pytest.mark.asyncio
     async def test_remove_dependency_api_call(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -367,7 +352,6 @@ class TestActionExecutorApiCalls:
             json={"data": {"dependencies": ["task_456"]}},
         )
 
-    @pytest.mark.asyncio
     async def test_move_to_section_api_call(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -391,7 +375,6 @@ class TestActionExecutorApiCalls:
 class TestActionExecutorResponseHandling:
     """Tests for response data handling."""
 
-    @pytest.mark.asyncio
     async def test_success_stores_response_data(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -409,7 +392,6 @@ class TestActionExecutorResponseHandling:
         assert results[0].response_data == {"data": {"gid": "tag_456", "name": "Important"}}
         assert results[0].error is None
 
-    @pytest.mark.asyncio
     async def test_failure_stores_error(
         self, executor: ActionExecutor, mock_http: AsyncMock
     ) -> None:
@@ -739,7 +721,6 @@ class TestBatchExecutionPath:
         http._log = None
         return http
 
-    @pytest.mark.asyncio
     async def test_batch_path_two_actions(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -764,7 +745,6 @@ class TestBatchExecutionPath:
         # HTTP should NOT be called (batch path used)
         mock_http_for_batch.request.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_batch_path_25_actions(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -789,7 +769,6 @@ class TestBatchExecutionPath:
         assert all(r.success for r in results)
         assert mock_batch_client.execute_async.call_count == 3
 
-    @pytest.mark.asyncio
     async def test_sub_threshold_single_action(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -805,7 +784,6 @@ class TestBatchExecutionPath:
         mock_batch_client.execute_async.assert_not_called()
         mock_http_for_batch.request.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_no_batch_client_uses_sequential(self, mock_http_for_batch: AsyncMock) -> None:
         """batch_client=None -> sequential path for any count."""
         executor = ActionExecutor(mock_http_for_batch, None)
@@ -821,7 +799,6 @@ class TestBatchExecutionPath:
         assert all(r.success for r in results)
         assert mock_http_for_batch.request.call_count == 5
 
-    @pytest.mark.asyncio
     async def test_preserves_result_order(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -845,7 +822,6 @@ class TestBatchExecutionPath:
             assert result.action.target.gid == f"tag_{i}"
             assert result.response_data == {"gid": f"result_{i}"}
 
-    @pytest.mark.asyncio
     async def test_gid_resolution_before_batching(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -903,7 +879,6 @@ class TestChunkFallback:
         http._log = None
         return http
 
-    @pytest.mark.asyncio
     async def test_chunk_fallback_on_batch_exception(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -924,7 +899,6 @@ class TestChunkFallback:
         # HTTP should have been called for fallback
         assert mock_http_for_batch.request.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_chunk_fallback_subsequent_chunks_still_batch(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -951,7 +925,6 @@ class TestChunkFallback:
         assert mock_batch_client.execute_async.call_count == 2
         assert mock_http_for_batch.request.call_count == 10
 
-    @pytest.mark.asyncio
     async def test_chunk_fallback_produces_same_shape(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -974,7 +947,6 @@ class TestChunkFallback:
             assert hasattr(result, "error")
             assert hasattr(result, "response_data")
 
-    @pytest.mark.asyncio
     async def test_chunk_fallback_logging(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -998,7 +970,6 @@ class TestChunkFallback:
         assert call_args[0][0] == "action_batch_chunk_fallback"
         assert call_args[1]["error_type"] == "ConnectionError"
 
-    @pytest.mark.asyncio
     async def test_result_count_mismatch_triggers_fallback(self) -> None:
         """Batch returning wrong number of results triggers chunk fallback.
 
@@ -1060,7 +1031,6 @@ class TestEdgeCases:
         http._log = None
         return http
 
-    @pytest.mark.asyncio
     async def test_ec_001_zero_actions(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -1073,7 +1043,6 @@ class TestEdgeCases:
         mock_batch_client.execute_async.assert_not_called()
         mock_http_for_batch.request.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_ec_002_single_action_bypasses_batch(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -1088,7 +1057,6 @@ class TestEdgeCases:
         assert results[0].success is True
         mock_batch_client.execute_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_ec_003_all_actions_fail_in_chunk(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -1108,7 +1076,6 @@ class TestEdgeCases:
         assert all(not r.success for r in results)
         assert all(isinstance(r.error, AsanaError) for r in results)
 
-    @pytest.mark.asyncio
     async def test_ec_004_add_project_no_move_section(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -1136,7 +1103,6 @@ class TestEdgeCases:
         # Both should be in same batch call (single tier)
         mock_batch_client.execute_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_ec_005_move_section_without_add_project(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -1163,7 +1129,6 @@ class TestEdgeCases:
         assert all(r.success for r in results)
         mock_batch_client.execute_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_ec_006_batch_429_fallback(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -1186,7 +1151,6 @@ class TestEdgeCases:
         # Fell back to sequential
         assert mock_http_for_batch.request.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_ec_007_comment_ordering_preserved(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -1216,7 +1180,6 @@ class TestEdgeCases:
             assert result.action.extra_params["text"] == f"Comment {i}"
             assert result.response_data == {"gid": f"story_{i}"}
 
-    @pytest.mark.asyncio
     async def test_ec_008_mixed_independent_dependent(
         self, mock_http_for_batch: AsyncMock, mock_batch_client: AsyncMock
     ) -> None:
@@ -1310,7 +1273,6 @@ class TestPayloadContractAllActionTypes:
 class TestBatchResultCountMismatchEdgeCases:
     """Edge cases for batch result count mismatches beyond basic coverage."""
 
-    @pytest.mark.asyncio
     async def test_more_results_than_requests_triggers_fallback(self) -> None:
         """BatchClient returning MORE results than sent -> fallback."""
         mock_http = AsyncMock()
@@ -1339,7 +1301,6 @@ class TestBatchResultCountMismatchEdgeCases:
         # Fell back to sequential
         assert mock_http.request.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_empty_results_for_nonempty_chunk_triggers_fallback(self) -> None:
         """BatchClient returning empty list for a chunk -> fallback."""
         mock_http = AsyncMock()
@@ -1365,7 +1326,6 @@ class TestBatchResultCountMismatchEdgeCases:
 class TestResolveTempGidsImmutability:
     """_resolve_temp_gids must not mutate ActionOperation (frozen dataclass)."""
 
-    @pytest.mark.asyncio
     async def test_resolve_does_not_mutate_original_action(self) -> None:
         """Resolved action should be a new object, not the original mutated."""
         mock_http = AsyncMock()
@@ -1390,7 +1350,6 @@ class TestResolveTempGidsImmutability:
         # They should be different objects
         assert resolved is not action
 
-    @pytest.mark.asyncio
     async def test_resolve_no_mutation_when_no_temp_gids(self) -> None:
         """When no temp GIDs, returns the SAME object (identity preserved)."""
         mock_http = AsyncMock()
@@ -1414,7 +1373,6 @@ class TestResolveTempGidsImmutability:
 class TestBatchExecutorScale:
     """Scale tests for the batch execution path."""
 
-    @pytest.mark.asyncio
     async def test_100_actions_batch_execution(self) -> None:
         """100 actions through batch executor: 10 batch calls expected."""
         mock_http = AsyncMock()
@@ -1445,7 +1403,6 @@ class TestBatchExecutorScale:
 class TestMetricsLogging:
     """TDD Section 7: Structured log fields verification."""
 
-    @pytest.mark.asyncio
     async def test_batch_complete_log_fields(self) -> None:
         """The action_batch_complete log should include all TDD-specified fields."""
         mock_log = MagicMock()
@@ -1492,7 +1449,6 @@ class TestMetricsLogging:
         assert "chunks_fallback" in kwargs
         assert "sequential_fallback" in kwargs
 
-    @pytest.mark.asyncio
     async def test_no_log_when_log_is_none(self) -> None:
         """When _log is None, no logging calls should happen (no AttributeError)."""
         mock_http = AsyncMock()
@@ -1520,7 +1476,6 @@ class TestMetricsLogging:
 class TestCrossTierResultOrdering:
     """Result order must match input order even when actions span multiple tiers."""
 
-    @pytest.mark.asyncio
     async def test_results_ordered_by_input_not_tier_order(self) -> None:
         """If input is [MOVE, TAG, ADD_PROJECT], results must be [MOVE_result, TAG_result, ADD_result]."""
         mock_http = AsyncMock()
@@ -1581,7 +1536,6 @@ class TestCrossTierResultOrdering:
 class TestFallbackEdgeCases:
     """Fallback path edge cases not covered by basic fallback tests."""
 
-    @pytest.mark.asyncio
     async def test_fallback_with_no_target_action(self) -> None:
         """Fallback with ADD_LIKE (target=None) should work."""
         mock_http = AsyncMock()
@@ -1603,7 +1557,6 @@ class TestFallbackEdgeCases:
         assert len(results) == 2
         assert all(r.success for r in results)
 
-    @pytest.mark.asyncio
     async def test_fallback_with_comment_action(self) -> None:
         """Fallback with ADD_COMMENT should preserve extra_params."""
         mock_http = AsyncMock()
@@ -1693,7 +1646,6 @@ class TestBatchResultStatusCodes:
 class TestDoubleFailure:
     """What happens when batch fails AND sequential fallback also fails?"""
 
-    @pytest.mark.asyncio
     async def test_batch_fails_then_sequential_also_fails(self) -> None:
         """Batch fails, fallback sequential also fails -> failed ActionResults."""
         mock_http = AsyncMock()

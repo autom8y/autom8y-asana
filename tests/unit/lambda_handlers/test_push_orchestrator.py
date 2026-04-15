@@ -45,7 +45,6 @@ class TestPushOrchestratorModuleInterface:
 class TestPushGidMappingsDispatch:
     """_push_gid_mappings_for_completed_entities dispatch validation."""
 
-    @pytest.mark.asyncio
     async def test_empty_entities_is_noop(self) -> None:
         """No entities means no pushes, no errors."""
         from autom8_asana.lambda_handlers.push_orchestrator import (
@@ -64,7 +63,6 @@ class TestPushGidMappingsDispatch:
 
         mock_cache.get_async.assert_not_awaited()
 
-    @pytest.mark.asyncio
     async def test_entity_with_no_project_gid_skipped(self) -> None:
         """Entities where get_project_gid returns None are skipped."""
         from autom8_asana.lambda_handlers.push_orchestrator import (
@@ -83,7 +81,6 @@ class TestPushGidMappingsDispatch:
 
         mock_cache.get_async.assert_not_awaited()
 
-    @pytest.mark.asyncio
     async def test_cache_miss_skipped_gracefully(self) -> None:
         """When cache returns None for a project, entity is skipped without error."""
         from autom8_asana.lambda_handlers.push_orchestrator import (
@@ -103,7 +100,6 @@ class TestPushGidMappingsDispatch:
 
         mock_cache.get_async.assert_awaited_once_with("proj-001", "unit")
 
-    @pytest.mark.asyncio
     async def test_push_failure_does_not_propagate(self) -> None:
         """push_gid_mappings_to_data_service failure is isolated — must not raise."""
         import polars as pl
@@ -142,7 +138,6 @@ class TestPushGidMappingsDispatch:
 class TestPushAccountStatusDispatch:
     """_push_account_status_for_completed_entities dispatch validation."""
 
-    @pytest.mark.asyncio
     async def test_empty_entities_is_noop(self) -> None:
         """No entities means no pushes, no errors."""
         from autom8_asana.lambda_handlers.push_orchestrator import (
@@ -162,7 +157,6 @@ class TestPushAccountStatusDispatch:
 
         mock_cache.get_async.assert_not_awaited()
 
-    @pytest.mark.asyncio
     async def test_entity_with_no_project_gid_skipped(self) -> None:
         """Entities where get_project_gid returns None are skipped."""
         from autom8_asana.lambda_handlers.push_orchestrator import (
@@ -182,7 +176,6 @@ class TestPushAccountStatusDispatch:
 
         mock_cache.get_async.assert_not_awaited()
 
-    @pytest.mark.asyncio
     async def test_extract_failure_does_not_propagate(self) -> None:
         """Extraction failure per-entity is isolated — must not raise."""
         from autom8_asana.lambda_handlers.push_orchestrator import (

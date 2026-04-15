@@ -170,7 +170,6 @@ def _patch_cascade_ordering():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 class TestPreloadManifestCheckIntegration:
     """Integration tests that call the real _preload_dataframe_cache_progressive
     and verify manifest-check branching via observable side effects.

@@ -117,7 +117,6 @@ SECTION_GID = "2222222222222"
 class TestCacheInvalidationOnCrudSuccess:
     """Tests for cache invalidation after successful CRUD operations."""
 
-    @pytest.mark.asyncio
     async def test_update_invalidates_cache(self) -> None:
         """UPDATE operations invalidate cache (FR-INVALIDATE-002)."""
         # Arrange
@@ -143,7 +142,6 @@ class TestCacheInvalidationOnCrudSuccess:
         assert EntryType.TASK in entry_types
         assert EntryType.SUBTASKS in entry_types
 
-    @pytest.mark.asyncio
     async def test_multiple_updates_batch_invalidate(self) -> None:
         """Multiple updates invalidate all modified GIDs (FR-INVALIDATE-005)."""
         # Arrange
@@ -176,7 +174,6 @@ class TestCacheInvalidationOnCrudSuccess:
 class TestCacheInvalidationOnActionSuccess:
     """Tests for cache invalidation after successful action operations."""
 
-    @pytest.mark.asyncio
     async def test_add_tag_action_invalidates_cache(self) -> None:
         """add_tag action invalidates cache (FR-INVALIDATE-006)."""
         # Arrange
@@ -197,7 +194,6 @@ class TestCacheInvalidationOnActionSuccess:
         gid, _ = cache.invalidate_calls[0]
         assert gid == TASK_GID_1
 
-    @pytest.mark.asyncio
     async def test_move_to_section_action_invalidates_cache(self) -> None:
         """move_to_section action invalidates cache (FR-INVALIDATE-006)."""
         # Arrange
@@ -220,7 +216,6 @@ class TestCacheInvalidationOnActionSuccess:
 class TestCacheInvalidationDeduplication:
     """Tests for GID deduplication in invalidation."""
 
-    @pytest.mark.asyncio
     async def test_same_gid_invalidated_once(self) -> None:
         """Same GID in CRUD and action is only invalidated once."""
         # Arrange
@@ -248,7 +243,6 @@ class TestCacheInvalidationDeduplication:
 class TestNoCacheProvider:
     """Tests when no cache provider is configured."""
 
-    @pytest.mark.asyncio
     async def test_commit_works_without_cache(self) -> None:
         """commit_async works when no cache provider configured."""
         # Arrange
@@ -273,7 +267,6 @@ class TestNoCacheProvider:
 class TestGracefulDegradation:
     """Tests for graceful degradation on cache errors."""
 
-    @pytest.mark.asyncio
     async def test_invalidation_failure_does_not_fail_commit(self) -> None:
         """Cache invalidation failure does not fail commit (NFR-DEGRADE-001)."""
         # Arrange
@@ -297,7 +290,6 @@ class TestGracefulDegradation:
         # Assert: Commit succeeded despite cache error
         assert result.success
 
-    @pytest.mark.asyncio
     async def test_invalidation_failure_logs_warning(self) -> None:
         """Cache invalidation failure logs warning."""
         # Arrange
@@ -330,7 +322,6 @@ class TestGracefulDegradation:
 class TestNoChangesNoInvalidation:
     """Tests that no invalidation happens without changes."""
 
-    @pytest.mark.asyncio
     async def test_empty_commit_no_invalidation(self) -> None:
         """Empty commit does not trigger invalidation."""
         # Arrange
@@ -345,7 +336,6 @@ class TestNoChangesNoInvalidation:
         cache = mock_client._cache_provider
         assert len(cache.invalidate_calls) == 0
 
-    @pytest.mark.asyncio
     async def test_tracked_but_unchanged_no_invalidation(self) -> None:
         """Tracking entity without changes does not trigger invalidation."""
         # Arrange
@@ -368,7 +358,6 @@ class TestNoChangesNoInvalidation:
 class TestInvalidationEntryTypes:
     """Tests for correct entry types being invalidated."""
 
-    @pytest.mark.asyncio
     async def test_invalidates_task_and_subtasks_types(self) -> None:
         """Invalidation includes TASK, SUBTASKS, and DETECTION entry types.
 

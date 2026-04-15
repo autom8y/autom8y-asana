@@ -161,7 +161,6 @@ class TestSC001SingleCacheEntryPerGID:
         assert len(index) == 1
         assert index.contains("task-001")
 
-    @pytest.mark.asyncio
     async def test_unified_store_overwrites_duplicate_gids(
         self, mock_cache_provider: MagicMock
     ) -> None:
@@ -185,7 +184,6 @@ class TestSC001SingleCacheEntryPerGID:
         # Cache set_versioned should have been called twice (overwrite)
         assert mock_cache_provider.set_versioned.call_count == 2
 
-    @pytest.mark.asyncio
     async def test_batch_put_deduplicates_gids(self, mock_cache_provider: MagicMock) -> None:
         """Test batch put handles duplicate GIDs in input."""
         store = UnifiedTaskStore(
@@ -226,7 +224,6 @@ class TestSC001SingleCacheEntryPerGID:
 class TestSC002ColdCacheNoFalseNotFound:
     """SC-002: Cold cache DataFrame returns no false NOT_FOUND errors."""
 
-    @pytest.mark.asyncio
     async def test_cold_cache_populate_then_query(
         self, mock_cache_provider: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:
@@ -269,7 +266,6 @@ class TestSC002ColdCacheNoFalseNotFound:
         assert len(result) == 1
         assert result["gid"][0] == "unit-001"
 
-    @pytest.mark.asyncio
     async def test_cold_cache_hierarchy_preserved(self, mock_cache_provider: MagicMock) -> None:
         """Test that hierarchy relationships are preserved in cold cache."""
         store = UnifiedTaskStore(
@@ -291,7 +287,6 @@ class TestSC002ColdCacheNoFalseNotFound:
         assert hierarchy.get_parent_gid("p-001") == "gp-001"
         assert hierarchy.get_parent_gid("gp-001") is None
 
-    @pytest.mark.asyncio
     async def test_empty_cache_returns_empty_not_error(
         self, mock_cache_provider: MagicMock, cascade_schema: DataFrameSchema
     ) -> None:
@@ -318,7 +313,6 @@ class TestSC002ColdCacheNoFalseNotFound:
 class TestSC003CascadeReturnsCorrectParentValues:
     """SC-003: Cascade resolution returns correct parent values."""
 
-    @pytest.mark.asyncio
     async def test_cascade_parent_name_traversal(self, mock_cache_provider: MagicMock) -> None:
         """Test parent.name cascade traversal via hierarchy index."""
         # Test using HierarchyIndex directly (the underlying mechanism)
@@ -339,7 +333,6 @@ class TestSC003CascadeReturnsCorrectParentValues:
         chain = index.get_ancestor_chain("unit-001")
         assert chain == ["business-001"]
 
-    @pytest.mark.asyncio
     async def test_cascade_parent_parent_name_traversal(
         self, mock_cache_provider: MagicMock
     ) -> None:
@@ -368,7 +361,6 @@ class TestSC003CascadeReturnsCorrectParentValues:
         root = index.get_root_gid("c-001")
         assert root == "gp-001"
 
-    @pytest.mark.asyncio
     async def test_cascade_local_override(self, mock_cache_provider: MagicMock) -> None:
         """Test local value overrides parent when allow_override=True."""
         from autom8_asana.models.business.fields import CascadingFieldDef
@@ -440,7 +432,6 @@ class TestSC003CascadeReturnsCorrectParentValues:
 class TestSC004WarmCacheReducedAPICalls:
     """SC-004: Warm cache uses 1-2 API calls instead of 4-6."""
 
-    @pytest.mark.asyncio
     async def test_immediate_mode_no_api_calls(
         self, mock_cache_provider: MagicMock, mock_batch_client: MagicMock
     ) -> None:
@@ -463,7 +454,6 @@ class TestSC004WarmCacheReducedAPICalls:
         assert mock_batch_client._call_count == 0
         assert "task-001" in result
 
-    @pytest.mark.asyncio
     async def test_eventual_mode_fresh_no_api_calls(
         self, mock_cache_provider: MagicMock, mock_batch_client: MagicMock
     ) -> None:
@@ -485,7 +475,6 @@ class TestSC004WarmCacheReducedAPICalls:
         # Fresh entry should not trigger API call
         assert mock_batch_client._call_count == 0
 
-    @pytest.mark.asyncio
     async def test_strict_mode_makes_single_batch_call(
         self, mock_cache_provider: MagicMock, mock_batch_client: MagicMock
     ) -> None:
@@ -552,7 +541,6 @@ class TestSC005FreshnessModeConfiguration:
             )
             assert store.freshness_mode == mode
 
-    @pytest.mark.asyncio
     async def test_mode_can_be_overridden_per_request(
         self, mock_cache_provider: MagicMock, mock_batch_client: MagicMock
     ) -> None:
@@ -593,7 +581,6 @@ class TestSC005FreshnessModeConfiguration:
 class TestSC006ColdStartPerformance:
     """SC-006: Cold start with realistic dataset < 30s."""
 
-    @pytest.mark.asyncio
     async def test_cold_start_1000_tasks_under_threshold(
         self, mock_cache_provider: MagicMock
     ) -> None:
@@ -628,7 +615,6 @@ class TestSC006ColdStartPerformance:
         hierarchy = store.get_hierarchy_index()
         assert len(hierarchy) == 1000
 
-    @pytest.mark.asyncio
     async def test_hierarchy_lookup_performance(self, mock_cache_provider: MagicMock) -> None:
         """Test hierarchy lookups are fast with realistic data."""
         store = UnifiedTaskStore(
@@ -676,7 +662,6 @@ class TestEdgeCases:
         assert hierarchy.get_parent_gid("non-existent") is None
         assert hierarchy.get_children_gids("non-existent") == set()
 
-    @pytest.mark.asyncio
     async def test_orphaned_subtask_parent_deleted(self, mock_cache_provider: MagicMock) -> None:
         """Test handling of orphaned subtask when parent is deleted."""
         store = UnifiedTaskStore(
@@ -720,7 +705,6 @@ class TestEdgeCases:
         chain = index.get_ancestor_chain("a", max_depth=10)
         assert len(chain) <= 10  # Should not infinite loop
 
-    @pytest.mark.asyncio
     async def test_concurrent_access_patterns(self, mock_cache_provider: MagicMock) -> None:
         """Test concurrent access doesn't cause race conditions."""
         import asyncio
@@ -742,7 +726,6 @@ class TestEdgeCases:
         hierarchy = store.get_hierarchy_index()
         assert len(hierarchy) == 100
 
-    @pytest.mark.asyncio
     async def test_cache_eviction_during_cascade(self, mock_cache_provider: MagicMock) -> None:
         """Test cascade resolution handles cache eviction gracefully."""
         store = UnifiedTaskStore(
@@ -771,7 +754,6 @@ class TestEdgeCases:
         # Should return None gracefully, not error
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_task_with_special_characters_in_gid(
         self, mock_cache_provider: MagicMock
     ) -> None:
@@ -788,7 +770,6 @@ class TestEdgeCases:
         hierarchy = store.get_hierarchy_index()
         assert hierarchy.contains("12345678901234567890")
 
-    @pytest.mark.asyncio
     async def test_task_with_empty_custom_fields_list(self, mock_cache_provider: MagicMock) -> None:
         """Test task with empty custom_fields list."""
         store = UnifiedTaskStore(
@@ -802,7 +783,6 @@ class TestEdgeCases:
         hierarchy = store.get_hierarchy_index()
         assert hierarchy.contains("task-001")
 
-    @pytest.mark.asyncio
     async def test_task_with_none_custom_fields(self, mock_cache_provider: MagicMock) -> None:
         """Test task with None custom_fields."""
         store = UnifiedTaskStore(

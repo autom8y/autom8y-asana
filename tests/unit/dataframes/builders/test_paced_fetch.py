@@ -97,7 +97,6 @@ def _make_builder(
     return builder
 
 
-@pytest.mark.asyncio
 class TestSmallSectionNoPacing:
     """Sections with <100 tasks should not activate pacing."""
 
@@ -125,7 +124,6 @@ class TestSmallSectionNoPacing:
         builder._persistence.write_section_async.assert_called_once()
 
 
-@pytest.mark.asyncio
 class TestLargeSectionPacingActivated:
     """Sections with 100+ tasks on first page should activate pacing."""
 
@@ -155,7 +153,6 @@ class TestLargeSectionPacingActivated:
         assert len(written_df) == 150
 
 
-@pytest.mark.asyncio
 class TestPacingSleepIntervals:
     """Verify asyncio.sleep is called at correct intervals."""
 
@@ -204,7 +201,6 @@ class TestPacingSleepIntervals:
         mock_sleep.assert_called_with(2.0)
 
 
-@pytest.mark.asyncio
 class TestCheckpointWriteAtIntervals:
     """Verify checkpoint writes occur at configured intervals."""
 
@@ -244,7 +240,6 @@ class TestCheckpointWriteAtIntervals:
         assert builder._persistence.write_checkpoint_async.call_count == 2
 
 
-@pytest.mark.asyncio
 class TestCheckpointMetadataUpdated:
     """Verify SectionInfo checkpoint fields update correctly."""
 
@@ -284,7 +279,6 @@ class TestCheckpointMetadataUpdated:
         builder._persistence.write_checkpoint_async.assert_called()
 
 
-@pytest.mark.asyncio
 class TestEmptySectionNoPacing:
     """Empty sections should not trigger pacing."""
 
@@ -322,7 +316,6 @@ class TestEmptySectionNoPacing:
         )
 
 
-@pytest.mark.asyncio
 class TestExactly100TasksPacingHarmless:
     """Edge case: exactly 100 tasks activates pacing but is harmless."""
 
@@ -354,7 +347,6 @@ class TestExactly100TasksPacingHarmless:
         assert len(written_df) == 100
 
 
-@pytest.mark.asyncio
 class TestFinalWriteReplacesCheckpoint:
     """Final write should contain all rows, replacing checkpoint."""
 

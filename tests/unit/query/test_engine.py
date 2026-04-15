@@ -75,7 +75,6 @@ def engine(mock_query_service: EntityQueryService) -> QueryEngine:
 class TestQueryEngineBasic:
     """Basic query execution."""
 
-    @pytest.mark.asyncio
     async def test_no_filter(
         self,
         engine: QueryEngine,
@@ -102,7 +101,6 @@ class TestQueryEngineBasic:
         assert result.meta.project_gid == "proj-123"
         assert len(result.data) == 5
 
-    @pytest.mark.asyncio
     async def test_eq_filter(
         self,
         engine: QueryEngine,
@@ -132,7 +130,6 @@ class TestQueryEngineBasic:
 class TestQueryEnginePagination:
     """Pagination (offset/limit)."""
 
-    @pytest.mark.asyncio
     async def test_limit(
         self,
         engine: QueryEngine,
@@ -156,7 +153,6 @@ class TestQueryEnginePagination:
         assert result.meta.returned_count == 2
         assert len(result.data) == 2
 
-    @pytest.mark.asyncio
     async def test_offset(
         self,
         engine: QueryEngine,
@@ -179,7 +175,6 @@ class TestQueryEnginePagination:
         assert result.meta.returned_count == 2  # rows 4 and 5
         assert result.data[0]["name"] == "Delta"
 
-    @pytest.mark.asyncio
     async def test_max_result_rows_clamping(
         self,
         mock_client: AsyncMock,
@@ -211,7 +206,6 @@ class TestQueryEnginePagination:
 class TestQueryEngineSection:
     """Section scoping."""
 
-    @pytest.mark.asyncio
     async def test_section_filter(
         self,
         engine: QueryEngine,
@@ -241,7 +235,6 @@ class TestQueryEngineSection:
         for row in result.data:
             assert row["section"] == "Active"
 
-    @pytest.mark.asyncio
     async def test_unknown_section(
         self,
         engine: QueryEngine,
@@ -268,7 +261,6 @@ class TestQueryEngineSection:
 class TestQueryEngineSelect:
     """Column selection."""
 
-    @pytest.mark.asyncio
     async def test_select_fields(
         self,
         engine: QueryEngine,
@@ -295,7 +287,6 @@ class TestQueryEngineSelect:
         assert "mrr" in result.data[0]
         assert "section" not in result.data[0]
 
-    @pytest.mark.asyncio
     async def test_select_unknown_field_raises(
         self,
         engine: QueryEngine,
@@ -318,7 +309,6 @@ class TestQueryEngineSelect:
                 )
             assert exc_info.value.field == "nonexistent"
 
-    @pytest.mark.asyncio
     async def test_gid_always_included(
         self,
         engine: QueryEngine,
@@ -345,7 +335,6 @@ class TestQueryEngineSelect:
 class TestQueryEngineMetadata:
     """Response metadata."""
 
-    @pytest.mark.asyncio
     async def test_meta_fields(
         self,
         engine: QueryEngine,
@@ -453,7 +442,6 @@ def _make_schema_map(
 class TestQueryEngineJoin:
     """Join integration tests for QueryEngine.execute_rows()."""
 
-    @pytest.mark.asyncio
     async def test_tc_ej001_valid_join(
         self,
         mock_client: AsyncMock,
@@ -504,7 +492,6 @@ class TestQueryEngineJoin:
         assert result.meta.join_matched == 2
         assert result.meta.join_unmatched == 1
 
-    @pytest.mark.asyncio
     async def test_tc_ej002_join_with_filter(
         self,
         mock_client: AsyncMock,
@@ -553,7 +540,6 @@ class TestQueryEngineJoin:
         assert result.data[0]["name"] == "Offer A"
         assert result.data[0]["business_booking_type"] == "Online"
 
-    @pytest.mark.asyncio
     async def test_tc_ej004_unrelated_entity_type(
         self,
         mock_client: AsyncMock,
@@ -589,7 +575,6 @@ class TestQueryEngineJoin:
                     request=request,
                 )
 
-    @pytest.mark.asyncio
     async def test_tc_ej005_invalid_join_column(
         self,
         mock_client: AsyncMock,
@@ -629,7 +614,6 @@ class TestQueryEngineJoin:
                 )
             assert exc_info.value.field == "nonexistent_col"
 
-    @pytest.mark.asyncio
     async def test_tc_ej006_no_project_for_target(
         self,
         mock_client: AsyncMock,
@@ -672,7 +656,6 @@ class TestQueryEngineJoin:
                     entity_project_registry=mock_epr,
                 )
 
-    @pytest.mark.asyncio
     async def test_tc_ej007_join_meta_in_response(
         self,
         mock_client: AsyncMock,
@@ -721,7 +704,6 @@ class TestQueryEngineJoin:
         assert result.meta.join_matched is not None
         assert result.meta.join_unmatched is not None
 
-    @pytest.mark.asyncio
     async def test_tc_ej008_no_join_backward_compat(
         self,
         engine: QueryEngine,
@@ -748,7 +730,6 @@ class TestQueryEngineJoin:
         assert result.meta.join_unmatched is None
         assert result.meta.total_count == 5
 
-    @pytest.mark.asyncio
     async def test_tc_ej009_explicit_on_key(
         self,
         mock_client: AsyncMock,
@@ -796,7 +777,6 @@ class TestQueryEngineJoin:
         assert result.meta.join_key == "office_phone"
         assert result.meta.join_matched == 2
 
-    @pytest.mark.asyncio
     async def test_tc_ej010_join_with_section(
         self,
         mock_client: AsyncMock,
@@ -920,7 +900,6 @@ def _patch_schema(schema: DataFrameSchema):
 class TestExecuteAggregate:
     """Integration tests for QueryEngine.execute_aggregate()."""
 
-    @pytest.mark.asyncio
     async def test_tc_ea001_basic_group_by_sum(
         self,
         agg_engine: QueryEngine,
@@ -947,7 +926,6 @@ class TestExecuteAggregate:
         assert data_by_vert["dental"]["total_amount"] == 600.0
         assert data_by_vert["medical"]["total_amount"] == 750.0
 
-    @pytest.mark.asyncio
     async def test_tc_ea002_multiple_aggregations(
         self,
         agg_engine: QueryEngine,
@@ -979,7 +957,6 @@ class TestExecuteAggregate:
             assert "avg" in row
             assert "cnt" in row
 
-    @pytest.mark.asyncio
     async def test_tc_ea003_where_filter_before_grouping(
         self,
         agg_engine: QueryEngine,
@@ -1007,7 +984,6 @@ class TestExecuteAggregate:
         assert data_by_vert["dental"]["cnt"] == 2
         assert data_by_vert["medical"]["cnt"] == 1
 
-    @pytest.mark.asyncio
     async def test_tc_ea004_section_filter(
         self,
         agg_engine: QueryEngine,
@@ -1039,7 +1015,6 @@ class TestExecuteAggregate:
         assert data_by_vert["dental"]["cnt"] == 2
         assert data_by_vert["medical"]["cnt"] == 1
 
-    @pytest.mark.asyncio
     async def test_tc_ea005_having_filter(
         self,
         agg_engine: QueryEngine,
@@ -1066,7 +1041,6 @@ class TestExecuteAggregate:
         assert result.meta.group_count == 1
         assert result.data[0]["vertical"] == "medical"
 
-    @pytest.mark.asyncio
     async def test_tc_ea006_full_pipeline(
         self,
         agg_engine: QueryEngine,
@@ -1103,7 +1077,6 @@ class TestExecuteAggregate:
         assert result.meta.group_count == 1
         assert result.data[0]["vertical"] == "dental"
 
-    @pytest.mark.asyncio
     async def test_tc_ea007_group_by_nonexistent_column(
         self,
         agg_engine: QueryEngine,
@@ -1127,7 +1100,6 @@ class TestExecuteAggregate:
                 )
             assert exc_info.value.field == "nonexistent"
 
-    @pytest.mark.asyncio
     async def test_tc_ea008_group_by_list_column(
         self,
         agg_engine: QueryEngine,
@@ -1151,7 +1123,6 @@ class TestExecuteAggregate:
                 )
             assert "List" in str(exc_info.value.message)
 
-    @pytest.mark.asyncio
     async def test_tc_ea009_sum_on_utf8_casts(
         self,
         agg_engine: QueryEngine,
@@ -1177,7 +1148,6 @@ class TestExecuteAggregate:
         for row in result.data:
             assert "name_sum" in row
 
-    @pytest.mark.asyncio
     async def test_tc_ea010_empty_after_where(
         self,
         mock_client: AsyncMock,
@@ -1216,7 +1186,6 @@ class TestExecuteAggregate:
         assert result.meta.group_count == 0
         assert result.data == []
 
-    @pytest.mark.asyncio
     async def test_tc_ea011_single_group(
         self,
         mock_client: AsyncMock,
@@ -1255,7 +1224,6 @@ class TestExecuteAggregate:
         assert result.meta.group_count == 1
         assert result.data[0]["total"] == 600.0
 
-    @pytest.mark.asyncio
     async def test_tc_ea012_null_values(
         self,
         mock_client: AsyncMock,
@@ -1297,7 +1265,6 @@ class TestExecuteAggregate:
         assert result.data[0]["total"] == 400.0  # sum ignores null
         assert result.data[0]["cnt"] == 2  # count excludes null
 
-    @pytest.mark.asyncio
     async def test_tc_ea013_count_vs_count_distinct(
         self,
         mock_client: AsyncMock,
@@ -1339,7 +1306,6 @@ class TestExecuteAggregate:
         assert result.data[0]["name_count"] == 4
         assert result.data[0]["name_uniq"] == 2
 
-    @pytest.mark.asyncio
     async def test_tc_ea014_having_filters_all_groups(
         self,
         agg_engine: QueryEngine,
@@ -1365,7 +1331,6 @@ class TestExecuteAggregate:
         assert result.meta.group_count == 0
         assert result.data == []
 
-    @pytest.mark.asyncio
     async def test_tc_ea015_multiple_group_by(
         self,
         agg_engine: QueryEngine,
@@ -1390,7 +1355,6 @@ class TestExecuteAggregate:
         # dental/Active=2, dental/Won=1, medical/Active=1, medical/Won=2
         assert result.meta.group_count == 4
 
-    @pytest.mark.asyncio
     async def test_tc_ea016_depth_guard_where(
         self,
         agg_engine: QueryEngine,
@@ -1417,7 +1381,6 @@ class TestExecuteAggregate:
                     request=request,
                 )
 
-    @pytest.mark.asyncio
     async def test_tc_ea017_depth_guard_having(
         self,
         agg_engine: QueryEngine,
@@ -1444,7 +1407,6 @@ class TestExecuteAggregate:
                     request=request,
                 )
 
-    @pytest.mark.asyncio
     async def test_tc_ea018_count_distinct_with_nulls(
         self,
         mock_client: AsyncMock,
@@ -1485,7 +1447,6 @@ class TestExecuteAggregate:
         # "A" and null = 2 distinct values (Polars n_unique counts null)
         assert result.data[0]["uniq_names"] == 2
 
-    @pytest.mark.asyncio
     async def test_tc_ea019_meta_populated(
         self,
         agg_engine: QueryEngine,
@@ -1514,7 +1475,6 @@ class TestExecuteAggregate:
         assert result.meta.project_gid == "proj-1"
         assert result.meta.query_ms >= 0
 
-    @pytest.mark.asyncio
     async def test_tc_ea020_alias_avoids_collision(
         self,
         agg_engine: QueryEngine,
@@ -1543,7 +1503,6 @@ class TestExecuteAggregate:
             assert "amount_total" in row
             assert "amount_avg" in row
 
-    @pytest.mark.asyncio
     async def test_tc_ea021_group_limit_guard(
         self,
         mock_client: AsyncMock,
@@ -1589,7 +1548,6 @@ class TestExecuteAggregate:
             assert exc_info.value.group_count == 5
             assert exc_info.value.max_groups == 3
 
-    @pytest.mark.asyncio
     async def test_tc_ea022_alias_collision_raises(
         self,
         agg_engine: QueryEngine,
@@ -1615,7 +1573,6 @@ class TestExecuteAggregate:
                     request=request,
                 )
 
-    @pytest.mark.asyncio
     async def test_tc_ea023_alias_collides_with_group_by(
         self,
         agg_engine: QueryEngine,
@@ -1640,7 +1597,6 @@ class TestExecuteAggregate:
                     request=request,
                 )
 
-    @pytest.mark.asyncio
     async def test_tc_ea024_utf8_financial_column_sum(
         self,
         mock_client: AsyncMock,
@@ -1704,7 +1660,6 @@ class TestExecuteAggregate:
         # medical: "300.00" + null (invalid cast) = 300.0
         assert data_by_vert["medical"]["total_mrr"] == pytest.approx(300.0)
 
-    @pytest.mark.asyncio
     async def test_tc_ea025_having_references_nonexistent_alias(
         self,
         agg_engine: QueryEngine,
@@ -1729,7 +1684,6 @@ class TestExecuteAggregate:
                 )
             assert exc_info.value.field == "nonexistent_alias"
 
-    @pytest.mark.asyncio
     async def test_tc_ea026_group_limit_guard_serialization(
         self,
     ) -> None:
@@ -1753,7 +1707,6 @@ class TestExecuteAggregate:
 class TestQueryEngineWithMockProvider:
     """Verify QueryEngine works with a pure mock DataFrameProvider (no EntityQueryService)."""
 
-    @pytest.mark.asyncio
     async def test_mock_provider_rows(
         self,
         mock_client: AsyncMock,
@@ -1784,7 +1737,6 @@ class TestQueryEngineWithMockProvider:
         assert result.meta.returned_count == 5
         mock_provider.get_dataframe.assert_awaited_once_with("offer", "proj-123", mock_client)
 
-    @pytest.mark.asyncio
     async def test_mock_provider_aggregate(
         self,
         mock_client: AsyncMock,
@@ -1815,7 +1767,6 @@ class TestQueryEngineWithMockProvider:
         assert result.meta.group_count == 2
         mock_provider.get_dataframe.assert_awaited_once()
 
-    @pytest.mark.asyncio
     async def test_mock_provider_freshness_passthrough(
         self,
         mock_client: AsyncMock,

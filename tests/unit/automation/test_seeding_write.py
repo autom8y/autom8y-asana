@@ -114,7 +114,6 @@ class TestWriteResult:
 class TestWriteFieldsAsync:
     """Tests for FieldSeeder.write_fields_async()."""
 
-    @pytest.mark.asyncio
     async def test_empty_fields_returns_success(self) -> None:
         """Test that empty fields dict returns immediate success."""
         client = create_mock_client()
@@ -129,7 +128,6 @@ class TestWriteFieldsAsync:
         client.tasks.get_async.assert_not_called()
         client.tasks.update_async.assert_not_called()
 
-    @pytest.mark.asyncio
     async def test_writes_single_field(self) -> None:
         """Test writing a single field to target task."""
         client = create_mock_client()
@@ -176,7 +174,6 @@ class TestWriteFieldsAsync:
         client.tasks.get_async.assert_called_once()
         client.tasks.update_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_writes_multiple_fields(self) -> None:
         """Test writing multiple fields in a single API call (FR-SEED-002)."""
         client = create_mock_client()
@@ -228,7 +225,6 @@ class TestWriteFieldsAsync:
         # Verify only one update call (FR-SEED-002)
         assert client.tasks.update_async.call_count == 1
 
-    @pytest.mark.asyncio
     async def test_skips_missing_field_with_warning(self) -> None:
         """Test that missing fields are skipped with warning log (FR-SEED-005)."""
         client = create_mock_client()
@@ -270,7 +266,6 @@ class TestWriteFieldsAsync:
         assert "Vertical" in result.fields_written
         assert "Unknown Field" in result.fields_skipped
 
-    @pytest.mark.asyncio
     async def test_case_insensitive_field_matching(self) -> None:
         """Test that field names are matched case-insensitively."""
         client = create_mock_client()
@@ -303,7 +298,6 @@ class TestWriteFieldsAsync:
         assert result.success is True
         assert "Vertical" in result.fields_written  # Uses matched case
 
-    @pytest.mark.asyncio
     async def test_api_error_returns_failure(self) -> None:
         """Test that API errors return failure result."""
         client = create_mock_client()
@@ -320,7 +314,6 @@ class TestWriteFieldsAsync:
         assert result.error == "API connection failed"
         assert "Vertical" in result.fields_skipped
 
-    @pytest.mark.asyncio
     async def test_no_changes_skips_api_call(self) -> None:
         """Test that no API call is made when accessor has no changes."""
         client = create_mock_client()
@@ -356,7 +349,6 @@ class TestWriteFieldsAsync:
 class TestWriteFieldsAsyncIntegration:
     """Integration-style tests for write_fields_async with real accessor patterns."""
 
-    @pytest.mark.asyncio
     async def test_all_fields_skipped_returns_success(self) -> None:
         """Test that if all fields are skipped, still returns success."""
         client = create_mock_client()
@@ -384,7 +376,6 @@ class TestWriteFieldsAsyncIntegration:
         assert result.fields_written == []
         assert len(result.fields_skipped) == 2
 
-    @pytest.mark.asyncio
     async def test_update_async_receives_correct_custom_fields(self) -> None:
         """Test that update_async receives correct custom_fields parameter."""
         client = create_mock_client()
@@ -418,7 +409,6 @@ class TestWriteFieldsAsyncIntegration:
             custom_fields=expected_api_dict,
         )
 
-    @pytest.mark.asyncio
     async def test_skips_empty_people_field(self) -> None:
         """Test that empty people fields are skipped, allowing other fields to write.
 
@@ -485,7 +475,6 @@ class TestWriteFieldsAsyncIntegration:
         # API should still be called for non-people fields
         client.tasks.update_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_skips_empty_list_people_field(self) -> None:
         """Test that empty list for people field is also skipped."""
         client = create_mock_client()
@@ -535,7 +524,6 @@ class TestWriteFieldsAsyncTargetTaskPassthrough:
     the redundant task fetch and use the provided task's custom_fields.
     """
 
-    @pytest.mark.asyncio
     async def test_skips_fetch_when_target_task_provided(self) -> None:
         """When target_task is provided, no get_async call for the task."""
         client = create_mock_client()
@@ -579,7 +567,6 @@ class TestWriteFieldsAsyncTargetTaskPassthrough:
         # update_async should still be called to write the fields
         client.tasks.update_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_fetches_when_target_task_not_provided(self) -> None:
         """When target_task is None, get_async is called as before."""
         client = create_mock_client()
@@ -619,7 +606,6 @@ class TestWriteFieldsAsyncTargetTaskPassthrough:
         # get_async should be called to fetch the target task
         client.tasks.get_async.assert_called_once()
 
-    @pytest.mark.asyncio
     async def test_empty_fields_skips_fetch_regardless(self) -> None:
         """Empty fields returns early before any fetch, with or without target_task."""
         client = create_mock_client()

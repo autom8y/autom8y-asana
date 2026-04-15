@@ -127,7 +127,6 @@ class TestUnifiedTaskStoreInit:
 class TestUnifiedTaskStoreGet:
     """Tests for get_async method."""
 
-    @pytest.mark.asyncio
     async def test_get_cache_miss(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -139,7 +138,6 @@ class TestUnifiedTaskStoreGet:
         assert result is None
         mock_cache_provider.get_versioned.assert_called_once_with("task-123", EntryType.TASK)
 
-    @pytest.mark.asyncio
     async def test_get_immediate_returns_cached(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -152,7 +150,6 @@ class TestUnifiedTaskStoreGet:
         assert result == entry.data
         # Should not check freshness for IMMEDIATE
 
-    @pytest.mark.asyncio
     async def test_get_eventual_fresh_entry(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -165,7 +162,6 @@ class TestUnifiedTaskStoreGet:
 
         assert result == entry.data
 
-    @pytest.mark.asyncio
     async def test_get_eventual_stale_entry(
         self,
         store: UnifiedTaskStore,
@@ -196,14 +192,12 @@ class TestUnifiedTaskStoreGet:
 class TestUnifiedTaskStoreGetBatch:
     """Tests for get_batch_async method."""
 
-    @pytest.mark.asyncio
     async def test_get_batch_empty(self, store: UnifiedTaskStore) -> None:
         """Test get_batch_async with empty list."""
         result = await store.get_batch_async([])
 
         assert result == {}
 
-    @pytest.mark.asyncio
     async def test_get_batch_all_misses(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -217,7 +211,6 @@ class TestUnifiedTaskStoreGetBatch:
 
         assert result == {"task-1": None, "task-2": None}
 
-    @pytest.mark.asyncio
     async def test_get_batch_immediate_returns_all(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -236,7 +229,6 @@ class TestUnifiedTaskStoreGetBatch:
         assert result["task-1"] == entry1.data
         assert result["task-2"] == entry2.data
 
-    @pytest.mark.asyncio
     async def test_get_batch_mixed_hits_misses(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -258,7 +250,6 @@ class TestUnifiedTaskStoreGetBatch:
 class TestUnifiedTaskStorePut:
     """Tests for put_async method."""
 
-    @pytest.mark.asyncio
     async def test_put_stores_in_cache(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -272,7 +263,6 @@ class TestUnifiedTaskStorePut:
         assert call_args[0][0] == "task-123"  # key
         assert call_args[0][1].data == task  # entry.data
 
-    @pytest.mark.asyncio
     async def test_put_registers_hierarchy(self, store: UnifiedTaskStore) -> None:
         """Test put_async registers task in hierarchy index."""
         parent = make_task("parent-1")
@@ -285,7 +275,6 @@ class TestUnifiedTaskStorePut:
         assert hierarchy.get_parent_gid("child-1") == "parent-1"
         assert "child-1" in hierarchy.get_children_gids("parent-1")
 
-    @pytest.mark.asyncio
     async def test_put_with_custom_ttl(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -298,7 +287,6 @@ class TestUnifiedTaskStorePut:
         entry = call_args[0][1]
         assert entry.ttl == 600
 
-    @pytest.mark.asyncio
     async def test_put_missing_gid_raises(self, store: UnifiedTaskStore) -> None:
         """Test put_async raises for task without gid."""
         with pytest.raises(ValueError, match="must have 'gid' field"):
@@ -308,7 +296,6 @@ class TestUnifiedTaskStorePut:
 class TestUnifiedTaskStorePutBatch:
     """Tests for put_batch_async method."""
 
-    @pytest.mark.asyncio
     async def test_put_batch_stores_all(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -330,7 +317,6 @@ class TestUnifiedTaskStorePutBatch:
         assert "task-2" in entries
         assert "task-3" in entries
 
-    @pytest.mark.asyncio
     async def test_put_batch_registers_hierarchy(self, store: UnifiedTaskStore) -> None:
         """Test put_batch_async registers all in hierarchy."""
         tasks = [
@@ -344,14 +330,12 @@ class TestUnifiedTaskStorePutBatch:
         hierarchy = store.get_hierarchy_index()
         assert hierarchy.get_children_gids("parent") == {"child-1", "child-2"}
 
-    @pytest.mark.asyncio
     async def test_put_batch_empty(self, store: UnifiedTaskStore) -> None:
         """Test put_batch_async with empty list."""
         count = await store.put_batch_async([])
 
         assert count == 0
 
-    @pytest.mark.asyncio
     async def test_put_batch_skips_missing_gid(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -371,7 +355,6 @@ class TestUnifiedTaskStorePutBatch:
         assert "task-1" in entries
         assert "task-3" in entries
 
-    @pytest.mark.asyncio
     async def test_put_batch_hierarchy_after_cache(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -398,7 +381,6 @@ class TestUnifiedTaskStorePutBatch:
         assert not hierarchy.contains("child-1")
         assert not hierarchy.contains("child-2")
 
-    @pytest.mark.asyncio
     async def test_put_batch_hierarchy_registered_on_success(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -423,7 +405,6 @@ class TestUnifiedTaskStorePutBatch:
 class TestUnifiedTaskStoreParentChain:
     """Tests for get_parent_chain_async method."""
 
-    @pytest.mark.asyncio
     async def test_parent_chain_empty_for_root(self, store: UnifiedTaskStore) -> None:
         """Test parent chain is empty for root task."""
         await store.put_async(make_task("root"))
@@ -432,7 +413,6 @@ class TestUnifiedTaskStoreParentChain:
 
         assert chain == []
 
-    @pytest.mark.asyncio
     async def test_parent_chain_single_parent(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -452,7 +432,6 @@ class TestUnifiedTaskStoreParentChain:
         assert len(chain) == 1
         assert chain[0]["gid"] == "parent"
 
-    @pytest.mark.asyncio
     async def test_parent_chain_multi_level(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -479,7 +458,6 @@ class TestUnifiedTaskStoreParentChain:
         assert chain[0]["gid"] == "parent"
         assert chain[1]["gid"] == "grandparent"
 
-    @pytest.mark.asyncio
     async def test_parent_chain_respects_max_depth(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -497,7 +475,6 @@ class TestUnifiedTaskStoreParentChain:
 
         assert len(chain) == 2  # Stopped at max_depth
 
-    @pytest.mark.asyncio
     async def test_parent_chain_stops_at_missing(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -531,7 +508,6 @@ class TestUnifiedTaskStoreInvalidate:
 
         mock_cache_provider.invalidate.assert_called_once_with("task-123", [EntryType.TASK])
 
-    @pytest.mark.asyncio
     async def test_invalidate_cascade(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -546,7 +522,6 @@ class TestUnifiedTaskStoreInvalidate:
         # Should invalidate parent + both children
         assert mock_cache_provider.invalidate.call_count == 3
 
-    @pytest.mark.asyncio
     async def test_invalidate_removes_from_hierarchy(self, store: UnifiedTaskStore) -> None:
         """Test that invalidate removes task from hierarchy index."""
         await store.put_async(make_task("task-123"))
@@ -557,7 +532,6 @@ class TestUnifiedTaskStoreInvalidate:
 
         assert not store._hierarchy.contains("task-123")
 
-    @pytest.mark.asyncio
     async def test_cascade_invalidation_partial_failure(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -597,14 +571,12 @@ class TestUnifiedTaskStoreInvalidate:
 class TestUnifiedTaskStoreFreshness:
     """Tests for check_freshness_batch_async method."""
 
-    @pytest.mark.asyncio
     async def test_check_freshness_empty(self, store: UnifiedTaskStore) -> None:
         """Test freshness check with empty list."""
         result = await store.check_freshness_batch_async([])
 
         assert result == {}
 
-    @pytest.mark.asyncio
     async def test_check_freshness_all_missing(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -618,7 +590,6 @@ class TestUnifiedTaskStoreFreshness:
 
         assert result == {"task-1": False, "task-2": False}
 
-    @pytest.mark.asyncio
     async def test_check_freshness_fresh_entries(
         self,
         store: UnifiedTaskStore,
@@ -642,7 +613,6 @@ class TestUnifiedTaskStoreFreshness:
 class TestUnifiedTaskStoreStats:
     """Tests for statistics tracking."""
 
-    @pytest.mark.asyncio
     async def test_stats_tracking(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -695,7 +665,6 @@ class TestUnifiedTaskStoreAccessors:
 class TestUnifiedTaskStoreMetadata:
     """Tests for metadata extraction."""
 
-    @pytest.mark.asyncio
     async def test_extracts_parent_gid(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -708,7 +677,6 @@ class TestUnifiedTaskStoreMetadata:
         entry = call_args[0][1]
         assert entry.metadata.get("parent_gid") == "parent"
 
-    @pytest.mark.asyncio
     async def test_extracts_project_gids(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -741,7 +709,6 @@ class TestUnifiedTaskStoreCompleteness:
     - TC-005: UNKNOWN entry, STANDARD required -> returns None
     """
 
-    @pytest.mark.asyncio
     async def test_tc001_minimal_entry_standard_required_returns_none(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -771,7 +738,6 @@ class TestUnifiedTaskStoreCompleteness:
         assert result is None
         assert store._stats["completeness_misses"] == 1
 
-    @pytest.mark.asyncio
     async def test_tc002_standard_entry_standard_required_returns_data(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -801,7 +767,6 @@ class TestUnifiedTaskStoreCompleteness:
         assert store._stats["completeness_misses"] == 0
         assert store._stats["get_hits"] == 1
 
-    @pytest.mark.asyncio
     async def test_tc003_full_entry_standard_required_returns_data(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -831,7 +796,6 @@ class TestUnifiedTaskStoreCompleteness:
         assert store._stats["completeness_misses"] == 0
         assert store._stats["get_hits"] == 1
 
-    @pytest.mark.asyncio
     async def test_tc004_unknown_entry_minimal_required_returns_data(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -852,7 +816,6 @@ class TestUnifiedTaskStoreCompleteness:
         assert store._stats["completeness_misses"] == 0
         assert store._stats["get_hits"] == 1
 
-    @pytest.mark.asyncio
     async def test_tc005_unknown_entry_standard_required_returns_none(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -872,7 +835,6 @@ class TestUnifiedTaskStoreCompleteness:
         assert result is None
         assert store._stats["completeness_misses"] == 1
 
-    @pytest.mark.asyncio
     async def test_put_async_with_opt_fields_stores_completeness(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -889,7 +851,6 @@ class TestUnifiedTaskStoreCompleteness:
         assert entry.metadata.get("completeness_level") == CompletenessLevel.MINIMAL.value
         assert entry.metadata.get("opt_fields_used") == ["gid"]
 
-    @pytest.mark.asyncio
     async def test_put_async_with_standard_fields_stores_standard_level(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -906,7 +867,6 @@ class TestUnifiedTaskStoreCompleteness:
         entry = call_args[0][1]
         assert entry.metadata.get("completeness_level") == CompletenessLevel.STANDARD.value
 
-    @pytest.mark.asyncio
     async def test_put_async_without_opt_fields_stores_unknown_level(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -922,7 +882,6 @@ class TestUnifiedTaskStoreCompleteness:
         entry = call_args[0][1]
         assert entry.metadata.get("completeness_level") == CompletenessLevel.UNKNOWN.value
 
-    @pytest.mark.asyncio
     async def test_put_batch_async_with_opt_fields_stores_completeness(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -939,7 +898,6 @@ class TestUnifiedTaskStoreCompleteness:
         for gid, entry in entries.items():
             assert entry.metadata.get("completeness_level") == CompletenessLevel.MINIMAL.value
 
-    @pytest.mark.asyncio
     async def test_get_batch_async_filters_insufficient_entries(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -981,7 +939,6 @@ class TestUnifiedTaskStoreCompleteness:
         assert result["task-2"] == standard_entry.data
         assert store._stats["completeness_misses"] == 1
 
-    @pytest.mark.asyncio
     async def test_default_required_level_is_standard(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:
@@ -1006,7 +963,6 @@ class TestUnifiedTaskStoreCompleteness:
         assert result is None
         assert store._stats["completeness_misses"] == 1
 
-    @pytest.mark.asyncio
     async def test_completeness_misses_stat_incremented(
         self, store: UnifiedTaskStore, mock_cache_provider: MagicMock
     ) -> None:

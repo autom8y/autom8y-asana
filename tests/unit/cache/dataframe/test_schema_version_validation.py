@@ -114,7 +114,6 @@ class TestSchemaVersionLookup:
 class TestSchemaVersionValidation:
     """Tests for _check_freshness() using SchemaRegistry lookup."""
 
-    @pytest.mark.asyncio
     async def test_entry_valid_when_version_matches_registry(self) -> None:
         """Entry is valid when its version matches registry version."""
         memory = MemoryTier(max_entries=100)
@@ -129,7 +128,6 @@ class TestSchemaVersionValidation:
         assert result is not None
         assert result.schema_version == UNIT_SCHEMA.version
 
-    @pytest.mark.asyncio
     async def test_entry_invalid_when_version_older_than_registry(self) -> None:
         """Entry is invalid when its version is older than registry version.
 
@@ -151,7 +149,6 @@ class TestSchemaVersionValidation:
         # Should reject the stale entry
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_entry_invalid_when_registry_lookup_fails(self) -> None:
         """Entry is invalid when registry lookup fails (defensive)."""
         memory = MemoryTier(max_entries=100)
@@ -177,7 +174,6 @@ class TestSchemaVersionValidation:
 class TestPutAsyncSchemaVersion:
     """Tests for put_async() stamping entries with registry version."""
 
-    @pytest.mark.asyncio
     async def test_put_stamps_entry_with_registry_version(self) -> None:
         """put_async stamps entry with version from SchemaRegistry."""
         memory = MemoryTier(max_entries=100)
@@ -195,7 +191,6 @@ class TestPutAsyncSchemaVersion:
         assert entry is not None
         assert entry.schema_version == UNIT_SCHEMA.version
 
-    @pytest.mark.asyncio
     async def test_put_uses_fallback_on_registry_failure(self) -> None:
         """put_async uses cache default when registry lookup fails."""
         memory = MemoryTier(max_entries=100)
@@ -222,7 +217,6 @@ class TestPutAsyncSchemaVersion:
             assert entry is not None
             assert entry.schema_version == "1.0.0"
 
-    @pytest.mark.asyncio
     async def test_put_contact_uses_contact_schema_version(self) -> None:
         """put_async for contact entity uses CONTACT_SCHEMA version."""
         memory = MemoryTier(max_entries=100)
@@ -245,7 +239,6 @@ class TestPutAsyncSchemaVersion:
 class TestRegressionPrevention:
     """Regression tests for the root cause bug."""
 
-    @pytest.mark.asyncio
     async def test_old_version_not_matched_by_current_schema(self) -> None:
         """Regression: Cache entries with old version are rejected for current UNIT_SCHEMA.
 
@@ -274,7 +267,6 @@ class TestRegressionPrevention:
         result = await cache.get_async("proj-1", "unit")
         assert result is None
 
-    @pytest.mark.asyncio
     async def test_new_entries_stamped_with_correct_version(self) -> None:
         """Regression: New entries are stamped with registry version, not hardcoded.
 
