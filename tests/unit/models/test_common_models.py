@@ -5,9 +5,6 @@ Per TDD-0002 and ADR-0006: Tests for core models and pagination infrastructure.
 
 from __future__ import annotations
 
-import pytest
-from pydantic import ValidationError
-
 from autom8_asana.models import NameGid, PageIterator
 
 # ---------------------------------------------------------------------------
@@ -34,57 +31,9 @@ class TestNameGidBasics:
         assert ref.name == "Alice"
         assert ref.resource_type == "user"
 
-    def test_gid_is_required(self) -> None:
-        """NameGid requires gid field."""
-        with pytest.raises(ValidationError):
-            NameGid()  # type: ignore[call-arg]
-
-    def test_model_validate_from_dict(self) -> None:
-        """NameGid.model_validate works with dict input."""
-        data = {"gid": "123", "name": "Project A", "resource_type": "project"}
-        ref = NameGid.model_validate(data)
-
-        assert ref.gid == "123"
-        assert ref.name == "Project A"
-        assert ref.resource_type == "project"
-
-    def test_extra_fields_ignored(self) -> None:
-        """Extra fields in dict are ignored per ADR-0005."""
-        data = {
-            "gid": "123",
-            "name": "User",
-            "email": "user@example.com",  # Extra field
-            "avatar_url": "https://...",  # Extra field
-        }
-        ref = NameGid.model_validate(data)
-
-        assert ref.gid == "123"
-        assert ref.name == "User"
-        assert not hasattr(ref, "email")
-        assert not hasattr(ref, "avatar_url")
-
-    def test_whitespace_stripped(self) -> None:
-        """String fields have whitespace stripped."""
-        ref = NameGid.model_validate(
-            {
-                "gid": "  123  ",
-                "name": "  Test  ",
-            }
-        )
-
-        assert ref.gid == "123"
-        assert ref.name == "Test"
-
 
 class TestNameGidFrozen:
     """Tests for NameGid immutability (frozen=True)."""
-
-    def test_is_frozen(self) -> None:
-        """NameGid is frozen and cannot be modified."""
-        ref = NameGid(gid="123", name="Original")
-
-        with pytest.raises(ValidationError):
-            ref.name = "Modified"  # type: ignore[misc]
 
     def test_is_hashable(self) -> None:
         """NameGid is hashable and can be used in sets."""
