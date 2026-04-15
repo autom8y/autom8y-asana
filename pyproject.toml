@@ -205,6 +205,8 @@ select = [
     "E", "F", "I", "UP", "B", "G", "LOG", "TCH", "TID", "SIM", "T201", "ERA",
     # Security (flake8-bandit) Phase 1 -- Sprint 6 PKG-020
     "S102", "S105", "S106", "S107", "S301", "S307", "S501", "S602",
+    # Blind exception catches -- Sprint 9 Task 2 fleet-a-plus-herculean-completion
+    "BLE001",
 ]
 ignore = [
     "E501", # Line length handled by formatter
