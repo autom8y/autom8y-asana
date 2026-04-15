@@ -50,7 +50,7 @@ jobs:
       test_timeout: 40
       test_parallel: true
       test_splits: 4
-      test_markers_exclude: 'not integration and not benchmark and not slow'
+      test_markers_exclude: ${{ github.event_name == 'pull_request' && 'not integration and not benchmark and not slow' || 'not integration and not benchmark' }}
       run_integration: ${{ github.event_name == 'push' }}
       test_env: 'ASANA_WORKSPACE_GID=${{ vars.ASANA_WORKSPACE_GID }}'
       spectral_enabled: true
