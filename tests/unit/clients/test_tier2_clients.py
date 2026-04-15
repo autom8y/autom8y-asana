@@ -41,6 +41,161 @@ from autom8_asana.models.team import TeamMembership
 if TYPE_CHECKING:
     from autom8_asana.config import AsanaConfig
 
+
+# =============================================================================
+# Cross-Client Parametrized Tests (Pattern A per CRU-S3 TDD)
+# =============================================================================
+
+
+def _check_webhook(result: Webhook) -> None:
+    assert result.target == "https://example.com/webhook"
+    assert result.active is True
+
+
+def _check_team(result: Team) -> None:
+    assert result.name == "Engineering"
+
+
+def _check_tag(result: Tag) -> None:
+    assert result.name == "Priority"
+    assert result.color == "dark-red"
+
+
+def _check_story(result: Story) -> None:
+    assert result.resource_subtype == "comment_added"
+    assert result.text == "This is a comment"
+
+
+def _check_attachment(result: Attachment) -> None:
+    assert result.name == "report.pdf"
+    assert result.size == 1024
+
+
+def _check_goal(result: Goal) -> None:
+    assert result.name == "Q4 Revenue Target"
+    assert result.status == "on_track"
+
+
+def _check_portfolio(result: Portfolio) -> None:
+    assert result.name == "Q4 Projects"
+
+
+@pytest.mark.parametrize(
+    ("client_cls", "gid", "payload", "expected_model", "url_template", "extra_check"),
+    [
+        (
+            WebhooksClient,
+            "wh123",
+            {
+                "gid": "wh123",
+                "target": "https://example.com/webhook",
+                "active": True,
+            },
+            Webhook,
+            "/webhooks/{gid}",
+            _check_webhook,
+        ),
+        (
+            TeamsClient,
+            "team123",
+            {
+                "gid": "team123",
+                "name": "Engineering",
+                "organization": {"gid": "org1", "name": "Acme Corp"},
+            },
+            Team,
+            "/teams/{gid}",
+            _check_team,
+        ),
+        (
+            TagsClient,
+            "tag123",
+            {"gid": "tag123", "name": "Priority", "color": "dark-red"},
+            Tag,
+            "/tags/{gid}",
+            _check_tag,
+        ),
+        (
+            StoriesClient,
+            "story123",
+            {
+                "gid": "story123",
+                "resource_subtype": "comment_added",
+                "text": "This is a comment",
+                "created_by": {"gid": "user1", "name": "Alice"},
+            },
+            Story,
+            "/stories/{gid}",
+            _check_story,
+        ),
+        (
+            AttachmentsClient,
+            "att123",
+            {"gid": "att123", "name": "report.pdf", "size": 1024, "host": "asana"},
+            Attachment,
+            "/attachments/{gid}",
+            _check_attachment,
+        ),
+        (
+            GoalsClient,
+            "goal123",
+            {"gid": "goal123", "name": "Q4 Revenue Target", "status": "on_track"},
+            Goal,
+            "/goals/{gid}",
+            _check_goal,
+        ),
+        (
+            PortfoliosClient,
+            "port123",
+            {
+                "gid": "port123",
+                "name": "Q4 Projects",
+                "owner": {"gid": "user1", "name": "Alice"},
+            },
+            Portfolio,
+            "/portfolios/{gid}",
+            _check_portfolio,
+        ),
+    ],
+    ids=[
+        "webhooks_get",
+        "teams_get",
+        "tags_get",
+        "stories_get",
+        "attachments_get",
+        "goals_get",
+        "portfolios_get",
+    ],
+)
+async def test_tier2_get_async_returns_model(
+    client_factory,
+    mock_http,
+    client_cls,
+    gid,
+    payload,
+    expected_model,
+    url_template,
+    extra_check,
+) -> None:
+    """get_async returns the typed model for each tier-2 client.
+
+    Consolidates the seven previously-copy-pasted
+    ``test_get_async_returns_*_model`` tests (Webhooks, Teams, Tags, Stories,
+    Attachments, Goals, Portfolios). Webhook has no ``name`` so its extra_check
+    validates ``target`` + ``active`` instead.
+    """
+    client = client_factory(client_cls, use_cache=False)
+    mock_http.get.return_value = payload
+
+    result = await client.get_async(gid)
+
+    assert isinstance(result, expected_model)
+    assert result.gid == payload["gid"]
+    extra_check(result)
+
+    mock_http.get.assert_called_once_with(url_template.format(gid=gid), params={})
+
+
 # =============================================================================
 # WebhooksClient Tests
 # =============================================================================
@@ -64,24 +219,6 @@ def webhooks_client(
 
 class TestWebhooksClientGetAsync:
     """Tests for WebhooksClient.get_async()."""
-
-    async def test_get_async_returns_webhook_model(
-        self, webhooks_client: WebhooksClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async returns Webhook model by default."""
-        mock_http.get.return_value = {
-            "gid": "wh123",
-            "target": "https://example.com/webhook",
-            "active": True,
-        }
-
-        result = await webhooks_client.get_async("wh123")
-
-        assert isinstance(result, Webhook)
-        assert result.gid == "wh123"
-        assert result.target == "https://example.com/webhook"
-        assert result.active is True
-        mock_http.get.assert_called_once_with("/webhooks/wh123", params={})
 
     async def test_get_async_raw_returns_dict(
         self, webhooks_client: WebhooksClient, mock_http: MockHTTPClient
@@ -185,27 +322,6 @@ def teams_client(
     )
 
 
-class TestTeamsClientGetAsync:
-    """Tests for TeamsClient.get_async()."""
-
-    async def test_get_async_returns_team_model(
-        self, teams_client: TeamsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async returns Team model by default."""
-        mock_http.get.return_value = {
-            "gid": "team123",
-            "name": "Engineering",
-            "organization": {"gid": "org1", "name": "Acme Corp"},
-        }
-
-        result = await teams_client.get_async("team123")
-
-        assert isinstance(result, Team)
-        assert result.gid == "team123"
-        assert result.name == "Engineering"
-        mock_http.get.assert_called_once_with("/teams/team123", params={})
-
-
 class TestTeamsClientAddUserAsync:
     """Tests for TeamsClient.add_user_async()."""
 
@@ -248,28 +364,6 @@ def tags_client(
         auth_provider=auth_provider,
         log_provider=logger,
     )
-
-
-class TestTagsClientGetAsync:
-    """Tests for TagsClient.get_async()."""
-
-    async def test_get_async_returns_tag_model(
-        self, tags_client: TagsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async returns Tag model by default."""
-        mock_http.get.return_value = {
-            "gid": "tag123",
-            "name": "Priority",
-            "color": "dark-red",
-        }
-
-        result = await tags_client.get_async("tag123")
-
-        assert isinstance(result, Tag)
-        assert result.gid == "tag123"
-        assert result.name == "Priority"
-        assert result.color == "dark-red"
-        mock_http.get.assert_called_once_with("/tags/tag123", params={})
 
 
 class TestTagsClientCreateAsync:
@@ -316,29 +410,6 @@ def stories_client(
     )
 
 
-class TestStoriesClientGetAsync:
-    """Tests for StoriesClient.get_async()."""
-
-    async def test_get_async_returns_story_model(
-        self, stories_client: StoriesClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async returns Story model by default."""
-        mock_http.get.return_value = {
-            "gid": "story123",
-            "resource_subtype": "comment_added",
-            "text": "This is a comment",
-            "created_by": {"gid": "user1", "name": "Alice"},
-        }
-
-        result = await stories_client.get_async("story123")
-
-        assert isinstance(result, Story)
-        assert result.gid == "story123"
-        assert result.resource_subtype == "comment_added"
-        assert result.text == "This is a comment"
-        mock_http.get.assert_called_once_with("/stories/story123", params={})
-
-
 class TestStoriesClientCreateCommentAsync:
     """Tests for StoriesClient.create_comment_async()."""
 
@@ -380,29 +451,6 @@ def attachments_client(
         auth_provider=auth_provider,
         log_provider=logger,
     )
-
-
-class TestAttachmentsClientGetAsync:
-    """Tests for AttachmentsClient.get_async()."""
-
-    async def test_get_async_returns_attachment_model(
-        self, attachments_client: AttachmentsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async returns Attachment model by default."""
-        mock_http.get.return_value = {
-            "gid": "att123",
-            "name": "report.pdf",
-            "size": 1024,
-            "host": "asana",
-        }
-
-        result = await attachments_client.get_async("att123")
-
-        assert isinstance(result, Attachment)
-        assert result.gid == "att123"
-        assert result.name == "report.pdf"
-        assert result.size == 1024
-        mock_http.get.assert_called_once_with("/attachments/att123", params={})
 
 
 class TestAttachmentsClientUploadAsync:
@@ -484,28 +532,6 @@ def goals_client(
     )
 
 
-class TestGoalsClientGetAsync:
-    """Tests for GoalsClient.get_async()."""
-
-    async def test_get_async_returns_goal_model(
-        self, goals_client: GoalsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async returns Goal model by default."""
-        mock_http.get.return_value = {
-            "gid": "goal123",
-            "name": "Q4 Revenue Target",
-            "status": "on_track",
-        }
-
-        result = await goals_client.get_async("goal123")
-
-        assert isinstance(result, Goal)
-        assert result.gid == "goal123"
-        assert result.name == "Q4 Revenue Target"
-        assert result.status == "on_track"
-        mock_http.get.assert_called_once_with("/goals/goal123", params={})
-
-
 class TestGoalsClientCreateAsync:
     """Tests for GoalsClient.create_async()."""
 
@@ -571,27 +597,6 @@ def portfolios_client(
         auth_provider=auth_provider,
         log_provider=logger,
     )
-
-
-class TestPortfoliosClientGetAsync:
-    """Tests for PortfoliosClient.get_async()."""
-
-    async def test_get_async_returns_portfolio_model(
-        self, portfolios_client: PortfoliosClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async returns Portfolio model by default."""
-        mock_http.get.return_value = {
-            "gid": "port123",
-            "name": "Q4 Projects",
-            "owner": {"gid": "user1", "name": "Alice"},
-        }
-
-        result = await portfolios_client.get_async("port123")
-
-        assert isinstance(result, Portfolio)
-        assert result.gid == "port123"
-        assert result.name == "Q4 Projects"
-        mock_http.get.assert_called_once_with("/portfolios/port123", params={})
 
 
 class TestPortfoliosClientCreateAsync:
