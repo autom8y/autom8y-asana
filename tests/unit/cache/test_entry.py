@@ -265,8 +265,51 @@ class TestCacheEntry:
 class TestTTLEdgeCases:
     """TTL boundary condition edge cases."""
 
-    def test_ttl_exactly_at_boundary(self) -> None:
-        """Test entry at exact TTL boundary is not expired (boundary is exclusive)."""
+    @pytest.mark.parametrize(
+        ("ttl", "elapsed", "expected_expired"),
+        [
+            pytest.param(
+                300,
+                timedelta(seconds=300),
+                False,
+                id="boundary-exclusive-at-ttl",
+            ),
+            pytest.param(
+                300,
+                timedelta(seconds=299, milliseconds=999),
+                False,
+                id="one-ms-before-ttl",
+            ),
+            pytest.param(
+                300,
+                timedelta(seconds=300, milliseconds=1),
+                True,
+                id="one-ms-after-ttl",
+            ),
+            pytest.param(
+                0,
+                timedelta(milliseconds=1),
+                True,
+                id="ttl-zero-expires-immediately",
+            ),
+            pytest.param(
+                None,
+                timedelta(days=365 * 10),
+                False,
+                id="ttl-none-never-expires",
+            ),
+            pytest.param(
+                -1,
+                timedelta(seconds=1),
+                True,
+                id="negative-ttl-is-expired",
+            ),
+        ],
+    )
+    def test_ttl_boundary(
+        self, ttl: int | None, elapsed: timedelta, expected_expired: bool
+    ) -> None:
+        """TTL boundary semantics: expired iff elapsed > ttl (when ttl is not None)."""
         cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         entry = CacheEntry(
             key="123",
@@ -274,80 +317,10 @@ class TestTTLEdgeCases:
             entry_type=EntryType.TASK,
             version=cached_at,
             cached_at=cached_at,
-            ttl=300,
+            ttl=ttl,
         )
-        now = cached_at + timedelta(seconds=300)
-        assert not entry.is_expired(now)
-
-    def test_ttl_one_millisecond_before(self) -> None:
-        """Test entry one millisecond before TTL is not expired."""
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
-        entry = CacheEntry(
-            key="123",
-            data={},
-            entry_type=EntryType.TASK,
-            version=cached_at,
-            cached_at=cached_at,
-            ttl=300,
-        )
-        now = cached_at + timedelta(seconds=299, milliseconds=999)
-        assert not entry.is_expired(now)
-
-    def test_ttl_one_millisecond_after(self) -> None:
-        """Test entry one millisecond after TTL is expired."""
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
-        entry = CacheEntry(
-            key="123",
-            data={},
-            entry_type=EntryType.TASK,
-            version=cached_at,
-            cached_at=cached_at,
-            ttl=300,
-        )
-        now = cached_at + timedelta(seconds=300, milliseconds=1)
-        assert entry.is_expired(now)
-
-    def test_ttl_zero_expires_immediately(self) -> None:
-        """Test entry with TTL=0 expires even 1ms later."""
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
-        entry = CacheEntry(
-            key="123",
-            data={},
-            entry_type=EntryType.TASK,
-            version=cached_at,
-            cached_at=cached_at,
-            ttl=0,
-        )
-        now = cached_at + timedelta(milliseconds=1)
-        assert entry.is_expired(now)
-
-    def test_ttl_none_never_expires(self) -> None:
-        """Test entry with TTL=None never expires even years later."""
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
-        entry = CacheEntry(
-            key="123",
-            data={},
-            entry_type=EntryType.TASK,
-            version=cached_at,
-            cached_at=cached_at,
-            ttl=None,
-        )
-        now = cached_at + timedelta(days=365 * 10)
-        assert not entry.is_expired(now)
-
-    def test_negative_ttl_treated_as_expired(self) -> None:
-        """Test entry with negative TTL is expired (elapsed > negative ttl)."""
-        cached_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
-        entry = CacheEntry(
-            key="123",
-            data={},
-            entry_type=EntryType.TASK,
-            version=cached_at,
-            cached_at=cached_at,
-            ttl=-1,
-        )
-        now = cached_at + timedelta(seconds=1)
-        assert entry.is_expired(now)
+        now = cached_at + elapsed
+        assert entry.is_expired(now) is expected_expired
 
 
 class TestParseDatetime:
