@@ -87,9 +87,8 @@ def _setup_env() -> None:
 
 
 def _build_mock_asana_client() -> MagicMock:
-    """Build a shallow MockClientBuilder-style AsanaClient.
+    """Build a shallow AsanaClient mock using the AsanaClient mock pattern.
 
-    Follows the existing test pattern from tests/conftest.py MockClientBuilder.
     Returns a MagicMock with sub-clients configured to return canned responses
     for the most common operations.
     """
