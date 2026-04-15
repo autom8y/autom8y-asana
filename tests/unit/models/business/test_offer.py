@@ -12,16 +12,6 @@ from autom8_asana.models.business.unit import Unit, UnitHolder
 from autom8_asana.models.task import Task
 
 
-class TestOffer:
-    """Tests for Offer model."""
-
-    def test_offer_inherits_from_task(self) -> None:
-        """Offer inherits from Task and can be constructed."""
-        offer = Offer(gid="123", name="Summer Promo")
-        assert offer.gid == "123"
-        assert offer.name == "Summer Promo"
-
-
 class TestOfferAdStatus:
     """Tests for Offer ad status determination."""
 

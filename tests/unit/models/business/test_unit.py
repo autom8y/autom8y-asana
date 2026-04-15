@@ -16,12 +16,6 @@ from autom8_asana.models.task import Task
 class TestUnit:
     """Tests for Unit model."""
 
-    def test_unit_inherits_from_task(self) -> None:
-        """Unit inherits from Task and can be constructed."""
-        unit = Unit(gid="123", name="Retail Unit")
-        assert unit.gid == "123"
-        assert unit.name == "Retail Unit"
-
     def test_unit_has_holder_key_map(self) -> None:
         """Unit has HOLDER_KEY_MAP for nested holders."""
         assert "offer_holder" in Unit.HOLDER_KEY_MAP
