@@ -6,6 +6,7 @@ CloudWatch metric emission.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -75,7 +76,7 @@ def _mock_workflow(
 class TestCreateWorkflowHandler:
     """Tests for create_workflow_handler."""
 
-    def test_factory_returns_callable(self) -> None:
+    async def test_factory_returns_callable(self) -> None:
         """create_workflow_handler returns a callable handler function."""
         config = _make_config()
         handler = create_workflow_handler(config)
@@ -84,7 +85,7 @@ class TestCreateWorkflowHandler:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_execution_success_returns_result(
+    async def test_execution_success_returns_result(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -104,7 +105,7 @@ class TestCreateWorkflowHandler:
         config = _make_config(workflow_factory=factory)
 
         handler = create_workflow_handler(config)
-        result = handler({}, MagicMock())
+        result = await asyncio.to_thread(handler, {}, MagicMock())
 
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
@@ -116,7 +117,7 @@ class TestCreateWorkflowHandler:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_params_merged_from_event_and_defaults(
+    async def test_params_merged_from_event_and_defaults(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -139,7 +140,7 @@ class TestCreateWorkflowHandler:
         )
 
         handler = create_workflow_handler(config)
-        handler({"max_concurrency": 3}, MagicMock())
+        await asyncio.to_thread(handler, {"max_concurrency": 3}, MagicMock())
 
         # execute_async receives (entities, params) -- params is second positional arg
         call_params = wf.execute_async.call_args[0][1]
@@ -149,7 +150,7 @@ class TestCreateWorkflowHandler:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_validation_failure_returns_skipped(
+    async def test_validation_failure_returns_skipped(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -169,7 +170,7 @@ class TestCreateWorkflowHandler:
         config = _make_config(workflow_factory=factory)
 
         handler = create_workflow_handler(config)
-        result = handler({}, MagicMock())
+        result = await asyncio.to_thread(handler, {}, MagicMock())
 
         assert result["statusCode"] == 200
         body = json.loads(result["body"])
@@ -180,7 +181,7 @@ class TestCreateWorkflowHandler:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_response_includes_metadata_keys(
+    async def test_response_includes_metadata_keys(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -207,7 +208,7 @@ class TestCreateWorkflowHandler:
         )
 
         handler = create_workflow_handler(config)
-        result = handler({}, MagicMock())
+        result = await asyncio.to_thread(handler, {}, MagicMock())
 
         body = json.loads(result["body"])
         assert body["total_tables_succeeded"] == 75
@@ -216,7 +217,7 @@ class TestCreateWorkflowHandler:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_unhandled_error_returns_500(
+    async def test_unhandled_error_returns_500(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -227,7 +228,7 @@ class TestCreateWorkflowHandler:
 
         config = _make_config()
         handler = create_workflow_handler(config)
-        result = handler({}, MagicMock())
+        result = await asyncio.to_thread(handler, {}, MagicMock())
 
         assert result["statusCode"] == 500
         body = json.loads(result["body"])
@@ -237,7 +238,7 @@ class TestCreateWorkflowHandler:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_emits_execution_count_metric(
+    async def test_emits_execution_count_metric(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -257,7 +258,7 @@ class TestCreateWorkflowHandler:
         config = _make_config(workflow_factory=factory, workflow_id="my-wf")
 
         handler = create_workflow_handler(config)
-        handler({}, MagicMock())
+        await asyncio.to_thread(handler, {}, MagicMock())
 
         # Find the WorkflowExecutionCount call
         calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowExecutionCount"]
@@ -268,7 +269,7 @@ class TestCreateWorkflowHandler:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_emits_duration_metric(
+    async def test_emits_duration_metric(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -288,7 +289,7 @@ class TestCreateWorkflowHandler:
         config = _make_config(workflow_factory=factory)
 
         handler = create_workflow_handler(config)
-        handler({}, MagicMock())
+        await asyncio.to_thread(handler, {}, MagicMock())
 
         duration_calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowDuration"]
         assert len(duration_calls) == 1
@@ -297,7 +298,7 @@ class TestCreateWorkflowHandler:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
-    def test_emits_error_metric_on_failure(
+    async def test_emits_error_metric_on_failure(
         self,
         mock_asana_class: MagicMock,
         mock_emit: MagicMock,
@@ -307,7 +308,7 @@ class TestCreateWorkflowHandler:
 
         config = _make_config(workflow_id="fail-wf")
         handler = create_workflow_handler(config)
-        handler({}, MagicMock())
+        await asyncio.to_thread(handler, {}, MagicMock())
 
         error_calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowExecutionError"]
         assert len(error_calls) == 1
@@ -316,7 +317,7 @@ class TestCreateWorkflowHandler:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_emits_validation_skipped_metric(
+    async def test_emits_validation_skipped_metric(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -336,7 +337,7 @@ class TestCreateWorkflowHandler:
         config = _make_config(workflow_factory=factory, workflow_id="skip-wf")
 
         handler = create_workflow_handler(config)
-        handler({}, MagicMock())
+        await asyncio.to_thread(handler, {}, MagicMock())
 
         skip_calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowValidationSkipped"]
         assert len(skip_calls) == 1
@@ -353,7 +354,7 @@ class TestHandlerEnumerateExecuteOrchestration:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_handler_calls_enumerate_then_execute(
+    async def test_handler_calls_enumerate_then_execute(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -374,7 +375,7 @@ class TestHandlerEnumerateExecuteOrchestration:
         config = _make_config(workflow_factory=factory)
 
         handler = create_workflow_handler(config)
-        handler({}, MagicMock())
+        await asyncio.to_thread(handler, {}, MagicMock())
 
         # enumerate_async was called
         wf.enumerate_async.assert_called_once()
@@ -386,7 +387,7 @@ class TestHandlerEnumerateExecuteOrchestration:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_handler_passes_scope_to_enumerate(
+    async def test_handler_passes_scope_to_enumerate(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -408,7 +409,7 @@ class TestHandlerEnumerateExecuteOrchestration:
         config = _make_config(workflow_factory=factory)
 
         handler = create_workflow_handler(config)
-        handler({"entity_ids": ["999"], "dry_run": True}, MagicMock())
+        await asyncio.to_thread(handler, {"entity_ids": ["999"], "dry_run": True}, MagicMock())
 
         scope_arg = wf.enumerate_async.call_args[0][0]
         assert isinstance(scope_arg, EntityScope)
@@ -418,7 +419,7 @@ class TestHandlerEnumerateExecuteOrchestration:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_handler_dry_run_in_params(
+    async def test_handler_dry_run_in_params(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -438,7 +439,7 @@ class TestHandlerEnumerateExecuteOrchestration:
         config = _make_config(workflow_factory=factory)
 
         handler = create_workflow_handler(config)
-        handler({"dry_run": True}, MagicMock())
+        await asyncio.to_thread(handler, {"dry_run": True}, MagicMock())
 
         call_params = wf.execute_async.call_args[0][1]
         assert call_params["dry_run"] is True
@@ -446,7 +447,7 @@ class TestHandlerEnumerateExecuteOrchestration:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_handler_empty_event_default_scope(
+    async def test_handler_empty_event_default_scope(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -468,7 +469,7 @@ class TestHandlerEnumerateExecuteOrchestration:
         config = _make_config(workflow_factory=factory)
 
         handler = create_workflow_handler(config)
-        handler({}, MagicMock())
+        await asyncio.to_thread(handler, {}, MagicMock())
 
         scope_arg = wf.enumerate_async.call_args[0][0]
         assert isinstance(scope_arg, EntityScope)
@@ -503,7 +504,7 @@ class TestHandlerWorkflowRegistration:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_handler_registers_workflow(
+    async def test_handler_registers_workflow(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -528,7 +529,7 @@ class TestHandlerWorkflowRegistration:
         config = _make_config(workflow_factory=factory, workflow_id="reg-test-wf")
 
         handler = create_workflow_handler(config)
-        handler({}, MagicMock())
+        await asyncio.to_thread(handler, {}, MagicMock())
 
         registry = get_workflow_registry()
         assert registry.get("reg-test-wf") is wf
@@ -536,7 +537,7 @@ class TestHandlerWorkflowRegistration:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_handler_warm_container_reregistration(
+    async def test_handler_warm_container_reregistration(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -558,11 +559,11 @@ class TestHandlerWorkflowRegistration:
 
         handler = create_workflow_handler(config)
         # First invocation -- registers
-        result1 = handler({}, MagicMock())
+        result1 = await asyncio.to_thread(handler, {}, MagicMock())
         assert result1["statusCode"] == 200
 
         # Second invocation -- warm container, should not raise
-        result2 = handler({}, MagicMock())
+        result2 = await asyncio.to_thread(handler, {}, MagicMock())
         assert result2["statusCode"] == 200
 
 
@@ -577,7 +578,7 @@ class TestBridgeEventEmission:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_event_published_on_success(
+    async def test_event_published_on_success(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -601,7 +602,7 @@ class TestBridgeEventEmission:
             mock_publisher_cls.return_value = mock_publisher
 
             handler = create_workflow_handler(config)
-            result = handler({}, MagicMock())
+            result = await asyncio.to_thread(handler, {}, MagicMock())
 
             assert result["statusCode"] == 200
             mock_publisher.publish.assert_called_once()
@@ -622,7 +623,7 @@ class TestBridgeEventEmission:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_event_publish_failure_does_not_fail_handler(
+    async def test_event_publish_failure_does_not_fail_handler(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -647,7 +648,7 @@ class TestBridgeEventEmission:
             mock_publisher_cls.return_value = mock_publisher
 
             handler = create_workflow_handler(config)
-            result = handler({}, MagicMock())
+            result = await asyncio.to_thread(handler, {}, MagicMock())
 
             # Handler still returns 200 despite event publish failure
             assert result["statusCode"] == 200
@@ -657,7 +658,7 @@ class TestBridgeEventEmission:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_event_not_published_on_validation_failure(
+    async def test_event_not_published_on_validation_failure(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -681,7 +682,7 @@ class TestBridgeEventEmission:
             mock_publisher_cls.return_value = mock_publisher
 
             handler = create_workflow_handler(config)
-            result = handler({}, MagicMock())
+            result = await asyncio.to_thread(handler, {}, MagicMock())
 
             assert result["statusCode"] == 200
             body = json.loads(result["body"])
@@ -692,7 +693,7 @@ class TestBridgeEventEmission:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_event_skipped_when_events_not_installed(
+    async def test_event_skipped_when_events_not_installed(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -718,7 +719,7 @@ class TestBridgeEventEmission:
         sys.modules["autom8y_events"] = None  # type: ignore[assignment]
         try:
             handler = create_workflow_handler(config)
-            result = handler({}, MagicMock())
+            result = await asyncio.to_thread(handler, {}, MagicMock())
 
             # Handler succeeds despite missing events package
             assert result["statusCode"] == 200
@@ -733,7 +734,7 @@ class TestBridgeEventEmission:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_event_includes_dry_run_from_params(
+    async def test_event_includes_dry_run_from_params(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -757,7 +758,7 @@ class TestBridgeEventEmission:
             mock_publisher_cls.return_value = mock_publisher
 
             handler = create_workflow_handler(config)
-            handler({"dry_run": True}, MagicMock())
+            await asyncio.to_thread(handler, {"dry_run": True}, MagicMock())
 
             event = mock_publisher.publish.call_args[0][0]
             assert event.detail["dry_run"] is True
@@ -771,12 +772,12 @@ class TestFleetObservability:
     fleet_namespace is None.
     """
 
-    def test_fleet_namespace_field_exists_with_correct_default(self) -> None:
+    async def test_fleet_namespace_field_exists_with_correct_default(self) -> None:
         """WorkflowHandlerConfig has fleet_namespace defaulting to fleet namespace."""
         config = _make_config()
         assert config.fleet_namespace == "Autom8y/AsanaBridgeFleet"
 
-    def test_fleet_namespace_opt_out(self) -> None:
+    async def test_fleet_namespace_opt_out(self) -> None:
         """fleet_namespace=None opts a handler out of fleet observability."""
         config = _make_config(fleet_namespace=None)
         assert config.fleet_namespace is None
@@ -785,7 +786,7 @@ class TestFleetObservability:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_fleet_health_emitted_on_success(
+    async def test_fleet_health_emitted_on_success(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -806,7 +807,7 @@ class TestFleetObservability:
         config = _make_config(workflow_factory=factory, workflow_id="fleet-test")
 
         handler = create_workflow_handler(config)
-        handler({}, MagicMock())
+        await asyncio.to_thread(handler, {}, MagicMock())
 
         fleet_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
         assert len(fleet_calls) == 1
@@ -819,7 +820,7 @@ class TestFleetObservability:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_fleet_dms_emitted_on_success(
+    async def test_fleet_dms_emitted_on_success(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -843,7 +844,7 @@ class TestFleetObservability:
         )
 
         handler = create_workflow_handler(config)
-        handler({}, MagicMock())
+        await asyncio.to_thread(handler, {}, MagicMock())
 
         # emit_success_timestamp should be called for both per-bridge and fleet
         ts_calls = [c[0][0] for c in mock_emit_ts.call_args_list]
@@ -854,7 +855,7 @@ class TestFleetObservability:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_fleet_failure_metric_on_validation_skip(
+    async def test_fleet_failure_metric_on_validation_skip(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -878,7 +879,7 @@ class TestFleetObservability:
         )
 
         handler = create_workflow_handler(config)
-        result = handler({}, MagicMock())
+        result = await asyncio.to_thread(handler, {}, MagicMock())
 
         body = json.loads(result["body"])
         assert body["status"] == "skipped"
@@ -900,7 +901,7 @@ class TestFleetObservability:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_no_fleet_metrics_when_namespace_none(
+    async def test_no_fleet_metrics_when_namespace_none(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -924,7 +925,7 @@ class TestFleetObservability:
         )
 
         handler = create_workflow_handler(config)
-        handler({}, MagicMock())
+        await asyncio.to_thread(handler, {}, MagicMock())
 
         # No BridgeFleetHealth metric should be emitted
         fleet_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
@@ -938,7 +939,7 @@ class TestFleetObservability:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_no_fleet_metrics_on_validation_skip_when_namespace_none(
+    async def test_no_fleet_metrics_on_validation_skip_when_namespace_none(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -962,7 +963,7 @@ class TestFleetObservability:
         )
 
         handler = create_workflow_handler(config)
-        handler({}, MagicMock())
+        await asyncio.to_thread(handler, {}, MagicMock())
 
         fleet_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
         assert len(fleet_calls) == 0
@@ -971,7 +972,7 @@ class TestFleetObservability:
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
     @patch("autom8_asana.clients.data.client.DataServiceClient")
-    def test_per_bridge_metrics_still_emitted_with_fleet(
+    async def test_per_bridge_metrics_still_emitted_with_fleet(
         self,
         mock_ds_class: MagicMock,
         mock_asana_class: MagicMock,
@@ -996,7 +997,7 @@ class TestFleetObservability:
         )
 
         handler = create_workflow_handler(config)
-        handler({}, MagicMock())
+        await asyncio.to_thread(handler, {}, MagicMock())
 
         emitted_metrics = [c[0][0] for c in mock_emit.call_args_list]
         # Tier 1 per-bridge metrics must still be present
@@ -1045,7 +1046,7 @@ _FLEET_BRIDGES = [
 _CIRCUIT_BREAKER_ERROR = "DataServiceClient circuit breaker is open. autom8_data may be degraded."
 
 
-def _invoke_fleet(
+async def _invoke_fleet(
     mock_emit: MagicMock,
     mock_emit_ts: MagicMock,
     bridge_configs: list[dict],
@@ -1102,7 +1103,7 @@ def _invoke_fleet(
             mock_ds.__aexit__ = AsyncMock(return_value=False)
             mock_ds_class.return_value = mock_ds
 
-            result = handler({}, MagicMock())
+            result = await asyncio.to_thread(handler, {}, MagicMock())
             results.append(result)
 
     return results
@@ -1122,13 +1123,13 @@ class TestSPOF1Detection:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
-    def test_all_bridges_skip_when_circuit_breaker_open(
+    async def test_all_bridges_skip_when_circuit_breaker_open(
         self,
         mock_emit: MagicMock,
         mock_emit_ts: MagicMock,
     ) -> None:
         """All 3 bridges return skipped status when circuit breaker is open."""
-        results = _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
+        results = await _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
 
         for i, result in enumerate(results):
             body = json.loads(result["body"])
@@ -1141,13 +1142,13 @@ class TestSPOF1Detection:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
-    def test_fleet_health_zero_for_all_bridges(
+    async def test_fleet_health_zero_for_all_bridges(
         self,
         mock_emit: MagicMock,
         mock_emit_ts: MagicMock,
     ) -> None:
         """BridgeFleetHealth=0.0 emitted for all 3 bridges on SPOF-1."""
-        _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
+        await _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
 
         fleet_health_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
 
@@ -1166,13 +1167,13 @@ class TestSPOF1Detection:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
-    def test_fleet_dms_not_emitted_on_fleet_skip(
+    async def test_fleet_dms_not_emitted_on_fleet_skip(
         self,
         mock_emit: MagicMock,
         mock_emit_ts: MagicMock,
     ) -> None:
         """Fleet DMS timestamp NOT emitted when all bridges skip (staleness signal)."""
-        _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
+        await _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
 
         ts_namespaces = [c[0][0] for c in mock_emit_ts.call_args_list]
         assert "Autom8y/AsanaBridgeFleet" not in ts_namespaces, (
@@ -1181,13 +1182,13 @@ class TestSPOF1Detection:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
-    def test_per_bridge_dms_not_emitted_on_skip(
+    async def test_per_bridge_dms_not_emitted_on_skip(
         self,
         mock_emit: MagicMock,
         mock_emit_ts: MagicMock,
     ) -> None:
         """Per-bridge DMS timestamps NOT emitted when all bridges skip."""
-        _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
+        await _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
 
         ts_namespaces = [c[0][0] for c in mock_emit_ts.call_args_list]
 
@@ -1198,13 +1199,13 @@ class TestSPOF1Detection:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
-    def test_validation_skipped_emitted_for_all_bridges(
+    async def test_validation_skipped_emitted_for_all_bridges(
         self,
         mock_emit: MagicMock,
         mock_emit_ts: MagicMock,
     ) -> None:
         """WorkflowValidationSkipped=1 emitted for all 3 bridges."""
-        _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
+        await _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
 
         skip_calls = [c for c in mock_emit.call_args_list if c[0][0] == "WorkflowValidationSkipped"]
 
@@ -1216,13 +1217,13 @@ class TestSPOF1Detection:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
-    def test_no_success_metrics_emitted_on_fleet_skip(
+    async def test_no_success_metrics_emitted_on_fleet_skip(
         self,
         mock_emit: MagicMock,
         mock_emit_ts: MagicMock,
     ) -> None:
         """No WorkflowDuration or WorkflowSuccessRate emitted during SPOF-1."""
-        _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
+        await _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
 
         emitted_metrics = [c[0][0] for c in mock_emit.call_args_list]
 
@@ -1246,13 +1247,13 @@ class TestSPOF1FalsePositive:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
-    def test_single_bridge_skip_does_not_suppress_fleet_dms(
+    async def test_single_bridge_skip_does_not_suppress_fleet_dms(
         self,
         mock_emit: MagicMock,
         mock_emit_ts: MagicMock,
     ) -> None:
         """Fleet DMS IS refreshed when only 1 of 3 bridges skips."""
-        _invoke_fleet(
+        await _invoke_fleet(
             mock_emit,
             mock_emit_ts,
             _FLEET_BRIDGES,
@@ -1276,13 +1277,13 @@ class TestSPOF1FalsePositive:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
-    def test_partial_fleet_health_mixed_values(
+    async def test_partial_fleet_health_mixed_values(
         self,
         mock_emit: MagicMock,
         mock_emit_ts: MagicMock,
     ) -> None:
         """BridgeFleetHealth=0.0 for skipped bridge, 1.0 for succeeded bridges."""
-        _invoke_fleet(
+        await _invoke_fleet(
             mock_emit,
             mock_emit_ts,
             _FLEET_BRIDGES,
@@ -1325,14 +1326,14 @@ class TestSPOF1Recovery:
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
-    def test_recovery_after_circuit_breaker_clears(
+    async def test_recovery_after_circuit_breaker_clears(
         self,
         mock_emit: MagicMock,
         mock_emit_ts: MagicMock,
     ) -> None:
         """After recovery: fleet DMS refreshed, BridgeFleetHealth=1.0, per-bridge DMS refreshed."""
         # Phase 1: SPOF-1 active -- all bridges skip
-        _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
+        await _invoke_fleet(mock_emit, mock_emit_ts, _FLEET_BRIDGES)
 
         # Verify SPOF-1 state: no fleet DMS
         ts_namespaces_phase1 = [c[0][0] for c in mock_emit_ts.call_args_list]
@@ -1372,7 +1373,7 @@ class TestSPOF1Recovery:
             mock_ds.__aexit__ = AsyncMock(return_value=False)
             mock_ds_class.return_value = mock_ds
 
-            result = handler({}, MagicMock())
+            result = await asyncio.to_thread(handler, {}, MagicMock())
 
         # Verify recovery
         body = json.loads(result["body"])
