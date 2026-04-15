@@ -254,6 +254,69 @@ def test_get_sync_returns_model(
     assert result.gid == payload["gid"]
 
 
+@pytest.mark.parametrize(
+    ("client_cls", "method_name", "call_args", "call_kwargs", "page_items", "expected_model"),
+    [
+        (
+            WorkspacesClient,
+            "list_async",
+            (),
+            {},
+            [{"gid": "ws1", "name": "WS 1"}, {"gid": "ws2", "name": "WS 2"}],
+            Workspace,
+        ),
+        (
+            UsersClient,
+            "list_for_workspace_async",
+            ("ws123",),
+            {},
+            [{"gid": "u1", "name": "User 1"}, {"gid": "u2", "name": "User 2"}],
+            User,
+        ),
+        (
+            ProjectsClient,
+            "list_async",
+            (),
+            {"workspace": "ws123"},
+            [{"gid": "p1", "name": "Project 1"}, {"gid": "p2", "name": "Project 2"}],
+            Project,
+        ),
+    ],
+    ids=["workspaces_list", "users_list_for_workspace", "projects_list"],
+)
+async def test_list_async_returns_page_iterator(
+    client_factory,
+    mock_http,
+    client_cls,
+    method_name,
+    call_args,
+    call_kwargs,
+    page_items,
+    expected_model,
+) -> None:
+    """list_*_async methods return PageIterator wrapping the typed model.
+
+    Consolidates three per-client list_async tests. Each client has a
+    slightly different list signature (no-args / required workspace gid
+    positional / workspace kwarg), captured via (call_args, call_kwargs)
+    per case.
+    """
+    client = client_factory(client_cls, use_cache=False)
+    mock_http.get_paginated.return_value = (page_items, None)
+
+    method = getattr(client, method_name)
+    result = method(*call_args, **call_kwargs)
+
+    assert isinstance(result, PageIterator)
+
+    items = await result.collect()
+    assert len(items) == 2
+    assert all(isinstance(m, expected_model) for m in items)
+    # Preserve the stricter Workspaces-case assertion across all cases:
+    assert items[0].gid == page_items[0]["gid"]
+    assert items[1].gid == page_items[1]["gid"]
+
+
 # =============================================================================
 # WorkspacesClient Tests
 # =============================================================================
@@ -290,28 +353,6 @@ class TestWorkspacesClientGetSync:
             workspaces_client.get("ws123")
 
 
-class TestWorkspacesClientListAsync:
-    """Tests for WorkspacesClient.list_async()."""
-
-    async def test_list_async_returns_page_iterator(
-        self, workspaces_client: WorkspacesClient, mock_http: MockHTTPClient
-    ) -> None:
-        """list_async returns PageIterator."""
-        mock_http.get_paginated.return_value = (
-            [{"gid": "ws1", "name": "WS 1"}, {"gid": "ws2", "name": "WS 2"}],
-            None,
-        )
-
-        result = workspaces_client.list_async()
-
-        assert isinstance(result, PageIterator)
-
-        # Collect results
-        items = await result.collect()
-        assert len(items) == 2
-        assert all(isinstance(w, Workspace) for w in items)
-        assert items[0].gid == "ws1"
-        assert items[1].gid == "ws2"
 
 
 # =============================================================================
@@ -387,27 +428,6 @@ class TestUsersClientMeSync:
 
         assert isinstance(result, User)
         assert result.gid == "me456"
-
-
-class TestUsersClientListForWorkspaceAsync:
-    """Tests for UsersClient.list_for_workspace_async()."""
-
-    async def test_list_for_workspace_async_returns_page_iterator(
-        self, users_client: UsersClient, mock_http: MockHTTPClient
-    ) -> None:
-        """list_for_workspace_async returns PageIterator."""
-        mock_http.get_paginated.return_value = (
-            [{"gid": "u1", "name": "User 1"}, {"gid": "u2", "name": "User 2"}],
-            None,
-        )
-
-        result = users_client.list_for_workspace_async("ws123")
-
-        assert isinstance(result, PageIterator)
-
-        items = await result.collect()
-        assert len(items) == 2
-        assert all(isinstance(u, User) for u in items)
 
 
 # =============================================================================
@@ -540,27 +560,6 @@ class TestProjectsClientMemberships:
             "/projects/proj123/removeMembers",
             json={"data": {"members": "user1"}},
         )
-
-
-class TestProjectsClientListAsync:
-    """Tests for ProjectsClient.list_async()."""
-
-    async def test_list_async_returns_page_iterator(
-        self, projects_client: ProjectsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """list_async returns PageIterator."""
-        mock_http.get_paginated.return_value = (
-            [{"gid": "p1", "name": "Project 1"}, {"gid": "p2", "name": "Project 2"}],
-            None,
-        )
-
-        result = projects_client.list_async(workspace="ws123")
-
-        assert isinstance(result, PageIterator)
-
-        items = await result.collect()
-        assert len(items) == 2
-        assert all(isinstance(p, Project) for p in items)
 
 
 class TestProjectsClientSyncWrappers:
