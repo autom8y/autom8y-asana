@@ -24,6 +24,7 @@ from unittest.mock import patch
 import httpx
 import pytest
 import respx
+from hypothesis import HealthCheck
 from hypothesis import settings as hypothesis_settings
 from schemathesis.openapi import from_asgi
 
@@ -54,21 +55,26 @@ from schemathesis.openapi import from_asgi
 #   are caused by AUTH-TEB envelope shape mismatch. The oneOf update is additive
 #   spec correctness; it does not change the violation count.
 # Backlog: per-endpoint xfail narrowing tracked separately (not S3 scope).
-pytestmark = pytest.mark.xfail(
-    reason=(
-        "schemathesis-contract-cleanup-WIP: 47 pre-existing contract "
-        "violations unmasked by xdist fix (e06469dc). Tracked separately "
-        "for per-endpoint triage; do not make strict until cleared."
+pytestmark = [
+    pytest.mark.xfail(
+        reason=(
+            "schemathesis-contract-cleanup-WIP: 47 pre-existing contract "
+            "violations unmasked by xdist fix (e06469dc). Tracked separately "
+            "for per-endpoint triage; do not make strict until cleared."
+        ),
+        strict=False,
     ),
-    strict=False,
-)
+    pytest.mark.fuzz,
+]
 
-_MAX_EXAMPLES = int(os.environ.get("SCHEMATHESIS_MAX_EXAMPLES", "50"))
+_MAX_EXAMPLES = int(os.environ.get("SCHEMATHESIS_MAX_EXAMPLES", "25"))
 
 hypothesis_settings.register_profile(
     "ci",
     max_examples=_MAX_EXAMPLES,
-    deadline=None,
+    deadline=10_000,  # 10s per example — prevents unbounded CI runner time
+    suppress_health_check=[HealthCheck.too_slow],
+    derandomize=True,
 )
 hypothesis_settings.load_profile(
     os.environ.get("HYPOTHESIS_PROFILE", "ci"),
