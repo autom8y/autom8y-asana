@@ -34,29 +34,33 @@ def tasks_client(
 class TestGetAsync:
     """Tests for TasksClient.get_async()."""
 
-    async def test_get_async_returns_task_model(
-        self, tasks_client: TasksClient, mock_http: MockHTTPClient
+    @pytest.mark.parametrize(
+        ("raw", "expected_type"),
+        [
+            pytest.param(False, Task, id="model-default"),
+            pytest.param(True, dict, id="raw-dict"),
+        ],
+    )
+    async def test_get_async_return_shape(
+        self,
+        tasks_client: TasksClient,
+        mock_http: MockHTTPClient,
+        raw: bool,
+        expected_type: type,
     ) -> None:
-        """get_async returns Task model by default."""
-        mock_http.get.return_value = {"gid": "123", "name": "Test Task"}
+        """get_async returns Task model by default, dict when raw=True."""
+        payload = {"gid": "123", "name": "Test Task"}
+        mock_http.get.return_value = payload
 
-        result = await tasks_client.get_async("123")
+        kwargs = {"raw": True} if raw else {}
+        result = await tasks_client.get_async("123", **kwargs)
 
-        assert isinstance(result, Task)
-        assert result.gid == "123"
-        assert result.name == "Test Task"
-        mock_http.get.assert_called_once_with("/tasks/123", params={})
-
-    async def test_get_async_raw_returns_dict(
-        self, tasks_client: TasksClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async with raw=True returns dict."""
-        mock_http.get.return_value = {"gid": "123", "name": "Test Task"}
-
-        result = await tasks_client.get_async("123", raw=True)
-
-        assert isinstance(result, dict)
-        assert result == {"gid": "123", "name": "Test Task"}
+        assert isinstance(result, expected_type)
+        if raw:
+            assert result == payload
+        else:
+            assert result.gid == "123"
+            assert result.name == "Test Task"
         mock_http.get.assert_called_once_with("/tasks/123", params={})
 
     async def test_get_async_with_opt_fields(
