@@ -13,63 +13,13 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.cache.integration.stories import (
     read_cached_stories,
     read_stories_batch,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-
-# ---------------------------------------------------------------------------
-# Mock Cache Provider with get_batch support
-# ---------------------------------------------------------------------------
-
-
-class MockCacheProvider(_SDKMockCacheProvider):
-    """Mock cache provider for story batch tests.
-
-    Extends SDK MockCacheProvider with EntryType composite keys and
-    get_batch() support for testing batch reads.
-    """
-
-    @property
-    def _cache(self) -> dict[str, CacheEntry]:
-        return self._versioned_store  # type: ignore[return-value]
-
-    def get_versioned(
-        self,
-        key: str,
-        entry_type: EntryType,
-        freshness: object = None,
-    ) -> CacheEntry | None:
-        self.calls.append(
-            (
-                "get_versioned",
-                {"key": key, "entry_type": entry_type, "freshness": freshness},
-            )
-        )
-        cache_key = f"{entry_type.value}:{key}"
-        return self._versioned_store.get(cache_key)
-
-    def set_versioned(self, key: str, entry: CacheEntry) -> None:
-        self.calls.append(("set_versioned", {"key": key, "entry": entry}))
-        cache_key = f"{entry.entry_type.value}:{key}"
-        self._versioned_store[cache_key] = entry
-
-    def get_batch(
-        self,
-        keys: list[str],
-        entry_type: EntryType,
-    ) -> dict[str, CacheEntry | None]:
-        """Batch get using individual lookups."""
-        self.calls.append(("get_batch", {"keys": keys, "entry_type": entry_type}))
-        result: dict[str, CacheEntry | None] = {}
-        for key in keys:
-            cache_key = f"{entry_type.value}:{key}"
-            result[key] = self._versioned_store.get(cache_key)
-        return result
-
+from tests.unit.cache.conftest import CacheDomainMockProvider
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -93,7 +43,7 @@ def _make_story_entry(
 
 
 def _populate_cache(
-    cache: MockCacheProvider,
+    cache: CacheDomainMockProvider,
     task_gid: str,
     stories: list[dict[str, Any]],
 ) -> None:
@@ -109,10 +59,10 @@ def _populate_cache(
 
 class TestReadCachedStories:
     @pytest.fixture
-    def cache(self) -> MockCacheProvider:
-        return MockCacheProvider()
+    def cache(self) -> CacheDomainMockProvider:
+        return CacheDomainMockProvider()
 
-    def test_cache_hit_returns_list(self, cache: MockCacheProvider) -> None:
+    def test_cache_hit_returns_list(self, cache: CacheDomainMockProvider) -> None:
         """Cache hit returns the stored story list."""
         stories = [
             {"gid": "s1", "resource_subtype": "section_changed"},
@@ -124,12 +74,12 @@ class TestReadCachedStories:
         assert result is not None
         assert result == stories
 
-    def test_cache_miss_returns_none(self, cache: MockCacheProvider) -> None:
+    def test_cache_miss_returns_none(self, cache: CacheDomainMockProvider) -> None:
         """Empty cache returns None."""
         result = read_cached_stories("nonexistent", cache)
         assert result is None
 
-    def test_does_not_modify_cache(self, cache: MockCacheProvider) -> None:
+    def test_does_not_modify_cache(self, cache: CacheDomainMockProvider) -> None:
         """Pure-read: no set_versioned calls."""
         stories = [{"gid": "s1"}]
         _populate_cache(cache, "task1", stories)
@@ -140,13 +90,13 @@ class TestReadCachedStories:
         call_types = [call[0] for call in cache.calls]
         assert "set_versioned" not in call_types
 
-    def test_empty_stories_list_returns_empty(self, cache: MockCacheProvider) -> None:
+    def test_empty_stories_list_returns_empty(self, cache: CacheDomainMockProvider) -> None:
         """Cached entry with empty stories list returns empty list (not None)."""
         _populate_cache(cache, "task1", [])
         result = read_cached_stories("task1", cache)
         assert result == []
 
-    def test_does_not_call_asana_api(self, cache: MockCacheProvider) -> None:
+    def test_does_not_call_asana_api(self, cache: CacheDomainMockProvider) -> None:
         """Verify no network calls -- pure read only checks cache."""
         # This is structural: read_cached_stories has no fetcher parameter,
         # so it cannot make API calls by design.
@@ -161,15 +111,15 @@ class TestReadCachedStories:
 
 class TestReadStoriesBatch:
     @pytest.fixture
-    def cache(self) -> MockCacheProvider:
-        return MockCacheProvider()
+    def cache(self) -> CacheDomainMockProvider:
+        return CacheDomainMockProvider()
 
-    def test_empty_input_returns_empty(self, cache: MockCacheProvider) -> None:
+    def test_empty_input_returns_empty(self, cache: CacheDomainMockProvider) -> None:
         """Empty task_gids list returns empty dict."""
         result = read_stories_batch([], cache)
         assert result == {}
 
-    def test_all_hits(self, cache: MockCacheProvider) -> None:
+    def test_all_hits(self, cache: CacheDomainMockProvider) -> None:
         """All task GIDs have cached stories."""
         _populate_cache(cache, "t1", [{"gid": "s1"}])
         _populate_cache(cache, "t2", [{"gid": "s2"}])
@@ -178,14 +128,14 @@ class TestReadStoriesBatch:
         assert result["t1"] == [{"gid": "s1"}]
         assert result["t2"] == [{"gid": "s2"}]
 
-    def test_all_misses(self, cache: MockCacheProvider) -> None:
+    def test_all_misses(self, cache: CacheDomainMockProvider) -> None:
         """All task GIDs are cache misses."""
         result = read_stories_batch(["t1", "t2", "t3"], cache)
         assert result["t1"] is None
         assert result["t2"] is None
         assert result["t3"] is None
 
-    def test_mix_of_hits_and_misses(self, cache: MockCacheProvider) -> None:
+    def test_mix_of_hits_and_misses(self, cache: CacheDomainMockProvider) -> None:
         """Mixed cache: some hits, some misses."""
         _populate_cache(cache, "t1", [{"gid": "s1"}])
         # t2 is not cached
@@ -194,7 +144,7 @@ class TestReadStoriesBatch:
         assert result["t1"] == [{"gid": "s1"}]
         assert result["t2"] is None
 
-    def test_chunking_small_batch(self, cache: MockCacheProvider) -> None:
+    def test_chunking_small_batch(self, cache: CacheDomainMockProvider) -> None:
         """Batch smaller than chunk_size uses one get_batch call."""
         _populate_cache(cache, "t1", [{"gid": "s1"}])
 
@@ -204,7 +154,7 @@ class TestReadStoriesBatch:
         batch_calls = [c for c in cache.calls if c[0] == "get_batch"]
         assert len(batch_calls) == 1
 
-    def test_chunking_splits_large_batch(self, cache: MockCacheProvider) -> None:
+    def test_chunking_splits_large_batch(self, cache: CacheDomainMockProvider) -> None:
         """Batch larger than chunk_size is split into multiple get_batch calls."""
         # Create 7 tasks with chunk_size=3 -> should be 3 chunks (3+3+1)
         gids = [f"t{i}" for i in range(7)]
@@ -222,7 +172,7 @@ class TestReadStoriesBatch:
         batch_calls = [c for c in cache.calls if c[0] == "get_batch"]
         assert len(batch_calls) == 3
 
-    def test_chunking_exact_boundary(self, cache: MockCacheProvider) -> None:
+    def test_chunking_exact_boundary(self, cache: CacheDomainMockProvider) -> None:
         """Batch size exactly equals chunk_size -> one get_batch call."""
         gids = [f"t{i}" for i in range(5)]
         for gid in gids:
@@ -233,7 +183,7 @@ class TestReadStoriesBatch:
         batch_calls = [c for c in cache.calls if c[0] == "get_batch"]
         assert len(batch_calls) == 1
 
-    def test_large_batch_over_500(self, cache: MockCacheProvider) -> None:
+    def test_large_batch_over_500(self, cache: CacheDomainMockProvider) -> None:
         """Default chunk_size=500: 600 keys -> 2 chunks."""
         gids = [f"t{i}" for i in range(600)]
         # Only populate first 10 to test mixed results
@@ -254,7 +204,7 @@ class TestReadStoriesBatch:
         batch_calls = [c for c in cache.calls if c[0] == "get_batch"]
         assert len(batch_calls) == 2
 
-    def test_returns_all_keys_from_input(self, cache: MockCacheProvider) -> None:
+    def test_returns_all_keys_from_input(self, cache: CacheDomainMockProvider) -> None:
         """Every key in the input appears in the output (hit or miss)."""
         gids = ["a", "b", "c"]
         _populate_cache(cache, "b", [{"gid": "s_b"}])

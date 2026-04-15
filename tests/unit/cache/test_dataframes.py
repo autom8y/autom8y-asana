@@ -1,11 +1,12 @@
 """Tests for dataframe caching."""
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
-from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.cache.integration.dataframes import (
     invalidate_dataframe,
@@ -16,53 +17,7 @@ from autom8_asana.cache.integration.dataframes import (
     parse_dataframe_key,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-
-
-class MockCacheProvider(_SDKMockCacheProvider):
-    """Mock cache provider for dataframe tests (extends SDK MockCacheProvider).
-
-    Overrides versioned ops and invalidate to handle EntryType enum composite keys.
-    """
-
-    @property
-    def _cache(self) -> dict[str, CacheEntry]:
-        """Alias for SDK _versioned_store (backward compat for direct access)."""
-        return self._versioned_store  # type: ignore[return-value]
-
-    def get_versioned(
-        self,
-        key: str,
-        entry_type: EntryType,
-        freshness: object = None,
-    ) -> CacheEntry | None:
-        """Get entry from cache using EntryType enum."""
-        self.calls.append(
-            (
-                "get_versioned",
-                {"key": key, "entry_type": entry_type, "freshness": freshness},
-            )
-        )
-        cache_key = f"{entry_type.value}:{key}"
-        return self._versioned_store.get(cache_key)
-
-    def set_versioned(self, key: str, entry: CacheEntry) -> None:
-        """Store entry in cache using EntryType enum."""
-        self.calls.append(("set_versioned", {"key": key, "entry": entry}))
-        cache_key = f"{entry.entry_type.value}:{key}"
-        self._versioned_store[cache_key] = entry
-
-    def invalidate(
-        self,
-        key: str,
-        entry_types: list[EntryType] | None = None,
-    ) -> None:
-        """Invalidate cache entries using EntryType enum."""
-        self.calls.append(("invalidate", {"key": key, "entry_types": entry_types}))
-        if entry_types is None:
-            entry_types = list(EntryType)
-        for et in entry_types:
-            cache_key = f"{et.value}:{key}"
-            self._versioned_store.pop(cache_key, None)
+from tests.unit.cache.conftest import CacheDomainMockProvider
 
 
 class TestMakeDataframeKey:
@@ -116,9 +71,9 @@ class TestLoadDataframeCached:
     """Tests for load_dataframe_cached function."""
 
     @pytest.fixture
-    def cache(self) -> MockCacheProvider:
+    def cache(self) -> CacheDomainMockProvider:
         """Create a mock cache provider."""
-        return MockCacheProvider()
+        return CacheDomainMockProvider()
 
     @pytest.fixture
     def compute_fn(self) -> AsyncMock:
@@ -126,7 +81,7 @@ class TestLoadDataframeCached:
         return AsyncMock()
 
     async def test_cache_miss_computes_and_caches(
-        self, cache: MockCacheProvider, compute_fn: AsyncMock
+        self, cache: CacheDomainMockProvider, compute_fn: AsyncMock
     ) -> None:
         """Test that cache miss triggers compute and caches result."""
         dataframe = {"field1": "value1", "field2": 42}
@@ -147,7 +102,7 @@ class TestLoadDataframeCached:
         assert cache.get_versioned("task123:project456", EntryType.DATAFRAME) is not None
 
     async def test_cache_hit_returns_cached(
-        self, cache: MockCacheProvider, compute_fn: AsyncMock
+        self, cache: CacheDomainMockProvider, compute_fn: AsyncMock
     ) -> None:
         """Test that cache hit returns cached value without computing."""
         # Pre-populate cache
@@ -173,7 +128,7 @@ class TestLoadDataframeCached:
         assert was_hit
 
     async def test_stale_cache_recomputes(
-        self, cache: MockCacheProvider, compute_fn: AsyncMock
+        self, cache: CacheDomainMockProvider, compute_fn: AsyncMock
     ) -> None:
         """Test that stale cache triggers recompute."""
         # Pre-populate cache with old version
@@ -205,7 +160,7 @@ class TestLoadDataframeCached:
         assert not was_hit
 
     async def test_force_refresh_bypasses_cache(
-        self, cache: MockCacheProvider, compute_fn: AsyncMock
+        self, cache: CacheDomainMockProvider, compute_fn: AsyncMock
     ) -> None:
         """Test that force_refresh bypasses cache even if fresh."""
         # Pre-populate cache
@@ -234,7 +189,7 @@ class TestLoadDataframeCached:
         assert not was_hit
 
     async def test_entry_has_project_gid(
-        self, cache: MockCacheProvider, compute_fn: AsyncMock
+        self, cache: CacheDomainMockProvider, compute_fn: AsyncMock
     ) -> None:
         """Test that cache entry includes project_gid."""
         compute_fn.return_value = {"field": "value"}
@@ -250,7 +205,7 @@ class TestLoadDataframeCached:
         assert entry.project_gid == "project456"
 
     async def test_version_from_modified_at(
-        self, cache: MockCacheProvider, compute_fn: AsyncMock
+        self, cache: CacheDomainMockProvider, compute_fn: AsyncMock
     ) -> None:
         """Test that entry version comes from modified_at when provided."""
         compute_fn.return_value = {"field": "value"}
@@ -275,7 +230,7 @@ class TestInvalidateDataframe:
 
     def test_invalidates_dataframe_entry(self) -> None:
         """Test that invalidate removes dataframe from cache."""
-        cache = MockCacheProvider()
+        cache = CacheDomainMockProvider()
 
         # Pre-populate cache
         entry = CacheEntry(
@@ -292,7 +247,7 @@ class TestInvalidateDataframe:
 
     def test_invalidate_nonexistent_is_safe(self) -> None:
         """Test that invalidating nonexistent entry is safe."""
-        cache = MockCacheProvider()
+        cache = CacheDomainMockProvider()
 
         # Should not raise
         invalidate_dataframe("nonexistent", "project", cache)
@@ -303,7 +258,7 @@ class TestInvalidateTaskDataframes:
 
     def test_invalidates_all_projects(self) -> None:
         """Test invalidating dataframe across multiple projects."""
-        cache = MockCacheProvider()
+        cache = CacheDomainMockProvider()
 
         # Pre-populate cache with entries for multiple projects
         for project_gid in ["p1", "p2", "p3"]:
@@ -323,7 +278,7 @@ class TestInvalidateTaskDataframes:
 
     def test_invalidates_subset_of_projects(self) -> None:
         """Test invalidating only specified projects."""
-        cache = MockCacheProvider()
+        cache = CacheDomainMockProvider()
 
         # Pre-populate cache
         for project_gid in ["p1", "p2", "p3"]:
@@ -348,9 +303,9 @@ class TestLoadBatchDataframesCached:
     """Tests for load_batch_dataframes_cached function."""
 
     @pytest.fixture
-    def cache(self) -> MockCacheProvider:
+    def cache(self) -> CacheDomainMockProvider:
         """Create a mock cache provider."""
-        return MockCacheProvider()
+        return CacheDomainMockProvider()
 
     @pytest.fixture
     def compute_fn(self) -> AsyncMock:
@@ -362,7 +317,7 @@ class TestLoadBatchDataframesCached:
         return AsyncMock(side_effect=compute)
 
     async def test_batch_load_all_misses(
-        self, cache: MockCacheProvider, compute_fn: AsyncMock
+        self, cache: CacheDomainMockProvider, compute_fn: AsyncMock
     ) -> None:
         """Test batch load with all cache misses."""
         pairs = [
@@ -384,7 +339,7 @@ class TestLoadBatchDataframesCached:
         assert results["task2:project2"][1] is False
 
     async def test_batch_load_with_hits(
-        self, cache: MockCacheProvider, compute_fn: AsyncMock
+        self, cache: CacheDomainMockProvider, compute_fn: AsyncMock
     ) -> None:
         """Test batch load with some cache hits."""
         # Pre-populate cache for task1
@@ -414,7 +369,7 @@ class TestLoadBatchDataframesCached:
         assert results["task2:project2"][1] is False
 
     async def test_batch_load_with_modifications(
-        self, cache: MockCacheProvider, compute_fn: AsyncMock
+        self, cache: CacheDomainMockProvider, compute_fn: AsyncMock
     ) -> None:
         """Test batch load with modification timestamps."""
         # Pre-populate cache with old version
@@ -441,7 +396,7 @@ class TestLoadBatchDataframesCached:
         assert results["task1:project1"][1] is False
 
     async def test_batch_load_force_refresh(
-        self, cache: MockCacheProvider, compute_fn: AsyncMock
+        self, cache: CacheDomainMockProvider, compute_fn: AsyncMock
     ) -> None:
         """Test batch load with force refresh."""
         # Pre-populate cache

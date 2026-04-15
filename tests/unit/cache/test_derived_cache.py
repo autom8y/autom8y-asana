@@ -13,7 +13,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.cache.integration.derived import (
     _DERIVED_TIMELINE_TTL,
@@ -33,43 +32,7 @@ from autom8_asana.models.business.section_timeline import (
     SectionInterval,
     SectionTimeline,
 )
-
-# ---------------------------------------------------------------------------
-# Mock Cache Provider with EntryType composite keys
-# ---------------------------------------------------------------------------
-
-
-class MockCacheProvider(_SDKMockCacheProvider):
-    """Mock cache provider for derived cache tests.
-
-    Uses composite keys (entry_type.value:key) matching the pattern
-    established in test_stories.py.
-    """
-
-    @property
-    def _cache(self) -> dict[str, CacheEntry]:
-        return self._versioned_store  # type: ignore[return-value]
-
-    def get_versioned(
-        self,
-        key: str,
-        entry_type: EntryType,
-        freshness: object = None,
-    ) -> CacheEntry | None:
-        self.calls.append(
-            (
-                "get_versioned",
-                {"key": key, "entry_type": entry_type, "freshness": freshness},
-            )
-        )
-        cache_key = f"{entry_type.value}:{key}"
-        return self._versioned_store.get(cache_key)
-
-    def set_versioned(self, key: str, entry: CacheEntry) -> None:
-        self.calls.append(("set_versioned", {"key": key, "entry": entry}))
-        cache_key = f"{entry.entry_type.value}:{key}"
-        self._versioned_store[cache_key] = entry
-
+from tests.unit.cache.conftest import CacheDomainMockProvider
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -281,15 +244,15 @@ class TestSerializationRoundTrip:
 
 class TestGetCachedTimelines:
     @pytest.fixture
-    def cache(self) -> MockCacheProvider:
-        return MockCacheProvider()
+    def cache(self) -> CacheDomainMockProvider:
+        return CacheDomainMockProvider()
 
-    def test_cache_miss_returns_none(self, cache: MockCacheProvider) -> None:
+    def test_cache_miss_returns_none(self, cache: CacheDomainMockProvider) -> None:
         """Empty cache returns None."""
         result = get_cached_timelines("proj1", "offer", cache)
         assert result is None
 
-    def test_cache_hit_returns_entry(self, cache: MockCacheProvider) -> None:
+    def test_cache_hit_returns_entry(self, cache: CacheDomainMockProvider) -> None:
         """Pre-populated cache returns DerivedTimelineCacheEntry."""
         key = make_derived_timeline_key("proj1", "offer")
         now = datetime.now(UTC)
@@ -311,7 +274,7 @@ class TestGetCachedTimelines:
         assert isinstance(result, DerivedTimelineCacheEntry)
         assert result.classifier_name == "offer"
 
-    def test_base_entry_returns_none(self, cache: MockCacheProvider) -> None:
+    def test_base_entry_returns_none(self, cache: CacheDomainMockProvider) -> None:
         """If get_versioned returns base CacheEntry (not subclass), returns None."""
         key = make_derived_timeline_key("proj1", "offer")
         now = datetime.now(UTC)
@@ -337,10 +300,10 @@ class TestGetCachedTimelines:
 
 class TestStoreDerivedTimelines:
     @pytest.fixture
-    def cache(self) -> MockCacheProvider:
-        return MockCacheProvider()
+    def cache(self) -> CacheDomainMockProvider:
+        return CacheDomainMockProvider()
 
-    def test_stores_entry_in_cache(self, cache: MockCacheProvider) -> None:
+    def test_stores_entry_in_cache(self, cache: CacheDomainMockProvider) -> None:
         """store_derived_timelines writes a DerivedTimelineCacheEntry."""
         timeline_data = [serialize_timeline(_make_timeline())]
         store_derived_timelines(
@@ -366,7 +329,7 @@ class TestStoreDerivedTimelines:
         assert stored.ttl == _DERIVED_TIMELINE_TTL
         assert stored.project_gid == "proj1"
 
-    def test_stores_timeline_data_in_data_dict(self, cache: MockCacheProvider) -> None:
+    def test_stores_timeline_data_in_data_dict(self, cache: CacheDomainMockProvider) -> None:
         """Data field wraps timelines under 'timelines' key."""
         timeline_data = [{"offer_gid": "o1"}]
         store_derived_timelines(
@@ -380,7 +343,7 @@ class TestStoreDerivedTimelines:
         stored = cache._cache[f"{EntryType.DERIVED_TIMELINE.value}:{key}"]
         assert stored.data == {"timelines": [{"offer_gid": "o1"}]}
 
-    def test_metadata_has_computed_at(self, cache: MockCacheProvider) -> None:
+    def test_metadata_has_computed_at(self, cache: CacheDomainMockProvider) -> None:
         """Metadata includes computed_at ISO timestamp."""
         store_derived_timelines(
             project_gid="proj1",

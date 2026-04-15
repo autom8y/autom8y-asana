@@ -1,10 +1,11 @@
 """Tests for incremental story loading."""
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
 
 import pytest
-from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
 
 from autom8_asana.cache.integration.stories import (
     DEFAULT_STORY_TYPES,
@@ -15,49 +16,16 @@ from autom8_asana.cache.integration.stories import (
     load_stories_incremental,
 )
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
-
-
-class MockCacheProvider(_SDKMockCacheProvider):
-    """Mock cache provider for story tests (extends SDK MockCacheProvider).
-
-    Overrides versioned ops to handle EntryType enum composite keys.
-    """
-
-    @property
-    def _cache(self) -> dict[str, CacheEntry]:
-        """Alias for SDK _versioned_store (backward compat for direct access)."""
-        return self._versioned_store  # type: ignore[return-value]
-
-    def get_versioned(
-        self,
-        key: str,
-        entry_type: EntryType,
-        freshness: object = None,
-    ) -> CacheEntry | None:
-        """Get entry from cache using EntryType enum."""
-        self.calls.append(
-            (
-                "get_versioned",
-                {"key": key, "entry_type": entry_type, "freshness": freshness},
-            )
-        )
-        cache_key = f"{entry_type.value}:{key}"
-        return self._versioned_store.get(cache_key)
-
-    def set_versioned(self, key: str, entry: CacheEntry) -> None:
-        """Store entry in cache using EntryType enum."""
-        self.calls.append(("set_versioned", {"key": key, "entry": entry}))
-        cache_key = f"{entry.entry_type.value}:{key}"
-        self._versioned_store[cache_key] = entry
+from tests.unit.cache.conftest import CacheDomainMockProvider
 
 
 class TestLoadStoriesIncremental:
     """Tests for load_stories_incremental function."""
 
     @pytest.fixture
-    def cache(self) -> MockCacheProvider:
+    def cache(self) -> CacheDomainMockProvider:
         """Create a mock cache provider."""
-        return MockCacheProvider()
+        return CacheDomainMockProvider()
 
     @pytest.fixture
     def fetcher(self) -> AsyncMock:
@@ -65,7 +33,7 @@ class TestLoadStoriesIncremental:
         return AsyncMock()
 
     async def test_full_fetch_when_no_cache(
-        self, cache: MockCacheProvider, fetcher: AsyncMock
+        self, cache: CacheDomainMockProvider, fetcher: AsyncMock
     ) -> None:
         """Test full fetch when cache is empty."""
         stories = [
@@ -87,7 +55,7 @@ class TestLoadStoriesIncremental:
         assert not was_incremental
 
     async def test_full_fetch_when_cache_corrupted(
-        self, cache: MockCacheProvider, fetcher: AsyncMock
+        self, cache: CacheDomainMockProvider, fetcher: AsyncMock
     ) -> None:
         """Test full fetch when cache lacks last_fetched metadata."""
         # Cache entry without last_fetched metadata
@@ -114,7 +82,7 @@ class TestLoadStoriesIncremental:
         assert not was_incremental
 
     async def test_incremental_fetch_with_cache(
-        self, cache: MockCacheProvider, fetcher: AsyncMock
+        self, cache: CacheDomainMockProvider, fetcher: AsyncMock
     ) -> None:
         """Test incremental fetch when cache exists."""
         # Pre-populate cache
@@ -152,7 +120,7 @@ class TestLoadStoriesIncremental:
         assert result[0]["gid"] == "s1"
         assert result[1]["gid"] == "s2"
 
-    async def test_merge_dedupes_by_gid(self, cache: MockCacheProvider, fetcher: AsyncMock) -> None:
+    async def test_merge_dedupes_by_gid(self, cache: CacheDomainMockProvider, fetcher: AsyncMock) -> None:
         """Test that merge deduplicates stories by GID."""
         # Pre-populate cache
         cached_entry = CacheEntry(
@@ -185,7 +153,7 @@ class TestLoadStoriesIncremental:
         assert result[0]["text"] == "Updated"
 
     async def test_cache_entry_has_last_fetched(
-        self, cache: MockCacheProvider, fetcher: AsyncMock
+        self, cache: CacheDomainMockProvider, fetcher: AsyncMock
     ) -> None:
         """Test that new cache entry has last_fetched metadata."""
         fetcher.return_value = []
@@ -211,8 +179,8 @@ class TestModifiedAtFreshnessProbe:
     """
 
     @pytest.fixture
-    def cache(self) -> MockCacheProvider:
-        return MockCacheProvider()
+    def cache(self) -> CacheDomainMockProvider:
+        return CacheDomainMockProvider()
 
     @pytest.fixture
     def fetcher(self) -> AsyncMock:
@@ -220,7 +188,7 @@ class TestModifiedAtFreshnessProbe:
 
     def _seed_cache(
         self,
-        cache: MockCacheProvider,
+        cache: CacheDomainMockProvider,
         *,
         version: datetime,
         cached_at: datetime | None = None,
@@ -238,7 +206,7 @@ class TestModifiedAtFreshnessProbe:
         cache._cache["stories:task123"] = entry
 
     async def test_modified_at_probe_bypasses_max_age_when_stale(
-        self, cache: MockCacheProvider, fetcher: AsyncMock
+        self, cache: CacheDomainMockProvider, fetcher: AsyncMock
     ) -> None:
         """Stale entry triggers incremental fetch even when max_cache_age_seconds would skip."""
         # Cache entry versioned at T=10:00, very recently cached (age < max_age)
@@ -266,7 +234,7 @@ class TestModifiedAtFreshnessProbe:
         assert len(result) == 2
 
     async def test_modified_at_probe_no_change_when_none(
-        self, cache: MockCacheProvider, fetcher: AsyncMock
+        self, cache: CacheDomainMockProvider, fetcher: AsyncMock
     ) -> None:
         """current_modified_at=None preserves existing max_cache_age_seconds behavior."""
         self._seed_cache(
@@ -290,7 +258,7 @@ class TestModifiedAtFreshnessProbe:
         assert result[0]["gid"] == "s1"
 
     async def test_modified_at_probe_allows_age_skip_when_current(
-        self, cache: MockCacheProvider, fetcher: AsyncMock
+        self, cache: CacheDomainMockProvider, fetcher: AsyncMock
     ) -> None:
         """When entry is current (not stale), max_cache_age_seconds skip works normally."""
         cached_version = datetime(2025, 6, 1, 10, 0, tzinfo=UTC)
@@ -315,7 +283,7 @@ class TestModifiedAtFreshnessProbe:
         assert len(result) == 1
 
     async def test_incremental_fetch_uses_since_cursor(
-        self, cache: MockCacheProvider, fetcher: AsyncMock
+        self, cache: CacheDomainMockProvider, fetcher: AsyncMock
     ) -> None:
         """After probe triggers, fetcher is called with since=last_fetched (not None)."""
         last_fetched_ts = "2025-06-01T12:00:00+00:00"
