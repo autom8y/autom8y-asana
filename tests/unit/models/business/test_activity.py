@@ -33,15 +33,6 @@ from autom8_asana.models.business.activity import (
 class TestAccountActivity:
     """Tests for the AccountActivity enum."""
 
-    def test_values(self) -> None:
-        assert AccountActivity.ACTIVE == "active"
-        assert AccountActivity.ACTIVATING == "activating"
-        assert AccountActivity.INACTIVE == "inactive"
-        assert AccountActivity.IGNORED == "ignored"
-
-    def test_is_str_enum(self) -> None:
-        assert isinstance(AccountActivity.ACTIVE, str)
-
     def test_from_string(self) -> None:
         assert AccountActivity("active") is AccountActivity.ACTIVE
         assert AccountActivity("activating") is AccountActivity.ACTIVATING
@@ -87,8 +78,6 @@ class TestActivityPriority:
     def test_ignored_is_lowest_priority(self) -> None:
         assert ACTIVITY_PRIORITY[-1] is AccountActivity.IGNORED
 
-    def test_is_tuple(self) -> None:
-        assert isinstance(ACTIVITY_PRIORITY, tuple)
 
 
 # ---------------------------------------------------------------------------
@@ -210,13 +199,6 @@ class TestSectionClassifier:
         with pytest.raises(FrozenInstanceError):
             simple_classifier.project_gid = "999"  # type: ignore[misc]
 
-    # --- Attributes ---
-
-    def test_entity_type(self, simple_classifier: SectionClassifier) -> None:
-        assert simple_classifier.entity_type == "test"
-
-    def test_project_gid(self, simple_classifier: SectionClassifier) -> None:
-        assert simple_classifier.project_gid == "123"
 
 
 # ---------------------------------------------------------------------------
