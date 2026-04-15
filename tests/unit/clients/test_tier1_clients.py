@@ -166,6 +166,46 @@ async def test_get_async_returns_model(
     mock_http.get.assert_called_once_with(url_template.format(gid=gid), params={})
 
 
+@pytest.mark.parametrize(
+    ("client_cls", "gid", "payload"),
+    [
+        (
+            WorkspacesClient,
+            "ws123",
+            {"gid": "ws123", "name": "My Workspace"},
+        ),
+        (
+            UsersClient,
+            "1234567890123",
+            {"gid": "1234567890123", "name": "Alice"},
+        ),
+        (
+            ProjectsClient,
+            "1234567890123",
+            {"gid": "1234567890123", "name": "My Project"},
+        ),
+    ],
+    ids=["workspaces_get", "users_get", "projects_get"],
+)
+async def test_get_async_raw_returns_dict(
+    client_factory, mock_http, client_cls, gid, payload
+) -> None:
+    """get_async with raw=True returns the raw API dict.
+
+    Consolidates three per-client copies of the same raw-dict assertion.
+    The strongest assertion (exact dict equality, originally on Workspaces)
+    is preserved as the common assertion across all cases -- a stricter
+    uniform contract than the original Users/Projects copies.
+    """
+    client = client_factory(client_cls, use_cache=False)
+    mock_http.get.return_value = payload
+
+    result = await client.get_async(gid, raw=True)
+
+    assert isinstance(result, dict)
+    assert result == payload
+
+
 # =============================================================================
 # WorkspacesClient Tests
 # =============================================================================
@@ -185,21 +225,6 @@ def workspaces_client(
         auth_provider=auth_provider,
         log_provider=logger,
     )
-
-
-class TestWorkspacesClientGetAsync:
-    """Tests for WorkspacesClient.get_async()."""
-
-    async def test_get_async_raw_returns_dict(
-        self, workspaces_client: WorkspacesClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async with raw=True returns dict."""
-        mock_http.get.return_value = {"gid": "ws123", "name": "My Workspace"}
-
-        result = await workspaces_client.get_async("ws123", raw=True)
-
-        assert isinstance(result, dict)
-        assert result == {"gid": "ws123", "name": "My Workspace"}
 
 
 class TestWorkspacesClientGetSync:
@@ -276,20 +301,6 @@ def users_client(
         auth_provider=auth_provider,
         log_provider=logger,
     )
-
-
-class TestUsersClientGetAsync:
-    """Tests for UsersClient.get_async()."""
-
-    async def test_get_async_raw_returns_dict(
-        self, users_client: UsersClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async with raw=True returns dict."""
-        mock_http.get.return_value = {"gid": "1234567890123", "name": "Alice"}
-
-        result = await users_client.get_async("1234567890123", raw=True)
-
-        assert isinstance(result, dict)
 
 
 class TestUsersClientMeAsync:
@@ -386,20 +397,6 @@ def projects_client(
         auth_provider=auth_provider,
         log_provider=logger,
     )
-
-
-class TestProjectsClientGetAsync:
-    """Tests for ProjectsClient.get_async()."""
-
-    async def test_get_async_raw_returns_dict(
-        self, projects_client: ProjectsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """get_async with raw=True returns dict."""
-        mock_http.get.return_value = {"gid": "1234567890123", "name": "My Project"}
-
-        result = await projects_client.get_async("1234567890123", raw=True)
-
-        assert isinstance(result, dict)
 
 
 class TestProjectsClientCreateAsync:
