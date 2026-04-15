@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from autom8y_cache.testing import MockCacheProvider as _SDKMockCacheProvider
+
+from autom8_asana.clients.custom_fields import CustomFieldsClient
+from autom8_asana.clients.projects import ProjectsClient
+from autom8_asana.clients.sections import SectionsClient
+from autom8_asana.clients.stories import StoriesClient
+from autom8_asana.clients.tasks import TasksClient
+from autom8_asana.clients.users import UsersClient
+from autom8_asana.clients.workspaces import WorkspacesClient
 
 if TYPE_CHECKING:
     from autom8_asana.cache.models.entry import CacheEntry, EntryType
@@ -88,3 +96,38 @@ class MockCacheProvider(_SDKMockCacheProvider):
 def cache_provider() -> MockCacheProvider:
     """Create a mock cache provider (SDK-backed with satellite tracking)."""
     return MockCacheProvider()
+
+
+@pytest.fixture
+def client_factory(mock_http, config, auth_provider, cache_provider, logger):
+    """Factory fixture for creating any Asana client type.
+
+    Usage:
+        def test_something(client_factory):
+            client = client_factory(TasksClient)
+            # ... test with client
+
+    For parametrized tests across client types:
+        @pytest.mark.parametrize("client_cls", [TasksClient, UsersClient, ...])
+        def test_common_behavior(client_factory, client_cls):
+            client = client_factory(client_cls)
+            # ... test common behavior
+
+    Available client classes (imported into this fixture's scope):
+        WorkspacesClient, UsersClient, ProjectsClient, SectionsClient,
+        TasksClient, StoriesClient, CustomFieldsClient
+    """
+
+    def _create(client_cls: type, *, use_cache: bool = True, **overrides: Any) -> Any:
+        kwargs: dict[str, Any] = {
+            "http": mock_http,
+            "config": config,
+            "auth_provider": auth_provider,
+            "logger": logger,
+        }
+        if use_cache:
+            kwargs["cache_provider"] = cache_provider
+        kwargs.update(overrides)
+        return client_cls(**kwargs)
+
+    return _create
