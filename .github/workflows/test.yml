@@ -46,7 +46,10 @@ jobs:
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
-      coverage_threshold: 80
+      # coverage_threshold disabled: per-shard coverage is meaningless with
+      # test_splits > 1 (each shard only covers ~25% of the package).
+      # Aggregate coverage should be validated in a separate post-merge job.
+      coverage_threshold: 0
       test_timeout: 40
       test_parallel: true
       test_splits: 4

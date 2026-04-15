@@ -353,8 +353,6 @@ class TestWorkspacesClientGetSync:
             workspaces_client.get("ws123")
 
 
-
-
 # =============================================================================
 # UsersClient Tests
 # =============================================================================
@@ -381,9 +379,7 @@ def users_client(
     [(False, User), (True, dict)],
     ids=["typed_model", "raw_dict"],
 )
-async def test_users_me_async_return_shape(
-    client_factory, mock_http, raw, expected_type
-) -> None:
+async def test_users_me_async_return_shape(client_factory, mock_http, raw, expected_type) -> None:
     """me_async returns User model by default and dict with raw=True.
 
     Pattern C: consolidates test_me_async_returns_user_model +

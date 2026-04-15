@@ -306,6 +306,7 @@ class TestWebhooksClientGetAsync:
 class TestWebhooksClientCreateAsync:
     """Tests for WebhooksClient.create_async()."""
 
+
 class TestWebhooksSignatureVerification:
     """Tests for WebhooksClient signature verification (per ADR-0008)."""
 
@@ -416,6 +417,7 @@ def tags_client(
 
 class TestTagsClientCreateAsync:
     """Tests for TagsClient.create_async()."""
+
 
 # =============================================================================
 # StoriesClient Tests
@@ -563,6 +565,7 @@ def goals_client(
 class TestGoalsClientCreateAsync:
     """Tests for GoalsClient.create_async()."""
 
+
 class TestGoalsClientSubgoals:
     """Tests for GoalsClient subgoal operations."""
 
@@ -606,6 +609,7 @@ def portfolios_client(
 
 class TestPortfoliosClientCreateAsync:
     """Tests for PortfoliosClient.create_async()."""
+
 
 class TestPortfoliosClientItems:
     """Tests for PortfoliosClient item operations."""
