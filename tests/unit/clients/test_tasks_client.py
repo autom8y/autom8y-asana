@@ -136,32 +136,37 @@ class TestGetSync:
 class TestCreateAsync:
     """Tests for TasksClient.create_async()."""
 
-    async def test_create_async_returns_task_model(
-        self, tasks_client: TasksClient, mock_http: MockHTTPClient
+    @pytest.mark.parametrize(
+        ("raw", "expected_type"),
+        [
+            pytest.param(False, Task, id="model-default"),
+            pytest.param(True, dict, id="raw-dict"),
+        ],
+    )
+    async def test_create_async_return_shape(
+        self,
+        tasks_client: TasksClient,
+        mock_http: MockHTTPClient,
+        raw: bool,
+        expected_type: type,
     ) -> None:
-        """create_async returns Task model by default."""
-        mock_http.post.return_value = {"gid": "5123", "name": "New Task"}
+        """create_async returns Task model by default, dict when raw=True."""
+        payload = {"gid": "5123", "name": "New Task"}
+        mock_http.post.return_value = payload
 
-        result = await tasks_client.create_async(name="New Task", workspace="9123")
+        kwargs = {"raw": True} if raw else {}
+        result = await tasks_client.create_async(name="New Task", workspace="9123", **kwargs)
 
-        assert isinstance(result, Task)
-        assert result.gid == "5123"
-        assert result.name == "New Task"
-        mock_http.post.assert_called_once_with(
-            "/tasks",
-            json={"data": {"name": "New Task", "workspace": "9123"}},
-        )
-
-    async def test_create_async_raw_returns_dict(
-        self, tasks_client: TasksClient, mock_http: MockHTTPClient
-    ) -> None:
-        """create_async with raw=True returns dict."""
-        mock_http.post.return_value = {"gid": "5123", "name": "New Task"}
-
-        result = await tasks_client.create_async(name="New Task", workspace="9123", raw=True)
-
-        assert isinstance(result, dict)
-        assert result == {"gid": "5123", "name": "New Task"}
+        assert isinstance(result, expected_type)
+        if raw:
+            assert result == payload
+        else:
+            assert result.gid == "5123"
+            assert result.name == "New Task"
+            mock_http.post.assert_called_once_with(
+                "/tasks",
+                json={"data": {"name": "New Task", "workspace": "9123"}},
+            )
 
     async def test_create_async_with_projects(
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
