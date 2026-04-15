@@ -240,7 +240,7 @@ requires-dist = [
     { name = "autom8y-client-sdk", marker = "extra == 'interop'", editable = "../autom8y/sdks/python/autom8y-client-sdk" },
     { name = "autom8y-config", specifier = ">=2.0.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-config", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=2.0.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-core", specifier = ">=1.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-core", specifier = ">=3.0.0,<4.0.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-core", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=1.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-events", marker = "extra == 'events'", specifier = ">=0.1.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-http", extras = ["otel"], specifier = ">=0.6.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
@@ -406,11 +406,15 @@ dev = [
 
 [[package]]
 name = "autom8y-core"
-version = "2.2.0"
-source = { editable = "../autom8y/sdks/python/autom8y-core" }
+version = "3.0.0"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/3.0.0/autom8y_core-3.0.0.tar.gz", hash = "sha256:788097218d7f20123ec4a668d5401da65e32e3a5def6d2704526fd24dc7a5cf9" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/3.0.0/autom8y_core-3.0.0-py3-none-any.whl", hash = "sha256:c9ed891b3833b98e291612a5cfedc537fe46c0991bef747872a5d8d25a50776c" },
 ]
 
 [package.optional-dependencies]
@@ -425,16 +429,6 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'testing'", specifier = ">=7.0" },
 ]
 provides-extras = ["testing"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "mypy", specifier = ">=1.0.0" },
-    { name = "pytest", specifier = ">=7.0.0" },
-    { name = "pytest-asyncio", specifier = ">=1.2,<2.0" },
-    { name = "pytest-cov", specifier = ">=4.0.0" },
-    { name = "respx", specifier = ">=0.20.0" },
-    { name = "ruff", specifier = ">=0.1.0" },
-]
 
 [[package]]
 name = "autom8y-events"
