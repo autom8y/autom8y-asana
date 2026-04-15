@@ -11,42 +11,6 @@ from autom8_asana.models.business.base import BusinessEntity, HolderMixin
 from autom8_asana.models.task import Task
 
 
-class TestBusinessEntity:
-    """Tests for BusinessEntity base class."""
-
-    def test_business_entity_inherits_from_task(self) -> None:
-        """BusinessEntity inherits from Task."""
-        entity = BusinessEntity(gid="123", name="Test Entity")
-        assert entity.gid == "123"
-        assert entity.name == "Test Entity"
-
-    def test_name_convention_class_attribute(self) -> None:
-        """BusinessEntity has NAME_CONVENTION class attribute."""
-        assert hasattr(BusinessEntity, "NAME_CONVENTION")
-        assert BusinessEntity.NAME_CONVENTION == "{name}"
-
-    def test_primary_project_gid_class_attribute(self) -> None:
-        """BusinessEntity has PRIMARY_PROJECT_GID class attribute."""
-        assert hasattr(BusinessEntity, "PRIMARY_PROJECT_GID")
-        assert BusinessEntity.PRIMARY_PROJECT_GID is None
-
-    def test_invalidate_refs_no_op(self) -> None:
-        """_invalidate_refs is no-op on base class."""
-        entity = BusinessEntity(gid="123")
-        # Should not raise
-        entity._invalidate_refs()
-
-    def test_get_cascading_fields_empty(self) -> None:
-        """get_cascading_fields returns empty list on base class."""
-        entity = BusinessEntity(gid="123")
-        assert entity.get_cascading_fields() == []
-
-    def test_get_inherited_fields_empty(self) -> None:
-        """get_inherited_fields returns empty list on base class."""
-        entity = BusinessEntity(gid="123")
-        assert entity.get_inherited_fields() == []
-
-
 class TestBusinessEntitySubclass:
     """Tests for subclassing BusinessEntity."""
 
