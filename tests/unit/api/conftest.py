@@ -114,10 +114,11 @@ def _module_client(app):
 
 @pytest.fixture(autouse=True)
 def reset_singletons() -> Generator[None, None, None]:
-    """Reset singletons before and after each test for isolation.
+    """Reset auth state and populate test registry for API tests.
 
-    Re-populates EntityProjectRegistry so that routes using
-    get_instance() see test data even with module-scoped TestClient.
+    Note: SystemContext.reset_all() (root conftest) handles singleton
+    reset. This fixture adds API-specific auth cache clearing and
+    EntityProjectRegistry population that API route tests depend on.
     """
     clear_bot_pat_cache()
     reset_auth_client()
@@ -125,7 +126,6 @@ def reset_singletons() -> Generator[None, None, None]:
     yield
     clear_bot_pat_cache()
     reset_auth_client()
-    EntityProjectRegistry.reset()
 
 
 @pytest.fixture
