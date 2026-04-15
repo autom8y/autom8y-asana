@@ -376,58 +376,48 @@ def users_client(
     )
 
 
-class TestUsersClientMeAsync:
-    """Tests for UsersClient.me_async()."""
+@pytest.mark.parametrize(
+    ("raw", "expected_type"),
+    [(False, User), (True, dict)],
+    ids=["typed_model", "raw_dict"],
+)
+async def test_users_me_async_return_shape(
+    client_factory, mock_http, raw, expected_type
+) -> None:
+    """me_async returns User model by default and dict with raw=True.
 
-    async def test_me_async_returns_user_model(
-        self, users_client: UsersClient, mock_http: MockHTTPClient
-    ) -> None:
-        """me_async returns User model by default."""
-        mock_http.get.return_value = {
-            "gid": "me123",
-            "name": "Current User",
-            "email": "me@example.com",
-        }
+    Pattern C: consolidates test_me_async_returns_user_model +
+    test_me_async_raw_returns_dict. The URL contract assertion (/users/me)
+    is retained only on the typed path where it was originally present.
+    """
+    payload = {"gid": "me123", "name": "Current User", "email": "me@example.com"}
+    client = client_factory(UsersClient, use_cache=False)
+    mock_http.get.return_value = payload
 
-        result = await users_client.me_async()
+    kwargs = {"raw": True} if raw else {}
+    result = await client.me_async(**kwargs)
 
-        assert isinstance(result, User)
+    assert isinstance(result, expected_type)
+    if not raw:
         assert result.gid == "me123"
         assert result.name == "Current User"
         mock_http.get.assert_called_once_with("/users/me", params={})
 
-    async def test_me_async_raw_returns_dict(
-        self, users_client: UsersClient, mock_http: MockHTTPClient
-    ) -> None:
-        """me_async with raw=True returns dict."""
-        mock_http.get.return_value = {"gid": "me123", "name": "Current User"}
 
-        result = await users_client.me_async(raw=True)
+def test_users_me_sync_returns_user_model(client_factory, mock_http) -> None:
+    """me() sync wrapper returns User model outside async context.
 
-        assert isinstance(result, dict)
+    Kept as a standalone sync test (not fused with me_async) -- the sync
+    dispatch path is structurally distinct and the original omitted
+    log_provider to exercise the "fresh client works standalone" semantic.
+    """
+    client = client_factory(UsersClient, use_cache=False, log_provider=None)
+    mock_http.get.return_value = {"gid": "me456", "name": "Sync User"}
 
+    result = client.me()
 
-class TestUsersClientMeSync:
-    """Tests for UsersClient.me() sync wrapper."""
-
-    def test_me_sync_returns_user_model(
-        self,
-        mock_http: MockHTTPClient,
-        config: AsanaConfig,
-        auth_provider: MockAuthProvider,
-    ) -> None:
-        """me() returns User model outside async context."""
-        client = UsersClient(
-            http=mock_http,  # type: ignore[arg-type]
-            config=config,
-            auth_provider=auth_provider,
-        )
-        mock_http.get.return_value = {"gid": "me456", "name": "Sync User"}
-
-        result = client.me()
-
-        assert isinstance(result, User)
-        assert result.gid == "me456"
+    assert isinstance(result, User)
+    assert result.gid == "me456"
 
 
 # =============================================================================
