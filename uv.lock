@@ -116,7 +116,7 @@ rate-limit = [
 
 [[package]]
 name = "autom8y-api-schemas"
-version = "1.7.2"
+version = "1.8.0"
 source = { editable = "../autom8y-api-schemas" }
 dependencies = [
     { name = "pydantic" },
@@ -131,6 +131,7 @@ requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "pydantic", specifier = ">=2.5.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "pyyaml", marker = "extra == 'dev'", specifier = ">=6.0" },
@@ -189,6 +190,7 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "pytest-mock" },
+    { name = "pytest-split" },
     { name = "pytest-timeout" },
     { name = "pytest-xdist" },
     { name = "respx" },
@@ -216,6 +218,7 @@ dev = [
     { name = "hypothesis" },
     { name = "pytest-asyncio" },
     { name = "pytest-json-report" },
+    { name = "pytest-split" },
     { name = "pytest-timeout" },
     { name = "respx" },
     { name = "schemathesis" },
@@ -264,6 +267,7 @@ requires-dist = [
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "pytest-mock", marker = "extra == 'dev'", specifier = ">=3.12.0" },
+    { name = "pytest-split", marker = "extra == 'dev'", specifier = ">=0.9.0" },
     { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.2.0" },
     { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.5.0" },
     { name = "pyyaml", specifier = ">=6.0.0" },
@@ -280,6 +284,7 @@ dev = [
     { name = "hypothesis", specifier = ">=6.151.12" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
     { name = "pytest-json-report", specifier = ">=1.5.0" },
+    { name = "pytest-split", specifier = ">=0.9.0" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "respx", specifier = ">=0.22.0" },
     { name = "schemathesis", specifier = ">=4.11.0,<4.15.0" },
@@ -401,7 +406,7 @@ dev = [
 
 [[package]]
 name = "autom8y-core"
-version = "1.3.0"
+version = "2.2.0"
 source = { editable = "../autom8y/sdks/python/autom8y-core" }
 dependencies = [
     { name = "httpx" },
@@ -2146,6 +2151,18 @@ dependencies = [
 sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/pytest-mock/3.15.1/pytest_mock-3.15.1.tar.gz", hash = "sha256:1849a238f6f396da19762269de72cb1814ab44416fa73a8686deac10b0d87a0f" }
 wheels = [
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/pytest-mock/3.15.1/pytest_mock-3.15.1-py3-none-any.whl", hash = "sha256:0a25e2eb88fe5168d535041d09a4529a188176ae608a6d249ee65abc0949630d" },
+]
+
+[[package]]
+name = "pytest-split"
+version = "0.11.0"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/pytest-split/0.11.0/pytest_split-0.11.0.tar.gz", hash = "sha256:8ebdb29cc72cc962e8eb1ec07db1eeb98ab25e215ed8e3216f6b9fc7ce0ec2b5" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/pytest-split/0.11.0/pytest_split-0.11.0-py3-none-any.whl", hash = "sha256:899d7c0f5730da91e2daf283860eb73b503259cb416851a65599368849c7f382" },
 ]
 
 [[package]]
