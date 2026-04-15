@@ -523,32 +523,42 @@ class TestProjectsClientDeleteAsync:
 class TestProjectsClientMemberships:
     """Tests for ProjectsClient membership operations."""
 
-    async def test_add_members_async(
-        self, projects_client: ProjectsClient, mock_http: MockHTTPClient
+    @pytest.mark.parametrize(
+        ("method_name", "members", "endpoint", "expected_members_str"),
+        [
+            (
+                "add_members_async",
+                ["user1", "user2"],
+                "/projects/proj123/addMembers",
+                "user1,user2",
+            ),
+            (
+                "remove_members_async",
+                ["user1"],
+                "/projects/proj123/removeMembers",
+                "user1",
+            ),
+        ],
+        ids=["add_members", "remove_members"],
+    )
+    async def test_membership_op_returns_project(
+        self,
+        projects_client: ProjectsClient,
+        mock_http: MockHTTPClient,
+        method_name: str,
+        members: list[str],
+        endpoint: str,
+        expected_members_str: str,
     ) -> None:
-        """add_members_async adds members to project."""
+        """add/remove members POST to the right endpoint with comma-joined gids."""
         mock_http.post.return_value = {"gid": "proj123", "name": "Project"}
 
-        result = await projects_client.add_members_async("proj123", members=["user1", "user2"])
+        result = await getattr(projects_client, method_name)("proj123", members=members)
 
         assert isinstance(result, Project)
         mock_http.post.assert_called_once_with(
-            "/projects/proj123/addMembers",
-            json={"data": {"members": "user1,user2"}},
-        )
-
-    async def test_remove_members_async(
-        self, projects_client: ProjectsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """remove_members_async removes members from project."""
-        mock_http.post.return_value = {"gid": "proj123", "name": "Project"}
-
-        result = await projects_client.remove_members_async("proj123", members=["user1"])
-
-        assert isinstance(result, Project)
-        mock_http.post.assert_called_once_with(
-            "/projects/proj123/removeMembers",
-            json={"data": {"members": "user1"}},
+            endpoint,
+            json={"data": {"members": expected_members_str}},
         )
 
 
@@ -652,31 +662,33 @@ class TestSectionsClientCreateAsync:
 class TestSectionsClientTaskMovement:
     """Tests for SectionsClient task movement operations."""
 
+    @pytest.mark.parametrize(
+        ("extra_kwargs", "expected_body"),
+        [
+            ({}, {"task": "task456"}),
+            (
+                {"insert_before": "task_other"},
+                {"task": "task456", "insert_before": "task_other"},
+            ),
+        ],
+        ids=["no_position", "insert_before"],
+    )
     async def test_add_task_async(
-        self, sections_client: SectionsClient, mock_http: MockHTTPClient
+        self,
+        sections_client: SectionsClient,
+        mock_http: MockHTTPClient,
+        extra_kwargs: dict,
+        expected_body: dict,
     ) -> None:
-        """add_task_async adds task to section."""
+        """add_task_async posts to /sections/{gid}/addTask with optional positioning."""
         mock_http.post.return_value = {}
 
-        await sections_client.add_task_async("sec123", task="task456")
+        await sections_client.add_task_async("sec123", task="task456", **extra_kwargs)
 
         mock_http.post.assert_called_once_with(
             "/sections/sec123/addTask",
-            json={"data": {"task": "task456"}},
+            json={"data": expected_body},
         )
-
-    async def test_add_task_async_with_position(
-        self, sections_client: SectionsClient, mock_http: MockHTTPClient
-    ) -> None:
-        """add_task_async with positioning."""
-        mock_http.post.return_value = {}
-
-        await sections_client.add_task_async("sec123", task="task456", insert_before="task_other")
-
-        call_args = mock_http.post.call_args
-        data = call_args[1]["json"]["data"]
-        assert data["task"] == "task456"
-        assert data["insert_before"] == "task_other"
 
     async def test_insert_section_async(
         self, sections_client: SectionsClient, mock_http: MockHTTPClient
