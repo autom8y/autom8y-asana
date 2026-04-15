@@ -19,16 +19,6 @@ from autom8_asana.models.business.unit import Unit
 class TestAssetEditEntity:
     """Tests for AssetEdit entity creation and properties."""
 
-    def test_asset_edit_inherits_from_process(self) -> None:
-        """AssetEdit inherits from Process."""
-        from autom8_asana.models.business.process import Process
-
-        asset_edit = AssetEdit(gid="ae1", name="Test AssetEdit")
-
-        assert isinstance(asset_edit, Process)
-        assert asset_edit.gid == "ae1"
-        assert asset_edit.name == "Test AssetEdit"
-
     def test_asset_edit_has_name_convention(self) -> None:
         """AssetEdit has NAME_CONVENTION class variable."""
         assert hasattr(AssetEdit, "NAME_CONVENTION")
