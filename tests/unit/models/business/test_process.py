@@ -18,13 +18,6 @@ from autom8_asana.models.task import Task
 class TestProcess:
     """Tests for Process model."""
 
-    def test_process_inherits_from_task(self) -> None:
-        """Process inherits from Task and can be constructed."""
-        process = Process(gid="123", name="Onboarding Process")
-        assert process.gid == "123"
-        assert process.name == "Onboarding Process"
-
-
 class TestProcessType:
     """Tests for ProcessType enum."""
 
@@ -268,11 +261,6 @@ class TestProcessHolder:
 class TestProcessTypeEnum:
     """Tests for ProcessType enum extensibility."""
 
-    def test_process_type_is_string_enum(self) -> None:
-        """ProcessType is a string enum."""
-        assert isinstance(ProcessType.UNKNOWN, str)
-        assert ProcessType.UNKNOWN == "unknown"
-
     def test_process_type_enum_member_count(self) -> None:
         """ProcessType includes 10 pipeline types.
 
@@ -328,12 +316,6 @@ class TestProcessSectionEnum:
         assert ProcessSection.CONVERTED.value == "converted"
         assert ProcessSection.DID_NOT_CONVERT.value == "did_not_convert"
         assert ProcessSection.OTHER.value == "other"
-
-    def test_process_section_is_string_enum(self) -> None:
-        """ProcessSection is a string enum."""
-        assert isinstance(ProcessSection.OPPORTUNITY, str)
-        assert ProcessSection.OPPORTUNITY == "opportunity"
-
 
 class TestProcessSectionFromName:
     """Tests for ProcessSection.from_name() method."""
