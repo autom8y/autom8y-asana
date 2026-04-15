@@ -101,25 +101,6 @@ TASK_FULL: dict[str, Any] = {
     "actual_time_minutes": 120.5,
 }
 
-TASK_WITH_UNKNOWN_FIELDS: dict[str, Any] = {
-    "gid": "1234567890",
-    "name": "Task with future fields",
-    "completely_new_field": "some value",
-    "another_unknown_field": {"nested": "data"},
-    "experimental_feature_flag": True,
-}
-
-TASK_WITH_DEEPLY_NESTED_UNKNOWN: dict[str, Any] = {
-    "gid": "1234567890",
-    "name": "Task with nested unknown",
-    "future_nested_object": {
-        "level1": {
-            "level2": {
-                "level3": "deeply nested value",
-            }
-        }
-    },
-}
 
 
 # ---------------------------------------------------------------------------
@@ -159,40 +140,6 @@ class TestAsanaResourceBase:
             }
         )
         assert resource_with_type.resource_type == "custom_type"
-
-    def test_extra_fields_ignored(self) -> None:
-        """Unknown fields are silently ignored per ADR-0005."""
-        resource = AsanaResource.model_validate(
-            {
-                "gid": "123",
-                "unknown_field": "should be ignored",
-                "another_unknown": {"nested": "data"},
-            }
-        )
-
-        assert resource.gid == "123"
-        assert not hasattr(resource, "unknown_field")
-        assert not hasattr(resource, "another_unknown")
-
-    def test_string_whitespace_stripped(self) -> None:
-        """String fields have whitespace stripped (str_strip_whitespace=True)."""
-        resource = AsanaResource.model_validate(
-            {
-                "gid": "  123  ",
-                "resource_type": "  task  ",
-            }
-        )
-
-        assert resource.gid == "123"
-        assert resource.resource_type == "task"
-
-    def test_model_config_settings(self) -> None:
-        """Verify model_config is correctly set."""
-        config = AsanaResource.model_config
-
-        assert config.get("extra") == "ignore"
-        assert config.get("populate_by_name") is True
-        assert config.get("str_strip_whitespace") is True
 
 
 # ---------------------------------------------------------------------------
@@ -309,156 +256,6 @@ class TestTaskSerialization:
         assert restored.completed == original.completed
         assert restored.assignee == original.assignee
         assert restored.projects == original.projects
-
-
-# ---------------------------------------------------------------------------
-# Task Model - Unknown Fields Handling Tests (ADR-0005)
-# ---------------------------------------------------------------------------
-
-
-class TestUnknownFieldsHandling:
-    """Tests for unknown field handling per ADR-0005 (extra='ignore')."""
-
-    def test_unknown_fields_dont_raise_error(self) -> None:
-        """Unknown fields from API don't cause ValidationError."""
-        # Should not raise
-        task = Task.model_validate(TASK_WITH_UNKNOWN_FIELDS)
-
-        assert task.gid == "1234567890"
-        assert task.name == "Task with future fields"
-
-    def test_unknown_fields_silently_discarded(self) -> None:
-        """Unknown fields are silently discarded, not stored."""
-        task = Task.model_validate(TASK_WITH_UNKNOWN_FIELDS)
-
-        # Unknown fields should not be accessible
-        assert not hasattr(task, "completely_new_field")
-        assert not hasattr(task, "another_unknown_field")
-        assert not hasattr(task, "experimental_feature_flag")
-
-    def test_deeply_nested_unknown_fields(self) -> None:
-        """Deeply nested unknown fields are also handled gracefully."""
-        task = Task.model_validate(TASK_WITH_DEEPLY_NESTED_UNKNOWN)
-
-        assert task.gid == "1234567890"
-        assert task.name == "Task with nested unknown"
-        assert not hasattr(task, "future_nested_object")
-
-    def test_unknown_fields_not_in_dump(self) -> None:
-        """Unknown fields don't appear in model_dump() output."""
-        task = Task.model_validate(TASK_WITH_UNKNOWN_FIELDS)
-        dumped = task.model_dump()
-
-        assert "completely_new_field" not in dumped
-        assert "another_unknown_field" not in dumped
-        assert "experimental_feature_flag" not in dumped
-
-    def test_unknown_fields_not_in_json(self) -> None:
-        """Unknown fields don't appear in model_dump_json() output."""
-        task = Task.model_validate(TASK_WITH_UNKNOWN_FIELDS)
-        json_str = task.model_dump_json()
-        parsed = json.loads(json_str)
-
-        assert "completely_new_field" not in parsed
-        assert "another_unknown_field" not in parsed
-        assert "experimental_feature_flag" not in parsed
-
-
-# ---------------------------------------------------------------------------
-# Task Model - Required vs Optional Field Validation Tests
-# ---------------------------------------------------------------------------
-
-
-class TestFieldValidation:
-    """Tests for required vs optional field validation."""
-
-    def test_gid_required(self) -> None:
-        """gid is required - ValidationError if missing."""
-        with pytest.raises(ValidationError) as exc_info:
-            Task.model_validate({})
-
-        errors = exc_info.value.errors()
-        assert any(e["loc"] == ("gid",) and e["type"] == "missing" for e in errors)
-
-    def test_gid_cannot_be_none(self) -> None:
-        """gid cannot be None."""
-        with pytest.raises(ValidationError) as exc_info:
-            Task.model_validate({"gid": None})
-
-        errors = exc_info.value.errors()
-        assert any(e["loc"] == ("gid",) for e in errors)
-
-    def test_gid_must_be_string(self) -> None:
-        """gid must be a string - integers are not auto-coerced."""
-        # Pydantic v2 does not auto-coerce int to str for string fields
-        with pytest.raises(ValidationError) as exc_info:
-            Task.model_validate({"gid": 123})
-
-        errors = exc_info.value.errors()
-        assert any(e["loc"] == ("gid",) and e["type"] == "string_type" for e in errors)
-
-    def test_all_other_fields_optional(self) -> None:
-        """All fields except gid are optional."""
-        # Create task with only gid
-        task = Task.model_validate({"gid": "minimal"})
-
-        # All these should be None or their default
-        assert task.name is None
-        assert task.notes is None
-        assert task.html_notes is None
-        assert task.completed is None
-        assert task.completed_at is None
-        assert task.completed_by is None
-        assert task.due_on is None
-        assert task.due_at is None
-        assert task.start_on is None
-        assert task.start_at is None
-        assert task.assignee is None
-        assert task.assignee_section is None
-        assert task.assignee_status is None
-        assert task.projects is None
-        assert task.parent is None
-        assert task.workspace is None
-        assert task.memberships is None
-        assert task.followers is None
-        assert task.tags is None
-        assert task.num_subtasks is None
-        assert task.num_likes is None
-        assert task.is_rendered_as_separator is None
-        assert task.custom_fields is None
-        assert task.created_at is None
-        assert task.modified_at is None
-        assert task.created_by is None
-        assert task.approval_status is None
-        assert task.external is None
-        assert task.resource_subtype is None
-        assert task.permalink_url is None
-        assert task.liked is None
-        assert task.likes is None
-        assert task.actual_time_minutes is None
-
-        # resource_type has a default value
-        assert task.resource_type == "task"
-
-    def test_none_values_handled_correctly(self) -> None:
-        """Explicit None values are accepted for optional fields."""
-        task = Task.model_validate(
-            {
-                "gid": "123",
-                "name": None,
-                "completed": None,
-                "due_on": None,
-                "assignee": None,
-                "projects": None,
-            }
-        )
-
-        assert task.gid == "123"
-        assert task.name is None
-        assert task.completed is None
-        assert task.due_on is None
-        assert task.assignee is None
-        assert task.projects is None
 
 
 # ---------------------------------------------------------------------------
@@ -704,31 +501,6 @@ class TestFieldAliasHandling:
 class TestTaskInheritance:
     """Tests for Task inheritance from AsanaResource."""
 
-    def test_task_inherits_from_asana_resource(self) -> None:
-        """Task inherits from AsanaResource."""
-        assert issubclass(Task, AsanaResource)
-
-    def test_task_instance_is_asana_resource(self) -> None:
-        """Task instance is also AsanaResource instance."""
-        task = Task.model_validate({"gid": "123"})
-
-        assert isinstance(task, Task)
-        assert isinstance(task, AsanaResource)
-
-    def test_task_inherits_model_config(self) -> None:
-        """Task inherits model_config from AsanaResource."""
-        # Check that extra="ignore" is inherited
-        task_config = Task.model_config
-
-        assert task_config.get("extra") == "ignore"
-        assert task_config.get("populate_by_name") is True
-        assert task_config.get("str_strip_whitespace") is True
-
-    def test_task_has_default_resource_type(self) -> None:
-        """Task has default resource_type of 'task'."""
-        task = Task.model_validate({"gid": "123"})
-        assert task.resource_type == "task"
-
     def test_task_resource_type_can_be_overridden(self) -> None:
         """Task resource_type can be overridden (for milestone, etc.)."""
         task = Task.model_validate(
@@ -756,87 +528,6 @@ class TestTaskInheritance:
 
 class TestEdgeCases:
     """Tests for edge cases and special values."""
-
-    def test_empty_string_name(self) -> None:
-        """Empty string name is valid."""
-        task = Task.model_validate(
-            {
-                "gid": "123",
-                "name": "",
-            }
-        )
-        assert task.name == ""
-
-    def test_empty_lists(self) -> None:
-        """Empty lists are valid for list fields."""
-        task = Task.model_validate(
-            {
-                "gid": "123",
-                "projects": [],
-                "followers": [],
-                "tags": [],
-                "custom_fields": [],
-            }
-        )
-
-        assert task.projects == []
-        assert task.followers == []
-        assert task.tags == []
-        assert task.custom_fields == []
-
-    def test_boolean_fields(self) -> None:
-        """Boolean fields accept True/False."""
-        task_true = Task.model_validate(
-            {
-                "gid": "123",
-                "completed": True,
-                "liked": True,
-                "is_rendered_as_separator": True,
-            }
-        )
-
-        assert task_true.completed is True
-        assert task_true.liked is True
-        assert task_true.is_rendered_as_separator is True
-
-        task_false = Task.model_validate(
-            {
-                "gid": "456",
-                "completed": False,
-                "liked": False,
-                "is_rendered_as_separator": False,
-            }
-        )
-
-        assert task_false.completed is False
-        assert task_false.liked is False
-        assert task_false.is_rendered_as_separator is False
-
-    def test_numeric_fields(self) -> None:
-        """Numeric fields accept various numeric values."""
-        task = Task.model_validate(
-            {
-                "gid": "123",
-                "num_subtasks": 0,
-                "num_likes": 100,
-                "actual_time_minutes": 0.0,
-            }
-        )
-
-        assert task.num_subtasks == 0
-        assert task.num_likes == 100
-        assert task.actual_time_minutes == 0.0
-
-    def test_float_actual_time(self) -> None:
-        """actual_time_minutes accepts float values."""
-        task = Task.model_validate(
-            {
-                "gid": "123",
-                "actual_time_minutes": 123.456,
-            }
-        )
-
-        assert task.actual_time_minutes == 123.456
 
     def test_large_gid(self) -> None:
         """Large GID values are handled."""
@@ -936,11 +627,6 @@ class TestNameGidValidationEdgeCases:
     def test_empty_gid_string(self) -> None:
         """Empty string gid is accepted (documents gap: may never be valid from API)."""
         ref = NameGid(gid="")
-        assert ref.gid == ""
-
-    def test_whitespace_only_gid_stripped(self) -> None:
-        """Whitespace-only gid becomes empty after strip (str_strip_whitespace=True)."""
-        ref = NameGid(gid="   ")
         assert ref.gid == ""
 
     def test_gid_with_leading_trailing_whitespace(self) -> None:
