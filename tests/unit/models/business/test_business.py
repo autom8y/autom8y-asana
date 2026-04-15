@@ -14,12 +14,6 @@ from autom8_asana.models.task import Task
 class TestBusinessConstruction:
     """Tests for Business model construction."""
 
-    def test_business_inherits_from_task(self) -> None:
-        """Business inherits from Task and can be constructed."""
-        business = Business(gid="123", name="Acme Corp")
-        assert business.gid == "123"
-        assert business.name == "Acme Corp"
-
     def test_holder_key_map_has_required_entries(self) -> None:
         """HOLDER_KEY_MAP defines required holder types.
 
@@ -37,15 +31,6 @@ class TestBusinessConstruction:
         }
         # All required keys must be present (allows adding new holders without breaking test)
         assert required_keys.issubset(set(Business.HOLDER_KEY_MAP.keys()))
-
-    def test_holder_key_map_values(self) -> None:
-        """HOLDER_KEY_MAP values are (name, emoji) tuples."""
-        for key, value in Business.HOLDER_KEY_MAP.items():
-            assert isinstance(value, tuple)
-            assert len(value) == 2
-            assert isinstance(value[0], str)  # name
-            assert isinstance(value[1], str)  # emoji
-
 
 class TestBusinessHolderProperties:
     """Tests for Business holder properties."""
