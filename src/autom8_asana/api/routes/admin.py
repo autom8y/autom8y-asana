@@ -31,6 +31,13 @@ router = s2s_router(prefix="/v1/admin", tags=["admin"], include_in_schema=False)
 
 VALID_ENTITY_TYPES = set(ENTITY_TYPES)
 
+# Bedrock W4C-P3 / SEC-DT-10 / D-017: Super-admin gate for fleet-wide
+# cache-purge button. Mirrors the canonical fleet permission convention
+# documented in autom8y_auth.dependencies.require_permission("admin:access").
+# Without this gate the endpoint is reachable by any ServiceJWT, exposing
+# a documented MEDIUM-severity DOS + invalidation-timing leak.
+SUPER_ADMIN_PERMISSION = "admin:access"
+
 
 class CacheRefreshRequest(BaseModel):
     """Request body for cache refresh endpoint.
@@ -421,6 +428,30 @@ async def refresh_cache(
     from autom8_asana.services.resolver import EntityProjectRegistry
 
     request_id = getattr(request.state, "request_id", "unknown")
+
+    # Super-admin gate (Bedrock W4C-P3 / SEC-DT-10): only ServiceAccounts
+    # provisioned with the canonical "admin:access" permission may purge
+    # the fleet-wide cache. All other authenticated S2S callers are
+    # rejected with 403 INSUFFICIENT_PRIVILEGE.
+    if SUPER_ADMIN_PERMISSION not in claims.permissions:
+        logger.warning(
+            "admin_cache_refresh_forbidden_non_super_admin",
+            extra={
+                "request_id": request_id,
+                "caller_service": claims.service_name,
+                "caller_sub": claims.sub,
+                "required_permission": SUPER_ADMIN_PERMISSION,
+            },
+        )
+        raise_api_error(
+            request_id,
+            403,
+            "INSUFFICIENT_PRIVILEGE",
+            (
+                f"Service token lacks required permission "
+                f"'{SUPER_ADMIN_PERMISSION}' for fleet-wide cache refresh."
+            ),
+        )
 
     # Validate entity type
     if body.entity_type is not None and body.entity_type not in VALID_ENTITY_TYPES:

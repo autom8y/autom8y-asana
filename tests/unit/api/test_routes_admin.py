@@ -13,9 +13,11 @@ from fastapi.testclient import TestClient
 
 from autom8_asana.api.dependencies import AuthContext, get_auth_context
 from autom8_asana.api.routes.admin import (
+    SUPER_ADMIN_PERMISSION,
     VALID_ENTITY_TYPES,
     CacheRefreshRequest,
     CacheRefreshResponse,
+    refresh_cache,
     router,
 )
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
@@ -41,11 +43,28 @@ def app() -> FastAPI:
 
 @pytest.fixture
 def mock_service_claims() -> ServiceClaims:
-    """Create mock service claims for S2S auth."""
+    """Create mock service claims for S2S auth (super-admin SA).
+
+    Carries the canonical ``admin:access`` permission so the W4C-P3
+    super-admin gate on /v1/admin/cache/refresh permits the call. Tests
+    that need a non-super-admin caller use ``mock_non_super_admin_claims``.
+    """
     return ServiceClaims(
         sub="service-123",
         service_name="test-service",
         scope="multi-tenant",
+        permissions=[SUPER_ADMIN_PERMISSION],
+    )
+
+
+@pytest.fixture
+def mock_non_super_admin_claims() -> ServiceClaims:
+    """Create mock service claims WITHOUT the super-admin permission."""
+    return ServiceClaims(
+        sub="service-456",
+        service_name="non-admin-service",
+        scope="multi-tenant",
+        permissions=["data:read", "tasks:write"],
     )
 
 
@@ -343,3 +362,181 @@ class TestCacheRefreshModels:
         assert resp.status == "accepted"
         assert resp.entity_types == ["offer"]
         assert resp.refresh_id == "test-uuid"
+
+
+class TestAdminRefreshSuperAdminGate:
+    """Bedrock W4C-P3 / SEC-DT-10 / D-017.
+
+    The fleet-wide cache-purge endpoint must be reachable only by
+    ServiceAccounts provisioned with the canonical ``admin:access``
+    permission. Any other authenticated S2S caller must be rejected
+    with 403 INSUFFICIENT_PRIVILEGE.
+
+    These tests prove BOTH paths so the regression cannot recur:
+      1. super-admin SA -> 202 (proceeds normally)
+      2. non-super-admin SA -> 403 (rejected before any side effects)
+    """
+
+    def test_admin_cache_refresh_super_admin_proceeds(
+        self,
+        app: FastAPI,
+        mock_service_claims: ServiceClaims,
+    ) -> None:
+        """Super-admin SA (carrying ``admin:access``) is allowed through."""
+
+        async def override_require_service_claims() -> ServiceClaims:
+            return mock_service_claims
+
+        async def override_get_auth_context() -> AuthContext:
+            return AuthContext(
+                mode=AuthMode.JWT,
+                asana_pat="test_bot_pat",
+                caller_service=mock_service_claims.service_name,
+            )
+
+        app.dependency_overrides[require_service_claims] = override_require_service_claims
+        app.dependency_overrides[get_auth_context] = override_get_auth_context
+
+        # Sanity-check the fixture actually carries the gating permission
+        assert SUPER_ADMIN_PERMISSION in mock_service_claims.permissions
+
+        client = TestClient(app)
+        with (
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
+            ) as mock_registry_cls,
+        ):
+            mock_registry = MagicMock()
+            mock_registry.is_ready.return_value = True
+            mock_registry_cls.return_value = mock_registry
+
+            response = client.post(
+                "/v1/admin/cache/refresh",
+                json={"entity_type": "offer"},
+            )
+
+        assert response.status_code == 202, response.text
+        body = response.json()
+        assert body["status"] == "accepted"
+        assert body["entity_types"] == ["offer"]
+
+    def test_admin_cache_refresh_non_super_admin_rejected(
+        self,
+        app: FastAPI,
+        mock_non_super_admin_claims: ServiceClaims,
+    ) -> None:
+        """Non-super-admin SA is rejected with 403 INSUFFICIENT_PRIVILEGE.
+
+        Crucially, the rejection must happen before any cache or
+        registry side effects — we patch them to raise so any leakage
+        through the gate would also surface as a test failure.
+        """
+
+        async def override_require_service_claims() -> ServiceClaims:
+            return mock_non_super_admin_claims
+
+        async def override_get_auth_context() -> AuthContext:
+            return AuthContext(
+                mode=AuthMode.JWT,
+                asana_pat="test_bot_pat",
+                caller_service=mock_non_super_admin_claims.service_name,
+            )
+
+        app.dependency_overrides[require_service_claims] = override_require_service_claims
+        app.dependency_overrides[get_auth_context] = override_get_auth_context
+
+        # Sanity-check the fixture lacks the gating permission
+        assert SUPER_ADMIN_PERMISSION not in mock_non_super_admin_claims.permissions
+
+        client = TestClient(app)
+        # Patch the side-effect collaborators to raise — if the gate
+        # leaks the call would attempt these and surface a different
+        # error than the expected 403 INSUFFICIENT_PRIVILEGE.
+        with (
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                side_effect=AssertionError(
+                    "cache lookup must not run for non-super-admin caller",
+                ),
+            ),
+            patch(
+                "autom8_asana.services.resolver.EntityProjectRegistry.get_instance",
+                side_effect=AssertionError(
+                    "registry lookup must not run for non-super-admin caller",
+                ),
+            ),
+        ):
+            response = client.post(
+                "/v1/admin/cache/refresh",
+                json={"entity_type": "offer"},
+            )
+
+        assert response.status_code == 403, response.text
+        body = response.json()
+        assert body["error"]["code"] == "INSUFFICIENT_PRIVILEGE"
+        assert SUPER_ADMIN_PERMISSION in body["error"]["message"]
+
+    def test_admin_cache_refresh_empty_permissions_rejected(
+        self,
+        app: FastAPI,
+    ) -> None:
+        """ServiceJWT with NO permissions list is rejected (defense in depth)."""
+        empty_claims = ServiceClaims(
+            sub="service-empty",
+            service_name="empty-perms-service",
+            scope=None,
+            permissions=[],
+        )
+
+        async def override_require_service_claims() -> ServiceClaims:
+            return empty_claims
+
+        async def override_get_auth_context() -> AuthContext:
+            return AuthContext(
+                mode=AuthMode.JWT,
+                asana_pat="test_bot_pat",
+                caller_service=empty_claims.service_name,
+            )
+
+        app.dependency_overrides[require_service_claims] = override_require_service_claims
+        app.dependency_overrides[get_auth_context] = override_get_auth_context
+
+        client = TestClient(app)
+        response = client.post(
+            "/v1/admin/cache/refresh",
+            json={},
+        )
+
+        assert response.status_code == 403, response.text
+        assert response.json()["error"]["code"] == "INSUFFICIENT_PRIVILEGE"
+
+
+class TestAdminRefreshSuperAdminGuard:
+    """Static guard ensuring the super-admin gate is wired into the route.
+
+    A regression that drops the permission check would still pass the
+    behavioural tests above only if the dependency overrides hide the
+    bug — this guard inspects the source of the route handler and the
+    module-level constant so any silent removal trips the test suite.
+    """
+
+    def test_super_admin_permission_constant_is_canonical(self) -> None:
+        """Permission string must match the autom8y-auth canonical convention."""
+        assert SUPER_ADMIN_PERMISSION == "admin:access"
+
+    def test_route_handler_references_super_admin_permission(self) -> None:
+        """The route handler source must reference the gating constant."""
+        import inspect
+
+        source = inspect.getsource(refresh_cache)
+        assert "SUPER_ADMIN_PERMISSION" in source, (
+            "refresh_cache must enforce SUPER_ADMIN_PERMISSION; "
+            "regression of Bedrock W4C-P3 / SEC-DT-10."
+        )
+        assert "INSUFFICIENT_PRIVILEGE" in source, (
+            "refresh_cache must surface INSUFFICIENT_PRIVILEGE on non-super-admin callers."
+        )

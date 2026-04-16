@@ -32,10 +32,17 @@ def app() -> FastAPI:
 
 @pytest.fixture
 def mock_service_claims() -> ServiceClaims:
+    """Super-admin SA fixture (W4C-P3 / SEC-DT-10).
+
+    Carries ``admin:access`` so the super-admin gate on
+    /v1/admin/cache/refresh permits adversarial input tests to
+    exercise the route logic itself rather than the auth gate.
+    """
     return ServiceClaims(
         sub="service-123",
         service_name="test-service",
         scope="multi-tenant",
+        permissions=["admin:access"],
     )
 
 
