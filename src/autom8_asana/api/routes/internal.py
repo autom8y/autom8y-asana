@@ -37,11 +37,16 @@ class ServiceClaims(BaseModel):
         sub: Subject (service identifier)
         service_name: Name of the calling service
         scope: Permission scope (e.g., multi-tenant)
+        permissions: Service permissions populated from ServiceAccount scopes.
+            Used for fine-grained authorization on privileged routes
+            (e.g., super-admin gating on /v1/admin/cache/refresh per
+            Bedrock W4C-P3 / SEC-DT-10).
     """
 
     sub: str
     service_name: str
     scope: str | None = None
+    permissions: list[str] = []
 
 
 # --- Authentication Dependencies ---
@@ -153,6 +158,7 @@ async def require_service_claims(request: Request) -> ServiceClaims:
         sub=claims.sub,
         service_name=claims.service_name,
         scope=claims.scope,
+        permissions=list(claims.permissions),
     )
 
 
