@@ -41,7 +41,9 @@ ENV UV_COMPILE_BYTECODE=1 \
 WORKDIR /app
 
 # Copy dependency manifests first (layer caching)
-COPY --link pyproject.toml uv.lock ./
+# README.md is required by pyproject.toml metadata (readme = "README.md");
+# hatchling build backend reads it during `uv sync` local-project build.
+COPY --link pyproject.toml uv.lock README.md ./
 
 # Copy source code
 COPY --link src ./src
