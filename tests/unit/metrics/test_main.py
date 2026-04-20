@@ -51,6 +51,18 @@ class TestCliErrors:
 class TestCliCompute:
     """Test metric computation via CLI."""
 
+    @pytest.fixture(autouse=True)
+    def _set_cli_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Satisfy the CFG-006 preflight for the duration of each test.
+
+        TestCliCompute exercises CLI composition (arg parsing, metric lookup,
+        result formatting) — not the preflight gate itself. The preflight
+        contract (CFG-006) is correct; these tests need env isolation so they
+        pass regardless of the invoking shell's state (CI, fresh clone, etc.).
+        """
+        monkeypatch.setenv("ASANA_CACHE_S3_BUCKET", "autom8-s3")
+        monkeypatch.setenv("ASANA_CACHE_S3_REGION", "us-east-1")
+
     def test_compute_with_mocked_loader(self, capsys: pytest.CaptureFixture[str]) -> None:
         """CLI computes metric when loader returns valid DataFrame."""
         mock_df = pl.DataFrame(

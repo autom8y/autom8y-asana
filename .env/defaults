@@ -13,10 +13,10 @@ ASANA_CW_ENVIRONMENT=development
 # S3 cache backend (CLI and offline workflows)
 # ---------------------------------------------------------------------------
 # Bucket naming note: `autom8-s3` (no `y`) is the known-working dev bucket —
-# the org-branded `autom8y-s3` bucket exists but is currently empty. CFG-004
-# in the sprint ADR trail records the canonical decision; until that decision
-# is recorded, `autom8-s3` is the authoritative dev value and is mirrored in
+# the org-branded `autom8y-s3` bucket exists but is currently empty.
+# ADR-0002 (`.ledge/decisions/ADR-bucket-naming.md`) records the canonical
+# decision: `autom8-s3` is the authoritative dev value and is mirrored in
 # docker-compose.override.yml:33. Do not change this value to `autom8y-s3`
-# without resolving CFG-004 first.
+# without revisiting ADR-0002 first.
 ASANA_CACHE_S3_BUCKET=autom8-s3
 ASANA_CACHE_S3_REGION=us-east-1
