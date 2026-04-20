@@ -610,7 +610,7 @@ class TestBackwardCompatibilityDeep:
 
     def test_mrr_parity_realistic(self, realistic_offer_df: pl.DataFrame) -> None:
         """MRR totals match between old and new logic on realistic data."""
-        # Old script logic (from calc_mrr.py)
+        # Reference logic mirroring the dedup approach used by the canonical CLI
         old = (
             realistic_offer_df.select("name", "office_phone", "vertical", "mrr")
             .with_columns(pl.col("mrr").cast(pl.Float64, strict=False).alias("mrr"))
