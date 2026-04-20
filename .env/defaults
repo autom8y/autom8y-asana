@@ -1,3 +1,22 @@
 # Project non-secrets for autom8y-asana (committed).
 # Ecosystem defaults loaded from .a8/autom8y/env.defaults (Layer 1).
+#
+# Layer 3 of the 6-layer _a8_load_env loader (scripts/a8-devenv.sh:_a8_load_env,
+# lines 310-417). This file is sourced under `set -a` at lines 377-383, which
+# auto-exports every assignment to the shell environment. Later layers (4-6)
+# override values set here; earlier layers (1-2) are overridden by this file.
+# Fresh clone + `direnv allow` loads this file automatically via .envrc.
+
 ASANA_CW_ENVIRONMENT=development
+
+# ---------------------------------------------------------------------------
+# S3 cache backend (CLI and offline workflows)
+# ---------------------------------------------------------------------------
+# Bucket naming note: `autom8-s3` (no `y`) is the known-working dev bucket —
+# the org-branded `autom8y-s3` bucket exists but is currently empty.
+# ADR-0002 (`.ledge/decisions/ADR-bucket-naming.md`) records the canonical
+# decision: `autom8-s3` is the authoritative dev value and is mirrored in
+# docker-compose.override.yml:33. Do not change this value to `autom8y-s3`
+# without revisiting ADR-0002 first.
+ASANA_CACHE_S3_BUCKET=autom8-s3
+ASANA_CACHE_S3_REGION=us-east-1

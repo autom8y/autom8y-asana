@@ -1,7 +1,37 @@
-# Local secrets -- copy to .env/local and fill in real values.
-# This file is committed; .env/local is gitignored.
+# =============================================================================
+# .env/local.example -- Template for .env/local (Layer 5, gitignored)
 #
-# Fetch from AWS:
+# USAGE
+# -----
+#   cp .env/local.example .env/local
+#   # Then fill in ASANA_PAT and ASANA_WORKSPACE_GID (see Secrets section below).
+#
+# Any variable set in .env/local overrides the same-named variable from
+# .env/defaults (Layer 3). Layer-3 vars a dev may want to override here:
+#   - ASANA_CW_ENVIRONMENT   (default: development)
+#   - ASANA_CACHE_S3_BUCKET  (default: autom8-s3)
+#   - ASANA_CACHE_S3_REGION  (default: us-east-1)
+#
+# =============================================================================
+# 6-LAYER ENV LOADER PRECEDENCE
+# Defined in scripts/a8-devenv.sh:_a8_load_env (lines 362-406).
+# Later layers override earlier layers.
+#
+# Layer  File path                         Committed  Encrypted  Typical contents
+# -----  --------------------------------  ---------  ---------  -----------------------------------------------
+# 1      .a8/{org}/env.defaults            Yes        No         Ecosystem non-secrets (line 364)
+# 2      .a8/{org}/secrets.shared          Yes        Yes        Ecosystem shared secrets (line 374)
+# 3      .env/defaults                     Yes        No         Project non-secrets: S3 defaults, env name (line 377)
+# 4      .env/secrets                      Yes        Yes        Project encrypted secrets (line 385)
+# 5      .env/local  <-- THIS FILE         No         No         Local developer overrides, secrets (line 388)
+# 6      .envrc.local                      No         No         Shell-level overrides, sourced by direnv (line 406)
+# =============================================================================
+
+# =============================================================================
+# SECRETS  (required -- fetch from AWS or fill in manually)
+# =============================================================================
+#
+# Fetch all at once:
 #   just fetch-secrets
 #
 # Or manually:
@@ -9,3 +39,30 @@
 #   aws secretsmanager get-secret-value --secret-id "autom8y/asana/asana-workspace-gid" --query SecretString --output text
 ASANA_PAT=REPLACE_WITH_ACTUAL_ASANA_PAT
 ASANA_WORKSPACE_GID=REPLACE_WITH_ACTUAL_WORKSPACE_GID
+
+# =============================================================================
+# CACHE / OFFLINE OVERRIDES  (optional -- commented out by default)
+#
+# These vars have Layer-3 defaults in .env/defaults. Uncomment and edit only
+# if you need to target a different bucket or region than the project default.
+# =============================================================================
+
+# Uncomment to override Layer 3 default `autom8-s3` -- see .env/defaults
+# ASANA_CACHE_S3_BUCKET=your-personal-dev-bucket
+
+# Uncomment to override Layer 3 default `us-east-1` -- see .env/defaults
+# ASANA_CACHE_S3_REGION=us-east-1
+
+# Uncomment for LocalStack (see docker-compose.override.yml:34 for the compose value)
+# ASANA_CACHE_S3_ENDPOINT_URL=http://localstack:4566
+
+# =============================================================================
+# OPTIONAL: LocalStack compose target
+#
+# To hit the docker-compose LocalStack instead of real AWS, set:
+#   ASANA_CACHE_S3_ENDPOINT_URL=http://localstack:4566
+#   ASANA_CACHE_S3_BUCKET=autom8-s3
+#
+# Both values are already configured in docker-compose.override.yml for the
+# containerised CLI path. The overrides above are only needed for host-side runs.
+# =============================================================================

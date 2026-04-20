@@ -263,7 +263,7 @@ class TestS3Settings:
         with patch.dict(os.environ, {}, clear=True):
             settings = S3Settings()
 
-        assert settings.bucket == ""
+        assert settings.bucket == "autom8-s3"  # canonical default per ADR-0002
         assert settings.prefix == "asana-cache"
         assert settings.region == "us-east-1"
         assert settings.endpoint_url is None

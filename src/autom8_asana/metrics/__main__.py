@@ -9,7 +9,109 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
+import pathlib
+import subprocess
 import sys
+
+# ---------------------------------------------------------------------------
+# CLI preflight — Alternative C (TDD-0001-cli-preflight-contract, CFG-006)
+# Subprocess-first (secretspec check --profile cli) with inline fallback when
+# the binary is absent. Called inside main() immediately before load_project_dataframe.
+# Exit code 2 distinguishes preflight contract violations from runtime errors (exit 1).
+# ---------------------------------------------------------------------------
+
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
+
+# Variables declared required=true under [profiles.cli] in secretspec.toml (ADR-0001).
+# Keep in sync with secretspec.toml:[profiles.cli]. See tests/unit/metrics/test_main.py::TestPreflightParity::test_inline_and_secretspec_enforce_same_required_vars.
+_CLI_REQUIRED = ("ASANA_CACHE_S3_BUCKET", "ASANA_CACHE_S3_REGION")
+
+
+def _emit_preflight_error(missing: list[str]) -> None:
+    """Write the structured actionable error to stderr. Does not exit."""
+    root = _REPO_ROOT
+    missing_lines = "\n".join(f"  - {v}" for v in missing)
+    msg = f"""\
+ERROR: CLI preflight failed — [profiles.cli] contract in secretspec.toml requires the following env var(s) but they are unset or empty:
+{missing_lines}
+
+This CLI entrypoint (python -m autom8_asana.metrics) runs under the 'cli' profile of secretspec.toml,
+which is strict about S3 cache configuration. See:
+
+  1. .env/defaults                (committed, Layer 3) — set committed project defaults here
+     path: {root}/.env/defaults
+  2. .env/local.example → .env/local  (example committed; .env/local is gitignored, Layer 5)
+     path: {root}/.env/local.example
+     copy: cp .env/local.example .env/local   # then edit .env/local with real values
+  3. secretspec.toml              (the contract itself — declares which vars are required under --profile cli)
+     path: {root}/secretspec.toml
+     validate: secretspec check --config secretspec.toml --provider env --profile cli
+
+Typical fix: ensure .env/defaults contains ASANA_CACHE_S3_BUCKET and ASANA_CACHE_S3_REGION,
+then re-run 'direnv allow' (or source the env manually) and retry."""
+    print(msg, file=sys.stderr)
+
+
+def _preflight_inline_fallback() -> None:
+    """Inline fallback when secretspec binary is absent. Checks _CLI_REQUIRED vars."""
+    missing = [v for v in _CLI_REQUIRED if not os.environ.get(v)]
+    if missing:
+        _emit_preflight_error(missing)
+        sys.exit(2)
+
+
+def _preflight_cli_profile() -> None:
+    """Run secretspec check --profile cli; fall back to inline check if binary missing.
+
+    Silent on success. Writes actionable error to stderr and exits 2 on failure.
+    See TDD-0001-cli-preflight-contract.md for the full behavioral specification.
+    """
+    secretspec_cmd = [
+        "secretspec",
+        "check",
+        "--config",
+        str(_REPO_ROOT / "secretspec.toml"),
+        "--provider",
+        "env",
+        "--profile",
+        "cli",
+    ]
+    try:
+        result = subprocess.run(
+            secretspec_cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except (FileNotFoundError, PermissionError):
+        # secretspec binary unavailable — announce fallback and run inline check.
+        print(
+            "WARNING: secretspec binary not found; using inline preflight check.",
+            file=sys.stderr,
+        )
+        _preflight_inline_fallback()
+        return
+    except subprocess.TimeoutExpired:
+        # Treat timeout as binary unavailable; fall back rather than block startup.
+        print(
+            "WARNING: secretspec timed out; using inline preflight check.",
+            file=sys.stderr,
+        )
+        _preflight_inline_fallback()
+        return
+
+    if result.returncode != 0:
+        # secretspec reported a violation — extract missing var names from its stderr.
+        # Fall back to the inline tuple if parsing produces an empty list.
+        import re
+
+        raw = result.stderr or ""
+        found = re.findall(r"\b(ASANA_\w+|AUTOM8\w*)\b", raw)
+        missing = found if found else list(_CLI_REQUIRED)
+        _emit_preflight_error(missing)
+        sys.exit(2)
 
 
 def main() -> None:
@@ -77,6 +179,11 @@ def main() -> None:
             )
             sys.exit(1)
         project_gid = classifier.project_gid
+
+    # CLI preflight — TDD-0001-cli-preflight-contract, CFG-006
+    # Runs here: after arg parsing + cheap prerequisite checks, before any S3 call.
+    # --list path is already gone (early return above); GID is resolved.
+    _preflight_cli_profile()
 
     # Load data
     try:

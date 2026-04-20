@@ -267,7 +267,7 @@ class TestComputeParity:
     """Parity tests: new metrics layer produces same totals as old scripts."""
 
     def test_mrr_parity(self, sample_offer_df: pl.DataFrame) -> None:
-        """active_mrr metric matches calc_mrr logic on same data."""
+        """active_mrr metric matches the dedup logic used by `python -m autom8_asana.metrics active_mrr`."""
         metric = _make_metric(
             "mrr",
             cast_dtype=pl.Float64,
