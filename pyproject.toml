@@ -29,6 +29,10 @@ dependencies = [
     "boto3>=1.42.19", # S3 for progressive cache warming (asyncio.to_thread)
     "pyyaml>=6.0.0", # YAML config parsing (lifecycle, automation, query/saved)
     "openpyxl>=3.1.0,<4.0", # Excel workbook generation (payment reconciliation bridge)
+    # E.164 phone parsing for matching/normalization (FR-M-008).
+    # Previously imported optionally from PhoneNormalizer; declared here per
+    # sprint-b-schema-convergence Item 9 to reconnect detached dependency.
+    "phonenumbers>=8.13.0",
 ]
 
 [project.optional-dependencies]
