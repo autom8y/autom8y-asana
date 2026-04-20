@@ -24,7 +24,7 @@ import sys
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 
 # Variables declared required=true under [profiles.cli] in secretspec.toml (ADR-0001).
-# Keep in sync with secretspec.toml:[profiles.cli]. A companion test asserts parity.
+# Keep in sync with secretspec.toml:[profiles.cli]. See tests/unit/metrics/test_main.py::TestPreflightParity::test_inline_and_secretspec_enforce_same_required_vars.
 _CLI_REQUIRED = ("ASANA_CACHE_S3_BUCKET", "ASANA_CACHE_S3_REGION")
 
 
