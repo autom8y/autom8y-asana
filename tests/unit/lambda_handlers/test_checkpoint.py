@@ -319,6 +319,7 @@ class TestCheckpointManager:
         """Manager resolves bucket from S3Settings Pydantic default (ADR-0002) when env not set."""
         with patch.dict("os.environ", {}, clear=True):
             from autom8_asana.settings import reset_settings
+
             reset_settings()  # clear singleton so Pydantic re-reads env
             mgr = CheckpointManager()
             assert mgr.bucket == "autom8-s3"
