@@ -474,8 +474,13 @@ class TestCreateIntakeBusinessEndpoint:
 
         assert resp.status_code == 201
 
-    def test_invalid_phone_400(self, client: TestClient) -> None:
-        """Non-E.164 phone returns 400 INVALID_PHONE_FORMAT."""
+    def test_invalid_phone_422(self, client: TestClient) -> None:
+        """Non-E.164 phone returns 422 (rejected at Pydantic deserialization).
+
+        Post-R03 migration: office_phone is OfficePhoneField (E.164 pattern
+        enforced by Pydantic), so invalid values are rejected before the route
+        handler runs. The custom 400/INVALID_PHONE_FORMAT path is superseded.
+        """
         body = {**MINIMAL_CREATE_BODY, "office_phone": "555-1234567"}
         patches = _create_patches()
 
@@ -486,9 +491,7 @@ class TestCreateIntakeBusinessEndpoint:
                 headers=AUTH_HEADER,
             )
 
-        assert resp.status_code == 400
-        data = resp.json()
-        assert data["error"]["code"] == "INVALID_PHONE_FORMAT"
+        assert resp.status_code == 422
 
     def test_requires_s2s_jwt(self, client: TestClient) -> None:
         """Missing auth header returns 401."""
