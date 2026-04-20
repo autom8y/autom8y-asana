@@ -40,7 +40,10 @@ class TestListTasks:
 
         assert response.status_code == 422
         error = response.json()["error"]
-        assert error["code"] == "FLEET-VAL-001"
+        # WS-B1+B2 P1-D: service-prefixed validation code (ASANA-VAL-001)
+        # supersedes the generic FLEET-VAL-001 per
+        # register_validation_handler(app, service_code_prefix="ASANA").
+        assert error["code"] == "ASANA-VAL-001"
         assert "exactly one" in str(error["details"]).lower()
 
     def test_list_tasks_rejects_both_project_and_section(

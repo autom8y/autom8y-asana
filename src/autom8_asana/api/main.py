@@ -446,11 +446,38 @@ def create_app() -> FastAPI:
     # --- Exception Handlers ---
     register_exception_handlers(app)
 
-    # Canonical 422 validation error handler (ADR-canonical-error-vocabulary D-03)
-    # Converts FastAPI's default {"detail": [...]} 422 into fleet ErrorResponse envelope.
+    # WS-B1+B2 P1-D: register the canonical 422 validation handler with the
+    # ASANA service prefix so ``RequestValidationError`` emits
+    # ``ASANA-VAL-001`` (per ADR-canonical-error-vocabulary D-03 / D-01).
+    # Supersedes the default 1.8.0 single-arg call that emitted the generic
+    # ``FLEET-VAL-001`` code and brings asana byte-for-byte in line with
+    # ads (ADS-VAL-001) and scheduling (SCHED-VAL-001) PT-03 captures.
     from autom8y_api_schemas.validation import register_validation_handler
 
-    register_validation_handler(app)
+    register_validation_handler(app, service_code_prefix="ASANA")
+
+    # WS-B1+B2 P1-D: Shared security headers middleware
+    # (ADR-canonical-error-vocabulary P1-A, SEC-013/SEC-022/SEC-026).
+    # Emits HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy,
+    # and Cache-Control: no-store on non-docs paths.  Header set is
+    # byte-identical to ads-headers.txt and scheduling-headers.txt
+    # (PT-03 cross-service drift gate; Sprint-5 will enforce diff=0).
+    from autom8y_api_schemas.middleware import SecurityHeadersMiddleware
+
+    app.add_middleware(SecurityHeadersMiddleware)
+
+    # WS-B1+B2 P1-D: FleetError catch-all handler routes any AsanaError
+    # subclass (AsanaValidationError, AsanaNotFoundError, AsanaAuthenticationError,
+    # etc.) through fleet_error_to_response for canonical envelope emission.
+    # More specific handlers registered by register_exception_handlers(app)
+    # above (e.g., NotFoundError, RateLimitError) take precedence.  This
+    # handler is the default fallback so no FleetError escapes as a 500
+    # without the canonical envelope.
+    from autom8y_api_schemas.errors import FleetError as _FleetError
+
+    from autom8_asana.api.errors import fleet_error_handler
+
+    app.exception_handler(_FleetError)(fleet_error_handler)
 
     # --- Custom OpenAPI spec enrichment (TDD-SPRINT1-CUSTOM-OPENAPI) ---
     # PKG-018: common boilerplate extracted to enrich_openapi_schema().

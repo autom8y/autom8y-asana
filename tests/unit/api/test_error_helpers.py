@@ -517,13 +517,31 @@ class TestTypedExceptionSites:
         assert "ApiAuthError" in source or "ApiServiceUnavailableError" in source
 
     def test_webhook_verify_token_is_migrated(self) -> None:
-        """verify_webhook_token uses raise_api_error helper (migrated from raw HTTPException)."""
+        """verify_webhook_token raises canonical FleetError subclasses.
+
+        Migration history:
+          - Pre-ADR-I6-001: raw ``HTTPException``.
+          - ADR-I6-001: ``raise_api_error`` helper (envelope-shaped detail).
+          - WS-B1+B2 P1-D: typed ``AsanaWebhook*Error`` subclasses of
+            ``FleetError`` for true canonical envelope emission via
+            ``fleet_error_handler``.
+
+        This test ensures we have NOT regressed to bare ``HTTPException``
+        and that we have moved all the way to the canonical typed
+        exceptions (no residual ``raise_api_error`` usage).
+        """
         import inspect
 
         from autom8_asana.api.routes import webhooks
 
         source = inspect.getsource(webhooks.verify_webhook_token)
-        assert "raise_api_error" in source
+        # Regression guard: must not raise bare HTTPException.
+        assert "raise HTTPException" not in source
+        # Must not use the legacy raise_api_error helper (Shape-C-ish).
+        assert "raise_api_error" not in source
+        # Must raise the WS-B1+B2 canonical typed exceptions.
+        assert "AsanaWebhookSignatureInvalidError" in source
+        assert "AsanaWebhookNotConfiguredError" in source
 
 
 # ===========================================================================

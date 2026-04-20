@@ -9,8 +9,13 @@ Per TDD-GAP-02 / PRD-GAP-02-webhook-inbound:
 from __future__ import annotations
 
 import hmac
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, ClassVar, Protocol, runtime_checkable
 
+from autom8y_api_schemas.errors import (
+    AsanaAuthenticationError,
+    AsanaDependencyError,
+    AsanaValidationError,
+)
 from autom8y_log import get_logger
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from fastapi.responses import JSONResponse
@@ -18,13 +23,95 @@ from pydantic import ValidationError
 
 from autom8_asana.api.dependencies import get_request_id
 from autom8_asana.api.error_responses import authenticated_responses
-from autom8_asana.api.errors import raise_api_error
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 from autom8_asana.models.task import Task
 from autom8_asana.settings import get_settings
 
 logger = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# WS-B1+B2 P1-D: webhook-specific typed errors
+#
+# Per ADR-canonical-error-vocabulary D-01/D-04 and the WS-B1 P1-A handoff
+# artifact, the ``asana.webhook.signature_invalid`` namespace is pre-reserved
+# in the fleet error code registry with wire code ``ASANA-AUTH-002``.  Below
+# we extend the canonical category bases with service-local subclasses that
+# carry webhook-specific SERVICE-CATEGORY-NNN codes.
+#
+# These are consumer-facing contracts: Asana's (and any legacy
+# Rules-action retry harness's) error parser MAY key on these wire codes.
+# ---------------------------------------------------------------------------
+
+
+class AsanaWebhookSignatureInvalidError(AsanaAuthenticationError):
+    """Webhook URL token missing or does not match configured secret.
+
+    Canonical namespace: ``asana.webhook.signature_invalid``
+    Wire code:           ``ASANA-AUTH-002``
+
+    Emitted by ``verify_webhook_token`` on both the
+    ``MISSING_TOKEN`` (no ``?token=``) and ``INVALID_TOKEN``
+    (timing-safe mismatch) paths.  Collapsing these two into a
+    single wire code is intentional: the consumer signal is the
+    same (authenticate-and-retry-with-correct-secret) and not
+    disambiguating them denies an attacker oracle information
+    about which side of the comparison failed.
+    """
+
+    code: ClassVar[str] = "ASANA-AUTH-002"
+    message: ClassVar[str] = "Webhook signature invalid"
+
+
+class AsanaWebhookNotConfiguredError(AsanaDependencyError):
+    """Webhook endpoint not configured (inbound token env var absent).
+
+    Canonical namespace: ``asana.webhook.not_configured``
+    Wire code:           ``ASANA-DEP-002``
+
+    Returns HTTP 503 — the endpoint is live but the service-side
+    secret is missing.  Retryable once the operator provisions
+    ``ASANA_WEBHOOK_INBOUND_TOKEN``.
+    """
+
+    status_code: ClassVar[int] = 503
+    code: ClassVar[str] = "ASANA-DEP-002"
+    message: ClassVar[str] = "Webhook endpoint is not configured"
+
+
+class AsanaWebhookInvalidJsonError(AsanaValidationError):
+    """Webhook request body is not valid JSON.
+
+    Canonical namespace: ``asana.webhook.invalid_json``
+    Wire code:           ``ASANA-VAL-002``
+    """
+
+    code: ClassVar[str] = "ASANA-VAL-002"
+    message: ClassVar[str] = "Request body must be valid JSON"
+
+
+class AsanaWebhookMissingGidError(AsanaValidationError):
+    """Webhook payload does not include the required ``gid`` field.
+
+    Canonical namespace: ``asana.webhook.missing_gid``
+    Wire code:           ``ASANA-VAL-003``
+    """
+
+    code: ClassVar[str] = "ASANA-VAL-003"
+    message: ClassVar[str] = "Task payload must include 'gid' field"
+
+
+class AsanaWebhookInvalidTaskError(AsanaValidationError):
+    """Webhook payload does not conform to the Task model.
+
+    Canonical namespace: ``asana.webhook.invalid_task``
+    Wire code:           ``ASANA-VAL-004``
+    """
+
+    code: ClassVar[str] = "ASANA-VAL-004"
+    message: ClassVar[str] = "Payload does not conform to Task model"
+
 
 # Combined error tuple for except clauses (star-unpacking not supported by mypy)
 _WEBHOOK_CACHE_ERRORS: tuple[type[Exception], ...] = (
@@ -128,51 +215,52 @@ def verify_webhook_token(
     Per FR-03: Timing-safe comparison of URL token against
     configured environment variable.
 
+    WS-B1+B2 P1-D: raises canonical ``FleetError`` subclasses so the
+    ``fleet_error_handler`` catch-all emits the canonical envelope with
+    ``ASANA-AUTH-002`` / ``ASANA-DEP-002`` wire codes. This is
+    consumer-facing behaviour — Asana's Rules-action retry harness may
+    key on the error code.
+
     Args:
-        request_id: Request ID for error correlation (via get_request_id dependency).
+        request_id: Request ID for error correlation (via get_request_id
+            dependency). Kept for log emission; envelope correlation is
+            handled by ``fleet_error_handler`` reading
+            ``request.state.request_id``.
         token: Token from ?token= query parameter.
 
     Returns:
         The verified token (unused by caller, but confirms auth).
 
     Raises:
-        HTTPException: 401 with request_id if token is missing, empty, or incorrect.
-        HTTPException: 503 with request_id if webhook token is not configured.
+        AsanaWebhookNotConfiguredError: 503 if inbound token env var absent.
+        AsanaWebhookSignatureInvalidError: 401 if token missing or incorrect.
     """
     settings = get_settings()
 
     expected_token = settings.webhook.inbound_token
     if not expected_token:
-        logger.error("webhook_token_not_configured")
-        raise_api_error(
-            request_id,
-            503,
-            "WEBHOOK_NOT_CONFIGURED",
-            "Webhook endpoint is not configured",
+        logger.error(
+            "webhook_token_not_configured",
+            extra={"request_id": request_id},
         )
+        raise AsanaWebhookNotConfiguredError()
 
     if not token:
         logger.warning(
             "webhook_token_missing",
-            extra={"reason": "no token query parameter"},
+            extra={"request_id": request_id, "reason": "no token query parameter"},
         )
-        raise_api_error(
-            request_id,
-            401,
-            "MISSING_TOKEN",
-            "Authentication required",
+        raise AsanaWebhookSignatureInvalidError(
+            headers={"WWW-Authenticate": "URLToken"},
         )
 
     if not hmac.compare_digest(token, expected_token):
         logger.warning(
             "webhook_token_invalid",
-            extra={"reason": "token mismatch"},
+            extra={"request_id": request_id, "reason": "token mismatch"},
         )
-        raise_api_error(
-            request_id,
-            401,
-            "INVALID_TOKEN",
-            "Authentication failed",
+        raise AsanaWebhookSignatureInvalidError(
+            headers={"WWW-Authenticate": "URLToken"},
         )
 
     return token
@@ -362,13 +450,8 @@ async def receive_inbound_webhook(
             "webhook_body_parse_error",
             extra={"content_type": request.headers.get("content-type")},
         )
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "INVALID_JSON",
-                "message": "Request body must be valid JSON",
-            },
-        )
+        # WS-B1+B2 P1-D: canonical envelope via fleet_error_handler.
+        raise AsanaWebhookInvalidJsonError()
 
     # Handle empty body (per EC-10)
     if not body:
@@ -391,13 +474,8 @@ async def receive_inbound_webhook(
             "webhook_missing_gid",
             extra={"has_body": bool(body), "body_type": type(body).__name__},
         )
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "MISSING_GID",
-                "message": "Task payload must include 'gid' field",
-            },
-        )
+        # WS-B1+B2 P1-D: canonical envelope via fleet_error_handler.
+        raise AsanaWebhookMissingGidError()
 
     # Parse into Task model
     try:
@@ -410,13 +488,8 @@ async def receive_inbound_webhook(
             "webhook_task_validation_error",
             extra={"error": str(exc)},
         )
-        return JSONResponse(
-            status_code=400,
-            content={
-                "error": "INVALID_TASK",
-                "message": "Payload does not conform to Task model",
-            },
-        )
+        # WS-B1+B2 P1-D: canonical envelope via fleet_error_handler.
+        raise AsanaWebhookInvalidTaskError(details={"reason": str(exc)})
 
     # Log accepted request (per FR-08 / SC-006)
     logger.info(

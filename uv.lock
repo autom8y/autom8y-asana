@@ -116,7 +116,7 @@ rate-limit = [
 
 [[package]]
 name = "autom8y-api-schemas"
-version = "1.8.0"
+version = "1.9.0"
 source = { editable = "../autom8y-api-schemas" }
 dependencies = [
     { name = "pydantic" },
@@ -142,7 +142,7 @@ provides-extras = ["fastapi", "dev"]
 
 [[package]]
 name = "autom8y-asana"
-version = "1.1.0"
+version = "1.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "arrow" },
@@ -158,6 +158,7 @@ dependencies = [
     { name = "httpx" },
     { name = "openpyxl" },
     { name = "opentelemetry-instrumentation-httpx" },
+    { name = "phonenumbers" },
     { name = "polars" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -231,7 +232,7 @@ requires-dist = [
     { name = "arrow", specifier = ">=1.3.0" },
     { name = "asana", specifier = ">=5.0.3" },
     { name = "autom8y-api-middleware", extras = ["rate-limit"], specifier = ">=0.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-api-schemas", marker = "extra == 'api'", specifier = ">=1.6.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-api-schemas", marker = "extra == 'api'", editable = "../autom8y-api-schemas" },
     { name = "autom8y-auth", extras = ["observability"], marker = "extra == 'auth'", specifier = ">=3.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-auth", extras = ["observability"], marker = "extra == 'dev'", specifier = ">=3.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-auth", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=3.3.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
@@ -260,6 +261,7 @@ requires-dist = [
     { name = "openapi-spec-validator", marker = "extra == 'dev'", specifier = ">=0.7.1" },
     { name = "openpyxl", specifier = ">=3.1.0,<4.0" },
     { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.42b0" },
+    { name = "phonenumbers", specifier = ">=8.13.0" },
     { name = "polars", specifier = ">=0.20.0" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "pydantic-settings", specifier = ">=2.0.0" },
@@ -406,15 +408,11 @@ dev = [
 
 [[package]]
 name = "autom8y-core"
-version = "3.0.0"
-source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+version = "3.1.0"
+source = { editable = "../autom8y/sdks/python/autom8y-core" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
-]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/3.0.0/autom8y_core-3.0.0.tar.gz", hash = "sha256:788097218d7f20123ec4a668d5401da65e32e3a5def6d2704526fd24dc7a5cf9" }
-wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/3.0.0/autom8y_core-3.0.0-py3-none-any.whl", hash = "sha256:c9ed891b3833b98e291612a5cfedc537fe46c0991bef747872a5d8d25a50776c" },
 ]
 
 [package.optional-dependencies]
@@ -429,6 +427,16 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'testing'", specifier = ">=7.0" },
 ]
 provides-extras = ["testing"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=1.0.0" },
+    { name = "pytest", specifier = ">=7.0.0" },
+    { name = "pytest-asyncio", specifier = ">=1.2,<2.0" },
+    { name = "pytest-cov", specifier = ">=4.0.0" },
+    { name = "respx", specifier = ">=0.20.0" },
+    { name = "ruff", specifier = ">=0.1.0" },
+]
 
 [[package]]
 name = "autom8y-events"
@@ -1854,6 +1862,15 @@ source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.ama
 sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/pathspec/1.0.4/pathspec-1.0.4.tar.gz", hash = "sha256:0210e2ae8a21a9137c0d470578cb0e595af87edaa6ebf12ff176f14a02e0e645" }
 wheels = [
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/pathspec/1.0.4/pathspec-1.0.4-py3-none-any.whl", hash = "sha256:fb6ae2fd4e7c921a165808a552060e722767cfa526f99ca5156ed2ce45a5c723" },
+]
+
+[[package]]
+name = "phonenumbers"
+version = "9.0.28"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/phonenumbers/9.0.28/phonenumbers-9.0.28.tar.gz", hash = "sha256:f1d810aaa43fbf3a5cb1ee54733218f8333a2a92c85c4d579a810403d6260a8c" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/phonenumbers/9.0.28/phonenumbers-9.0.28-py2.py3-none-any.whl", hash = "sha256:ee8caabab4fd554efb6119e7b95cb69da40e0f04050611730eed839d93f39920" },
 ]
 
 [[package]]

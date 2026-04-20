@@ -75,28 +75,43 @@ def mock_cache_provider():
     return provider
 
 
-@pytest.fixture
-def test_client(webhook_token):
-    """FastAPI TestClient with webhook token configured."""
+def _build_webhook_app():
+    """Build a TestClient FastAPI app with the webhook router AND the
+    WS-B1+B2 P1-D canonical exception handlers registered.
+
+    The webhook route now raises ``AsanaWebhook*Error`` subclasses of
+    ``FleetError`` for token/JSON/gid/task failures; without the fleet
+    handler registered, these would propagate as 500 Internal Server
+    Error during tests.  Mirrors the production ``create_app()`` wiring
+    for exception-handler registration but keeps the OpenAPI and
+    auth-middleware stack out of the test scope.
+    """
+    from autom8y_api_schemas.errors import FleetError
     from fastapi import FastAPI
 
+    from autom8_asana.api.errors import fleet_error_handler
     from autom8_asana.api.routes.webhooks import router
 
     app = FastAPI()
     app.include_router(router)
-    return TestClient(app)
+    app.exception_handler(FleetError)(fleet_error_handler)
+    return app
+
+
+@pytest.fixture
+def test_client(webhook_token):
+    """FastAPI TestClient with webhook token configured and canonical
+    FleetError handler wired up (matches production wiring).
+    """
+    return TestClient(_build_webhook_app())
 
 
 @pytest.fixture
 def test_client_unconfigured(unconfigured_token):
-    """FastAPI TestClient without webhook token configured."""
-    from fastapi import FastAPI
-
-    from autom8_asana.api.routes.webhooks import router
-
-    app = FastAPI()
-    app.include_router(router)
-    return TestClient(app)
+    """FastAPI TestClient without webhook token configured but WITH the
+    canonical FleetError handler wired up (matches production wiring).
+    """
+    return TestClient(_build_webhook_app())
 
 
 @pytest.fixture(autouse=True)
@@ -112,48 +127,55 @@ def reset_dispatcher():
 
 
 class TestVerifyWebhookToken:
-    """Tests for the verify_webhook_token dependency function."""
+    """Tests for the verify_webhook_token dependency function.
+
+    WS-B1+B2 P1-D: the function now raises canonical ``FleetError``
+    subclasses (``AsanaWebhookSignatureInvalidError`` /
+    ``AsanaWebhookNotConfiguredError``) instead of ``HTTPException``.
+    The HTTP response shape is asserted in ``TestReceiveInboundWebhook``
+    integration tests below.
+    """
 
     def test_valid_token_returns_token(self, webhook_token):
         """Valid token should be returned unchanged."""
         result = verify_webhook_token(request_id="test-req-id", token=_TEST_TOKEN)
         assert result == _TEST_TOKEN
 
-    def test_missing_token_raises_401(self, webhook_token):
-        """Missing token (None) should raise 401."""
-        from fastapi import HTTPException
+    def test_missing_token_raises_signature_invalid(self, webhook_token):
+        """Missing token (None) should raise AsanaWebhookSignatureInvalidError (401)."""
+        from autom8_asana.api.routes.webhooks import AsanaWebhookSignatureInvalidError
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AsanaWebhookSignatureInvalidError) as exc_info:
             verify_webhook_token(request_id="test-req-id", token=None)
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"]["code"] == "MISSING_TOKEN"
+        assert exc_info.value.__class__.code == "ASANA-AUTH-002"
 
-    def test_empty_token_raises_401(self, webhook_token):
-        """Empty string token should raise 401."""
-        from fastapi import HTTPException
+    def test_empty_token_raises_signature_invalid(self, webhook_token):
+        """Empty string token should raise AsanaWebhookSignatureInvalidError (401)."""
+        from autom8_asana.api.routes.webhooks import AsanaWebhookSignatureInvalidError
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AsanaWebhookSignatureInvalidError) as exc_info:
             verify_webhook_token(request_id="test-req-id", token="")
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"]["code"] == "MISSING_TOKEN"
+        assert exc_info.value.__class__.code == "ASANA-AUTH-002"
 
-    def test_wrong_token_raises_401(self, webhook_token):
-        """Incorrect token should raise 401."""
-        from fastapi import HTTPException
+    def test_wrong_token_raises_signature_invalid(self, webhook_token):
+        """Incorrect token should raise AsanaWebhookSignatureInvalidError (401)."""
+        from autom8_asana.api.routes.webhooks import AsanaWebhookSignatureInvalidError
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AsanaWebhookSignatureInvalidError) as exc_info:
             verify_webhook_token(request_id="test-req-id", token="wrong-token")
         assert exc_info.value.status_code == 401
-        assert exc_info.value.detail["error"]["code"] == "INVALID_TOKEN"
+        assert exc_info.value.__class__.code == "ASANA-AUTH-002"
 
-    def test_unconfigured_token_raises_503(self, unconfigured_token):
-        """When WEBHOOK_INBOUND_TOKEN is not set, should raise 503."""
-        from fastapi import HTTPException
+    def test_unconfigured_token_raises_not_configured(self, unconfigured_token):
+        """When WEBHOOK_INBOUND_TOKEN is not set, should raise AsanaWebhookNotConfiguredError (503)."""
+        from autom8_asana.api.routes.webhooks import AsanaWebhookNotConfiguredError
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(AsanaWebhookNotConfiguredError) as exc_info:
             verify_webhook_token(request_id="test-req-id", token="any-token")
         assert exc_info.value.status_code == 503
-        assert exc_info.value.detail["error"]["code"] == "WEBHOOK_NOT_CONFIGURED"
+        assert exc_info.value.__class__.code == "ASANA-DEP-002"
 
     def test_timing_safe_comparison_used(self, webhook_token):
         """Verify hmac.compare_digest is used for comparison."""
@@ -316,38 +338,66 @@ class TestReceiveInboundWebhook:
         assert response.status_code == 200
         assert response.json()["status"] == "accepted"
 
-    def test_missing_token_returns_401(self, test_client, sample_task_payload):
-        """Request without token should return 401."""
+    def test_missing_token_returns_canonical_signature_invalid_envelope(
+        self, test_client, sample_task_payload
+    ):
+        """Request without token should return 401 with canonical envelope
+        carrying ``ASANA-AUTH-002`` (asana.webhook.signature_invalid).
+        """
         response = test_client.post(
             "/api/v1/webhooks/inbound",
             json=sample_task_payload,
         )
 
         assert response.status_code == 401
-        assert response.json()["detail"]["error"]["code"] == "MISSING_TOKEN"
+        body = response.json()
+        # WS-B1+B2 P1-D: canonical envelope — {"error": {...}, "meta": {...}}.
+        assert "error" in body
+        assert body["error"]["code"] == "ASANA-AUTH-002"
+        assert body["error"]["retryable"] is False
+        assert "meta" in body
+        assert body["meta"]["request_id"]
 
-    def test_wrong_token_returns_401(self, test_client, sample_task_payload):
-        """Request with wrong token should return 401."""
+    def test_wrong_token_returns_canonical_signature_invalid_envelope(
+        self, test_client, sample_task_payload
+    ):
+        """Request with wrong token should return canonical ``ASANA-AUTH-002``
+        envelope (same code as missing — collapsed by design to deny
+        attacker oracle information about which side of the comparison
+        failed).
+        """
         response = test_client.post(
             "/api/v1/webhooks/inbound?token=wrong-token",
             json=sample_task_payload,
         )
 
         assert response.status_code == 401
-        assert response.json()["detail"]["error"]["code"] == "INVALID_TOKEN"
+        body = response.json()
+        assert body["error"]["code"] == "ASANA-AUTH-002"
+        assert body["meta"]["request_id"]
 
-    def test_unconfigured_token_returns_503(self, test_client_unconfigured, sample_task_payload):
-        """When token is not configured, should return 503."""
+    def test_unconfigured_token_returns_canonical_not_configured_envelope(
+        self, test_client_unconfigured, sample_task_payload
+    ):
+        """When token is not configured, should return 503 with canonical
+        ``ASANA-DEP-002`` envelope (asana.webhook.not_configured).
+        """
         response = test_client_unconfigured.post(
             "/api/v1/webhooks/inbound?token=any-token",
             json=sample_task_payload,
         )
 
         assert response.status_code == 503
-        assert response.json()["detail"]["error"]["code"] == "WEBHOOK_NOT_CONFIGURED"
+        body = response.json()
+        assert body["error"]["code"] == "ASANA-DEP-002"
+        # DEP category defaults to retryable=True in the fleet taxonomy.
+        assert body["error"]["retryable"] is True
+        assert body["meta"]["request_id"]
 
-    def test_non_json_body_returns_400(self, test_client):
-        """Non-JSON body should return 400."""
+    def test_non_json_body_returns_canonical_invalid_json_envelope(self, test_client):
+        """Non-JSON body should return 400 with canonical ``ASANA-VAL-002``
+        envelope (asana.webhook.invalid_json).
+        """
         response = test_client.post(
             f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
             content=b"not json",
@@ -355,7 +405,9 @@ class TestReceiveInboundWebhook:
         )
 
         assert response.status_code == 400
-        assert response.json()["error"] == "INVALID_JSON"
+        body = response.json()
+        assert body["error"]["code"] == "ASANA-VAL-002"
+        assert body["meta"]["request_id"]
 
     def test_empty_body_returns_200_with_warning(self, test_client):
         """Empty JSON body should return 200 with detail about empty payload."""
@@ -368,21 +420,26 @@ class TestReceiveInboundWebhook:
         assert response.json()["status"] == "accepted"
         assert "empty" in response.json()["detail"]
 
-    def test_missing_gid_returns_400(self, test_client):
-        """JSON without gid field should return 400."""
+    def test_missing_gid_returns_canonical_missing_gid_envelope(self, test_client):
+        """JSON without gid field should return 400 with canonical
+        ``ASANA-VAL-003`` envelope (asana.webhook.missing_gid).
+        """
         response = test_client.post(
             f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
             json={"name": "No GID Task"},
         )
 
         assert response.status_code == 400
-        assert response.json()["error"] == "MISSING_GID"
+        body = response.json()
+        assert body["error"]["code"] == "ASANA-VAL-003"
+        assert body["meta"]["request_id"]
 
-    def test_task_validation_error_returns_400(self, test_client):
-        """JSON that fails Task model validation should return 400."""
+    def test_task_validation_error_returns_canonical_invalid_task_envelope(self, test_client):
+        """JSON that fails Task model validation should return 400 with
+        canonical ``ASANA-VAL-004`` envelope (asana.webhook.invalid_task).
+        """
         # gid is required to be a string. Pydantic v2 with str_strip_whitespace
         # will coerce int->str, so we need a truly invalid scenario.
-        # AsanaResource requires gid: str, but pydantic coerces most types.
         # Use a mock to force validation failure.
         with patch(
             "autom8_asana.api.routes.webhooks.Task.model_validate",
@@ -394,7 +451,9 @@ class TestReceiveInboundWebhook:
             )
 
         assert response.status_code == 400
-        assert response.json()["error"] == "INVALID_TASK"
+        body = response.json()
+        assert body["error"]["code"] == "ASANA-VAL-004"
+        assert body["meta"]["request_id"]
 
     def test_background_task_enqueued(self, test_client, sample_task_payload):
         """Background task should be added via BackgroundTasks."""
@@ -638,12 +697,20 @@ class TestAdversarialTokenVerification:
         response_text = str(body)
         assert _TEST_TOKEN not in response_text
         assert "expected" not in response_text.lower()
-        # Error message is in detail.error.message (test_client uses plain FastAPI app)
-        detail = body.get("detail", {})
-        error_message = detail.get("error", {}).get("message", "")
-        assert "token" in error_message.lower() or error_message in (
-            "Authentication required",
-            "Authentication failed",
+        # WS-B1+B2 P1-D: canonical envelope at body["error"].
+        error_message = body.get("error", {}).get("message", "")
+        # The canonical message is the class-level "Webhook signature invalid"
+        # which does not expose token internals.  Accept either the new
+        # canonical string or the legacy "Authentication *" substrings.
+        assert (
+            "signature" in error_message.lower()
+            or "token" in error_message.lower()
+            or error_message
+            in (
+                "Authentication required",
+                "Authentication failed",
+                "Webhook signature invalid",
+            )
         )
 
     def test_no_info_leakage_on_wrong_token(self, test_client):
@@ -737,17 +804,23 @@ class TestAdversarialPayloadInjection:
         assert response.status_code == 200
 
     def test_whitespace_only_gid_returns_400(self, test_client):
-        """Whitespace-only gid should be rejected (stripped to empty by Pydantic)."""
+        """Whitespace-only gid should be rejected (stripped to empty by Pydantic).
+
+        WS-B1+B2 P1-D: canonical ``ASANA-VAL-003`` envelope.
+        """
         payload = {"gid": "   "}
         response = test_client.post(
             f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
             json=payload,
         )
         assert response.status_code == 400
-        assert response.json()["error"] == "MISSING_GID"
+        assert response.json()["error"]["code"] == "ASANA-VAL-003"
 
     def test_gid_is_integer_returns_400(self, test_client):
-        """Integer gid should be rejected (Task requires str gid)."""
+        """Integer gid should be rejected (Task requires str gid).
+
+        WS-B1+B2 P1-D: canonical ``ASANA-VAL-004`` envelope (invalid_task).
+        """
         payload = {"gid": 12345}
         response = test_client.post(
             f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
@@ -756,7 +829,7 @@ class TestAdversarialPayloadInjection:
         # body.get("gid") returns 12345 which is truthy, but Task.model_validate
         # will fail because gid must be a string. Should return 400.
         assert response.status_code == 400
-        assert response.json()["error"] == "INVALID_TASK"
+        assert response.json()["error"]["code"] == "ASANA-VAL-004"
 
     def test_gid_is_boolean_returns_400(self, test_client):
         """Boolean gid should be rejected."""
@@ -768,27 +841,33 @@ class TestAdversarialPayloadInjection:
         assert response.status_code == 400
 
     def test_gid_is_null_returns_400(self, test_client):
-        """Null gid should be rejected."""
+        """Null gid should be rejected.
+
+        WS-B1+B2 P1-D: canonical ``ASANA-VAL-003`` envelope.
+        """
         payload = {"gid": None}
         response = test_client.post(
             f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
             json=payload,
         )
         assert response.status_code == 400
-        assert response.json()["error"] == "MISSING_GID"
+        assert response.json()["error"]["code"] == "ASANA-VAL-003"
 
 
 class TestAdversarialPayloadStructure:
     """Adversarial tests for non-standard payload structures."""
 
     def test_array_payload_returns_400(self, test_client):
-        """JSON array payload should be rejected (not a dict)."""
+        """JSON array payload should be rejected (not a dict).
+
+        WS-B1+B2 P1-D: canonical ``ASANA-VAL-003`` envelope.
+        """
         response = test_client.post(
             f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
             json=[{"gid": "12345"}],
         )
         assert response.status_code == 400
-        assert response.json()["error"] == "MISSING_GID"
+        assert response.json()["error"]["code"] == "ASANA-VAL-003"
 
     def test_string_payload_returns_400(self, test_client):
         """JSON string payload should be rejected."""
@@ -866,6 +945,8 @@ class TestAdversarialPayloadStructure:
 
         FastAPI/Starlette's request.json() will attempt to parse regardless
         of content type. The behavior depends on the body contents.
+
+        WS-B1+B2 P1-D: canonical ``ASANA-VAL-002`` envelope.
         """
         response = test_client.post(
             f"/api/v1/webhooks/inbound?token={_TEST_TOKEN}",
@@ -873,7 +954,7 @@ class TestAdversarialPayloadStructure:
             headers={"content-type": "text/plain"},
         )
         assert response.status_code == 400
-        assert response.json()["error"] == "INVALID_JSON"
+        assert response.json()["error"]["code"] == "ASANA-VAL-002"
 
     def test_empty_content_type_with_valid_json(self, test_client):
         """No content-type header with valid JSON body should still work."""

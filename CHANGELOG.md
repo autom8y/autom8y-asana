@@ -16,6 +16,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@pytest.mark.slow` exclusion applied to PR gate only (CRU-S4-001)
 - 7 parametrized test groups consolidated from 26 raw tests to 9 parametrized cases (CRU-S3/S4 refactor series)
 
+## [1.2.0] - 2026-04-20
+
+### Added (WS-B1+B2 P1-D — envelope convergence + security headers)
+- **Canonical error envelope convergence** (per ADR-canonical-error-vocabulary D-01/D-03/D-04):
+  `register_validation_handler(app, service_code_prefix="ASANA")` now supersedes the
+  default single-argument registration, so `RequestValidationError` responses emit
+  `ASANA-VAL-001` instead of the generic `FLEET-VAL-001`.
+- **FleetError catch-all handler** (`fleet_error_handler`): routes any `AsanaError`
+  subclass (or any `FleetError` leaf) through `fleet_error_to_response`, guaranteeing
+  canonical `{"error": {...}, "meta": {...}}` envelopes with `retryable`/
+  `retry_after_seconds` body fields and non-empty `meta.request_id`.
+- **Shared security headers middleware** (`SecurityHeadersMiddleware` from
+  `autom8y_api_schemas.middleware`): HSTS, X-Frame-Options: DENY,
+  X-Content-Type-Options: nosniff, Referrer-Policy: strict-origin-when-cross-origin,
+  and Cache-Control: no-store on non-docs paths. Header set is byte-identical to
+  ads and scheduling (Sprint-5 PT-03 cross-service drift gate).
+- **Webhook canonical envelope**: five webhook-specific typed errors added to
+  `autom8_asana.api.routes.webhooks`, routed through the fleet handler:
+  `AsanaWebhookSignatureInvalidError` (401, `ASANA-AUTH-002` —
+  `asana.webhook.signature_invalid`),
+  `AsanaWebhookNotConfiguredError` (503, `ASANA-DEP-002`),
+  `AsanaWebhookInvalidJsonError` (400, `ASANA-VAL-002`),
+  `AsanaWebhookMissingGidError` (400, `ASANA-VAL-003`),
+  `AsanaWebhookInvalidTaskError` (400, `ASANA-VAL-004`). This is a consumer-facing
+  contract: Asana's Rules-action retry harness can now key on the wire code.
+- Integration tests `tests/integration/api/test_envelope_convergence.py` (11 new
+  tests) enforcing envelope shape, security-header byte-identity (against the ads
+  and scheduling PT-03 captures), and webhook signature-invalid canonical emission.
+- PT-03 capture artifacts at `.ledge/spikes/pt-03-captures/`:
+  `asana-envelope.json`, `asana-headers.txt`, and `asana-webhook-envelope.json`.
+
+### Changed
+- Bumped `autom8y-api-schemas` pin from `>=1.6.0` to `>=1.9.0` and switched to
+  an editable path source (`../autom8y-api-schemas`) matching the ads and
+  scheduling wiring pattern.
+- Version bump to 1.2.0 for the envelope convergence surface.
+
+### Removed (now routed through canonical envelope)
+- `raise_api_error()` usage in the webhook ingress path (`verify_webhook_token`,
+  `receive_inbound_webhook`). Webhook errors now raise typed `FleetError`
+  subclasses instead of `HTTPException`, eliminating the `{"detail": {...}}`
+  Shape-C path from the webhook surface. The `raise_api_error` helper remains
+  available for non-webhook callers that have not yet migrated.
+
 ### Fixed
 - Ruff format applied to `validate_pyproject.py` (fleet-conformance cascade)
 - Per-shard coverage threshold disabled (unblocks satellite-dispatch)

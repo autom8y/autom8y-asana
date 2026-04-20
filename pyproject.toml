@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "autom8y-asana"
-version = "1.1.0"
+version = "1.2.0"
 description = "Async-first Asana API client extracted from autom8"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -45,7 +45,7 @@ aws = [
 ]
 api = [
     "fastapi>=0.115.0",
-    "autom8y-api-schemas>=1.6.0",
+    "autom8y-api-schemas>=1.9.0",
     "uvicorn[standard]>=0.27.0",
     "slowapi>=0.1.9",
 ]
@@ -326,7 +326,7 @@ url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/
 # Platform primitive dependencies from CodeArtifact registry
 [tool.uv.sources]
 autom8y-api-middleware = { index = "autom8y" }
-autom8y-api-schemas = { index = "autom8y" }
+autom8y-api-schemas = { path = "../autom8y-api-schemas", editable = true }
 autom8y-auth = { index = "autom8y" }
 autom8y-cache = { index = "autom8y" }
 autom8y-client-sdk = { path = "../autom8y/sdks/python/autom8y-client-sdk", editable = true }

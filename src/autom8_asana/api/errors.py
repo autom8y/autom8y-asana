@@ -30,6 +30,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Never
 
+from autom8y_api_schemas.errors import FleetError, fleet_error_to_response
 from autom8y_http import RequestError
 from autom8y_log import get_logger
 from fastapi import FastAPI, HTTPException, Request
@@ -654,6 +655,52 @@ async def api_error_handler(
     )
 
 
+async def fleet_error_handler(
+    request: Request,
+    exc: FleetError,
+) -> JSONResponse:
+    """Handle any FleetError subclass with the canonical ErrorResponse envelope.
+
+    WS-B1+B2 P1-D: Catch-all handler that routes typed exceptions from the
+    fleet error hierarchy (``AsanaValidationError``, ``AsanaNotFoundError``,
+    ``AsanaAuthenticationError``, etc.) through
+    ``fleet_error_to_response`` so every emission carries a canonical
+    ``ASANA-<CATEGORY>-NNN`` code, ``retryable``/``retry_after_seconds``
+    body fields, and a non-empty ``meta.request_id``.
+
+    More specific handlers registered ahead of this one (``NotFoundError``,
+    ``RateLimitError``, SDK-surface handlers) take precedence for
+    domain-specific envelope shaping; this handler is the default fallback
+    so no ``FleetError`` escapes as a bare ``{"detail": ...}`` payload.
+
+    Args:
+        request: FastAPI request object (carries request_id in state).
+        exc: Any ``FleetError`` subclass instance.
+
+    Returns:
+        JSONResponse with canonical envelope, ``exc.status_code``, and
+        any per-instance headers (``Retry-After``, ``WWW-Authenticate``, etc.).
+    """
+    request_id = getattr(request.state, "request_id", None) or "unknown"
+    error_resp = fleet_error_to_response(exc, request_id=request_id)
+    headers = dict(exc.headers) if exc.headers else None
+    status_code = getattr(exc, "status_code", None) or exc.__class__.status_code
+    logger.info(
+        "fleet_error",
+        extra={
+            "request_id": request_id,
+            "error_code": exc.__class__.code,
+            "status_code": status_code,
+            "exception_type": type(exc).__name__,
+        },
+    )
+    return JSONResponse(
+        status_code=status_code,
+        content=error_resp.model_dump(mode="json"),
+        headers=headers,
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all exception handlers with the FastAPI app.
 
@@ -698,6 +745,7 @@ __all__ = [
     # Individual handlers (for testing)
     "asana_error_handler",
     "authentication_error_handler",
+    "fleet_error_handler",
     "forbidden_error_handler",
     "generic_error_handler",
     "not_found_handler",
