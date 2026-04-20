@@ -408,7 +408,7 @@ dev = [
 
 [[package]]
 name = "autom8y-core"
-version = "3.1.0"
+version = "3.2.0"
 source = { editable = "../autom8y/sdks/python/autom8y-core" }
 dependencies = [
     { name = "httpx" },

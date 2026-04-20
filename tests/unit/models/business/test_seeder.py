@@ -80,12 +80,12 @@ class TestContactData:
         data = ContactData(
             full_name="John Doe",
             contact_email="john@acme.com",
-            contact_phone="+1-555-555-5555",
+            contact_phone="+15555555555",
         )
 
         assert data.full_name == "John Doe"
         assert data.contact_email == "john@acme.com"
-        assert data.contact_phone == "+1-555-555-5555"
+        assert data.contact_phone == "+15555555555"
 
 
 # --- Test: ProcessData ---

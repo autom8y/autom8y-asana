@@ -38,6 +38,8 @@ from autom8_asana.reconciliation.section_registry import (
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
+    from autom8y_api_schemas import LeadPhoneField
+
 logger = get_logger(__name__)
 
 
@@ -92,7 +94,7 @@ class ReconciliationAction:
     """
 
     unit_gid: str
-    phone: str
+    phone: LeadPhoneField
     vertical: str
     current_section: str | None
     target_section: str | None

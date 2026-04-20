@@ -29,6 +29,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from autom8y_api_schemas import OfficePhoneField  # noqa: TC002
+
 from autom8_asana.automation.workflows.insights.tables import (
     TABLE_SPECS,
     DispatchType,
@@ -178,7 +180,7 @@ class InsightsReportData:
     """Input data for composing a full report."""
 
     business_name: str
-    office_phone: str
+    office_phone: OfficePhoneField
     vertical: str
     table_results: dict[str, TableResult]
     started_at: float  # time.monotonic() value
