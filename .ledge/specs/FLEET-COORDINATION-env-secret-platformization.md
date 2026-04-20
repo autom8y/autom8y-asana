@@ -59,6 +59,19 @@ Blockers that surfaced in multiple satellite sprints and are NOT caused by the e
 
 **Sprint-local handling** (documented in case future satellite sprints hit same class of blocker): Potnia through-line discipline — if a CI failure is (a) identical to main HEAD and (b) touches zero files in sprint scope, Potnia may recommend admin-merge with explicit stakeholder authorization. Scope-exoneration must be cited in both the HANDOFF-RESPONSE and the dashboard row status cell.
 
+## SRE rite items (Wave 4 closure)
+
+SRE items routed via cross-rite HANDOFF at `.ledge/reviews/HANDOFF-hygiene-asana-to-sre-2026-04-21.md`. Terminal states recorded here for fleet-visibility.
+
+| ID | Summary | Priority | Status | Disposition | ADR / Artifact |
+|---|---|---|---|---|---|
+| SRE-001 | Dispose or tag-and-warn the empty `autom8y-s3` bucket per ADR-0002 follow-up | medium | **CLOSED** (2026-04-21, S-SRE-B) | **TAG-AND-WARN + IAM deny-all** (reversible). Applied 5 deprecation tags (`Status=DEPRECATED`, `DeprecationReason=DO NOT USE - see ADR-0002`, `CanonicalAlias=autom8-s3`, `DeprecatedAt=2026-04-21`, `ADRReference=...ADR-bucket-naming.md`) preserving pre-existing TF-applied tags to avoid drift. Applied explicit-deny bucket policy on `s3:*` with `admin-*` / `OrganizationAccountAccessRole` / account-root allowlist for break-glass rollback. Verified denial of non-allowlisted principals. Investigation: bucket is TF-managed in `repos/autom8y/terraform/shared/main.tf:140-174`, empty, zero CloudTrail events in 30d, zero live application refs across fleet. DELETE rejected due to cloudtrail-entanglement + one-way-door asymmetry. | `.ledge/decisions/ADR-0003-bucket-disposition-autom8y-s3.md` (postscript to ADR-0002) |
+| SRE-003 | Observability SLI/SLO review for CFG-006 CLI preflight exit-code-2 behavior | low | **CLOSED** (2026-04-21, S-SRE-C) | **SKIP-WITH-RATIONALE.** Repo-wide grep confirms zero operational-runtime invocations of `python -m autom8_asana.metrics` (no hits in `.github/workflows/`, `Dockerfile*`, `docker-compose*`, `scripts/*.sh`, or `lambda_handlers/`). Zero programmatic consumers parse exit-code-2. No fleet precedent for dev-tooling SLOs (`.ledge/specs/SLO-*.md` empty). SLI on preflight-pass-rate would be cause-based (dev-env hygiene), not symptom-based (user impact), violating Beyer 2016 symptom-based alerting principle. CLI preflight is a humane dev-UX surface; retrofitting operational signal on top would be wrong-tool/wrong-layer. Revisit conditions documented in review §"Conditions that would change this disposition". | `.ledge/reviews/SRE-003-preflight-observability-review-2026-04-21.md` |
+
+**TF drift callout**: The tag-and-warn disposition creates immediate drift against `repos/autom8y/terraform/shared/main.tf` (5 tag additions not in TF code) + a new `aws_s3_bucket_policy.autom8y_deprecated` not in TF code. Resolution is an ecosystem-rite follow-up (add tags to `main.tf:143-147` + add the policy resource). Stub only; not opened this sprint. Next `terraform plan` on `terraform/shared/` will surface this drift as expected.
+
+**Soak window**: 30 days minimum before considering DELETE (Option B from ADR-0003). Evidence required: CloudTrail `ResourceName=autom8y-s3` shows zero access-denied events during soak.
+
 ## Terminal status vocabulary
 
 - `completed` — satellite sprint executed playbook steps, PR merged
