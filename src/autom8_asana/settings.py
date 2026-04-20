@@ -345,7 +345,10 @@ class S3Settings(Autom8yBaseSettings):
         case_sensitive=False,
     )
 
-    bucket: str = Field(default="", description="S3 bucket name for cache storage")
+    bucket: str = Field(
+        default="autom8-s3",
+        description="S3 bucket name for cache storage (canonical per ADR-0002)",
+    )
     prefix: str = Field(default="asana-cache", description="Key prefix for cached objects")
     region: str = Field(default="us-east-1", description="AWS region for S3 bucket")
     endpoint_url: str | None = Field(

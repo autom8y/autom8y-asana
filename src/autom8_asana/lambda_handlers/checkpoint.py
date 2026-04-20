@@ -8,7 +8,8 @@ window (default 1 hour) after which they are ignored.
 Key: s3://{bucket}/cache-warmer/checkpoints/latest.json
 
 Environment Variables:
-    ASANA_CACHE_S3_BUCKET: S3 bucket for checkpoint storage (default: autom8-s3)
+    ASANA_CACHE_S3_BUCKET: S3 bucket for checkpoint storage
+        (default resolved via S3Settings; see ADR-0002 for canonical name)
 """
 
 from __future__ import annotations
@@ -26,16 +27,15 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # Default configuration
-DEFAULT_BUCKET = "autom8-s3"
 DEFAULT_PREFIX = "cache-warmer/checkpoints/"
 DEFAULT_STALENESS_HOURS = 1.0
 
 
 def _default_bucket() -> str:
-    """Resolve S3 bucket from settings with fallback to DEFAULT_BUCKET."""
+    """Resolve S3 bucket from S3Settings (canonical per ADR-0002)."""
     from autom8_asana.settings import get_settings
 
-    return get_settings().s3.bucket or DEFAULT_BUCKET
+    return get_settings().s3.bucket
 
 
 @dataclass
@@ -145,7 +145,7 @@ class CheckpointManager:
         staleness_hours: Hours after which checkpoint is considered stale.
 
     Example:
-        >>> mgr = CheckpointManager(bucket="autom8-s3")
+        >>> mgr = CheckpointManager(bucket="autom8-s3")  # canonical name per ADR-0002
         >>> await mgr.save_async(
         ...     invocation_id="abc-123",
         ...     completed_entities=["unit"],

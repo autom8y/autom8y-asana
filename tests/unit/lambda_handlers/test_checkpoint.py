@@ -18,7 +18,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from autom8_asana.lambda_handlers.checkpoint import (
-    DEFAULT_BUCKET,
     DEFAULT_PREFIX,
     DEFAULT_STALENESS_HOURS,
     CheckpointManager,
@@ -316,11 +315,13 @@ class TestCheckpointManager:
             assert mgr.prefix == DEFAULT_PREFIX
             assert mgr.staleness_hours == DEFAULT_STALENESS_HOURS
 
-    def test_default_bucket_fallback(self) -> None:
-        """Manager falls back to DEFAULT_BUCKET when env not set."""
+    def test_default_bucket_from_settings(self) -> None:
+        """Manager resolves bucket from S3Settings Pydantic default (ADR-0002) when env not set."""
         with patch.dict("os.environ", {}, clear=True):
+            from autom8_asana.settings import reset_settings
+            reset_settings()  # clear singleton so Pydantic re-reads env
             mgr = CheckpointManager()
-            assert mgr.bucket == DEFAULT_BUCKET
+            assert mgr.bucket == "autom8-s3"
 
     def test_checkpoint_key(self, manager: CheckpointManager) -> None:
         """Checkpoint key is correctly formatted."""

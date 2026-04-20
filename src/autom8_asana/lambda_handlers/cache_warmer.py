@@ -270,7 +270,7 @@ async def _warm_cache_async(
 
     # Initialize checkpoint manager
     checkpoint_mgr = CheckpointManager(
-        bucket=get_settings().s3.bucket or "autom8-s3",
+        bucket=get_settings().s3.bucket,
     )
 
     # Initialize DataFrameCache if not already done
