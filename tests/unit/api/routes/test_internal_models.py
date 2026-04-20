@@ -58,6 +58,10 @@ class TestServiceClaims:
             "sub": "svc-1",
             "service_name": "autom8y-google",
             "scope": "read",
+            # permissions field added per Bedrock W4C-P3 / SEC-DT-10 (super-admin
+            # cache-refresh gating); default empty list when ServiceAccount has
+            # no scopes populated.
+            "permissions": [],
         }
 
     def test_model_dump_exclude_none(self) -> None:
