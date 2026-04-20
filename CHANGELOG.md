@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Cache refresh endpoint (`/v1/admin/cache/refresh`) restricted to super-admin service accounts (Bedrock W4C-P3, SEC-DT-10)
+
+### Changed
+- Bumped `autom8y-core` to `>=3.0.0,<4.0.0` (Operation Terminus alignment)
+- Hypothesis fuzz suite capped for CI (prevents runner SIGTERM on consumer-gate)
+- `@pytest.mark.slow` exclusion applied to PR gate only (CRU-S4-001)
+- 7 parametrized test groups consolidated from 26 raw tests to 9 parametrized cases (CRU-S3/S4 refactor series)
+
+### Fixed
+- Ruff format applied to `validate_pyproject.py` (fleet-conformance cascade)
+- Per-shard coverage threshold disabled (unblocks satellite-dispatch)
+- `ServiceClaims.permissions` field alignment in `test_model_dump` (unblocks satellite-dispatch)
+- README.md added to Docker build context (resolves satellite-receiver Docker build failure)
+
 ## [1.0.0] - 2025-12-31
 
 ### Breaking Changes
