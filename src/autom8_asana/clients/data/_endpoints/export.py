@@ -15,6 +15,8 @@ import re
 from datetime import date
 from typing import TYPE_CHECKING, Any
 
+from autom8y_api_schemas import OfficePhone
+
 from autom8_asana.clients.data import _retry as _retry_mod
 from autom8_asana.clients.data._policy import (
     DefaultEndpointPolicy,
@@ -134,7 +136,7 @@ async def _success_handler(
         csv_content=response.content,
         row_count=row_count,
         truncated=truncated,
-        office_phone=office_phone,
+        office_phone=OfficePhone(office_phone),
         filename=filename,
     )
 

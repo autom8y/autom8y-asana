@@ -11,7 +11,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from autom8y_api_schemas import LeadPhoneField, OfficePhoneField  # noqa: TC002
+from autom8y_api_schemas import LeadPhone, LeadPhoneField, OfficePhoneField  # noqa: TC002
 from autom8y_log import get_logger
 from pydantic import BaseModel, ConfigDict
 
@@ -486,7 +486,9 @@ class BusinessSeeder:
                     gid=hit.gid,
                     name=hit.name,
                     email=hit.matched_fields.get("email"),
-                    phone=hit.matched_fields.get("phone"),
+                    phone=LeadPhone(hit.matched_fields["phone"])
+                    if hit.matched_fields.get("phone")
+                    else None,
                     domain=hit.matched_fields.get("domain"),
                     city=hit.matched_fields.get("business_city"),
                     state=hit.matched_fields.get("business_state"),
