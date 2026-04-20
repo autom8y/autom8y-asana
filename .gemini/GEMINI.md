@@ -7,17 +7,15 @@ Use the available agents and slash commands. Agents activate automatically when 
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-7-agent workflow (eunomia):
+5-agent workflow (hygiene):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates governance phases, gates complexity, manages track selection and back-routes |
-| **test-cartographer** | Inventories test ecosystem (files, fixtures, mocks, coverage, adversarial file accumulation) |
-| **pipeline-cartographer** | Inventories CI/CD pipelines (workflows, actions, version skew, safety config, duplication) |
-| **entropy-assessor** | Grades entropy severity and health per category using weakest-link model |
-| **consolidation-planner** | Designs target state with atomic, independently-revertible change specifications |
-| **rationalization-executor** | Executes consolidation plan as atomic commits (one commit per planned change) |
-| **verification-auditor** | Validates execution against plan and baseline, computes entropy delta, issues verdict |
+| **potnia** | Coordinates code hygiene initiative phases |
+| **code-smeller** | Detects code smells and quality issues across codebase |
+| **architect-enforcer** | Plans refactoring approach and enforces architecture standards |
+| **janitor** | Executes code cleanup and improvements |
+| **audit-lead** | Audits cleanup results and provides quality signoff |
 
 Agents activate when your prompt matches their description.
 <!-- KNOSSOS:END quick-start -->
@@ -45,13 +43,11 @@ Agents cannot spawn other agents — only the main thread can dispatch sub-agent
 
 Prompts in `.gemini/agents/`:
 
-- `potnia.md` - Coordinates governance phases, gates complexity, manages track selection and back-routes
-- `test-cartographer.md` - Inventories test ecosystem (files, fixtures, mocks, coverage, adversarial file accumulation)
-- `pipeline-cartographer.md` - Inventories CI/CD pipelines (workflows, actions, version skew, safety config, duplication)
-- `entropy-assessor.md` - Grades entropy severity and health per category using weakest-link model
-- `consolidation-planner.md` - Designs target state with atomic, independently-revertible change specifications
-- `rationalization-executor.md` - Executes consolidation plan as atomic commits (one commit per planned change)
-- `verification-auditor.md` - Validates execution against plan and baseline, computes entropy delta, issues verdict
+- `potnia.md` - Coordinates code hygiene initiative phases
+- `code-smeller.md` - Detects code smells and quality issues across codebase
+- `architect-enforcer.md` - Plans refactoring approach and enforces architecture standards
+- `janitor.md` - Executes code cleanup and improvements
+- `audit-lead.md` - Audits cleanup results and provides quality signoff
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:
