@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from autom8y_api_schemas import LeadPhoneField, OfficePhoneField
 from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
@@ -91,7 +92,7 @@ class IntakeContact(BaseModel):
         description="Email address of the contact.",
         examples=["jane@acmechiro.com"],
     )
-    phone: str | None = Field(
+    phone: LeadPhoneField | None = Field(
         default=None,
         description="Phone number in E.164 format.",
         examples=["+19259998806"],
@@ -144,8 +145,7 @@ class IntakeBusinessCreateRequest(BaseModel):
         description="Business display name.",
         examples=["Acme Chiropractic"],
     )
-    office_phone: str = Field(
-        min_length=1,
+    office_phone: OfficePhoneField = Field(
         description="Primary office phone number in E.164 format.",
         examples=["+19259998806"],
     )

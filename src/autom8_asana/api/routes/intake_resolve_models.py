@@ -6,6 +6,7 @@ as the interop models in autom8y-client-sdk/asana/models.py.
 
 from __future__ import annotations
 
+from autom8y_api_schemas import LeadPhoneField, OfficePhoneField
 from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
@@ -22,8 +23,7 @@ class BusinessResolveRequest(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    office_phone: str = Field(
-        min_length=1,
+    office_phone: OfficePhoneField = Field(
         description="Office phone number in E.164 format. Primary lookup key.",
         examples=["+19259998806"],
     )
@@ -58,7 +58,7 @@ class BusinessResolveResponse(BaseModel):
         description="Resolved business display name.",
         examples=["Acme Chiropractic"],
     )
-    office_phone: str | None = Field(
+    office_phone: OfficePhoneField | None = Field(
         default=None,
         description="Office phone echoed back for request correlation.",
         examples=["+19259998806"],
@@ -107,7 +107,7 @@ class ContactResolveRequest(BaseModel):
         description="Email address for exact match on contact_email field.",
         examples=["jane@acmechiro.com"],
     )
-    phone: str | None = Field(
+    phone: LeadPhoneField | None = Field(
         default=None,
         description="Phone number in E.164 format for exact match on contact_phone field.",
         examples=["+14155551234"],
@@ -142,7 +142,7 @@ class ContactResolveResponse(BaseModel):
         description="Resolved contact email address.",
         examples=["jane@acmechiro.com"],
     )
-    phone: str | None = Field(
+    phone: LeadPhoneField | None = Field(
         default=None,
         description="Resolved contact phone number.",
         examples=["+14155551234"],

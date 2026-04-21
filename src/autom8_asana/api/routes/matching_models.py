@@ -11,6 +11,7 @@ Security constraints (HD-01):
 
 from __future__ import annotations
 
+from autom8y_api_schemas import LeadPhoneField
 from pydantic import BaseModel, ConfigDict, Field
 
 # ---------------------------------------------------------------------------
@@ -40,9 +41,9 @@ class MatchingQueryRequest(BaseModel):
         description="Business name for fuzzy matching.",
         examples=["Acme Chiropractic"],
     )
-    phone: str | None = Field(
+    phone: LeadPhoneField | None = Field(
         default=None,
-        description="Business phone number (any format, normalized internally).",
+        description="Business phone number in E.164 format.",
         examples=["+19259998806"],
     )
     email: str | None = Field(
