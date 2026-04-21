@@ -3370,6 +3370,7 @@
       "get": {
         "description": "Get section timelines for all offers in the Business Offers project.\n\nComputes ``active_section_days`` and ``billable_section_days`` for\neach offer by replaying its Asana section history within the specified\ndate range. Each entry also reports the offer's ``current_section`` and\n``current_classification``.\n\n**Performance**: Results are cached after the first computation.\n\n- Warm path (cache hit): < 2 seconds.\n- Cold path (cache miss): < 5 seconds. The endpoint computes on demand\n  from cached task stories, then stores the result for reuse.\n\n**Classification filter**: When provided, only entries whose current\nsection matches the requested classification are returned. Valid values:\n``active``, ``activating``, ``inactive``, ``ignored``.\n\nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n    period_start: Start date for day counting (inclusive, YYYY-MM-DD).\n    period_end: End date for day counting (inclusive, YYYY-MM-DD).\n    classification: Optional classification filter.\n\nReturns:\n    List of ``OfferTimelineEntry`` records for the period.\n\nRaises:\n    422: ``period_start`` is after ``period_end``.\n    422: ``classification`` is not a valid ``AccountActivity`` value.\n    502: Asana API failed during on-demand task enumeration.",
         "operationId": "get_offer_section_timelines_api_v1_offers_section_timelines_get",
+        "x-fleet-envelope-exempt": true,
         "parameters": [
           {
             "description": "Period start date (YYYY-MM-DD, inclusive)",
@@ -7897,6 +7898,7 @@
       "get": {
         "description": "Returns metadata for each registered data-service factory available for cross-service joins. Each entry includes the factory name, frame type, description, columns, and default period. Data-service factories provide virtual entities sourced from autom8y-data that can be joined with Asana-sourced entities in the query engine.",
         "operationId": "list_data_sources_v1_query_data_sources_get",
+        "x-fleet-envelope-exempt": true,
         "responses": {
           "200": {
             "content": {
@@ -7983,6 +7985,7 @@
       "get": {
         "description": "Returns column names from the virtual entity registry for a specific data-service factory. These columns are available for use in query predicates and select clauses when joining with this factory. Note that actual columns returned by autom8y-data may differ \u2014 this is an advisory list based on common factory configurations.",
         "operationId": "list_data_source_fields_v1_query_data_sources__factory__fields_get",
+        "x-fleet-envelope-exempt": true,
         "parameters": [
           {
             "in": "path",
@@ -8080,6 +8083,7 @@
       "get": {
         "description": "Returns all registered entity types that can be queried through the composable query engine. Each entry includes the entity type name, display name, project GID, and category. Use this to discover which entity types are available before calling /fields, /relations, or /sections for a specific type.",
         "operationId": "list_query_entities_v1_query_entities_get",
+        "x-fleet-envelope-exempt": true,
         "responses": {
           "200": {
             "content": {
@@ -8166,6 +8170,7 @@
       "get": {
         "description": "Returns column metadata for all fields available on the given entity type, including name, dtype, nullable flag, and description. Use this to discover which fields can be used in query predicates (where clauses) and select clauses when querying this entity type.",
         "operationId": "list_query_fields_v1_query__entity_type__fields_get",
+        "x-fleet-envelope-exempt": true,
         "parameters": [
           {
             "in": "path",
@@ -8263,6 +8268,7 @@
       "get": {
         "description": "Returns relationship metadata for all joinable entity types from the given entity type. Each relation includes target entity, direction, default join key, cardinality, and description. Use this to discover how entity types can be joined in cross-entity queries.",
         "operationId": "list_query_relations_v1_query__entity_type__relations_get",
+        "x-fleet-envelope-exempt": true,
         "parameters": [
           {
             "in": "path",
@@ -8360,6 +8366,7 @@
       "get": {
         "description": "Returns section metadata for the given entity type, including section name and classification (active, activating, inactive, ignored). Only entity types with a registered SectionClassifier are supported. Use this to discover valid section values for filtering queries by section or classification.",
         "operationId": "list_query_sections_v1_query__entity_type__sections_get",
+        "x-fleet-envelope-exempt": true,
         "parameters": [
           {
             "in": "path",
@@ -8457,6 +8464,7 @@
       "post": {
         "description": "Resolve business identifiers (phone/vertical, offer_id, etc.) to Asana task GIDs using entity-type-specific resolution strategies. Supports batch resolution of multiple criteria in a single request. Use GET /v1/resolve/{entity_type}/schema to discover valid criterion fields for each entity type.",
         "operationId": "resolve_entities_v1_resolve__entity_type__post",
+        "x-fleet-envelope-exempt": true,
         "parameters": [
           {
             "in": "path",
@@ -8568,6 +8576,7 @@
       "get": {
         "description": "Returns schema information including all fields that can be used in resolution criteria. When include_semantic=true, descriptions include structured YAML metadata with business meaning, data type semantics, cascade behavior, and resolution impact.",
         "operationId": "get_entity_schema_v1_resolve__entity_type__schema_get",
+        "x-fleet-envelope-exempt": true,
         "parameters": [
           {
             "in": "path",
@@ -8703,6 +8712,7 @@
       "get": {
         "description": "Returns the full enum documentation for a specific field on an entity type, including all valid values and their business meanings.",
         "operationId": "get_enum_detail_v1_resolve__entity_type__schema_enums__field_name__get",
+        "x-fleet-envelope-exempt": true,
         "parameters": [
           {
             "in": "path",
