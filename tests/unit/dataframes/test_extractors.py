@@ -90,7 +90,7 @@ def contact_resolver() -> MockCustomFieldResolver:
         {
             "full_name": "John Doe",
             "nickname": "Johnny",
-            "contact_phone": "+1-555-0123",
+            "contact_phone": "+15550100123",
             "contact_email": "john.doe@example.com",
             "position": "Manager",
             "employee_id": "EMP001",
@@ -638,13 +638,13 @@ class TestCascadeAsyncExtraction:
 
         with patch.object(extractor, "_get_cascading_resolver") as mock_get_cascade:
             mock_cascade_resolver = MagicMock()
-            mock_cascade_resolver.resolve_async = AsyncMock(return_value="555-4321")
+            mock_cascade_resolver.resolve_async = AsyncMock(return_value="+15551234321")
             mock_get_cascade.return_value = mock_cascade_resolver
 
             row = await extractor.extract_async(full_task)
 
             assert isinstance(row, UnitRow)
-            assert row.office_phone == "555-4321"
+            assert row.office_phone == "+15551234321"
 
     async def test_extract_async_cf_sources_still_work(self, full_task: Task) -> None:
         """Test that cf: sources still work with async extraction.
@@ -997,7 +997,7 @@ class TestContactExtractor:
 
         assert row.full_name == "John Doe"
         assert row.nickname == "Johnny"
-        assert row.contact_phone == "+1-555-0123"
+        assert row.contact_phone == "+15550100123"
         assert row.contact_email == "john.doe@example.com"
         assert row.position == "Manager"
         assert row.employee_id == "EMP001"
