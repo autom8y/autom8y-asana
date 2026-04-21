@@ -12,6 +12,7 @@ from dataclasses import dataclass as _dataclass
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
+from autom8y_api_schemas import OfficePhoneField
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 if TYPE_CHECKING:
@@ -60,7 +61,7 @@ class InsightsRequest(BaseModel):
     )
 
     # Filtering (required)  # noqa: ERA001
-    office_phone: str
+    office_phone: OfficePhoneField
     vertical: str
 
     # Time period
@@ -495,5 +496,5 @@ class ExportResult:
     csv_content: bytes
     row_count: int
     truncated: bool
-    office_phone: str
+    office_phone: OfficePhoneField
     filename: str

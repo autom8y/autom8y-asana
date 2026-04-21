@@ -22,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from autom8y_api_schemas import LeadPhone
 from autom8y_log import get_logger
 
 from autom8_asana.clients.utils.pii import mask_phone_number
@@ -37,6 +38,8 @@ from autom8_asana.reconciliation.section_registry import (
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+
+    from autom8y_api_schemas import LeadPhoneField
 
 logger = get_logger(__name__)
 
@@ -92,7 +95,7 @@ class ReconciliationAction:
     """
 
     unit_gid: str
-    phone: str
+    phone: LeadPhoneField
     vertical: str
     current_section: str | None
     target_section: str | None
@@ -525,7 +528,7 @@ class ReconciliationBatchProcessor:
                         result.actions.append(
                             ReconciliationAction(
                                 unit_gid=unit_gid,
-                                phone=mask_phone_number(phone),
+                                phone=LeadPhone(mask_phone_number(phone)),
                                 vertical=vertical,
                                 current_section=section_name,
                                 target_section=target_section,
@@ -623,7 +626,7 @@ class ReconciliationBatchProcessor:
                             result.actions.append(
                                 ReconciliationAction(
                                     unit_gid=unit_gid,
-                                    phone=mask_phone_number(phone),
+                                    phone=LeadPhone(mask_phone_number(phone)),
                                     vertical=vertical,
                                     current_section=section_name,
                                     target_section=target,

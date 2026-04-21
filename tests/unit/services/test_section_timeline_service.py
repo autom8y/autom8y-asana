@@ -756,7 +756,7 @@ class TestScaleBoundary:
                 gid=f"task_{i}",
                 created_at="2025-01-01T00:00:00.000Z",
                 section_name="ACTIVE",
-                office_phone=f"555-{i:04d}",
+                office_phone=f"+1206555{i:04d}",
                 offer_id=f"OFR-{i:04d}",
             )
             tasks.append(task)

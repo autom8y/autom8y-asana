@@ -18,6 +18,7 @@ from collections import OrderedDict
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Any
 
+from autom8y_api_schemas import OfficePhone
 from autom8y_log import get_logger
 
 from autom8_asana.models.business.activity import (
@@ -363,7 +364,7 @@ async def build_timeline_for_offer(
 
     return SectionTimeline(
         offer_gid=offer_gid,
-        office_phone=office_phone,
+        office_phone=OfficePhone(office_phone) if office_phone else None,
         offer_id=offer_id,
         intervals=tuple(intervals),
         task_created_at=task_created_at,
@@ -592,7 +593,7 @@ async def get_or_compute_timelines(
                 timelines.append(
                     SectionTimeline(
                         offer_gid=task_gid,
-                        office_phone=office_phone,
+                        office_phone=OfficePhone(office_phone) if office_phone else None,
                         offer_id=offer_id,
                         intervals=tuple(intervals),
                         task_created_at=task_created_at,
@@ -613,7 +614,7 @@ async def get_or_compute_timelines(
                         timelines.append(
                             SectionTimeline(
                                 offer_gid=task_gid,
-                                office_phone=office_phone,
+                                office_phone=OfficePhone(office_phone) if office_phone else None,
                                 offer_id=offer_id,
                                 intervals=tuple(intervals),
                                 task_created_at=task_created_at,

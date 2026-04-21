@@ -376,14 +376,14 @@ class TestOfferTimelineEntry:
         """API contract: Pydantic model serializes correctly."""
         entry = OfferTimelineEntry(
             offer_gid="1205925604226368",
-            office_phone="555-0100",
+            office_phone="+15550001000",
             active_section_days=7,
             billable_section_days=10,
         )
         data = entry.model_dump()
         assert data == {
             "offer_gid": "1205925604226368",
-            "office_phone": "555-0100",
+            "office_phone": "+15550001000",
             "offer_id": None,
             "active_section_days": 7,
             "billable_section_days": 10,
