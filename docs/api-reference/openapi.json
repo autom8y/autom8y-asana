@@ -955,7 +955,16 @@
           "office_phone": {
             "anyOf": [
               {
-                "type": "string"
+                "description": "Business phone in E.164 format (office_phone). Natural cross-service identity key for Business.",
+                "examples": [
+                  "+19259998806"
+                ],
+                "pattern": "^\\+[1-9]\\d{6,14}$",
+                "type": "string",
+                "x-fleet-entity": "business",
+                "x-fleet-key-type": "natural-key",
+                "x-fleet-role": "office",
+                "x-fleet-validator": "e164-phone"
               },
               {
                 "type": "null"

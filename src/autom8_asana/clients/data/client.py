@@ -12,6 +12,7 @@ import uuid
 from typing import TYPE_CHECKING, Any, cast
 
 # Platform SDK resilience primitives (autom8y-http >= 0.3.0)
+from autom8y_api_schemas import OfficePhone
 from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_http import (
     Autom8yHttpClient,
@@ -752,7 +753,7 @@ class DataServiceClient:
 
         # Build request body
         request = InsightsRequest(
-            office_phone=pvp.office_phone,
+            office_phone=OfficePhone(pvp.office_phone),
             vertical=pvp.vertical,
             insights_period=period,
             start_date=start_date,

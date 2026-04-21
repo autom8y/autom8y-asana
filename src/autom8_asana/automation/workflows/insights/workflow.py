@@ -19,6 +19,7 @@ from dataclasses import dataclass as _dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
+from autom8y_api_schemas import OfficePhone
 from autom8y_log import get_logger
 
 from autom8_asana.automation.workflows.base import (
@@ -512,7 +513,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             # Step D: Compose HTML report
             report_data = InsightsReportData(
                 business_name=business_name or offer_name or "Unknown",
-                office_phone=office_phone,
+                office_phone=OfficePhone(office_phone),
                 vertical=vertical,
                 table_results=table_results,
                 started_at=offer_start,

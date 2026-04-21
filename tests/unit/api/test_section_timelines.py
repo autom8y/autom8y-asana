@@ -20,7 +20,7 @@ def _mock_entries() -> list[OfferTimelineEntry]:
     return [
         OfferTimelineEntry(
             offer_gid="active_1",
-            office_phone="555-0100",
+            office_phone="+15550001000",
             offer_id="OFR-001",
             active_section_days=10,
             billable_section_days=10,
@@ -38,7 +38,7 @@ def _mock_entries() -> list[OfferTimelineEntry]:
         ),
         OfferTimelineEntry(
             offer_gid="inactive_1",
-            office_phone="555-0200",
+            office_phone="+15550002000",
             offer_id=None,
             active_section_days=0,
             billable_section_days=0,

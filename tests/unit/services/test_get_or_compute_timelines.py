@@ -47,7 +47,7 @@ def _utc(year: int, month: int, day: int, hour: int = 0) -> datetime:
 
 def _make_serialized_timeline(
     offer_gid: str = "offer1",
-    office_phone: str | None = "555-0100",
+    office_phone: str | None = "+15550001000",
     offer_id: str | None = None,
     entered_at: str = "2025-01-01T00:00:00+00:00",
     exited_at: str | None = None,

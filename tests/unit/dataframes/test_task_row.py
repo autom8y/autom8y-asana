@@ -46,7 +46,7 @@ def unit_task_data(base_task_data: dict[str, Any]) -> dict[str, Any]:
         "languages": ["English", "Spanish"],
         "discount": Decimal("10.5"),
         "office": "New York",
-        "office_phone": "+1-555-0123",
+        "office_phone": "+15550001230",
         "vertical": "Healthcare",
         "specialty": "Dental",
     }
@@ -60,7 +60,7 @@ def contact_task_data(base_task_data: dict[str, Any]) -> dict[str, Any]:
         "type": "Contact",
         "full_name": "John Doe",
         "nickname": "JD",
-        "contact_phone": "+1-555-0100",
+        "contact_phone": "+15550001000",
         "contact_email": "john.doe@example.com",
         "position": "CEO",
         "employee_id": "EMP001",
@@ -224,7 +224,7 @@ class TestUnitRowCreation:
         assert row.languages == ["English", "Spanish"]
         assert row.discount == Decimal("10.5")
         assert row.office == "New York"
-        assert row.office_phone == "+1-555-0123"
+        assert row.office_phone == "+15550001230"
         assert row.vertical == "Healthcare"
         assert row.specialty == "Dental"
 
@@ -312,7 +312,7 @@ class TestContactRowCreation:
 
         assert row.full_name == "John Doe"
         assert row.nickname == "JD"
-        assert row.contact_phone == "+1-555-0100"
+        assert row.contact_phone == "+15550001000"
         assert row.contact_email == "john.doe@example.com"
         assert row.position == "CEO"
         assert row.employee_id == "EMP001"

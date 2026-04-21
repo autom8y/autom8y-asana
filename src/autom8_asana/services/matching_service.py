@@ -15,6 +15,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
+from autom8y_api_schemas import OfficePhone
 from autom8y_log import get_logger
 
 from autom8_asana.api.routes.matching_models import (
@@ -97,7 +98,7 @@ class MatchingService:
         # Build query object
         query_data = BusinessData(
             name=name or "",
-            phone=phone,
+            phone=OfficePhone(phone) if phone else None,
             email=email,
             domain=domain,
         )

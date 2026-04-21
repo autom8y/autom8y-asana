@@ -68,7 +68,7 @@ class TestSuccessResponse:
         mock_entries = [
             OfferTimelineEntry(
                 offer_gid="offer1",
-                office_phone="555-0100",
+                office_phone="+15550001000",
                 active_section_days=15,
                 billable_section_days=20,
             )

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
+from autom8y_api_schemas import OfficePhoneField  # noqa: TC002
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
@@ -54,7 +55,7 @@ class SectionTimeline:
     """
 
     offer_gid: str
-    office_phone: str | None
+    office_phone: OfficePhoneField | None
     offer_id: str | None
     intervals: tuple[SectionInterval, ...]
     task_created_at: datetime | None
@@ -173,7 +174,7 @@ class OfferTimelineEntry(BaseModel):
         description="Asana task GID",
         examples=["1234567890123456"],
     )
-    office_phone: str | None = Field(
+    office_phone: OfficePhoneField | None = Field(
         default=None,
         description="Office phone custom field",
         examples=["+15551234567"],

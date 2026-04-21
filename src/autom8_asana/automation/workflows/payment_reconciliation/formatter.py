@@ -13,6 +13,7 @@ import io
 from datetime import UTC, datetime
 from typing import Any
 
+from autom8y_api_schemas import OfficePhoneField  # noqa: TC002
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 
@@ -45,7 +46,7 @@ class ExcelFormatEngine:
             .xlsx file content as bytes.
         """
         rows: list[dict[str, Any]] = data.get("rows", [])
-        office_phone: str = data.get("office_phone", "")
+        office_phone: OfficePhoneField = data.get("office_phone", "")
         vertical: str = data.get("vertical", "")
         business_name: str | None = data.get("business_name")
 

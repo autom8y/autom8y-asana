@@ -10,6 +10,7 @@ import datetime as dt
 from decimal import Decimal
 from typing import Any
 
+from autom8y_api_schemas import LeadPhoneField, OfficePhoneField
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -89,7 +90,7 @@ class BusinessRow(TaskRow):
 
     # Business custom fields (5)
     company_id: str | None = None
-    office_phone: str | None = None
+    office_phone: OfficePhoneField | None = None
     stripe_id: str | None = None
     booking_type: str | None = None
     facebook_page_id: str | None = None
@@ -119,7 +120,7 @@ class UnitRow(TaskRow):
 
     # Cascade/derived fields (4)
     office: str | None = None
-    office_phone: str | None = None
+    office_phone: OfficePhoneField | None = None
     vertical: str | None = None
     specialty: str | None = None
 
@@ -140,7 +141,7 @@ class ContactRow(TaskRow):
     # Contact fields (9 original)
     full_name: str | None = None
     nickname: str | None = None
-    contact_phone: str | None = None
+    contact_phone: LeadPhoneField | None = None
     contact_email: str | None = None
     position: str | None = None
     employee_id: str | None = None
@@ -149,7 +150,7 @@ class ContactRow(TaskRow):
     city: str | None = None
 
     # Cascade fields (3)
-    office_phone: str | None = None
+    office_phone: OfficePhoneField | None = None
     vertical: str | None = None
     dashboard_uuid: str | None = None
 
@@ -168,7 +169,7 @@ class OfferRow(TaskRow):
 
     # Cascade fields
     office: str | None = None
-    office_phone: str | None = None
+    office_phone: OfficePhoneField | None = None
     vertical: str | None = None
     mrr: Decimal | None = None
     weekly_ad_spend: Decimal | None = None
@@ -198,7 +199,7 @@ class ProcessRow(TaskRow):
     type: str = "Process"
 
     # Cascade fields
-    office_phone: str | None = None
+    office_phone: OfficePhoneField | None = None
     vertical: str | None = None
 
     # Derived field (set by Phase 2 aggregator)
@@ -230,7 +231,7 @@ class AssetEditRow(TaskRow):
     process_due_date: str | None = None
     assigned_to: str | None = None
     vertical: str | None = None
-    office_phone: str | None = None
+    office_phone: OfficePhoneField | None = None
     specialty: list[str] = Field(default_factory=list)
 
     # AssetEdit-specific fields (11)
@@ -257,4 +258,4 @@ class AssetEditHolderRow(TaskRow):
     type: str = "AssetEditHolder"
 
     # Cascade fields
-    office_phone: str | None = None
+    office_phone: OfficePhoneField | None = None

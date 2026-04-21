@@ -6,7 +6,10 @@ Per TDD-BusinessSeeder-v2: Models for match results and audit trails.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from autom8y_api_schemas import LeadPhoneField
 
 
 @dataclass
@@ -99,7 +102,7 @@ class Candidate:
     gid: str
     name: str | None = None
     email: str | None = None
-    phone: str | None = None
+    phone: LeadPhoneField | None = None
     domain: str | None = None
     city: str | None = None
     state: str | None = None

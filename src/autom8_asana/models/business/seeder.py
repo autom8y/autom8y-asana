@@ -11,6 +11,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from autom8y_api_schemas import LeadPhone, LeadPhoneField, OfficePhoneField  # noqa: TC002
 from autom8y_log import get_logger
 from pydantic import BaseModel, ConfigDict
 
@@ -64,7 +65,7 @@ class BusinessData(BaseModel):
 
     # New fields for v2 composite matching (optional)
     email: str | None = None  # Business email
-    phone: str | None = None  # Business phone
+    phone: OfficePhoneField | None = None  # Business phone
     domain: str | None = None  # Website domain
 
 
@@ -78,7 +79,7 @@ class ContactData(BaseModel):
 
     full_name: str
     contact_email: str | None = None
-    contact_phone: str | None = None
+    contact_phone: LeadPhoneField | None = None
 
 
 class ProcessData(BaseModel):
@@ -485,7 +486,9 @@ class BusinessSeeder:
                     gid=hit.gid,
                     name=hit.name,
                     email=hit.matched_fields.get("email"),
-                    phone=hit.matched_fields.get("phone"),
+                    phone=LeadPhone(hit.matched_fields["phone"])
+                    if hit.matched_fields.get("phone")
+                    else None,
                     domain=hit.matched_fields.get("domain"),
                     city=hit.matched_fields.get("business_city"),
                     state=hit.matched_fields.get("business_state"),
