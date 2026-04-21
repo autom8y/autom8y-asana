@@ -62,21 +62,24 @@ class PhoneNormalizer:
         # Try phonenumbers library first (optional dependency)
         try:
             import phonenumbers
-
-            parsed = phonenumbers.parse(value, "US")
-            if phonenumbers.is_valid_number(parsed):
-                formatted: str = phonenumbers.format_number(
-                    parsed, phonenumbers.PhoneNumberFormat.E164
-                )
-                return formatted
-            # Invalid number - fall through to digits-only
         except ImportError:
-            pass  # phonenumbers not installed
-        except (
-            ValueError,
-            TypeError,
-        ):  # vendor-polymorphic -- phonenumbers raises diverse parsing errors
-            pass
+            phonenumbers = None  # type: ignore[assignment]
+
+        if phonenumbers is not None:
+            try:
+                parsed = phonenumbers.parse(value, "US")
+                if phonenumbers.is_valid_number(parsed):
+                    formatted: str = phonenumbers.format_number(
+                        parsed, phonenumbers.PhoneNumberFormat.E164
+                    )
+                    return formatted
+                # Invalid number - fall through to digits-only
+            except (
+                ValueError,
+                TypeError,
+                phonenumbers.phonenumberutil.NumberParseException,
+            ):  # vendor-polymorphic -- phonenumbers raises diverse parsing errors
+                pass
 
         # Fallback: extract digits only
         digits = "".join(c for c in value if c.isdigit())
