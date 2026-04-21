@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Any
 
-from autom8y_api_schemas import OfficePhone
+from autom8y_api_schemas import LeadPhone, OfficePhone
 from autom8y_log import get_logger
 
 from autom8_asana.api.routes.intake_resolve_models import (
@@ -264,7 +264,7 @@ class IntakeResolveService:
                         contact_gid=contact_gid,
                         name=contact_name,
                         email=contact_email,
-                        phone=contact_phone,
+                        phone=LeadPhone(contact_phone) if contact_phone else None,
                         match_field="email",
                     )
 
@@ -294,7 +294,7 @@ class IntakeResolveService:
                         contact_gid=contact_gid,
                         name=contact_name,
                         email=contact_email,
-                        phone=contact_phone,
+                        phone=LeadPhone(contact_phone),
                         match_field="phone",
                     )
 
