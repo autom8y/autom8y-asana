@@ -763,7 +763,7 @@ class TestUnitExtractor:
             if field_name == "Business Name":
                 return "Acme Dental Corp"
             elif field_name == "Office Phone":
-                return "555-1234"
+                return "+15551234000"
             return None
 
         mock_cascade_resolver = MagicMock()
@@ -774,7 +774,7 @@ class TestUnitExtractor:
 
             assert isinstance(row, UnitRow)
             assert row.office == "Acme Dental Corp"
-            assert row.office_phone == "555-1234"
+            assert row.office_phone == "+15551234000"
 
     async def test_office_none_when_cascade_returns_none(self) -> None:
         """Test that office is None when cascade resolution returns None.
@@ -820,12 +820,12 @@ class TestUnitExtractor:
 
         with patch.object(extractor, "_get_cascading_resolver") as mock_get_cascade:
             mock_cascade_resolver = MagicMock()
-            mock_cascade_resolver.resolve_async = AsyncMock(return_value="555-123-4567")
+            mock_cascade_resolver.resolve_async = AsyncMock(return_value="+15551234567")
             mock_get_cascade.return_value = mock_cascade_resolver
 
             row = await extractor.extract_async(full_task)
 
-            assert row.office_phone == "555-123-4567"
+            assert row.office_phone == "+15551234567"
 
     async def test_office_phone_none_when_cascade_returns_none(
         self,

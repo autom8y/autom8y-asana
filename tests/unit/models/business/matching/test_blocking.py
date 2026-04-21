@@ -95,10 +95,10 @@ class TestPhonePrefixBlockingRule:
         assert rule.matches(query, candidate) is True
 
     def test_handles_different_formats(self) -> None:
-        """Handles different phone formats."""
+        """Shared phone prefix passes blocking (E.164 format required post-R03)."""
         rule = PhonePrefixBlockingRule()
-        query = BusinessData(name="Acme", phone="(555) 123-4567")
-        candidate = Candidate(gid="123", phone="+1 555 123 9999")
+        query = BusinessData(name="Acme", phone="+15551234567")
+        candidate = Candidate(gid="123", phone="+15551239999")
 
         assert rule.matches(query, candidate) is True
 
