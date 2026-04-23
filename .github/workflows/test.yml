@@ -41,8 +41,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    # Pinned to SHA 121419eec5 (Spectral sparse-checkout fix). Update when autom8y-workflows changes.
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@121419eec5c1005842e3187c72d5724b165765f7
+    # Pinned to SHA 0fb7b75373 (Path-A ADR-keyed exemption metadata, autom8y-workflows PR #8). Update when autom8y-workflows changes.
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@0fb7b7537a3c33eaef8cb0625241040eb8436988
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
