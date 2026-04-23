@@ -22,7 +22,7 @@ dependencies = [
     "autom8y-cache>=0.4.0", # Per TDD-GID-RESOLUTION-SERVICE: HierarchyAwareResolver + schema versioning
     "autom8y-log>=0.5.6",
     "opentelemetry-instrumentation-httpx>=0.42b0", # W3C traceparent auto-propagation on outbound httpx calls
-    "autom8y-core>=3.0.0,<4.0.0",
+    "autom8y-core>=4.0.0,<5.0.0",
     # Platform observability (PRD-PLATFORM-OBSERVABILITY-STD M3.3)
     # glass-S9: 0.6.0+ required for trace_computation decorator
     "autom8y-telemetry[aws,fastapi,otlp]>=0.6.1",
@@ -55,7 +55,7 @@ api = [
 auth = ["autom8y-auth[observability]>=3.3.0"]
 # events: Domain event publishing via autom8y-events (EventBridge)
 # Per ADR-bridge-dispatch-model Decision 3: BridgeExecutionComplete emission
-events = ["autom8y-events>=0.1.0"]
+events = ["autom8y-events>=1.2.0,<2.0.0"]
 # interop: Cross-service protocol alignment via autom8y-client-sdk
 # Per ADR-bridge-dispatch-model: Protocol annotation pressure, NOT client migration
 interop = ["autom8y-client-sdk>=3.0.0"]

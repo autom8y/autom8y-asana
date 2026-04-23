@@ -41,8 +41,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    # Pinned to SHA 006dc3f (test_timeout input + governance checkout fix). Update when autom8y-workflows changes.
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@006dc3f07f9a74f67dd2e82a65a29abaf24c9af4
+    # Pinned to SHA 189791170b (Spectral sparse-checkout fix). Update when autom8y-workflows changes.
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@189791170b7389a77d177748e1e9444df4203959
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
