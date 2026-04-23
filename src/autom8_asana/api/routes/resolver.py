@@ -166,6 +166,7 @@ def get_supported_entity_types() -> set[str]:
         "x-fleet-side-effects": [],
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-cross-service-refs": {"service": "autom8y-asana", "entity": "task"},
+        "x-fleet-envelope-exempt": True,
     },
 )
 async def resolve_entities(

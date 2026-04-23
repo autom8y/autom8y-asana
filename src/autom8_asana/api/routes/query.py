@@ -200,6 +200,7 @@ class QueryResponse(BaseModel):
         "entity types are available before calling /fields, /relations, or "
         "/sections for a specific type."
     ),
+    openapi_extra={"x-fleet-envelope-exempt": True},
 )
 async def list_query_entities(
     auth: AuthContextDep,
@@ -226,6 +227,7 @@ async def list_query_entities(
         "factories provide virtual entities sourced from autom8y-data that "
         "can be joined with Asana-sourced entities in the query engine."
     ),
+    openapi_extra={"x-fleet-envelope-exempt": True},
 )
 async def list_data_sources(
     auth: AuthContextDep,
@@ -251,6 +253,7 @@ async def list_data_sources(
         "that actual columns returned by autom8y-data may differ — this is an "
         "advisory list based on common factory configurations."
     ),
+    openapi_extra={"x-fleet-envelope-exempt": True},
 )
 async def list_data_source_fields(
     factory: str,
@@ -293,6 +296,7 @@ async def list_data_source_fields(
         "to discover which fields can be used in query predicates (where "
         "clauses) and select clauses when querying this entity type."
     ),
+    openapi_extra={"x-fleet-envelope-exempt": True},
 )
 async def list_query_fields(
     entity_type: str,
@@ -323,6 +327,7 @@ async def list_query_fields(
         "default join key, cardinality, and description. Use this to discover "
         "how entity types can be joined in cross-entity queries."
     ),
+    openapi_extra={"x-fleet-envelope-exempt": True},
 )
 async def list_query_relations(
     entity_type: str,
@@ -350,6 +355,7 @@ async def list_query_relations(
         "this to discover valid section values for filtering queries by "
         "section or classification."
     ),
+    openapi_extra={"x-fleet-envelope-exempt": True},
 )
 async def list_query_sections(
     entity_type: str,

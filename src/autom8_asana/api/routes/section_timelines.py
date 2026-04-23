@@ -78,6 +78,7 @@ class SectionTimelinesResponse(BaseModel):
     response_description="Section timeline entries for all offers in the period",
     response_model=SuccessResponse[SectionTimelinesResponse],
     responses=authenticated_responses(),
+    openapi_extra={"x-fleet-envelope-exempt": True},
 )
 async def get_offer_section_timelines(
     client: AsanaClientDualMode,

@@ -147,6 +147,7 @@ class EntitySchemaResponse(BaseModel):
         "include structured YAML metadata with business meaning, data type "
         "semantics, cascade behavior, and resolution impact."
     ),
+    openapi_extra={"x-fleet-envelope-exempt": True},
 )
 async def get_entity_schema(
     entity_type: str,
@@ -367,6 +368,7 @@ class EnumDetailResponse(BaseModel):
         "Returns the full enum documentation for a specific field on an "
         "entity type, including all valid values and their business meanings."
     ),
+    openapi_extra={"x-fleet-envelope-exempt": True},
 )
 async def get_enum_detail(
     entity_type: str,
