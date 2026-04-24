@@ -162,6 +162,26 @@ class WorkflowInvokeResponse(BaseModel):
     )
 
 
+class WorkflowEntry(BaseModel):
+    """Metadata for a single registered workflow.
+
+    Attributes:
+        workflow_id: Registered workflow identifier.
+        log_prefix: Structured-log event prefix for this workflow.
+        requires_data_client: Whether the workflow requires a DataServiceClient.
+        response_metadata_keys: Keys from WorkflowResult.metadata included in response.
+    """
+
+    workflow_id: str = Field(..., description="Registered workflow identifier.")
+    log_prefix: str = Field(..., description="Structured-log event prefix.")
+    requires_data_client: bool = Field(
+        ..., description="Whether this workflow requires a DataServiceClient."
+    )
+    response_metadata_keys: list[str] = Field(
+        ..., description="Metadata keys emitted by this workflow."
+    )
+
+
 # --- Registry Functions ---
 
 
@@ -199,27 +219,24 @@ def _get_workflow_factory(workflow_id: str) -> WorkflowHandlerConfig | None:
         "includes its ID, log prefix, whether it requires a data-service client, "
         "and the set of response metadata keys it produces."
     ),
+    response_model=SuccessResponse[list[WorkflowEntry]],
 )
 async def list_workflows(
     request_id: RequestId,
     auth: AuthContextDep,
-) -> dict[str, Any]:
+) -> SuccessResponse[list[WorkflowEntry]]:
     """List all registered workflows available for invocation."""
     _ = auth  # Enforce authentication
-    result = []
-    for workflow_id, config in _WORKFLOW_CONFIGS.items():
-        result.append(
-            {
-                "workflow_id": workflow_id,
-                "log_prefix": config.log_prefix,
-                "requires_data_client": config.requires_data_client,
-                "response_metadata_keys": list(config.response_metadata_keys),
-            }
+    entries = [
+        WorkflowEntry(
+            workflow_id=workflow_id,
+            log_prefix=config.log_prefix,
+            requires_data_client=config.requires_data_client,
+            response_metadata_keys=list(config.response_metadata_keys),
         )
-    return {
-        "data": result,
-        "meta": {"workflow_count": len(result)},
-    }
+        for workflow_id, config in _WORKFLOW_CONFIGS.items()
+    ]
+    return build_success_response(data=entries, request_id=request_id)
 
 
 @router.post(
