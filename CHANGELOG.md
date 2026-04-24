@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `@pytest.mark.slow` exclusion applied to PR gate only (CRU-S4-001)
 - 7 parametrized test groups consolidated from 26 raw tests to 9 parametrized cases (CRU-S3/S4 refactor series)
 
+## [1.2.1] - 2026-04-24
+
+### Changed
+- Lockfile refresh: bumped `autom8y-api-schemas` 1.9.0 → 1.11.0 (Sprint 10 fleet rollout)
+
 ## [1.2.0] - 2026-04-20
 
 ### Added (WS-B1+B2 P1-D — envelope convergence + security headers)

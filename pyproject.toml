@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "autom8y-asana"
-version = "1.2.0"
+version = "1.2.1"
 description = "Async-first Asana API client extracted from autom8"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
