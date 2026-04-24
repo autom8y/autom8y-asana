@@ -59,6 +59,7 @@ class ResolutionCriterion(BaseModel):
         default=None,
         description="E.164 formatted phone number for unit/business resolution.",
         examples=["+19259998806"],
+        json_schema_extra={"pattern": r"^\+[1-9]\d{6,14}$"},
     )
     vertical: str | None = Field(
         default=None,
@@ -88,6 +89,7 @@ class ResolutionCriterion(BaseModel):
         default=None,
         description="Contact phone number for contact resolution.",
         examples=["+14155551234"],
+        json_schema_extra={"pattern": r"^\+[1-9]\d{6,14}$"},
     )
 
     @field_validator("phone", "contact_phone", mode="before")
