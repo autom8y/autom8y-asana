@@ -42,7 +42,7 @@ jobs:
       id-token: write
       contents: read
     # Pinned to SHA 0fb7b75373 (Path-A ADR-keyed exemption metadata, autom8y-workflows PR #8). Update when autom8y-workflows changes.
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@0fb7b7537a3c33eaef8cb0625241040eb8436988
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@c88caabd8d9bba883e6a42628bdc2bba6d30512b
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
@@ -68,6 +68,7 @@ jobs:
       candidate_sdk_version: ${{ inputs.candidate_sdk_version }}
       candidate_wheel_run_id: ${{ inputs.candidate_wheel_run_id }}
       dispatch_correlation_id: ${{ inputs.dispatch_correlation_id }}
+      autom8y_workflows_sha: c88caabd8d9bba883e6a42628bdc2bba6d30512b
     secrets: inherit
 
   fuzz:
