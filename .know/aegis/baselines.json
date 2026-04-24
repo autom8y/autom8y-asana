@@ -1,11 +1,11 @@
 {
-  "generated_at": "2026-04-14T17:33:30.615937+00:00",
+  "generated_at": "2026-04-24T00:00:00.000000+00:00",
   "platform": "darwin",
   "spec_path": "/Users/tomtenuta/Code/a8/repos/autom8y-asana/docs/api-reference/openapi.json",
   "total_operations": 53,
   "baselines": {
     "GET /api/v1/dataframes/project/{gid}": {
-      "rss_delta_mb": 0.31,
+      "rss_delta_mb": 15.0,
       "duration_ms": 11.9
     },
     "GET /api/v1/dataframes/schemas": {
