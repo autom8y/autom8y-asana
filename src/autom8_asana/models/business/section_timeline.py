@@ -178,6 +178,7 @@ class OfferTimelineEntry(BaseModel):
         default=None,
         description="Office phone custom field",
         examples=["+15551234567"],
+        json_schema_extra={"pattern": r"^\+[1-9]\d{6,14}$"},
     )
     offer_id: str | None = Field(
         default=None,
