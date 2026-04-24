@@ -1150,6 +1150,7 @@
             "examples": [
               "+14155551234"
             ],
+            "pattern": "^\\+[1-9]\\d{6,14}$",
             "title": "Contact Phone"
           },
           "offer_id": {
@@ -1202,6 +1203,7 @@
             "examples": [
               "+19259998806"
             ],
+            "pattern": "^\\+[1-9]\\d{6,14}$",
             "title": "Phone"
           },
           "vertical": {
@@ -1853,6 +1855,40 @@
           "meta"
         ],
         "title": "SuccessResponse[list[AsanaResource]]",
+        "type": "object"
+      },
+      "SuccessResponse_list_WorkflowEntry__": {
+        "examples": [
+          {
+            "data": {
+              "id": "123",
+              "name": "Example resource"
+            },
+            "meta": {
+              "request_id": "a1b2c3d4e5f67890",
+              "timestamp": "2026-03-15T10:30:00Z"
+            }
+          }
+        ],
+        "properties": {
+          "data": {
+            "description": "Response data payload",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowEntry"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta",
+            "description": "Response metadata"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "SuccessResponse[list[WorkflowEntry]]",
         "type": "object"
       },
       "Task": {
@@ -2530,6 +2566,42 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WorkflowEntry": {
+        "description": "Metadata for a single registered workflow.\n\nAttributes:\n    workflow_id: Registered workflow identifier.\n    log_prefix: Structured-log event prefix for this workflow.\n    requires_data_client: Whether the workflow requires a DataServiceClient.\n    response_metadata_keys: Keys from WorkflowResult.metadata included in response.",
+        "properties": {
+          "log_prefix": {
+            "description": "Structured-log event prefix.",
+            "title": "Log Prefix",
+            "type": "string"
+          },
+          "requires_data_client": {
+            "description": "Whether this workflow requires a DataServiceClient.",
+            "title": "Requires Data Client",
+            "type": "boolean"
+          },
+          "response_metadata_keys": {
+            "description": "Metadata keys emitted by this workflow.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Response Metadata Keys",
+            "type": "array"
+          },
+          "workflow_id": {
+            "description": "Registered workflow identifier.",
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow_id",
+          "log_prefix",
+          "requires_data_client",
+          "response_metadata_keys"
+        ],
+        "title": "WorkflowEntry",
         "type": "object"
       },
       "WorkflowInvokeRequest": {
@@ -7423,9 +7495,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "title": "Response List Workflows Api V1 Workflows  Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/SuccessResponse_list_WorkflowEntry__"
                 }
               }
             },
