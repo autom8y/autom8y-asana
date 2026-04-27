@@ -169,4 +169,75 @@ This dossier complies with the receipt-grammar discipline carried forward from t
 - Heat-mapper P1 Q3 + Q5 verdicts are quoted verbatim from `.sos/wip/thermia/heat-mapper-assessment-cache-freshness-2026-04-27.md` with file:line citations.
 - PRD §6 C-1 is quoted verbatim from `.ledge/specs/verify-active-mrr-provenance.prd.md:254-267`.
 
+## Appendix B — POST-P7.A DRIFT items (added 2026-04-27 by thermia.thermal-monitor)
+
+Three SPEC/DOC drift items surfaced by the lens-3 cross-check (heat-mapper) and live AWS predicate execution at P7.A.3 of the thermia procession `cache-freshness-procession-2026-04-27`. All three are TELOS-ADJACENT (affect lens-3 observability-completeness operator-traceability). None blocks Track A close; all are filed to hygiene rite for spec/doc patching (no code changes required).
+
+Source artifacts:
+- `.ledge/reviews/P7A-cross-check-lens3-observability-2026-04-27.md`
+- `.ledge/reviews/P7A-alert-predicates-2026-04-27.md` (live AWS evidence)
+- `.ledge/reviews/P7A-track-A-close-2026-04-27.md` §3
+
+### B.1 DRIFT-1 — P4 ALERT-3 namespace mis-spec
+
+**Affected file**: `.ledge/specs/cache-freshness-observability.md` §3.3 (and §A.4 ALERT-3 row in dossier).
+
+**Drift**: P4 spec claims ALERT-3 (`WarmFailure` >= 1/hr, `entity_type=offer`) lives in namespace `autom8y/cache-warmer`. Live AWS scan (P7.A.3 PRED-3..5) confirms the actual failure metric is `autom8/lambda::StoryWarmFailure` (pre-existing warmer Lambda metric). Namespace `autom8y/cache-warmer` contains ONLY `CoalescerDedupCount` (per ADR-006, emitted from `coalescer.py:34-67`); does NOT contain a `WarmFailure` metric.
+
+**Resolution path**:
+1. Patch P4 spec §3.3 ALERT-3 row: change namespace `autom8y/cache-warmer` → `autom8/lambda`; metric name `WarmFailure` → `StoryWarmFailure` (plus dimension `entity_type=offer` if such dimension exists on the existing emit; if not, a new emit-side dimension or alarm-without-dimension scope clarification).
+2. Author **ADR-007** as a follow-up to ADR-006: differentiate the three production CW namespaces — `Autom8y/FreshnessProbe` (CLI-side, Pascal case), `autom8y/cache-warmer` (coalescer dedup), `autom8/lambda` (warmer-side StoryWarm{Success,Failure,Duration}). ADR-006 currently overgeneralizes to a 2-namespace model.
+3. Update Batch-D Terraform (when authored) to reference the correct namespace+metric per the patched spec.
+
+**Owner**: hygiene rite (or thermia rite via secondary cycle if Batch-D timing forces).
+
+### B.2 DRIFT-2 — Runbook DMS-1 metric-name placeholder
+
+**Affected file**: `.ledge/specs/cache-freshness-runbook.md` (Stale-2 / DMS-1 section, around line 239 per heat-mapper C-2).
+
+**Drift**: Runbook DMS-1 Step 1 contains literal placeholder `[DMS_METRIC_NAME]`. A paged operator cannot execute the recommended CloudWatch query without consulting `autom8y_telemetry` package source. This **fails lens-3 observability-completeness criterion** ("operator can answer from telemetry alone without source code knowledge").
+
+**Resolution path**:
+Replace the `[DMS_METRIC_NAME]` placeholder with the explicit CloudWatch query template:
+
+```bash
+aws cloudwatch get-metric-statistics \
+  --namespace autom8/lambda \
+  --metric-name StoryWarmSuccess \
+  --start-time $(date -u -d "24 hours ago" +%Y-%m-%dT%H:%M:%S) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+  --period 86400 \
+  --statistics Sum
+```
+
+Result `Sum < 1` over the 24h window = DMS heartbeat failure = ALERT-4 fires.
+
+**Owner**: hygiene rite (1-line patch; trivial diff).
+
+### B.3 DRIFT-3 — P4 ALERT-5 over-claim
+
+**Affected file**: `.ledge/specs/cache-freshness-observability.md` §3.3 (ALERT-5 row).
+
+**Drift**: P4 spec specifies ALERT-5 (`FreshnessError` >= 2/hr) as a CloudWatch metric alarm. Implementation (WI-8 at `__main__.py:738-780`) emits the FreshnessError condition only as STDERR friendly lines, NOT as a CloudWatch metric (`FreshnessErrorCount` does NOT exist in `Autom8y/FreshnessProbe` namespace per P7.A.3 PRED-2). Acceptance §A.4 already adjudicated this as ACCEPTED present implementation; spec needs to catch up.
+
+**Resolution path**:
+Patch P4 spec ALERT-5 row to reframe as a CloudWatch Logs Insights query rather than a metric alarm. Sample reframe:
+
+> ALERT-5: CloudWatch Logs Insights query against the CLI-host log group, filter pattern `[FreshnessError]`, threshold `>=2 occurrences in 1h`, alarm-via-LogsInsights-scheduled-query.
+
+Alternatively (DEFERRED for future procession; NOT immediate): add `FreshnessErrorCount` CW metric with `kind` dimension (mapping to the 6 botocore branches in WI-8) and re-instate metric alarm. This requires code change; out of hygiene rite scope.
+
+**Owner**: hygiene rite (spec patch only, current scope); future procession owner for code-level remediation if production volume warrants the upgrade.
+
+### B.4 Process notes (no action required)
+
+- **FLAG-5 carry-forward**: thermia worktree's `.claude/agents/` shows hygiene agents (worktree-config staleness from when worktree was last touched while hygiene was engaged). Recordable for future `/hygiene` cycle. Main-repo `.claude/agents/` is the active-dispatch ground truth — verifiable via `ari rite current`.
+- **MINOR-OBS-1** (xdist test flake at `tests/unit/persistence/test_reorder.py::test_property_moves_produce_desired_order`): unchanged from original Appendix scope. NOT in P7 scope.
+
+### B.5 Receipts
+
+- Track A close commit (carrying this appendix): see thermia branch `thermia/cache-freshness-procession-2026-04-27` after this commit.
+- Verification Attestation §V.3 in `HANDOFF-10x-dev-to-thermia-2026-04-27.md` cross-references this appendix as the resolution surface.
+- Live AWS evidence basis: `.ledge/reviews/P7A-alert-predicates-2026-04-27.md` PRED-1..PRED-11 (account `696318035277`).
+
 ## Attester Acceptance

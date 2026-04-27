@@ -544,3 +544,82 @@ Failure-mode contingencies:
 - Acceptance commit (this artifact): authored on thermia branch with `git add -f` (gitignore `**/.ledge/*` workaround per scar-tissue from predecessor sprint).
 
 ## Verification Attestation
+
+**Attestation status**: `TRACK-A-COMPLETE-TRACK-B-PENDING` (provisional checkpoint per acceptance §A.8 contingency template).
+**Attester agent**: `thermia.thermal-monitor` (PRIMARY; `heat-mapper` cross-check on lens-3 per Axiom 1 intra-rite seam).
+**Attester rite**: `thermia`.
+**Rite-disjoint from authoring**: TRUE (10x-dev built; thermia verifies; Axiom 1 satisfied at outer cross-rite seam).
+**Track A close timestamp**: 2026-04-27T~21:00Z.
+**Final verdict timestamp**: PENDING — gates on Track B completion (deadline 2026-05-27).
+
+### V.1 Track A — Design-Review — CLOSED
+
+Synthesis at `.ledge/reviews/P7A-track-A-close-2026-04-27.md`. 7 sub-phase artifacts:
+
+- `.ledge/reviews/P7-procession-plan-2026-04-27.md` (Potnia-authored procession plan)
+- `.ledge/reviews/P7A-lens-disposition-2026-04-27.md` (CONCUR with Potnia §3 lens table)
+- `.ledge/reviews/P7A-design-review-2026-04-27.md` (5 lenses PASS/PASS-WITH-NOTE; lens-3 SUSPENDED)
+- `.ledge/reviews/P7A-cross-check-lens3-observability-2026-04-27.md` (heat-mapper PASS-WITH-NOTE; CONCUR)
+- `.ledge/reviews/P7A-adr-receipt-audit-2026-04-27.md` (0 DRIFT-FAIL; 6 ADRs verified)
+- `.ledge/reviews/P7A-alert-predicates-2026-04-27.md` (LIVE-AWS evidence; 3 NAMED DRIFT items)
+- `.ledge/reviews/P7A-probe4-rerun-2026-04-27.md` (PASS-WITH-CAVEAT — QA-receipt-trusted)
+- `.ledge/reviews/P7A-defer-adjudication-2026-04-27.md` (CONCUR with Potnia §4 pre-classification)
+
+Verdict for design-grade portion: **all 6 LOAD-BEARING lenses PASS**; **all 4 telos-adjacent DEFERs promoted with named owners**; **0 BLOCKING / 0 SERIOUS / 3 NAMED DRIFT (spec/doc only)**.
+
+### V.2 Track B — In-Anger-Probe — BLOCKED
+
+Track B (Probes 1, 2, 3, 5) cannot execute until all of:
+
+- PRE-1: PR #28 merged to main.
+- PRE-2: production deploy completes (deploy lag ≤ 7 days from merge).
+- PRE-3: Batch-D xrepo Terraform PR merged (autom8y `anchor/adr-anchor-001-exemption-grant` stash pop + cron edit + 5 ALERT alarm definitions). PR# not yet authored.
+- PRE-4: 5 ALERT alarms (ALERT-1..5) provisioned and `ActionsEnabled=true` (currently 0 of 5 exist per P7.A.3 PRED-11 live AWS scan).
+- PRE-5: deploy SHA matches PR #28 merge SHA.
+
+Track B observation window opens upon PRE-1..PRE-5 clearing. Probe-4 already discharged at QA Phase D commit `e4b5222d` (see `P7A-probe4-rerun-2026-04-27.md`); only Probes 1, 2, 3, 5 remain for Track B.
+
+### V.3 Carry-forward DRIFT items (3, all spec/doc; filed to hygiene rite)
+
+| ID | Description | Owner | Resolution path | Telos-class |
+|---|---|---|---|---|
+| DRIFT-1 | P4 §3.3 ALERT-3 namespace mis-spec (`autom8y/cache-warmer` → actual `autom8/lambda::StoryWarmFailure`) | hygiene rite (next `/hygiene` cycle) | P4 spec patch + ADR-007 amending ADR-006 to differentiate CLI / coalescer / warmer namespaces | telos-adjacent |
+| DRIFT-2 | Runbook DMS-1 `[DMS_METRIC_NAME]` placeholder unresolved (operator can't run runbook without source) | hygiene rite | 1-line patch with explicit CW query template citing `autom8/lambda::StoryWarmSuccess` per P7.A.3 §4 | telos-adjacent |
+| DRIFT-3 | P4 ALERT-5 over-claim (CW metric alarm vs stderr-only impl — accepted §A.4) | hygiene rite | P4 spec patch reframing ALERT-5 as CW Logs Insights query rather than metric alarm | telos-adjacent (already accepted; spec correction only) |
+
+Filed via APPENDIX to `.ledge/handoffs/HANDOFF-thermia-to-hygiene-2026-04-27.md`.
+
+### V.4 Pythia PT-A4 carry-forward FLAG dispositions
+
+All 5 PT-A4 FLAGs dispositioned at Track A close (per `P7A-track-A-close-2026-04-27.md` §5):
+
+- FLAG-1 (self-review surface): RESOLVED via heat-mapper cross-check.
+- FLAG-2 (Track B precondition pinning): DOCUMENTED in this attestation §V.2.
+- FLAG-3 (11-lens discipline): RESOLVED via P7.A.0 disposition table.
+- FLAG-4 (DEFER tagging): RESOLVED via P7.A.5 adjudication.
+- FLAG-5 (worktree agent-dir drift): RECORDED for `/hygiene`.
+
+### V.5 Final-verdict completion criteria
+
+When Track B completes, this section is updated with one of:
+
+- **`ATTESTED`**: PRE-1..PRE-5 PASS AND Probes 1, 2, 3, 5 PASS clean AND no Track B observation-window firings on freshness-bound (lens 1) or failure-mode (lens 4) alarms AND DRIFT-1/2/3 patched in hygiene rite.
+- **`ATTESTED-WITH-FLAGS`**: PRE-1..PRE-5 PASS AND Probes 1, 2, 3, 5 PASS AND ≤2 telos-adjacent DEFERs / DRIFTs remain open with named owner+date AND no Track B alarm firings on critical lenses.
+- **`REJECTED-REOPEN`**: any Probe 1/2/3/5 FAIL OR Track B alarm fires on freshness-bound or failure-mode OR ≥1 telos-adjacent DRIFT unresolved without owner OR deadline 2026-05-27 passed without Track B execution.
+
+### V.6 Operator action checklist (Track B unblock sequence)
+
+1. Hygiene rite engagement: patch DRIFT-1/2/3 (see §V.3 hygiene appendix at `.ledge/handoffs/HANDOFF-thermia-to-hygiene-2026-04-27.md`). NON-blocking for Track B.
+2. PR #28 review + merge to main.
+3. Production deploy automation runs.
+4. Batch-D xrepo PR (autom8y stash pop + cron edit + 5 alarm authoring); apply with `actions_enabled=false` initially.
+5. 1-3 day baseline observation; flip `actions_enabled=true`.
+6. Re-engage thermia P7.B for in-anger probe execution.
+7. Update this attestation block with final verdict.
+
+### V.7 Receipts
+
+- Acceptance commit (predecessor to attestation): `2253ebc1` on `thermia/cache-freshness-procession-2026-04-27`.
+- Track A close commit: appended to this dossier in same commit batch as P7.A.0..A.5 + Track A close synthesis + hygiene handoff appendix.
+- Live AWS predicate execution: account `696318035277`, IAM `arn:aws:iam::696318035277:user/tom.tenuta`, timestamp 2026-04-27T~21:00Z.
+- Cross-check disjoint critic: `heat-mapper` (no authorship surface in P4) per Pythia FLAG-1 remediation.
