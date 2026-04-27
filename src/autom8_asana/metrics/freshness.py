@@ -338,7 +338,7 @@ def format_json_envelope(
     currency: str,
     env: str,
     bucket_evidence: str,
-) -> dict:
+) -> dict[str, Any]:
     """Build the AC-3.1 JSON envelope dict (TDD §4 schema v1).
 
     The dict is JSON-serializable as-is (no datetime objects). Calling

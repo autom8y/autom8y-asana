@@ -16,6 +16,10 @@ import os
 import pathlib
 import subprocess
 import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from autom8_asana.metrics.freshness import FreshnessError
 
 # ---------------------------------------------------------------------------
 # CLI preflight — Alternative C (TDD-0001-cli-preflight-contract, CFG-006)
