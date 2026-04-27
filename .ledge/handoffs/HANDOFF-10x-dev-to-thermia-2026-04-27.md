@@ -653,3 +653,26 @@ Procession state has advanced since Track A close. This block records the deltas
 **Procession-side discipline note** (carried from hygiene W1.P1 surfacing): the `.ledge/decisions/ADR-007-cw-namespace-tri-partition.md` documents the CORRECTED namespace topology after the thermia P7.A.3 mis-attribution was caught at hygiene W1.P1 source-archaeology. Track B Probe-2 (alarm fires on max_mtime > SLA) should validate ALERT-3 against `autom8y/cache-warmer::WarmFailure` (runtime-config namespace) NOT `autom8/lambda::StoryWarmFailure` (which is a different module's metric). Track B alarm-target verification predicates should be updated to match ADR-007 prior to Probe execution.
 
 **Deadline runway**: today 2026-04-28; deadline 2026-05-27; **29 days remaining**. Nominal Track B execution 1-2 days post-Batch-D apply + 1-3 day baseline observation. Comfortable margin remains.
+
+### V.9 Batch-D xrepo PR opened (2026-04-28)
+
+**autom8y/autom8y#163** ([batch-d/cache-freshness-alarms-2026-04-28](https://github.com/autom8y/autom8y/pull/163)) OPEN at branch HEAD `974c94a2`. CI shows 5/5 SUCCESS at first scan (bifrost-001, dependency-review, gitleaks, Secretspec Cross-Validation, Detect Changes). State: `MERGEABLE`.
+
+Scope:
+- 4 alarms (ALERT-1/2/3/4) authored with `actions_enabled=false` per PT-1 XC-2 staging.
+- `cache_warmer_schedule` cron edit `cron(0 2 * * ? *)` → `cron(0 */4 * * ? *)` per ADR-004.
+- `terraform fmt` + `terraform validate`: PASS.
+
+Operator unblock sequence + 4-probe execution sequence + final-verdict criteria fully spelled out at `.ledge/reviews/P7B-readiness-checklist-2026-04-28.md` (this commit batch).
+
+**Track B precondition status (refreshed 2026-04-28)**:
+
+| PRE | Status |
+|---|---|
+| PRE-1 | ✓ CLEARED (`c00ed989`) |
+| PRE-2 | ⏳ deploy-pipeline cycle |
+| PRE-3 | ⏳ #163 awaiting reviewer merge |
+| PRE-4 | ⏳ apply + 1-3d observation + flip |
+| PRE-5 | ⏳ deploy-pipeline cycle |
+
+Mid-attestation live AWS baseline holds steady (no metric inventory drift between 2026-04-27 and 2026-04-28 scans).
