@@ -623,3 +623,33 @@ When Track B completes, this section is updated with one of:
 - Track A close commit: appended to this dossier in same commit batch as P7.A.0..A.5 + Track A close synthesis + hygiene handoff appendix.
 - Live AWS predicate execution: account `696318035277`, IAM `arn:aws:iam::696318035277:user/tom.tenuta`, timestamp 2026-04-27T~21:00Z.
 - Cross-check disjoint critic: `heat-mapper` (no authorship surface in P4) per Pythia FLAG-1 remediation.
+
+### V.8 Mid-attestation state update (2026-04-28T~07:00Z)
+
+Procession state has advanced since Track A close. This block records the deltas.
+
+**PR-merge clearance**:
+
+- **PRE-1 ✓** PR #28 (`feat/cache-freshness-impl-2026-04-27`, 10x-dev impl phase) MERGED to main as commit `c00ed989` at 2026-04-27T22:20:59Z.
+- **PR #29 (hygiene W2 cleanup)** MERGED to main as commit `8fd0aefb` at 2026-04-27T22:18:33Z. This carries:
+  - Area A — D7 env-cruft comment cleanup (3 files; canonical Pydantic field declarations preserved per PRD §6 C-1).
+  - Area B — `.gitignore` allow-list for `.ledge/{handoffs,decisions,reviews,specs,spikes}/` (Option A pragmatic; survives `ari sync` regeneration).
+  - Area C — Hypothesis seed pin via `derandomize=True` resolving MINOR-OBS-1 xdist flake.
+
+**Hygiene W1 status**: STILL ON THERMIA BRANCH (commit `7fa59aa4`). DRIFT-1/2/3 patches + ADR-007 + P7.A.3 §10 CORRECTION are NOT YET in main; will land via the future thermia-close PR.
+
+**Track B precondition re-evaluation**:
+
+| PRE | Status | Notes |
+|---|---|---|
+| PRE-1 (PR #28 merged) | **✓ CLEARED** | merge SHA `c00ed989` |
+| PRE-2 (deploy lag ≤7d) | ⏳ DEPLOY-PIPELINE-DEPENDENT | ` operator-paced; production CI/CD cycle |
+| PRE-3 (Batch-D xrepo PR merged) | ⏳ NOT-YET-AUTHORED | autom8y repo: stash pop + cron edit + 3 fresh metric alarms (ALERT-1, ALERT-2, ALERT-3); ALERT-5 is now Logs Insights query (no metric alarm); ALERT-6 NO ALARM C-6 |
+| PRE-4 (5 ALERT alarms `ActionsEnabled=true`) | ⏳ BATCH-D-DEPENDENT | 0 of expected alarms exist today (per P7.A.3 PRED-1, PRED-11) |
+| PRE-5 (deploy SHA matches PR #28 merge) | ⏳ DEPLOY-PIPELINE-DEPENDENT | cleared by PRE-2 cycle |
+
+**Two preconditions remain blocked on operator-driven events** (deploy automation, Batch-D Terraform authoring + apply). Track B can begin once PRE-2 + PRE-3/4/5 clear.
+
+**Procession-side discipline note** (carried from hygiene W1.P1 surfacing): the `.ledge/decisions/ADR-007-cw-namespace-tri-partition.md` documents the CORRECTED namespace topology after the thermia P7.A.3 mis-attribution was caught at hygiene W1.P1 source-archaeology. Track B Probe-2 (alarm fires on max_mtime > SLA) should validate ALERT-3 against `autom8y/cache-warmer::WarmFailure` (runtime-config namespace) NOT `autom8/lambda::StoryWarmFailure` (which is a different module's metric). Track B alarm-target verification predicates should be updated to match ADR-007 prior to Probe execution.
+
+**Deadline runway**: today 2026-04-28; deadline 2026-05-27; **29 days remaining**. Nominal Track B execution 1-2 days post-Batch-D apply + 1-3 day baseline observation. Comfortable margin remains.
