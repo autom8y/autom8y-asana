@@ -78,11 +78,11 @@ class TestDurationParserAdversarial:
     @pytest.mark.parametrize(
         "bad_spec",
         [
-            "  ",       # whitespace-only
-            "+6h",      # leading +
-            ".5h",      # leading dot float
-            "1e2h",     # scientific notation
-            "00h",      # multi-digit but value resolves to 0 → rejected by zero-guard
+            "  ",  # whitespace-only
+            "+6h",  # leading +
+            ".5h",  # leading dot float
+            "1e2h",  # scientific notation
+            "00h",  # multi-digit but value resolves to 0 → rejected by zero-guard
         ],
     )
     def test_invalid_extras_are_rejected(self, bad_spec: str) -> None:
@@ -368,11 +368,9 @@ class TestIoErrorMappingAtCliIntegration:
     def test_no_such_bucket_maps_to_not_found(self) -> None:
         """Engineer's freshness.py:164-177: ClientError(NoSuchBucket) → KIND_NOT_FOUND."""
         client = MagicMock()
-        client.get_paginator.return_value.paginate.side_effect = (
-            botocore.exceptions.ClientError(
-                {"Error": {"Code": "NoSuchBucket", "Message": "not found"}},
-                "ListObjectsV2",
-            )
+        client.get_paginator.return_value.paginate.side_effect = botocore.exceptions.ClientError(
+            {"Error": {"Code": "NoSuchBucket", "Message": "not found"}},
+            "ListObjectsV2",
         )
         with pytest.raises(FreshnessError) as exc:
             FreshnessReport.from_s3_listing(
@@ -551,9 +549,7 @@ class TestEnvelopeDeterminism:
             bucket_evidence="stakeholder-affirmation-2026-04-27",
         )
         # Byte-for-byte identical when serialized with sort_keys=True
-        assert json.dumps(envelope_a, sort_keys=True) == json.dumps(
-            envelope_b, sort_keys=True
-        )
+        assert json.dumps(envelope_a, sort_keys=True) == json.dumps(envelope_b, sort_keys=True)
 
 
 # ---------------------------------------------------------------------------
@@ -612,6 +608,7 @@ class TestArgsJsonShadow:
         `json_mode` (the flag) — confirm the flag attribute is the one
         the integration layer reads.
         """
+
         # Simulate the integration layer's access pattern.
         class FakeArgs:
             json_mode = True
@@ -634,9 +631,7 @@ class TestLatent5StderrDistinction:
     """
 
     def test_empty_prefix_text_pattern_does_not_match_zero_result(self) -> None:
-        empty_prefix_msg = (
-            "ERROR: no parquets found at s3://autom8-s3/dataframes/x/sections/"
-        )
+        empty_prefix_msg = "ERROR: no parquets found at s3://autom8-s3/dataframes/x/sections/"
         zero_result_msg = "WARNING: zero rows after filter+dedup for metric 'active_mrr'"
         empty_pattern = re.compile(r"no parquets found at s3://")
         zero_pattern = re.compile(r"zero rows after filter\+dedup")

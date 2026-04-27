@@ -92,18 +92,10 @@ class TestFromS3ListingHappyPath:
         with mock_aws():
             client = boto3.client("s3", region_name="us-east-1")
             client.create_bucket(Bucket=self.BUCKET)
-            client.put_object(
-                Bucket=self.BUCKET, Key=f"{self.PREFIX}a.parquet", Body=b"x"
-            )
-            client.put_object(
-                Bucket=self.BUCKET, Key=f"{self.PREFIX}b.json", Body=b"x"
-            )
-            client.put_object(
-                Bucket=self.BUCKET, Key=f"{self.PREFIX}c.parquet", Body=b"x"
-            )
-            client.put_object(
-                Bucket=self.BUCKET, Key=f"{self.PREFIX}d.txt", Body=b"x"
-            )
+            client.put_object(Bucket=self.BUCKET, Key=f"{self.PREFIX}a.parquet", Body=b"x")
+            client.put_object(Bucket=self.BUCKET, Key=f"{self.PREFIX}b.json", Body=b"x")
+            client.put_object(Bucket=self.BUCKET, Key=f"{self.PREFIX}c.parquet", Body=b"x")
+            client.put_object(Bucket=self.BUCKET, Key=f"{self.PREFIX}d.txt", Body=b"x")
             report = FreshnessReport.from_s3_listing(
                 bucket=self.BUCKET,
                 prefix=self.PREFIX,
@@ -208,9 +200,7 @@ class TestFromS3ListingErrorMapping:
 
     def test_no_such_bucket_maps_to_not_found(self) -> None:
         exc = botocore.exceptions.ClientError(
-            error_response={
-                "Error": {"Code": "NoSuchBucket", "Message": "Not found"}
-            },
+            error_response={"Error": {"Code": "NoSuchBucket", "Message": "Not found"}},
             operation_name="ListObjectsV2",
         )
         client = self._make_mock_client_raising(exc)
@@ -224,9 +214,7 @@ class TestFromS3ListingErrorMapping:
         assert exc_info.value.kind == "not-found"
 
     def test_endpoint_connection_error_maps_to_network(self) -> None:
-        exc = botocore.exceptions.EndpointConnectionError(
-            endpoint_url="https://s3.amazonaws.com"
-        )
+        exc = botocore.exceptions.EndpointConnectionError(endpoint_url="https://s3.amazonaws.com")
         client = self._make_mock_client_raising(exc)
         with pytest.raises(FreshnessError) as exc_info:
             FreshnessReport.from_s3_listing(
@@ -239,9 +227,7 @@ class TestFromS3ListingErrorMapping:
 
     def test_unknown_client_error_maps_to_unknown(self) -> None:
         exc = botocore.exceptions.ClientError(
-            error_response={
-                "Error": {"Code": "WeirdUnseenError", "Message": "?"}
-            },
+            error_response={"Error": {"Code": "WeirdUnseenError", "Message": "?"}},
             operation_name="ListObjectsV2",
         )
         client = self._make_mock_client_raising(exc)
@@ -305,14 +291,10 @@ class TestJsonEnvelopeSchemaValidation:
             "stale",
             "parquet_count",
         ):
-            assert field in envelope["freshness"], (
-                f"Required freshness field missing: {field}"
-            )
+            assert field in envelope["freshness"], f"Required freshness field missing: {field}"
         # provenance sub-fields
         for field in ("bucket", "prefix", "env", "evidence"):
-            assert field in envelope["provenance"], (
-                f"Required provenance field missing: {field}"
-            )
+            assert field in envelope["provenance"], f"Required provenance field missing: {field}"
 
     def test_freshness_max_age_seconds_is_non_negative_integer(self) -> None:
         from autom8_asana.metrics.freshness import format_json_envelope

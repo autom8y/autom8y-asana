@@ -52,9 +52,7 @@ class FreshnessError(Exception):
         self.bucket = bucket
         self.prefix = prefix
         self.underlying = underlying
-        super().__init__(
-            f"freshness read failed ({kind}): s3://{bucket}/{prefix} — {underlying!r}"
-        )
+        super().__init__(f"freshness read failed ({kind}): s3://{bucket}/{prefix} — {underlying!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -158,9 +156,7 @@ class FreshnessReport:
                     if max_mtime is None or mtime > max_mtime:
                         max_mtime = mtime
         except botocore.exceptions.NoCredentialsError as e:
-            raise FreshnessError(
-                FreshnessError.KIND_AUTH, bucket, prefix, e
-            ) from e
+            raise FreshnessError(FreshnessError.KIND_AUTH, bucket, prefix, e) from e
         except botocore.exceptions.ClientError as e:
             code = (e.response or {}).get("Error", {}).get("Code", "")
             if code in {
@@ -180,14 +176,10 @@ class FreshnessReport:
             botocore.exceptions.ReadTimeoutError,
             botocore.exceptions.ConnectTimeoutError,
         ) as e:
-            raise FreshnessError(
-                FreshnessError.KIND_NETWORK, bucket, prefix, e
-            ) from e
+            raise FreshnessError(FreshnessError.KIND_NETWORK, bucket, prefix, e) from e
         except Exception as e:
             # Catch-all for unexpected boto3/network errors; mark as unknown.
-            raise FreshnessError(
-                FreshnessError.KIND_UNKNOWN, bucket, prefix, e
-            ) from e
+            raise FreshnessError(FreshnessError.KIND_UNKNOWN, bucket, prefix, e) from e
 
         if count == 0:
             # Sentinel report per TDD §1.2: epoch mtimes, parquet_count=0.
