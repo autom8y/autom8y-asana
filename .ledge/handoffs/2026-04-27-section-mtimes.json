@@ -1,0 +1,86 @@
+[
+  {
+    "section_gid": "1143843662099256",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1143843662099256.parquet",
+    "last_modified_iso": "2026-04-26T10:00:47Z",
+    "age_seconds_at_handoff": 104096
+  },
+  {
+    "section_gid": "1143843662099257",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1143843662099257.parquet",
+    "last_modified_iso": "2026-04-27T14:01:10Z",
+    "age_seconds_at_handoff": 3273
+  },
+  {
+    "section_gid": "1155403608336729",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1155403608336729.parquet",
+    "last_modified_iso": "2026-03-26T04:17:44Z",
+    "age_seconds_at_handoff": 2803079
+  },
+  {
+    "section_gid": "1199511476245249",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1199511476245249.parquet",
+    "last_modified_iso": "2026-04-27T10:00:48Z",
+    "age_seconds_at_handoff": 17695
+  },
+  {
+    "section_gid": "1201105736066893",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1201105736066893.parquet",
+    "last_modified_iso": "2026-04-22T16:58:35Z",
+    "age_seconds_at_handoff": 424628
+  },
+  {
+    "section_gid": "1201131323536610",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1201131323536610.parquet",
+    "last_modified_iso": "2026-04-20T20:26:43Z",
+    "age_seconds_at_handoff": 584940
+  },
+  {
+    "section_gid": "1201990715810461",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1201990715810461.parquet",
+    "last_modified_iso": "2026-04-20T15:00:28Z",
+    "age_seconds_at_handoff": 604515
+  },
+  {
+    "section_gid": "1201990715810462",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1201990715810462.parquet",
+    "last_modified_iso": "2026-04-09T13:44:45Z",
+    "age_seconds_at_handoff": 1559458
+  },
+  {
+    "section_gid": "1202005604742382",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1202005604742382.parquet",
+    "last_modified_iso": "2026-04-12T06:00:27Z",
+    "age_seconds_at_handoff": 1328116
+  },
+  {
+    "section_gid": "1202496785025459",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1202496785025459.parquet",
+    "last_modified_iso": "2026-04-25T18:00:53Z",
+    "age_seconds_at_handoff": 161690
+  },
+  {
+    "section_gid": "1204152425074370",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1204152425074370.parquet",
+    "last_modified_iso": "2026-04-03T20:42:29Z",
+    "age_seconds_at_handoff": 2052794
+  },
+  {
+    "section_gid": "1207396100287952",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1207396100287952.parquet",
+    "last_modified_iso": "2026-04-20T20:26:43Z",
+    "age_seconds_at_handoff": 584940
+  },
+  {
+    "section_gid": "1208667647433692",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1208667647433692.parquet",
+    "last_modified_iso": "2026-04-25T18:00:52Z",
+    "age_seconds_at_handoff": 161691
+  },
+  {
+    "section_gid": "1209233681691558",
+    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/1209233681691558.parquet",
+    "last_modified_iso": "2026-04-09T13:44:45Z",
+    "age_seconds_at_handoff": 1559458
+  }
+]
