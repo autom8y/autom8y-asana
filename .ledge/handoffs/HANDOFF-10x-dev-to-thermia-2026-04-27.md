@@ -449,4 +449,230 @@ thermia action — both are status-tracking carry-overs.
 
 ## Attester Acceptance
 
+**Acceptance verdict**: ACCEPTED.
+**Engaging agent**: thermia.thermal-monitor (PRIMARY path; fallback predicate negative).
+**Engagement timestamp**: 2026-04-27T20:54Z (UTC).
+**Engaging session**: `session-20260427-185944-cde32d7b` (resumed from PARKED via moirai; resume exit code 0).
+**Receiving worktree**: `/Users/tomtenuta/Code/a8/repos/autom8y-asana/.worktrees/thermia-cache-procession` on branch `thermia/cache-freshness-procession-2026-04-27`.
+
+### A.1 Mechanical fallback predicate (per `.ledge/specs/handoff-dossier-schema.tdd.md` §5.1)
+
+Verifiable inputs (all checked against thermia worktree HEAD `a732487f` and main repo state at acceptance time):
+
+- `.claude/agents/thermia/` PATH: 5 thermia agents present at main-repo `.claude/agents/` (`potnia.md`, `heat-mapper.md`, `systems-thermodynamicist.md`, `capacity-engineer.md`, `thermal-monitor.md`); thermia worktree-local `.claude/agents/` shows hygiene-rite agents per worktree-config divergence (does NOT alter rite-engagement primary state — verifiable via `ari rite current` from main repo returning `Active Rite: thermia`).
+- `.knossos/KNOSSOS_MANIFEST.yaml` content: `active_rite: thermia` (main repo).
+- `.knossos/ACTIVE_RITE` content: `thermia` (main repo).
+
+Conclusion: **PRIMARY thermia path engages.** `sre.observability-engineer` fallback NOT invoked. No `## Fallback Activation Record` heading required. NOTE for hygiene rite (delivered via parallel secondary handoff): the worktree-local `.claude/agents/` divergence between main repo and `.worktrees/thermia-cache-procession/` is a worktree-config artifact (worktree last touched while hygiene rite was engaged); recorded for hygiene awareness, NO BLOCKER for P7 acceptance.
+
+### A.2 Inbound dossier acknowledgment
+
+- **8 work items**: 6 SHIPPED (WI-1..WI-4, WI-7, WI-8); 2 PENDING-BATCH-D (WI-5 alarm + WI-6 cron) — by-design cross-repo coordination, not engineering gaps.
+- **7-commit chain `a732487f..e4b5222d`** chain-of-custody verified via `git log --oneline a732487f..feat/cache-freshness-impl-2026-04-27` from main repo; 7 commits returned matching dossier §2.
+- **Conflated commit `49740a1f`** PT-3 disposition (leave-as-is + document) ACCEPTED — receipt-grammar in §2 row 4 satisfies traceability under the "no behavioral regression" predicate; both halves (Batch-B CW emit + PT-2 Option B refactor) interdependent per the wiring rationale captured in the row.
+- **QA verdict GO** (0 BLOCKING / 0 SERIOUS / 0 MINOR / 1 DEFER-OK; 436/1 tests; ruff/mypy clean across 66 source files; Phase E moto smoke PASS; Probe-4 baseline PASS) ACKNOWLEDGED. QA report at `.ledge/reviews/QA-impl-close-cache-freshness-2026-04-27.md` (impl branch commit `e4b5222d`).
+- **Pythia BLOCK-1 closure** (FLAG-1 wiring at `7ed89918`) ACKNOWLEDGED — production CLI now invokes `emit_freshness_probe_metrics()` at `__main__.py:472` (sync recheck) and `__main__.py:893` (default-mode emission), absorbed by `_safe_emit_freshness_probe_metrics` wrapper at L241-263.
+
+### A.3 P7 verification mode (per parent telos SQ-3)
+
+Mode: **BOTH** design-review (Track A) + in-anger-probe (Track B). Confirmed.
+
+| Track | Scope | Sequencing | Gating |
+|---|---|---|---|
+| **A — Design-review** | 11-lens rubric application to P2/P3/P4 specs; receipt-grammar audit; ADR-001..006 consistency check; ALERT-3/5 disposition validation; Probe-4 re-run as evidence | IMMEDIATE (runnable now without deployed Lambda) | None — depends only on tracked artifacts and unit-test reproducibility |
+| **B — In-anger-probe** | Probe-1 (force-warm reduces oldest-parquet age); Probe-2 (alarm fires on max_mtime > SLA); Probe-3 (force-warm + freshness CLI compose, ADR-003); Probe-5 (5 metrics land in deployed CW) | DEFERRED until (i) PR #28 merge to main, (ii) production deploy, (iii) Batch-D apply | Per dossier §5(a) re-engagement trigger; Probe-4 already discharged at QA Phase D, MAY re-run as Track A evidence |
+
+### A.4 §5(c) re-handoff request adjudication (ALERT-3 + ALERT-5 ownership FLAGs)
+
+**ALERT-3 (`WarmFailure` >= 1/hr, `entity_type=offer`)** — DEFERRED-PENDING-AWS-VERIFICATION.
+
+- Verifiable predicate (operator-runnable pre-deploy): `aws cloudwatch describe-alarms --alarm-name-prefix "AsanaCacheWarmer-Failure"`.
+- IF the predicate returns `MetricAlarms != []`: alarm already provisioned in fleet topology (`Autom8y/AsanaCacheWarmer` namespace); NO new authoring required; Batch-D scope unchanged. Record outcome in §A.4 of the verification attestation.
+- IF the predicate returns `MetricAlarms == []`: file as DEFER-FOLLOWUP for a Batch-D successor procession; Track B Probe-2 will detect the gap empirically post-deploy. Adjudicating verdict at attestation: ATTESTED-WITH-FLAGS unless the alarm is provisioned by attestation time.
+
+**ALERT-5 (`FreshnessError` >= 2/hr)** — ACCEPTED present implementation (stderr-only via WI-8 at `__main__.py:738-780`).
+
+- Rationale: the `FreshnessErrorCount` metric does NOT yet exist as a separate CloudWatch metric; the alarm semantically becomes a CloudWatch Logs Insights query rather than a metric alarm.
+- Adopting the present implementation as canonical for P6/P7 scope.
+- Future procession may add a `FreshnessErrorCount` CW metric with `kind` dimension (mapping to the 6 botocore branches in WI-8) if production volume warrants. Recorded as DEFER-FOLLOWUP item in P7 verification scope; NO BLOCKER for attestation.
+
+### A.5 DEFER-FOLLOWUP enumeration acknowledged (dossier §6.2)
+
+All 6 DEFER-FOLLOWUP items NOT in P7 verification scope; acknowledged for forward visibility:
+
+- **LD-P2-4** XFetch beta calibration — beta=1.0 starting per CACHE:SRC-001; production WarmDuration p50/p95 telemetry post-deploy.
+- **LD-P3-3** `max_entries=100` raise to 150 — at 14/100 utilization; load-bearing only at ~10x growth.
+- **LD-P5A-1** INDEX ordering — chronological append per schema §223-234.
+- **LD-P5A-2** status-vocabulary divergence (frontmatter `status: draft` vs `PENDING-THERMIA-P7`) — raise to ADR if it becomes load-bearing.
+- **`ForceWarmLatencySeconds` no-alarm-today** — informational only; SLO post-P3 cadence resolution at DEF-2 seam.
+- **`SectionAgeP95Seconds` low-N degeneracy** — meaningful at N >= ~20 sections (current N=14).
+- **AP-3 named risk** (parquet not invalidated on task mutation) — explicitly NOT closed; risk-acceptance docstring at `force_warm.py:28-30`.
+
+### A.6 Pre-existing observations (dossier §10)
+
+- **MINOR-OBS-1** (xdist test flake) — handed to hygiene rite via `.ledge/handoffs/HANDOFF-thermia-to-hygiene-2026-04-27.md`. NOT in P7 scope. NO ACTION.
+- **MINOR-OBS-2** (botocore traceback) — SHIPPED at WI-8. Resolved. NO ACTION.
+
+### A.7 P7 procession plan (Potnia-dispatched, recorded for chain-of-custody)
+
+- **Phase P7.A — Track A design-review** (immediate; thermal-monitor; nominal 1-2 days).
+  - Sub-phase A.1: 11-lens rubric application against P2/P3/P4 specs with receipts.
+  - Sub-phase A.2: ADR-001..006 consistency cross-check + receipt-grammar audit on §2 commit ledger.
+  - Sub-phase A.3: ALERT-3 predicate execution (operator step) + ALERT-5 disposition recording.
+  - Sub-phase A.4: Probe-4 re-run as design-review evidence (already PASS at QA Phase D).
+- **Phase P7.B — Track B in-anger-probes** (post-deploy + post-Batch-D apply; thermal-monitor; nominal 1-2 days).
+  - Probes 1, 2, 3, 5 against deployed system; Probe-2 specifically validates ALERT-3/4/5 firing semantics.
+- **Pythia touchpoints**: PT-A4 (`before_attestation`, fires before P7.A); PT-A5 (`sprint_close`, fires after attestation completes).
+- **Verification deadline**: 2026-05-27 (parent telos `verify-active-mrr-provenance` D8). Today: 2026-04-27. Buffer: 30 days; nominal 8-15 day discharge sequence per dossier §8 timeline.
+
+### A.8 Attestation chain commitment
+
+`thermia.thermal-monitor` authors `## Verification Attestation` h2 at P7 close per schema §4.4 with verdict ∈ {`ATTESTED`, `ATTESTED-WITH-FLAGS`, `REJECTED-REOPEN`}.
+
+Failure-mode contingencies:
+
+- IF Track B blocks past 2026-05-27 due to deferred deploy or Batch-D apply: thermal-monitor authors `ATTESTED-WITH-FLAGS` recording (i) Track A discharge, (ii) Track B blocked-pending status with explicit gating predicates, (iii) D8 telos discharge negotiated with operator (extension request OR partial-discharge acceptance).
+- IF Track A surfaces a SERIOUS or BLOCKING design defect: thermal-monitor authors `REJECTED-REOPEN` with the defect catalogued and a re-handoff request to either thermia P2/P3/P4 (architecture/capacity/observability redesign) or 10x-dev P6 (impl correction).
+
+### A.9 Receipts
+
+- Resume command exit code: 0 (moirai; `2026-04-27T20:54:18Z`).
+- Inbound dossier: extracted from impl branch commit `0ac99aba` via `git checkout 0ac99aba -- .ledge/handoffs/HANDOFF-10x-dev-to-thermia-2026-04-27.md`; 452 lines pre-acceptance-append.
+- Predecessor handoff `HANDOFF-10x-dev-to-thermia-2026-04-27.md` *kickoff* version (commit `37932b89`) is being superseded at this path; kickoff content remains preserved in git history at `13cf3433` and `37932b89` parents.
+- Worktree: `/Users/tomtenuta/Code/a8/repos/autom8y-asana/.worktrees/thermia-cache-procession`.
+- Branch: `thermia/cache-freshness-procession-2026-04-27`.
+- Acceptance commit (this artifact): authored on thermia branch with `git add -f` (gitignore `**/.ledge/*` workaround per scar-tissue from predecessor sprint).
+
 ## Verification Attestation
+
+**Attestation status**: `TRACK-A-COMPLETE-TRACK-B-PENDING` (provisional checkpoint per acceptance §A.8 contingency template).
+**Attester agent**: `thermia.thermal-monitor` (PRIMARY; `heat-mapper` cross-check on lens-3 per Axiom 1 intra-rite seam).
+**Attester rite**: `thermia`.
+**Rite-disjoint from authoring**: TRUE (10x-dev built; thermia verifies; Axiom 1 satisfied at outer cross-rite seam).
+**Track A close timestamp**: 2026-04-27T~21:00Z.
+**Final verdict timestamp**: PENDING — gates on Track B completion (deadline 2026-05-27).
+
+### V.1 Track A — Design-Review — CLOSED
+
+Synthesis at `.ledge/reviews/P7A-track-A-close-2026-04-27.md`. 7 sub-phase artifacts:
+
+- `.ledge/reviews/P7-procession-plan-2026-04-27.md` (Potnia-authored procession plan)
+- `.ledge/reviews/P7A-lens-disposition-2026-04-27.md` (CONCUR with Potnia §3 lens table)
+- `.ledge/reviews/P7A-design-review-2026-04-27.md` (5 lenses PASS/PASS-WITH-NOTE; lens-3 SUSPENDED)
+- `.ledge/reviews/P7A-cross-check-lens3-observability-2026-04-27.md` (heat-mapper PASS-WITH-NOTE; CONCUR)
+- `.ledge/reviews/P7A-adr-receipt-audit-2026-04-27.md` (0 DRIFT-FAIL; 6 ADRs verified)
+- `.ledge/reviews/P7A-alert-predicates-2026-04-27.md` (LIVE-AWS evidence; 3 NAMED DRIFT items)
+- `.ledge/reviews/P7A-probe4-rerun-2026-04-27.md` (PASS-WITH-CAVEAT — QA-receipt-trusted)
+- `.ledge/reviews/P7A-defer-adjudication-2026-04-27.md` (CONCUR with Potnia §4 pre-classification)
+
+Verdict for design-grade portion: **all 6 LOAD-BEARING lenses PASS**; **all 4 telos-adjacent DEFERs promoted with named owners**; **0 BLOCKING / 0 SERIOUS / 3 NAMED DRIFT (spec/doc only)**.
+
+### V.2 Track B — In-Anger-Probe — BLOCKED
+
+Track B (Probes 1, 2, 3, 5) cannot execute until all of:
+
+- PRE-1: PR #28 merged to main.
+- PRE-2: production deploy completes (deploy lag ≤ 7 days from merge).
+- PRE-3: Batch-D xrepo Terraform PR merged (autom8y `anchor/adr-anchor-001-exemption-grant` stash pop + cron edit + 5 ALERT alarm definitions). PR# not yet authored.
+- PRE-4: 5 ALERT alarms (ALERT-1..5) provisioned and `ActionsEnabled=true` (currently 0 of 5 exist per P7.A.3 PRED-11 live AWS scan).
+- PRE-5: deploy SHA matches PR #28 merge SHA.
+
+Track B observation window opens upon PRE-1..PRE-5 clearing. Probe-4 already discharged at QA Phase D commit `e4b5222d` (see `P7A-probe4-rerun-2026-04-27.md`); only Probes 1, 2, 3, 5 remain for Track B.
+
+### V.3 Carry-forward DRIFT items (3, all spec/doc; filed to hygiene rite)
+
+| ID | Description | Owner | Resolution path | Telos-class |
+|---|---|---|---|---|
+| DRIFT-1 | P4 §3.3 ALERT-3 namespace mis-spec (`autom8y/cache-warmer` → actual `autom8/lambda::StoryWarmFailure`) | hygiene rite (next `/hygiene` cycle) | P4 spec patch + ADR-007 amending ADR-006 to differentiate CLI / coalescer / warmer namespaces | telos-adjacent |
+| DRIFT-2 | Runbook DMS-1 `[DMS_METRIC_NAME]` placeholder unresolved (operator can't run runbook without source) | hygiene rite | 1-line patch with explicit CW query template citing `autom8/lambda::StoryWarmSuccess` per P7.A.3 §4 | telos-adjacent |
+| DRIFT-3 | P4 ALERT-5 over-claim (CW metric alarm vs stderr-only impl — accepted §A.4) | hygiene rite | P4 spec patch reframing ALERT-5 as CW Logs Insights query rather than metric alarm | telos-adjacent (already accepted; spec correction only) |
+
+Filed via APPENDIX to `.ledge/handoffs/HANDOFF-thermia-to-hygiene-2026-04-27.md`.
+
+### V.4 Pythia PT-A4 carry-forward FLAG dispositions
+
+All 5 PT-A4 FLAGs dispositioned at Track A close (per `P7A-track-A-close-2026-04-27.md` §5):
+
+- FLAG-1 (self-review surface): RESOLVED via heat-mapper cross-check.
+- FLAG-2 (Track B precondition pinning): DOCUMENTED in this attestation §V.2.
+- FLAG-3 (11-lens discipline): RESOLVED via P7.A.0 disposition table.
+- FLAG-4 (DEFER tagging): RESOLVED via P7.A.5 adjudication.
+- FLAG-5 (worktree agent-dir drift): RECORDED for `/hygiene`.
+
+### V.5 Final-verdict completion criteria
+
+When Track B completes, this section is updated with one of:
+
+- **`ATTESTED`**: PRE-1..PRE-5 PASS AND Probes 1, 2, 3, 5 PASS clean AND no Track B observation-window firings on freshness-bound (lens 1) or failure-mode (lens 4) alarms AND DRIFT-1/2/3 patched in hygiene rite.
+- **`ATTESTED-WITH-FLAGS`**: PRE-1..PRE-5 PASS AND Probes 1, 2, 3, 5 PASS AND ≤2 telos-adjacent DEFERs / DRIFTs remain open with named owner+date AND no Track B alarm firings on critical lenses.
+- **`REJECTED-REOPEN`**: any Probe 1/2/3/5 FAIL OR Track B alarm fires on freshness-bound or failure-mode OR ≥1 telos-adjacent DRIFT unresolved without owner OR deadline 2026-05-27 passed without Track B execution.
+
+### V.6 Operator action checklist (Track B unblock sequence)
+
+1. Hygiene rite engagement: patch DRIFT-1/2/3 (see §V.3 hygiene appendix at `.ledge/handoffs/HANDOFF-thermia-to-hygiene-2026-04-27.md`). NON-blocking for Track B.
+2. PR #28 review + merge to main.
+3. Production deploy automation runs.
+4. Batch-D xrepo PR (autom8y stash pop + cron edit + 5 alarm authoring); apply with `actions_enabled=false` initially.
+5. 1-3 day baseline observation; flip `actions_enabled=true`.
+6. Re-engage thermia P7.B for in-anger probe execution.
+7. Update this attestation block with final verdict.
+
+### V.7 Receipts
+
+- Acceptance commit (predecessor to attestation): `2253ebc1` on `thermia/cache-freshness-procession-2026-04-27`.
+- Track A close commit: appended to this dossier in same commit batch as P7.A.0..A.5 + Track A close synthesis + hygiene handoff appendix.
+- Live AWS predicate execution: account `696318035277`, IAM `arn:aws:iam::696318035277:user/tom.tenuta`, timestamp 2026-04-27T~21:00Z.
+- Cross-check disjoint critic: `heat-mapper` (no authorship surface in P4) per Pythia FLAG-1 remediation.
+
+### V.8 Mid-attestation state update (2026-04-28T~07:00Z)
+
+Procession state has advanced since Track A close. This block records the deltas.
+
+**PR-merge clearance**:
+
+- **PRE-1 ✓** PR #28 (`feat/cache-freshness-impl-2026-04-27`, 10x-dev impl phase) MERGED to main as commit `c00ed989` at 2026-04-27T22:20:59Z.
+- **PR #29 (hygiene W2 cleanup)** MERGED to main as commit `8fd0aefb` at 2026-04-27T22:18:33Z. This carries:
+  - Area A — D7 env-cruft comment cleanup (3 files; canonical Pydantic field declarations preserved per PRD §6 C-1).
+  - Area B — `.gitignore` allow-list for `.ledge/{handoffs,decisions,reviews,specs,spikes}/` (Option A pragmatic; survives `ari sync` regeneration).
+  - Area C — Hypothesis seed pin via `derandomize=True` resolving MINOR-OBS-1 xdist flake.
+
+**Hygiene W1 status**: STILL ON THERMIA BRANCH (commit `7fa59aa4`). DRIFT-1/2/3 patches + ADR-007 + P7.A.3 §10 CORRECTION are NOT YET in main; will land via the future thermia-close PR.
+
+**Track B precondition re-evaluation**:
+
+| PRE | Status | Notes |
+|---|---|---|
+| PRE-1 (PR #28 merged) | **✓ CLEARED** | merge SHA `c00ed989` |
+| PRE-2 (deploy lag ≤7d) | ⏳ DEPLOY-PIPELINE-DEPENDENT | ` operator-paced; production CI/CD cycle |
+| PRE-3 (Batch-D xrepo PR merged) | ⏳ NOT-YET-AUTHORED | autom8y repo: stash pop + cron edit + 3 fresh metric alarms (ALERT-1, ALERT-2, ALERT-3); ALERT-5 is now Logs Insights query (no metric alarm); ALERT-6 NO ALARM C-6 |
+| PRE-4 (5 ALERT alarms `ActionsEnabled=true`) | ⏳ BATCH-D-DEPENDENT | 0 of expected alarms exist today (per P7.A.3 PRED-1, PRED-11) |
+| PRE-5 (deploy SHA matches PR #28 merge) | ⏳ DEPLOY-PIPELINE-DEPENDENT | cleared by PRE-2 cycle |
+
+**Two preconditions remain blocked on operator-driven events** (deploy automation, Batch-D Terraform authoring + apply). Track B can begin once PRE-2 + PRE-3/4/5 clear.
+
+**Procession-side discipline note** (carried from hygiene W1.P1 surfacing): the `.ledge/decisions/ADR-007-cw-namespace-tri-partition.md` documents the CORRECTED namespace topology after the thermia P7.A.3 mis-attribution was caught at hygiene W1.P1 source-archaeology. Track B Probe-2 (alarm fires on max_mtime > SLA) should validate ALERT-3 against `autom8y/cache-warmer::WarmFailure` (runtime-config namespace) NOT `autom8/lambda::StoryWarmFailure` (which is a different module's metric). Track B alarm-target verification predicates should be updated to match ADR-007 prior to Probe execution.
+
+**Deadline runway**: today 2026-04-28; deadline 2026-05-27; **29 days remaining**. Nominal Track B execution 1-2 days post-Batch-D apply + 1-3 day baseline observation. Comfortable margin remains.
+
+### V.9 Batch-D xrepo PR opened (2026-04-28)
+
+**autom8y/autom8y#163** ([batch-d/cache-freshness-alarms-2026-04-28](https://github.com/autom8y/autom8y/pull/163)) OPEN at branch HEAD `974c94a2`. CI shows 5/5 SUCCESS at first scan (bifrost-001, dependency-review, gitleaks, Secretspec Cross-Validation, Detect Changes). State: `MERGEABLE`.
+
+Scope:
+- 4 alarms (ALERT-1/2/3/4) authored with `actions_enabled=false` per PT-1 XC-2 staging.
+- `cache_warmer_schedule` cron edit `cron(0 2 * * ? *)` → `cron(0 */4 * * ? *)` per ADR-004.
+- `terraform fmt` + `terraform validate`: PASS.
+
+Operator unblock sequence + 4-probe execution sequence + final-verdict criteria fully spelled out at `.ledge/reviews/P7B-readiness-checklist-2026-04-28.md` (this commit batch).
+
+**Track B precondition status (refreshed 2026-04-28)**:
+
+| PRE | Status |
+|---|---|
+| PRE-1 | ✓ CLEARED (`c00ed989`) |
+| PRE-2 | ⏳ deploy-pipeline cycle |
+| PRE-3 | ⏳ #163 awaiting reviewer merge |
+| PRE-4 | ⏳ apply + 1-3d observation + flip |
+| PRE-5 | ⏳ deploy-pipeline cycle |
+
+Mid-attestation live AWS baseline holds steady (no metric inventory drift between 2026-04-27 and 2026-04-28 scans).

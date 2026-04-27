@@ -680,15 +680,4 @@ verification mode is **BOTH design-review + in-anger-probe**:
 
 ## Attester Acceptance
 
-- **Accepting rite**: 10x-dev (active per `ari rite current` post-CC-restart — pantheon: potnia, requirements-analyst, architect, principal-engineer, qa-adversary)
-- **Activation predicate result**: PRIMARY path engaged. 10x-dev rite is registered (`.claude/agents/` populated; `ari rite current` reports `10x-dev`). No fallback required (cleanup-handoff variant declares `fallback_rite: null` since 10x-dev IS the engineering rite).
-- **Acceptance timestamp**: 2026-04-27T20:30:00Z (approximate; recorded at 10x-dev impl procession kickoff)
-- **Receiving session**: NEW (to be created via moirai with rite=10x-dev at impl phase start; session_id will be back-filled to this entry on creation, mirroring the predecessor handoff back-fill convention)
-- **Receiving worktree**: `/Users/tomtenuta/Code/a8/repos/autom8y-asana/.worktrees/cache-freshness-impl/` on `feat/cache-freshness-impl-2026-04-27` (branched off `thermia/cache-freshness-procession-2026-04-27` at HEAD `a732487f` so all design substrate is co-resident)
-- **Initiative slug**: cache-freshness-impl-from-thermia-2026-04-27 (downstream of `cache-freshness-procession-2026-04-27`, parent=`verify-active-mrr-provenance`)
-- **Scope acknowledgement**: 10x-dev accepts ownership of 8 implementation work items per §1 (force-warm CLI affordance, SLA enforcement extension, TTL persistence, 5 CloudWatch metric emissions, DMS alarm creation/verification, Lambda schedule IaC, MemoryTier invalidation HYBRID per ADR-003, MINOR-OBS-2 botocore fix). Engineer-discretion latent decisions per §5 inherited (LD-P2-2 preflight contract pattern, LD-P2-4 XFetch beta calibration deferred-followup).
-- **Resolved load-bearing inputs accepted**: 4 RESOLVE-AT-P5-HANDOFF items (LD-P2-1 sla-profile vocabulary, LD-P3-1 hybrid TTL persistence, LD-P3-2 coalescer-routed force-warm, LD-P4-1 emit_success_timestamp investigation) + 2 PT-A2 FLAGs (FLAG-1 ForceWarmLatency includes coalescer wait, FLAG-2 4-class taxonomy canonical) treated as DECIDED, not re-litigated.
-- **Re-handoff commitment**: At impl phase close, 10x-dev will author `.ledge/handoffs/HANDOFF-10x-dev-to-thermia-{date}.md` (impl→verify analog) citing per-§1-item shipped vs deferred status with file:line receipts. This re-handoff triggers thermia.thermal-monitor's P7 attestation (BOTH design-review + in-anger-probe per SQ-3) discharging D8 by 2026-05-27.
-- **Critical constraint locked**: force-warm MUST route via `DataFrameCache` coalescer-protected path (LD-P3-2). Direct Lambda invoke FORBIDDEN. Wiring to be verified by qa-adversary at impl-phase QA gate.
-
 ## Verification Attestation

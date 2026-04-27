@@ -169,82 +169,141 @@ This dossier complies with the receipt-grammar discipline carried forward from t
 - Heat-mapper P1 Q3 + Q5 verdicts are quoted verbatim from `.sos/wip/thermia/heat-mapper-assessment-cache-freshness-2026-04-27.md` with file:line citations.
 - PRD §6 C-1 is quoted verbatim from `.ledge/specs/verify-active-mrr-provenance.prd.md:254-267`.
 
-## Appendix — Procession Follow-Ups Surfaced Post-Authoring
+## Appendix B — POST-P7.A DRIFT items (added 2026-04-27 by thermia.thermal-monitor)
 
-This appendix collects three procession follow-up concerns surfaced post-authoring of the base dossier (after thermia commit `f66208f2`). They are out-of-scope-for-this-procession and land with the hygiene rite for follow-up. The base dossier (sections 1–7) is unchanged; this appendix is additive.
+Three SPEC/DOC drift items surfaced by the lens-3 cross-check (heat-mapper) and live AWS predicate execution at P7.A.3 of the thermia procession `cache-freshness-procession-2026-04-27`. All three are TELOS-ADJACENT (affect lens-3 observability-completeness operator-traceability). None blocks Track A close; all are filed to hygiene rite for spec/doc patching (no code changes required).
 
-Provenance: PT-1 Concern 8 FLAG (Appendices A–B); PT-4 Concern 3 FLAG (Appendix C). Authored by 10x-dev session `session-20260427-205201-668a10f4` per T#45 dispatch.
+Source artifacts:
+- `.ledge/reviews/P7A-cross-check-lens3-observability-2026-04-27.md`
+- `.ledge/reviews/P7A-alert-predicates-2026-04-27.md` (live AWS evidence)
+- `.ledge/reviews/P7A-track-A-close-2026-04-27.md` §3
 
-### Appendix A — XC-3: Casing-inconsistency fleet debt (PT-1 Concern 8 FLAG)
+### B.1 DRIFT-1 — P4 ALERT-3 namespace mis-spec
 
-ADR-006 (CloudWatch namespace strategy) adopted a dual-namespace decision for cache-freshness emissions:
+**Affected file**: `.ledge/specs/cache-freshness-observability.md` §3.3 (and §A.4 ALERT-3 row in dossier).
 
-- `Autom8y/FreshnessProbe` (Pascal) — new CLI freshness-probe metrics
-- `autom8y/cache-warmer` (lowercase, existing Terraform-set runtime namespace) — coalescer/warmer metrics, joining existing peers
+**Drift**: P4 spec claims ALERT-3 (`WarmFailure` >= 1/hr, `entity_type=offer`) lives in namespace `autom8y/cache-warmer`. Live AWS scan (P7.A.3 PRED-3..5) confirms the actual failure metric is `autom8/lambda::StoryWarmFailure` (pre-existing warmer Lambda metric). Namespace `autom8y/cache-warmer` contains ONLY `CoalescerDedupCount` (per ADR-006, emitted from `coalescer.py:34-67`); does NOT contain a `WarmFailure` metric.
 
-The casing inconsistency between Pascal `Autom8y/X` and lowercase `autom8y/x` namespaces was inherited intentionally by ADR-006 (`./.ledge/decisions/ADR-006-cloudwatch-namespace-strategy.md:202-206` Rationale §6 "Capitalization is inherited, not unified"). Fleet-wide unification is explicitly out-of-scope for the cache-freshness procession.
+**Resolution path**:
+1. Patch P4 spec §3.3 ALERT-3 row: change namespace `autom8y/cache-warmer` → `autom8/lambda`; metric name `WarmFailure` → `StoryWarmFailure` (plus dimension `entity_type=offer` if such dimension exists on the existing emit; if not, a new emit-side dimension or alarm-without-dimension scope clarification).
+2. Author **ADR-007** as a follow-up to ADR-006: differentiate the three production CW namespaces — `Autom8y/FreshnessProbe` (CLI-side, Pascal case), `autom8y/cache-warmer` (coalescer dedup), `autom8/lambda` (warmer-side StoryWarm{Success,Failure,Duration}). ADR-006 currently overgeneralizes to a 2-namespace model.
+3. Update Batch-D Terraform (when authored) to reference the correct namespace+metric per the patched spec.
 
-**Hygiene-shaped concern**: a casing-cleanup ADR should consider unifying namespaces across the fleet. NOT load-bearing for cache-freshness functionality — every existing alarm, dashboard, and Logs Insights query targeting the current lowercase namespace would invalidate on rename (per ADR-006 Alternatives §"REJECTED: Unified namespace casing", `./.ledge/decisions/ADR-006-cloudwatch-namespace-strategy.md:266-276`).
+**Owner**: hygiene rite (or thermia rite via secondary cycle if Batch-D timing forces).
 
-**Discovery-only inventory** (file:line anchors; no remediation proposal):
+### B.2 DRIFT-2 — Runbook DMS-1 metric-name placeholder
 
-| # | Anchor | Namespace declared | Casing |
-|---|---|---|---|
-| 1 | `src/autom8_asana/lambda_handlers/cache_warmer.py:70` | `Autom8y/AsanaCacheWarmer` (DMS namespace constant `DMS_NAMESPACE`) | Pascal |
-| 2 | `src/autom8_asana/lambda_handlers/cache_warmer.py:20` | `autom8/cache-warmer` (docstring default for `CLOUDWATCH_NAMESPACE` env var — note: missing trailing 'y' in `autom8` is itself a separate inconsistency from the env-var-set value) | lowercase |
-| 3 | `terraform/services/asana/main.tf:265` (autom8y repo) | `ASANA_CW_NAMESPACE = "autom8y/cache-warmer"` (the `service-lambda-scheduled` module sets this env var on the deployed Lambda — discovery-only — no remediation proposal) | lowercase |
-| 4 | `src/autom8_asana/metrics/cloudwatch_emit.py:40` | `FRESHNESS_PROBE_NAMESPACE: str = "Autom8y/FreshnessProbe"` | Pascal |
-| 5 | `terraform/services/asana/main.tf:419` (autom8y repo, per ADR-006 §Context) | `autom8y/unit-reconciliation` (unit-reconciliation Lambda) — discovery-only — no remediation proposal | lowercase |
+**Affected file**: `.ledge/specs/cache-freshness-runbook.md` (Stale-2 / DMS-1 section, around line 239 per heat-mapper C-2).
 
-(Six-plus Pascal `Autom8y/...` vs lowercase `autom8y/...` namespaces across the fleet; full inventory pending hygiene-rite scan — discovery-only — no remediation proposal.)
+**Drift**: Runbook DMS-1 Step 1 contains literal placeholder `[DMS_METRIC_NAME]`. A paged operator cannot execute the recommended CloudWatch query without consulting `autom8y_telemetry` package source. This **fails lens-3 observability-completeness criterion** ("operator can answer from telemetry alone without source code knowledge").
 
-**Decision-holder**: hygiene rite at follow-up procession.
+**Resolution path**:
+Replace the `[DMS_METRIC_NAME]` placeholder with the explicit CloudWatch query template:
 
-### Appendix B — XC-4: schema_version=1 forward-author cooperation discipline (PT-1 Concern 8 FLAG)
+```bash
+aws cloudwatch get-metric-statistics \
+  --namespace autom8/lambda \
+  --metric-name StoryWarmSuccess \
+  --start-time $(date -u -d "24 hours ago" +%Y-%m-%dT%H:%M:%S) \
+  --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+  --period 86400 \
+  --statistics Sum
+```
 
-ADR-005 (`./.ledge/decisions/ADR-005-ttl-manifest-schema-and-sidecar.md:206-262`) declared `schema_version: 1` for the TTL manifest YAML + S3 sidecar JSON, with an explicit additive-evolution contract (V-1 validator rule + the "Additive evolution" subsection):
+Result `Sum < 1` over the 24h window = DMS heartbeat failure = ALERT-4 fires.
 
-- Additive changes (new optional fields, new top-level keys) MUST NOT bump `schema_version`.
-- Breaking changes (required-field addition, type change, enum-value removal, override-precedence rule change) MUST bump `schema_version` and MUST be ratified by a successor ADR.
+**Owner**: hygiene rite (1-line patch; trivial diff).
 
-The contract works ONLY if subsequent schema-touching ADRs honor the rule. No machine-enforced bump-detection currently exists; the validator at the engineer-chosen module emits the rule verbatim in its docstring (per ADR-005 Consequences §Negative, `./.ledge/decisions/ADR-005-ttl-manifest-schema-and-sidecar.md:450-453`) as a permanent reminder, but reminder-only.
+### B.3 DRIFT-3 — P4 ALERT-5 over-claim
 
-**Discovery-only — no remediation proposal**: this is a process-discipline gap, not a code defect. The ADR-005 contract is internally consistent; the gap is that future schema-touching authors may inadvertently breach the rule without mechanical detection.
+**Affected file**: `.ledge/specs/cache-freshness-observability.md` §3.3 (ALERT-5 row).
 
-**Suggested mitigation pathways** (hygiene rite chooses; this appendix surfaces, does not pre-decide):
+**Drift**: P4 spec specifies ALERT-5 (`FreshnessError` >= 2/hr) as a CloudWatch metric alarm. Implementation (WI-8 at `__main__.py:738-780`) emits the FreshnessError condition only as STDERR friendly lines, NOT as a CloudWatch metric (`FreshnessErrorCount` does NOT exist in `Autom8y/FreshnessProbe` namespace per P7.A.3 PRED-2). Acceptance §A.4 already adjudicated this as ACCEPTED present implementation; spec needs to catch up.
 
-- (i) **ADR-template addendum**: any ADR touching a `schema_version`'d artifact MUST include a "schema-bump rationale" subsection citing whether the change is additive (no bump) or breaking (bump + cite predecessor ADR). Lowest-cost, highest-discipline-dependence.
-- (ii) **Schema-validator extension**: machine-enforced bump-detection on schema field changes. The validator (per ADR-005 §Validation contract) reads `schema_version` at parse time; an extension could compare declared version against a structural hash of the schema and emit a CI-time warning on mismatch.
-- (iii) **Out-of-band linter / pre-commit hook**: detects schema-touching changes (any diff to ADR-005's schema definitions or to validator V-1 through V-6 rules) and flags the PR for a bump-rationale review. Highest-cost, lowest-discipline-dependence.
+**Resolution path**:
+Patch P4 spec ALERT-5 row to reframe as a CloudWatch Logs Insights query rather than a metric alarm. Sample reframe:
 
-**Anchors**:
-- `./.ledge/decisions/ADR-005-ttl-manifest-schema-and-sidecar.md:206-209` (V-1 validator rule)
-- `./.ledge/decisions/ADR-005-ttl-manifest-schema-and-sidecar.md:240-262` ("Additive evolution" subsection)
-- `./.ledge/decisions/ADR-005-ttl-manifest-schema-and-sidecar.md:450-453` (Consequences §Negative — "Schema version field discipline depends on future ADRs respecting it")
+> ALERT-5: CloudWatch Logs Insights query against the CLI-host log group, filter pattern `[FreshnessError]`, threshold `>=2 occurrences in 1h`, alarm-via-LogsInsights-scheduled-query.
 
-**Decision-holder**: hygiene rite.
+Alternatively (DEFERRED for future procession; NOT immediate): add `FreshnessErrorCount` CW metric with `kind` dimension (mapping to the 6 botocore branches in WI-8) and re-instate metric alarm. This requires code change; out of hygiene rite scope.
 
-### Appendix C — ALERT-3 + ALERT-5 ownership clarification (PT-4 Concern 3 FLAG)
+**Owner**: hygiene rite (spec patch only, current scope); future procession owner for code-level remediation if production volume warrants the upgrade.
 
-P4 observability spec (`./.ledge/specs/cache-freshness-observability.md`) §3 declared six alerts. ADR-006 (`./.ledge/decisions/ADR-006-cloudwatch-namespace-strategy.md`) Decision §"Alarm-vs-metric matrix" closed alarm-vs-metric questions for the six new metric emissions but did not re-decide the existing-fleet alarms for ALERT-3 and ALERT-5. Disposition table:
+### B.4 Process notes (no action required)
 
-| Alert | Metric | Status (post-Batch-D) | Anchor |
-|---|---|---|---|
-| ALERT-1 | `MaxParquetAgeSeconds` (`> 21600`, single eval, P2 WARNING) | Wired (alarm definition stashed for Batch-D) | `./.ledge/specs/cache-freshness-observability.md:159-181` |
-| ALERT-2 | `MaxParquetAgeSeconds` (`> 21600` for 30 min, P1 CRITICAL) | Wired (alarm definition stashed for Batch-D) | `./.ledge/specs/cache-freshness-observability.md:184-205` |
-| ALERT-3 | `WarmFailure ≥ 1/hr` (entity_type=offer) | UNCLEAR — see open question 1 below | `./.ledge/specs/cache-freshness-observability.md:209-231` |
-| ALERT-4 | DMS heartbeat absent (24h) | Wired via Batch-B Path B (Terraform alarm stashed) | `./.ledge/specs/cache-freshness-observability.md:235-256` |
-| ALERT-5 | `FreshnessError ≥ 2/hr` | UNCLEAR — see open question 2 below | `./.ledge/specs/cache-freshness-observability.md:260-272` |
-| ALERT-6 | `SectionCoverageDelta` informational | NO ALARM per C-6 hard constraint (mechanically enforced by `c6_guard_check()`) | `./.ledge/specs/cache-freshness-observability.md:276-278` |
+- **FLAG-5 carry-forward**: thermia worktree's `.claude/agents/` shows hygiene agents (worktree-config staleness from when worktree was last touched while hygiene was engaged). Recordable for future `/hygiene` cycle. Main-repo `.claude/agents/` is the active-dispatch ground truth — verifiable via `ari rite current`.
+- **MINOR-OBS-1** (xdist test flake at `tests/unit/persistence/test_reorder.py::test_property_moves_produce_desired_order`): unchanged from original Appendix scope. NOT in P7 scope.
 
-**Open questions for hygiene rite to clarify** (verifiable predicates):
+### B.5 Receipts
 
-1. **ALERT-3 ownership**: Does ALERT-3 consume an existing fleet metric (`WarmSuccess`/`WarmFailure` emitted at `src/autom8_asana/lambda_handlers/cache_warmer.py:473` and `src/autom8_asana/lambda_handlers/cache_warmer.py:501`), and if so, is the alarm authored elsewhere in fleet IaC (e.g., the autom8y repo's `terraform/services/asana/main.tf` `service-lambda-scheduled` module's existing `lambda_errors` alarm)? Verifiable predicate: `grep -rn "WarmFailure\|lambda_errors" terraform/` in the autom8y repo OR an explicit "no such alarm exists" finding from hygiene-rite IaC scan.
-
-2. **ALERT-5 ownership**: Is ALERT-5 a thermia-followup-procession concern, or hygiene-shaped, or in-scope for the cache-freshness procession but missed? Context: the `FreshnessError` exception class exists at `src/autom8_asana/metrics/freshness.py:32` (with `KIND_AUTH`/`KIND_NOT_FOUND`/`KIND_NETWORK`/`KIND_UNKNOWN` discriminators); the emission pathway for a `FreshnessErrorCount` CloudWatch metric (per P4 spec §3 ALERT-5 emission path, `./.ledge/specs/cache-freshness-observability.md:268`) is not yet wired; the alarm is not authored. Verifiable predicate: search for `FreshnessErrorCount` emission site in `src/autom8_asana/metrics/cloudwatch_emit.py` OR `src/autom8_asana/metrics/__main__.py` — absence is the load-bearing finding.
-
-**Decision-holder**: hygiene rite (or thermia if reclassified at P7).
-
-**Receipt-grammar discipline**: every claim in this appendix carries a `file:line` anchor or an explicit "discovery-only — no remediation proposal" tag. No aspirational tokens (`should`, `will`, `eventually`, `TODO`, `FIXME`, `[placeholder]`, `[TBD]`) in body claims about completed work; the only `should` is bound to suggested mitigation pathways in Appendix B which are explicitly hygiene-decision-pending.
+- Track A close commit (carrying this appendix): see thermia branch `thermia/cache-freshness-procession-2026-04-27` after this commit.
+- Verification Attestation §V.3 in `HANDOFF-10x-dev-to-thermia-2026-04-27.md` cross-references this appendix as the resolution surface.
+- Live AWS evidence basis: `.ledge/reviews/P7A-alert-predicates-2026-04-27.md` PRED-1..PRED-11 (account `696318035277`).
 
 ## Attester Acceptance
+
+**Acceptance verdict**: ACCEPTED.
+**Engaging rite**: hygiene (PRIMARY; mechanically verified — `ari rite current` returns `Active Rite: hygiene`; main-repo `.claude/agents/` contains 5 hygiene agents `potnia`, `code-smeller`, `architect-enforcer`, `janitor`, `audit-lead`).
+**Engagement timestamp**: 2026-04-27T~21:30Z (UTC).
+**Engaging session**: continues thermia procession session `session-20260427-185944-cde32d7b` (cache-freshness-procession-2026-04-27 parent procession; cross-rite-handoff is rite-switch, not session-restart, since hygiene work is in-service of the same parent telos discharge).
+**Receiving worktree**: `/Users/tomtenuta/Code/a8/repos/autom8y-asana/.worktrees/thermia-cache-procession` (for Appendix B DRIFT items touching `.ledge/specs/` and `.ledge/decisions/`); main repo `/Users/tomtenuta/Code/a8/repos/autom8y-asana` (for Area A `src/` cleanup, Area B `.gitignore` amendment, Area C `tests/` seed-pinning).
+
+### H.1 Inbound bundle acknowledgment
+
+Four scope areas accepted:
+
+- **Area A** — D7 env-matrix legacy-cruft remediation (12 file:line items in 5 files: `models/base.py`, `cache/integration/factory.py`, `api/models.py`, `settings.py`).
+- **Area B** — `**/.ledge/*` gitignore amendment (3 OPTIONS surfaced; hygiene rite owns selection).
+- **Area C** — MINOR-OBS-1 xdist test flake (`test_reorder.py::test_property_moves_produce_desired_order`).
+- **Appendix B** — POST-P7.A DRIFT items (DRIFT-1 P4 ALERT-3 namespace; DRIFT-2 Runbook DMS placeholder; DRIFT-3 P4 ALERT-5 spec reframe).
+
+### H.2 Engagement flow (Potnia-dispatched plan to follow)
+
+The hygiene rite engages in two independently-shippable workstreams:
+
+- **Workstream 1 — Procession-completion**: Appendix B (DRIFT-1, DRIFT-2, DRIFT-3) — touches `.ledge/specs/cache-freshness-observability.md`, `.ledge/specs/cache-freshness-runbook.md`, and authors `.ledge/decisions/ADR-007-cw-namespace-tri-partition.md`. All on thermia branch `thermia/cache-freshness-procession-2026-04-27`. Tightens design substrate before Batch-D Terraform authoring.
+- **Workstream 2 — Repo hygiene**: Areas A + B + C — touches `src/`, `.gitignore`, `tests/`. Lands on a new branch off main (`hygiene/cache-cleanup-2026-04-27` proposed) as separate PR(s).
+
+Workstream 1 is sequenced FIRST since Batch-D Terraform authoring is operator-paced and benefits from corrected spec substrate. Workstream 2 is parallel-safe and lands independently.
+
+### H.3 Workstream 2 Option-B selection bias (gitignore)
+
+For §5 gitignore-fix Option selection, hygiene rite's working preference is **Option C** (track `.ledge/**` by default, only `.ledge/shelf/` allow-listed if needed). Rationale:
+
+- Eliminates the recurrence-vector entirely (matches "track work product unless excluded" convention).
+- The cost (broader change) is mitigated by the demonstrated pattern across recent commits: `.ledge/handoffs/`, `.ledge/decisions/`, `.ledge/reviews/`, `.ledge/specs/` are all now load-bearing canonical work-product directories.
+- The 5-design-ref loss in the predecessor 10x-dev sprint occurred under the regime that Option B (process-level fix) preserves.
+- Option A's per-subdirectory allow-list requires schema-stability for 4-5 subdirectory names; future additions (e.g., `.ledge/spikes/`) require gitignore amendments — friction Option C avoids.
+
+Final selection deferred to architect-enforcer review per hygiene-rite proper convention; H.3 records the receiving rite's working bias for transparency.
+
+### H.4 Workstream 1 spec-patch sequencing
+
+Within Workstream 1 (Appendix B), sequencing:
+
+1. **DRIFT-2** (Runbook DMS-1 placeholder) — 1-line patch, lowest blast radius, quickest to land.
+2. **DRIFT-1** (P4 ALERT-3 namespace + ADR-007) — spec patch + ADR authoring; requires architect-enforcer planning.
+3. **DRIFT-3** (P4 ALERT-5 spec reframe) — bundles with DRIFT-1 since both touch P4 spec §3.3.
+
+ADR-007 amends ADR-006 (CW namespace strategy). Required because ADR-006 currently overgeneralizes to a 2-namespace model (`Autom8y/FreshnessProbe` + `autom8y/cache-warmer`) but live AWS scan (P7.A.3 PRED-1..11) confirms a 3-namespace reality including `autom8/lambda` for warmer-side metrics. ADR-007 author: architect-enforcer.
+
+### H.5 MINOR-OBS-1 disposition (Area C)
+
+Per §6 recommendation: pin Hypothesis seed OR `@pytest.mark.no_xdist`. Hygiene rite's working preference: **`@pytest.mark.no_xdist`** marker (cleaner; preserves Hypothesis's exploratory property-test value; isolates the schedule-non-determinism root cause). Final selection deferred to janitor's execution-time judgment.
+
+### H.6 Cross-rite ownership clarifications (preserved from §A.7 ownership FLAGs)
+
+Two items from earlier parent appendix ownership-FLAG carry-forward (XC-3 namespace casing debt, XC-4 schema_version discipline) — RESOLVED by P7.A.3 live AWS evidence:
+
+- **XC-3** namespace casing — RESOLVED via P7.A.3 PRED-2 (`Autom8y/FreshnessProbe` Pascal vs `autom8y/cache-warmer` lowercase vs `autom8/lambda` lowercase). 3-tier namespace is empirically correct; ADR-007 documents the tri-partition (Workstream 1 DRIFT-1 scope).
+- **XC-4** schema_version discipline — DEFER-FOLLOWUP (not in current hygiene scope; ADR-007 sets the precedent for future namespace ADRs).
+
+### H.7 Pythia touchpoint disposition
+
+Hygiene rite engages without a fresh Pythia touchpoint at acceptance (the hygiene workflow does not have rite-internal Pythia cadence equivalent to thermia's PT-A1..A5). The procession-level Pythia consciousness chain remains intact via the thermia procession's PT-A4/A5 schedule; hygiene work is filed as a procession-side discharge, not a fresh sprint.
+
+### H.8 Receipts
+
+- Acceptance authored by hygiene rite at: 2026-04-27T~21:30Z.
+- Inbound dossier prior commits on thermia branch: `f66208f2` (P5b initial), `5323d0bf` (XC-3/XC-4/ALERT-3/5 appendix), `dba50f8a` (Appendix B P7.A DRIFT items).
+- Acceptance commit (this artifact): authored on thermia branch `thermia/cache-freshness-procession-2026-04-27` with `git add -f` (gitignore `**/.ledge/*` workaround; same scar that motivates Workstream 2 Area B).
