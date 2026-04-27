@@ -188,4 +188,15 @@ Two pre-existing observations from the T9 QA report (`.ledge/reviews/QA-T9-verif
 
 ## Attester Acceptance
 
+- **Accepting rite**: thermia (active per `ari rite current` — agents: potnia, heat-mapper, systems-thermodynamicist, capacity-engineer, thermal-monitor)
+- **Activation predicate result**: PRIMARY path engaged. Thermia rite is registered (`.claude/agents/` populated; `ari rite current` reports `thermia`). Fallback (sre) NOT activated.
+- **Engaging agent(s)**: thermia.potnia (procession coordinator); thermia.thermal-monitor designated as de-facto verification-auditor for the §Verification Attestation gate. **Disambiguation note**: the dossier frontmatter names `thermia.verification-auditor` as primary, but no agent by that exact name exists in the thermia pantheon. Per the receiving rite's authority over its own pantheon-role mapping (and per Pantheon role description: thermal-monitor's charter includes "cross-architecture validation"), thermal-monitor discharges the verification gate. This substitution is semantic-fit, not fallback-rite invocation.
+- **Acceptance timestamp**: 2026-04-27T16:25:00Z (approximate; recorded at thermia procession kickoff)
+- **Receiving session**: NEW (to be created via moirai with rite=thermia at procession start; session_id appended to this entry on creation)
+- **Receiving worktree**: `/Users/tomtenuta/Code/a8/repos/autom8y-asana/.worktrees/thermia-cache-procession/` on `thermia/cache-freshness-procession-2026-04-27` (branched off main HEAD `786eb096`)
+- **Initiative slug**: cache-freshness-procession-2026-04-27 (downstream of `verify-active-mrr-provenance`)
+- **Pantheon-role mapping (recorded per T4 §4.5 latent decision #2 — fallback agent disambiguation)**: SLO-shaped verification surface (parquet mtime → staleness threshold → strict-mode promotion) → thermal-monitor primary on §Verification Attestation. Within the rite, all 4 specialists may be engaged across the procession per Potnia's coordination plan.
+- **Scope acknowledgement**: thermia accepts ownership of D5 (section-coverage telemetry), D10 (cache_warmer schedule + per-section TTL), force-warm CLI affordance (declared in PRD NG4 + dossier §5), freshness SLA enforcement, and the verified_realized telos gate (D8). D7 (env-matrix legacy-cruft remediation) accepted PROVISIONALLY pending heat-mapper assessment — env-mapping cleanup is arguably hygiene-rite-shaped rather than thermia-cache-shaped; if heat-mapper's 6-gate framework concludes the env-cruft is not cache-architecture-relevant, a secondary handoff to hygiene rite may be warranted.
+- **Initial-pass scope question for Potnia**: heat-mapper 6-gate assessment first? Or proceed directly to thermodynamicist+capacity-engineer design phase? (Resolved at Potnia consult; recorded in procession plan.)
+
 ## Verification Attestation
