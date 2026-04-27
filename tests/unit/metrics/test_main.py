@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tomllib
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import polars as pl
@@ -15,6 +16,7 @@ import pytest
 
 from autom8_asana.metrics.__main__ import _CLI_REQUIRED, main
 from autom8_asana.metrics.expr import MetricExpr
+from autom8_asana.metrics.freshness import FreshnessReport
 from autom8_asana.metrics.metric import Metric, Scope
 from autom8_asana.metrics.registry import MetricRegistry
 
@@ -24,6 +26,19 @@ def _reset_registry() -> None:
     MetricRegistry.reset()
     yield  # type: ignore[misc]
     MetricRegistry.reset()
+
+
+def _make_fresh_report(prefix: str = "dataframes/test/sections/") -> FreshnessReport:
+    """Construct a minimal fresh FreshnessReport for tests that don't care about S3."""
+    return FreshnessReport(
+        oldest_mtime=datetime(2026, 4, 27, 0, 0, tzinfo=UTC),
+        newest_mtime=datetime(2026, 4, 27, 12, 0, tzinfo=UTC),
+        max_age_seconds=1000,
+        threshold_seconds=21600,
+        parquet_count=10,
+        bucket="autom8-s3",
+        prefix=prefix,
+    )
 
 
 class TestCliList:
@@ -88,6 +103,10 @@ class TestCliCompute:
                 "autom8_asana.dataframes.offline.load_project_dataframe",
                 return_value=mock_df,
             ),
+            patch(
+                "autom8_asana.metrics.freshness.FreshnessReport.from_s3_listing",
+                return_value=_make_fresh_report(),
+            ),
         ):
             main()
 
@@ -115,6 +134,10 @@ class TestCliCompute:
             patch(
                 "autom8_asana.dataframes.offline.load_project_dataframe",
                 return_value=mock_df,
+            ),
+            patch(
+                "autom8_asana.metrics.freshness.FreshnessReport.from_s3_listing",
+                return_value=_make_fresh_report(),
             ),
         ):
             main()
@@ -171,6 +194,10 @@ class TestCliCompute:
                 "autom8_asana.models.business.activity.CLASSIFIERS",
                 {"test": type("C", (), {"project_gid": "000"})()},
             ),
+            patch(
+                "autom8_asana.metrics.freshness.FreshnessReport.from_s3_listing",
+                return_value=_make_fresh_report("dataframes/000/sections/"),
+            ),
         ):
             main()
 
@@ -217,6 +244,10 @@ class TestCliCompute:
             patch(
                 "autom8_asana.models.business.activity.CLASSIFIERS",
                 {"test": type("C", (), {"project_gid": "000"})()},
+            ),
+            patch(
+                "autom8_asana.metrics.freshness.FreshnessReport.from_s3_listing",
+                return_value=_make_fresh_report("dataframes/000/sections/"),
             ),
         ):
             main()  # must NOT raise TypeError

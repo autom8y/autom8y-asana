@@ -3,12 +3,15 @@
 Usage:
     python -m autom8_asana.metrics active_mrr
     python -m autom8_asana.metrics active_mrr --verbose
+    python -m autom8_asana.metrics active_mrr --strict --staleness-threshold 6h
+    python -m autom8_asana.metrics active_mrr --json
     python -m autom8_asana.metrics --list
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import pathlib
 import subprocess
@@ -117,6 +120,14 @@ def _preflight_cli_profile() -> None:
 def main() -> None:
     from autom8_asana.dataframes.offline import load_project_dataframe
     from autom8_asana.metrics.compute import compute_metric
+    from autom8_asana.metrics.freshness import (
+        FreshnessError,
+        FreshnessReport,
+        format_human_lines,
+        format_json_envelope,
+        format_warning,
+        parse_duration_spec,
+    )
     from autom8_asana.metrics.registry import MetricRegistry
     from autom8_asana.models.business.activity import CLASSIFIERS
 
@@ -146,7 +157,40 @@ def main() -> None:
         "--project-gid",
         help="Override project GID (default: resolved from metric entity type)",
     )
+    # ----- Freshness signal flags (PRD verify-active-mrr-provenance, ADR-001) -----
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help=(
+            "Promote stale-threshold/IO/zero-result warnings to non-zero exit "
+            "(PRD AC-2.3, AC-4.4, AC-5.2)."
+        ),
+    )
+    parser.add_argument(
+        "--staleness-threshold",
+        default="6h",
+        help=(
+            "Maximum acceptable parquet age before WARNING fires. "
+            "Duration spec: Ns/Nm/Nh/Nd. Default: 6h."
+        ),
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_mode",  # 'json' is a stdlib module name; avoid attribute shadow
+        help=(
+            "Emit a single structured JSON envelope to stdout instead of "
+            "human-readable lines (warnings still stderr)."
+        ),
+    )
     args = parser.parse_args()
+
+    # Validate --staleness-threshold spec BEFORE any S3 work (TDD §3.2 step 1).
+    try:
+        threshold_seconds = parse_duration_spec(args.staleness_threshold)
+    except ValueError as ve:
+        print(f"ERROR: {ve}", file=sys.stderr)
+        sys.exit(1)
 
     # --list mode
     if args.list_metrics:
@@ -192,7 +236,8 @@ def main() -> None:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Loaded {len(df)} rows from project {project_gid}")
+    if not args.json_mode:
+        print(f"Loaded {len(df)} rows from project {project_gid}")
 
     # Compute
     result = compute_metric(metric, df, verbose=args.verbose)
@@ -210,11 +255,112 @@ def main() -> None:
         # sum, mean, min, max on financial columns
         formatted = f"${total:,.2f}"
 
-    if metric.scope.dedup_keys:
+    if metric.scope.dedup_keys and not args.json_mode:
         dedup_desc = ", ".join(metric.scope.dedup_keys)
         print(f"Unique ({dedup_desc}) combos: {len(result)}")
 
-    print(f"\n  {metric.name}: {formatted}")
+    # Existing dollar-figure emission (preserved byte-for-byte under default mode
+    # per PRD C-2 / SM-6). Suppressed under --json per AC-3.2.
+    if not args.json_mode:
+        print(f"\n  {metric.name}: {formatted}")
+
+    # ----- Freshness signal (PRD verify-active-mrr-provenance, ADR-001) -----
+    bucket = os.environ.get("ASANA_CACHE_S3_BUCKET")
+    prefix = f"dataframes/{project_gid}/sections/"
+
+    # Build the FreshnessReport. Map FreshnessError to AC-4.x stderr lines.
+    try:
+        # bucket may be None here only if the upstream load_project_dataframe
+        # was satisfied through some other path (parameter override). The
+        # preflight guarantees the env var is set for the standard CLI path.
+        if not bucket:
+            raise FreshnessError(
+                FreshnessError.KIND_UNKNOWN,
+                "<unset>",
+                prefix,
+                ValueError("ASANA_CACHE_S3_BUCKET unset at freshness probe time"),
+            )
+        report = FreshnessReport.from_s3_listing(
+            bucket=bucket,
+            prefix=prefix,
+            threshold_seconds=threshold_seconds,
+        )
+    except FreshnessError as fe:
+        _emit_freshness_io_error(fe)
+        sys.exit(1)
+
+    # Empty-prefix check: parquet_count == 0 is structurally an IO-layer failure.
+    # Always exit 1 regardless of --strict (TDD §3.4).
+    if report.parquet_count == 0:
+        print(
+            f"ERROR: no parquets found at s3://{report.bucket}/{report.prefix}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    # Detect zero-result-set: parquets present but compute pipeline yielded
+    # zero rows. Distinct from empty-prefix per TDD §3.4 + latent #5.
+    zero_result = len(result) == 0
+
+    # ----- Output emission -----
+    if args.json_mode:
+        # JSON mode: single envelope to stdout; warnings/errors still stderr.
+        # `value` is the computed metric float when the aggregation succeeded;
+        # falls back to None for the "N/A (no data)" case.
+        envelope_value: float | None = None if total is None else float(total)
+        envelope = format_json_envelope(
+            report=report,
+            value=envelope_value,
+            metric_name=metric.name,
+            currency="USD",
+            env="production",
+            bucket_evidence="stakeholder-affirmation-2026-04-27",
+        )
+        print(json.dumps(envelope, sort_keys=True, indent=2))
+    else:
+        # Default mode: emit additive freshness lines per AC-1.2.
+        for line in format_human_lines(report):
+            print(line)
+
+    # WARNING line (stderr) for stale data — both default and JSON modes.
+    if report.stale:
+        print(format_warning(report), file=sys.stderr)
+
+    # Zero-result-set warning (stderr) — both default and JSON modes.
+    if zero_result:
+        print(
+            f"WARNING: zero rows after filter+dedup for metric '{metric.name}'",
+            file=sys.stderr,
+        )
+
+    # Exit code resolution per TDD §3.5 matrix.
+    if args.strict and (report.stale or zero_result):
+        sys.exit(1)
+
+
+def _emit_freshness_io_error(fe: FreshnessError) -> None:  # noqa: F821
+    """Map FreshnessError.kind to AC-4.1/4.2/4.3 stderr lines."""
+    if fe.kind == "auth":
+        msg = (
+            f"ERROR: S3 freshness probe failed (auth): "
+            f"could not authenticate against s3://{fe.bucket}/{fe.prefix} — {fe.underlying!r}"
+        )
+    elif fe.kind == "not-found":
+        msg = (
+            f"ERROR: S3 freshness probe failed (not-found): "
+            f"s3://{fe.bucket}/{fe.prefix} does not exist — {fe.underlying!r}"
+        )
+    elif fe.kind == "network":
+        msg = (
+            f"ERROR: S3 freshness probe failed (network): "
+            f"could not reach s3://{fe.bucket}/{fe.prefix} — {fe.underlying!r}"
+        )
+    else:
+        msg = (
+            f"ERROR: S3 freshness probe failed (unknown): "
+            f"s3://{fe.bucket}/{fe.prefix} — {fe.underlying!r}"
+        )
+    print(msg, file=sys.stderr)
 
 
 if __name__ == "__main__":
