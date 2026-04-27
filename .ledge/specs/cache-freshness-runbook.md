@@ -236,13 +236,13 @@ This is a P1 incident. Page the engineering on-call if not already paged.
 ```
 aws cloudwatch get-metric-statistics \
   --namespace Autom8y/AsanaCacheWarmer \
-  --metric-name [DMS_METRIC_NAME] \
+  --metric-name LastSuccessTimestamp \
   --start-time $(date -u -v-26H +%Y-%m-%dT%H:%M:%SZ) \
   --end-time $(date -u +%Y-%m-%dT%H:%M:%SZ) \
   --period 3600 \
   --statistics SampleCount
 ```
-Replace `[DMS_METRIC_NAME]` with the metric name emitted by `autom8y_telemetry.aws.emit_success_timestamp` (confirm from package source — this is the Blind Spot 1 noted in the observability spec §10).
+The metric `LastSuccessTimestamp` is emitted by `autom8y_telemetry.aws.emit_success_timestamp(DMS_NAMESPACE)` at `cache_warmer.py:845`, where `DMS_NAMESPACE = "Autom8y/AsanaCacheWarmer"` is the constant at `cache_warmer.py:70`. Verified in production via `aws cloudwatch list-metrics --namespace Autom8y/AsanaCacheWarmer` (2026-04-27 thermia P7.A.3 evidence at `.ledge/reviews/P7A-alert-predicates-2026-04-27.md`).
 
 If the metric shows datapoints: the alarm may have fired erroneously (threshold mismatch). Verify alarm configuration. If genuinely absent: proceed.
 

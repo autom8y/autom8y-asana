@@ -215,7 +215,7 @@ All thresholds are derived from the SLO definitions above and the upstream archi
 **Derivation**: Any warmer failure for the `offer` entity type directly affects `active_mrr` freshness. A single failure in an hour is significant enough to warrant notification; the 95% SLO allows failure only 5% of the time, and at daily cadence that means at most 1 failure per 20 cycles.
 
 **CloudWatch alarm config**:
-- Namespace: varies (see §8 for DMS namespace; `WarmSuccess`/`WarmFailure` are emitted via `emit_metric` at `cache_warmer.py:473,501` — namespace is the `CLOUDWATCH_NAMESPACE` env var, defaulting to `autom8/cache-warmer` per `cache_warmer.py:20`)
+- Namespace: `autom8y/cache-warmer` (lowercase, with 'y'); production-runtime value sourced from `settings.observability.cloudwatch_namespace` Pydantic field at `settings.py:604`. `WarmSuccess`/`WarmFailure` emit via `emit_metric` at `cache_warmer.py:473,501` (delegating to the local helper at `lambda_handlers/cloudwatch.py` whose default falls back to `settings.observability.cloudwatch_namespace`). NOTE: the `cache_warmer.py:20` module-docstring claim of `autom8/cache-warmer` (no 'y') is OUTDATED; the runtime-config tri-partition is documented in `.ledge/decisions/ADR-007-cw-namespace-tri-partition.md`. As of 2026-04-27 the warmer-side metrics have not yet been emitted in production (no `WarmFailure` datapoints exist in any CloudWatch namespace per P7.A.3 evidence) — Track B Probe-2 will validate alarm-firing semantics empirically post-Batch-D apply.
 - Metric: `WarmFailure`
 - Dimensions: `entity_type=offer`
 - Statistic: Sum
@@ -265,11 +265,21 @@ All thresholds are derived from the SLO definitions above and the upstream archi
 
 **Derivation**: A single S3 IO error may be transient. Two errors in an hour suggest a systemic issue. `kind=not-found` at the `NoSuchBucket` level is never transient — the bucket is either misconfigured or deleted; this is a P1 condition regardless of count.
 
-**Emission path**: [UNATTESTED — DEFER-POST-HANDOFF: requires P5a 10x-dev impl to emit a `FreshnessErrorCount` metric to `Autom8y/FreshnessProbe` from the `except FreshnessError` block at `__main__.py:292-294`, with dimension `kind=auth|not-found|network|unknown`.]
+**Emission path** (REFRAMED 2026-04-28 per hygiene W1 DRIFT-3): the P6 10x-dev implementation chose **stderr-only error reporting** (WI-8 at `__main__.py:738-780`) rather than a CloudWatch metric. As of P7.A.3 verification (`.ledge/reviews/P7A-alert-predicates-2026-04-27.md` PRED-2), no `FreshnessErrorCount` metric exists in `Autom8y/FreshnessProbe` namespace and adding one is not in immediate scope (acceptance §A.4 ACCEPTED stderr-only). ALERT-5 is therefore **NOT a CloudWatch metric alarm**. It is realized as a **CloudWatch Logs Insights scheduled query** against the CLI-host log group:
+
+```
+fields @timestamp, @message
+| filter @message like /FreshnessError/
+| stats count() as occurrences by bin(1h)
+| sort @timestamp desc
+| limit 24
+```
+
+Alarm condition: `occurrences >= 2` in any 1h window. Severity routing per the `kind=` substring in the matched stderr line (`kind=not-found` → P1; other kinds → P2). Future procession may upgrade this to a metric-alarm topology by adding a `FreshnessErrorCount` CW metric with `kind` dimension to `cloudwatch_emit.py` (DEFER-FOLLOWUP per acceptance §A.5).
 
 **Notification channel**: P2 → Slack; P1 (not-found) → PagerDuty.
 
-**MINOR-OBS-2 note**: The botocore `ClientError(NoSuchBucket)` gap at `__main__.py:239` (load_project_dataframe path, before the freshness probe) may produce raw tracebacks in stderr that are not caught by the `FreshnessError` handler. Alert logic parsing CLI stderr for error classification must tolerate raw botocore tracebacks until MINOR-OBS-2 is resolved in P6.
+**MINOR-OBS-2 note**: The botocore `ClientError(NoSuchBucket)` gap at `__main__.py:239` (load_project_dataframe path, before the freshness probe) MAY produce raw tracebacks in stderr that are not caught by the `FreshnessError` handler. RESOLVED in P6 WI-8 at `__main__.py:738-780` (handler extended to catch `botocore.exceptions.ClientError` for `NoSuchBucket`, `NoSuchKey`, `AccessDenied`, `InvalidAccessKeyId`, `SignatureDoesNotMatch`, unknown codes; AND `botocore.exceptions.NoCredentialsError`). Logs Insights query above MAY be tightened to filter on the friendly stderr lines emitted by WI-8 rather than raw botocore tracebacks once production volume confirms the WI-8 path covers all real-world error shapes.
 
 ---
 

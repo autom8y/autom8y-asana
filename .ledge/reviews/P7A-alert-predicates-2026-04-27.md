@@ -163,3 +163,35 @@ All three DRIFT items are P4-spec-side (thermal-monitor self-authored). Cross-ch
 - Predicate execution timestamp: 2026-04-27T~21:00Z
 - All `aws cloudwatch ...` outputs captured verbatim in §1, §2, §3, §5 above.
 - Cross-references: `cloudwatch_emit.py:88-106` (C-6 guard); `coalescer.py:34-67` (CoalescerDedupCount emit); `__main__.py:738-780` (WI-8 stderr error handler).
+
+## §10 CORRECTION (appended 2026-04-28 by hygiene W1.P1)
+
+The hygiene rite's W1.P1 architectural review surfaced a refinement to two §3 conclusions in this artifact. The PREDICATE evidence in §1-§5 (live AWS list-metrics outputs) is correct as captured. The CONCLUSIONS drawn from that evidence required correction:
+
+### §10.1 ALERT-3 backing-metric mis-attribution (CORRECTED)
+
+**Original §3 / §7 framing (incorrect)**: "ALERT-3 backing metric resolves to `autom8/lambda::StoryWarmFailure`."
+
+**Corrected framing**: The `Story*` prefixed metrics in `autom8/lambda` namespace (`StoryWarmSuccess`, `StoryWarmFailure`, `StoryWarmDuration`, `StoriesWarmed`) are emitted by a DIFFERENT module (the asana-stories warmer, NOT the cache-warmer of this initiative). They are unrelated to ALERT-3. The actual ALERT-3 backing metric is `WarmFailure` (no `Story` prefix), emitted from `cache_warmer.py:501` via the local `emit_metric` helper at `lambda_handlers/cloudwatch.py`. That helper's namespace default falls back to `settings.observability.cloudwatch_namespace` (Pydantic field at `settings.py:604`), production value `autom8y/cache-warmer` (lowercase, with 'y'). The `cache_warmer.py:20` module-docstring claim of `autom8/cache-warmer` (no 'y') is OUTDATED.
+
+**Empirical state**: `WarmFailure` does NOT exist in any CloudWatch namespace as of 2026-04-28 (verified via `aws cloudwatch list-metrics --metric-name WarmFailure` returning empty). This is consistent with the cache-warmer Lambda not having executed the failure path in production yet (no entity-warming failures emitted), NOT a namespace mis-routing.
+
+### §10.2 DMS metric name (CORRECTED)
+
+**Original §4 framing (incorrect)**: "the `[DMS_METRIC_NAME]` placeholder MUST resolve to `StoryWarmSuccess` in namespace `autom8/lambda`."
+
+**Corrected framing**: the DMS metric is `LastSuccessTimestamp` (NOT `StoryWarmSuccess`) in namespace `Autom8y/AsanaCacheWarmer` (Pascal case, hardcoded constant `DMS_NAMESPACE` at `cache_warmer.py:70`, NOT `autom8/lambda`). Verified empirically via `aws cloudwatch list-metrics --namespace "Autom8y/AsanaCacheWarmer"` returning `["LastSuccessTimestamp"]`. The DMS path is `cache_warmer.py:845` invoking `autom8y_telemetry.aws.emit_success_timestamp(DMS_NAMESPACE)`.
+
+### §10.3 Resolution
+
+The CORRECTIONS landed in this commit (hygiene W1) via:
+
+- `.ledge/specs/cache-freshness-runbook.md` Step 1 of DMS-1 — placeholder resolved to `LastSuccessTimestamp` (not `StoryWarmSuccess`).
+- `.ledge/specs/cache-freshness-observability.md` ALERT-3 row — namespace clarified to `autom8y/cache-warmer` runtime-config-sourced (not `autom8/lambda`).
+- `.ledge/decisions/ADR-007-cw-namespace-tri-partition.md` — newly authored to document the 3-namespace topology with explicit per-layer source-of-truth (Pascal hardcoded for safety-critical, lowercase runtime-config for warmer-side).
+
+### §10.4 Process note
+
+The original framing error was made by `thermia.thermal-monitor` during Track A close — a self-author surface. The disjoint-critic mechanism (heat-mapper lens-3 cross-check) caught the OVERALL drift class (P4 spec needs correction) but did not specifically catch the `Story*`-vs-`Warm*` metric-name confusion at the conclusion altitude. The architecture-enforcer review at hygiene W1.P1 surfaced the refinement because it required reading `cache_warmer.py` source directly (lines 70, 473, 501, 845) to validate the ADR-006/007 amendment claim.
+
+**Discipline implication**: thermal-monitor's design-review verdicts at Track A should cite source-code line anchors (not just metric-name candidates from AWS list-metrics output) when adjudicating namespace+metric ownership. AWS list-metrics gives presence-evidence; source code gives intent-evidence; both are needed for a complete verdict. Filed as a procession-side discipline note.
