@@ -1046,3 +1046,312 @@ class TestMinorObs2BotocoreFix:
         captured = capsys.readouterr()
         assert "credentials unavailable" in captured.err.lower()
         assert "Traceback" not in captured.err
+
+
+# ---------------------------------------------------------------------------
+# BLOCK-1 remediation — wire emit_freshness_probe_metrics() into production
+# CLI flow. PT-3 Pythia raised that the emit function existed with full unit-
+# test coverage but was NEVER CALLED from __main__.py. The four tests below
+# verify the production wiring per the PT-3 verdict + ADR-006 § Decision +
+# P4 SLI definitions.
+# ---------------------------------------------------------------------------
+
+
+class TestForceWarmEmitsFreshnessMetrics:
+    """BLOCK-1 remediation tests — production wiring of emit_freshness_probe_metrics().
+
+    Verifies the four wiring properties:
+      1. ``--force-warm --wait`` triggers emit with ForceWarmLatencySeconds populated.
+      2. Default-mode CLI (no --force-warm) emits baseline metrics with
+         ForceWarmLatencySeconds=None.
+      3. CW emit failure does NOT crash the CLI (sys.exit semantics preserved;
+         _safe_emit_freshness_probe_metrics absorbs the exception).
+      4. FLAG-1 boundary: latency captured spans coalescer wait (the window
+         starts at parser.parse_args() return, ends at post-warm S3 recheck).
+    """
+
+    @pytest.fixture(autouse=True)
+    def _set_cli_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("ASANA_CACHE_S3_BUCKET", "autom8-s3")
+        monkeypatch.setenv("ASANA_CACHE_S3_REGION", "us-east-1")
+
+    @staticmethod
+    def _make_sync_force_warm_result() -> object:
+        """Build a successful sync ForceWarmResult fixture (wait=True path)."""
+        from autom8_asana.cache.integration.force_warm import ForceWarmResult
+
+        return ForceWarmResult(
+            invoked=True,
+            invocation_type="RequestResponse",
+            deduped=False,
+            latency_seconds=0.001,
+            function_arn="test-warmer-fn",
+            project_gid="12345",
+            entity_types=(),
+            coalescer_key="forcewarm:12345:*",
+            lambda_status_code=200,
+            lambda_response_payload={"success": True},
+            l1_invalidated=True,
+        )
+
+    def test_force_warm_wait_triggers_emit_with_latency(
+        self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test 1: --force-warm --wait calls emit_freshness_probe_metrics with non-None latency.
+
+        Verifies the production wiring:
+          - force_warm() returns success on the sync path.
+          - _execute_force_warm re-runs FreshnessReport.from_s3_listing() to
+            observe post-warm fresh state.
+          - emit_freshness_probe_metrics is invoked with
+            force_warm_latency_seconds populated (not None) per FLAG-1.
+        """
+        monkeypatch.setenv(_FORCE_WARM_REQUIRED_ENV, "test-warmer-fn")
+
+        async def _mock_force_warm(**kwargs: object) -> object:
+            return self._make_sync_force_warm_result()
+
+        captured_emit_kwargs: list[dict[str, object]] = []
+
+        def _mock_emit(**kwargs: object) -> dict[str, object]:
+            captured_emit_kwargs.append(kwargs)
+            return {"namespace": "Autom8y/FreshnessProbe", "metric_data": []}
+
+        recheck_report = _make_fresh_report(prefix="dataframes/12345/sections/")
+
+        mock_cache = MagicMock(name="DataFrameCache")
+
+        with (
+            patch(
+                "sys.argv",
+                ["metrics", "--force-warm", "--wait", "--project-gid", "12345"],
+            ),
+            patch(
+                "autom8_asana.metrics.__main__.force_warm",
+                _mock_force_warm,
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch(
+                "autom8_asana.metrics.freshness.FreshnessReport.from_s3_listing",
+                return_value=recheck_report,
+            ),
+            patch(
+                "autom8_asana.metrics.__main__.emit_freshness_probe_metrics",
+                side_effect=_mock_emit,
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+        assert exc_info.value.code == 0
+
+        # Assert emit was invoked exactly once on the --force-warm --wait path.
+        assert len(captured_emit_kwargs) == 1, (
+            f"Expected exactly one emit_freshness_probe_metrics() call on "
+            f"the sync force-warm success path; got {len(captured_emit_kwargs)}"
+        )
+        call = captured_emit_kwargs[0]
+        # ForceWarmLatencySeconds MUST be populated (non-None) per FLAG-1.
+        assert call["force_warm_latency_seconds"] is not None, (
+            "BLOCK-1 production wiring: ForceWarmLatencySeconds must be "
+            "populated on the sync force-warm success path; received None"
+        )
+        latency_val = call["force_warm_latency_seconds"]
+        assert isinstance(latency_val, float)
+        # Latency window includes argparse → coalescer wait → recheck;
+        # expect a small but strictly-positive value in unit-test conditions.
+        assert latency_val >= 0.0, f"FLAG-1 latency must be non-negative; got {latency_val!r}"
+        assert call["report"] is recheck_report
+        assert call["project_gid"] == "12345"
+
+    def test_default_mode_emits_baseline_metrics_with_latency_none(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Test 2: default-mode CLI (no --force-warm) emits baseline metrics; latency=None.
+
+        ADR-006: per-CLI-invocation observability surface. Even when the
+        operator runs the standard metric path (no force-warm), the four-
+        metric baseline batch (MaxParquetAgeSeconds + SectionCount +
+        SectionAgeP95Seconds + SectionCoverageDelta) is emitted.
+        ForceWarmLatencySeconds is OMITTED (no force-warm window exists).
+        """
+        mock_df = pl.DataFrame(
+            {
+                "name": ["A", "B"],
+                "section": ["ACTIVE", "ACTIVE"],
+                "office_phone": ["555-1", "555-2"],
+                "vertical": ["dental", "dental"],
+                "mrr": ["1000", "2000"],
+                "weekly_ad_spend": ["100", "200"],
+            }
+        )
+
+        captured_emit_kwargs: list[dict[str, object]] = []
+
+        def _mock_emit(**kwargs: object) -> dict[str, object]:
+            captured_emit_kwargs.append(kwargs)
+            return {"namespace": "Autom8y/FreshnessProbe", "metric_data": []}
+
+        with (
+            patch("sys.argv", ["metrics", "active_mrr"]),
+            patch(
+                "autom8_asana.dataframes.offline.load_project_dataframe",
+                return_value=mock_df,
+            ),
+            patch(
+                "autom8_asana.metrics.freshness.FreshnessReport.from_s3_listing",
+                return_value=_make_fresh_report(),
+            ),
+            patch(
+                "autom8_asana.metrics.__main__.emit_freshness_probe_metrics",
+                side_effect=_mock_emit,
+            ),
+        ):
+            main()
+
+        # Assert baseline emission occurred exactly once on the default path.
+        assert len(captured_emit_kwargs) == 1, (
+            f"Expected exactly one emit on default-mode CLI path; got {len(captured_emit_kwargs)}"
+        )
+        call = captured_emit_kwargs[0]
+        # ForceWarmLatencySeconds MUST be None on the default (non-force-warm)
+        # path per FLAG-1 contract — no window exists to measure.
+        assert call["force_warm_latency_seconds"] is None, (
+            "FLAG-1 contract: default-mode CLI must omit ForceWarmLatencySeconds "
+            f"(force_warm_latency_seconds=None); received: "
+            f"{call['force_warm_latency_seconds']!r}"
+        )
+        # Verify the baseline-metric inputs flow through.
+        assert call["metric_name_dim"] == "active_mrr"
+        # PRD C-2 backwards-compat: dollar-figure stdout preserved.
+        captured = capsys.readouterr()
+        assert "active_mrr:" in captured.out
+        assert "$3,000.00" in captured.out
+
+    def test_cw_emit_failure_does_not_crash_cli(self, capsys: pytest.CaptureFixture[str]) -> None:
+        """Test 3: CW emission failure absorbed by safe-emit; CLI still exits normally.
+
+        PRD C-2 backwards-compat: default-mode CLI MUST NOT change exit-code
+        semantics from added observability emissions. The wrapper
+        _safe_emit_freshness_probe_metrics catches any exception (boto3
+        import failure, AWS_REGION resolution error, transport error) and
+        emits a single stderr WARNING; the CLI's primary purpose (compute +
+        print metric) succeeds.
+        """
+        mock_df = pl.DataFrame(
+            {
+                "name": ["A", "B"],
+                "section": ["ACTIVE", "ACTIVE"],
+                "office_phone": ["555-1", "555-2"],
+                "vertical": ["dental", "dental"],
+                "mrr": ["1000", "2000"],
+                "weekly_ad_spend": ["100", "200"],
+            }
+        )
+
+        def _exploding_emit(**kwargs: object) -> dict[str, object]:
+            raise RuntimeError("CloudWatch transport unavailable")
+
+        with (
+            patch("sys.argv", ["metrics", "active_mrr"]),
+            patch(
+                "autom8_asana.dataframes.offline.load_project_dataframe",
+                return_value=mock_df,
+            ),
+            patch(
+                "autom8_asana.metrics.freshness.FreshnessReport.from_s3_listing",
+                return_value=_make_fresh_report(),
+            ),
+            patch(
+                "autom8_asana.metrics.__main__.emit_freshness_probe_metrics",
+                side_effect=_exploding_emit,
+            ),
+        ):
+            # main() must NOT raise; default-mode exit semantics unchanged.
+            main()
+
+        captured = capsys.readouterr()
+        # Primary purpose: dollar figure was emitted to stdout (C-2 preserved).
+        assert "active_mrr:" in captured.out
+        assert "$3,000.00" in captured.out
+        # Safe-emit surfaced a single stderr WARNING line.
+        assert "WARNING" in captured.err
+        assert "metric emission failed" in captured.err
+        # No raw traceback leaked.
+        assert "Traceback" not in captured.err
+
+    def test_flag_1_boundary_latency_spans_coalescer_wait(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Test 4: FLAG-1 boundary — latency captured spans the coalescer wait window.
+
+        The flag-parse-to-fresh-state window MUST include any coalescer wait
+        time per FLAG-1 boundary (P4 SLI-2). This test introduces an
+        artificial delay inside the mocked force_warm() coroutine and asserts
+        that the captured ForceWarmLatencySeconds reflects it (window
+        bounded below by the simulated coalescer wait duration).
+        """
+        import asyncio
+
+        monkeypatch.setenv(_FORCE_WARM_REQUIRED_ENV, "test-warmer-fn")
+
+        simulated_wait_seconds = 0.05  # 50ms simulated coalescer/Lambda window
+
+        async def _mock_force_warm(**kwargs: object) -> object:
+            await asyncio.sleep(simulated_wait_seconds)
+            return self._make_sync_force_warm_result()
+
+        captured_emit_kwargs: list[dict[str, object]] = []
+
+        def _mock_emit(**kwargs: object) -> dict[str, object]:
+            captured_emit_kwargs.append(kwargs)
+            return {"namespace": "Autom8y/FreshnessProbe", "metric_data": []}
+
+        recheck_report = _make_fresh_report(prefix="dataframes/12345/sections/")
+
+        mock_cache = MagicMock(name="DataFrameCache")
+
+        with (
+            patch(
+                "sys.argv",
+                ["metrics", "--force-warm", "--wait", "--project-gid", "12345"],
+            ),
+            patch(
+                "autom8_asana.metrics.__main__.force_warm",
+                _mock_force_warm,
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch(
+                "autom8_asana.metrics.freshness.FreshnessReport.from_s3_listing",
+                return_value=recheck_report,
+            ),
+            patch(
+                "autom8_asana.metrics.__main__.emit_freshness_probe_metrics",
+                side_effect=_mock_emit,
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+        assert exc_info.value.code == 0
+
+        assert len(captured_emit_kwargs) == 1
+        latency = captured_emit_kwargs[0]["force_warm_latency_seconds"]
+        assert latency is not None, (
+            "FLAG-1 boundary: ForceWarmLatencySeconds must be populated "
+            "when --force-warm --wait succeeds"
+        )
+        assert isinstance(latency, float)
+        # The captured latency MUST be >= the simulated coalescer wait —
+        # this is the structural property the FLAG-1 boundary requires.
+        assert latency >= simulated_wait_seconds, (
+            f"FLAG-1 boundary violation: captured latency ({latency:.4f}s) "
+            f"is less than the simulated coalescer wait "
+            f"({simulated_wait_seconds:.4f}s). The window is starting too "
+            f"late or ending too early; re-inspect flag_parse_baseline "
+            f"capture point + post-warm recheck end timestamp."
+        )

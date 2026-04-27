@@ -35,6 +35,7 @@ import os
 import pathlib
 import subprocess
 import sys
+import time
 from typing import TYPE_CHECKING
 
 from autom8_asana.cache.integration.force_warm import (
@@ -44,9 +45,10 @@ from autom8_asana.cache.integration.force_warm import (
     ForceWarmError,
     force_warm,
 )
+from autom8_asana.metrics.cloudwatch_emit import emit_freshness_probe_metrics
 
 if TYPE_CHECKING:
-    from autom8_asana.metrics.freshness import FreshnessError
+    from autom8_asana.metrics.freshness import FreshnessError, FreshnessReport
 
 # ---------------------------------------------------------------------------
 # CLI preflight — Alternative C (TDD-0001-cli-preflight-contract, CFG-006)
@@ -236,10 +238,75 @@ def _resolve_dataframe_cache_for_cli() -> object:
     return cache
 
 
+def _safe_emit_freshness_probe_metrics(
+    *,
+    report: FreshnessReport,
+    metric_name_dim: str,
+    project_gid: str,
+    section_coverage_delta: int,
+    force_warm_latency_seconds: float | None,
+) -> None:
+    """Emit FLAG-1 freshness probe metrics; never crash the CLI on failure.
+
+    Wraps ``cloudwatch_emit.emit_freshness_probe_metrics`` so that any
+    transport, IAM, or boto3 import failure surfaces a single stderr line
+    and the CLI continues per PRD C-2 backwards-compat (default-mode CLI
+    MUST NOT change exit-code semantics from added observability emissions).
+
+    The wrapped emit function already has its own per-call best-effort
+    exception handler around ``put_metric_data``; this outer guard catches
+    pre-call failures (e.g., boto3 import, AWS_REGION resolution, client
+    construction) so the CLI's primary purpose — compute and print the
+    metric — succeeds even when the observability path is broken.
+    """
+    try:
+        emit_freshness_probe_metrics(
+            report=report,
+            metric_name_dim=metric_name_dim,
+            project_gid=project_gid,
+            section_coverage_delta=section_coverage_delta,
+            force_warm_latency_seconds=force_warm_latency_seconds,
+        )
+    except Exception as exc:  # noqa: BLE001 — best-effort observability emission
+        sys.stderr.write(f"WARNING: freshness probe metric emission failed: {exc!r}\n")
+
+
+def _resolve_section_coverage_delta(
+    *,
+    metric_entity_type: str | None,
+    parquet_count: int,
+) -> int:
+    """Return classifier_active_section_count - parquet_count.
+
+    SectionCoverageDelta is informational only (C-6 HARD CONSTRAINT — NO ALARM).
+    When the classifier for ``metric_entity_type`` cannot be resolved (e.g.,
+    --force-warm path with no metric name), returns 0 — the metric still emits
+    so the dashboard cardinality is preserved across CLI shapes.
+    """
+    if metric_entity_type is None:
+        return 0
+    try:
+        from autom8_asana.models.business.activity import CLASSIFIERS
+    except Exception:  # noqa: BLE001 — observability path must not crash CLI
+        return 0
+    classifier = CLASSIFIERS.get(metric_entity_type)
+    if classifier is None:
+        return 0
+    try:
+        return len(classifier.active_sections()) - parquet_count
+    except Exception:  # noqa: BLE001 — defensive
+        return 0
+
+
 def _execute_force_warm(
     project_gid: str,
     *,
     wait: bool,
+    flag_parse_baseline: float | None = None,
+    metric_name_dim: str = "force_warm",
+    bucket: str | None = None,
+    threshold_seconds: int | None = None,
+    metric_entity_type: str | None = None,
 ) -> int:
     """Execute force-warm by delegating to the canonical force_warm() module.
 
@@ -256,12 +323,40 @@ def _execute_force_warm(
       - L1 MemoryTier invalidation on sync success per ADR-003 HYBRID.
       - CACHE_WARMER_LAMBDA_ARN env var resolution (fleet convention).
 
+    FLAG-1 boundary (BLOCK-1 remediation): when ``flag_parse_baseline`` is
+    supplied AND ``wait`` is True AND force_warm() succeeds, this method
+    re-runs ``FreshnessReport.from_s3_listing`` to observe post-warm fresh
+    state and emits the five-metric ``Autom8y/FreshnessProbe`` batch with
+    ``ForceWarmLatencySeconds = monotonic_now - flag_parse_baseline``. The
+    measured window includes argparse → coalescer wait → Lambda invoke →
+    Lambda response → L1 invalidation → S3 list (recheck), satisfying the
+    FLAG-1 boundary contract per P4 SLI-2.
+
+    Default async path (``wait=False``) does NOT post-warm-recheck — the
+    operator accepts SWR rebuild lag, so no end timestamp exists within a
+    single CLI process. ForceWarmLatencySeconds is OMITTED on async per
+    cloudwatch_emit.emit_freshness_probe_metrics contract.
+
     Args:
         project_gid: Project to warm. Forms the coalescer key together with
             entity_types=() (wildcard semantic).
         wait: If True, InvocationType=RequestResponse (sync) + L1 MemoryTier
             invalidation per ADR-003 HYBRID. If False, InvocationType=Event
             (async fire-and-forget); no L1 invalidation.
+        flag_parse_baseline: time.monotonic() value captured immediately
+            after parser.parse_args() in main(). Forms the FLAG-1 window
+            start. When None, latency emission is suppressed.
+        metric_name_dim: Dimension value identifying the CLI surface for
+            cross-metric attribution. Defaults to "force_warm" for the
+            force-warm CLI shape.
+        bucket: S3 bucket for the post-warm freshness recheck. When None,
+            falls back to ASANA_CACHE_S3_BUCKET. Recheck is suppressed if
+            unresolvable.
+        threshold_seconds: Threshold seconds passed into the recheck
+            FreshnessReport. When None, recheck is suppressed (no defensible
+            default at this altitude — caller passes the resolved threshold).
+        metric_entity_type: Entity type for SectionCoverageDelta classifier
+            resolution. None when force-warm runs without a metric name.
 
     Returns:
         Process exit code: 0 on success (sync ok / async accepted / coalesced
@@ -325,7 +420,9 @@ def _execute_force_warm(
             return 0
 
         if not wait:
-            # Async path — successful Event accept (2xx).
+            # Async path — successful Event accept (2xx). Per FLAG-1 boundary,
+            # default async path omits ForceWarmLatencySeconds (no end
+            # timestamp available within a single CLI process).
             print(
                 "force-warm invoked (async); monitor DMS metric "
                 "Autom8y/AsanaCacheWarmer for completion",
@@ -339,6 +436,52 @@ def _execute_force_warm(
             "force-warm completed (sync); L1 invalidated per ADR-003 HYBRID",
             file=sys.stderr,
         )
+
+        # FLAG-1 boundary: post-warm freshness recheck + latency emission.
+        # Window = parse_args() → here (success of sync force_warm + L1
+        # invalidation). Re-running from_s3_listing observes the post-warm
+        # state so MaxParquetAgeSeconds/SectionCount/SectionAgeP95Seconds
+        # reflect what the operator just refreshed.
+        if flag_parse_baseline is not None and bucket is not None and threshold_seconds is not None:
+            try:
+                from autom8_asana.metrics.freshness import (
+                    FreshnessError as _FE,
+                )
+                from autom8_asana.metrics.freshness import (
+                    FreshnessReport as _FR,
+                )
+
+                prefix = f"dataframes/{project_gid}/sections/"
+                try:
+                    recheck = _FR.from_s3_listing(
+                        bucket=bucket,
+                        prefix=prefix,
+                        threshold_seconds=threshold_seconds,
+                    )
+                except _FE as fe:
+                    sys.stderr.write(
+                        f"WARNING: post-warm freshness recheck failed: "
+                        f"{fe.kind} s3://{fe.bucket}/{fe.prefix}\n"
+                    )
+                    return 0
+                latency = time.monotonic() - flag_parse_baseline
+                delta = _resolve_section_coverage_delta(
+                    metric_entity_type=metric_entity_type,
+                    parquet_count=recheck.parquet_count,
+                )
+                _safe_emit_freshness_probe_metrics(
+                    report=recheck,
+                    metric_name_dim=metric_name_dim,
+                    project_gid=project_gid,
+                    section_coverage_delta=delta,
+                    force_warm_latency_seconds=latency,
+                )
+            except Exception as exc:  # noqa: BLE001
+                # Top-level guard: any unexpected error in the observability
+                # path surfaces a single stderr warning and leaves the
+                # primary CLI exit semantics intact.
+                sys.stderr.write(f"WARNING: post-warm observability emission failed: {exc!r}\n")
+
         return 0
 
     return asyncio.run(_delegate())
@@ -449,6 +592,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    # FLAG-1 baseline (BLOCK-1 remediation): capture monotonic time IMMEDIATELY
+    # after argparse so the force-warm latency window encompasses argparse →
+    # coalescer wait → Lambda invoke → Lambda response → L1 invalidation →
+    # post-warm S3 recheck. Per P4 SLI-2 ForceWarmLatencySeconds boundary.
+    flag_parse_baseline: float = time.monotonic()
+
     # ----- Threshold resolution (Work-Item 2, AC-2) -----
     # Resolution precedence per AC-2 + HANDOFF §3 LD-P2-1:
     #   1. --staleness-threshold (numeric override) wins when explicitly set
@@ -514,12 +663,17 @@ def main() -> None:
         #    else fall back to the metric's classifier (--metric-derived);
         #    if neither, surface a friendly stderr.
         warm_project_gid = args.project_gid
-        if warm_project_gid is None and args.metric:
+        warm_metric_name_dim = "force_warm"
+        warm_metric_entity_type: str | None = None
+        if args.metric:
             try:
                 metric = registry.get_metric(args.metric)
-                classifier = CLASSIFIERS.get(metric.scope.entity_type)
-                if classifier is not None:
-                    warm_project_gid = classifier.project_gid
+                warm_metric_name_dim = metric.name
+                warm_metric_entity_type = metric.scope.entity_type
+                if warm_project_gid is None:
+                    classifier = CLASSIFIERS.get(metric.scope.entity_type)
+                    if classifier is not None:
+                        warm_project_gid = classifier.project_gid
             except KeyError:
                 pass
         if warm_project_gid is None:
@@ -530,9 +684,19 @@ def main() -> None:
             )
             sys.exit(1)
 
+        # FLAG-1 boundary (BLOCK-1 remediation): pass flag_parse_baseline
+        # captured immediately after parser.parse_args() so the post-warm
+        # ForceWarmLatencySeconds spans argparse → coalescer wait → Lambda
+        # invoke → Lambda response → L1 invalidation → S3 list (recheck).
+        # Per P4 SLI-2 and ADR-006 §Decision (atomic emission timestamp).
         exit_code = _execute_force_warm(
             warm_project_gid,
             wait=args.wait,
+            flag_parse_baseline=flag_parse_baseline,
+            metric_name_dim=warm_metric_name_dim,
+            bucket=bucket,
+            threshold_seconds=threshold_seconds,
+            metric_entity_type=warm_metric_entity_type,
         )
         sys.exit(exit_code)
 
@@ -711,6 +875,28 @@ def main() -> None:
             f"WARNING: zero rows after filter+dedup for metric '{metric.name}'",
             file=sys.stderr,
         )
+
+    # ----- FLAG-1 baseline metric emission (BLOCK-1 remediation) -----
+    # Default-mode CLI (no --force-warm) emits the four-metric baseline batch
+    # so the operator's per-CLI-invocation observability surface is captured
+    # regardless of which CLI shape ran. ForceWarmLatencySeconds is OMITTED
+    # (no force-warm window exists on this path) per FLAG-1 contract.
+    # SectionCoverageDelta is the difference between classifier active section
+    # count and parquet count; informational only per C-6 HARD CONSTRAINT (NO ALARM).
+    # Safe-emit wrapper absorbs any CW emission failure (PRD C-2 backwards-
+    # compat: default-mode CLI exit-code semantics MUST NOT change from
+    # added observability emissions).
+    section_coverage_delta = _resolve_section_coverage_delta(
+        metric_entity_type=metric.scope.entity_type,
+        parquet_count=report.parquet_count,
+    )
+    _safe_emit_freshness_probe_metrics(
+        report=report,
+        metric_name_dim=metric.name,
+        project_gid=project_gid,
+        section_coverage_delta=section_coverage_delta,
+        force_warm_latency_seconds=None,
+    )
 
     # Exit code resolution per TDD §3.5 matrix.
     if args.strict and (report.stale or zero_result):
