@@ -44,16 +44,19 @@ class Task(AsanaResource):
     resource_type: str | None = Field(
         default="task",
         description="Asana resource type name. Always 'task' for task resources.",
+        examples=["task"],
     )
 
     # Basic task fields
     name: str | None = Field(
         default=None,
         description="Display name of the task.",
+        examples=["Review Q3 marketing proposal"],
     )
     notes: str | None = Field(
         default=None,
         description="Plain-text description body of the task.",
+        examples=["Check accuracy and completeness before the team review."],
     )
     html_notes: str | None = Field(
         default=None,
@@ -64,6 +67,7 @@ class Task(AsanaResource):
     completed: bool | None = Field(
         default=None,
         description="True if the task is marked complete.",
+        examples=[False],
     )
     completed_at: str | None = Field(
         default=None,
@@ -75,7 +79,11 @@ class Task(AsanaResource):
     )
 
     # Due dates
-    due_on: str | None = Field(default=None, description="Due date (YYYY-MM-DD)")
+    due_on: str | None = Field(
+        default=None,
+        description="Due date (YYYY-MM-DD)",
+        examples=["2026-03-15"],
+    )
     due_at: str | None = Field(default=None, description="Due datetime (ISO 8601)")
     start_on: str | None = Field(default=None, description="Start date (YYYY-MM-DD)")
     start_at: str | None = Field(default=None, description="Start datetime (ISO 8601)")
