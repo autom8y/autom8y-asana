@@ -95,6 +95,29 @@ src/smoke_test_report.csv
 **/.knossos/
 # KNOSSOS:END infra-ignores
 
+# Post-infra-ignores allow-list for canonical .ledge/ work-product directories.
+# Placed AFTER the auto-managed infra-ignores block so it survives `ari sync`
+# regeneration. Eliminates the silent-add-skip recurrence-vector that cost the
+# predecessor 10x-dev sprint ~1000+ lines of design-reference artifacts (per
+# .ledge/handoffs/HANDOFF-thermia-to-hygiene-2026-04-27.md §5 Option A; thermia
+# procession's reconstruction at P0 was the demonstrated cost). Tracks
+# work-product directories by default; ephemeral state remains gitignored.
+!**/.ledge/handoffs/
+!**/.ledge/handoffs/**
+!**/.ledge/decisions/
+!**/.ledge/decisions/**
+!**/.ledge/reviews/
+!**/.ledge/reviews/**
+!**/.ledge/specs/
+!**/.ledge/specs/**
+!**/.ledge/spikes/
+!**/.ledge/spikes/**
+# Filed as DEFER-FOLLOWUP for upstream knossos template patch: ideally these
+# allow-list patterns belong inside the auto-managed infra-ignores block (lines
+# 86-96 above) so they propagate to all repos via `ari sync`. The
+# post-infra-ignores placement here is a per-repo workaround until the upstream
+# template lands the allow-list.
+
 # Scratch / temporary files (PT-00.5 recurrence prevention)
 tmp/
 
