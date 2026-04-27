@@ -77,6 +77,10 @@ class FreshnessReport:
     When `parquet_count == 0`, oldest_mtime and newest_mtime are sentinel epoch
     values (1970-01-01T00:00Z); CLI integration layer detects this case and
     emits an empty-prefix error per TDD §3.4.
+
+    The `mtimes` tuple retains the per-key mtime list for distribution-aware
+    statistics (e.g., SectionAgeP95Seconds). Empty tuple when parquet_count==0.
+    Per HANDOFF §1 work-item-4 SectionAgeP95Seconds requirement (P4 §4 SLI-4).
     """
 
     oldest_mtime: datetime
@@ -86,6 +90,7 @@ class FreshnessReport:
     parquet_count: int
     bucket: str
     prefix: str
+    mtimes: tuple[datetime, ...] = ()
 
     @property
     def stale(self) -> bool:
@@ -94,6 +99,43 @@ class FreshnessReport:
         Exclusive comparison — equality is fresh, not stale.
         """
         return self.max_age_seconds > self.threshold_seconds
+
+    def section_age_p95_seconds(self, *, now: datetime | None = None) -> int:
+        """Compute the P95 age across per-key mtimes.
+
+        Returns the 95th percentile of `(now - mtime).total_seconds()` across
+        the retained mtime list. Uses nearest-rank method (ceiling index) on
+        the descending-by-age sorted list (oldest first).
+
+        Returns 0 when `parquet_count == 0` (sentinel — caller checks this
+        case before invoking).
+
+        Args:
+            now: Override for datetime.now(tz=UTC); injectable for deterministic
+                tests. Must match the `now` used at FreshnessReport construction
+                for self-consistency.
+
+        Returns:
+            P95 age in seconds (clamped to >= 0).
+        """
+        if self.parquet_count == 0 or not self.mtimes:
+            return 0
+        if now is None:
+            now = datetime.now(tz=UTC)
+        # Compute age per key; sort ascending (smallest age = freshest).
+        ages = sorted(int((now - m).total_seconds()) for m in self.mtimes)
+        # Nearest-rank P95: index = ceil(0.95 * N) - 1, clamped to [0, N-1].
+        # For N=14: ceil(0.95 * 14) = ceil(13.3) = 14, index = 13 (the oldest).
+        # For N=20: ceil(0.95 * 20) = 19, index = 18.
+        n = len(ages)
+        # Use math.ceil semantics inline to avoid an import for one call.
+        idx = (95 * n + 99) // 100 - 1  # ceil(0.95*n) - 1
+        if idx < 0:
+            idx = 0
+        if idx >= n:
+            idx = n - 1
+        age = ages[idx]
+        return max(age, 0)
 
     @classmethod
     def from_s3_listing(
@@ -142,6 +184,10 @@ class FreshnessReport:
             min_mtime: datetime | None = None
             max_mtime: datetime | None = None
             count = 0
+            # Accumulator for per-key mtimes — required for SectionAgeP95Seconds
+            # per P4 §4 SLI-4 (HANDOFF §1 work-item-4). Retained as a list during
+            # paginator iteration; frozen to a tuple for the immutable dataclass.
+            mtimes_list: list[datetime] = []
             for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
                 for obj in page.get("Contents", []):
                     key = obj["Key"]
@@ -151,6 +197,7 @@ class FreshnessReport:
                     if mtime is None:
                         continue
                     count += 1
+                    mtimes_list.append(mtime)
                     if min_mtime is None or mtime < min_mtime:
                         min_mtime = mtime
                     if max_mtime is None or mtime > max_mtime:
@@ -194,6 +241,7 @@ class FreshnessReport:
                 parquet_count=0,
                 bucket=bucket,
                 prefix=prefix,
+                mtimes=(),
             )
 
         # Type narrowing: count > 0 guarantees min/max are set.
@@ -211,6 +259,7 @@ class FreshnessReport:
             parquet_count=count,
             bucket=bucket,
             prefix=prefix,
+            mtimes=tuple(mtimes_list),
         )
 
 

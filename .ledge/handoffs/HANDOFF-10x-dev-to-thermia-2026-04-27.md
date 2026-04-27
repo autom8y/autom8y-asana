@@ -1,190 +1,451 @@
 ---
 type: handoff
-status: ATTESTED-PENDING-THERMIA
-handoff_type: implementation
+status: draft  # canonical lifecycle vocabulary; schema-§1.2 state-machine value is `ATTESTED-PENDING-thermia` until thermia.thermal-monitor writes the §Verification Attestation section. Mapping rationale per LD-P5A-2 (status-vocabulary divergence) in §6.2 below; mirrors predecessor `HANDOFF-thermia-to-10x-dev-2026-04-27.md:3` convention.
+handoff_type: validation
 schema_version: 1
 originating_rite: 10x-dev
 receiving_rite: thermia
 fallback_rite: sre
-
-originating_session: session-20260427-154543-c703e121
+originating_session: session-20260427-205201-668a10f4
 authored_on: 2026-04-27
-authored_by: principal-engineer
-worktree: .worktrees/active-mrr-freshness/
-branch: feat/active-mrr-freshness-signal
-
-initiative_slug: verify-active-mrr-provenance
-prd_anchor: .ledge/specs/verify-active-mrr-provenance.prd.md
-tdd_anchor: .ledge/specs/handoff-dossier-schema.tdd.md
-adr_anchor: .ledge/decisions/ADR-002-rite-handoff-envelope-thermia.md
-
+authored_by: 10x-dev.potnia (orchestration via general-purpose author)
+worktree: .worktrees/cache-freshness-impl/
+branch: feat/cache-freshness-impl-2026-04-27
+initiative_slug: cache-freshness-impl-from-thermia-2026-04-27
+parent_initiative: cache-freshness-procession-2026-04-27
+grandparent_initiative: verify-active-mrr-provenance
+predecessor_handoff: .ledge/handoffs/HANDOFF-thermia-to-10x-dev-2026-04-27.md
 attestation_required: true
-attestation_chain: "thermia.verification-auditor (primary), sre.incident-commander|observability-engineer (fallback)"
+attestation_chain: thermia.thermal-monitor (primary), sre.observability-engineer (fallback)
 verification_deadline: 2026-05-27
-
 design_references:
-  - .ledge/specs/verify-active-mrr-provenance.prd.md
-  - .ledge/specs/freshness-module.tdd.md
-  - .ledge/specs/handoff-dossier-schema.tdd.md
+  - .ledge/specs/cache-freshness-architecture.tdd.md
+  - .ledge/specs/cache-freshness-capacity-spec.md
+  - .ledge/specs/cache-freshness-observability.md
+  - .ledge/specs/cache-freshness-runbook.md
+  - .ledge/decisions/ADR-001-metrics-cli-declares-freshness.md
   - .ledge/decisions/ADR-002-rite-handoff-envelope-thermia.md
-
+  - .ledge/decisions/ADR-003-memorytier-post-force-warm-staleness.md
+  - .ledge/decisions/ADR-004-iac-engine-cache-warmer-schedule.md
+  - .ledge/decisions/ADR-005-ttl-manifest-schema-and-sidecar.md
+  - .ledge/decisions/ADR-006-cloudwatch-namespace-strategy.md
+  - .ledge/reviews/QA-impl-close-cache-freshness-2026-04-27.md
+implementation_pr: PENDING (draft PR opens at T#43)
 index_entry_appended: true
 ---
 
-# HANDOFF — 10x-dev → thermia (verify-active-mrr-provenance)
+# HANDOFF — 10x-dev → thermia (cache-freshness-impl post-impl validation)
 
-This dossier transfers the cache-architecture concerns deferred from PRD `verify-active-mrr-provenance` (D5, D7, D10, telos verified-realized gate per D8) from the originating 10x-dev rite to the receiving thermia rite. Sre is the documented fallback per the activation predicate in `.ledge/specs/handoff-dossier-schema.tdd.md` §5.
+This dossier transfers the post-implementation **verification** scope of the
+cache-freshness initiative from the 10x-dev rite (P6 implementation phase) back
+to the thermia rite for P7 thermal-monitor attestation. Per the parent telos
+SQ-3 decision (`.know/telos/cache-freshness-procession-2026-04-27.md`),
+verification mode is **BOTH design-review + in-anger-probe**. P7 attestation
+discharges the parent telos `verify-active-mrr-provenance` D8 `verified_realized`
+gate by 2026-05-27.
 
-The 10x-dev rite has shipped the freshness-signal feature (commits `09cc368e` + `ce565759`) and validated it via in-anger-dogfood probes against the `autom8-s3` production cache bucket (recorded in the QA verdict at `.ledge/reviews/QA-T9-verify-active-mrr-provenance.md` Phase B). The telos `verified_realized` gate cannot be discharged by the originating rite per Axiom 1 critic-rite-disjointness (`external-critique-gate-cross-rite-residency`); discharge is the receiving rite's contribution at or before 2026-05-27.
+The 10x-dev rite has shipped 6 of 8 work items in scope (the 2 deferred items
+are by-design cross-repo Terraform coordination, not engineering gaps). Commit
+chain `a732487f..e4b5222d` (7 commits ahead of
+`origin/thermia/cache-freshness-procession-2026-04-27`) carries the impl + QA
+report. The QA-adversary verdict at
+`.ledge/reviews/QA-impl-close-cache-freshness-2026-04-27.md` is **GO** with
+0 BLOCKING / 0 SERIOUS / 0 MINOR / 1 DEFER-OK defects. 436/1 unit tests pass
+(1 environment-skipped); ruff / mypy clean across 66 source files; Phase E
+moto end-to-end smoke confirms all 5 CloudWatch metrics land in the namespace.
+Probe-4 baseline executes cleanly today.
 
-## 1. Classifier ACTIVE-Section List
+The fallback rite `sre.observability-engineer` is inherited from the
+predecessor dossier §8.1 latent decision #2 (SLO-shaped verification surface).
+Activation predicate is mechanically verifiable per
+`.ledge/specs/handoff-dossier-schema.tdd.md` §5.1 (ENOENT on
+`.claude/agents/thermia/` OR rite absent from `.knossos/KNOSSOS_MANIFEST.yaml`).
 
-The canonical Asana section names that the offer classifier maps to `AccountActivity.ACTIVE` at handoff time:
+## 1. Implementation Summary (8 work items)
 
-- active
-- restart - request testimonial
-- run optimizations
+Each item below cites the predecessor §1 work-item ID, ship status, and the
+file:line landed-anchor. DEFER-OK items are by-design cross-repo coordination
+parked for Batch-D apply; they are NOT engineering gaps.
 
-**Source anchor**: `src/autom8_asana/models/business/activity.py:76` — the `sections_for` method definition on `SectionClassifier`. The `CLASSIFIERS` dict that exposes the offer classifier lives at `src/autom8_asana/models/business/activity.py:317`.
+- **WI-1 — Force-warm CLI affordance (PRD NG4)**: SHIPPED at
+  `src/autom8_asana/metrics/__main__.py:560-578` (argparse) +
+  `src/autom8_asana/metrics/__main__.py:640-701` (handler) +
+  `src/autom8_asana/metrics/__main__.py:301-487` (`_execute_force_warm` helper).
+  CLI delegates to canonical surface
+  `src/autom8_asana/cache/integration/force_warm.py:159-385`
+  (PT-2 Option B refactor; LD-P3-2 sole-channel binding). Default async
+  (`InvocationType="Event"`); opt-in sync (`InvocationType="RequestResponse"`)
+  with `--wait`. Coalescer-routed via `DataFrameCache`
+  (`src/autom8_asana/cache/dataframe/coalescer.py`). Pre-validates
+  `ASANA_CACHE_S3_BUCKET` BEFORE Lambda invocation.
+- **WI-2 — SLA enforcement extension (PRD NG8)**: SHIPPED at
+  `src/autom8_asana/metrics/__main__.py:580-592` (argparse `--sla-profile`
+  flag) + `src/autom8_asana/metrics/__main__.py:601-621` (precedence
+  resolution against existing `--strict` and `--staleness-threshold`).
+  4-class taxonomy mapping table at
+  `src/autom8_asana/metrics/__main__.py:163-168`
+  (`active=21600`, `warm=43200`, `cold=86400`, `near-empty=604800`).
+  Default `active` preserves PRD G2 6h behavior (PRD C-2 backwards-compat).
+- **WI-3 — TTL persistence (LD-P3-1)**: SHIPPED at
+  `src/autom8_asana/metrics/sla_profile.py:1-652`
+  (full ADR-005 V-1..V-6 schema validators; manifest + S3 sidecar with
+  override precedence). Manifest at
+  `.know/cache-freshness-ttl-manifest.yaml` (1.6kB; valid YAML).
+  S3 sidecar reader/writer for
+  `s3://autom8-s3/dataframes/{project_gid}/cache-freshness-ttl.json`.
+  60 unit tests cover schema-version, sla-class, threshold, gid,
+  cross-validation, manifest, sidecar, sidecar-precedence-over-manifest,
+  parse-error fall-through.
+- **WI-4 — CloudWatch metric emissions (P4 §1 + §4 + §10)**: SHIPPED at
+  `src/autom8_asana/metrics/cloudwatch_emit.py:1-233`
+  (5 metrics in single `put_metric_data` per ADR-006 atomic-timestamp;
+  C-6 guard at `cloudwatch_emit.py:88-106` mechanically blocks
+  `SectionCoverageDelta` from any alarmable codepath). 5 metrics emitted
+  to `Autom8y/FreshnessProbe` namespace:
+  `MaxParquetAgeSeconds`, `ForceWarmLatencySeconds`, `SectionCount`,
+  `SectionAgeP95Seconds`, `SectionCoverageDelta`. Plus 1 metric
+  `CoalescerDedupCount` to `autom8y/cache-warmer` from
+  `src/autom8_asana/cache/dataframe/coalescer.py:34-67`.
+  P95 computation at `src/autom8_asana/metrics/freshness.py:103-138`
+  (nearest-rank P95 over retained `mtimes` tuple from `from_s3_listing`).
+- **WI-5 — DMS CloudWatch alarm (LD-P4-1)**: SHIPPED via Path B —
+  Terraform `aws_cloudwatch_metric_alarm.cache_warmer_dms_24h` STASHED
+  in autom8y repo at `git stash@{0}` on
+  `anchor/adr-anchor-001-exemption-grant`. Investigation verdict per
+  commit `49740a1f` body: `autom8y_telemetry.aws.emit_success_timestamp`
+  does NOT auto-provision the alarm; Path B (manual authoring) chosen.
+  Awaits Batch-D cross-repo coordination (un-stash + apply per PT-1 XC-2
+  staging guidance).
+- **WI-6 — cache_warmer Lambda schedule explicit in IaC (P3 D10)**:
+  PENDING-BATCH-D — `.ledge/decisions/ADR-004-iac-engine-cache-warmer-schedule.md`
+  records the choice (Terraform). 1-line cron change targets
+  `autom8y/terraform/services/asana/variables.tf:67-71` from
+  `cron(0 2 * * ? *)` (daily) to `cron(0 */4 * * ? *)` (every 4h).
+  External IaC repo apply is POST-IMPL-DEPLOY per PT-1 XC-2 staging
+  guidance (deploy alarms with `actions_enabled=false` first; un-suppress
+  after Terraform cron lands and observation period). Out-of-worktree
+  by-design per HANDOFF predecessor §1 work-item-6.
+- **WI-7 — MemoryTier HYBRID per ADR-003**: SHIPPED at
+  `src/autom8_asana/cache/integration/force_warm.py:466-493`
+  (`_invalidate_l1` helper called only on sync `--wait` success;
+  default async path skips L1 invalidation, accepting SWR rebuild lag
+  per ADR-003 §Decision). Tests verify
+  `test_async_does_not_invalidate_l1_per_adr003`,
+  `test_sync_success_invalidates_l1`,
+  `test_sync_with_specific_entity_types_invalidates_each`.
+- **WI-8 — MINOR-OBS-2 botocore traceback fix**: SHIPPED at
+  `src/autom8_asana/metrics/__main__.py:738-780`
+  (extends original handler beyond `(ValueError, FileNotFoundError)` to
+  catch `botocore.exceptions.ClientError` for `NoSuchBucket`,
+  `NoSuchKey`, `AccessDenied`, `InvalidAccessKeyId`,
+  `SignatureDoesNotMatch`, unknown codes; AND
+  `botocore.exceptions.NoCredentialsError`). 4 tests in
+  `TestMinorObs2BotocoreFix` cover all branches.
 
-**Capture method**: captured at T10 commit time via `python -c 'from autom8_asana.models.business.activity import CLASSIFIERS, AccountActivity; print(CLASSIFIERS["offer"].sections_for(AccountActivity.ACTIVE))'` executed inside the worktree.
+## 2. Commit Ledger (7 commits with receipt-grammar)
 
-**Capture timestamp**: 2026-04-27T14:55:43Z.
+Range: `git log --oneline a732487f..HEAD` (head `e4b5222d`). All commits
+verifiable via `git show {sha}` from worktree
+`/Users/tomtenuta/Code/a8/repos/autom8y-asana/.worktrees/cache-freshness-impl/`.
 
-## 2. Parquet Section List (as of handoff date)
-
-**Capture command (verbatim)**: `aws s3 ls s3://autom8-s3/dataframes/1143843662099250/sections/ --recursive`
-
-**Capture timestamp**: 2026-04-27T14:55:43Z.
-
-**Row count**: 14 parquet objects.
-
-| section_gid | parquet_path | LastModified | size_bytes |
+| SHA | Phase | Files (load-bearing) | Receipt-grammar |
 |---|---|---|---|
-| 1143843662099256 | s3://autom8-s3/dataframes/1143843662099250/sections/1143843662099256.parquet | 2026-04-26T10:00:47Z | 13381 |
-| 1143843662099257 | s3://autom8-s3/dataframes/1143843662099250/sections/1143843662099257.parquet | 2026-04-27T14:01:10Z | 62414 |
-| 1155403608336729 | s3://autom8-s3/dataframes/1143843662099250/sections/1155403608336729.parquet | 2026-03-26T04:17:44Z | 8990 |
-| 1199511476245249 | s3://autom8-s3/dataframes/1143843662099250/sections/1199511476245249.parquet | 2026-04-27T10:00:48Z | 12414 |
-| 1201105736066893 | s3://autom8-s3/dataframes/1143843662099250/sections/1201105736066893.parquet | 2026-04-22T16:58:35Z | 109102 |
-| 1201131323536610 | s3://autom8-s3/dataframes/1143843662099250/sections/1201131323536610.parquet | 2026-04-20T20:26:43Z | 11051 |
-| 1201990715810461 | s3://autom8-s3/dataframes/1143843662099250/sections/1201990715810461.parquet | 2026-04-20T15:00:28Z | 9551 |
-| 1201990715810462 | s3://autom8-s3/dataframes/1143843662099250/sections/1201990715810462.parquet | 2026-04-09T13:44:45Z | 8894 |
-| 1202005604742382 | s3://autom8-s3/dataframes/1143843662099250/sections/1202005604742382.parquet | 2026-04-12T06:00:27Z | 15610 |
-| 1202496785025459 | s3://autom8-s3/dataframes/1143843662099250/sections/1202496785025459.parquet | 2026-04-25T18:00:53Z | 11840 |
-| 1204152425074370 | s3://autom8-s3/dataframes/1143843662099250/sections/1204152425074370.parquet | 2026-04-03T20:42:29Z | 2449 |
-| 1207396100287952 | s3://autom8-s3/dataframes/1143843662099250/sections/1207396100287952.parquet | 2026-04-20T20:26:43Z | 9854 |
-| 1208667647433692 | s3://autom8-s3/dataframes/1143843662099250/sections/1208667647433692.parquet | 2026-04-25T18:00:52Z | 11463 |
-| 1209233681691558 | s3://autom8-s3/dataframes/1143843662099250/sections/1209233681691558.parquet | 2026-04-09T13:44:45Z | 2449 |
+| `c116cbc8` | ADR trio | `.ledge/decisions/ADR-004-iac-engine-cache-warmer-schedule.md`, `.ledge/decisions/ADR-005-ttl-manifest-schema-and-sidecar.md`, `.ledge/decisions/ADR-006-cloudwatch-namespace-strategy.md` | architect-shaped artifact-only commit; no impl |
+| `2ffed86a` | Batch-A | `src/autom8_asana/metrics/__main__.py`, `tests/unit/metrics/test_main.py` | Force-warm CLI + sla-profile + MINOR-OBS-2 fix initial pass; force-warm/env-var portion **superseded by `49740a1f`** for PT-2 Option B refactor (CLI now delegates to canonical `force_warm()`). |
+| `f6dad321` | Batch-C | `src/autom8_asana/metrics/sla_profile.py:1-652`, `src/autom8_asana/cache/integration/force_warm.py:1-493`, `.know/cache-freshness-ttl-manifest.yaml`, `tests/unit/metrics/test_sla_profile.py`, `tests/unit/cache/integration/test_force_warm.py` | TTL persistence (manifest + S3 sidecar w/ ADR-005 V-1..V-6 validators) + canonical force_warm() surface establishment + AP-3 named risk preserved (docstring at `force_warm.py:28-30`) |
+| `49740a1f` | **CONFLATED** Batch-B + PT-2 Option B refactor | `src/autom8_asana/metrics/cloudwatch_emit.py:1-233` (+233), `src/autom8_asana/metrics/freshness.py:103-138` (+49 P95 enhancement), `src/autom8_asana/metrics/__main__.py` (+330/-256 refactor + CW emit groundwork), `src/autom8_asana/cache/dataframe/coalescer.py:34-67` (+54), test files | **DUAL CONTENT.** Batch-B half: `cloudwatch_emit.py` (5 metrics in single put_metric_data; ADR-006 atomic-timestamp; C-6 guard at lines 88-106); `freshness.py` mtime tuple retention for P95; coalescer dedup metric; DMS alarm Path B Terraform STASHED in cross-repo. PT-2 Option B refactor half: `__main__.py` `force_warm` import + `_execute_force_warm` + `_resolve_dataframe_cache_for_cli` singleton + LD-P3-2 structural enforcement + `CACHE_WARMER_LAMBDA_ARN` env var canonicalization. **Disambiguation rule**: lines in `cloudwatch_emit.py` = Batch-B; `force_warm` import + LD-P3-2 enforcement in `__main__.py` = PT-2 Option B refactor. **Conflation rationale**: server-side rate-limit caused Batch-A-Refactor's first dispatch to leave uncommitted modifications that Batch-B (retry) absorbed. PT-3 adjudicated **leave-as-is + document** (this entry is the document). No behavioral regression; both halves interdependent (FLAG-1 wiring requires canonical `force_warm()` surface AND CW emission consumes the latency window the canonical surface produces). |
+| `7ed89918` | PT-3 BLOCK-1 remediation | `src/autom8_asana/metrics/__main__.py` (+192/-6), `tests/unit/metrics/test_main.py` (+309) | FLAG-1 production wiring closure: `emit_freshness_probe_metrics()` previously dead code; now wired at `__main__.py:472` (force-warm sync recheck site) + `__main__.py:893` (default-mode emission). Safe-emit wrapper at `__main__.py:241-263` absorbs CW failures (single stderr WARNING; no CLI crash). |
+| `e4b5222d` | QA report | `.ledge/reviews/QA-impl-close-cache-freshness-2026-04-27.md:1-320` | adversarial QA pass; 0 BLOCKING / 0 SERIOUS / 0 MINOR / 1 DEFER-OK; 436/1 tests; ruff/mypy clean; Phase E moto smoke PASS; Probe-4 baseline PASS; verdict **GO** |
 
-## 3. Per-Section Mtime Histogram (Artifact)
+(Note: the 7th commit referenced by the dispatch is `4298849b chore(handoff):
+10x-dev attester acceptance — cache-freshness-impl kickoff` which lands the
+acceptance-section append on the predecessor dossier prior to the 7-commit
+impl chain `a732487f..HEAD`. It is the boundary-marker commit and is included
+here for chain-of-custody completeness.)
 
-The per-section mtime histogram is authored as a sidecar JSON artifact alongside this dossier:
+## 3. SLI / SLO / Alert Status Table
 
-- **Sidecar path** (relative to worktree root): `.ledge/handoffs/2026-04-27-section-mtimes.json`
-- **Reference timestamp `now_iso`** (against which `age_seconds_at_handoff` is computed): 2026-04-27T14:55:43Z
+Per PT-4 Concerns 1-3 — mechanical inventory of the observability surface
+shipped vs spec'd. Per-item wired/deferred status with code-or-IaC location.
 
-**JSON schema** (per `.ledge/specs/handoff-dossier-schema.tdd.md` §2 Section 3 — array of objects with these four keys per row):
+### 3.1 SLIs (5 + 1)
 
-```json
-[
-  {
-    "section_gid": "string",
-    "parquet_path": "s3://autom8-s3/dataframes/1143843662099250/sections/{section_gid}.parquet",
-    "last_modified_iso": "YYYY-MM-DDTHH:MM:SSZ",
-    "age_seconds_at_handoff": 12345
-  }
-]
-```
+| SLI | Wired status | Code/IaC location | Alarm? | Notes |
+|---|---|---|---|---|
+| `MaxParquetAgeSeconds` | WIRED | `src/autom8_asana/metrics/cloudwatch_emit.py:1-233` (emit) + `src/autom8_asana/metrics/freshness.py:202` (compute) | YES — ALERT-1, ALERT-2 | namespace `Autom8y/FreshnessProbe` |
+| `ForceWarmLatencySeconds` | WIRED | `src/autom8_asana/metrics/cloudwatch_emit.py:1-233` (emit) + `src/autom8_asana/metrics/__main__.py:472` (sync recheck wiring; FLAG-1 boundary spans coalescer wait) | NO-ALARM-TODAY (DEFER-FOLLOWUP) | sync path emits non-None latency; async path emits null/omitted per FLAG-1 boundary contract |
+| `SectionCount` | WIRED | `src/autom8_asana/metrics/cloudwatch_emit.py:1-233` + `src/autom8_asana/metrics/freshness.py:153` | NO informational only | baseline ~14 sections at handoff |
+| `SectionAgeP95Seconds` | WIRED | `src/autom8_asana/metrics/cloudwatch_emit.py:1-233` + `src/autom8_asana/metrics/freshness.py:103-138` (nearest-rank P95 over retained `mtimes`) | NO low-N discrimination (DEFER-FOLLOWUP) | per-key mtime list retained in `from_s3_listing` enhancement |
+| `SectionCoverageDelta` | WIRED | `src/autom8_asana/metrics/cloudwatch_emit.py:88-106` (C-6 guard) | **NO-ALARM** by **C-6 hard constraint** (correctness affordance, NOT a gap) | `c6_guard_check("SectionCoverageDelta")` raises `C6ConstraintViolation` if any caller attempts alarmable use; mechanically blocked |
+| `CoalescerDedupCount` (+1) | WIRED | `src/autom8_asana/cache/dataframe/coalescer.py:34-67` | NO informational only | namespace `autom8y/cache-warmer` per ADR-006 |
 
-The sidecar contains 14 rows (one per parquet object listed in §2). Min `age_seconds_at_handoff` = 3273s (newest: `1143843662099257.parquet` @ 2026-04-27T14:01:10Z). Max `age_seconds_at_handoff` = 2803079s (oldest: `1155403608336729.parquet` @ 2026-03-26T04:17:44Z, ≈32d 11h 17m).
+### 3.2 SLOs (3)
 
-## 4. Bucket→Env Stakeholder Affirmation
+| SLO | Wired status | Source | Notes |
+|---|---|---|---|
+| `ParquetMaxAgeSLO` (95% < 6h over 7d ACTIVE) | DEFINED in spec; metric WIRED | `.ledge/specs/cache-freshness-observability.md:107-119` | starts in deficit; reaches green ~6h after Batch-D EventBridge schedule applies (per §7 below) |
+| `WarmSuccessRateSLO` (95% over 7d entity_type=offer) | DEFINED in spec; metric pre-existing | `src/autom8_asana/lambda_handlers/cache_warmer.py:473,501` | warmer-side metric existed before this initiative |
+| `WarmHeartbeatSLO` (>=1 emit_success_timestamp / 24h) | DEFINED in spec; alarm STASHED for Batch-D | `.ledge/specs/cache-freshness-observability.md:139-149`; alarm at autom8y `git stash@{0}` | dead-man's-switch alarm `aws_cloudwatch_metric_alarm.cache_warmer_dms_24h` |
 
-The bucket→env binding `autom8-s3 = production` rests on a stakeholder-guarantee-affirmation event recorded in the originating session's pre-PRD interview. This dossier carries the affirmation forward verbatim — NO new claims are appended.
+### 3.3 Alerts (6)
 
-**Citation header**:
-- source: `session-20260427-154543-c703e121`
-- event: pre-PRD interview Q2.2 / D6
-- user: `tom@tenuta.io`
-- date: 2026-04-27
+| ALERT | Wired status | Code/IaC location | DEFER reason if applicable |
+|---|---|---|---|
+| ALERT-1 Freshness Breach WARNING | DEFER-BATCH-D | spec at `.ledge/specs/cache-freshness-observability.md:159-181` | requires CloudWatch alarm Terraform apply |
+| ALERT-2 Freshness Breach Sustained P1 | DEFER-BATCH-D | spec at `.ledge/specs/cache-freshness-observability.md:184-205` | requires CloudWatch alarm Terraform apply |
+| ALERT-3 Warmer Failure Rate (`WarmFailure` >= 1/hr, entity_type=offer) | **OWNERSHIP UNCLEAR** — see §5(c) re-handoff request | spec at `.ledge/specs/cache-freshness-observability.md:209-231` | metrics pre-exist; alarm authoring ownership FLAG |
+| ALERT-4 DMS Heartbeat Absent P1 | STASHED-BATCH-D | autom8y `git stash@{0}` Terraform `aws_cloudwatch_metric_alarm.cache_warmer_dms_24h`; spec at `.ledge/specs/cache-freshness-observability.md:235-256` | by-design cross-repo Terraform |
+| ALERT-5 S3 IO Error Rate (`FreshnessError` >= 2/hr) | **OWNERSHIP UNCLEAR** — see §5(c) re-handoff request | spec at `.ledge/specs/cache-freshness-observability.md:260-272` | emission codepath wired; alarm authoring ownership FLAG |
+| ALERT-6 SectionCoverageDelta | **NO-ALARM** by **C-6 hard constraint** (correctness affordance) | `src/autom8_asana/metrics/cloudwatch_emit.py:88-106` | mechanically blocked, NOT a gap |
 
-> "It is. Use the stakeholder guarantee affirmation"
+## 4. In-Anger Probe Execution Status (P4 §455-602)
 
-**Cross-reference anchor**: PRD §6 C-1 lines 195-202 contain the structural_verification_receipt formalizing this affirmation. The `marker_token` on that receipt — "Bucket autom8-s3 IS the production cache bucket (stakeholder affirmation by user tom@tenuta.io on 2026-04-27" — establishes the load-bearing evidence cited in `.know/env-loader.md` Stakeholder Affirmation Addendum (lines 160-174).
+Per PT-4 Concern 4 — explicit wiring/deferral status for each of the 5 probes
+defined at `.ledge/specs/cache-freshness-observability.md:433-602`.
 
-## 5. cache_warmer Schedule — Open Question (D10)
+| Probe | Status | Reason | Required for P7 |
+|---|---|---|---|
+| Probe-1 (force-warm reduces oldest-parquet age below SLA) | DEFERRED-TO-P7-POST-DEPLOY | Requires deployed Lambda + EventBridge schedule + actual `--force-warm --wait` cycle against `s3://autom8-s3/dataframes/...` | YES — after Batch-D apply |
+| Probe-2 (telemetry surfaces alert on max_mtime > SLA threshold) | DEFERRED-TO-P7-POST-DEPLOY | Requires deployed alarms (Batch-D Terraform stash un-suppress) | YES — after Batch-D apply |
+| Probe-3 (force-warm + freshness CLI compose; ADR-003 acceptance) | DEFERRED-TO-P7-POST-DEPLOY | Requires deployed Lambda; sync path verified via `tests/unit/cache/integration/test_force_warm.py::TestForceWarmSyncMode::test_sync_success_invalidates_l1` | YES — after Batch-D apply |
+| **Probe-4 (`--strict` baseline)** | **RUNNABLE-NOW + PASS** | QA Phase D §6.2 transcript records `--strict` + stale → exit 1; (no `--strict`) + stale → exit 0 / None; behavior matches PRD AC-2.3 | Already discharged at QA gate; thermal-monitor MAY re-run as design-review evidence |
+| Probe-5 (section-coverage telemetry emits expected metrics) | PARTIAL — moto verified at QA Phase E-1 | All 5 metrics land in moto CloudWatch backend (transcript at `.ledge/reviews/QA-impl-close-cache-freshness-2026-04-27.md:160-169`); full deployed-system verification awaits Batch-D apply | YES — after Batch-D apply |
 
-> What is the trigger and frequency of `src/autom8_asana/lambda_handlers/cache_warmer.py` invocations? What guarantees re-warm of stale sections? What is the documented per-section TTL, if any? Verifiable by inspecting the Lambda's CloudWatch Events / EventBridge rule (or equivalent scheduling primitive) AND by reading the handler's entry-point logic and any per-section TTL gating it implements.
+## 5. Outstanding Work for thermia P7
 
-**Anchor**: `src/autom8_asana/lambda_handlers/cache_warmer.py:1` — structural pointer; this sprint did NOT modify the Lambda (PRD C-4).
+Per PT-4 Concerns 3-5 — what thermia P7 thermal-monitor needs to discharge
+the D8 verified_realized gate.
 
-**Deferral rationale**: PRD D10 + PRD NG7 explicitly defer the cache_warmer schedule and per-section TTL design to thermia. The 10x-dev rite reads cache state but does not own re-warm orchestration.
+### 5(a) Re-engagement trigger
 
-## 6. Section-Coverage Deferral Rationale (D5)
+P7 attestation re-engages when ALL of the following are true:
+- Draft PR (T#43) merges to main.
+- Production deploy completes (Lambda + IaC).
+- Batch-D cross-repo coordination completes (autom8y stash pop + apply).
 
-10x-dev does NOT compute section-coverage. Classifier-vs-parquet diff (this dossier's sections 1 and 2) is a read-only artifact at handoff time only. Telemetry, alerting, and Asana-side drift reconciliation are thermia's domain.
+### 5(b) Batch-D coordination (cross-repo Terraform)
 
-**Empty-sections-are-expected note** — verbatim from PRD §6 C-6 line 222:
+Two operations in the autom8y repo (NOT this worktree):
 
-> "Empty sections in parquet are EXPECTED behavior, not a coverage gap. Classifier-vs-parquet section count diffs are informational, not failure conditions."
+1. **Pop the stash**: `cd /Users/tomtenuta/Code/a8/repos/autom8y && git stash pop`
+   on branch `anchor/adr-anchor-001-exemption-grant`. Stash contents:
+   Terraform `aws_cloudwatch_metric_alarm.cache_warmer_dms_24h` (DMS alarm
+   per ALERT-4).
+2. **Edit cron expression**: `autom8y/terraform/services/asana/variables.tf`
+   lines 67-71 — change from `cron(0 2 * * ? *)` (daily 02:00 UTC) to
+   `cron(0 */4 * * ? *)` (every 4h). This satisfies SLO-1 cadence per
+   `.ledge/decisions/ADR-004-iac-engine-cache-warmer-schedule.md`.
 
-This is structurally correct: per PRD C-4 line 213 the cache_warmer Lambda writes parquet only for sections that contain tasks; an empty section is by-design and is NOT a coverage gap.
+Per PT-1 XC-2 staging: deploy alarms with `actions_enabled=false` first;
+un-suppress after the Terraform cron lands AND a 1-3 day observation
+period confirms baseline stability.
 
-**Cross-references**:
-- PRD §2 NG5 line 57: section-coverage signal in the freshness output is OUT-OF-SCOPE (deferred entirely to thermia).
-- PRD §6 C-6 lines 220-222: empty-sections-are-expected; `--strict` does NOT promote section-count-diff to non-zero exit (per D3).
-- PRD §9 D5 line 307: section-coverage diagnostic DEFERRED to thermia.
+### 5(c) ALERT-3 + ALERT-5 ownership clarification (PT-4 Concern 3 FLAG)
 
-## 7. Env-Matrix Legacy-Cruft Inventory (D7)
+**Re-handoff request**: explicit disposition for the following two alarms.
+Each is phrased as a verifiable predicate so thermia can mechanically
+adjudicate:
 
-**Capture command (verbatim)**: `rg -n 'AUTOM8Y_ENV|autom8-s3-(staging|dev|prod)' src/`
+- **ALERT-3 (`WarmFailure` >= 1/hr, dimension `entity_type=offer`)**:
+  Is this alarm already provisioned in the existing fleet alarm topology
+  (the warmer Lambda's metrics namespace `autom8y/cache-warmer` per
+  `src/autom8_asana/lambda_handlers/cache_warmer.py:20`), OR is new
+  authoring required as part of Batch-D? Verifiable via
+  `aws cloudwatch describe-alarms --alarm-name-prefix "AsanaCacheWarmer-Failure"`.
+- **ALERT-5 (`FreshnessError` >= 2/hr)**: Is the `FreshnessErrorCount`
+  metric emission codepath (which currently does NOT exist as a separate
+  CloudWatch metric — `__main__.py:738-780` emits `botocore.ClientError`
+  branches as friendly stderr lines, NOT as a metric with `kind` dimension)
+  expected to be added in a follow-on procession, OR does thermia accept
+  the present implementation (stderr-only, no CW metric) and the alarm
+  becomes a CloudWatch Logs Insights query rather than a metric alarm?
+  Verifiable via inspection of `Autom8y/FreshnessProbe` namespace metric
+  list AND of the wireframe in `.ledge/specs/cache-freshness-observability.md:260-272`.
 
-**Capture timestamp**: 2026-04-27T14:55:43Z.
+## 6. Latent Decisions Disposition
 
-**Total match count**: 12.
+Per PT-4 Concern 8 — full enumeration. Every latent decision surfaced across
+the procession is either RESOLVED or DEFER-FOLLOWUP-tagged.
 
-| file_path | line_number | matched_text |
-|---|---|---|
-| src/autom8_asana/models/base.py | 14 | `# for test clarity. Controlled via AUTOM8Y_ENV.` |
-| src/autom8_asana/models/base.py | 17 | `if os.environ.get("AUTOM8Y_ENV", "production") not in ("test", "local", "LOCAL")` |
-| src/autom8_asana/cache/integration/factory.py | 32 | `4. Environment-based auto-detection (AUTOM8Y_ENV)` |
-| src/autom8_asana/cache/integration/factory.py | 36 | `- AUTOM8Y_ENV=production/staging: Prefer Redis if REDIS_HOST configured` |
-| src/autom8_asana/cache/integration/factory.py | 37 | `- AUTOM8Y_ENV=local/test or not set: Use InMemory` |
-| src/autom8_asana/api/models.py | 44 | `if os.environ.get("AUTOM8Y_ENV", "production") not in ("test", "local", "LOCAL")` |
-| src/autom8_asana/settings.py | 554 | `# Override autom8y_env with explicit alias so AUTOM8Y_ENV is read directly,` |
-| src/autom8_asana/settings.py | 560 | `"AUTOM8Y_ENV",  # canonical (Tier 1)` |
-| src/autom8_asana/settings.py | 590 | `with ASANA_CW_ENVIRONMENT to avoid collision with AUTOM8Y_ENV. The env_prefix` |
-| src/autom8_asana/settings.py | 801 | `# SDK-standard environment field. AUTOM8Y_ENV is the canonical Tier 1 name.` |
-| src/autom8_asana/settings.py | 805 | `"AUTOM8Y_ENV",  # canonical (Tier 1)` |
-| src/autom8_asana/settings.py | 845 | `Uses the explicit-only pattern: only fires when AUTOM8Y_ENV` |
+### 6.1 Resolved
 
-(Zero matches against the multi-env bucket pattern `autom8-s3-(staging|dev|prod)`. All 12 matches are `AUTOM8Y_ENV` references.)
+- **LD-P2-1** (`--sla-profile` flag naming + 4-class vocabulary) — resolved
+  per FLAG-2 in predecessor §3; impl at
+  `src/autom8_asana/metrics/__main__.py:163-168`.
+- **LD-P2-2** (`CACHE_WARMER_LAMBDA_FUNCTION_NAME` preflight contract) —
+  resolved as Option B (settings-field) variant via
+  `CACHE_WARMER_LAMBDA_ARN` canonicalization in `49740a1f` PT-2 Option B
+  refactor; CLI fails fast if env unset
+  (test `test_force_warm_missing_function_name_env_exits_1`).
+- **LD-P2-3** (force-warm idempotency: refresh anyway, not no-op) —
+  resolved per P2 §4; impl at
+  `src/autom8_asana/cache/integration/force_warm.py:159-385`.
+- **LD-P3-1** (TTL persistence layered manifest + S3 sidecar w/
+  override precedence) — resolved at
+  `src/autom8_asana/metrics/sla_profile.py:1-652`.
+- **LD-P3-2** (force-warm coalescer-routed; direct boto3 invoke FORBIDDEN) —
+  STRUCTURALLY ENFORCED. `grep -n "boto3" src/autom8_asana/metrics/__main__.py`
+  returns ONLY 3 docstring mentions (lines 252, 258, 314); zero direct
+  boto3 lambda invocations in CLI force-warm paths. CLI delegates to
+  `src/autom8_asana/cache/integration/force_warm.py` canonical surface.
+- **LD-P4-1** (`autom8y_telemetry.aws.emit_success_timestamp` investigation)
+  — resolved as Path B per commit `49740a1f` body: package does NOT
+  auto-provision; alarm authored manually in stashed Terraform.
+- **LD-P5A-3** (CoalescerDedupCount metric placement) — resolved at
+  `src/autom8_asana/cache/dataframe/coalescer.py:34-67`; namespace
+  `autom8y/cache-warmer` per ADR-006.
+- **3 Batch-A engineer-discretion items** — resolved:
+  - sentinel coalescer-key shape (`forcewarm:{entity_type}:{project_gid}`,
+    constants at `src/autom8_asana/cache/integration/force_warm.py:54-57`);
+  - best-effort L1 invalidation strategy (HYBRID per ADR-003);
+  - MINOR-OBS-2 expansion to 6 botocore branches +
+    `NoCredentialsError`.
+- **Conflated-commit attribution** (commit `49740a1f`) — PT-3 adjudicated
+  **leave-as-is + document**; entry in §2 row 4 is the document.
+- **Pythia-flagged path error (Concern 6 BLOCK-2)** — closed per QA Phase E-2:
+  `cd /Users/tomtenuta/Code/a8/repos/autom8y && git stash list` returns
+  `stash@{0}: On anchor/adr-anchor-001-exemption-grant: Batch-B DMS alarm
+  (LD-P4-1 Path B) — cross-repo defer`; stash empirically verified.
 
-**Discovery-only declaration**: This is a discovery-only inventory per Pythia P1 verdict on Concern 2. NO remediation proposal is offered at this altitude. Remediation is thermia's responsibility per PRD D7.
+### 6.2 DEFER-FOLLOWUP
 
-## 8. Telos Handoff and Attester Fallback Condition (D8)
+These items are NOT in P6 scope and are NOT in P7 verification scope. They
+are surfaced for thermia visibility so future processions can pick them up:
 
-- **Primary attester**: thermia.verification-auditor is the primary rite-disjoint attester.
-- **Fallback attester**: sre.incident-commander OR sre.observability-engineer is the fallback iff the thermia rite is not registered in the platform manifest at handoff time, per the fallback activation predicate in `.ledge/specs/handoff-dossier-schema.tdd.md` §5.
-- **Verification deadline**: 2026-05-27.
-- **PRD telos cross-reference**: PRD §7 telos block (lines 224-263).
+- **LD-P2-4** XFetch beta calibration — beta=1.0 starting per CACHE:SRC-001;
+  delta calibration requires production WarmDuration p50/p95 telemetry
+  data which becomes available only post-deploy.
+- **LD-P3-3** `max_entries=100` raise to 150 — at 14/100 current
+  utilization (per predecessor §3.2 working-set sizing) there is no
+  immediate pressure; raise becomes load-bearing only at 10x growth
+  (~140 sections per P3 §3.2).
+- **LD-P5A-1** INDEX ordering — entries appended chronologically per
+  schema `.ledge/specs/handoff-dossier-schema.tdd.md:223-234`; no canonical
+  ordering policy beyond append.
+- **LD-P5A-2** status-vocabulary divergence — predecessor frontmatter uses
+  `status: draft` (lifecycle vocabulary) vs this dossier's
+  `status: PENDING-THERMIA-P7` (state-machine vocabulary per schema §1.2).
+  Raise to ADR post-P6 if the divergence becomes load-bearing across
+  more handoffs.
+- **`ForceWarmLatencySeconds` no-alarm-today** — informational metric only;
+  no SLO target defined yet. Followup: derive SLO post-P3 cadence
+  resolution (DEF-2 seam).
+- **`SectionAgeP95Seconds` low-N discrimination** — at N=14 current
+  sections, P95 = 95th percentile is structurally degenerate (effectively
+  the max). Becomes meaningful at N >= ~20 sections.
+- **AP-3 named risk** (parquet not invalidated on task mutation) —
+  explicitly NOT closed in this procession per
+  `.ledge/specs/cache-freshness-architecture.tdd.md` §7;
+  docstring at `src/autom8_asana/cache/integration/force_warm.py:28-30`
+  records the risk acceptance.
 
-**Forward-references**: the empty `## Attester Acceptance` and `## Verification Attestation` headings appended at the end of this dossier body are the receiving rite's insertion points (per `.ledge/specs/handoff-dossier-schema.tdd.md` §4.3 and §4.4).
+## 7. Operational Constraints
 
-### 8.1 Latent Decisions Surfaced
+### 7.1 Canary-in-prod (PRD §6 C-1)
 
-The architect phase (T4) surfaced three latent decisions for engineer-discretion disposition (per Pythia P2). The principal-engineer's positions, recorded here for thermia / sre / Potnia visibility:
+Single-bucket (`autom8-s3`); no multi-env deployment topology. The
+implementation ships and runs against production directly. No staging
+environment exists. Validation occurs via:
 
-1. **INDEX.md scope** (TDD §4.5): RECOMMEND merge-time consolidation. At merge-to-main, the worktree's `.ledge/handoffs/INDEX.md` should be merged into the main-branch `.ledge/handoffs/INDEX.md` (creating the directory if absent), and per-worktree INDEX entries appended to a project-wide INDEX. Rationale: a per-rite or per-receiving-rite INDEX would fragment discoverability across the fleet; a single project-wide INDEX matches the established artifact-locality pattern (one `.ledge/decisions/`, one `.ledge/specs/` per repo). Decision holder: Potnia at merge time.
-2. **Fallback agent disambiguation** (TDD §5.1): RECOMMEND `sre.observability-engineer` for THIS initiative. Rationale: the verification surface is freshness/SLO-shaped (parquet mtime → staleness threshold → strict-mode promotion), not incident-runbook-shaped. The disambiguation rule "observability-engineer for SLO-shaped, incident-commander for degraded-state response" applies cleanly. Decision holder: the activating sre rite at fallback-predicate firing time.
-3. **Sre rite awareness of `cross-rite-handoff` convention** (ADR-002 Negative §1): FLAG as precondition for fallback-path activation. If sre rite agents are unaware of the cross-rite-handoff schema (HANDOFF-* naming, INDEX.md scanning, `## Fallback Activation Record` heading), the fallback path is dormant. Suggested mitigation: a cross-rite-handoff inheritance note in the sre rite's documentation, or a fleet-level discoverability sweep at the next sre-rite onboarding event. Decision holder: sre rite Potnia at activation; not load-bearing for engineer T10 commit.
+- Existing test suite (unit + integration) — 436/1 PASS at HEAD `e4b5222d`.
+- Heat-mapper-style manual probe of the production bucket post-deploy.
+- P7 thermal-monitor in-anger probes against the deployed system.
 
-### 8.2 Pre-Existing Observations Surfaced from QA (T9)
+### 7.2 Backwards-compat boundary (PRD §6 C-2)
 
-Two pre-existing observations from the T9 QA report (`.ledge/reviews/QA-T9-verify-active-mrr-provenance.md` Defect Summary), surfaced here for thermia visibility — neither is a regression introduced by this initiative; both are candidates for future thermia-shaped consideration when designing the freshness-SLA UX.
+Default-mode CLI output (`python -m autom8_asana.metrics active_mrr` with
+no flags) is preserved **byte-for-byte**. Probe-4 baseline empirically
+verified the dollar-figure line at `src/autom8_asana/metrics/__main__.py:807-808`
+stdout format string is unchanged. Existing CI pipelines and scripts MUST
+NOT break.
 
-1. **MINOR-OBS-1** (pre-existing test flake): `tests/unit/persistence/test_reorder.py::test_property_moves_produce_desired_order` (Hypothesis property test) fails intermittently under xdist parallel execution; passes deterministically in isolation. Pre-existing. NOT a release blocker. Recommendation per QA: file as a test-hygiene ticket; pin Hypothesis seed or mark `@pytest.mark.no_xdist`.
-2. **MINOR-OBS-2** (pre-existing UX gap): `load_project_dataframe` at `src/autom8_asana/metrics/__main__.py:234` raises a raw botocore `ClientError(NoSuchBucket)` traceback when `ASANA_CACHE_S3_BUCKET` is set to a non-existent bucket name. The existing exception handler at line 235 catches only `(ValueError, FileNotFoundError)`. The freshness-module's own `AC-4.2 not-found` mapping at `src/autom8_asana/metrics/freshness.py:164-177` is correct, but the upstream bucket-typo case is reached BEFORE the freshness probe. Pre-existing and structurally upstream of T6+T7. Candidate consideration when thermia designs freshness-SLA UX: extend `load_project_dataframe`'s exception surface to map botocore `ClientError(NoSuchBucket)` to a friendly stderr line analogous to AC-4.2.
+### 7.3 LD-P3-2 structural enforcement
+
+Zero direct `boto3.client("lambda")` in CLI force-warm paths. Three boto3
+references at `src/autom8_asana/metrics/__main__.py` lines 252, 258, 314
+are docstring mentions only (verifiable via
+`grep -n "boto3" src/autom8_asana/metrics/__main__.py` returning exactly
+3 matches, all inside `"""..."""` blocks). The CLI delegates to
+`src/autom8_asana/cache/integration/force_warm.py:159-385` canonical surface
+which is itself coalescer-routed via `DataFrameCache`.
+
+### 7.4 Rollback boundary
+
+If `--force-warm` causes a regression in production:
+
+- The flag is opt-in; default behavior is unchanged. Operators can simply
+  not invoke it (zero-cost rollback).
+- For an emergency feature-flag disable, gate the flag behind an env var
+  (e.g., `AUTOM8Y_FORCE_WARM_ENABLED=true` required for the flag to be
+  recognized). NOT shipped in P6; surface in next-procession scope if
+  empirically needed.
+
+### 7.5 SLO-1 starts in deficit (expected, NOT a defect)
+
+Per `.ledge/specs/cache-freshness-observability.md:107-119` SLO-1 and
+heat-mapper assessment: 9/14 sections currently exceed 6h staleness.
+Until Batch-D 4h cron applies, `ParquetMaxAgeSLO` will NOT meet the
+95%<6h target. SLO-1 reaches steady-state (green) approximately 6h
+after Batch-D EventBridge schedule applies, assuming the new schedule
+executes successfully on its first cycle. The on-call response runbook
+(`.ledge/specs/cache-freshness-runbook.md` Stale-1) handles the
+post-deploy SLO-1 deficit window.
+
+## 8. Deadline Timeline
+
+- Today: 2026-04-27.
+- Verification deadline (parent telos D8): 2026-05-27.
+
+Sequence:
+- Re-handoff dossier authored (this artifact): 2026-04-27 (~1 day).
+- Draft PR (T#43): immediate.
+- Review + merge: 1-7 days (range bounded by reviewer availability).
+- Production deploy: ~hours (deploy automation latency).
+- Observation period: 1-3 days post-deploy (baseline stability check).
+- Batch-D Terraform PR (cross-repo autom8y): 1-2 days.
+- Batch-D apply (`terraform apply`): ~hours.
+- thermia re-engagement (operator-paced; awaits all of the above).
+- P7 design-review (Track A, 11-lens rubric): 1-2 days.
+- P7 in-anger probes (Track B, Probe-1/2/3/5): 1-2 days.
+- D8 attestation appended to this dossier `## Verification Attestation`
+  heading.
+
+Nominal: 8-15 days. Buffer: 15-22 days. Healthy margin against the 30-day
+deadline.
+
+## 9. Attester Acceptance Protocol
+
+Per `.ledge/specs/handoff-dossier-schema.tdd.md` §4.3 (acceptance) and §4.4
+(verification), the receiving rite appends two h2 headings to this dossier
+body when engaging and discharging the handoff. They are reserved as empty
+insertion points below:
+
+- `## Attester Acceptance` — written when thermia.thermal-monitor (or
+  fallback) engages this dossier.
+- `## Verification Attestation` — written at P7 attestation completion
+  (or `verification_deadline`, whichever first), recording verdict
+  (`ATTESTED` | `ATTESTED-WITH-FLAGS` | `REJECTED-REOPEN`) per schema §4.4.
+
+If the fallback predicate fires per schema §5.1 (mechanically verifiable:
+ENOENT on `.claude/agents/thermia/` OR `thermia` absent from
+`.knossos/KNOSSOS_MANIFEST.yaml`), the substituting agent
+`sre.observability-engineer` (per inherited dossier §8.1 latent
+decision #2 — SLO-shaped surface disambiguation) appends a
+`## Fallback Activation Record` h3 heading per schema §5.2 BEFORE
+discharging the verification gate.
+
+## 10. Pre-existing Observations Carried Forward
+
+Surfaced from the predecessor dossier §7 and the QA report; neither requires
+thermia action — both are status-tracking carry-overs.
+
+- **MINOR-OBS-1** (xdist test flake at
+  `tests/unit/persistence/test_reorder.py::test_property_moves_produce_desired_order`):
+  handled in the parallel thermia → hygiene secondary handoff at
+  `.ledge/handoffs/HANDOFF-thermia-to-hygiene-2026-04-27.md`. NOT in
+  10x-dev or thermia P7 scope.
+- **MINOR-OBS-2** (botocore traceback): SHIPPED at
+  `src/autom8_asana/metrics/__main__.py:738-780` per WI-8. Resolved.
 
 ## Attester Acceptance
 
