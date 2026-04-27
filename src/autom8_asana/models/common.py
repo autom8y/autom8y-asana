@@ -49,6 +49,7 @@ class NameGid(BaseModel):
 
     gid: str = Field(
         description="Globally unique identifier for the referenced Asana resource.",
+        examples=["1234567890123456"],
     )
     name: str | None = Field(
         default=None,

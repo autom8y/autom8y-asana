@@ -41,6 +41,7 @@ class AsanaResource(BaseModel):
     gid: str = Field(
         pattern=_GID_PATTERN,
         description="Globally unique identifier for this Asana resource. A numeric string (1-64 digits).",
+        examples=["1234567890123456"],
     )
     resource_type: str | None = Field(
         default=None,

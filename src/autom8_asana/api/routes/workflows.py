@@ -172,8 +172,16 @@ class WorkflowEntry(BaseModel):
         response_metadata_keys: Keys from WorkflowResult.metadata included in response.
     """
 
-    workflow_id: str = Field(..., description="Registered workflow identifier.")
-    log_prefix: str = Field(..., description="Structured-log event prefix.")
+    workflow_id: str = Field(
+        ...,
+        description="Registered workflow identifier.",
+        examples=["update-offer-status"],
+    )
+    log_prefix: str = Field(
+        ...,
+        description="Structured-log event prefix.",
+        examples=["workflow.update-offer-status"],
+    )
     requires_data_client: bool = Field(
         ..., description="Whether this workflow requires a DataServiceClient."
     )

@@ -543,15 +543,19 @@
         "properties": {
           "meaning": {
             "description": "Business meaning of this value.",
+            "examples": [
+              "Record is active and in use."
+            ],
             "title": "Meaning",
-            "type": "string",
-            "example": "Record is active and in use."
+            "type": "string"
           },
           "value": {
             "description": "The enum value string.",
+            "examples": [
+              "active"
+            ],
             "title": "Value",
-            "type": "string",
-            "example": "active"
+            "type": "string"
           }
         },
         "required": [
@@ -832,9 +836,11 @@
         "properties": {
           "gid": {
             "description": "Globally unique identifier for the referenced Asana resource.",
+            "examples": [
+              "1234567890123456"
+            ],
             "title": "Gid",
-            "type": "string",
-            "example": "1234567890123456"
+            "type": "string"
           },
           "name": {
             "anyOf": [
@@ -1584,9 +1590,11 @@
           },
           "name": {
             "description": "Column name used in query predicates and select clauses.",
+            "examples": [
+              "status"
+            ],
             "title": "Name",
-            "type": "string",
-            "example": "status"
+            "type": "string"
           },
           "semantic_type": {
             "anyOf": [
@@ -1602,9 +1610,11 @@
           },
           "type": {
             "description": "Data type of the column (e.g., 'Utf8', 'Float64', 'Boolean').",
+            "examples": [
+              "Utf8"
+            ],
             "title": "Type",
-            "type": "string",
-            "example": "Utf8"
+            "type": "string"
           }
         },
         "required": [
@@ -1974,8 +1984,10 @@
             ],
             "default": null,
             "description": "True if the task is marked complete.",
-            "title": "Completed",
-            "example": false
+            "examples": [
+              false
+            ],
+            "title": "Completed"
           },
           "completed_at": {
             "anyOf": [
@@ -2068,8 +2080,10 @@
             ],
             "default": null,
             "description": "Due date (YYYY-MM-DD)",
-            "title": "Due On",
-            "example": "2026-03-15"
+            "examples": [
+              "2026-03-15"
+            ],
+            "title": "Due On"
           },
           "external": {
             "anyOf": [
@@ -2103,9 +2117,11 @@
           },
           "gid": {
             "description": "Globally unique identifier for this Asana resource. A numeric string (1-64 digits).",
+            "examples": [
+              "1234567890123456"
+            ],
             "title": "Gid",
-            "type": "string",
-            "example": "1234567890123456"
+            "type": "string"
           },
           "html_notes": {
             "anyOf": [
@@ -2204,8 +2220,10 @@
             ],
             "default": null,
             "description": "Display name of the task.",
-            "title": "Name",
-            "example": "Review Q3 marketing proposal"
+            "examples": [
+              "Review Q3 marketing proposal"
+            ],
+            "title": "Name"
           },
           "notes": {
             "anyOf": [
@@ -2218,8 +2236,10 @@
             ],
             "default": null,
             "description": "Plain-text description body of the task.",
-            "title": "Notes",
-            "example": "Check accuracy and completeness before the team review."
+            "examples": [
+              "Check accuracy and completeness before the team review."
+            ],
+            "title": "Notes"
           },
           "num_likes": {
             "anyOf": [
@@ -2314,8 +2334,10 @@
             ],
             "default": "task",
             "description": "Asana resource type name. Always 'task' for task resources.",
-            "title": "Resource Type",
-            "example": "task"
+            "examples": [
+              "task"
+            ],
+            "title": "Resource Type"
           },
           "start_at": {
             "anyOf": [
@@ -2584,9 +2606,11 @@
         "properties": {
           "log_prefix": {
             "description": "Structured-log event prefix.",
+            "examples": [
+              "workflow.update-offer-status"
+            ],
             "title": "Log Prefix",
-            "type": "string",
-            "example": "workflow.update-offer-status"
+            "type": "string"
           },
           "requires_data_client": {
             "description": "Whether this workflow requires a DataServiceClient.",
@@ -2603,9 +2627,11 @@
           },
           "workflow_id": {
             "description": "Registered workflow identifier.",
+            "examples": [
+              "update-offer-status"
+            ],
             "title": "Workflow Id",
-            "type": "string",
-            "example": "update-offer-status"
+            "type": "string"
           }
         },
         "required": [
