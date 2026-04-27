@@ -1,0 +1,35 @@
+# Cache-freshness TTL manifest (ADR-005 schema_version: 1)
+#
+# Per HANDOFF §3 LD-P3-1: this file is the canonical, version-controlled
+# default for per-section SLA-class assignment. The S3 sidecar at
+# s3://{bucket}/dataframes/{project_gid}/cache-freshness-ttl.json
+# is the runtime override (precedence: sidecar > manifest > built-in default).
+#
+# 4-class taxonomy (FROZEN by HANDOFF FLAG-2 / LD-P2-1):
+#   active     -> 21600s  (6h)  -- active_mrr-driving sections
+#   warm       -> 43200s  (12h) -- frequently-touched sections
+#   cold       -> 86400s  (24h) -- archival reads
+#   near-empty -> 604800s (7d)  -- deprecated / very-low-volume
+#
+# Validator: src/autom8_asana/metrics/sla_profile.py — V-1..V-6 per ADR-005.
+#
+# Bootstrap state: project 1143843662099250 (the production canary) is
+# declared with the conservative "active" class for all 14 sections until
+# operator-driven re-classification lands. Edit this file in PR; reviewers
+# verify that section-class transitions are intentional.
+
+schema_version: 1
+generated_at: "2026-04-27T20:52:00Z"
+generator: "autom8_asana.metrics.sla_profile.bootstrap"
+default_class: active
+
+projects:
+  "1143843662099250":
+    project_gid: "1143843662099250"
+    sections:
+      # NOTE: leaving sections empty bootstraps every (project, section)
+      # lookup to fall through to the manifest-default class ("active",
+      # 21600s) per ADR-005 step 3 of the override-precedence rule. As
+      # operator classification work lands, per-section entries are
+      # appended here in PR with cross-validation V-6 surfacing any
+      # threshold deviations from canonical defaults.
