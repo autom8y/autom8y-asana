@@ -241,3 +241,69 @@ Alternatively (DEFERRED for future procession; NOT immediate): add `FreshnessErr
 - Live AWS evidence basis: `.ledge/reviews/P7A-alert-predicates-2026-04-27.md` PRED-1..PRED-11 (account `696318035277`).
 
 ## Attester Acceptance
+
+**Acceptance verdict**: ACCEPTED.
+**Engaging rite**: hygiene (PRIMARY; mechanically verified — `ari rite current` returns `Active Rite: hygiene`; main-repo `.claude/agents/` contains 5 hygiene agents `potnia`, `code-smeller`, `architect-enforcer`, `janitor`, `audit-lead`).
+**Engagement timestamp**: 2026-04-27T~21:30Z (UTC).
+**Engaging session**: continues thermia procession session `session-20260427-185944-cde32d7b` (cache-freshness-procession-2026-04-27 parent procession; cross-rite-handoff is rite-switch, not session-restart, since hygiene work is in-service of the same parent telos discharge).
+**Receiving worktree**: `/Users/tomtenuta/Code/a8/repos/autom8y-asana/.worktrees/thermia-cache-procession` (for Appendix B DRIFT items touching `.ledge/specs/` and `.ledge/decisions/`); main repo `/Users/tomtenuta/Code/a8/repos/autom8y-asana` (for Area A `src/` cleanup, Area B `.gitignore` amendment, Area C `tests/` seed-pinning).
+
+### H.1 Inbound bundle acknowledgment
+
+Four scope areas accepted:
+
+- **Area A** — D7 env-matrix legacy-cruft remediation (12 file:line items in 5 files: `models/base.py`, `cache/integration/factory.py`, `api/models.py`, `settings.py`).
+- **Area B** — `**/.ledge/*` gitignore amendment (3 OPTIONS surfaced; hygiene rite owns selection).
+- **Area C** — MINOR-OBS-1 xdist test flake (`test_reorder.py::test_property_moves_produce_desired_order`).
+- **Appendix B** — POST-P7.A DRIFT items (DRIFT-1 P4 ALERT-3 namespace; DRIFT-2 Runbook DMS placeholder; DRIFT-3 P4 ALERT-5 spec reframe).
+
+### H.2 Engagement flow (Potnia-dispatched plan to follow)
+
+The hygiene rite engages in two independently-shippable workstreams:
+
+- **Workstream 1 — Procession-completion**: Appendix B (DRIFT-1, DRIFT-2, DRIFT-3) — touches `.ledge/specs/cache-freshness-observability.md`, `.ledge/specs/cache-freshness-runbook.md`, and authors `.ledge/decisions/ADR-007-cw-namespace-tri-partition.md`. All on thermia branch `thermia/cache-freshness-procession-2026-04-27`. Tightens design substrate before Batch-D Terraform authoring.
+- **Workstream 2 — Repo hygiene**: Areas A + B + C — touches `src/`, `.gitignore`, `tests/`. Lands on a new branch off main (`hygiene/cache-cleanup-2026-04-27` proposed) as separate PR(s).
+
+Workstream 1 is sequenced FIRST since Batch-D Terraform authoring is operator-paced and benefits from corrected spec substrate. Workstream 2 is parallel-safe and lands independently.
+
+### H.3 Workstream 2 Option-B selection bias (gitignore)
+
+For §5 gitignore-fix Option selection, hygiene rite's working preference is **Option C** (track `.ledge/**` by default, only `.ledge/shelf/` allow-listed if needed). Rationale:
+
+- Eliminates the recurrence-vector entirely (matches "track work product unless excluded" convention).
+- The cost (broader change) is mitigated by the demonstrated pattern across recent commits: `.ledge/handoffs/`, `.ledge/decisions/`, `.ledge/reviews/`, `.ledge/specs/` are all now load-bearing canonical work-product directories.
+- The 5-design-ref loss in the predecessor 10x-dev sprint occurred under the regime that Option B (process-level fix) preserves.
+- Option A's per-subdirectory allow-list requires schema-stability for 4-5 subdirectory names; future additions (e.g., `.ledge/spikes/`) require gitignore amendments — friction Option C avoids.
+
+Final selection deferred to architect-enforcer review per hygiene-rite proper convention; H.3 records the receiving rite's working bias for transparency.
+
+### H.4 Workstream 1 spec-patch sequencing
+
+Within Workstream 1 (Appendix B), sequencing:
+
+1. **DRIFT-2** (Runbook DMS-1 placeholder) — 1-line patch, lowest blast radius, quickest to land.
+2. **DRIFT-1** (P4 ALERT-3 namespace + ADR-007) — spec patch + ADR authoring; requires architect-enforcer planning.
+3. **DRIFT-3** (P4 ALERT-5 spec reframe) — bundles with DRIFT-1 since both touch P4 spec §3.3.
+
+ADR-007 amends ADR-006 (CW namespace strategy). Required because ADR-006 currently overgeneralizes to a 2-namespace model (`Autom8y/FreshnessProbe` + `autom8y/cache-warmer`) but live AWS scan (P7.A.3 PRED-1..11) confirms a 3-namespace reality including `autom8/lambda` for warmer-side metrics. ADR-007 author: architect-enforcer.
+
+### H.5 MINOR-OBS-1 disposition (Area C)
+
+Per §6 recommendation: pin Hypothesis seed OR `@pytest.mark.no_xdist`. Hygiene rite's working preference: **`@pytest.mark.no_xdist`** marker (cleaner; preserves Hypothesis's exploratory property-test value; isolates the schedule-non-determinism root cause). Final selection deferred to janitor's execution-time judgment.
+
+### H.6 Cross-rite ownership clarifications (preserved from §A.7 ownership FLAGs)
+
+Two items from earlier parent appendix ownership-FLAG carry-forward (XC-3 namespace casing debt, XC-4 schema_version discipline) — RESOLVED by P7.A.3 live AWS evidence:
+
+- **XC-3** namespace casing — RESOLVED via P7.A.3 PRED-2 (`Autom8y/FreshnessProbe` Pascal vs `autom8y/cache-warmer` lowercase vs `autom8/lambda` lowercase). 3-tier namespace is empirically correct; ADR-007 documents the tri-partition (Workstream 1 DRIFT-1 scope).
+- **XC-4** schema_version discipline — DEFER-FOLLOWUP (not in current hygiene scope; ADR-007 sets the precedent for future namespace ADRs).
+
+### H.7 Pythia touchpoint disposition
+
+Hygiene rite engages without a fresh Pythia touchpoint at acceptance (the hygiene workflow does not have rite-internal Pythia cadence equivalent to thermia's PT-A1..A5). The procession-level Pythia consciousness chain remains intact via the thermia procession's PT-A4/A5 schedule; hygiene work is filed as a procession-side discharge, not a fresh sprint.
+
+### H.8 Receipts
+
+- Acceptance authored by hygiene rite at: 2026-04-27T~21:30Z.
+- Inbound dossier prior commits on thermia branch: `f66208f2` (P5b initial), `5323d0bf` (XC-3/XC-4/ALERT-3/5 appendix), `dba50f8a` (Appendix B P7.A DRIFT items).
+- Acceptance commit (this artifact): authored on thermia branch `thermia/cache-freshness-procession-2026-04-27` with `git add -f` (gitignore `**/.ledge/*` workaround; same scar that motivates Workstream 2 Area B).
