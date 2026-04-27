@@ -11,7 +11,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # Production enforces numeric-only GIDs (Asana API contract).
 # Test context relaxes to allow human-readable GIDs (task_123, section_1)
-# for test clarity. Controlled via AUTOM8Y_ENV.
+# for test clarity. This module-load-time guard reads AUTOM8Y_ENV directly
+# from os.environ to avoid triggering full Pydantic settings validation
+# during early module import. Runtime queries elsewhere should use
+# `settings.is_production` (canonical pattern at `cache/integration/factory.py:153`).
+# Per PRD §6 C-1 (canary-in-prod): the AUTOM8Y_ENV name is the load-bearing
+# env-var contract; do not rename without coordinated Lambda/ECS deployment
+# env-var rename.
 _GID_PATTERN: str | None = (
     r"^\d{1,64}$"
     if os.environ.get("AUTOM8Y_ENV", "production") not in ("test", "local", "LOCAL")

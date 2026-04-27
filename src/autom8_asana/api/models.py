@@ -38,7 +38,11 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 
 # Reusable GID type (Mandate 3: Regex Field patterns)
 # Production enforces numeric-only GIDs. Test/local environments relax
-# to allow human-readable GIDs in test fixtures.
+# to allow human-readable GIDs in test fixtures. This module-load-time
+# guard reads AUTOM8Y_ENV directly from os.environ to avoid triggering
+# full Pydantic settings validation during early module import. Runtime
+# queries elsewhere should use `settings.is_production` (canonical pattern
+# at `cache/integration/factory.py:153`).
 _gid_pattern: str | None = (
     r"^\d{1,64}$"
     if os.environ.get("AUTOM8Y_ENV", "production") not in ("test", "local", "LOCAL")
