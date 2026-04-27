@@ -566,7 +566,41 @@ class TestSlaProfileFlagParsing:
 
 
 class TestForceWarmFlagParsing:
-    """Work-Item 1 — argparse integration for --force-warm + --wait."""
+    """Work-Item 1 — argparse integration for --force-warm + --wait.
+
+    PT-2 Option B refactor (2026-04-27): mocks relocated from
+    boto3.client("lambda").invoke to force_warm() patches at the import
+    site (autom8_asana.metrics.__main__.force_warm). LD-P3-2 call-order
+    semantics preserved at force_warm() interaction altitude — a Lambda
+    invoke without first delegating to force_warm() is now structurally
+    impossible (the CLI no longer constructs its own boto3 client).
+    """
+
+    @staticmethod
+    def _make_async_force_warm_result(
+        *, deduped: bool = False, invoked: bool = True, wait: bool = False
+    ) -> object:
+        """Build a ForceWarmResult fixture for use as force_warm() return.
+
+        Encapsulates the canonical surface's return shape so individual tests
+        only need to flip the booleans they care about.
+        """
+        from autom8_asana.cache.integration.force_warm import ForceWarmResult
+
+        invocation_type = "RequestResponse" if wait else "Event"
+        return ForceWarmResult(
+            invoked=invoked,
+            invocation_type=invocation_type,
+            deduped=deduped,
+            latency_seconds=0.001,
+            function_arn="test-warmer-fn",
+            project_gid="12345",
+            entity_types=(),
+            coalescer_key="forcewarm:12345:*",
+            lambda_status_code=202 if not wait else 200,
+            lambda_response_payload={"success": True} if wait else None,
+            l1_invalidated=wait and not deduped and invoked,
+        )
 
     def test_force_warm_missing_bucket_exits_1_friendly(
         self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
@@ -589,7 +623,13 @@ class TestForceWarmFlagParsing:
     def test_force_warm_missing_function_name_env_exits_1(
         self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """LD-P2-2: missing CACHE_WARMER_LAMBDA_FUNCTION_NAME → friendly stderr, exit 1."""
+        """Missing CACHE_WARMER_LAMBDA_ARN → friendly stderr, exit 1.
+
+        PT-2 Option B refactor unified the force-warm env var to the fleet
+        convention (CACHE_WARMER_LAMBDA_ARN, see admin.py:211 +
+        progressive.py:548). _FORCE_WARM_REQUIRED_ENV is now bound to
+        force_warm.LAMBDA_ARN_ENV_VAR.
+        """
         monkeypatch.setenv("ASANA_CACHE_S3_BUCKET", "autom8-s3")
         monkeypatch.setenv("ASANA_CACHE_S3_REGION", "us-east-1")
         monkeypatch.delenv(_FORCE_WARM_REQUIRED_ENV, raising=False)
@@ -603,119 +643,118 @@ class TestForceWarmFlagParsing:
         assert _FORCE_WARM_REQUIRED_ENV in captured.err
         assert "Traceback" not in captured.err
 
-    def test_force_warm_async_invokes_through_coalescer(
+    def test_force_warm_env_var_is_fleet_convention(self) -> None:
+        """PT-2 Option B refactor: env var unified to fleet convention.
+
+        Asserts the CLI's force-warm env var matches the canonical
+        force_warm() module's LAMBDA_ARN_ENV_VAR, which in turn matches
+        the fleet convention used at api/routes/admin.py:211 and
+        api/preload/progressive.py:548.
+        """
+        from autom8_asana.cache.integration.force_warm import LAMBDA_ARN_ENV_VAR
+
+        assert _FORCE_WARM_REQUIRED_ENV == "CACHE_WARMER_LAMBDA_ARN"
+        assert _FORCE_WARM_REQUIRED_ENV == LAMBDA_ARN_ENV_VAR
+
+    def test_force_warm_async_delegates_to_canonical_force_warm(
         self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """LD-P3-2: --force-warm (async) routes through DataFrameCacheCoalescer.
+        """LD-P3-2: --force-warm (async) delegates to canonical force_warm().
 
-        Verifies:
-          1. coalescer.try_acquire_async is awaited BEFORE boto3.invoke
-          2. boto3.client('lambda').invoke is called with InvocationType=Event
-          3. Exit code 0 on Lambda accept (StatusCode=202)
+        Verifies (LD-P3-2 call-order semantics preserved at force_warm()
+        interaction altitude):
+          1. force_warm() is awaited (not boto3 directly — the CLI no longer
+             constructs its own boto3 client; LD-P3-2 violation is now
+             structurally impossible).
+          2. force_warm() is called with wait=False, entity_types=(),
+             project_gid='12345' for the async path.
+          3. force_warm() is called with a non-None DataFrameCache instance
+             (proving coalescer-routing at the canonical surface altitude;
+             cache.coalescer is the unified instance per PT-2 Option B).
+          4. Exit code 0 on successful Lambda accept.
         """
         monkeypatch.setenv("ASANA_CACHE_S3_BUCKET", "autom8-s3")
         monkeypatch.setenv(_FORCE_WARM_REQUIRED_ENV, "test-warmer-fn")
 
-        # Track call order to verify coalescer-first discipline
-        call_order: list[str] = []
+        captured_calls: list[dict[str, object]] = []
 
-        # Use a real coalescer; the in-process try_acquire returns True on first call
-        # so the boto3 invoke runs.
-        original_try_acquire = None
+        async def _mock_force_warm(**kwargs: object) -> object:
+            captured_calls.append(kwargs)
+            return self._make_async_force_warm_result(wait=False)
 
-        async def _tracking_try_acquire(self_: object, key: str) -> bool:
-            call_order.append(f"coalescer.try_acquire_async({key})")
-            assert original_try_acquire is not None
-            return await original_try_acquire(self_, key)
-
-        async def _tracking_release(self_: object, key: str, success: bool) -> None:
-            call_order.append(f"coalescer.release_async({key}, success={success})")
-
-        mock_lambda_client = MagicMock()
-
-        def _mock_invoke(**kwargs: object) -> dict[str, object]:
-            call_order.append(f"lambda.invoke({kwargs.get('InvocationType')})")
-            return {"StatusCode": 202}
-
-        mock_lambda_client.invoke = _mock_invoke
-
-        from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
-
-        original_try_acquire = DataFrameCacheCoalescer.try_acquire_async
+        # Stub out the factory to avoid touching real S3 / settings. The
+        # CLI's _resolve_dataframe_cache_for_cli reads through these symbols.
+        mock_cache = MagicMock(name="DataFrameCache")
 
         with (
             patch("sys.argv", ["metrics", "--force-warm", "--project-gid", "12345"]),
             patch(
-                "autom8_asana.cache.dataframe.coalescer.DataFrameCacheCoalescer.try_acquire_async",
-                _tracking_try_acquire,
+                "autom8_asana.metrics.__main__.force_warm",
+                _mock_force_warm,
             ),
             patch(
-                "autom8_asana.cache.dataframe.coalescer.DataFrameCacheCoalescer.release_async",
-                _tracking_release,
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
             ),
-            patch("boto3.client", return_value=mock_lambda_client),
         ):
             with pytest.raises(SystemExit) as exc_info:
                 main()
         assert exc_info.value.code == 0
 
-        # CRITICAL: coalescer.try_acquire_async MUST appear before lambda.invoke
-        # to satisfy LD-P3-2 (coalescer-routed, NOT direct invoke).
-        coalescer_acquire_idx = next(
-            (i for i, c in enumerate(call_order) if "try_acquire_async" in c), -1
+        # Assert delegation occurred exactly once with the right shape.
+        assert len(captured_calls) == 1, (
+            f"Expected exactly one force_warm() call; got {len(captured_calls)}"
         )
-        invoke_idx = next((i for i, c in enumerate(call_order) if "lambda.invoke" in c), -1)
-        assert coalescer_acquire_idx >= 0, (
-            f"coalescer.try_acquire_async never called; call_order={call_order}"
-        )
-        assert invoke_idx >= 0, f"lambda.invoke never called; call_order={call_order}"
-        assert coalescer_acquire_idx < invoke_idx, (
-            f"LD-P3-2 violation: lambda.invoke called BEFORE coalescer acquire; "
-            f"call_order={call_order}"
-        )
-
-        # Verify async InvocationType
-        assert any("Event" in c for c in call_order), (
-            f"Expected InvocationType=Event for default async path; call_order={call_order}"
+        call = captured_calls[0]
+        assert call["project_gid"] == "12345"
+        assert call["wait"] is False
+        assert call["entity_types"] == ()
+        # Cache instance is passed through — coalescer-routing happens at
+        # the canonical surface altitude (force_warm.py uses cache.coalescer).
+        assert call["cache"] is mock_cache, (
+            "force_warm() must receive the app-shared DataFrameCache instance "
+            "(PT-2 Option B: NO fresh per-invocation coalescer)"
         )
 
         captured = capsys.readouterr()
         assert "force-warm invoked" in captured.err.lower()
 
-    def test_force_warm_wait_uses_request_response(
+    def test_force_warm_wait_delegates_with_wait_true(
         self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """--force-warm --wait uses InvocationType=RequestResponse per P2 §4."""
+        """--force-warm --wait passes wait=True to canonical force_warm()."""
         monkeypatch.setenv("ASANA_CACHE_S3_BUCKET", "autom8-s3")
         monkeypatch.setenv(_FORCE_WARM_REQUIRED_ENV, "test-warmer-fn")
 
-        captured_invocation_type: dict[str, object] = {}
+        captured_calls: list[dict[str, object]] = []
 
-        mock_lambda_client = MagicMock()
+        async def _mock_force_warm(**kwargs: object) -> object:
+            captured_calls.append(kwargs)
+            return self._make_async_force_warm_result(wait=True)
 
-        def _mock_invoke(**kwargs: object) -> dict[str, object]:
-            captured_invocation_type["type"] = kwargs.get("InvocationType")
-            # Sync success: payload is JSON body, no FunctionError
-            payload_mock = MagicMock()
-            payload_mock.read.return_value = b'{"success": true}'
-            return {"StatusCode": 200, "Payload": payload_mock}
-
-        mock_lambda_client.invoke = _mock_invoke
+        mock_cache = MagicMock(name="DataFrameCache")
 
         with (
             patch(
                 "sys.argv",
                 ["metrics", "--force-warm", "--wait", "--project-gid", "12345"],
             ),
-            patch("boto3.client", return_value=mock_lambda_client),
+            patch(
+                "autom8_asana.metrics.__main__.force_warm",
+                _mock_force_warm,
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
         ):
             with pytest.raises(SystemExit) as exc_info:
                 main()
         assert exc_info.value.code == 0
 
-        assert captured_invocation_type["type"] == "RequestResponse", (
-            f"Expected --wait to use InvocationType=RequestResponse; "
-            f"got {captured_invocation_type['type']}"
+        assert len(captured_calls) == 1
+        assert captured_calls[0]["wait"] is True, (
+            f"Expected wait=True; got {captured_calls[0]['wait']!r}"
         )
 
         captured = capsys.readouterr()
@@ -724,36 +763,43 @@ class TestForceWarmFlagParsing:
     def test_force_warm_lambda_function_error_exits_1(
         self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """--force-warm --wait exits 1 when Lambda reports FunctionError."""
+        """--force-warm --wait exits 1 when force_warm raises ForceWarmError(KIND_LAMBDA)."""
+        from autom8_asana.cache.integration.force_warm import ForceWarmError
+
         monkeypatch.setenv("ASANA_CACHE_S3_BUCKET", "autom8-s3")
         monkeypatch.setenv(_FORCE_WARM_REQUIRED_ENV, "test-warmer-fn")
 
-        mock_lambda_client = MagicMock()
+        async def _mock_force_warm(**kwargs: object) -> object:
+            raise ForceWarmError(
+                ForceWarmError.KIND_LAMBDA,
+                "Lambda FunctionError=Unhandled; payload={'errorMessage': 'boom'}",
+            )
 
-        def _mock_invoke(**kwargs: object) -> dict[str, object]:
-            payload_mock = MagicMock()
-            payload_mock.read.return_value = b'{"errorMessage": "boom"}'
-            return {
-                "StatusCode": 200,
-                "FunctionError": "Unhandled",
-                "Payload": payload_mock,
-            }
-
-        mock_lambda_client.invoke = _mock_invoke
+        mock_cache = MagicMock(name="DataFrameCache")
 
         with (
             patch(
                 "sys.argv",
                 ["metrics", "--force-warm", "--wait", "--project-gid", "12345"],
             ),
-            patch("boto3.client", return_value=mock_lambda_client),
+            patch(
+                "autom8_asana.metrics.__main__.force_warm",
+                _mock_force_warm,
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
         ):
             with pytest.raises(SystemExit) as exc_info:
                 main()
         assert exc_info.value.code == 1
 
         captured = capsys.readouterr()
-        assert "FunctionError" in captured.err
+        # ForceWarmError stringification carries "[lambda] ..." prefix; CLI
+        # surfaces "Lambda reported failure" or includes the error body.
+        assert "lambda" in captured.err.lower()
+        assert "Traceback" not in captured.err
 
     def test_force_warm_no_project_gid_or_metric_exits_1(
         self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
@@ -769,6 +815,113 @@ class TestForceWarmFlagParsing:
 
         captured = capsys.readouterr()
         assert "project-gid" in captured.err.lower() or "classifier" in captured.err
+
+    def test_two_cli_invocations_share_dedup_state(
+        self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """PT-2 Option B: two CLI --force-warm invocations share dedup state.
+
+        The structural fix for the parallel-batch interface drift defect:
+        Batch-A previously constructed a fresh DataFrameCacheCoalescer per
+        invocation, so two CLI calls in the same process did NOT coalesce
+        (defeating LD-P3-2 thundering-herd intent). After the refactor, both
+        invocations resolve through the app-shared DataFrameCache singleton
+        (factory module-level _dataframe_cache), so they share the same
+        coalescer instance and the same dedup state.
+
+        This test mocks force_warm() and asserts that both CLI invocations
+        receive the SAME cache instance — proof of singleton sharing. It then
+        simulates the second invocation hitting the deduped path (force_warm
+        returns ForceWarmResult(deduped=True, invoked=False)) and asserts
+        the CLI surfaces "coalesced" and exits 0.
+        """
+        monkeypatch.setenv("ASANA_CACHE_S3_BUCKET", "autom8-s3")
+        monkeypatch.setenv(_FORCE_WARM_REQUIRED_ENV, "test-warmer-fn")
+
+        captured_caches: list[object] = []
+        invocation_counter = {"n": 0}
+
+        async def _mock_force_warm(**kwargs: object) -> object:
+            captured_caches.append(kwargs["cache"])
+            invocation_counter["n"] += 1
+            # First invocation: held the lock and invoked. Second invocation:
+            # deduped onto the in-flight first call.
+            if invocation_counter["n"] == 1:
+                return self._make_async_force_warm_result(deduped=False, invoked=True, wait=False)
+            return self._make_async_force_warm_result(deduped=True, invoked=False, wait=False)
+
+        # A single shared mock cache stands in for the singleton.
+        shared_mock_cache = MagicMock(name="SharedDataFrameCache")
+
+        # First CLI invocation
+        with (
+            patch("sys.argv", ["metrics", "--force-warm", "--project-gid", "12345"]),
+            patch(
+                "autom8_asana.metrics.__main__.force_warm",
+                _mock_force_warm,
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=shared_mock_cache,
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+        assert exc_info.value.code == 0
+
+        # Second CLI invocation — should hit the deduped path
+        with (
+            patch("sys.argv", ["metrics", "--force-warm", "--project-gid", "12345"]),
+            patch(
+                "autom8_asana.metrics.__main__.force_warm",
+                _mock_force_warm,
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=shared_mock_cache,
+            ),
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                main()
+        assert exc_info.value.code == 0
+
+        # CRITICAL: both invocations received the SAME cache instance.
+        # This is the structural property that defeats interface drift —
+        # the coalescer at cache.coalescer is unified across CLI calls.
+        assert len(captured_caches) == 2, (
+            f"Expected 2 force_warm() calls; got {len(captured_caches)}"
+        )
+        assert captured_caches[0] is captured_caches[1], (
+            "PT-2 Option B violation: two CLI invocations received DIFFERENT "
+            "cache instances. The app-shared singleton path is broken; "
+            "force-warm dedup state is NOT unified — interface drift restored."
+        )
+
+        # Second invocation surfaced the coalesced path.
+        captured = capsys.readouterr()
+        assert "coalesced" in captured.err.lower(), (
+            f"Expected 'coalesced' in stderr for the deduped second invocation; "
+            f"got: {captured.err!r}"
+        )
+
+    def test_force_warm_coalescer_key_shape_matches_canonical(self) -> None:
+        """PT-2 Option B: coalescer key shape matches Batch-C canonical.
+
+        Asserts the key shape forcewarm:{project_gid}:{entity_types|*} that
+        Batch-C's force_warm.build_coalescer_key produces. The CLI surface
+        no longer constructs its own key; this test pins the canonical key
+        shape so a divergence in Batch-C would surface here as a CLI test
+        regression rather than only as a Batch-C test regression.
+        """
+        from autom8_asana.cache.integration.force_warm import (
+            COALESCER_KEY_PREFIX,
+            build_coalescer_key,
+        )
+
+        assert COALESCER_KEY_PREFIX == "forcewarm:"
+        assert build_coalescer_key("12345", ()) == "forcewarm:12345:*"
+        assert build_coalescer_key("12345", ("unit",)) == "forcewarm:12345:unit"
+        assert build_coalescer_key("12345", ("offer", "unit")) == "forcewarm:12345:offer,unit"
 
 
 class TestMinorObs2BotocoreFix:

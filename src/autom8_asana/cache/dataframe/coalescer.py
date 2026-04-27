@@ -4,6 +4,12 @@ Per TDD-DATAFRAME-CACHE-001: First request builds, others wait.
 
 This coalescer is specifically for DataFrame build operations (different
 from the staleness check coalescer in cache/coalescer.py).
+
+CloudWatch emission: when ``try_acquire_async`` returns False (dedup hit),
+we emit ``CoalescerDedupCount`` to the lowercase namespace
+``autom8y/cache-warmer`` per ADR-006 §Decision (HANDOFF §1 work-item-4
+6th metric / P4 Lens 8). The metric is best-effort — a CloudWatch failure
+must not affect coalescer correctness.
 """
 
 from __future__ import annotations
@@ -16,6 +22,49 @@ from enum import Enum
 from autom8y_log import get_logger
 
 logger = get_logger(__name__)
+
+# Namespace per ADR-006: coalescer joins existing warmer runtime namespace
+# (lowercase per Terraform `ASANA_CW_NAMESPACE = "autom8y/cache-warmer"`).
+# Pascal `Autom8y/FreshnessProbe` is reserved for CLI-altitude metrics —
+# the coalescer is a runtime component, not a probe surface.
+COALESCER_METRIC_NAMESPACE: str = "autom8y/cache-warmer"
+COALESCER_METRIC_DEDUP_COUNT: str = "CoalescerDedupCount"
+
+
+def _emit_coalescer_dedup_metric(key: str) -> None:
+    """Best-effort emission of ``CoalescerDedupCount`` to CloudWatch.
+
+    Called when ``try_acquire_async`` returns False (a concurrent build is
+    in progress for the same key). The emission is best-effort: any
+    exception is swallowed at warning level so coalescer behavior is
+    unaffected by CloudWatch transport issues.
+
+    Per HANDOFF §1 work-item-4 (Batch-B) + P4 Lens 8 + ADR-006 alarm-vs-
+    metric matrix: this metric is unalarmed (NO alarm), purely a counter
+    for verifying LD-P3-2 coalescer-routing in P7 Probe-3.
+    """
+    try:
+        import boto3
+
+        cw = boto3.client("cloudwatch")
+        cw.put_metric_data(
+            Namespace=COALESCER_METRIC_NAMESPACE,
+            MetricData=[
+                {
+                    "MetricName": COALESCER_METRIC_DEDUP_COUNT,
+                    "Value": 1.0,
+                    "Unit": "Count",
+                    "Dimensions": [
+                        {"Name": "coalescer_key", "Value": key},
+                    ],
+                },
+            ],
+        )
+    except Exception as exc:  # noqa: BLE001 — best-effort metric
+        logger.warning(
+            "coalescer_dedup_metric_failed",
+            extra={"key": key, "error": str(exc)},
+        )
 
 
 class BuildStatus(Enum):
@@ -113,6 +162,11 @@ class DataFrameCacheCoalescer:
             if key in self._builds:
                 state = self._builds[key]
                 if state.status == BuildStatus.BUILDING:
+                    # Dedup hit — concurrent build in progress for this key.
+                    # Emit CoalescerDedupCount per HANDOFF §1 work-item-4
+                    # (Batch-B) + P4 Lens 8. Best-effort; failures swallowed
+                    # at warning level so coalescer correctness is unaffected.
+                    _emit_coalescer_dedup_metric(key)
                     return False
 
             # Acquire lock
