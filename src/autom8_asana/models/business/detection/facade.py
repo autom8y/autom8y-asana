@@ -15,6 +15,7 @@ Dependencies: types.py, config.py, tier1.py, tier2.py, tier3.py, tier4.py
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from functools import cache
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
@@ -64,8 +65,24 @@ from autom8_asana.settings import get_settings
 logger = get_logger(__name__)
 
 # Per PRD-CACHE-PERF-DETECTION FR-VERSION-003: TTL matches task cache (300s)
-# Configurable via ASANA_CACHE_TTL_DETECTION environment variable
-DETECTION_CACHE_TTL = get_settings().cache.ttl_detection
+# Configurable via ASANA_CACHE_TTL_DETECTION environment variable.
+#
+# Lazy resolution: get_settings() must NOT execute at module import time inside
+# AWS Lambda. Settings includes secret-resolving fields (SecretStr) wired to the
+# AWS Parameters & Secrets Lambda Extension; resolving secrets at module import
+# fails because the extension's HTTP listener is not guaranteed to be ready when
+# the runtime imports user code. Matches the pull-payments canonical pattern
+# (services/pull-payments/src/pull_payments/handler.py): callers invoke
+# get_settings() inside handler scope, never at module-load.
+@cache
+def _detection_cache_ttl() -> int:
+    """Return the detection cache TTL in seconds, resolving settings lazily.
+
+    Cached via functools.cache so settings resolution happens once per process
+    (matching the prior module-level constant semantics) but is deferred until
+    first call rather than module import.
+    """
+    return get_settings().cache.ttl_detection
 
 
 # --- Detection Cache Helpers ---
@@ -162,7 +179,7 @@ def _cache_detection_result(
         data=data,
         entry_type=EntryType.DETECTION,
         version=version,
-        ttl=DETECTION_CACHE_TTL,
+        ttl=_detection_cache_ttl(),
     )
 
     try:
