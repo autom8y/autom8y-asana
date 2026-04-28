@@ -22,6 +22,39 @@
 #   docker run -p 8000:8000 autom8y-asana:latest  # ECS mode (default)
 
 # =============================================================================
+# Stage 0: AWS Parameters and Secrets Lambda Extension (v12, x86_64)
+# =============================================================================
+# Container-image Lambdas (package_type=Image) cannot use Lambda Layers; the
+# secrets-extension binary MUST be embedded in the image. This stage mirrors
+# the canonical pattern from services/pull-payments/Dockerfile (autom8y monorepo).
+#
+# Source: Official Lambda Layer published by AWS
+#   ARN: arn:aws:lambda:us-east-1:177933569100:layer:AWS-Parameters-and-Secrets-Lambda-Extension:12
+#
+# CI passes a pre-signed URL via SECRETS_EXT_LAYER_URL build-arg. For local
+# builds, generate the URL with:
+#   aws lambda get-layer-version-by-arn \
+#     --arn "arn:aws:lambda:us-east-1:177933569100:layer:AWS-Parameters-and-Secrets-Lambda-Extension:12" \
+#     --query 'Content.Location' --output text
+#
+# When SECRETS_EXT_LAYER_URL is unset (e.g., ECS-only local builds that do
+# not need the extension), the stage no-ops by emitting an empty extensions
+# directory; the runtime COPY still succeeds and is harmless for ECS mode.
+ARG SECRETS_EXT_LAYER_URL=""
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023-minimal@sha256:ab55495e2cfb39304be022524faa3fd04469d6750b133a77618cfbbbc57e56e2 AS secrets-extension
+ARG SECRETS_EXT_LAYER_URL
+RUN if [ -n "$SECRETS_EXT_LAYER_URL" ]; then \
+        dnf install -y unzip && \
+        curl -sSL "${SECRETS_EXT_LAYER_URL}" -o /tmp/layer.zip && \
+        unzip /tmp/layer.zip -d /opt && \
+        rm /tmp/layer.zip && \
+        test -f /opt/extensions/bootstrap; \
+    else \
+        mkdir -p /opt/extensions && \
+        echo "SECRETS_EXT_LAYER_URL unset; emitting empty /opt/extensions (ECS-only build)"; \
+    fi
+
+# =============================================================================
 # Stage 1: Builder
 # =============================================================================
 FROM python:3.12-slim@sha256:5072b08ad74609c5329ab4085a96dfa873de565fb4751a4cfcd7dcc427661df0 AS builder
@@ -65,6 +98,15 @@ RUN groupadd --gid 1000 appuser && \
     useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
 
 WORKDIR /app
+
+# AWS Parameters and Secrets Lambda Extension binary
+# Resolves secrets at runtime via http://127.0.0.1:2773 in Lambda mode (consumed
+# by the autom8y-config SDK lambda_extension client). Eliminates the need for
+# deploy-time secret injection from Terraform. Inert in ECS mode (the extension
+# is a Lambda runtime feature; presence in the image is harmless when no Lambda
+# runtime is attached). Version pinned to :12 (x86_64) — see Stage 0 above.
+# Reference: https://docs.aws.amazon.com/secretsmanager/latest/userguide/retrieving-secrets_lambda.html
+COPY --link --from=secrets-extension /opt/extensions/ /opt/extensions/
 
 # Copy virtual environment and source from builder
 # Use numeric UID:GID (--link requires numeric IDs since user table isn't available)
