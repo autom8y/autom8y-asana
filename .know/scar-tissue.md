@@ -1,28 +1,29 @@
 ---
 domain: scar-tissue
-generated_at: "2026-04-28T21:55:00Z"
+generated_at: "2026-04-29T00:04Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
-  - "./app/**/*.py"
+  - "./tests/**/*.py"
   - "./pyproject.toml"
 generator: theoros
-source_hash: "8c58f930"
-confidence: 0.93
+source_hash: "80256049"
+confidence: 0.95
 format_version: "1.0"
 update_mode: "full"
 incremental_cycle: 0
 max_incremental_cycles: 3
-land_sources:
-  - ".sos/land/scar-tissue.md"
-land_hash: "a15a024ce204de3301b612526c5b1b59e4841fa3d3d70f2226e1b430cd73da1e"
 ---
 
 # Codebase Scar Tissue
 
+> Regenerated 2026-04-29 (FULL mode). Source hash: `80256049` (post-PR38 merge).
+> 36+ distinct failures documented. One new scar added (SCAR-DISCRIMINATOR-001).
+> One scar discharged (CSI-001). SCAR-WS8 regression test confirmed committed.
+
 ## Failure Catalog
 
-35+ distinct failures documented from two evidence sources (git commit history + code marker scan). The following SCAR identifiers are confirmed present in the live codebase at source_hash `8c58f930`: SCAR-005 (20+ refs), SCAR-REG-001 (9 refs), SCAR-IDEM-001 (7 refs), SCAR-015 (5 refs), SCAR-020 (2 refs), SCAR-006 (1 ref). DEF identifiers active: DEF-005 (5 refs), DEF-001 (3 refs), DEF-02 (1 ref).
+36+ distinct failures documented from two evidence sources (git commit history + code marker scan). The following SCAR identifiers are confirmed present in the live codebase at source_hash `80256049`: SCAR-005 (20+ refs), SCAR-REG-001 (9 refs), SCAR-IDEM-001 (7 refs), SCAR-015 (5 refs), SCAR-020 (2 refs), SCAR-006 (1 ref). DEF identifiers active: DEF-005 (5 refs), DEF-001 (3 refs), DEF-02 (1 ref).
 
 ### Full Scar Catalog
 
@@ -61,7 +62,9 @@ land_hash: "a15a024ce204de3301b612526c5b1b59e4841fa3d3d70f2226e1b430cd73da1e"
 | SCAR-IDEM-001 | Idempotency `finalize()` exception silently swallowed — double-execution risk on retry | Data Model | `api/middleware/idempotency.py:719` |
 | SCAR-REG-001 | Section registry GIDs are sequential placeholders — unverified against live Asana API | Startup | `reconciliation/section_registry.py:94,128` |
 | SCAR-WS8 | PAT route trees not consistently listed in `jwt_auth_config.exclude_paths` — JWT middleware rejects PAT requests | Security | `api/main.py:389` |
+| SCAR-DISCRIMINATOR-001 | `_predicate_discriminator` dict-only guard — `NotGroup(not_=AndGroup(...))` fails Pydantic validation when constructed via model-instance kwargs | Data Model / Type Contract | Discovered 2026-04-29; no fix committed (P3 — no production caller reaches this path) |
 | Env Var Naming | `AUTOM8_DATA_API_KEY` typo (missing Y) — production API auth failures | Authentication | `clients/data/config.py:231` |
+| CSI-001 | **DISCHARGED** `docs/api-reference/openapi.json` hand-edited at `cdcfaee6` to add 13 M-02 examples not derivable from Pydantic source | Documentation / Spec Drift | DISCHARGED 2026-04-29 via T-08 (`4d4097c3`), PR #38 (`80256049`) |
 
 ### New Candidates Not Yet Assigned SCAR IDs
 
@@ -69,14 +72,67 @@ land_hash: "a15a024ce204de3301b612526c5b1b59e4841fa3d3d70f2226e1b430cd73da1e"
 - **SCAR-CANDIDATE-C**: `list_workflows` handler missing `response_model`. Fix: `api/routes/workflows.py`, commit `bb97a744`.
 - **Metrics CLI Under-count** (session-20260427): `autom8-query` CLI silently under-counts active sections (~6 in parquet vs ~22 expected). Root cause unresolved — 4 open questions: bucket mapping, freshness SLA, section-coverage gap, staleness-surface decision. Location: `metrics/compute.py`, `dataframes/offline.py`.
 
+---
+
+## SCAR-DISCRIMINATOR-001 (New — Added 2026-04-29)
+
+**Severity**: P3 — no production caller currently constructs `NotGroup(not_=group)`; the bug is only reachable via test code.
+
+**Symptom**: `NotGroup(not_=AndGroup([...]))` and `NotGroup(not_=OrGroup([...]))` fail Pydantic validation with error:
+```
+not_.comparison  Input should be a valid dictionary or instance of Comparison
+```
+
+**Root Cause**: `_predicate_discriminator` at `src/autom8_asana/query/models.py:97-112` handles only `isinstance(v, dict)` inputs (line 102 guard). When a model instance (e.g., `AndGroup`, `OrGroup`, `NotGroup`) is passed as the `not_` argument instead of a raw dict, the `isinstance(v, dict)` branch is skipped and execution falls through to `return "comparison"` at line 112. Pydantic then attempts `Comparison` validation on a group-model instance, which fails.
+
+**Declaration vs Implementation Divergence**:
+- **Type declaration** (line 129-135): `PredicateNode` is the full discriminated union — `Comparison | AndGroup | OrGroup | NotGroup`.
+- **Runtime enforcement** (line 102-112): Only `dict` inputs are classified to `and`/`or`/`not` variants; model-instance inputs are silently forced to `"comparison"`, making nested-group-via-instance construction non-functional.
+
+**Anchor**:
+- Implementation: `src/autom8_asana/query/models.py:97-112` (`_predicate_discriminator` function)
+- Type declaration: `src/autom8_asana/query/models.py:129-135` (`PredicateNode = Annotated[...]`)
+- Discovered: 2026-04-29 during eunomia rite CHANGE-001 (recorded in `.sos/wip/eunomia-verdict-2026-04-29.md`)
+- Related commit antecedent: `321909c1` (eunomia rite attempt that surfaced this failure)
+- Glint: `glint-scar-discriminator-001-absent` in `.sos/wip/glints/post-PR38-knowledge-gaps-2026-04-29.md`
+
+**Workaround**: Callers construct nested groups by passing raw dicts (not model instances), OR avoid nested-not patterns entirely. The `_wrap_flat_array_to_and_group` helper at line 115-126 exemplifies the correct dict-passing pattern.
+
+**Proposed Fix**: Add `isinstance(v, BaseModel)` branch before the `return "comparison"` fallthrough that inspects `model_fields` keys (check for `"and_"`, `"or_"`, `"not_"`, `"field"`/`"operator"`) to route model-instance inputs correctly.
+
+**Owner-rite for fix**: hygiene-pass-2 (Sprint-4)
+
+**Related throughline**: `canonical-source-integrity` — declared type contract (`PredicateNode` full union) diverges from runtime discriminator behavior (dict-only classification).
+
+---
+
+## CSI-001 DISCHARGE Record (Historical — Resolved 2026-04-29)
+
+**Original Scar**: `docs/api-reference/openapi.json` was hand-edited at commit `cdcfaee6` to add 13 M-02 field examples not derivable from Pydantic source declarations. This created a spec-drift gap: every `just spec-gen` regeneration would silently drop the 13 examples, requiring manual re-insertion.
+
+**Discharge**: T-08 (commit `4d4097c3`) lifted all 13 examples to `Field(examples=[...])` declarations on:
+- `src/autom8_asana/models/base.py:50` (Task)
+- `src/autom8_asana/models/common.py:52` (NameGid)
+- `src/autom8_asana/models/task.py:47,54,59,70,85` (multiple fields)
+- `src/autom8_asana/api/routes/workflows.py:75,80,85,135,140,145,150,156,161,178,183` (WorkflowEntry/SchemaFieldInfo)
+- `src/autom8_asana/api/routes/resolver_schema.py:72,76,346,350` (EnumValueInfo)
+
+**Verification**: `just spec-gen` reproduces all 13 examples natively post-discharge. `docs/api-reference/openapi.json` now carries 136 `"examples":` entries. Spec-check PASS.
+
+**Status**: DISCHARGED 2026-04-29 (PR #38 merge `80256049`).
+
+**Residual exception**: 2 `"example":` (singular) entries remain at `src/autom8_asana/api/routes/dataframes.py:511,632` — raw dict inline OpenAPI 3.0 annotation (pre-existing pattern, not Pydantic `Field()`). These predate CSI-001 and are an exception to the `examples=[...]` convention, not a regression.
+
+---
+
 ## Category Coverage
 
-10 distinct failure categories applied across all 35+ scars:
+10 distinct failure categories applied across all 36+ scars:
 
 | Category | Scars | Count |
 |---|---|---|
 | Cache Coherence / Stale Data | SCAR-003, 004, 005, 006, 007, S3-LOOP | 6 |
-| Data Model / Contract Violation | SCAR-008, 014, 023, 024, 025, 030, IDEM-001, REG-001, CANDIDATE-B, CANDIDATE-C | 10 |
+| Data Model / Contract Violation | SCAR-008, 014, 023, 024, 025, 030, IDEM-001, REG-001, CANDIDATE-B, CANDIDATE-C, SCAR-DISCRIMINATOR-001 | 11 |
 | Startup / Deployment Failure | SCAR-009, 011, 011b, 013, 022 | 5 |
 | Workflow Logic Gap | SCAR-016, 017, 018, 019, 020 | 5 |
 | Security / Input Validation | SCAR-027, 028, 029, WS8 | 4 |
@@ -86,54 +142,60 @@ land_hash: "a15a024ce204de3301b612526c5b1b59e4841fa3d3d70f2226e1b430cd73da1e"
 | Performance Cliff / Timeout | SCAR-015 | 1 |
 | Observability Gap | Metrics CLI Under-count | 1 |
 
-Three categories explicitly searched and returned no results: schema migration failures, distributed coordination failures, network partition handling. SCAR-WS8 moved from Integration to Security (more precise classification).
+Three categories explicitly searched and returned no results: schema migration failures, distributed coordination failures, network partition handling. SCAR-WS8 classified under Security (more precise than Integration).
+
+---
 
 ## Fix-Location Mapping
 
-All major scars have file:line or function-level locations. 21 primary fix paths verified present at source_hash `8c58f930`:
+All major scars have file:line or function-level locations. 22 primary fix paths verified present at source_hash `80256049`:
 
 | Scar | Primary Fix Path | Verified |
 |---|---|---|
-| SCAR-005/006 | `dataframes/builders/progressive.py:161,466` | Yes |
-| SCAR-005/006 | `dataframes/cascade_utils.py:27,289` | Yes |
-| SCAR-005/006 (cascade contract) | `dataframes/schemas/offer.py:22` (`source="cascade:Office Phone"`) | Yes |
-| SCAR-005/006 (cascade validator) | `dataframes/builders/cascade_validator.py:30-32` | Yes |
-| SCAR-005/006 (post-build) | `dataframes/builders/post_build_validation.py:90-105` | Yes |
-| SCAR-005/006 (WarmupOrderingError) | `dataframes/cascade_utils.py:22-30` | Yes |
-| SCAR-005/006 (WarmupOrderingError re-raise) | `api/preload/progressive.py:696-699` | Yes |
-| SCAR-008 / DEF-001 | `persistence/session.py:995-1001` | Yes |
-| SCAR-015 | `services/section_timeline_service.py` (pre-computed timelines) | Yes |
-| SCAR-020 / SCAR-023 (PhoneTextField) | `models/business/descriptors.py:472-498` | Yes |
-| SCAR-020 / SCAR-023 (PhoneTextField applied) | `models/business/business.py:267` | Yes |
+| SCAR-005/006 | `src/autom8_asana/dataframes/builders/progressive.py:161,466` | Yes |
+| SCAR-005/006 | `src/autom8_asana/dataframes/cascade_utils.py:27,289` | Yes |
+| SCAR-005/006 (cascade contract) | `src/autom8_asana/dataframes/schemas/offer.py:22` (`source="cascade:Office Phone"`) | Yes |
+| SCAR-005/006 (cascade validator) | `src/autom8_asana/dataframes/builders/cascade_validator.py:30-32` | Yes |
+| SCAR-005/006 (post-build) | `src/autom8_asana/dataframes/builders/post_build_validation.py:90-105` | Yes |
+| SCAR-005/006 (WarmupOrderingError) | `src/autom8_asana/dataframes/cascade_utils.py:22-30` | Yes |
+| SCAR-005/006 (WarmupOrderingError re-raise) | `src/autom8_asana/api/preload/progressive.py:696-699` | Yes |
+| SCAR-008 / DEF-001 | `src/autom8_asana/persistence/session.py:995-1001` | Yes |
+| SCAR-015 | `src/autom8_asana/services/section_timeline_service.py` (pre-computed timelines) | Yes |
+| SCAR-020 / SCAR-023 (PhoneTextField) | `src/autom8_asana/models/business/descriptors.py:472-498` | Yes |
+| SCAR-020 / SCAR-023 (PhoneTextField applied) | `src/autom8_asana/models/business/business.py:267` | Yes |
 | SCAR-022 / DEF-009 | `Dockerfile` (`--no-sources` flag, commit `2229f4a3`) | Yes |
-| SCAR-IDEM-001 | `api/middleware/idempotency.py:719` | Yes |
-| SCAR-REG-001 | `reconciliation/section_registry.py:94,128` | Yes |
-| SCAR-WS8 / DEF-08 | `api/main.py:389` (`/api/v1/exports/*` in exclude_paths) | Yes |
-| SCAR-S3-LOOP | `core/retry.py:198` (`_PERMANENT_S3_ERROR_CODES`) | Yes |
-| DEF-001 (resolver route) | `api/routes/resolver.py:335` | Yes |
-| DEF-005 (shared CacheProvider) | `api/lifespan.py:108,126` | Yes |
-| DEF-005 (client pool) | `api/client_pool.py:201` | Yes |
-| Env Var Naming | `clients/data/config.py:231` (`AUTOM8Y_DATA_API_KEY`) | Yes |
+| SCAR-IDEM-001 | `src/autom8_asana/api/middleware/idempotency.py:719` | Yes |
+| SCAR-REG-001 | `src/autom8_asana/reconciliation/section_registry.py:94,128` | Yes |
+| SCAR-WS8 / DEF-08 | `src/autom8_asana/api/main.py:389` (`/api/v1/exports/*` in exclude_paths) | Yes |
+| SCAR-DISCRIMINATOR-001 (bug location) | `src/autom8_asana/query/models.py:97-112` (`_predicate_discriminator`) | Yes — empirically verified 2026-04-29 |
+| SCAR-DISCRIMINATOR-001 (type declaration) | `src/autom8_asana/query/models.py:129-135` (`PredicateNode`) | Yes — empirically verified 2026-04-29 |
+| SCAR-S3-LOOP | `src/autom8_asana/core/retry.py:198` (`_PERMANENT_S3_ERROR_CODES`) | Yes |
+| DEF-001 (resolver route) | `src/autom8_asana/api/routes/resolver.py:335` | Yes |
+| DEF-005 (shared CacheProvider) | `src/autom8_asana/api/lifespan.py:108,126` | Yes |
+| DEF-005 (client pool) | `src/autom8_asana/api/client_pool.py:201` | Yes |
+| Env Var Naming | `src/autom8_asana/clients/data/config.py:231` (`AUTOM8Y_DATA_API_KEY`) | Yes |
 | PKG-002 (env collision) | `tests/synthetic/conftest.py:78-80` | Yes |
+
+---
 
 ## Defensive Pattern Documentation
 
 ### Cascade Defense-in-Depth (SCAR-005/006/023) — Four Layers
 
-1. **Schema enforcement**: `source="cascade:..."` required on cascade columns. `source=None` silently bypasses pipeline (SCAR-023 root cause). Live: `dataframes/schemas/offer.py:22` (post-fix).
-2. **Warm-up ordering guard**: `WarmupOrderingError` at `dataframes/cascade_utils.py:22-30`. BROAD-CATCH immune. Re-raised at `api/preload/progressive.py:696-699`.
-3. **Post-build null rate audit**: `CASCADE_NULL_WARN_THRESHOLD = 0.05` (5%), `CASCADE_NULL_ERROR_THRESHOLD = 0.20` (20%) at `dataframes/builders/cascade_validator.py:31-32`. Calibrated against SCAR-005's 30% incident.
-4. **Chain traversal gap-skipping**: `dataframes/views/cascade_view.py` (parent chain resolution with null-safe gaps).
+1. **Schema enforcement**: `source="cascade:..."` required on cascade columns. `source=None` silently bypasses pipeline (SCAR-023 root cause). Live: `src/autom8_asana/dataframes/schemas/offer.py:22` (post-fix).
+2. **Warm-up ordering guard**: `WarmupOrderingError` at `src/autom8_asana/dataframes/cascade_utils.py:22-30`. BROAD-CATCH immune. Re-raised at `src/autom8_asana/api/preload/progressive.py:696-699`.
+3. **Post-build null rate audit**: `CASCADE_NULL_WARN_THRESHOLD = 0.05` (5%), `CASCADE_NULL_ERROR_THRESHOLD = 0.20` (20%) at `src/autom8_asana/dataframes/builders/cascade_validator.py:31-32`. Calibrated against SCAR-005's 30% incident.
+4. **Chain traversal gap-skipping**: `src/autom8_asana/dataframes/views/cascade_view.py` (parent chain resolution with null-safe gaps).
 
 **Regression tests**: `tests/unit/dataframes/test_cascade_ordering_assertion.py:71-106`, `test_warmup_ordering_guard.py`, `tests/unit/dataframes/builders/test_cascade_validator.py:649-668` (SCAR-005 30% scenario).
 
 ### Session Thread Safety (SCAR-010/010b)
 
-`threading.RLock()` on all state mutations; `_require_open()` context manager at `persistence/session.py`. Regression: `tests/unit/persistence/test_session_concurrency.py` (19+ tests).
+`threading.RLock()` on all state mutations; `_require_open()` context manager at `src/autom8_asana/persistence/session.py`. Regression: `tests/unit/persistence/test_session_concurrency.py` (19+ tests).
 
 ### Session Snapshot Ordering (SCAR-008 / DEF-001)
 
-Order-critical fix at `persistence/session.py:995-1001`: accessor state (`_reset_custom_field_tracking`) cleared BEFORE `mark_clean()` captures snapshot. Reversal re-introduces stale state.
+Order-critical fix at `src/autom8_asana/persistence/session.py:995-1001`: accessor state (`_reset_custom_field_tracking`) cleared BEFORE `mark_clean()` captures snapshot. Reversal re-introduces stale state.
 
 ### Health Check Separation (SCAR-011/011b)
 
@@ -141,29 +203,35 @@ Order-critical fix at `persistence/session.py:995-1001`: accessor state (`_reset
 
 ### Security Hardening (SCAR-027/028/029)
 
-- Lambda replacement guard in `re.sub` at `core/creation.py:82-97`
-- `mask_pii_in_string()` at `clients/data/_pii.py:61`
-- GID `str.strip()` guard at `api/routes/webhooks.py:375-381`
+- Lambda replacement guard in `re.sub` at `src/autom8_asana/core/creation.py:82-97`
+- `mask_pii_in_string()` at `src/autom8_asana/clients/data/_pii.py:61`
+- GID `str.strip()` guard at `src/autom8_asana/api/routes/webhooks.py:375-381`
 
 ### Phone Normalization on Read Path (SCAR-020 / SCAR-CANDIDATE-B)
 
-`PhoneTextField` descriptor at `models/business/descriptors.py:472-498` normalizes `office_phone`, `twilio_phone_num` to E.164 on read. Applied at `models/business/business.py:267`. `PhoneNormalizer` now includes `NumberParseException` in except tuple. Regression: `tests/unit/models/business/matching/test_normalizers.py:64-70` (SCAR-020 guard).
+`PhoneTextField` descriptor at `src/autom8_asana/models/business/descriptors.py:472-498` normalizes `office_phone`, `twilio_phone_num` to E.164 on read. Applied at `src/autom8_asana/models/business/business.py:267`. `PhoneNormalizer` now includes `NumberParseException` in except tuple. Regression: `tests/unit/models/business/matching/test_normalizers.py:64-70` (SCAR-020 guard).
 
 ### Idempotency Finalize Observability (SCAR-IDEM-001)
 
-Exception on `finalize()` promoted to `logger.exception` with `impact` field at `api/middleware/idempotency.py:719-728`. **Known gap**: observability-only fix; double-execution risk for S2S strict-once callers remains open per `ADR-omniscience-idempotency Section 3.7`. Regression: `tests/unit/api/middleware/test_idempotency_finalize_scar.py` (SCAR-IDEM-001-A, -B, -C).
+Exception on `finalize()` promoted to `logger.exception` with `impact` field at `src/autom8_asana/api/middleware/idempotency.py:719-728`. **Known gap**: observability-only fix; double-execution risk for S2S strict-once callers remains open per `ADR-omniscience-idempotency Section 3.7`. Regression: `tests/unit/api/middleware/test_idempotency_finalize_scar.py` (SCAR-IDEM-001-A, -B, -C).
 
-### JWT Exclude-Paths Sync (SCAR-WS8 / DEF-08)
+### JWT Exclude-Paths Sync (SCAR-WS8 / DEF-08) — Updated 2026-04-29
 
-`/api/v1/exports/*` added to `jwt_auth_config.exclude_paths` at `api/main.py:389`. Structural invariant: every PAT-tagged router registration must have a corresponding `exclude_paths` entry. Regression: `tests/unit/api/test_exports_auth_exclusion.py` (live middleware introspection, no mocking).
+`/api/v1/exports/*` added to `jwt_auth_config.exclude_paths` at `src/autom8_asana/api/main.py:389`. Structural invariant: every PAT-tagged router registration must have a corresponding `exclude_paths` entry.
+
+**Regression test**: `tests/unit/api/test_exports_auth_exclusion.py` — live middleware introspection (no mocking). **Committed post-PR38** (T-09). Status confirmed at source_hash `80256049`.
 
 ### S3 Circuit Breaker (SCAR-S3-LOOP)
 
-`_PERMANENT_S3_ERROR_CODES: frozenset[str]` at `core/retry.py:198` — permanent codes bypass circuit-breaker retry loop. Regression: `tests/unit/dataframes/test_storage.py` (S3-LOOP test cluster).
+`_PERMANENT_S3_ERROR_CODES: frozenset[str]` at `src/autom8_asana/core/retry.py:198` — permanent codes bypass circuit-breaker retry loop. Regression: `tests/unit/dataframes/test_storage.py` (S3-LOOP test cluster).
 
 ### BROAD-CATCH Classification
 
 20+ `except Exception` blocks annotated with `ADVISORY` or `SCAR-IDEM-001: VERIFY-BEFORE-PROD` comments to distinguish intentional vs. defensive catches.
+
+### SCAR-DISCRIMINATOR-001 — No Defensive Pattern Yet
+
+No guard added. Workaround: callers use raw dict construction (not model-instance kwargs). No regression test covering `NotGroup(not_=AndGroup([...]))` via model-instance path. This path is syntactically valid per type declaration but fails at runtime. **Unguarded at source_hash `80256049`**. [KNOW-CANDIDATE] Novel scar with no defensive pattern; hygiene-pass-2 regression test needed.
 
 ### Known Gaps in Defensive Pattern Documentation
 
@@ -173,6 +241,9 @@ Exception on `finalize()` promoted to `logger.exception` with `impact` field at 
 - SCAR-026: No systematic mock-spec audit confirming all workflow test mocks use `spec=`
 - SCAR-REG-001: Production blocker — sequential placeholder GIDs unverified against live Asana API
 - Metrics CLI Under-count: No defensive guard exists yet; 4 root-cause questions open
+- SCAR-DISCRIMINATOR-001: No defensive guard, no regression test; fix deferred to hygiene-pass-2
+
+---
 
 ## Agent-Relevance Tagging
 
@@ -200,20 +271,24 @@ Exception on `finalize()` promoted to `logger.exception` with `impact` field at 
 | SCAR-IDEM-001 | principal-engineer | S2S strict-once callers need error metric on finalize failure |
 | SCAR-REG-001 | platform-engineer | Section GIDs require live API verification before production |
 | SCAR-WS8 | principal-engineer | Every new PAT-tagged router requires corresponding `jwt_auth_config.exclude_paths` entry |
+| SCAR-DISCRIMINATOR-001 | principal-engineer, qa-adversary | When constructing `NotGroup` or any nested predicate node, use raw dicts (not model instances) as kwargs to avoid discriminator fallthrough; test nested-not paths explicitly |
 | Env Var Naming | principal-engineer | All ecosystem env vars use `AUTOM8Y_` prefix (not `AUTOM8_`) |
 | Metrics CLI Under-count | observability-engineer | `autom8-query` CLI parquet loading silently drops sections — verify bucket mapping |
 
-12 scars (34%) still untagged: SCAR-003, 004, 007, 016–019, 020, 022, 024, 025.
+12 scars still untagged (reduced from 12 at prior hash): SCAR-003, 004, 007, 016–019, 020, 022, 024, 025. [KNOW-CANDIDATE?] These 12 may warrant agent-relevance tags in a subsequent hygiene pass if any touch active development paths.
+
+---
 
 ## Knowledge Gaps
 
 1. **SCAR-CANDIDATE-B not catalogued**: `PhoneNormalizer` `NumberParseException` fix at `0f18f4e8`; no SCAR ID assigned
 2. **SCAR-CANDIDATE-C not catalogued**: `list_workflows` `response_model` fix at `bb97a744`; no SCAR entry
 3. **Metrics CLI Under-count not assigned SCAR ID**: 4 root-cause questions open
-4. **12 scars missing agent-relevance tags**
+4. **12 scars missing agent-relevance tags** (SCAR-003, 004, 007, 016-019, 020, 022, 024, 025)
 5. **SCAR-004, SCAR-008 isolation tests absent**
 6. **SCAR-013 import-fallback path untested**
 7. **SCAR-026 mock-spec audit missing**
 8. **SCAR-IDEM-001 mitigation incomplete**: observability-only fix; double-execution risk for S2S strict-once callers remains open
 9. **SCAR-REG-001 production blocker**: Sequential placeholder GIDs at `section_registry.py:100-107,132-138` must be replaced with verified GIDs before production
 10. **xdist re-enabled (CHANGE-003)**: `test_parallel: true` restored by commit `affbf5a5`. CI verification deferred to sprint-5 post-merge
+11. **SCAR-DISCRIMINATOR-001 unguarded**: No regression test, no defensive pattern, fix deferred to hygiene-pass-2

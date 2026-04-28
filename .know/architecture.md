@@ -1,21 +1,17 @@
 ---
 domain: architecture
-generated_at: "2026-04-28T21:55:00Z"
+generated_at: "2026-04-29T23:15Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
-  - "./app/**/*.py"
   - "./pyproject.toml"
 generator: theoros
-source_hash: "8c58f930"
-confidence: 0.88
+source_hash: "80256049"
+confidence: 0.90
 format_version: "1.0"
-update_mode: "full"
-incremental_cycle: 0
+update_mode: "incremental"
+incremental_cycle: 1
 max_incremental_cycles: 3
-land_sources:
-  - ".sos/land/initiative-history.md"
-land_hash: "62e88f60226e924b7fc0298605ce934fc6c36a3b4090ed524a4ef0d3cc4a05ff"
 ---
 
 # Codebase Architecture
@@ -46,7 +42,8 @@ The `autom8_asana` package lives under `src/autom8_asana/` and is a large Python
 - `preload/` — `progressive.py`, `legacy.py`, `constants.py`
 
 **`api/routes/`** (26 files) — Route handlers, one per domain. Notable:
-- `tasks.py`, `dataframes.py`, `exports.py` (Phase-1 BI export pipeline, dual-mount)
+- `tasks.py`, `dataframes.py`, `exports.py` (Phase-1 BI export pipeline, dual-mount, LIVE post-PR38)
+- `_exports_helpers.py` (predicate transformation helpers, co-located with exports handler)
 - `fleet_query.py` (FleetQuery surface, dual-mount), `resolver.py`, `intake_*.py`
 - Co-located `*_models.py` files contain Pydantic request/response models **shared with service layer** (anti-pattern: services import from `api.routes.*_models`)
 
@@ -106,7 +103,7 @@ The `autom8_asana` package lives under `src/autom8_asana/` and is a large Python
 - `services/intake_custom_field_service.py` → `api/routes/intake_custom_fields_models.py`
 - `services/matching_service.py` → `api/routes/matching_models.py`
 
-The `*_models.py` files in `api/routes/` are de facto shared contract files. Known structural tension (see design-constraints).
+The `*_models.py` files in `api/routes/` are de facto shared contract files. Known structural tension (see design-constraints TENSION-002).
 
 **Hub packages**: `core/entity_registry.py`, `protocols/cache.py`, `settings.py`, `models/task.py`, `api/models.py`, `cache/integration/factory.py`.
 
@@ -137,6 +134,8 @@ Handler paths: `autom8_asana.lambda_handlers.{name}.handler`.
 ### Router Inventory (22 routers, 2 dual-mounted)
 
 22 routers covering health, tasks, projects, sections, users, workspaces, dataframes, exports (dual-mount), fleet_query (dual-mount), webhooks, workflows, section_timelines, resolver, intake_resolve, query (+ introspection), admin, internal, entity_write, intake_custom_fields, intake_create, matching.
+
+**exports router** (`api/routes/exports.py`): LIVE post-PR38 (merge commit `80256049`). Dual-mounted at `/v1/exports` and `/api/v1/exports`. Mount order is load-bearing: must precede `query_router` in `api/main.py:431-441` because `query_router` uses wildcard `/v1/query/{entity_type}` that would shadow `/v1/exports` if mounted later (see design-constraints TENSION-009).
 
 ### Lambda Handlers (12)
 
@@ -171,6 +170,66 @@ Handler paths: `autom8_asana.lambda_handlers.{name}.handler`.
 **`CascadeViewPlugin`** (`dataframes/views/cascade_view.py`) — Cross-project field inheritance via section-level cascade. Consumed by `cascade_validator.py` (5% warn, 20% error null thresholds).
 
 **Design Patterns**: Protocol-based DI, Discriminated union (`PredicateNode`), Singleton registry (`EntityRegistry`, `get_settings`, `SchemaRegistry`), Factory + environment detection (`CacheProviderFactory`), Dual-mount routers (exports, fleet_query at both `/v1/` and `/api/v1/`), Co-located contract models (`api/routes/*_models.py`), Progressive/tiered caching.
+
+## Design Patterns
+
+### `_walk_predicate` — Recursive Predicate Visitor (NEW — T-04b)
+
+**Location**: `src/autom8_asana/api/routes/_exports_helpers.py`
+
+**Introduced**: Commit `d9abbc1f` (T-04b, Sprint-3). Eliminates 3 duplicate `isinstance` ladder branches that previously appeared independently in `predicate_references_field`, `_contains_date_op`, and `_split_date_predicates`.
+
+**Purpose**: Generic recursive traversal of the `PredicateNode` discriminated union (`Comparison | AndGroup | OrGroup | NotGroup`). Callers supply typed callbacks rather than re-implementing the isinstance dispatch logic themselves.
+
+**Signature**:
+```python
+def _walk_predicate(
+    node: PredicateNode | None,
+    *,
+    on_comparison: Callable[[Comparison], _T],
+    default: _T,
+    combine: Callable[[list[_T]], _T],
+) -> _T:
+```
+
+**Dispatch logic**:
+- `None` → returns `default`
+- `Comparison` → calls `on_comparison(node)`
+- `AndGroup` → recurses into `node.and_` children, combines with `combine`
+- `OrGroup` → recurses into `node.or_` children, combines with `combine`
+- `NotGroup` → recurses into `node.not_` single child, wraps in `combine`
+
+**Consumers (3 helpers)**:
+
+| Consumer | on_comparison | combine | Purpose |
+|---|---|---|---|
+| `predicate_references_field` | `lambda c: c.field == field_name` | `any` | Field presence check |
+| `_contains_date_op` | `lambda c: _is_date_op(c.op)` | `any` | Date op detection |
+| `validate_section_values` | `_validate_section_comparison` (raises on invalid) | `_exhaust` (no-op) | Section vocabulary guard |
+
+Note: `_split_date_predicates` does NOT use `_walk_predicate` directly — it needs to reconstruct the cleaned `PredicateNode` tree while extracting date expressions, which requires structural mutation that the generic visitor cannot express without returning two values per node. It handles the isinstance dispatch manually.
+
+**Property test**: `tests/unit/api/test_exports_helpers_walk_predicate_property.py` — 36 effective tests post-CHANGE-001 (Hypothesis-based).
+
+**Cross-reference**: SCAR-DISCRIMINATOR-001 in `scar-tissue.md` — the visitor handles all four `PredicateNode` variants correctly when given pre-validated trees, but Pydantic's `_predicate_discriminator` (in `query/models.py:97-112`) is dict-only. Constructing `NotGroup(not_=AndGroup(...))` via model-instance kwargs falls through to `"comparison"` and fails Pydantic validation. The visitor is safe given valid input; the discriminator bug affects construction, not traversal.
+
+### Frozen-Range Importer Topology
+
+**Purpose**: Catalog of all files that import from the P1-C-04 frozen ranges in `query/`. Any modification to frozen ranges requires coordinating with all importers to assess blast radius.
+
+**Frozen modules** (P1-C-04 per `api/routes/exports.py:14` docstring):
+- `src/autom8_asana/query/engine.py:139-178,181` — `execute_rows` steps 6-9, aggregate logic
+- `src/autom8_asana/query/join.py` — full module
+- `src/autom8_asana/query/compiler.py:53-63,192-241` — `OPERATOR_MATRIX`, `_compile_node`, `_compile_comparison`
+
+**Importer catalog** (verified at source_hash `6b303485`/`80256049`):
+- `src/autom8_asana/api/routes/exports.py:65` — imports `PredicateCompiler` from `query.compiler` (NEW post-PR38, added by T-09, `d9abbc1f`)
+- `src/autom8_asana/api/routes/query.py:38` — imports `QueryEngine` from `query.engine`
+- `src/autom8_asana/query/__init__.py:17-18,38` — re-exports `PredicateCompiler`, `QueryEngine`, `execute_join`
+- `src/autom8_asana/query/__main__.py:513,669` — lazy-imports `QueryEngine` in CLI subcommands
+- `src/autom8_asana/services/query_service.py:236` — lazy-imports `strip_section_predicates` from `query.compiler`
+
+**Cross-reference**: `design-constraints.md` FROZEN-RANGE-IMPORTERS-001 and EC-011. The `_walk_predicate` visitor in `_exports_helpers.py` does NOT import frozen ranges — it operates on `PredicateNode` from `query/models.py`, which is outside the frozen range.
 
 ## Data Flow
 
@@ -220,7 +279,24 @@ POST /v1/resolve/{entity_type}
   → Sort by ACTIVITY_PRIORITY
 ```
 
-### 4. Startup Initialization Sequence (`api/lifespan.py`)
+### 4. Exports Pipeline (Phase 1 — LIVE post-PR38)
+
+```
+POST /v1/exports or /api/v1/exports
+  → exports handler (api/routes/exports.py)
+  → apply_active_default_section_predicate(predicate)  [DEFER-WATCH-3]
+  → validate_section_values(predicate)                 [TDD §9.4 — InvalidSectionError → HTTP 400]
+  → translate_date_predicates(predicate)               [ESC-1 — splits BETWEEN/DATE_GTE/DATE_LTE]
+  → PredicateCompiler(cleaned_predicate).compile()     [query/compiler.py — P1-C-04 frozen]
+  → DataFrameBuilder → fetch + extract
+  → attach_identity_complete(df)                       [P1-C-05 single source-of-truth]
+  → filter_incomplete_identity(df, include=...)        [opt-in suppression per PRD AC-6]
+  → dedupe_by_key(df, keys=...)                        [most-recent-by-modified_at policy]
+  → apply date_filter_expr (from ESC-1 split)
+  → Response (Polars-serialized, eager pl.DataFrame only — P1-C-06)
+```
+
+### 5. Startup Initialization Sequence (`api/lifespan.py`)
 
 1. `configure_logging()`
 2. `HTTPXClientInstrumentor().instrument()`
@@ -238,7 +314,7 @@ POST /v1/resolve/{entity_type}
 
 `/health` returns 200 immediately; `/ready` returns 503 until cache warm.
 
-### 5. Cache Invalidation Flow
+### 6. Cache Invalidation Flow
 
 ```
 POST /api/v1/webhooks/inbound
@@ -260,6 +336,8 @@ The cross-session corpus shows 18 wrapped sessions across 15 initiative clusters
 
 The 13-step startup sequence in `lifespan.py` deliberately moves cache warm-up to a background task to avoid blocking ECS health checks — a defensive pattern from prior production failure.
 
+Post-PR38 (merge commit `80256049`): `exports.py` route is LIVE, dual-mounted, and now the newest importer of `query/compiler.py` (via `PredicateCompiler` at line 65). The `_exports_helpers.py` module introduces the `_walk_predicate` visitor pattern — the first generic predicate-tree traversal abstraction in this codebase.
+
 ## Knowledge Gaps
 
 - `clients/data/_endpoints/` — 5 endpoint sub-modules not individually read
@@ -268,3 +346,4 @@ The 13-step startup sequence in `lifespan.py` deliberately moves cache warm-up t
 - `cache/dataframe/` — full `DataFrameCache` implementation not deeply traced
 - `reconciliation/` — processor and executor logic not read in depth
 - `autom8_query_cli.py` — exact CLI argument structure unknown
+- `exports.py` observability — zero span/metric instrumentation; OBS-EXPORTS-001 named incident in `obs.md`; deadline 2026-06-15

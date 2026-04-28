@@ -1,13 +1,12 @@
 ---
 domain: obs
-generated_at: "2026-04-28T21:55:00Z"
+generated_at: "2026-04-29T14:30Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
-  - "./app/**/*.py"
   - "./pyproject.toml"
 generator: theoros
-source_hash: "8c58f930"
+source_hash: "6b303485"
 confidence: 0.82
 format_version: "1.0"
 update_mode: "full"
@@ -23,6 +22,54 @@ max_incremental_cycles: 3
 - **Protocol 2**: Prometheus (`prometheus_client` via `create_fleet_app`/`instrument_app`) — scrape-pull, served via `/metrics`
 - **Protocol 3**: CloudWatch (`boto3.client("cloudwatch")`) — vendor-native push, Lambda mode only
 - **Deployment modes**: ECS/FastAPI (Prometheus + OTel), Lambda (CloudWatch + `autom8y_telemetry.aws`)
+
+---
+
+## OBS-EXPORTS-001: Exports Route Instrumentation Gap (P2)
+
+**Status**: OPEN | **Severity**: P2 | **Pre-GA Deadline**: 2026-06-15
+
+### Anchor
+
+- `src/autom8_asana/api/routes/exports.py:91` — `logger = get_logger(__name__)` (log correlation only)
+- `src/autom8_asana/api/routes/exports.py` — zero `metric.`, `tracer.`, `counter.`, `histogram.`, or `span.` calls (grep count: 0, verified at source_hash `6b303485`)
+- `src/autom8_asana/api/routes/_exports_helpers.py` — three logger calls (column-source warning, identity-suppression warning, no-matching-columns warning) but zero metric/span calls
+- Inherited surface: `add_otel_trace_ids` OTel processor wired in `api/lifespan.py` (log correlation only — no child span wraps the exports handler)
+
+### Symptom
+
+The `/v1/exports` and `/api/v1/exports` routes are LIVE on `main` (post-PR #38, merge commit `80256049`) carrying Phase 1 of `project-asana-pipeline-extraction` (telos deadline 2026-05-11). The route has:
+
+- 0 metric counters/histograms (no `request_duration_seconds`, no `predicate_split_outcome`, no `format_negotiation_fallback_total`, no `identity_suppressed_count`)
+- 0 explicit tracer spans (only auto-instrumentation via OTel FastAPI middleware — no child spans within handler)
+- 0 SLO targets defined
+- 0 alert rules
+
+### Root Cause
+
+Phase 1 prioritized correctness (P1-C-04 frozen ranges, behavior-preserving refactor T-04b) over observability. The hygiene rite explicitly deferred obs work to the SRE rite via handoff `.sos/wip/handoffs/HANDOFF-hygiene-to-sre-exports-obs-2026-04-28.md`.
+
+### Required Instrumentation (per SRE handoff — DESIRED state, not current)
+
+1. **Add request span to the `/exports` handler** — emit `exports_request_complete` with fields: `entity_type`, `row_count_pre_dedup`, `row_count_post_dedup`, `date_filter_applied` (bool), `section_default_applied` (bool), `identity_suppressed_count` (int). Anchor: `src/autom8_asana/api/routes/exports.py` handler function.
+
+2. **Add `exports_section_default_injected` log** in the handler when `apply_active_default_section_predicate` returns `default_applied=True`. Anchor: `src/autom8_asana/api/routes/exports.py` (call site for `apply_active_default_section_predicate`).
+
+3. **Add `exports_identity_rows_suppressed` log** in `filter_incomplete_identity` when `include=False` — emit the count of suppressed rows. Anchor: `src/autom8_asana/api/routes/_exports_helpers.py` (`filter_incomplete_identity` function).
+
+4. **Add `exports_date_filter_applied` log** in `translate_date_predicates` when `date_filter_expr is not None` — emit field name and operator type. Anchor: `src/autom8_asana/api/routes/exports.py` (`translate_date_predicates` function).
+
+### Risk
+
+A regression in `_walk_predicate` visitor (commit `d9abbc1f`) or the date-predicate translation in `exports.py:translate_date_predicates` would surface only via 500s in production, not via SLO burn alerts. The eunomia rite's CHANGE-001 already surfaced one such latent bug (SCAR-DISCRIMINATOR-001) — production-side regression detection is currently 100% reactive for the exports surface.
+
+### Owner & Cadence
+
+- Owner-rite: SRE
+- Cadence: pre-GA (before /exports moves from Phase 1 to Phase 2)
+- Verification: post-instrumentation, M-02 telos deadline 2026-06-15
+
+---
 
 ## Instrumentation Depth
 
@@ -42,7 +89,7 @@ The `autom8y-telemetry` platform SDK is initialized in 14 source files. Direct u
 | Lambda: workflow handler | `autom8y_telemetry.aws` | `lambda_handlers/workflow_handler.py` |
 | Payment reconciliation | `trace_reconciliation` | `automation/workflows/payment_reconciliation/workflow.py` |
 
-**New route surface — instrumentation gap**: The Phase 1 exports route (`api/routes/exports.py` and helper `_exports_helpers.py`) was added at source hash `8c58f930`. These files use `autom8y_log.get_logger()` for structured logging (which receives OTel trace correlation via the lifespan-injected `add_otel_trace_ids` processor) but have **no direct `autom8y_telemetry` span instrumentation** — no `@trace_computation`, no `get_tracer()`, no manual span creation. The two export routes (`POST /api/v1/exports`, `POST /v1/exports`) are uninstrumented at the span level.
+**New route surface — instrumentation gap (OBS-EXPORTS-001)**: The Phase 1 exports route (`api/routes/exports.py` and helper `_exports_helpers.py`) is LIVE on main post-PR #38 (commit `80256049`). These files use `autom8y_log.get_logger()` for structured logging (which receives OTel trace correlation via the lifespan-injected `add_otel_trace_ids` processor) but have **zero direct `autom8y_telemetry` span instrumentation** — no `@trace_computation`, no `get_tracer()`, no manual span creation. The two export routes (`POST /api/v1/exports`, `POST /v1/exports`) are uninstrumented at the span level. Verified: `grep -c 'metric\.\|tracer\.\|counter\.\|histogram\.\|span\.'` returns 0 at `exports.py` and `_exports_helpers.py`.
 
 **Known instrumentation gap — bridge_base**: `automation/workflows/bridge_base.py:191-195` documents `trace_computation` not applied (not yet available in version `0.6.1`). The bridge base (foundation for all Lambda workflow bridges) is uninstrumented.
 
@@ -60,7 +107,7 @@ W3C Trace Context (`traceparent`) propagation confirmed via `HTTPXClientInstrume
 
 ### Log-Trace Correlation
 
-Confirmed wired: `api/lifespan.py` injects `add_otel_trace_ids` as a structlog processor at startup. The new exports route uses `autom8y_log.get_logger()` and inherits this correlation when executed inside a FastAPI request span. However, no manual `get_tracer()` span wraps the exports handler itself, so correlation depth depends entirely on the parent FastAPI middleware span.
+Confirmed wired: `api/lifespan.py` injects `add_otel_trace_ids` as a structlog processor at startup. The new exports route uses `autom8y_log.get_logger()` at `exports.py:91` and inherits this correlation when executed inside a FastAPI request span. However, no manual `get_tracer()` span wraps the exports handler itself, so correlation depth depends entirely on the parent FastAPI middleware span.
 
 **Gap**: Log-trace correlation only fires for HTTP API path (ECS mode). Lambda handlers emit CloudWatch metrics but do not wire `add_otel_trace_ids`.
 
@@ -70,9 +117,11 @@ Confirmed wired: `api/lifespan.py` injects `add_otel_trace_ids` as a structlog p
 
 No sampler configuration found. OTLP sampling fully delegated to the `autom8y-telemetry` SDK. No `OTEL_TRACES_SAMPLER` env var set in `.env`, `.envrc`, or env example file. Sampling rate unconfirmed at satellite level.
 
-**Completeness**: 65% — SDK wired on ECS critical paths; new exports route uninstrumented at span level; Lambda instrumentation shallow; `bridge_base.py` documented TODO gap; sampling undocumented.
+**Completeness**: 60% — SDK wired on ECS critical paths; /exports route (now LIVE on main) uninstrumented at span level; Lambda instrumentation shallow; `bridge_base.py` documented TODO gap; sampling undocumented. Post-PR38 adds more uninstrumented critical surface.
 
 **Grade: D**
+
+---
 
 ## Credential Topology Integrity
 
@@ -95,6 +144,8 @@ No satellite-level `credential-topology-matrix.yaml` exists. Schema file present
 No bind-time fixture validates credential tuples before first runtime invocation. All three protocols bind lazily.
 
 **Completeness**: 30%. **Grade: F**.
+
+---
 
 ## Signal Pipe Contracts
 
@@ -119,20 +170,29 @@ No documented contract-drift incidents (404/401 pipeline failures). No SCAR log 
 
 **Completeness**: 45%. **Grade: F**.
 
+---
+
 ## SLO/SLI Maturity
 
 No SLO definitions found in any source file, YAML, documentation, or knowledge file. Search across `SLO`, `error_budget`, `burn_rate`, `availability.*target` returned zero results.
 
 ### Metric Surface Available for SLI Construction
 
-- `autom8y_asana_dataframe_build_duration_seconds` — latency SLI candidate
-- `autom8y_asana_dataframe_cache_operations_total` — freshness/availability SLI candidate
-- `autom8y_asana_api_calls_total` + `autom8y_asana_api_call_duration_seconds` — availability + latency SLI candidates
+- `autom8y_asana_dataframe_build_duration_seconds` (`api/metrics.py:20`) — latency SLI candidate
+- `autom8y_asana_dataframe_cache_operations_total` (`api/metrics.py:27`) — freshness/availability SLI candidate
+- `autom8y_asana_dataframe_rows_cached` (`api/metrics.py:33`) — capacity SLI candidate
+- `autom8y_asana_dataframe_swr_refreshes_total` (`api/metrics.py:39`) — freshness SLI candidate
+- `autom8y_asana_dataframe_circuit_breaker_state` (`api/metrics.py:45`) — availability SLI candidate
+- `autom8y_asana_api_calls_total` (`api/metrics.py:55`) — availability SLI candidate
+- `autom8y_asana_api_call_duration_seconds` (`api/metrics.py:61`) — latency SLI candidate
 - CloudWatch namespace `autom8y/lambda` — Lambda success/failure rate
+- **GAP**: Zero metric candidates for `/exports` route (OBS-EXPORTS-001 — no counters/histograms defined)
 
 No SLO statements declared, no measurement windows defined, no denominators specified, no burn-rate alerts, no error-budget policy.
 
 **Completeness**: 5%. **Grade: F**.
+
+---
 
 ## Alerting & Runbook Coverage
 
@@ -155,6 +215,26 @@ Development-operation runbooks in `runbooks/atuin/` (bootstrap, auth, API operat
 
 **Completeness**: 20%. **Grade: F**.
 
+---
+
+## Overall Observability Grade
+
+**Grade: F (35.8%)**
+
+Weighted average:
+- Instrumentation Depth: D (65%) × 25% = 16.25
+- Credential Topology Integrity: F (30%) × 25% = 7.50
+- Signal Pipe Contracts: F (45%) × 20% = 9.00
+- SLO/SLI Maturity: F (5%) × 20% = 1.00
+- Alerting & Runbook Coverage: F (20%) × 10% = 2.00
+- **Total: 35.75% → F**
+
+**Why no improvement post-PR #38**: The exports route merge (commit `80256049`) added more uninstrumented critical surface (`exports.py`, `_exports_helpers.py`) with no accompanying instrumentation. The grade is unchanged from source_hash `8c58f930` and may be considered slightly worse given that a new LIVE route now operates in a zero-observability posture.
+
+**Post-OBS-EXPORTS-001 discharge target**: D or better — when the 4 SRE actions complete (request span, section-default log, identity-suppression log, date-filter log), the instrumentation depth score rises to approximately 70%, shifting the weighted average to approximately 40-45%.
+
+---
+
 ## Knowledge Gaps
 
 1. **OTLP backend identity**: Which observability backend does `autom8y-telemetry[otlp]` push to? Credential-binding surface, endpoint URL, auth-routing-field, push protocol opaque at satellite level.
@@ -162,9 +242,10 @@ Development-operation runbooks in `runbooks/atuin/` (bootstrap, auth, API operat
 3. **Log aggregation backend**: Where do stdout logs go after ECS log driver?
 4. **Sampling configuration**: No `OTEL_TRACES_SAMPLER` configured at satellite level.
 5. **Lambda trace backend**: `autom8y_telemetry.aws`'s `instrument_lambda` — emits to CloudWatch X-Ray or OTLP?
-6. **Exports route instrumentation gap**: New `api/routes/exports.py` route handler has no span-level instrumentation. Structured logs correlate with parent span but no child span captures exports handler timing or result shape.
+6. **OBS-EXPORTS-001**: New `api/routes/exports.py` and `_exports_helpers.py` (LIVE on main post-PR #38) have zero span-level instrumentation. Structured logs correlate with parent span only. See named incident above.
 7. **Bridging gap**: `automation/workflows/bridge_base.py:191-195` `trace_computation` TODO has no tracking issue or ticket reference.
 8. **Credential topology matrix instance**: No `.sos/` or `.know/` credential-topology-matrix YAML for this satellite exists.
 9. **SLO definitions**: No SLOs, SLIs, or error-budget policy exist.
 10. **Alert rules**: No machine-actionable alert definitions exist.
 11. **On-call documentation**: No on-call rotation, escalation policy, or ownership documentation exists.
+12. **Exports metric name catalog**: No metric names defined for the exports surface (`exports_request_complete`, `exports_identity_suppressed_count`, etc. are desired state only — not yet implemented).

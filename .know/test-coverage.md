@@ -1,17 +1,16 @@
 ---
 domain: test-coverage
-generated_at: "2026-04-28T21:55:00Z"
+generated_at: "2026-04-29T12:30Z"
 expires_after: "7d"
 source_scope:
-  - "./src/**/*.py"
-  - "./app/**/*.py"
+  - "./tests/**/*.py"
   - "./pyproject.toml"
 generator: theoros
-source_hash: "8c58f930"
-confidence: 0.92
+source_hash: "6b303485"
+confidence: 0.93
 format_version: "1.0"
-update_mode: "full"
-incremental_cycle: 0
+update_mode: "incremental"
+incremental_cycle: 1
 max_incremental_cycles: 3
 land_sources:
   - ".sos/land/workflow-patterns.md"
@@ -24,7 +23,7 @@ land_hash: "9db9c6f33d48f5c2fce398de7d3359fef30a0a0bd809044f7259f792ee6c4b9e"
 
 ### Package-Level Coverage Map
 
-The test suite contains 493 `test_*.py` files under `tests/`. Source tree has 24 top-level packages under `src/autom8_asana/`. 22 of 24 source packages have dedicated test directories or direct flat test files.
+The test suite contains 570 `test_*.py` files under `tests/` (505 in `tests/unit/` alone). Source tree has 24 top-level packages under `src/autom8_asana/`. 22 of 24 source packages have dedicated test directories or direct flat test files.
 
 **Packages with zero dedicated test directories** (partial indirect coverage):
 
@@ -53,9 +52,9 @@ The test suite contains 493 `test_*.py` files under `tests/`. Source tree has 24
 
 **models/business** — 4 modules without dedicated tests: `dna.py`, `mixins.py`, `videography.py`, `reconciliation.py`. Detection tier files (`tier1`–`tier4`) covered via detection_cache and adversarial tests.
 
-### New Untracked Coverage: Exports Feature (as of 2026-04-28)
+### Exports Feature Test Cluster (as of 2026-04-29, post-PR #38)
 
-Five new untracked test files in `tests/unit/api/` cover newly added `api/routes/exports.py` and `_exports_helpers.py`:
+Six committed test files in `tests/unit/api/` cover `api/routes/exports.py` and `api/routes/_exports_helpers.py`. All 6 files are tracked post-PR #38 merge (commit `80256049`).
 
 | File | Focus |
 |---|---|
@@ -64,8 +63,15 @@ Five new untracked test files in `tests/unit/api/` cover newly added `api/routes
 | `test_exports_format_negotiation.py` | Content-type format negotiation behavior |
 | `test_exports_handler.py` | `export_handler` function behavior |
 | `test_exports_helpers.py` | `_exports_helpers.py` date-predicate translation (ESC-1) |
+| `test_exports_helpers_walk_predicate_property.py` | Behavior-preservation class-based tests for `_walk_predicate` refactor (T-04a, commit `f4fd18f6`) |
 
-These files are untracked. Source files (`exports.py`, `_exports_helpers.py`) also untracked.
+**Note on inventory history**: The prior knowledge entry (source_hash `8c58f930`) cited "5 untracked test files." The 6th file `test_exports_helpers_walk_predicate_property.py` was committed at `f4fd18f6` but absent from that inventory (HYG-001 detection gap — pre-S4 gate did not enforce untracked-file audit). Post-PR #38, all 6 are committed. Source files (`exports.py`, `_exports_helpers.py`) are also committed.
+
+**CHANGE-001 — duplicate test removal** (commit `321909c1`): The property preservation test file had 2 silent test-method overwrites:
+- Removed lines 115-118: duplicate `test_not_group_of_comparison_match` in `TestPredicateReferencesFieldBehavior`
+- Removed lines 215-218: duplicate `test_not_group_with_date_returns_true` in `TestContainsDateOpBehavior`
+
+Both duplicates carried comments asserting "NotGroup.not_ only accepts Comparison (Pydantic validated model constraint)" — a claim that is EMPIRICALLY FALSE per SCAR-DISCRIMINATOR-001 (see scar-tissue.md). Removing them closed FLAG-1 and FLAG-3. Post-CHANGE-001: 36 effective test functions, 0 silent overwrites. (The file name contains "property" but uses class-based pytest fixtures, NOT `@hypothesis.given`.)
 
 ### Prioritized Gap List (Highest-Risk First)
 
@@ -110,10 +116,10 @@ xdist was re-enabled by commit `affbf5a5`; commit `8fd0aefb` switched `--dist=lo
 
 ### Test Naming
 
-- Function-based tests dominant; subset use `class Test*` organization (e.g., `test_exports_contract.py` uses `class TestExportRequestForbiddenFields`)
+- Function-based tests dominant; subset use `class Test*` organization (e.g., `test_exports_contract.py` uses `class TestExportRequestForbiddenFields`, `test_exports_helpers_walk_predicate_property.py` uses 4 `class Test*` groups)
 - Naming pattern: `test_{thing_being_tested}_{condition}` — e.g., `test_cascade_validator_corrects_business_name_from_task_name`, `test_tier2_get_async_returns_model`
-- Async tests: `async def test_*` used broadly; 12,420 total test function definitions
-- Class-based pattern used for grouping related contract assertions
+- Async tests: `async def test_*` used broadly; ~11,922 total test function definitions in unit/
+- Class-based pattern used for grouping related contract assertions and behavior-preservation clusters
 
 ### Markers
 
@@ -129,7 +135,19 @@ xdist was re-enabled by commit `affbf5a5`; commit `8fd0aefb` switched `--dist=lo
 | `@pytest.mark.fuzz` | 1 module | OpenAPI hypothesis fuzz |
 | `@pytest.mark.xfail` | 1 module (`test_openapi_fuzz.py`) | 46 pre-existing schemathesis violations |
 
-Parametrize adoption: 11.6% of test files; 132 call-sites across 12,420 test functions = 1.06% parametrize-per-test ratio. Low parametrize adoption relative to total test count is a known anti-pattern (project-crucible sprint-6: 687 `@pytest.fixture` definitions vs 132 `@pytest.mark.parametrize` usages).
+Parametrize adoption: 11.6% of test files; 132 call-sites. Low parametrize adoption relative to total test count is a known anti-pattern (project-crucible sprint-6: 687 `@pytest.fixture` definitions vs 132 `@pytest.mark.parametrize` usages).
+
+### Property Tests (Hypothesis)
+
+Only **1 `@hypothesis.given` decorator** found in `tests/unit/` — `tests/unit/persistence/test_reorder.py:288`. The test `test_property_moves_produce_desired_order` was stabilized by TRIAGE-005 (commit `ec7c7f10`):
+
+- **Before**: `@settings(max_examples=200)` (default deadline, random seed)
+- **After**: `@settings(max_examples=100, deadline=None, derandomize=True)`
+- **Rationale**: Under accumulated full-suite memory pressure (~284s elapsed), hypothesis examples exceeded the 200ms default deadline. Deterministic seed eliminates flake; `deadline=None` removes per-example pressure; halved example count retains robust property coverage.
+
+`tests/test_openapi_fuzz.py` is the other hypothesis consumer: schemathesis-driven OpenAPI fuzz with `max_examples` capped and `derandomize=True` (FR-10).
+
+Note: `test_exports_helpers_walk_predicate_property.py` uses the word "property" in its name but is a class-based pytest test file — it does NOT use `@hypothesis.given`. The 4 test classes exercise `PredicateNode` walker behavior preservation across all node shapes (Comparison, AndGroup, OrGroup, NotGroup).
 
 ### Mocking Conventions
 
@@ -170,17 +188,18 @@ Parametrize adoption: 11.6% of test files; 132 call-sites across 12,420 test fun
 
 ### Assertion Density
 
-- 23,881 `assert` statements across 12,420 test functions: ~1.92 asserts per test
-- 1,249 `pytest.raises` usages: strong negative-test culture (10% of test functions exercise error paths explicitly)
+- 23,881 `assert` statements across ~11,922 unit test functions: ~2.00 asserts per test
+- 1,249 `pytest.raises` usages: strong negative-test culture (10%+ of test functions exercise error paths explicitly)
 - 160 helper functions named `make_*`/`create_*`/`build_*` — test data factory patterns
 
 ### Special Test Types
 
 - **Adversarial tests**: `test_*_adversarial.py` — failure cases, race conditions, boundary violations
-- **Contract tests**: `test_*_contract.py` — behavioral guarantees (e.g., `test_idempotency_contracts.py`, new `test_exports_contract.py`)
+- **Contract tests**: `test_*_contract.py` — behavioral guarantees (e.g., `test_idempotency_contracts.py`, `test_exports_contract.py`)
 - **Span tests**: `test_*_spans.py` — OpenTelemetry instrumentation assertions
 - **OpenAPI fuzz**: `tests/test_openapi_fuzz.py` — schemathesis/hypothesis (marked `fuzz`, `xfail(strict=False)`)
-- **SCAR regression tests**: 33 inviolable regression tests (SCAR-001/005/006/010/010b/020/026/027, SCAR-WS8, S3-LOOP, TENSION-001) flagged as sacred constraints
+- **SCAR regression tests**: 33+ inviolable regression tests (SCAR-001/005/006/010/010b/020/026/027, SCAR-WS8, S3-LOOP, TENSION-001) flagged as sacred constraints
+- **Behavior-preservation tests**: `test_*_walk_predicate_property.py` — class-based tests anchoring behavior before/after refactors (T-04 pattern)
 
 ### No File-Based Test Data
 
@@ -195,8 +214,8 @@ tests/
   conftest.py                    # Root fixtures, env setup, schemathesis xdist patch
   _shared/
     mocks.py                     # MockTask (automation/polling)
-  unit/                          # 449 test_*.py files
-    api/                         # ~45 files: routes, middleware, preload, health, exports (5 untracked)
+  unit/                          # 505 test_*.py files
+    api/                         # ~51 files: routes, middleware, preload, health, exports (6 committed post-PR38)
     auth/                        # ~6: bot_pat, audit, jwt, dual_mode
     automation/                  # ~47: events, polling, workflows, engine
     cache/                       # ~56: backends, dataframe, policies, circuit breaker
@@ -230,20 +249,20 @@ tests/
 
 | Suite | Files | Test Functions |
 |---|---|---|
-| unit/ | 449 | ~11,500 |
+| unit/ | 505 | ~11,922 |
 | integration/ | 33 | ~500 |
 | validation/ | 5 | ~80 |
 | synthetic/ | 1 | ~10 |
 | benchmarks/ | 1 | ~10 |
 | root level | 3 | ~320 |
-| **Total** | **493** | **~12,420** |
+| **Total** | **570** | **~12,842** |
 
-Total assert statements: 23,881. Total `pytest.raises`: 1,249.
+Total assert statements: 23,881+. Total `pytest.raises`: 1,249.
 
 ### Heavily Tested Areas (High Test Density)
 
 1. **cache/** — ~56 test files; circuit breaker, coalescer, backend drivers, dataframe tiers
-2. **api/** — ~45 test files (with 5 untracked exports files)
+2. **api/** — ~51 test files (including 6 committed exports cluster post-PR #38)
 3. **dataframes/** — ~49 test files; cascade validator (highest-churn: 6 sessions)
 4. **automation/** — ~47 test files; events pipeline, polling engine, workflow handlers
 5. **services/** — 22 files; `test_universal_strategy*.py` (split across 4 files: core, null_slot, spans, status) is highest-churn hotspot (8 sessions)
@@ -273,14 +292,35 @@ External tree style (separate `tests/` directory, not co-located with source). T
 
 ### SCAR Test Cluster
 
-33 inviolable regression tests preserved as sacred constraints. Files include `tests/unit/api/test_exports_auth_exclusion.py` (SCAR-WS8), `tests/unit/api/middleware/test_idempotency_finalize_scar.py`, `tests/unit/reconciliation/test_section_registry.py`.
+33+ inviolable regression tests preserved as sacred constraints. Files include `tests/unit/api/test_exports_auth_exclusion.py` (SCAR-WS8, committed post-PR #38), `tests/unit/api/middleware/test_idempotency_finalize_scar.py`, `tests/unit/reconciliation/test_section_registry.py`.
+
+`test_exports_auth_exclusion.py` (SCAR-WS8) was previously untracked at source_hash `8c58f930`; it is now committed and part of the SCAR regression cluster.
 
 ## Knowledge Gaps
 
 1. **Actual runtime coverage percentage** — `fail_under = 80` configured and enforced, but no coverage report run during this audit
-2. **5 untracked exports test files** — exist on disk but not yet committed
-3. **CI sharding behavior** — `pytest-split` and `pytest-xdist` both present; shard-per-worker coverage fragment merging not verified
-4. **`tests/validation/persistence/` CI inclusion** unknown
-5. **Whether `@pytest.mark.integration` gating is enforced in CI** — marker defined but CI config not examined
-6. **`tests/synthetic/test_synthetic_coverage.py` purpose** — contents not read; filename suggests coverage gap detection
-7. **`services/intake_*_service.py` service-layer isolation** — tested only through route tests; direct service error path coverage unknown
+2. **CI sharding behavior** — `pytest-split` and `pytest-xdist` both present; shard-per-worker coverage fragment merging not verified
+3. **`tests/validation/persistence/` CI inclusion** unknown
+4. **Whether `@pytest.mark.integration` gating is enforced in CI** — marker defined but CI config not examined
+5. **`tests/synthetic/test_synthetic_coverage.py` purpose** — contents not read; filename suggests coverage gap detection
+6. **`services/intake_*_service.py` service-layer isolation** — tested only through route tests; direct service error path coverage unknown
+7. **Exports fixture topology** — `tests/unit/api/conftest.py` provides shared fixtures; whether exports test cluster consumes conftest fixtures without duplication not fully verified (INVESTIGATE: glint-exports-helpers-fixture-topology)
+
+## Incremental Update Log
+
+### Cycle 1 — 2026-04-29 (post-PR #38 merge, source_hash `6b303485`)
+
+**Corrections applied:**
+- Lines 58-68 (stale): "Five new untracked test files" → "Six committed test files (all tracked post-PR #38)". Added 6th file `test_exports_helpers_walk_predicate_property.py` (T-04a, commit `f4fd18f6`). Noted HYG-001 detection gap.
+- Line 68 (stale): "These files are untracked. Source files also untracked." → removed; both source and test files are committed post-PR #38.
+- Line 199/246 (stale): "5 untracked" → "6 committed post-PR38"
+- Line 281 (stale): "5 untracked exports test files" → removed from knowledge gaps; now item 7 is exports fixture topology (INVESTIGATE status)
+- Total file counts updated: 493 → 570 total, 449 → 505 unit/
+
+**New entries added:**
+- CHANGE-001 (commit `321909c1`): removal of 2 silent test-method overwrites in `test_exports_helpers_walk_predicate_property.py` → 36 effective test functions. Closes FLAG-1/FLAG-3.
+- TRIAGE-005 (commit `ec7c7f10`): `test_reorder.py:288` hypothesis settings stabilized from `@settings(max_examples=200)` to `@settings(max_examples=100, deadline=None, derandomize=True)`.
+- Hypothesis inventory: 1 `@given` decorator in unit tests (`test_reorder.py`); clarified that `test_exports_helpers_walk_predicate_property.py` is NOT a hypothesis test despite its name.
+- Property tests section added to Testing Conventions.
+- Behavior-preservation test type added to Special Test Types.
+- SCAR-WS8 confirmation: `test_exports_auth_exclusion.py` now committed and part of SCAR cluster.

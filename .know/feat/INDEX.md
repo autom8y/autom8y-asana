@@ -1,21 +1,24 @@
 ---
 domain: feat/index
-generated_at: "2026-04-01T14:30:00Z"
+generated_at: "2026-04-29T23:16Z"
 expires_after: "30d"
 source_scope:
+  - "./.know/architecture.md"
+  - "./.know/api.md"
   - "./src/autom8_asana/**/*.py"
-  - "./docs/**/*.md"
-  - "./config/**/*.yaml"
-  - "./.know/*.md"
 generator: theoros
-source_hash: "c213958"
-confidence: 0.91
+source_hash: "6b303485"
+confidence: 0.92
 format_version: "1.0"
+update_mode: "incremental"
+incremental_cycle: 1
+max_incremental_cycles: 3
 ---
 
 # Feature Census
 
-> 32 features identified across 8 categories. 28 recommended for GENERATE, 4 recommended for SKIP.
+> 33 features identified across 8 categories. 29 recommended for GENERATE, 4 recommended for SKIP.
+> Incremental update: `/exports` route promoted from absent/WIP to LIVE (PR #38, commit 80256049, 2026-04-29).
 
 ---
 
@@ -177,7 +180,7 @@ format_version: "1.0"
 - `docs/api-reference/endpoints/query.md`: API reference
 - `docs/guides/search-query-builder.md` and `search-cookbook.md`: Two dedicated search guides
 
-**Rationale**: 18 implementation files, user-facing API endpoints, 3 documentation artifacts. Compiled predicate trees, cross-entity joins, aggregation, temporal queries, timeline queries, CLI interface. GENERATE.
+**Rationale**: 18 implementation files, user-facing API endpoints, 3 documentation artifacts. Compiled predicate trees, cross-entity joins, aggregation, temporal queries, timeline queries, CLI interface. Sprint-3 (post-PR38) additive Op enum members BETWEEN, DATE_GTE, DATE_LTE are LIVE in `query/models.py:54-56` -- confirmed in source. GENERATE.
 
 ---
 
@@ -479,6 +482,37 @@ format_version: "1.0"
 
 ---
 
+## exports-route
+
+| Field | Value |
+|-------|-------|
+| Name | Polars-backed /exports Route with Predicate-Tree Compilation |
+| Category | User-Facing API |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.95 |
+| Status | **LIVE** |
+| live_since | 2026-04-29 |
+| pr_merge | #38 / commit 80256049 |
+| telos_deadline | 2026-05-11 (Phase 1 -- DELIVERED with 12 days margin) |
+| phase | 1 (complete); Phase 2 deferred |
+| obs_status | F (OBS-EXPORTS-001 open -- zero metrics/SLOs/alerts) |
+| m02_status | discharged via T-08 (CSI-001 -- 136 examples= entries in openapi.json) |
+
+**Source Evidence**:
+- `src/autom8_asana/api/routes/exports.py`: Primary route handler -- dual-mount at `/api/v1/exports` and `/v1/exports` (empirically confirmed in openapi.json); `_walk_predicate` visitor for predicate-tree traversal
+- `src/autom8_asana/api/routes/_exports_helpers.py`: Helper module for exports predicate compilation
+- `tests/unit/api/test_exports_auth_exclusion.py`: Auth exclusion tests
+- `tests/unit/api/test_exports_contract.py`: Contract tests (class-based organization)
+- `tests/unit/api/test_exports_format_negotiation.py`: Format negotiation tests
+- `tests/unit/api/test_exports_handler.py`: Handler tests
+- `tests/unit/api/test_exports_helpers.py`: Helper unit tests
+- `tests/unit/api/test_exports_helpers_walk_predicate_property.py`: T-04b behavior-preservation property tests
+
+**Rationale**: User-facing REST endpoint (dual-mount confirmed live in openapi.json), 6 committed test files covering multiple behavioral dimensions, `_walk_predicate` visitor is a new architectural pattern (T-04b, commit `d9abbc1f`). Route imports from frozen-range compiler (`exports.py:65`). PR #38 merged 2026-04-29. All GENERATE heuristics met: user-facing interface, test cluster, cross-module dependency (query compiler). OBS-EXPORTS-001 open -- zero span instrumentation on live route (pre-GA gap, deadline 2026-06-15). [KNOW-CANDIDATE] First census entry for /exports route -- promoted to LIVE status post-PR38. GENERATE.
+
+---
+
 ## fastapi-server
 
 | Field | Value |
@@ -555,7 +589,7 @@ format_version: "1.0"
 - `src/autom8_asana/lambda_handlers/cloudwatch.py`: CloudWatch metrics emission Lambda
 - `pyproject.toml`: `autom8y-telemetry[aws,fastapi,otlp]>=0.6.0` and `autom8y-events` dependencies
 
-**Rationale**: 3 implementation files plus protocol definitions, API metrics module, and dedicated CloudWatch Lambda handler. Correlation ID tracking is a cross-cutting concern. GENERATE.
+**Rationale**: 3 implementation files plus protocol definitions, API metrics module, and dedicated CloudWatch Lambda handler. Correlation ID tracking is a cross-cutting concern. Note: OBS-EXPORTS-001 is an open gap (exports route has zero instrumentation post-PR38). GENERATE.
 
 ---
 
@@ -681,3 +715,30 @@ format_version: "1.0"
 5. **`_defaults/` standalone providers**: `EnvAuthProvider`, `NullCacheProvider`, `DefaultLogProvider`, `NullObservabilityHook` in `_defaults/` are subsumed under `authentication` and `cache-subsystem` respectively. These could form a distinct "SDK Standalone Mode" feature if the protocol/DI surface is documented separately.
 
 6. **No ADRs found**: The `docs/` directory has no `decisions/` or `adr/` subdirectory at filesystem level. Feature decisions are embedded in runbooks and guide documents rather than formal ADR files. This criterion source category is confirmed absent (not a scan gap).
+
+7. **`/exports` route now fully catalogued**: Previously absent from INDEX (not tracked as WIP). Resolved in incremental cycle 1 -- feature entry `exports-route` added above (LIVE, PR #38). Gap closed.
+
+---
+
+## Incremental Update Log
+
+### Cycle 1 -- 2026-04-29 (post-PR38)
+
+**Trigger**: PR #38 merged (commit `80256049`). `/exports` route promoted from untracked to LIVE on main.
+
+**Changes**:
+- Added `exports-route` feature entry (LIVE, GENERATE, confidence 0.95)
+  - Dual-mount confirmed: `/api/v1/exports` and `/v1/exports` in openapi.json
+  - 6 committed test files confirmed (including `test_exports_helpers_walk_predicate_property.py`)
+  - OBS-EXPORTS-001 open: zero span instrumentation, no SLOs, no alerts (pre-GA gap, deadline 2026-06-15)
+  - M-02 / CSI-001 discharged via T-08: 136 `examples=` entries in openapi.json confirmed
+- Updated `query-engine` rationale: Sprint-3 Op enum extensions (BETWEEN, DATE_GTE, DATE_LTE) confirmed LIVE in `query/models.py:54-56`
+- Updated `observability` rationale: OBS-EXPORTS-001 cross-reference added
+- Census Gaps item 7: `/exports` gap marked closed
+- Feature count: 32 -> 33 (29 GENERATE, 4 SKIP)
+- source_hash: `c213958` -> `6b303485` (current HEAD, 2 hotfix commits post-PR38 merge)
+- confidence: 0.91 -> 0.92
+
+**Throughline anchor**: `canonical-source-integrity` -- `/exports` is now canonical LIVE state. Feature status table is the canonical promotion record.
+
+**Next cycle limit**: 2 remaining incremental cycles before full regeneration required (max_incremental_cycles: 3).

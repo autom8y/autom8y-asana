@@ -1,24 +1,23 @@
 ---
 domain: conventions
-generated_at: "2026-04-28T21:55:00Z"
+generated_at: "2026-04-29T00:09Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
-  - "./app/**/*.py"
-  - "./pyproject.toml"
 generator: theoros
-source_hash: "8c58f930"
-confidence: 0.88
+source_hash: "80256049"
+confidence: 0.92
 format_version: "1.0"
 update_mode: "full"
 incremental_cycle: 0
 max_incremental_cycles: 3
-land_sources:
-  - ".sos/land/workflow-patterns.md"
-land_hash: "9db9c6f33d48f5c2fce398de7d3359fef30a0a0bd809044f7259f792ee6c4b9e"
 ---
 
 # Codebase Conventions
+
+> Regenerated 2026-04-29 (FULL mode, post-PR38). Source hash: `80256049`.
+> 3 new conventions added: Pydantic v2 `examples=[...]` Field, `logger` parameter naming,
+> and Pydantic v2 discriminated-union callable discriminator discipline.
 
 ## Error Handling Style
 
@@ -202,6 +201,53 @@ All API error responses use `ErrorResponse` envelope (from `api/models.py`) cont
 
 Error type tuples in `core/errors.py` use try/except ImportError to build progressively — module loads cleanly whether or not optional backends are installed.
 
+### Pydantic v2 `Field(examples=[...])` Convention (CSI-001 discharged 2026-04-29)
+
+**Canonical form**: `Field(examples=["value"])` — plural array form for all Pydantic model fields exposed in the OpenAPI schema.
+
+**Rationale**: Pydantic v2 generates OpenAPI 3.1 spec using `examples` (plural, array). Using the singular `example` key in a `Field()` call produces no effect — only the array form is recognized by the Pydantic v2 JSON schema generator.
+
+**Evidence**: T-08 (commit `4d4097c3`) lifted 13 hand-edited `"example":` keys from `docs/api-reference/openapi.json` to source-level `Field(examples=[...])` declarations. Verified present at:
+- `src/autom8_asana/models/base.py:50` — `AsanaResource.gid`
+- `src/autom8_asana/models/common.py:52` — `NameGid.gid`
+- `src/autom8_asana/models/task.py:47,54,59,70,85` — `resource_type`, `name`, `notes`, `completed`, `due_on`
+- `src/autom8_asana/api/routes/resolver_schema.py:72,76,346,350` — `SchemaFieldInfo.name/type`, `EnumValueInfo.value/meaning`
+- `src/autom8_asana/api/routes/workflows.py:175,180` — `WorkflowEntry.workflow_id`, `log_prefix`
+
+**Exception — pre-CSI-001 raw-dict inline OpenAPI annotations**: Two sites in `dataframes.py` use the singular `"example":` key inside raw `responses={...}` dict annotations passed directly to the FastAPI route decorator:
+- `src/autom8_asana/api/routes/dataframes.py:511`
+- `src/autom8_asana/api/routes/dataframes.py:632`
+
+These are NOT Pydantic `Field()` calls. They are OpenAPI 3.0-style inline response annotations that predate CSI-001. They are not regressions — they are pre-existing divergent patterns. **Do not replicate this singular form in new `Field()` declarations.** Future Pydantic field declarations MUST use `examples=[...]` (plural array).
+
+**[KNOW-CANDIDATE] New structural convention established by T-08/CSI-001; absent from prior conventions.md.**
+
+### Pydantic v2 Discriminated Union — Callable Discriminator Discipline (SCAR-DISCRIMINATOR-001)
+
+**Pattern location**: `src/autom8_asana/query/models.py:97-135`
+
+When using `Discriminator(callable)` for a Pydantic v2 discriminated union, the callable MUST handle BOTH dict inputs AND model-instance inputs. The current `_predicate_discriminator` function handles only `isinstance(v, dict)` — model-instance inputs fall through to `return "comparison"` (line 112), causing incorrect discriminator resolution for nested model instances.
+
+**Failure mode**: `NotGroup(not_=AndGroup(...))` — passing an `AndGroup` model instance as the child of `NotGroup.not_` will silently misparse as `Comparison` type, failing Pydantic validation.
+
+**Fix pattern** (not yet applied — T-06 follow-up scope):
+```python
+def _predicate_discriminator(v: Any) -> str:
+    if isinstance(v, dict):
+        # ... existing dict branch
+    elif isinstance(v, BaseModel):
+        # inspect model_fields keys to determine variant
+        fields = set(v.model_fields.keys())
+        if "and_" in fields or hasattr(v, "and_"):
+            return "and"
+        # ... etc.
+    return "comparison"
+```
+
+**Cross-reference**: SCAR-DISCRIMINATOR-001 in `.know/scar-tissue.md`.
+
+**[KNOW-CANDIDATE] Callable discriminator dict-only guard is a latent validation gap; no prior mention in conventions.md.**
+
 ## Naming Patterns
 
 | Pattern | Convention | Examples |
@@ -222,10 +268,30 @@ Error type tuples in `core/errors.py` use try/except ImportError to build progre
 
 ### Variable Naming
 
-- Logger: `logger = get_logger(__name__)` — module-level. (Anti-pattern: `log` variant in `clients/data/_retry.py`, `_cache.py` — should be normalized)
+- Logger: `logger = get_logger(__name__)` — module-level canonical name. See `logger` parameter naming convention below.
 - GIDs: always `gid` (lowercase), never `id` or `gid_str`
 - `workspace_gid` canonical for workspace identifiers
 - Module-level private constants: all-caps with `_` prefix (`_ASANA_GID_PATTERN`, `_MINIMUM_OPT_FIELDS`)
+
+### `logger` Parameter Naming Convention (T-06 — autom8y_log SDK)
+
+**Canonical form**: `logger` (not `log`) as the parameter name when passing an `autom8y_log` logger instance to a constructor or function.
+
+**Background**: T-06 (commit `5b2e3b2d`) renamed `log` → `logger` across 6 files to align with autom8y_log SDK conventions. This establishes `logger` as the canonical parameter name project-wide.
+
+**T-06 follow-up scope — 4 violators remain** (NOT yet aligned; pre-existing `log:` parameter sites not covered by T-06):
+
+| File | Line | Pattern |
+|---|---|---|
+| `src/autom8_asana/clients/data/_response.py` | 65 | `log: LogProvider \| Any \| None` (function parameter) |
+| `src/autom8_asana/clients/data/_response.py` | 197 | `log: LogProvider \| Any \| None` (function parameter) |
+| `src/autom8_asana/persistence/holder_ensurer.py` | 72 | `log: Any \| None = None` (constructor parameter) |
+| `src/autom8_asana/persistence/cache_invalidator.py` | 41 | `log: Any \| None = None` (constructor parameter) |
+| `src/autom8_asana/services/vertical_backfill.py` | 63 | `log: Any \| None = None` (constructor parameter) |
+
+**Rule**: All new code MUST use `logger` as the parameter name. The 4 violator files above are pending T-06 follow-up remediation. Agents reading this document: do not replicate the `log:` parameter form in new code.
+
+**[KNOW-CANDIDATE] Explicit violator list with file:line not present in prior conventions.md; prior version only noted the anti-pattern generically.**
 
 ### Acronym Conventions
 
@@ -240,10 +306,11 @@ Error type tuples in `core/errors.py` use try/except ImportError to build progre
 
 ### Anti-Patterns to Avoid
 
-- Do not use `log` as the logger variable name — use `logger`
+- Do not use `log` as the logger variable or parameter name — use `logger` (see T-06 convention above; 4 legacy sites pending cleanup)
 - Do not raise `Exception` or `RuntimeError` for domain logic failures
 - Do not import `CacheNotWarmError` from `services/query_service.py` (defined ad-hoc) — should relocate to `services/errors.py`
 - Do not define result types outside the service file unless shared across multiple callers
+- Do not use singular `"example":` key inside Pydantic `Field()` — use `examples=[...]` (plural array); the two sites in `dataframes.py:511,632` are pre-CSI-001 raw-dict exceptions, not the canonical form
 
 ## Experiential Observations (from session history)
 

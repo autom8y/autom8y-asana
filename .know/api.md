@@ -1,17 +1,16 @@
 ---
 domain: api
-generated_at: "2026-04-28T21:55:00Z"
+generated_at: "2026-04-29T00:00Z"
 expires_after: "7d"
 source_scope:
-  - "./src/**/*.py"
-  - "./app/**/*.py"
-  - "./pyproject.toml"
+  - "./src/autom8_asana/api/**/*.py"
+  - "./docs/api-reference/openapi.json"
 generator: theoros
-source_hash: "8c58f930"
-confidence: 0.92
+source_hash: "6b303485"
+confidence: 0.93
 format_version: "1.0"
-update_mode: "full"
-incremental_cycle: 0
+update_mode: "incremental"
+incremental_cycle: 1
 max_incremental_cycles: 3
 ---
 
@@ -25,7 +24,7 @@ max_incremental_cycles: 3
 - `/api/v1/` — PAT-authenticated, user-facing resources (tasks, projects, sections, users, workspaces, dataframes, exports, webhooks, workflows, offers)
 - `/v1/` — S2S JWT-authenticated, internal service surface (resolver, query, fleet-query, exports mirror, admin, intake, entity-write, matching)
 
-**Published spec paths** — `docs/api-reference/openapi.json` OAS 3.2.0 (44 paths, 53 operations):
+**Published spec paths** — `docs/api-reference/openapi.json` OAS 3.2.0 (46 paths, 55 operations):
 
 | Resource Group | Path | Method(s) | Handler | Auth |
 |---|---|---|---|---|
@@ -36,7 +35,7 @@ max_incremental_cycles: 3
 | **Users** | `/api/v1/users`, `/me`, `/{gid}` | GET | `routes/users.py` | PAT |
 | **Workspaces** | `/api/v1/workspaces` and `/{gid}` | GET | `routes/workspaces.py` | PAT |
 | **DataFrames** | `/api/v1/dataframes/{schemas,project,section}` | GET | `routes/dataframes.py` | PAT |
-| **Exports** (WIP) | `/api/v1/exports`, `/v1/exports` | POST | `routes/exports.py` | PAT (api), S2S (v1) |
+| **Exports** | `/api/v1/exports`, `/v1/exports` | POST | `routes/exports.py` | PAT (api), S2S (v1) |
 | **Offers** | `/api/v1/offers/section-timelines` | GET | `routes/section_timelines.py` | PAT |
 | **Workflows** | `/api/v1/workflows/`, `/{id}/invoke` | GET/POST | `routes/workflows.py` | PAT |
 | **Webhooks** | `/api/v1/webhooks/inbound` | POST | `routes/webhooks.py` | URL token |
@@ -57,9 +56,9 @@ max_incremental_cycles: 3
 | `/v1/intake/business`, `/v1/intake/route` | POST | `routes/intake_create.py` | S2S JWT |
 | `/v1/query/{entity_type}/rows`, `/aggregate` | POST | `routes/query.py` | S2S JWT |
 
-**Spec-vs-code delta**: Spec has 44 paths (53 operations). Code exposes ~14 additional route prefixes/paths beyond the spec, all intentionally hidden or WIP (exports untracked on this branch).
+**Spec-vs-code delta**: Spec has 46 paths (55 operations). Code exposes ~14 additional route prefixes/paths beyond the spec, all intentionally hidden via `include_in_schema=False`. Exports routes are NOW COMMITTED and tracked in spec post-PR #38 (merge commit `80256049`).
 
-**Route registration order note** (critical): Fleet query and exports routers MUST mount BEFORE `query_router` in `main.py:426-441` to prevent FastAPI's first-match routing from treating `entities`/`exports` as `{entity_type}` path parameter values. Documented inline at registration site.
+**Route registration order note** (critical — TENSION-009/LBC-011): Fleet query and exports routers MUST mount BEFORE `query_router` in `main.py:431-441` to prevent FastAPI's first-match routing from treating `entities`/`exports` as `{entity_type}` path parameter values. Exports router mount explicitly annotated at `main.py:433-440`. See also `design-constraints.md` TENSION-009.
 
 ## Authentication & Authorization Model
 
@@ -83,6 +82,8 @@ max_incremental_cycles: 3
 - PAT Bearer: all `/api/v1/` resource routes except webhooks
 - S2S JWT: all `/v1/` routes
 - URL token: webhooks only
+
+**Exports auth exclusion** (SCAR-WS8 regression test): `JWTAuthMiddleware.exclude_paths` includes `/api/v1/exports/*` at `main.py:389`. This diverges from fleet `DEFAULT_EXCLUDE_PATHS` — the PAT-auth surface for exports is deliberately excluded from JWT middleware so the dual-mode `get_auth_context()` DI handles auth in handler space. Verified by `tests/unit/api/test_exports_auth_exclusion.py`.
 
 **OAuth2 scopes** (`main.py:_OAUTH2_SCOPE_DEFINITIONS`) — documentation-only in Phase 1: `tasks:read/write`, `projects:read/write`, `sections:read/write`, `users:read`, `workspaces:read`, `dataframes:read`, `exports:read`, `workflows:execute`, `resolver:read`, `query:read`, `intake:write`, `admin:manage`, `webhooks:receive`.
 
@@ -131,7 +132,11 @@ Models: `SuccessResponse[T]`, `ErrorResponse`, `ErrorDetail`, `ResponseMeta`, `P
 
 **Idempotency**: `Idempotency-Key` request header via `IdempotencyMiddleware`. DynamoDB-backed (`IDEMPOTENCY_TABLE_NAME`, default `autom8-idempotency-keys`). Exports declare `x-fleet-idempotency: {idempotent: true}` in `openapi_extra`.
 
-**Exports contract (WIP — `routes/exports.py`)**: `ExportRequest` body: `entity_type` (str), `project_gids` (list[int], min 1), `predicate` (PredicateNode AST | None), `format` (json|csv|parquet, default json), `options` (`ExportOptions` — open/additive, `extra="allow"`). `ExportOptions`: `include_incomplete_identity` (bool, default true), `dedupe_key` (list[str], default `["office_phone", "vertical"]`). Returns DataFrame rows with `identity_complete` boolean column.
+**Exports contract — LIVE post-PR #38** (`routes/exports.py`): `ExportRequest` body: `entity_type` (str), `project_gids` (list[int], min 1), `predicate` (PredicateNode AST | None), `format` (json|csv|parquet, default json), `options` (`ExportOptions` — open/additive, `extra="allow"`, LBC-010). `ExportOptions`: `include_incomplete_identity` (bool, default true), `dedupe_key` (list[str], default `["office_phone", "vertical"]`). Returns DataFrame rows with `identity_complete` boolean column.
+
+**Exports schemas added post-PR #38** (now in `docs/api-reference/openapi.json` components.schemas): `AndGroup`, `OrGroup`, `NotGroup`, `Comparison`, `ExportRequest`, `ExportOptions`, `Op` (with operators including `BETWEEN`, `DATE_GTE`, `DATE_LTE`).
+
+**Telos linkage**: Exports Phase 1 of `project-asana-pipeline-extraction` — DELIVERED (PR #38, commit `80256049`). Phase 1 deadline 2026-05-11. See also `design-constraints.md` LBC-010 for `ExportOptions extra="allow"` constraint.
 
 ## Cross-Service Dependencies
 
@@ -161,14 +166,18 @@ Contract file: `docs/contracts/openapi-data-service-client.yaml` (v1.0.0).
 **Spec authority**: Code is source of truth. Committed spec is secondary, regenerated on route/model changes. `openapitools.json` in root indicates generator toolchain in use.
 
 **Route count delta**:
-- Spec: 44 paths, 53 operations
+- Spec: 46 paths, 55 operations (verified from `docs/api-reference/openapi.json` post-PR #38)
 - Code (total): ~58 paths/route prefixes including hidden routes
 - Hidden (intentional): 11 route groups
-- WIP on current branch: `/v1/exports`, `/api/v1/exports` (untracked) — **not yet in committed spec**
+- Exports routes: COMMITTED and tracked in spec — `/api/v1/exports` and `/v1/exports` both present post-PR #38 (merge commit `80256049`)
+
+**Schemas** (post-PR #38): 55 total in `components.schemas`. New schemas added by exports: `AndGroup`, `OrGroup`, `NotGroup`, `Comparison`, `ExportRequest`, `ExportOptions`, `Op`.
+
+**Field examples** (CSI-001 DISCHARGED): 136 `"examples":` plural entries in spec. 2 residual `"example":` singular entries at `dataframes.py:511,632` — pre-CSI-001 raw dict inline OpenAPI annotation, not a regression. `just spec-check` passes. M-02 score: 136 (tracked in `.ci/semantic-baseline.json:12`).
 
 **Format version**: OAS 3.2.0 (with `jsonSchemaDialect`). Uses `webhooks` object (OAS 3.1+) for `asanaTaskChanged` webhook definition.
 
-**Spec drift assessment**: Low on committed routes; exports routes are current gap (will need spec regeneration once branch merges). The `/api/v1/query/entities` fleet-query PAT mount intentionally hidden.
+**Spec drift assessment**: NONE — spec is fully derivable from Pydantic source post-T-08 CSI-001 discharge. Exports routes committed to spec at PR #38. The `/api/v1/query/entities` fleet-query PAT mount intentionally hidden.
 
 ## Knowledge Gaps
 
@@ -178,3 +187,4 @@ Contract file: `docs/contracts/openapi-data-service-client.yaml` (v1.0.0).
 - DataServiceClient endpoint inventory: contract file exists but specific endpoint paths not enumerated
 - Intake resolver response models not fully cataloged
 - OAuth2 enforcement timeline: documented as "documentation-only" with no committed enforcement date
+- Exports observability gap (OBS-EXPORTS-001): `POST /api/v1/exports` and `POST /v1/exports` have zero metric, trace, or SLO instrumentation beyond structured log correlation via OTel `trace_id`. Pre-GA deadline 2026-06-15. See `obs.md` for details.
