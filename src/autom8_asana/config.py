@@ -680,7 +680,17 @@ def validate_project_env_vars(strict: bool = False) -> list[str]:
 
 
 # Auto-validate at import if ASANA_STRICT_CONFIG is set
-# Uses Pydantic Settings for consistent configuration
-_settings = get_settings()
-if _settings.asana.strict_config:
+# Uses Pydantic Settings for consistent configuration.
+#
+# Lazy resolution: get_settings() must NOT execute at module import time
+# inside AWS Lambda. Settings includes secret-resolving fields wired to the
+# AWS Parameters & Secrets Lambda Extension; resolving secrets at module
+# import fails because the extension's HTTP listener is not guaranteed to
+# be ready when the runtime imports user code (INCIDENT autom8y-asana-cache-warmer
+# 2026-04-28). The strict-config validator now runs only when the
+# ASANA_STRICT_CONFIG env var is set as a literal "1"/"true"/"yes" — checking
+# the env var directly avoids invoking get_settings() at module load while
+# preserving the opt-in fail-fast behavior for local strict-mode workflows.
+_strict_flag = os.environ.get("ASANA_STRICT_CONFIG", "").strip().lower()
+if _strict_flag in {"1", "true", "yes"}:
     validate_project_env_vars(strict=True)
