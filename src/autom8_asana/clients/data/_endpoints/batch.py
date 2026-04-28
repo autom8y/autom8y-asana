@@ -294,7 +294,7 @@ async def execute_batch_request(
         timeout_message="Batch request to autom8_data timed out",
         http_error_template="HTTP error communicating with autom8_data: {e}",
         error_kwargs={"request_id": request_id},
-        log=client._log,
+        logger=client._log,
         log_event_retry="insights_batch_request_retry",
         log_event_fail="insights_batch_request_failed",
         max_retries=client._config.retry.max_retries,

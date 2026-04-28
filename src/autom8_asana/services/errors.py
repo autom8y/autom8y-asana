@@ -273,6 +273,30 @@ class CacheNotReadyError(ServiceError):
         return 503
 
 
+class CacheNotWarmError(ServiceError):
+    """Raised when DataFrame cache is not available after self-refresh attempt.
+
+    This error indicates that:
+    - The DataFrame was not found in any cache tier (Memory, S3)
+    - Self-refresh via legacy strategy was attempted but failed
+    - Possible causes: no legacy strategy exists, build failed, circuit breaker open
+
+    Clients should handle this by:
+    - Returning 503 to callers with retry guidance
+    - Logging the event for monitoring
+
+    Maps to HTTP 503.
+    """
+
+    @property
+    def error_code(self) -> str:
+        return "CACHE_NOT_WARM"
+
+    @property
+    def status_hint(self) -> int:
+        return 503
+
+
 class CascadeNotReadyError(ServiceError):
     """Cascade data quality below threshold for reliable resolution. Maps to HTTP 503.
 
@@ -348,6 +372,7 @@ SERVICE_ERROR_MAP: dict[type[ServiceError], int] = {
     EntityValidationError: 400,
     ServiceNotConfiguredError: 503,
     CacheNotReadyError: 503,
+    CacheNotWarmError: 503,
     CascadeNotReadyError: 503,
     EntityNotFoundError: 404,
 }
@@ -372,6 +397,7 @@ def get_status_for_error(error: ServiceError) -> int:
 
 __all__ = [
     "CacheNotReadyError",
+    "CacheNotWarmError",
     "CascadeNotReadyError",
     "EntityNotFoundError",
     "EntityTypeMismatchError",

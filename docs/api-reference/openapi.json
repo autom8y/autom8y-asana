@@ -73,6 +73,38 @@
         "title": "AddToProjectRequest",
         "type": "object"
       },
+      "AndGroup": {
+        "additionalProperties": false,
+        "description": "AND group node: all children must match.",
+        "properties": {
+          "and": {
+            "description": "Child predicates that must all match.",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Comparison"
+                },
+                {
+                  "$ref": "#/components/schemas/AndGroup"
+                },
+                {
+                  "$ref": "#/components/schemas/OrGroup"
+                },
+                {
+                  "$ref": "#/components/schemas/NotGroup"
+                }
+              ]
+            },
+            "title": "And",
+            "type": "array"
+          }
+        },
+        "required": [
+          "and"
+        ],
+        "title": "AndGroup",
+        "type": "object"
+      },
       "AsanaResource": {
         "additionalProperties": true,
         "description": "Base Asana resource returned by the Asana API.\n\nAll Asana resources share a gid and resource_type. Additional fields\nvary by endpoint and the opt_fields parameter. The extra=\"allow\"\nconfig accepts any additional fields without declaring them, which\navoids the circular $ref problem that dict[str, Any] causes in the\ngenerated OpenAPI schema.\n\nAttributes:\n    gid: Globally unique identifier for the Asana resource.\n    resource_type: Resource type string (e.g., \"task\", \"project\").\n    name: Display name of the resource (optional, depends on opt_fields).",
@@ -196,6 +228,41 @@
           "request_id"
         ],
         "title": "AuthTebErrorDetail",
+        "type": "object"
+      },
+      "Comparison": {
+        "additionalProperties": false,
+        "description": "Leaf predicate node: single field comparison.",
+        "properties": {
+          "field": {
+            "description": "Column name to compare against.",
+            "examples": [
+              "completed"
+            ],
+            "title": "Field",
+            "type": "string"
+          },
+          "op": {
+            "$ref": "#/components/schemas/Op",
+            "description": "Comparison operator to apply.",
+            "examples": [
+              "eq"
+            ]
+          },
+          "value": {
+            "description": "Value to compare the field against.",
+            "examples": [
+              false
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "field",
+          "op",
+          "value"
+        ],
+        "title": "Comparison",
         "type": "object"
       },
       "CreateProjectRequest": {
@@ -750,6 +817,94 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "ExportOptions": {
+        "additionalProperties": true,
+        "description": "Open / additive options substructure.\n\nPer spike-handoff §6 P1-C-02 + PRD §6: ``model_config = ConfigDict(extra=\"allow\")``\nis LOAD-BEARING. Closing this enum FORBIDDEN — it would foreclose the\nPhase 2 ``predicate_join_semantics`` field per the LEFT-PRESERVATION GUARD\nADR (mechanism (b) escape valve).\n\nPhase 1 named members:\n    include_incomplete_identity: PRD §3.1 + AC-5/AC-6.\n    dedupe_key: PRD §5.1 — account-grain identity key.\n\nPhase 2 reserved (NOT typed in Phase 1; admitted via ``extra=\"allow\"``):\n    predicate_join_semantics: ``Literal[\"preserve-outer\", \"allow-inner-rewrite\"]``\n        controlling the LEFT-PRESERVATION GUARD per the companion ADR.",
+        "properties": {
+          "dedupe_key": {
+            "description": "Account-grain dedup key. Default matches the canonical identity key (office_phone, vertical) per PRD §5.1.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Dedupe Key",
+            "type": "array"
+          },
+          "include_incomplete_identity": {
+            "default": true,
+            "description": "When true (default), null-key rows surface with identity_complete=false (SCAR-005/006 transparency). When false, those rows are filtered pre-serialization. PRD AC-5 / AC-6.",
+            "title": "Include Incomplete Identity",
+            "type": "boolean"
+          }
+        },
+        "title": "ExportOptions",
+        "type": "object"
+      },
+      "ExportRequest": {
+        "additionalProperties": false,
+        "description": "Phase 1 export contract.\n\nPer spike-handoff §6 P1-C-01 (single-entity hard-lock): this contract has\nNO ``join`` field, NO ``target_entity`` field, NO\n``predicate_target_resolution`` field. AC-12 verifies this by inspection.",
+        "properties": {
+          "entity_type": {
+            "description": "Canonical business-entity identifier. Phase 1 inception-anchor: \"process\". Entity-parameterized (any registered entity admissible) but single-entity per request (P1-C-01).",
+            "title": "Entity Type",
+            "type": "string"
+          },
+          "format": {
+            "default": "json",
+            "description": "Output format. JSON default per PRD §8.3 + DEFER-WATCH-5; CSV is Vince's BI-tool path; Parquet is the analytics-friendly binary format. PRD AC-7 + AC-11.",
+            "enum": [
+              "json",
+              "csv",
+              "parquet"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ExportOptions",
+            "description": "Open / additive options substructure (P1-C-02)."
+          },
+          "predicate": {
+            "anyOf": [
+              {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/Comparison"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AndGroup"
+                  },
+                  {
+                    "$ref": "#/components/schemas/OrGroup"
+                  },
+                  {
+                    "$ref": "#/components/schemas/NotGroup"
+                  }
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Caller-supplied filter AST. Reuses query.models.PredicateNode union (Comparison | AndGroup | OrGroup | NotGroup). Sprint 2 additive Op enum members (BETWEEN, DATE_GTE, DATE_LTE) are translated by this route handler BEFORE engine call (ESC-1).",
+            "title": "Predicate"
+          },
+          "project_gids": {
+            "description": "Asana project GIDs. Phase 1 inception-anchor: [1201265144487549, 1201753128450029] (Reactivation, Outreach).",
+            "items": {
+              "type": "integer"
+            },
+            "minItems": 1,
+            "title": "Project Gids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entity_type",
+          "project_gids"
+        ],
+        "title": "ExportRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -875,6 +1030,35 @@
         "title": "NameGid",
         "type": "object"
       },
+      "NotGroup": {
+        "additionalProperties": false,
+        "description": "NOT group node: child must not match.",
+        "properties": {
+          "not": {
+            "description": "Child predicate that must not match.",
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Comparison"
+              },
+              {
+                "$ref": "#/components/schemas/AndGroup"
+              },
+              {
+                "$ref": "#/components/schemas/OrGroup"
+              },
+              {
+                "$ref": "#/components/schemas/NotGroup"
+              }
+            ],
+            "title": "Not"
+          }
+        },
+        "required": [
+          "not"
+        ],
+        "title": "NotGroup",
+        "type": "object"
+      },
       "OfferTimelineEntry": {
         "additionalProperties": false,
         "description": "API response model for a single offer's timeline summary.\n\nPer AC-5.2: Contains offer_gid, office_phone, and both day counts.\n\nAttributes:\n    offer_gid: Asana task GID of the offer.\n    office_phone: Office phone custom field value (null if not set).\n    offer_id: Internal business offer ID (null if not set).\n    active_section_days: Calendar days in ACTIVE sections during period.\n    billable_section_days: Calendar days in ACTIVE or ACTIVATING\n        sections during period.",
@@ -993,6 +1177,58 @@
           "billable_section_days"
         ],
         "title": "OfferTimelineEntry",
+        "type": "object"
+      },
+      "Op": {
+        "description": "Supported comparison operators.\n\nSprint 2 additive members per TDD §5 (BETWEEN, DATE_GTE, DATE_LTE) extend the\noperator vocabulary for date filtering. AST shape is unchanged; per P1-C-03\n`Comparison.field` stays free-form `str` and `Comparison.value: Any` admits\nthe new value shapes (e.g. `[date_lo, date_hi]` for BETWEEN).\n\nThe new date operators are NOT compiled by `PredicateCompiler` in Phase 1\n— `compiler.py:53-63` and `compiler.py:192-241` are P1-C-04 forbidden. Date\noperators are translated to filter expressions by the `/exports` route\nhandler BEFORE the engine call (see ESC-1 resolution in TDD §5.3 +\n`api/routes/exports.py:translate_date_predicates`).",
+        "enum": [
+          "eq",
+          "ne",
+          "gt",
+          "lt",
+          "gte",
+          "lte",
+          "in",
+          "not_in",
+          "contains",
+          "starts_with",
+          "between",
+          "date_gte",
+          "date_lte"
+        ],
+        "title": "Op",
+        "type": "string"
+      },
+      "OrGroup": {
+        "additionalProperties": false,
+        "description": "OR group node: at least one child must match.",
+        "properties": {
+          "or": {
+            "description": "Child predicates where at least one must match.",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/Comparison"
+                },
+                {
+                  "$ref": "#/components/schemas/AndGroup"
+                },
+                {
+                  "$ref": "#/components/schemas/OrGroup"
+                },
+                {
+                  "$ref": "#/components/schemas/NotGroup"
+                }
+              ]
+            },
+            "title": "Or",
+            "type": "array"
+          }
+        },
+        "required": [
+          "or"
+        ],
+        "title": "OrGroup",
         "type": "object"
       },
       "PaginationMeta": {
@@ -2788,6 +3024,7 @@
             "scopes": {
               "admin:manage": "Administrative operations (cache, config, diagnostics)",
               "dataframes:read": "Read access to structured DataFrame extractions",
+              "exports:read": "Read access to BI exports (Phase 1 pipeline-export surface)",
               "intake:write": "Create and resolve entities via intake pipeline (S2S)",
               "projects:read": "Read access to Asana projects and their sections",
               "projects:write": "Create, update, delete projects and manage members",
@@ -3476,6 +3713,100 @@
         "tags": [
           "dataframes"
         ]
+      }
+    },
+    "/api/v1/exports": {
+      "post": {
+        "description": "Same handler as /v1/exports — mounted under PAT auth per PRD §7.3 dual-mount fidelity. Per-call auth-scope check delegated to the PAT_BEARER_SCHEME middleware (same surface as /api/v1/dataframes/* routes).",
+        "operationId": "post_export_api_v1_api_v1_exports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "PersonalAccessToken": []
+          },
+          {
+            "OAuth2Asana": [
+              "exports:read"
+            ]
+          }
+        ],
+        "summary": "Export account-grain rows for a single entity (PAT /api/v1 namespace)",
+        "tags": [
+          "exports"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-side-effects": []
       }
     },
     "/api/v1/offers/section-timelines": {
@@ -8004,6 +8335,100 @@
         ]
       }
     },
+    "/v1/exports": {
+      "post": {
+        "description": "Phase 1 export surface. Single-entity per request; account-grain rows deduped by (office_phone, vertical) by default; identity_complete boolean column on every row; format-negotiable JSON | CSV | Parquet. S2S-authenticated via SERVICE_JWT_SCHEME.",
+        "operationId": "post_export_v1_v1_exports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Request (Validation Error)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized (Missing or Invalid Token)"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden (Insufficient Permissions)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found (Resource or Schema not found)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "ServiceJWT": []
+          },
+          {
+            "OAuth2Asana": [
+              "exports:read"
+            ]
+          }
+        ],
+        "summary": "Export account-grain rows for a single entity (S2S /v1 namespace)",
+        "tags": [
+          "internal"
+        ],
+        "x-fleet-idempotency": {
+          "idempotent": true
+        },
+        "x-fleet-side-effects": []
+      }
+    },
     "/v1/query/data-sources": {
       "get": {
         "description": "Returns metadata for each registered data-service factory available for cross-service joins. Each entry includes the factory name, frame type, description, columns, and default period. Data-service factories provide virtual entities sourced from autom8y-data that can be joined with Asana-sourced entities in the query engine.",
@@ -8960,6 +9385,10 @@
     {
       "description": "Fetch Asana task data as structured DataFrames for analytical use. Schema-based extraction maps custom fields to typed columns (base, unit, contact, business, offer, asset_edit, asset_edit_holder). Use GET /api/v1/dataframes/schemas to discover available schemas and their column definitions. Supports JSON records (default) or Polars-serialized output via Accept header content negotiation. Requires PAT Bearer authentication.",
       "name": "dataframes"
+    },
+    {
+      "description": "Phase 1 BI export surface (project-asana-pipeline-extraction). POST /api/v1/exports accepts a single-entity ExportRequest (entity_type, project_gids, predicate AST, format, options) and returns account-grain rows deduped by (office_phone, vertical) with an identity_complete boolean column on every row. Supports json | csv | parquet output. Mirror endpoint for S2S callers at POST /v1/exports.",
+      "name": "exports"
     },
     {
       "description": "Receive inbound task notifications from Asana Rules actions. The /inbound endpoint accepts full task JSON payloads, verifies a URL token (timing-safe), and enqueues background processing for cache invalidation and dispatch. Returns 200 immediately to prevent Asana retries. Authentication via ?token= query parameter.",

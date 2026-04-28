@@ -56,6 +56,8 @@ from .routes import (
     admin_router,
     dataframes_router,
     entity_write_router,
+    exports_router_api_v1,
+    exports_router_v1,
     fleet_query_router_api_v1,
     fleet_query_router_v1,
     health_router,
@@ -98,6 +100,9 @@ _PAT_TAGS: frozenset[str] = frozenset(
         "dataframes",
         "offers",
         "workflows",
+        # Sprint 3 (project-asana-pipeline-extraction Phase 1): PAT mount of
+        # the dual-mount /exports route per TDD §6.2 + spike-handoff P1-C-07.
+        "exports",
     }
 )
 
@@ -144,6 +149,7 @@ _OAUTH2_SCOPE_DEFINITIONS: dict[str, str] = {
     "users:read": "Read access to Asana user profiles",
     "workspaces:read": "Read access to Asana workspaces",
     "dataframes:read": "Read access to structured DataFrame extractions",
+    "exports:read": "Read access to BI exports (Phase 1 pipeline-export surface)",
     "workflows:execute": "Invoke registered automation workflows",
     "resolver:read": "Resolve business identifiers to Asana entities (S2S)",
     "query:read": "Schema introspection and entity queries (S2S)",
@@ -162,6 +168,8 @@ _SCOPE_RULES: list[tuple[str, list[str], list[str]]] = [
     ("/api/v1/users", ["users:read"], ["users:read"]),
     ("/api/v1/workspaces", ["workspaces:read"], ["workspaces:read"]),
     ("/api/v1/dataframes", ["dataframes:read"], ["dataframes:read"]),
+    ("/api/v1/exports", ["exports:read"], ["exports:read"]),
+    ("/v1/exports", ["exports:read"], ["exports:read"]),
     ("/api/v1/workflows", ["workflows:execute"], ["workflows:execute"]),
     ("/api/v1/webhooks", ["webhooks:receive"], ["webhooks:receive"]),
     ("/v1/resolve", ["resolver:read"], ["resolver:read"]),
@@ -238,6 +246,14 @@ _TAG_DESCRIPTIONS: dict[str, str] = {
         "their column definitions. Supports JSON records (default) or "
         "Polars-serialized output via Accept header content negotiation. "
         "Requires PAT Bearer authentication."
+    ),
+    "exports": (
+        "Phase 1 BI export surface (project-asana-pipeline-extraction). "
+        "POST /api/v1/exports accepts a single-entity ExportRequest (entity_type, "
+        "project_gids, predicate AST, format, options) and returns account-grain "
+        "rows deduped by (office_phone, vertical) with an identity_complete "
+        "boolean column on every row. Supports json | csv | parquet output. "
+        "Mirror endpoint for S2S callers at POST /v1/exports."
     ),
     "webhooks": (
         "Receive inbound task notifications from Asana Rules actions. "
@@ -370,6 +386,7 @@ def create_app() -> FastAPI:
             "/api/v1/workspaces/*",
             "/api/v1/dataframes/*",
             "/api/v1/offers/*",
+            "/api/v1/exports/*",
         ],
         # W3.5b-3-alpha-1 (fleet-api-sovereignty D3): opt in to ADR-07 §7.1
         # precedence (bypass_scope_enforcement -> business_id -> reject)
@@ -413,6 +430,14 @@ def create_app() -> FastAPI:
             # error). FastAPI matches routes in registration order.
             RouterMount(router=fleet_query_router_v1),
             RouterMount(router=fleet_query_router_api_v1),
+            # Sprint 3 (project-asana-pipeline-extraction Phase 1): the
+            # /exports route mirrors the FleetQuery dual-mount precedent per
+            # TDD §6.2 + spike-handoff §6 P1-C-07. Mount BEFORE query_router
+            # so /v1/exports is not shadowed by the legacy /v1/query/{wildcard}
+            # path matcher (FastAPI matches in registration order — same
+            # discipline as the comment block above).
+            RouterMount(router=exports_router_v1),
+            RouterMount(router=exports_router_api_v1),
             RouterMount(router=query_router),
             RouterMount(router=admin_router),
             RouterMount(router=webhooks_router),

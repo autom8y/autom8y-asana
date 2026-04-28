@@ -37,7 +37,7 @@ def build_retry_callbacks(
     timeout_message: str,
     http_error_template: str,
     error_kwargs: dict[str, Any],
-    log: LogProvider | None = None,
+    logger: LogProvider | None = None,
     log_event_retry: str | None = None,
     log_event_fail: str | None = None,
     max_retries: int = 0,
@@ -66,7 +66,7 @@ def build_retry_callbacks(
         error_kwargs: Extra kwargs passed to error_class constructor.
             Should NOT include 'reason'; the factory injects 'reason' per callback.
             These kwargs are also merged into log extras (e.g., request_id).
-        log: Logger instance (None to skip logging).
+        logger: Logger instance (None to skip logging).
         log_event_retry: Log event name for retries (None to skip on_retry entirely).
         log_event_fail: Log event name for failures (None to skip failure logging).
         max_retries: Max retries value for log extras.
@@ -93,7 +93,7 @@ def build_retry_callbacks(
     if log_event_retry is not None:
 
         async def on_retry(attempt: int, status_code: int, retry_after: int | None) -> None:
-            if log:
+            if logger:
                 extra: dict[str, Any] = {
                     **_base_log_extras,
                     "attempt": attempt + 1,
@@ -105,7 +105,7 @@ def build_retry_callbacks(
                 else:
                     extra["error_type"] = "TimeoutException"
                     extra["reason"] = "timeout"
-                log.warning(log_event_retry, extra=extra)
+                logger.warning(log_event_retry, extra=extra)
 
     else:
         on_retry = None
@@ -116,7 +116,7 @@ def build_retry_callbacks(
         else:
             elapsed_ms = None
 
-        if log and log_event_fail:
+        if logger and log_event_fail:
             fail_extra: dict[str, Any] = {
                 **_base_log_extras,
                 "error_type": "TimeoutException",
@@ -125,7 +125,7 @@ def build_retry_callbacks(
             }
             if elapsed_ms is not None:
                 fail_extra["duration_ms"] = elapsed_ms
-            log.error(log_event_fail, extra=fail_extra)
+            logger.error(log_event_fail, extra=fail_extra)
 
         if emit_metric is not None and elapsed_ms is not None:
             emit_metric(
@@ -149,7 +149,7 @@ def build_retry_callbacks(
     async def on_http_error(e: HTTPError, attempt: int) -> None:
         elapsed_ms = (time.monotonic() - start_time) * 1000 if start_time is not None else None
 
-        if log and log_event_fail:
+        if logger and log_event_fail:
             fail_extra = {
                 **_base_log_extras,
                 "error_type": e.__class__.__name__,
@@ -158,7 +158,7 @@ def build_retry_callbacks(
             }
             if elapsed_ms is not None:
                 fail_extra["duration_ms"] = elapsed_ms
-            log.error(log_event_fail, extra=fail_extra)
+            logger.error(log_event_fail, extra=fail_extra)
 
         if emit_metric is not None and elapsed_ms is not None:
             emit_metric(

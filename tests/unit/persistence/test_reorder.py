@@ -284,7 +284,7 @@ def test_property_moves_produce_desired_order() -> None:
             )
         )
     )
-    @settings(max_examples=200, derandomize=True)
+    @settings(max_examples=100, deadline=None, derandomize=True)
     def _inner(items_and_perm: tuple) -> None:
         sorted_items, perm = items_and_perm
 

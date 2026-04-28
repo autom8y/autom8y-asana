@@ -1,14 +1,14 @@
 ---
 domain: test-coverage
-generated_at: "2026-04-04T12:00:00Z"
+generated_at: "2026-04-24T00:00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
   - "./app/**/*.py"
   - "./pyproject.toml"
 generator: theoros
-source_hash: "55aaab5"
-confidence: 0.85
+source_hash: "acff02ab"
+confidence: 0.88
 format_version: "1.0"
 update_mode: "full"
 incremental_cycle: 0
@@ -24,127 +24,145 @@ land_hash: "1471b813f0f58342c542d2e8c9cd92aba095afec134846cda625c3fa545ec9fe"
 
 ### Package-Level Coverage Map
 
-The test suite spans 480 test files in `tests/`, covering 22 of 26 source packages. Four source packages have zero dedicated test directories:
+The test suite contains 555 Python files in `tests/` (488 named `test_*.py`, plus 15 conftest files, 62 `__init__.py` files, and shared mocks). Source tree has 478 Python files across 26 packages. 22 of 26 source packages have dedicated test directories.
 
-| Source Package | Test Coverage | Notes |
+**Packages with zero dedicated test files:**
+
+| Source Package | Source Files (non-init) | Assessment |
 |---|---|---|
-| `src/autom8_asana/observability/` | Indirect | Covered via `tests/unit/test_observability.py` |
-| `src/autom8_asana/protocols/` | Indirect | Protocol types imported in cache, client, and persistence tests |
-| `src/autom8_asana/_defaults/` | Partial | `_defaults/cache.py` tested via client tests; auth/log/observability have no dedicated coverage |
-| `src/autom8_asana/batch/` | Indirect | Covered via `tests/unit/clients/test_batch.py` and integration tests |
+| `src/autom8_asana/_defaults/` | 4 (`auth.py`, `cache.py`, `log.py`, `observability.py`) | Indirect coverage via client and config tests; thin adapter wrappers |
+| `src/autom8_asana/batch/` | 2 (`client.py`, `models.py`) | Covered indirectly through `tests/unit/test_batch_adversarial.py` and integration tests |
+| `src/autom8_asana/observability/` | 3 (`context.py`, `correlation.py`, `decorators.py`) | Covered via `tests/unit/test_observability.py` and span assertion tests |
+| `src/autom8_asana/protocols/` | 8 protocol definition files | Protocol types imported/satisfied in cache, client, and persistence tests; runtime-only check |
+
+**Single-module packages not tested directly**: `src/autom8_asana/errors.py`, `src/autom8_asana/settings.py`. `errors.py` tested indirectly via exception tests.
 
 ### Module-Level Gaps Within Covered Packages
 
-**lifecycle** (2 source modules unmatched):
-- `src/autom8_asana/lifecycle/loop_detector.py` — no `test_loop_detector.py` found
-- `src/autom8_asana/lifecycle/observation_store.py` — no `test_observation_store.py` found
-- All other 13 lifecycle modules have corresponding test files
+**lifecycle** — 2 of 17 modules unmatched:
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/src/autom8_asana/lifecycle/loop_detector.py` — no `test_loop_detector.py`
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/src/autom8_asana/lifecycle/observation_store.py` — no `test_observation_store.py`
+- All 15 other lifecycle modules have direct test counterparts
 
-**models/business** (5 source modules unmatched):
-- `src/autom8_asana/models/business/dna.py` — no direct test file
-- `src/autom8_asana/models/business/mixins.py` — no direct test file
-- `src/autom8_asana/models/business/videography.py` — no direct test file
-- `src/autom8_asana/models/business/reconciliation.py` — no direct test file
-- `src/autom8_asana/models/business/detection/tier1.py` through `tier4.py` — tested via `tests/unit/models/business/test_detection.py`; no tier-specific unit test files
+**services** — 4 of 21 service modules lack a dedicated test file:
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/src/autom8_asana/services/entity_context.py` — no `test_entity_context.py`
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/src/autom8_asana/services/intake_create_service.py` — tested via route tests but no direct service test
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/src/autom8_asana/services/intake_resolve_service.py` — same pattern
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/src/autom8_asana/services/intake_custom_field_service.py` — same pattern
+- `resolver.py` tested via `tests/unit/api/routes/test_resolver_status.py`
 
-**models (top-level)** — Asana resource models (`attachment.py`, `base.py`, `common.py`, `custom_field.py`, `goal.py`, `portfolio.py`, `project.py`, `section.py`, `story.py`, `tag.py`, `task.py`, `team.py`, `user.py`, `webhook.py`, `workspace.py`) have no direct test files. Tested indirectly through all tests that instantiate them.
+**lambda_handlers** — 11 of 12 handler files have dedicated tests; only `story_warmer.py` maps to `test_story_warming.py` (naming variation).
 
-**cache** (14 source modules unmatched by direct test file):
-- `base.py`, `completeness.py`, `derived.py`, `errors.py`, `factory.py`, `freshness_unified.py`, `memory.py`, `progressive.py`, `redis.py`, `s3.py`, `schema_providers.py`, `staleness_settings.py`, `upgrader.py`
-- Covered through higher-level cache integration and backend tests
+**models (top-level Asana resource models)**: `attachment.py`, `base.py`, `common.py`, `custom_field.py`, `goal.py`, `portfolio.py`, `project.py`, `section.py`, `story.py`, `tag.py`, `task.py`, `team.py`, `user.py`, `webhook.py`, `workspace.py` — no dedicated test files. Tested indirectly through all tests that instantiate them. `test_models.py` at `/Users/tomtenuta/Code/a8/repos/autom8y-asana/tests/unit/models/test_models.py` covers basic import/instantiation.
 
-**clients** (24 source modules unmatched by direct test file):
-- Private endpoint modules (`_cache.py`, `_metrics.py`, `_normalize.py`, `_pii.py`, `_policy.py`, `_response.py`, `_retry.py`) — `_pii.py` covered via `tests/unit/clients/utils/test_pii.py`
-- Client modules (`attachments.py`, `goals.py`, `goal_followers.py`, `portfolios.py`, `projects.py`, `sections.py`, `stories.py`, `tags.py`, `task_operations.py`, `task_ttl.py`, `tasks.py`, `teams.py`, `users.py`, `webhooks.py`, `workspaces.py`) — tested through higher-level integration and service tests
+**models/business** — 4 modules without dedicated tests: `dna.py`, `mixins.py`, `videography.py`, `reconciliation.py`. Detection tier files (`tier1.py`–`tier4.py`) covered via `test_detection.py`.
 
-**services** (2 source modules with no matching test):
-- `src/autom8_asana/services/entity_context.py` — no `test_entity_context.py`
-- `src/autom8_asana/services/resolver.py` — tested via `tests/unit/api/routes/test_resolver_status.py`
+### Prioritized Gap List (Highest-Risk First)
 
-### Integration Test Gaps
+1. **`services/intake_create_service.py`, `intake_resolve_service.py`, `intake_custom_field_service.py`** — intake path is a critical production path (task creation, resolution) tested only through HTTP route layer; service-layer error paths and boundary conditions unverified directly.
+2. **`services/entity_context.py`** — context carrier for entity operations; used across service layer with no direct unit test.
+3. **`lifecycle/loop_detector.py`** — loop detection in lifecycle engine is a safety mechanism; no direct test.
+4. **`lifecycle/observation_store.py`** — persistence for lifecycle observations; no direct test.
+5. **`_defaults/` auth and observability** — no tests, though thin wrappers.
+6. **`protocols/`** — 8 Protocol class definitions; validated only by satisfying classes elsewhere.
 
-- No integration tests for: `auth`, `clients`, `models`, `metrics`, `query`, `patterns`, `transport`, `search`, `reconciliation`
-- Integration tests exist for: `automation`, `cache`, `persistence`, `lifecycle`, `detection`, `api/preload`
+### Integration Test Coverage
 
-### Summary Coverage Counts
+`@pytest.mark.integration` appears on 42 marker usages across 6 files:
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/tests/integration/test_lifecycle_smoke.py`
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/tests/integration/test_batch_api.py`
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/tests/integration/automation/polling/test_action_executor_integration.py`
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/tests/integration/automation/polling/test_trigger_evaluator_integration.py`
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/tests/integration/automation/polling/test_end_to_end.py`
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/tests/integration/automation/polling/__init__.py`
 
-| Suite | Test Files | Approximate Test Functions |
-|---|---|---|
-| Unit (`tests/unit/`) | 439 | ~11,634 |
-| Integration (`tests/integration/`) | 31 | ~568 |
-| Validation (`tests/validation/`) | 5 | -- |
-| Synthetic (`tests/synthetic/`) | 1 | -- |
-| Benchmarks (`tests/benchmarks/`) | 3 | -- |
-| **Total** | **480** | **~12,347** |
+Most `tests/integration/` files do NOT carry `@pytest.mark.integration` — integration-style tests (real wiring, no live API) but not live-API-gated.
 
----
+Packages with no integration or validation tests: `auth`, `core`, `models`, `metrics`, `query`, `patterns`, `transport`, `search`, `reconciliation`.
 
 ## Testing Conventions
 
-### Test Framework and Configuration
+### Test Runner and Configuration
 
-- **Runner**: pytest, configured in `pyproject.toml` under `[tool.pytest.ini_options]`
-- **asyncio mode**: `asyncio_mode = "auto"` — all async test functions run automatically without `@pytest.mark.asyncio`
-- **Timeout**: 60 seconds per test; method: thread-based (`timeout_method = "thread"`)
-- **Test paths**: `testpaths = ["tests"]`
-- **Coverage target**: `fail_under = 80` in `[tool.coverage.report]`; branch coverage enabled
-- **Coverage source**: `src/autom8_asana`
+- **Runner**: `pytest` with `asyncio_mode = "auto"` — all `async def test_*` functions run automatically without `@pytest.mark.asyncio`
+- **Test command**: `pytest` from project root (or `python -m pytest`); `testpaths = ["tests"]`
+- **Parallel execution**: `pytest-xdist` with `--dist=loadfile` (keeps tests from same file on single worker; required for process-global state isolation)
+- **Timeout**: 60 seconds per test; `timeout_method = "thread"`
+- **Coverage**: `pytest --cov` or `pytest-cov`; `fail_under = 80`, branch coverage enabled, source `src/autom8_asana`
+- **Coverage exclusions**: `pragma: no cover`, `if TYPE_CHECKING:`, `@abstractmethod`, `raise NotImplementedError`, `if __name__ == "__main__":`
+
+### Test Naming
+
+- Function-based tests dominant: 468 files use `def test_` or `async def test_`; 32 files use `class Test*` organization
+- Naming pattern: `test_{thing_being_tested}_{condition}` — e.g., `test_cascade_validator_corrects_business_name_from_task_name`, `test_tier2_get_async_returns_model`
+- Async tests: `async def test_*` used broadly (12,333 total test functions counted)
+- Class-based pattern used for grouping: `class TestQueryEngineExecuteRows`, `class TestDataFrameCacheGetAsync`
 
 ### Markers
 
-| Marker | Usage Count | Meaning |
+| Marker | Count | Meaning |
 |---|---|---|
-| `pytest.mark.asyncio` | 2,584 | Legacy — pre-dates `asyncio_mode = "auto"`; redundant but harmless |
-| `pytest.mark.parametrize` | 109 | Parameterized test cases |
-| `pytest.mark.integration` | 45 | Requires live API access |
-| `pytest.mark.usefixtures` | 38 | Fixture injection |
-| `pytest.mark.slow` | 23 | Slow tests (deselectable with `-m "not slow"`) |
-| `pytest.mark.skip` | 10 | Explicitly skipped |
-| `pytest.mark.skipif` | 8 | Conditionally skipped |
-| `pytest.mark.benchmark` | 4 | Performance benchmarks |
-| `pytest.mark.xfail` | 1 | Expected failures |
+| `@pytest.mark.parametrize` | 131 usages | Parameterized cases; very common |
+| `@pytest.mark.integration` | 42 usages | Live API tests (small subset of `tests/integration/`) |
+| `@pytest.mark.usefixtures` | 38 usages | Fixture injection via decorator |
+| `@pytest.mark.slow` | 23 usages | Deselectable: `-m "not slow"` |
+| `@pytest.mark.skip` | 10 usages | Explicit skips (with reason strings) |
+| `@pytest.mark.skipif` | 4 usages | Conditional: `not FAKEREDIS_AVAILABLE`, `not MOTO_AVAILABLE`, `not _HAS_HYPOTHESIS` |
+| `@pytest.mark.benchmark` | 3 usages | Performance benchmarks |
 
 ### Mocking Conventions
 
-- `AsyncMock` (3,168 occurrences) — used for async methods/coroutines
-- `MagicMock` (4,524 occurrences) — used for sync objects, clients, services
-- `patch` imported and used in 96+ test files
-- Common import: `from unittest.mock import AsyncMock, MagicMock, patch`
+- **`AsyncMock`** (stdlib `unittest.mock`): used for all async method mocking
+- **`MagicMock`**: used for sync objects (services, clients, config)
+- **`patch`** (`unittest.mock.patch`): used via context manager and decorator in 96+ files
+- **`respx`**: httpx mocking; used in 16 files for HTTP call interception
+- **`fakeredis`**: Redis mocking; conditionally available (`skipif not FAKEREDIS_AVAILABLE`)
+- **`moto`**: AWS/S3 mocking; conditionally available (`skipif not MOTO_AVAILABLE`)
+- SDK testing mocks: `autom8y_log.testing.MockLogger`, `autom8y_cache.testing.MockCacheProvider` — SDK-provided test doubles that capture structured log entries and cache operations
 
 ### Fixture Infrastructure
 
-- **678 `@pytest.fixture` decorators** across the test suite
-- **14 `conftest.py` files** at various scopes
+- 205 files declare `@pytest.fixture`; 15 `conftest.py` files across the tree
+- Fixture scopes: `function` (default, most common), `session` (`_bootstrap_session`), `module` (API conftest `app` fixture)
 
-**Root-level fixtures** in `tests/conftest.py`:
+**Root conftest** (`/Users/tomtenuta/Code/a8/repos/autom8y-asana/tests/conftest.py`) provides:
 
 | Fixture | Scope | Purpose |
 |---|---|---|
-| `mock_http` | function | `MockHTTPClient` with `AsyncMock` for all 8 HTTP methods |
-| `config` | function | Bare `AsanaConfig()` |
+| `mock_http` | function | `MockHTTPClient` with `AsyncMock` for 8 HTTP methods |
+| `config` | function | `AsanaConfig()` |
 | `auth_provider` | function | `MockAuthProvider` returning `"test-token"` |
-| `logger` | function | `MockLogger` from `autom8y-log` SDK |
-| `mock_client_builder` | function | Returns `MockClientBuilder` class (builder pattern for `AsanaClient` mocks) |
-| `_bootstrap_session` | session | Bootstraps `ProjectTypeRegistry` and rebuilds all Pydantic model forward refs once per session |
-| `reset_all_singletons` | function (autouse) | Calls `SystemContext.reset_all()` before and after every test; ensures complete test isolation |
+| `logger` | function | `MockLogger` from `autom8y_log.testing` |
+| `_bootstrap_session` | session (autouse) | Bootstraps `ProjectTypeRegistry` + rebuilds all Pydantic model `NameGid` forward refs once per session |
+| `reset_all_singletons` | function (autouse) | `SystemContext.reset_all()` before and after every test — complete singleton/registry isolation |
 
-**API conftest** (`tests/unit/api/conftest.py`): Module-scoped `app` fixture creates `TestAPI` instance with mocked lifespan.
+**Environment setup**: Root conftest force-sets `AUTOM8Y_ENV=test` before model imports (relaxes GID pattern validation) and `AUTH__JWKS_URL=http://localhost:8000/...` (bypasses production URL guard). Also patches `schemathesis.pytest.xdist.XdistReportingPlugin.pytest_testnodedown` to handle missing `workeroutput` on crashed xdist workers.
 
-### Test Organization Patterns
+**Sub-package conftests** provide domain-specific fixtures:
+- `tests/unit/api/conftest.py`: module-scoped `app` fixture with mocked lifespan, `EntityProjectRegistry.reset()`
+- `tests/unit/clients/conftest.py`: `MockCacheProvider` extending SDK's `MockCacheProvider`, client instances
+- `tests/unit/cache/conftest.py`, `tests/unit/dataframes/conftest.py`, etc.: per-domain setup
 
-1. **Mirror structure**: `tests/unit/{package}/` mirrors `src/autom8_asana/{package}/`
-2. **Adversarial tests**: Dedicated files named `test_{module}_adversarial.py` — failure cases, edge conditions
-3. **Contract tests**: Files named `test_{feature}_contract.py` — behavioral guarantees
-4. **Span tests**: Files named `test_{feature}_spans.py` — OpenTelemetry instrumentation
-5. **Validation suite** (`tests/validation/`): Separate persistence-specific validation (concurrency, functional, error handling, performance)
+### Shared Mock Objects
 
-### Test Isolation
+- `/Users/tomtenuta/Code/a8/repos/autom8y-asana/tests/_shared/mocks.py`: `MockTask` — plain-object mock of an Asana task with date/completion fields; used by automation/polling tests
 
-- `SystemContext.reset_all()` called via `autouse=True` `reset_all_singletons` fixture — resets all singletons, registries, caches between every test
-- `EntityProjectRegistry.reset()` called per-test in API conftest
-- Import-time singletons have explicit clear functions: `clear_bot_pat_cache()`, `reset_auth_client()`
+### Test Isolation Pattern
 
----
+- `SystemContext.reset_all()` via `autouse=True` `reset_all_singletons` — resets all registries, caches, singletons between every test
+- Per-test singleton resets for `EntityProjectRegistry`, auth clients, bot PAT cache
+- Environment variables controlled via `os.environ` in conftest (session-scoped)
+
+### Special Test Types
+
+- **Adversarial tests**: `test_*_adversarial.py` — failure cases, race conditions (e.g., `test_action_batch_adversarial.py`, `test_reorder_adversarial.py`)
+- **Contract tests**: `test_*_contract.py` — behavioral guarantees (e.g., `test_idempotency_contracts.py`, `test_reconciliation_contract.py`)
+- **Span tests**: `test_*_spans.py` — OpenTelemetry instrumentation assertions (e.g., `test_universal_strategy_spans.py`, `test_resolver_spans.py`)
+- **OpenAPI fuzz**: `tests/test_openapi_fuzz.py` — schemathesis/hypothesis-based OpenAPI fuzzing (marked `fuzz`, excluded from sharded CI runs)
+
+### No File-Based Test Data
+
+No `fixtures/`, `testdata/`, `data/` directories exist in `tests/`. All test data constructed inline via `MockTask`, fixture functions, and builder patterns. No golden files or YAML/JSON fixture files.
 
 ## Test Structure Summary
 
@@ -152,93 +170,97 @@ The test suite spans 480 test files in `tests/`, covering 22 of 26 source packag
 
 ```
 tests/
-  conftest.py                    # Root fixtures
+  conftest.py                    # Root fixtures, env setup, schemathesis patch
   _shared/
-    mocks.py                     # MockTask (used by automation/polling tests)
-  unit/                          # 439 test files, ~11,634 test functions
-    api/                         # 55 files: routes, middleware, preload, health
+    mocks.py                     # MockTask (used by automation/polling)
+  unit/                          # 444 test_*.py files
+    api/                         # 60 files: routes, middleware, preload, health, client pool
     auth/                        # 6 files: bot_pat, audit, jwt, dual_mode
-    automation/                  # 43 files: events, polling, workflows, engine
-    cache/                       # 56 files: backends, dataframe, policies
-    clients/                     # 36 files: data client, name_resolver
+    automation/                  # 47 files: events, polling, workflows, engine, templates
+    cache/                       # 56 files: backends, dataframe, policies, circuit breaker
+    clients/                     # 36 files: data client, name resolver, task/section/user
     core/                        # 10 files: registry, concurrency, retry
-    dataframes/                  # 49 files: builders, views, schemas
+    dataframes/                  # 49 files: builders, views, schemas, extractors
     detection/                   # 1 file
-    lambda_handlers/             # 16 files: warmer, checkpoint, workflow
-    lifecycle/                   # 15 files: engine, creation, completion
-    metrics/                     # 10 files: compute, registry, definitions
-    models/                      # 40 files: business models, matching
+    lambda_handlers/             # 16 files: warmer, checkpoint, workflow, reconciliation
+    lifecycle/                   # 15 files: engine, creation, completion, webhook
+    metrics/                     # 10 files: compute, registry, definitions, expr
+    models/                      # 40 files: business models, matching, contracts
     patterns/                    # 2 files: async_method, error_classification
-    persistence/                 # 28 files: session, cascade, executor
-    query/                       # 21 files: engine, compiler, hierarchy
-    reconciliation/              # 4 files: contract, executor, processor
-    resolution/                  # 7 files: strategies, field_resolver
-    search/                      # 3 files: models, service
-    services/                    # 22 files: universal_strategy, section_service
-    transport/                   # 7 files: asana_http, aimd
-  integration/                   # 31 test files, ~568 test functions
+    persistence/                 # 34 files: session, cascade, executor, graph, healing
+    query/                       # 21 files: engine, compiler, hierarchy, join
+    reconciliation/              # 5 files: contract, executor, processor
+    resolution/                  # 7 files: strategies, field_resolver, budget
+    search/                      # 3 files: models, service, client integration
+    services/                    # 22 files: universal_strategy, section, gid, entity
+    transport/                   # 7 files: asana_http, aimd, config_translator
+  integration/                   # 33 test_*.py files (not all marked @pytest.mark.integration)
+    api/                         # 2 files: envelope convergence, preload manifest
+    automation/polling/          # 3 files (marked @pytest.mark.integration)
+    automation/workflows/        # 1 file: conversation audit e2e
+    events/                      # 1 file: SQS integration
+    persistence/                 # 1 file: action batch integration
+    (root)                       # 25 files: cache, detection, entity resolver, hydration, etc.
   validation/
-    persistence/                 # 5 files: concurrency, functional, error
-  synthetic/
-    test_synthetic_coverage.py
-  benchmarks/                    # 3 files
+    persistence/                 # 5 files: concurrency, functional, error handling, performance
+  synthetic/                     # 1 file: test_synthetic_coverage.py
+  benchmarks/                    # 3 files: batch, cache, insights
 ```
 
-### Hotspot Files (High-Change Frequency)
+### Test Distribution
 
-| File | Test Count | Notes |
+| Suite | test_*.py Files | Total .py Files |
 |---|---|---|
-| `tests/unit/dataframes/builders/test_cascade_validator.py` | 33 | Cascade field validation |
-| `tests/unit/dataframes/views/test_cascade_view.py` | 31 | View layer over cascaded fields |
-| `tests/unit/services/test_universal_strategy.py` | 41 | Core universal field resolution |
-| `tests/unit/services/test_universal_strategy_status.py` | 26 | Status-specific resolution |
-| `tests/unit/services/test_universal_strategy_null_slot.py` | 3 | Null slot edge cases |
-| `tests/unit/services/test_universal_strategy_spans.py` | 5 | OTel span assertions |
-| `tests/unit/api/routes/test_resolver_status.py` | 8 | Resolver HTTP status contract |
-| `tests/unit/api/routes/test_resolver_models.py` | 36 | Resolver models |
+| unit/ | 444 | ~510 |
+| integration/ | 33 | ~42 |
+| validation/ | 5 | ~8 |
+| synthetic/ | 1 | ~3 |
+| benchmarks/ | 3 | ~5 |
+| root level | 3 | ~3 |
+| **Total** | **488** | **555** |
 
-### Test Density by Domain
+Total test functions: ~12,333
 
-| Domain | Test Files | Test Functions | Density |
-|---|---|---|---|
-| cache | 56 | ~1,301 | High |
-| models | 40 | ~1,458 | High |
-| automation | 43 | ~1,108 | High |
-| dataframes | 49 | ~1,171 | High |
-| api | 55 | ~982 | High |
-| persistence | 28 | ~982 | High |
-| query | 21 | ~907 | Medium-high |
-| clients | 36 | ~880 | Medium-high |
-| services | 22 | ~669 | Medium |
-| lifecycle | 15 | ~362 | Medium |
-| core | 10 | ~355 | Medium |
-| lambda_handlers | 16 | ~263 | Medium |
-| auth | 6 | ~89 | Low |
-| reconciliation | 4 | ~87 | Low |
-| patterns | 2 | ~67 | Low |
-| search | 3 | ~51 | Low |
-| detection | 1 | -- | Low |
+### Heavily Tested Areas (High Test Density)
 
-### Fixture Architecture
+1. **cache/** — 56 test files; covers circuit breaker, coalescer, backend drivers, dataframe tiers, progressive/memory tier, schema version validation
+2. **api/** — 60 test files; broadest single package; routes, middleware, preload, health, fleet query adapter
+3. **dataframes/** — 49 test files; cascade validator (hotspot: 6 sessions of changes), cascade view (4 sessions), builders, schemas
+4. **automation/** — 47 test files; events pipeline, polling engine, workflow handlers, seeding
+5. **services/** — 22 files but high complexity; `test_universal_strategy*.py` (8 sessions of changes; ~75 test functions across 4 split files) is the highest-churn hotspot
 
-The fixture hierarchy flows:
-1. `tests/conftest.py` — session bootstrap + per-test singleton reset (autouse)
-2. Sub-package `conftest.py` — domain-specific fixtures
-3. Inline fixtures — per-file helper fixtures
+### High-Churn Hotspot Files
 
-`MockClientBuilder` implements builder pattern allowing explicit opt-in of mock capabilities before `build()`.
+| File | History | Notes |
+|---|---|---|
+| `tests/unit/services/test_universal_strategy*.py` (4 files) | 8 sessions of changes | Core field resolution strategy; split across 4 files by concern |
+| `tests/unit/dataframes/builders/test_cascade_validator.py` | 6 sessions | Cascade field validation with schema-driven correction |
+| `tests/unit/dataframes/views/test_cascade_view.py` | 4 sessions | View layer over cascaded fields |
+| `tests/unit/api/routes/test_resolver_status.py` | 3 sessions | HTTP status contract for resolver route |
 
-### No Test Data Directories
+### Test Package Style
 
-No `fixtures/`, `data/`, or `testdata/` directories in `tests/`. All test data constructed inline via factories and `MockClientBuilder`.
+All tests in a separate `tests/` tree (not co-located with source). Tests import source via `from autom8_asana...` (469 of 555 files). External test package style — no `autom8_asana_test` or `test_autom8_asana` package; tests do not use relative imports from source packages.
 
----
+### Integration vs Unit Distinction
+
+- **Unit tests** (`tests/unit/`): Mock all external dependencies; use `AsyncMock`, `MagicMock`, SDK testing doubles; `SystemContext.reset_all()` enforces isolation
+- **Integration-style tests** (`tests/integration/`): Wire real components together with mocked I/O; most do not require live Asana API
+- **Live-API integration** (`@pytest.mark.integration`): Only 6 files explicitly marked; automation/polling integration tests and lifecycle/batch smoke tests
+- **Validation tests** (`tests/validation/persistence/`): Persistence-specific behavioral contracts (concurrency, ordering, error handling, performance)
+- **Synthetic** (`tests/synthetic/`): Coverage synthesis tests — purpose is coverage gap detection
+- **Benchmarks** (`tests/benchmarks/`): Performance benchmarks marked `@pytest.mark.benchmark`
+
+### No TestMain Pattern
+
+No `conftest.py` uses a `TestMain` equivalent. Bootstrap handled via `_bootstrap_session` (session-scoped autouse fixture) running once per pytest session.
 
 ## Knowledge Gaps
 
-1. **Actual coverage percentage** — `fail_under = 80` configured but no coverage report was run during this audit.
-2. **Whether lifecycle `test_loop_detector.py` is missing intentionally** — may be infrastructure code not intended for direct testing.
-3. **Validation suite scope** — `tests/validation/persistence/` relationship to main test suite (CI inclusion) not visible from static analysis.
-4. **Synthetic test purpose** — `tests/synthetic/test_synthetic_coverage.py` purpose unclear without reading contents.
-5. **`pytest.mark.asyncio` cleanup status** — 2,584 uses despite `asyncio_mode = "auto"` making them redundant.
-6. **Integration test live-API dependency** — Which integration tests require a live Asana API token is unclear; `@pytest.mark.integration` marker appears inconsistently.
+1. **Actual runtime coverage percentage** — `fail_under = 80` is configured and CI enforces it, but no coverage report was run during this audit. Branch coverage percentage by package unknown.
+2. **`tests/synthetic/test_synthetic_coverage.py` purpose** — filename suggests synthetic coverage tracking but contents not read.
+3. **CI sharding behavior** — `pytest-split` and `pytest-xdist` both present; shard-per-worker CI run behavior (coverage fragment merging) not verified.
+4. **`tests/validation/persistence/` CI inclusion** — whether validation tests run in the same CI job as unit tests not visible from static analysis.
+5. **Whether `@pytest.mark.integration` gating is enforced in CI** — marker defined but CI configuration file not examined.
+6. **Missing `test_loop_detector.py` and `test_observation_store.py`** — may be intentional (infrastructure code not requiring direct unit test) or genuine gap.
+7. **`services/intake_*_service.py` service-layer isolation** — intake services tested through route tests but direct service error path coverage unknown.

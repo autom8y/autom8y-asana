@@ -172,7 +172,7 @@ class TestCacheLoggingPiiRedaction:
             "insights:account:pv1:+17705753103:chiropractic",
             response,
             ttl=300,
-            log=mock_log,
+            logger=mock_log,
         )
 
         # Verify log message does not contain raw phone

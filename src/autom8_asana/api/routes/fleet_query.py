@@ -54,10 +54,8 @@ from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.client import AsanaClient
 from autom8_asana.services.errors import ServiceError
-from autom8_asana.services.query_service import (
-    CacheNotWarmError,
-    EntityQueryService,
-)
+from autom8_asana.services.errors import CacheNotWarmError
+from autom8_asana.services.query_service import EntityQueryService
 
 __all__ = [
     "FleetQueryEnvelope",
