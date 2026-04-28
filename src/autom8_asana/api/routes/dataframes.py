@@ -98,7 +98,7 @@ MIME_CSV = "text/csv"
 MIME_PARQUET = "application/vnd.apache.parquet"
 
 # Sprint 3 ESC-3 (TDD §15.3): observability logger for export size measurement.
-_export_format_logger = get_logger("autom8y_asana.exports.format")
+_export_format_logger = get_logger(f"{__name__}.exports.format")
 
 
 def _should_use_polars_format(accept: str | None) -> bool:
