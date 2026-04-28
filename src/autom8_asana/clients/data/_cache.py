@@ -47,7 +47,7 @@ def cache_response(
     cache_key: str,
     response: InsightsResponse,
     ttl: int,
-    log: LogProvider | Any | None,
+    logger: LogProvider | Any | None,
 ) -> None:
     """Cache successful insights response.
 
@@ -59,7 +59,7 @@ def cache_response(
         cache_key: Pre-built cache key.
         response: Successful InsightsResponse to cache.
         ttl: Cache TTL in seconds.
-        log: Logger instance for structured logging.
+        logger: Logger instance for structured logging.
     """
     if cache is None:
         return
@@ -77,8 +77,8 @@ def cache_response(
         # Use simple set method for cache storage
         cache.set(cache_key, cached_data, ttl=ttl)
 
-        if log:
-            log.debug(
+        if logger:
+            logger.debug(
                 f"DataServiceClient: Cached response for {_mask_pii_in_string(cache_key)}",
                 extra={"cache_key": _mask_pii_in_string(cache_key), "ttl": ttl},
             )
@@ -91,8 +91,8 @@ def cache_response(
         CacheError,
     ) as e:
         # Graceful degradation: cache failures don't break requests
-        if log:
-            log.warning(
+        if logger:
+            logger.warning(
                 f"DataServiceClient: Failed to cache response: {e}",
                 extra={"cache_key": _mask_pii_in_string(cache_key)},
             )
@@ -102,7 +102,7 @@ def get_stale_response(
     cache: CacheProvider | None,
     cache_key: str,
     request_id: str,
-    log: LogProvider | Any | None,
+    logger: LogProvider | Any | None,
 ) -> InsightsResponse | None:
     """Retrieve stale response from cache for fallback.
 
@@ -113,7 +113,7 @@ def get_stale_response(
         cache: Cache provider instance (None = caching disabled).
         cache_key: Pre-built cache key.
         request_id: Request ID for the response.
-        log: Logger instance for structured logging.
+        logger: Logger instance for structured logging.
 
     Returns:
         InsightsResponse with is_stale=True if found, None otherwise.
@@ -164,8 +164,8 @@ def get_stale_response(
             + ["Response served from stale cache due to service unavailability"],
         )
 
-        if log:
-            log.info(
+        if logger:
+            logger.info(
                 f"DataServiceClient: Returning stale cache fallback for {_mask_pii_in_string(cache_key)}",
                 extra={
                     "cache_key": _mask_pii_in_string(cache_key),
@@ -186,8 +186,8 @@ def get_stale_response(
         CacheError,
     ) as e:
         # Graceful degradation: cache read failures return None
-        if log:
-            log.warning(
+        if logger:
+            logger.warning(
                 f"DataServiceClient: Failed to retrieve stale response: {e}",
                 extra={"cache_key": _mask_pii_in_string(cache_key)},
             )

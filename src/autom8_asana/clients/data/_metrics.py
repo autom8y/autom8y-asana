@@ -26,7 +26,7 @@ def emit_metric(
     name: str,
     value: float,
     tags: dict[str, str],
-    log: LogProvider | Any | None,
+    logger: LogProvider | Any | None,
 ) -> None:
     """Emit a metric via the configured metrics hook.
 
@@ -38,7 +38,7 @@ def emit_metric(
         name: Metric name (e.g., "insights_request_total").
         value: Metric value (count=1 for counters, duration for histograms).
         tags: Metric tags/labels for dimensionality.
-        log: Logger instance for structured logging.
+        logger: Logger instance for structured logging.
     """
     if hook is None:
         return
@@ -47,8 +47,8 @@ def emit_metric(
         hook(name, value, tags)
     except (TypeError, ValueError, RuntimeError, OSError) as e:
         # Graceful degradation: metrics failures don't break requests
-        if log:
-            log.warning(
+        if logger:
+            logger.warning(
                 f"DataServiceClient: Failed to emit metric {name}: {e}",
                 extra={"metric_name": name, "tags": tags},
             )
