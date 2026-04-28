@@ -10,10 +10,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from autom8y_log import get_logger
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from autom8_asana.models.task import Task
+
+_logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -308,9 +312,7 @@ def _build_cascading_field_registry() -> dict[str, CascadingFieldEntry]:
             continue
         cascading = getattr(model_class, "CascadingFields", None)
         if cascading is None:
-            import logging
-
-            logging.getLogger(__name__).warning(
+            _logger.warning(
                 f"cascading_provider_missing_inner_class: entity={desc.name} model={desc.model_class_path}"
             )
             continue

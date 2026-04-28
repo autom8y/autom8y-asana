@@ -7,15 +7,15 @@ Use the available agents and slash commands. Delegate complex work to specialist
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-5-agent workflow (hygiene):
+5-agent workflow (sre):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates code hygiene initiative phases |
-| **code-smeller** | Detects code smells and quality issues across codebase |
-| **architect-enforcer** | Plans refactoring approach and enforces architecture standards |
-| **janitor** | Executes code cleanup and improvements |
-| **audit-lead** | Audits cleanup results and provides quality signoff |
+| **potnia** | Coordinates reliability engineering initiative phases |
+| **observability-engineer** | Designs observability strategy and establishes SLO/SLI baselines |
+| **incident-commander** | Coordinates reliability plans and creates incident runbooks |
+| **platform-engineer** | Implements infrastructure changes and reliability improvements |
+| **chaos-engineer** | Designs and executes chaos experiments to verify resilience |
 
 Delegate to specialists via Task tool.
 <!-- KNOSSOS:END quick-start -->
@@ -43,11 +43,11 @@ Agents cannot spawn other agents — only the main thread has Task tool access.
 
 Prompts in `.claude/agents/`:
 
-- `potnia.md` - Coordinates code hygiene initiative phases
-- `code-smeller.md` - Detects code smells and quality issues across codebase
-- `architect-enforcer.md` - Plans refactoring approach and enforces architecture standards
-- `janitor.md` - Executes code cleanup and improvements
-- `audit-lead.md` - Audits cleanup results and provides quality signoff
+- `potnia.md` - Coordinates reliability engineering initiative phases
+- `observability-engineer.md` - Designs observability strategy and establishes SLO/SLI baselines
+- `incident-commander.md` - Coordinates reliability plans and creates incident runbooks
+- `platform-engineer.md` - Implements infrastructure changes and reliability improvements
+- `chaos-engineer.md` - Designs and executes chaos experiments to verify resilience
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:
@@ -55,6 +55,7 @@ Operational agents available on demand. Their commands handle the lifecycle:
 - **theoros** - Domain auditor -> `/know`
 - **dionysus** - Knowledge synthesizer -> `/land`
 - **naxos** - Session hygiene -> `/naxos`
+- **charon** - Thresholdspace attestation agent -> `/charon`
 
 Summon: `ari agent summon {name}` then restart CC.
 Dismiss: `ari agent dismiss {name}` then restart CC.

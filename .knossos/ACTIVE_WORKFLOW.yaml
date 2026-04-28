@@ -1,78 +1,82 @@
-name: hygiene
+name: sre
 workflow_type: sequential
-description: Code quality lifecycle (Smell → Plan → Clean → Audit)
+description: Reliability lifecycle (Observe → Coordinate → Build → Verify)
 
 # entry_point: The first specialist in the domain workflow (not the CC routing agent).
 # The CC routing agent is manifest.yaml:entry_agent (always potnia for orchestrated rites).
 entry_point:
-  agent: code-smeller
+  agent: observability-engineer
   artifact:
-    type: smell-report
-    path_template: .ledge/reviews/SMELL-{slug}.md
+    type: observability-report
+    path_template: .ledge/reviews/OBS-{slug}.md
 
 phases:
-  - name: assessment
-    agent: code-smeller
-    produces: smell-report
-    next: planning
+  - name: observation
+    agent: observability-engineer
+    produces: observability-report
+    next: coordination
 
-  - name: planning
-    agent: architect-enforcer
-    produces: refactor-plan
-    next: execution
+  - name: coordination
+    agent: incident-commander
+    produces: reliability-plan
+    next: implementation
+    condition: "complexity >= SERVICE"
 
-  - name: execution
-    agent: janitor
-    produces: commits
-    next: audit
+  - name: implementation
+    agent: platform-engineer
+    produces: infrastructure-changes
+    next: resilience
 
-  - name: audit
-    agent: audit-lead
-    produces: audit-signoff
+  - name: resilience
+    agent: chaos-engineer
+    produces: resilience-report
     next: null
 
 complexity_levels:
-  - name: SPOT
-    scope: "Single smell fix"
-    phases: [execution, audit]
-  - name: MODULE
-    scope: "Module-level cleanup"
-    phases: [assessment, planning, execution, audit]
-  - name: CODEBASE
-    scope: "Full codebase hygiene"
-    phases: [assessment, planning, execution, audit]
+  - name: ALERT
+    scope: "Single alert/dashboard fix"
+    phases: [implementation, resilience]
+  - name: SERVICE
+    scope: "Single service reliability"
+    phases: [observation, coordination, implementation, resilience]
+  - name: SYSTEM
+    scope: "Multi-service SLOs/SLIs"
+    phases: [observation, coordination, implementation, resilience]
+  - name: PLATFORM
+    scope: "Full platform reliability"
+    phases: [observation, coordination, implementation, resilience]
 
 # Agent roles for command mapping:
-# /architect  → architect-enforcer
-# /build      → janitor
-# /qa         → audit-lead
-# /hotfix     → janitor (fast path)
-# /code-review → audit-lead (review mode)
+# /architect  → platform-engineer
+# /build      → platform-engineer
+# /qa         → chaos-engineer
+# /hotfix     → incident-commander (fast path)
+# /code-review → chaos-engineer (review mode)
 
 back_routes:
-  - source_phase: audit
+  - source_phase: resilience
     trigger: "fail(acceptance_criteria)"
-    target_phase: assessment
-    target_agent: code-smeller
+    target_phase: observation
+    target_agent: observability-engineer
     requires_user_confirmation: true
     condition: "Failure is requirement gap, not implementation bug"
     max_iterations: 2
-    escalation_on_limit: "Escalate to user: 2 acceptance criteria failure cycles have not resolved the gap. Hygiene scope may need redefinition or deprioritization of contested smells."
+    escalation_on_limit: "Escalate to user: 2 acceptance criteria failure cycles have not resolved the gap. Observability requirements may need SLO redefinition or monitoring strategy change."
 
-  - source_phase: audit
+  - source_phase: resilience
     trigger: "fail(implementation)"
-    target_phase: execution
-    target_agent: janitor
+    target_phase: implementation
+    target_agent: platform-engineer
     requires_user_confirmation: false
     condition: "Failure is implementation bug"
     max_iterations: 2
-    escalation_on_limit: "Escalate to user: 2 implementation failure cycles have not resolved the bug. Refactoring may require manual intervention or phased approach."
+    escalation_on_limit: "Escalate to user: 2 implementation failure cycles have not resolved the bug. Infrastructure change may need manual rollback or vendor support."
 
-  - source_phase: execution
+  - source_phase: implementation
     trigger: "design_conflict"
-    target_phase: planning
-    target_agent: architect-enforcer
+    target_phase: coordination
+    target_agent: incident-commander
     requires_user_confirmation: false
     condition: "Implementation reveals design flaw"
     max_iterations: 3
-    escalation_on_limit: "Escalate to user: 3 design conflict cycles have not resolved the flaw. Refactor plan may need architectural review or scope reduction."
+    escalation_on_limit: "Escalate to user: 3 design conflict cycles have not resolved the flaw. Reliability plan may need architectural review or SLO renegotiation."

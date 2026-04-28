@@ -40,6 +40,17 @@ This command runs in the main thread. Main-thread execution is required because 
    - If it does not exist: note "no active session."
    - Do NOT call `ari` commands or run shell introspection to discover session state.
 
+## Repo-Identity Detection (ADR-pythia-shape-contract Appendix B — Option D baseline)
+
+Before dispatching, detect the cwd-repo and check against the active session's repo:
+
+1. Execute `git rev-parse --show-toplevel` via Bash to get the current cwd's repo root (`artifact_repo`).
+2. If SESSION_CONTEXT.md was found in step 5: check whether it contains a `session_repo` field; use that value as `session_repo`. If the field is absent, treat `artifact_repo` as `session_repo`.
+3. If cwd-repo ≠ session-repo: emit WARN "Repo-identity mismatch: session bound to {session_repo}, artifact authoring in {artifact_repo}. Artifact will be stamped with both; verify intentional."
+4. Pass both `session_repo` and `artifact_repo` (both as absolute paths) into the Pythia dispatch prompt below.
+
+Both values are required in the artifact's YAML frontmatter regardless of whether they match. When paths are identical this is informational (routine case); when different the stamp surfaces the mismatch for downstream consumers (Dionysus, etc.).
+
 ## Pythia Dispatch
 
 Construct the Task prompt and dispatch Pythia. The prompt encodes the hard-won patterns for shape production so the user does not need to specify them.
@@ -95,9 +106,15 @@ Skill('shape-schema')
 
 ### Output
 
-Write the shape file to: .sos/wip/frames/{slug}.shape.md
+<!-- BREAKING (ADR-AMEND-1 2026-04-18): Authoring-channel directive changed from
+literal "Write the shape file to:" imperative (which violates Pythia's tool
+frontmatter — no Write tool) to progressive-write-heredoc pattern invocation.
+Cross-reference: .ledge/decisions/ADR-pythia-shape-contract.md DR-2 AMENDED +
+rites/shared/mena/progressive-write-heredoc/INDEX.lego.md. -->
 
-Include YAML frontmatter per the shape-schema specification:
+Author the shape file at `.sos/wip/frames/{slug}.shape.md` via the progressive-write-heredoc pattern. Load `Skill('progressive-write-heredoc')` for the canonical protocol (Section 4 scaffold-first; Section 5 interpolation mode selection; Section 11.1 canonical shape.md example).
+
+Phase 1: scaffold the file with YAML frontmatter + section skeletons per shape-schema. Use a single Bash heredoc (`cat > "$OUTPUT_PATH" <<'EOF_SCAFFOLD_...'`) to commit the full structure with `<!-- pending: {section-id} -->` placeholders. Frontmatter must include:
 - type: shape
 - initiative: {slug}
 - frame: {path to frame or null}
@@ -106,19 +123,64 @@ Include YAML frontmatter per the shape-schema specification:
 - complexity: {MODULE or INITIATIVE}
 - scope: rites list and sprint count
 - cross_rite_consultations: from/to/artifact (if multi-rite)
+- session_repo: {session_repo absolute path detected at dispatch time}
+- artifact_repo: {artifact_repo absolute path detected at dispatch time}
 
-All structured data in YAML code blocks. Machine-parseable sprint definitions. Numbered PT-NN checkpoints. The shape is a Potnia-first document.
+Phase 2: interpolate content section-by-section (Mode A re-heredoc recommended for shape files). All structured data in YAML code blocks. Machine-parseable sprint definitions. Numbered PT-NN checkpoints. The shape is a Potnia-first document.
+
+Phase 3: verify `grep -c '<!-- pending:' .sos/wip/frames/{slug}.shape.md` returns zero before reporting completion. Return the absolute output path only.
 ")
+```
+
+## SVR Pre-Authoring Probe
+
+After Pythia writes the shape artifact and before surfacing results to the user, execute the following refusal-generating gate:
+
+```
+REFUSAL CLAUSE shape-svr-probe:
+
+  IF /shape produces a shape artifact at .sos/wip/frames/{slug}.shape.md AND
+     the artifact body contains one or more sentences matching the
+     platform-behavior claim shape (legomenon §1 trigger table rows 1-4:
+     platform-behavior assertion / library-version-semantic /
+     infrastructure-topology fact / historical-codebase fact)
+  THEN
+    REQUIRE: each such sentence is co-emitted with EITHER
+      (a) a structural-verification-receipt YAML block per schema-freeze §1
+          three-field tuple satisfying §7 mechanical predicates
+          (length 6-15 words, literal substring, orthogonality < 50%), OR
+      (b) a UV-P label matching regex
+            \[UV-P:\s*[^|]+\|\s*METHOD:\s*[^|]+\|\s*REASON:\s*[^\]]+\]
+          (verbatim from schema-freeze §3)
+
+    FOR EACH platform-behavior sentence WITHOUT receipt-or-UV-P co-emission:
+      EMIT: "SHAPE-SVR-REFUSED: platform-behavior claim at line {N}
+      ('{matched_sentence}') lacks structural-verification-receipt OR
+      UV-P label. Per project-receipts-svr-framework-elevation throughline,
+      direct-inspection-at-claim-assertion-time is a structural invariant,
+      not a heroic practice. Re-author claim with co-emitted SVR tuple
+      (schema-freeze §1) OR UV-P label (schema-freeze §3) before re-invoking
+      /shape."
+      HALT framing.
+      SURFACE refusal to /go dashboard SVR-gap signal.
+
+  The refusal clause is consumed by the dromenon body at /shape exit and by
+  eunomia ADVISORY at close (Sprint-4 gate spec). The dispatching rite's
+  Potnia MUST NOT author the missing receipt on the user's behalf --
+  user-sovereign claim-and-receipt co-emission is the load-bearing semantic
+  (mirrors telos-integrity-ref Gate A user-sovereign declaration binding).
 ```
 
 ## Report
 
 After Pythia returns:
 
-1. Confirm the artifact was written:
+1. Verify the artifact exists and is complete:
    ```
    Read(".sos/wip/frames/{slug}.shape.md", limit=20)
+   Bash("grep -c '<!-- pending:' .sos/wip/frames/{slug}.shape.md")
    ```
+   The `grep -c` result must be `0`. A non-zero result means Pythia left unfilled placeholders; inspect the file and determine which sections are incomplete.
 
 2. Display to the user:
    ```
@@ -134,7 +196,7 @@ After Pythia returns:
    Read the full shape: .sos/wip/frames/{slug}.shape.md
    ```
 
-If the file was not written (Pythia did not produce output at the expected path), WARN: "Pythia did not write the expected shape file. Check the Pythia output above for the shape content."
+If the file does not exist after Pythia returns, WARN: "Pythia did not author the expected shape file via progressive-write-heredoc. Check the Pythia output above. If Pythia returned content inline, persist it via Write to `.sos/wip/frames/{slug}.shape.md`."
 
 ## Error Handling
 
@@ -144,7 +206,7 @@ If the file was not written (Pythia did not produce output at the expected path)
 | SESSION_CONTEXT.md unreadable | Proceed without session context, note omission |
 | Frame file not found | Proceed without frame, note "no frame" in dispatch |
 | Pythia Task dispatch fails | ERROR "Shape production failed: {reason}" |
-| Output file not found after Pythia returns | WARN with path; display Pythia output directly |
+| Output file not found after Pythia returns | WARN per Report section; offer to persist inline content via Write if Pythia returned content in response |
 | `ari ask` unavailable in Pythia context | Pythia falls back to `rite-discovery` skill and manual rite inspection |
 
 ## Anti-Patterns

@@ -1,7 +1,7 @@
 ---
 name: know
 description: "Generate persistent codebase knowledge via theoros observation. Produces .know/{domain}.md and .know/feat/{slug}.md with schema-validated frontmatter and structured knowledge sections."
-argument-hint: "[domain|--all|--scope=feature] [--force] [--expires=DURATION] [--census] [--feature=SLUG] [--root=PATH] [--discover]"
+argument-hint: "[domain|--all|--tier=TIER|--domains=LIST|--scope=feature] [--force] [--expires=DURATION] [--census] [--feature=SLUG] [--root=PATH] [--discover]"
 allowed-tools: Bash, Read, Write, Glob, Grep, Task, Skill
 model: opus
 ---
@@ -49,7 +49,9 @@ Check if theoros is currently available:
 
 1. **Parse arguments**:
    - `domain`: Optional. Default: `"architecture"`. Must be a registered pinakes domain with `codebase` scope.
-   - `--all`: Generate ALL codebase-scoped domains. Overrides `domain` argument. Uses **Argus Pattern** (parallel theoros dispatch).
+   - `--all`: Generate all `scope: codebase` domains with `tier: core` (currently 6). Overrides `domain` argument. Uses **Argus Pattern** (parallel theoros dispatch). Equivalent to `--tier=core`.
+   - `--tier=TIER`: Generate all `scope: codebase` domains with the specified tier. Valid values: `core`, `governance`, `on-demand`. Conflicts with positional domain and `--domains`.
+   - `--domains=LIST`: Generate a comma-separated list of explicit domain slugs. Each slug must be registered with `scope: codebase`. Conflicts with positional domain, `--all`, and `--tier`.
    - `--force`: Skip expiry check, regenerate even if current.
    - `--expires=DURATION`: Override default expiry (e.g., `--expires=14d`). Default: `"7d"`.
    - `--discover`: Optional. Run Myron discovery scan as Phase 0 before the theoros pipeline. Glints feed scope selection. See [Phase 0: Discovery](#phase-0-discovery-optional---discover).
@@ -65,9 +67,32 @@ Check if theoros is currently available:
 2. **Load domain registry**:
    - Load pinakes skill: `Skill("pinakes")`
    - Read pinakes INDEX to find the Domain Registry table
-   - If `--all`: collect ALL domains with scope `codebase` from the registry
-   - If single domain: verify requested domain appears in the table with scope `codebase`
-   - If not found: ERROR "Domain '{domain}' not registered in pinakes or not codebase-scoped. Available codebase domains: {list}"
+   - **Flag conflict checks** (apply before collecting domains):
+     - If `--all` AND `--tier` are both present: ERROR "Cannot combine --all with --tier. --all is shorthand for --tier=core."
+     - If `--tier` AND `--domains` are both present: ERROR "Cannot combine --tier with --domains."
+     - If positional domain AND `--tier` are both present: ERROR "Cannot combine positional domain with --tier."
+     - If positional domain AND `--domains` are both present: ERROR "Cannot combine positional domain with --domains."
+     - If `--scope=feature` AND `--tier` are both present: ERROR "Cannot combine --scope=feature with --tier."
+   - **Collect domain set** based on flags:
+     - If `--tier=TIER`: collect all domains with `scope: codebase` AND `tier: TIER` from the registry.
+     - Else if `--domains=LIST`: parse comma-separated slugs; for each slug, verify it appears in the registry with `scope: codebase`. If any slug is not found: ERROR (see error message below). Collect the verified set.
+     - Else if `--all`: collect all domains with `scope: codebase` AND `tier: core` from the registry. (Equivalent to `--tier=core`. NOTE: behavior changed from prior versions — was all 11 codebase domains, now fires the 6 core-tier domains only.)
+     - Else if single domain: verify requested domain appears in the table with `scope: codebase` (tier is NOT checked — any tier is callable via positional slug).
+   - If not found (any path above): ERROR with available codebase domains grouped by tier:
+     ```
+     Domain '{domain}' not registered in pinakes or not codebase-scoped.
+
+     Available codebase domains by tier:
+
+     CORE (default for --all):
+       architecture, api, conventions, design-constraints, scar-tissue, test-coverage
+
+     GOVERNANCE (fire with --tier=governance):
+       testing-quality, ADR-freshness, scar-catalog-coverage, shelf-coverage
+
+     ON-DEMAND (fire by name):
+       persona-coverage
+     ```
    - **Scan for satellite-authored criteria**: Check if `{knowDir}/criteria/` exists and contains any `*.md` files (where `{knowDir}` is `{root}/.know/` when `--root` is set, otherwise `.know/`). If it does, read each file and merge its domain entry into the registry alongside the pinakes domains. Each criteria file follows the same format as pinakes domain files. If `{knowDir}/criteria/` does not exist, fall back to `.know/criteria/` (project root) when `--root` is set. If neither exists or both are empty, continue normally with only pinakes domains.
 
 2.5. **Discover land files** (mapping-based):
@@ -79,6 +104,8 @@ Check if theoros is currently available:
        "design-constraints": [".sos/land/initiative-history.md"],
        "scar-tissue":        [".sos/land/scar-tissue.md"],
        "test-coverage":      [".sos/land/workflow-patterns.md"],
+       "db":                 [".sos/land/schema-snapshots.md"],
+       "obs":                [".sos/land/observability-posture.md", ".sos/land/credential-topology-snapshots.md"],
      }
      ```
    - For each domain in the generation set (from step 2):
@@ -219,9 +246,9 @@ For EACH domain in the generation queue:
    Read(".claude/skills/pinakes/domains/{domain}.md")
    ```
 
-2. Extract the full criteria content for injection into the theoros dispatch prompt.
+2. Validate that the criteria file loaded successfully and extract scope metadata (target file globs, criterion names). Theoros loads criteria directly at audit time via `Read()` — the orchestrator does not inject criteria into dispatch prompts.
 
-Store all loaded criteria keyed by domain name.
+Store scope metadata keyed by domain name for queue-building and error-checking.
 
 ## Phase 2a: Incremental Theoros Dispatch
 
@@ -245,7 +272,11 @@ For each domain in the incremental queue:
 Task(subagent_type="theoros", prompt="
 ## Incremental Knowledge Update: {domain}
 
-You are UPDATING an existing knowledge reference document, not creating one from scratch. Your goal is to merge new changes into the existing knowledge while preserving its quality and completeness.
+Follow audit-protocol Mode: observation. This is the INCREMENTAL variant — merge into existing .know/{domain}.md.
+
+### Domain Criteria
+
+Read(\".channel/skills/pinakes/domains/{domain}.md\")
 
 ### Current Knowledge State
 
@@ -268,10 +299,6 @@ The existing .know/{domain}.md content (this is what you are updating):
 #### Detailed Diffs
 {per-file unified diffs from git diff}
 
-### Domain Criteria
-
-{full_criteria_file_content}
-
 ### Experiential Knowledge (from .sos/land/)
 
 **If a land file exists for this domain** (from pre-flight step 2.5 `land_files` map), inject:
@@ -284,54 +311,6 @@ against the current codebase. Prefer codebase state for contradictions.
 {land_file_content}
 
 **If no land file exists for this domain**, omit this entire section. Do not inject an empty placeholder.
-
-### Your Task
-
-1. READ the existing knowledge document thoroughly
-2. READ the change diffs to understand what changed
-3. For each section in the knowledge document, determine:
-   - Does this section need updating based on the changes? If no changes affect it, leave it UNCHANGED.
-   - If changes affect it, READ the affected source files for full context (do not rely solely on diff text)
-   - Produce the UPDATED section
-4. Check for entirely NEW topics introduced by the changes that are not covered by existing sections
-5. Check for sections that reference DELETED files/functions/types and correct them
-6. Verify all file paths still exist using Glob/Read
-
-### Output Format
-
-Produce your output in TWO parts:
-
-**Part 1: Knowledge Reference Body**
-
-The COMPLETE updated knowledge document (same format as the original). Preserve all existing sections. Update only what changed. Add new sections where needed.
-
-Start with the same top-level heading as the original document.
-
-**IMPORTANT**: Always use FULL file paths from the project root. Abbreviated paths break automated validation.
-
-**Part 2: Assessment Metadata**
-
-After the knowledge body, on its own line produce a fenced metadata block:
-
-```metadata
-overall_grade: {A-F}
-overall_percentage: {N.N}%
-confidence: {0.0-1.0}
-criteria_grades:
-  {criterion_1_snake_case}: {grade}
-  ...one entry per criterion from the criteria file...
-sections_unchanged: [{list of unchanged section names}]
-sections_updated: [{list of updated section names with brief reason}]
-sections_added: [{list of new section names with brief reason}]
-sections_corrected: [{list of sections with fixed broken refs}]
-```
-
-### Critical Rules
-- DO NOT reduce knowledge quality. The updated document must be at least as comprehensive as the original.
-- DO NOT hallucinate. If unsure whether a change affects a section, READ the source file.
-- DO reference changes by examining the actual current source, not just the diff text.
-- Preserve evidence quality: specific file paths, line numbers, function names.
-- Your confidence should reflect how thoroughly you verified the updates against source.
 ")
 ```
 
@@ -365,22 +344,11 @@ rather than observing them directly.
 Task(subagent_type="theoros", prompt="
 ## Knowledge Observation: {domain}
 
-You are producing a KNOWLEDGE REFERENCE DOCUMENT, not an audit report.
-
-Your domain criteria define WHAT to observe and document in the codebase. Instead of grading compliance against standards, assess the COMPLETENESS of your knowledge capture. The grading rubric measures how thoroughly you documented what exists, not whether what exists meets a standard.
-
-### Reframing Your Audit Protocol
-
-Your audit protocol still applies, but reframed:
-- 'What to evaluate' -> 'What to observe and document'
-- 'Evidence collection' -> 'Where to look and what to record'
-- 'Assign letter grades' -> 'Assess completeness of knowledge capture'
-- Grade A = comprehensive knowledge capture with evidence
-- Grade F = incomplete or inaccurate knowledge capture
+Follow audit-protocol Mode: observation. This is the FULL variant — fresh knowledge reference.
 
 ### Domain Criteria
 
-{full_criteria_file_content}
+Read(\".channel/skills/pinakes/domains/{domain}.md\")
 
 ### Experiential Knowledge (from .sos/land/)
 
@@ -400,49 +368,6 @@ where the source is not directly verifiable from code.
 {land_file_content}
 
 **If no land file exists for this domain**, omit this entire section. Do not inject an empty placeholder.
-
-### Output Format
-
-Produce your output in TWO parts:
-
-**Part 1: Knowledge Reference Body**
-
-Structured markdown with one section per criterion. Each section documents what you observed in the codebase. Use specific file paths, type names, and package references. This becomes the body of the .know/ file.
-
-Start with a top-level heading derived from the domain name:
-# Codebase {Domain Title}
-
-Then one H2 section per criterion from the criteria file, named EXACTLY as the criterion title appears (e.g., if the criterion is "Criterion 1: Package Structure", the section is "## Package Structure"). Follow the criteria order.
-
-End with:
-## Knowledge Gaps
-(List anything you could not fully document and why.)
-
-Be thorough. Include file paths, type names, function signatures, and import relationships. This document will be the primary reference for CC agents working in this codebase.
-
-**IMPORTANT**: Always use FULL file paths from the project root (e.g., `internal/cmd/hook/budget.go`, NOT `cmd/hook/budget.go`). Abbreviated or package-relative paths break automated validation.
-
-**Part 2: Assessment Metadata**
-
-After the knowledge body, on its own line produce a fenced metadata block:
-
-```metadata
-overall_grade: {A-F}
-overall_percentage: {N.N}%
-confidence: {0.0-1.0}
-criteria_grades:
-  {criterion_1_snake_case}: {grade}
-  {criterion_2_snake_case}: {grade}
-  ...one entry per criterion from the criteria file...
-```
-
-The criteria_grades keys should be snake_case versions of the criterion names from the criteria file (e.g., "Package Structure" -> "package_structure", "Error Handling Style" -> "error_handling_style").
-
-The confidence value is your self-assessment of how completely you covered the source scope. 1.0 = every file in scope examined. 0.5 = significant areas unexplored due to scope or turn limits.
-
-### Scope Reminder
-
-Read the **Scope** section in the domain criteria file above. It defines the target files and observation focus. Stay within the defined scope.
 ")
 ```
 
@@ -498,6 +423,21 @@ For EACH domain's theoros output (both incremental and full), perform the follow
    The `land_hash` value comes from the SHA-256 computed during pre-flight step 2.5.
    The `land_sources` list contains the actual file paths from LAND_MAP that existed at generation time (not the domain name). For example, the `architecture` domain would list `.sos/land/initiative-history.md`, not `.sos/land/architecture.md`.
    Combine frontmatter + theoros knowledge body (Part 1 only, not the metadata fence).
+
+2.5. **Amendment-lineage validation** (schema: `mena/pinakes/schemas/amendment-lineage.md`):
+   If the existing `.know/{domain}.md` file (being overwritten) carried an `amendments` field, OR the incoming theoros body re-emits one, validate the amendments array against the schema before writing.
+
+   Staged enforcement posture — **PHASE 1: WARN-ONLY**. This hook logs warnings but does NOT block frontmatter assembly. Existing `.know/` files without `amendments` are unaffected (field is optional). Promotion to HARD-FAIL is deferred until two subsequent amendment authorings across separate domains have passed Phase-1 validation clean; HARD-FAIL promotion MUST be announced via an ADR before this hook is upgraded.
+
+   For each amendment entry, check:
+   - `date` is a string matching `YYYY-MM-DD` (ISO-8601 date) — WARN if malformed
+   - `scope` is a non-empty string — WARN if missing or empty
+   - `by` is a non-empty string (block form only; inline-flow form grandfathered) — WARN if missing on a block-form entry
+   - **PRIMARY INVARIANT**: if `refutes_premise` is a non-empty string, `references` MUST be a non-empty list — WARN if premise refutation claim lacks supporting evidence. This is the core premise-integrity enforcement: refutations without references fail the schema's most important check.
+
+   On any WARN: emit a single diagnostic line to user-visible output: `"[amendment-lineage WARN] {domain}: {finding}. Schema: mena/pinakes/schemas/amendment-lineage.md"`. Continue with frontmatter assembly regardless — do NOT block the Write.
+
+   If the file has no `amendments` field: skip this step entirely (field is optional; absent = valid).
 
 3. **Read before write** (platform constraint):
    If the target file already exists (e.g., `--force` regeneration), you MUST read it before writing. The Write tool will fail otherwise.
@@ -635,9 +575,9 @@ This flow produces per-feature knowledge files in `.know/feat/`. It operates in 
    - If not found: ERROR "Feature domains not registered in pinakes. Run `ari sync` to materialize."
    - Read census criteria: `Read(".claude/skills/pinakes/domains/feature-census.md")`
    - Read feature knowledge criteria: `Read(".claude/skills/pinakes/domains/feature-knowledge.md")`
-   - Store both for injection into theoros dispatch prompts.
-   - Pre-load architecture seed for theoros injection: `Read(".know/architecture.md")`
-   - Store architecture content for injection into theoros dispatch prompts.
+   - Verify both criteria files exist and extract scope metadata for error-checking.
+   - Pre-load architecture seed for validation: `Read(".know/architecture.md")`
+   - Verify architecture seed loaded successfully and extract structural metadata.
 
 6. **Route by argument**:
    - If `--feature={slug}`: Jump directly to [Feature Phase 2: Per-Feature Generation](#feature-phase-2-per-feature-generation) for the single slug.
@@ -667,93 +607,23 @@ Dispatch a single theoros subagent with the census criteria:
 Task(subagent_type="theoros", prompt="
 ## Feature Census Observation
 
-You are producing a FEATURE CENSUS, not an audit report.
-
-Your criteria define HOW to scan the project and enumerate its features. Instead of grading compliance, assess the COMPLETENESS of your enumeration. The grading rubric measures how many identifiable features you captured, not whether those features are well-implemented.
-
-### Reframing Your Audit Protocol
-
-Your audit protocol still applies, but reframed:
-- 'What to evaluate' -> 'What features to discover and enumerate'
-- 'Evidence collection' -> 'Which project sources to scan for feature signals'
-- 'Assign letter grades' -> 'Assess completeness of feature enumeration'
-- Grade A = every identifiable feature cataloged with evidence
-- Grade F = fewer than half of identifiable features documented
+Follow audit-protocol Mode: feature-census.
 
 ### Census Criteria
 
-{full_feature_census_criteria_content}
+Read(\".channel/skills/pinakes/domains/feature-census.md\")
 
-### Pre-loaded Context: Architecture Seed
+### Architecture Seed
 
-The following is the project's architecture knowledge (.know/architecture.md). Use it as your
-structural map to discover where features are implemented. Do NOT re-discover what this file
-already documents -- use it to guide your source scanning.
+Read(\".know/architecture.md\")
 
-{architecture_md_content}
+Use the architecture seed as your structural map to discover where features are implemented. Do NOT re-discover what it already documents -- use it to guide your source scanning.
 
 Additional .know/ files available on demand via Read():
 - .know/scar-tissue.md (past bugs, defensive patterns, failure catalog)
 - .know/conventions.md (error handling, naming, file organization)
 - .know/design-constraints.md (tensions, frozen areas, risk zones)
 - .know/test-coverage.md (test gaps, coverage patterns)
-
-### Output Format
-
-Produce your output in TWO parts:
-
-**Part 1: Feature Census Body**
-
-Start with:
-# Feature Census
-
-Then produce a summary line:
-> {N} features identified across {M} categories. {G} recommended for GENERATE, {S} recommended for SKIP.
-
-Then produce ONE section per feature, ordered by category. Each feature section uses this EXACT format:
-
-## {slug}
-
-| Field | Value |
-|-------|-------|
-| Name | {human-readable name} |
-| Category | {category} |
-| Complexity | {HIGH / MEDIUM / LOW} |
-| Recommendation | **{GENERATE / SKIP}** |
-| Confidence | {0.0-1.0} |
-
-**Source Evidence**:
-- {source_file_1}: {what it reveals about this feature}
-- {source_file_2}: {what it reveals about this feature}
-
-**Rationale**: {one-paragraph justification for GENERATE or SKIP, citing triage heuristics}
-
----
-
-End with:
-## Census Gaps
-(List any areas of the project that were difficult to classify or where feature boundaries were ambiguous.)
-
-**IMPORTANT**: Use kebab-case slugs. Every feature must have all 7 fields. Use the triage heuristics from the criteria to justify GENERATE vs SKIP.
-
-**Part 2: Assessment Metadata**
-
-After the census body, on its own line produce a fenced metadata block:
-
-```metadata
-overall_grade: {A-F}
-overall_percentage: {N.N}%
-confidence: {0.0-1.0}
-criteria_grades:
-  source_coverage: {grade}
-  feature_enumeration: {grade}
-  classification_quality: {grade}
-  output_format_compliance: {grade}
-```
-
-### Scope Reminder
-
-Read the **Scope** section in the census criteria above. It defines the target sources to scan. Scan ALL of them.
 ")
 ```
 
@@ -895,18 +765,11 @@ For each feature slug in the generation queue, construct:
 Task(subagent_type="theoros", prompt="
 ## Feature Knowledge Observation: {slug}
 
-You are producing a FEATURE KNOWLEDGE REFERENCE for the feature '{name}', not an audit report.
+Follow audit-protocol Mode: feature-knowledge.
 
-Your criteria define the four dimensions of feature knowledge to capture. Instead of grading compliance, assess the COMPLETENESS of your knowledge documentation. The grading rubric measures how thoroughly you documented the feature, not whether the feature is well-implemented.
+### Feature Knowledge Criteria
 
-### Reframing Your Audit Protocol
-
-Your audit protocol still applies, but reframed:
-- 'What to evaluate' -> 'What to observe and document about this feature'
-- 'Evidence collection' -> 'Where to look and what to record'
-- 'Assign letter grades' -> 'Assess completeness of feature knowledge capture'
-- Grade A = an agent reading only this file could modify the feature safely
-- Grade F = the document is too incomplete for safe modification
+Read(\".channel/skills/pinakes/domains/feature-knowledge.md\")
 
 ### Census Context for This Feature
 
@@ -916,73 +779,18 @@ The project-wide feature census identified this feature with the following class
 
 Use the source evidence listed above as your STARTING POINT for investigation. Expand beyond these sources as needed to build complete knowledge.
 
-### Feature Knowledge Criteria
+### Architecture Seed
 
-{full_feature_knowledge_criteria_content}
+Read(\".know/architecture.md\")
 
-### Pre-loaded Context: Architecture Seed
-
-The following is the project's architecture knowledge (.know/architecture.md). Use it as your
-structural map to locate this feature's implementation. Do NOT re-discover what this file
-already documents.
-
-{architecture_md_content}
+Use the architecture seed as your structural map to locate this feature's implementation. Do NOT re-discover what it already documents.
 
 Additional .know/ files available on demand via Read():
+- .know/feat/INDEX.md (full feature census — consult for inter-feature relationships)
 - .know/scar-tissue.md (past bugs, defensive patterns -- valuable for Boundaries section)
 - .know/conventions.md (error handling, naming -- valuable for understanding code patterns)
 - .know/design-constraints.md (tensions, frozen areas -- valuable for Boundaries section)
 - .know/test-coverage.md (test gaps -- valuable for Implementation Map section)
-
-### Output Format
-
-Produce your output in TWO parts:
-
-**Part 1: Feature Knowledge Body**
-
-Start with:
-# {feature_name}
-
-Then produce the four knowledge dimensions as H2 sections, in this exact order:
-
-## Purpose and Design Rationale
-(Why this feature exists, what problem it solves, ADRs, rejected alternatives, tradeoffs)
-
-## Conceptual Model
-(Key abstractions, terminology, state machines/lifecycles, inter-feature relationships)
-
-## Implementation Map
-(Packages, key types, entry points, data flow, public API surface, test locations)
-
-## Boundaries and Failure Modes
-(Scope limitations, edge cases, error paths, interaction points, configuration boundaries)
-
-End with:
-## Knowledge Gaps
-(List anything you could not fully document and why.)
-
-Be thorough. Include file paths, type names, function signatures, and import relationships. This document will be the primary reference for CC agents working on this feature.
-
-**IMPORTANT**: Always use FULL file paths from the project root (e.g., `internal/cmd/hook/budget.go`, NOT `cmd/hook/budget.go`). Abbreviated or package-relative paths break automated validation.
-
-**Part 2: Assessment Metadata**
-
-After the knowledge body, on its own line produce a fenced metadata block:
-
-```metadata
-overall_grade: {A-F}
-overall_percentage: {N.N}%
-confidence: {0.0-1.0}
-criteria_grades:
-  purpose_and_design_rationale: {grade}
-  conceptual_model: {grade}
-  implementation_map: {grade}
-  boundaries_and_failure_modes: {grade}
-```
-
-### Scope Reminder
-
-Focus on the packages and files relevant to '{slug}'. Use the source_evidence from the census context as your starting point. Consult existing `.know/architecture.md` and `.know/scar-tissue.md` for structural context and failure history.
 ")
 ```
 
@@ -1095,7 +903,7 @@ Regenerate all: `/know --scope=feature --force`
 
 | Scenario | Action |
 |----------|--------|
-| Domain not in pinakes | ERROR with available codebase domains |
+| Domain not in pinakes | ERROR with available codebase domains listed by tier (core / governance / on-demand) |
 | Theoros dispatch fails | ERROR "Knowledge generation failed: {reason}" |
 | Theoros output unparseable | Write body as-is with default metadata, WARN about metadata parsing failure |
 | .know/ directory not writable | ERROR with permission details |
@@ -1105,6 +913,11 @@ Regenerate all: `/know --scope=feature --force`
 | Census theoros returns unparseable feature entries | WARN about format issues, write census as-is, let human gate catch errors |
 | `--scope=feature` with `--all` | ERROR "Cannot combine --scope=feature with --all. Use --scope=feature alone for full feature flow." |
 | `--scope=feature` with positional domain arg | ERROR "Cannot combine --scope=feature with a domain argument. Feature scope generates feature knowledge, not domain knowledge." |
+| `--all` with `--tier` | ERROR "Cannot combine --all with --tier. --all is shorthand for --tier=core." |
+| `--tier` with `--domains` | ERROR "Cannot combine --tier with --domains." |
+| positional domain with `--tier` | ERROR "Cannot combine positional domain with --tier." |
+| positional domain with `--domains` | ERROR "Cannot combine positional domain with --domains." |
+| `--scope=feature` with `--tier` | ERROR "Cannot combine --scope=feature with --tier." |
 
 ## Anti-Patterns
 
