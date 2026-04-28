@@ -34,9 +34,10 @@ Per TDD-SERVICE-LAYER-001 v2.0 Phase 4:
 
 from __future__ import annotations
 
-from io import StringIO
+from io import BytesIO, StringIO
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 
+from autom8y_log import get_logger
 from fastapi import Header, Query
 from fastapi.responses import JSONResponse, Response
 
@@ -46,7 +47,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     DataFrameServiceDep,
     RequestId,
 )
-from autom8_asana.api.errors import raise_service_error
+from autom8_asana.api.errors import raise_api_error, raise_service_error
 from autom8_asana.api.models import (
     GidStr,
     PaginationMeta,
@@ -59,8 +60,6 @@ from autom8_asana.services.errors import EntityNotFoundError
 
 if TYPE_CHECKING:
     import polars as pl
-
-from autom8_asana.api.errors import raise_api_error
 
 router = pat_router(prefix="/api/v1/dataframes", tags=["dataframes"])
 
@@ -94,6 +93,12 @@ DataFrameSchemaLiteral = Literal[
 # MIME types for content negotiation
 MIME_JSON = "application/json"
 MIME_POLARS = "application/x-polars-json"
+# Sprint 3 additive (per TDD §7 + PRD §8.4): /exports format negotiation MIMEs.
+MIME_CSV = "text/csv"
+MIME_PARQUET = "application/vnd.apache.parquet"
+
+# Sprint 3 ESC-3 (TDD §15.3): observability logger for export size measurement.
+_export_format_logger = get_logger("autom8y_asana.exports.format")
 
 
 def _should_use_polars_format(accept: str | None) -> bool:
@@ -115,6 +120,8 @@ def _format_dataframe_response(
     has_more: bool,
     next_offset: str | None,
     accept: str | None,
+    *,
+    format: Literal["json", "csv", "parquet"] | None = None,
 ) -> Response:
     """Format DataFrame as HTTP response with content negotiation.
 
@@ -125,15 +132,30 @@ def _format_dataframe_response(
         has_more: Whether more pages are available.
         next_offset: Pagination cursor for next page.
         accept: Accept header value for format selection.
+        format: Sprint 3 additive (TDD §7) — explicit format selector for the
+            new ``/exports`` route. When set to ``"csv"`` or ``"parquet"``, the
+            corresponding non-JSON branch fires. ``"json"`` and ``None`` preserve
+            the existing JSON / Polars-binary content-negotiation behavior so
+            existing dataframes/section/project route callers are unaffected
+            (TDD-AC-4).
 
     Returns:
-        JSONResponse in requested format.
+        Response in the requested format with the appropriate MIME type.
     """
     pagination = PaginationMeta(
         limit=limit,
         has_more=has_more,
         next_offset=next_offset,
     )
+
+    # Sprint 3 (TDD §7.2): explicit format selector branches FIRST so the
+    # /exports route can request CSV/Parquet without disturbing existing
+    # content-negotiation paths used by the dataframes/project + dataframes/section
+    # route handlers (TDD-AC-4 — additive extension).
+    if format == "csv":
+        return _format_csv_response(df, request_id)
+    if format == "parquet":
+        return _format_parquet_response(df, request_id)
 
     if _should_use_polars_format(accept):
         buffer = StringIO()
@@ -162,6 +184,86 @@ def _format_dataframe_response(
             content=response.model_dump(mode="json"),
             media_type=MIME_JSON,
         )
+
+
+def _format_csv_response(df: pl.DataFrame, request_id: str) -> Response:
+    """Serialize an eager DataFrame as a ``text/csv`` HTTP body.
+
+    Per TDD §7.3: reuses ``pl.DataFrame.write_csv()`` directly (the existing
+    ``CsvFormatter`` at ``query/formatters.py:122`` targets ``RowsResponse``
+    shapes, not raw DataFrames). The ``identity_complete`` column (when present
+    per ``api/routes/_exports_helpers.attach_identity_complete``) appears as a
+    header and a per-row boolean column.
+
+    ESC-3 (TDD §15.3): emits an observability log record with row count and
+    serialized byte count per format so Sprint 3 can confirm Phase 1 fixtures
+    fit the in-memory body decision (TDD §7.5 disposition).
+    """
+    body = df.write_csv()
+    body_bytes = body.encode("utf-8")
+    _emit_export_size_metric(
+        request_id=request_id,
+        format_label="csv",
+        df=df,
+        serialized_size=len(body_bytes),
+    )
+    return Response(
+        content=body_bytes,
+        media_type=MIME_CSV,
+        headers={"X-Request-ID": request_id},
+    )
+
+
+def _format_parquet_response(df: pl.DataFrame, request_id: str) -> Response:
+    """Serialize an eager DataFrame as an ``application/vnd.apache.parquet`` HTTP body.
+
+    Per TDD §7.3: writes ``pl.DataFrame.write_parquet()`` to a ``BytesIO``
+    buffer (the existing ``builders/base.py:751 to_parquet`` writes to a
+    ``Path``; here we need a Response payload). Polars is already a runtime
+    requirement; no new dependency added.
+
+    ESC-3 (TDD §15.3): emits the same observability metric as CSV.
+    """
+    buf = BytesIO()
+    df.write_parquet(buf)
+    body_bytes = buf.getvalue()
+    _emit_export_size_metric(
+        request_id=request_id,
+        format_label="parquet",
+        df=df,
+        serialized_size=len(body_bytes),
+    )
+    return Response(
+        content=body_bytes,
+        media_type=MIME_PARQUET,
+        headers={"X-Request-ID": request_id},
+    )
+
+
+def _emit_export_size_metric(
+    *,
+    request_id: str,
+    format_label: str,
+    df: pl.DataFrame,
+    serialized_size: int,
+) -> None:
+    """Log row count + serialized byte count for an export response.
+
+    ESC-3 measurement surface (TDD §15.3 + DEFER-WATCH-7). Sprint 3 inspects
+    these log records against Reactivation+Outreach fixtures to decide whether
+    Phase 1 in-memory body limits hold or whether a Phase 1.5 streaming ADR
+    is required.
+    """
+    _export_format_logger.info(
+        "export_format_serialized",
+        extra={
+            "request_id": request_id,
+            "format": format_label,
+            "row_count": df.height,
+            "column_count": df.width,
+            "serialized_bytes": serialized_size,
+        },
+    )
 
 
 def _load_all_schemas() -> dict[str, Any]:
