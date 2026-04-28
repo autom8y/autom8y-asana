@@ -1,0 +1,26 @@
+# defer-watch manifest — autom8y-asana
+# Schema: per defer-watch-manifest legomenon. Each entry tracks a deferred scope item
+# pending an external unblock signal, with a named retry-action and watch-trigger date.
+---
+- id: DEFER-WS4-T3-2026-04-29
+  filed_at: 2026-04-29
+  filed_by: architect-enforcer
+  parent_initiative: inaugural-hygiene-cleanup-2026-04-28
+  parent_workstream: WS-4
+  scope: _defaults/log.py migration to autom8y_log SDK
+  status: DEFERRED-pending-upstream-SDK-enhancement
+  blocker: autom8y-log SDK lacks stdlib logging.Logger interface compatibility
+  blocker_artifacts:
+    - SCAR-LOG-001 (autom8y-asana/.know/scar-tissue.md)
+    - COMPLAINT-20260429-WS4-T3-autom8y-log-stdlib-interface-gap.yaml
+  unblock_signal: autom8y-log SDK ships StdlibLoggerAdapter or equivalent stdlib-compat layer
+  unblock_owner: rnd-rite or autom8y-log SDK owners
+  watch_trigger: 2026-05-29
+  escalation_target: rnd-rite Potnia (autom8y-log SDK enhancement initiative)
+  retry_action: >
+    re-enter WS-4 T3 with the SDK enhancement available; expect to remove
+    file-level TID251 exemption at pyproject.toml:272 and replace stdlib logging.getLogger
+    at _defaults/log.py:81 with the SDK shim
+  watch_until: 2026-Q3 (next hygiene cleanup procession)
+  evidence_anchors:
+    - .ledge/decisions/inaugural-hygiene-cleanup-disposition-WS4-T3-terminal-2026-04-29.md §4

@@ -292,3 +292,39 @@ No guard added. Workaround: callers use raw dict construction (not model-instanc
 9. **SCAR-REG-001 production blocker**: Sequential placeholder GIDs at `section_registry.py:100-107,132-138` must be replaced with verified GIDs before production
 10. **xdist re-enabled (CHANGE-003)**: `test_parallel: true` restored by commit `affbf5a5`. CI verification deferred to sprint-5 post-merge
 11. **SCAR-DISCRIMINATOR-001 unguarded**: No regression test, no defensive pattern, fix deferred to hygiene-pass-2
+
+---
+
+<!-- [KNOW-CANDIDATE] SCAR-LOG-001 — authored by janitor at WS-4 T3 terminal closure 2026-04-29. Candidate for absorption into a dedicated ## Scar Entries section on next /know cycle. -->
+
+### SCAR-LOG-001: autom8y-log SDK lacks stdlib `logging.Logger` interface (TENSION-021 candidate)
+
+**Origin**: WS-4 inaugural-hygiene-cleanup 2026-04-29 T2/T3 compounding-gap pattern.
+
+**Symptom**: any module migrating from `logging.getLogger(name)` to
+`autom8y_log.get_logger(name)` cannot retain calls or attribute accesses that
+treat the result as a stdlib `logging.Logger`. Direct probe at
+2026-04-29 against `autom8y-log==0.5.x` confirmed 11 of 11 stdlib `Logger`
+attributes (`name`, `isEnabledFor`, `level`, `handlers`, `propagate`,
+`getEffectiveLevel`, `addHandler`, `setLevel`, `removeHandler`,
+`hasHandlers`, `callHandlers`) are ABSENT from both `BoundLoggerLazyProxy`
+(pre-bind) and `BoundLoggerFilteringAtInfo` (post-bind). The SDK returns a
+structlog object family that is interface-disjoint from stdlib `Logger` by
+design.
+
+**Defensive pattern**: when a satellite module exposes a `_logger` attribute
+that internal callers OR tests treat as stdlib-Logger-shaped (e.g.,
+`provider._logger.name`, `provider._logger.isEnabledFor(level)`), do NOT
+migrate the module body to `autom8y_log.get_logger(...)`. The migration
+breaks the test contract AND the public attribute contract. Retain
+`import logging` + a file-level `[tool.ruff.lint.per-file-ignores]` TID251
+exemption with an inline rationale comment pointing at this scar entry.
+
+**Vector**: SDK-enhancement initiative at autom8y-log to add a stdlib-Logger-
+compatibility shim — either a `StdlibLoggerAdapter` exposing the 11 attributes
+above by delegation to `logging.getLogger(name)` under the hood, OR a
+`get_stdlib_compatible_logger(name)` factory returning a stdlib-shaped object
+with structured-log fan-out behind the scenes. Until shipped, satellite
+migration of `_defaults/log.py`-class modules is architecturally infeasible.
+
+**Cross-reference**: `.ledge/decisions/inaugural-hygiene-cleanup-disposition-WS4-T3-terminal-2026-04-29.md` §4.
