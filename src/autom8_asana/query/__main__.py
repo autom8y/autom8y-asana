@@ -278,7 +278,7 @@ def execute_live_rows(
     Raises:
         CLIError: On HTTP errors or connectivity issues.
     """
-    import httpx
+    import httpx  # noqa: TID251 — out-of-scope (pre-existing, not WS-4)
 
     from autom8_asana.query.models import RowsResponse
 
@@ -329,7 +329,7 @@ def execute_live_aggregate(
     Raises:
         CLIError: On HTTP errors or connectivity issues.
     """
-    import httpx
+    import httpx  # noqa: TID251 — out-of-scope (pre-existing, not WS-4)
 
     from autom8_asana.query.models import AggregateResponse
 

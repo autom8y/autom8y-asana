@@ -267,7 +267,7 @@ ignore = [
 # Autom8yHttpClient is async-only and requires full platform config, which is
 # inappropriate for a synchronous CLI development tool.
 # T201: print() is intentional in the CLI query tool (separately governed)
-"src/autom8_asana/query/__main__.py" = ["TID251", "T201"]
+"src/autom8_asana/query/__main__.py" = ["T201"]
 # stdlib logging — pre-existing; migration tracked by herculean-fleet-grade-lift
 "src/autom8_asana/_defaults/log.py" = ["TID251"]
 # T201: print() is intentional in CLI/script entrypoints (structured output to stdout/stderr)
