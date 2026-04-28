@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from datetime import date as _date
 from datetime import datetime as _datetime
-from typing import Any
+from typing import Any, Callable, TypeVar
 
 import polars as pl
 
@@ -203,19 +203,57 @@ def dedupe_by_key(
 # ---------------------------------------------------------------------------
 
 
+_T = TypeVar("_T")
+
+
+def _walk_predicate(
+    node: PredicateNode | None,
+    *,
+    on_comparison: Callable[[Comparison], _T],
+    default: _T,
+    combine: Callable[[list[_T]], _T],
+) -> _T:
+    """Dispatch a PredicateNode tree to typed callbacks, eliminating repeated isinstance ladders.
+
+    Walks the PredicateNode discriminated union (Comparison | AndGroup | OrGroup |
+    NotGroup) recursively. Callers supply:
+
+    - ``on_comparison``: invoked for each leaf Comparison node.
+    - ``default``: returned for ``None`` input (base case).
+    - ``combine``: collapses a list of child results into a single value (used for
+      AndGroup / OrGroup / NotGroup recursion).
+
+    The ``combine`` callback is called with the list of child results. For boolean
+    short-circuit use cases pass ``any`` or ``all``; for side-effect traversal pass
+    a combiner that calls the children and returns None.
+    """
+    if node is None:
+        return default
+    if isinstance(node, Comparison):
+        return on_comparison(node)
+    if isinstance(node, AndGroup):
+        return combine(
+            [_walk_predicate(c, on_comparison=on_comparison, default=default, combine=combine) for c in node.and_]
+        )
+    if isinstance(node, OrGroup):
+        return combine(
+            [_walk_predicate(c, on_comparison=on_comparison, default=default, combine=combine) for c in node.or_]
+        )
+    if isinstance(node, NotGroup):
+        return combine(
+            [_walk_predicate(node.not_, on_comparison=on_comparison, default=default, combine=combine)]
+        )
+    return default
+
+
 def predicate_references_field(node: PredicateNode | None, field_name: str) -> bool:
     """Return True if any leaf Comparison in ``node`` references ``field_name``."""
-    if node is None:
-        return False
-    if isinstance(node, Comparison):
-        return node.field == field_name
-    if isinstance(node, AndGroup):
-        return any(predicate_references_field(c, field_name) for c in node.and_)
-    if isinstance(node, OrGroup):
-        return any(predicate_references_field(c, field_name) for c in node.or_)
-    if isinstance(node, NotGroup):
-        return predicate_references_field(node.not_, field_name)
-    return False
+    return _walk_predicate(
+        node,
+        on_comparison=lambda c: c.field == field_name,
+        default=False,
+        combine=any,
+    )
 
 
 def apply_active_default_section_predicate(
@@ -243,39 +281,40 @@ def apply_active_default_section_predicate(
     return AndGroup(and_=[active_filter, predicate]), True  # type: ignore[arg-type]
 
 
+def _validate_section_comparison(node: Comparison) -> None:
+    """Raise InvalidSectionError if this Comparison references an invalid section value."""
+    if node.field != "section":
+        return
+    values: list[Any]
+    if node.op in (Op.IN, Op.NOT_IN):
+        if not isinstance(node.value, (list, tuple)):
+            # Malformed: surface upstream, not an unknown-section error.
+            return
+        values = list(node.value)
+    else:
+        values = [node.value]
+    for v in values:
+        if not isinstance(v, str) or v not in VALID_SECTIONS:
+            raise InvalidSectionError(str(v))
+
+
+def _exhaust(results: list[None]) -> None:
+    """Combiner for side-effect-only walks: consume the list and return None."""
+    return None
+
+
 def validate_section_values(node: PredicateNode | None) -> None:
     """Raise ``InvalidSectionError`` for any ``section`` value not in vocabulary.
 
     Per TDD §9.4 + PRD §9.2 ``unknown_section_value`` failure mode. Walks the
     full predicate tree and inspects every Comparison with ``field="section"``.
     """
-    if node is None:
-        return
-    if isinstance(node, Comparison):
-        if node.field != "section":
-            return
-        values: list[Any]
-        if node.op in (Op.IN, Op.NOT_IN):
-            if not isinstance(node.value, (list, tuple)):
-                # Malformed: surface upstream, not an unknown-section error.
-                return
-            values = list(node.value)
-        else:
-            values = [node.value]
-        for v in values:
-            if not isinstance(v, str) or v not in VALID_SECTIONS:
-                raise InvalidSectionError(str(v))
-        return
-    if isinstance(node, AndGroup):
-        for child in node.and_:
-            validate_section_values(child)
-        return
-    if isinstance(node, OrGroup):
-        for child in node.or_:
-            validate_section_values(child)
-        return
-    if isinstance(node, NotGroup):
-        validate_section_values(node.not_)
+    _walk_predicate(
+        node,
+        on_comparison=_validate_section_comparison,
+        default=None,
+        combine=_exhaust,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -409,17 +448,12 @@ def _split_date_predicates(
 
 
 def _contains_date_op(node: PredicateNode | None) -> bool:
-    if node is None:
-        return False
-    if isinstance(node, Comparison):
-        return _is_date_op(node.op)
-    if isinstance(node, AndGroup):
-        return any(_contains_date_op(c) for c in node.and_)
-    if isinstance(node, OrGroup):
-        return any(_contains_date_op(c) for c in node.or_)
-    if isinstance(node, NotGroup):
-        return _contains_date_op(node.not_)
-    return False
+    return _walk_predicate(
+        node,
+        on_comparison=lambda c: _is_date_op(c.op),
+        default=False,
+        combine=any,
+    )
 
 
 def translate_date_predicates(
