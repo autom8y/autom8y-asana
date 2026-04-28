@@ -112,11 +112,6 @@ class TestPredicateReferencesFieldBehavior:
         node = NotGroup(not_=comp_other)
         assert predicate_references_field(node, "section") is False
 
-    def test_not_group_of_comparison_match(self, comp_section: Comparison) -> None:
-        # NotGroup.not_ only accepts Comparison (Pydantic validated model constraint)
-        node = NotGroup(not_=comp_section)
-        assert predicate_references_field(node, "section") is True
-
 
 # ---------------------------------------------------------------------------
 # validate_section_values behavior preservation
@@ -209,11 +204,6 @@ class TestContainsDateOpBehavior:
         assert _contains_date_op(node) is True
 
     def test_not_group_contains_date(self, comp_date_gte: Comparison) -> None:
-        node = NotGroup(not_=comp_date_gte)
-        assert _contains_date_op(node) is True
-
-    def test_not_group_with_date_returns_true(self, comp_date_gte: Comparison) -> None:
-        # NotGroup.not_ only accepts Comparison (Pydantic validated model constraint)
         node = NotGroup(not_=comp_date_gte)
         assert _contains_date_op(node) is True
 
