@@ -74,7 +74,7 @@ from autom8_asana.query.models import (
 from autom8_asana.services.errors import (
     UnknownEntityError,
 )
-from autom8_asana.services.query_service import CacheNotWarmError
+from autom8_asana.services.errors import CacheNotWarmError
 
 if TYPE_CHECKING:
     import polars as pl

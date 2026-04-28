@@ -28,6 +28,8 @@ import polars as pl
 from autom8y_log import get_logger
 from autom8y_telemetry import trace_computation
 
+from autom8_asana.services.errors import CacheNotWarmError  # noqa: F401 — backward-compat re-export; callers may still import from here
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -235,22 +237,6 @@ def strip_section_conflicts(
 
     stripped = strip_section_predicates(request_body.where)
     return request_body.model_copy(update={"where": stripped})
-
-
-class CacheNotWarmError(Exception):
-    """Raised when DataFrame cache is not available after self-refresh attempt.
-
-    This error indicates that:
-    - The DataFrame was not found in any cache tier (Memory, S3)
-    - Self-refresh via legacy strategy was attempted but failed
-    - Possible causes: no legacy strategy exists, build failed, circuit breaker open
-
-    Clients should handle this by:
-    - Returning 503 to callers with retry guidance
-    - Logging the event for monitoring
-    """
-
-    pass
 
 
 @dataclass

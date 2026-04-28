@@ -34,7 +34,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from autom8_asana.api.main import create_app
-from autom8_asana.services.query_service import CacheNotWarmError
+from autom8_asana.services.errors import CacheNotWarmError
 from autom8_asana.services.resolver import EntityProjectRegistry
 
 
