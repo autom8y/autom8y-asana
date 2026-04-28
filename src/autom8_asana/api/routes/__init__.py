@@ -28,6 +28,10 @@ Current routes:
 from .admin import router as admin_router
 from .dataframes import router as dataframes_router
 from .entity_write import router as entity_write_router
+from .exports import (
+    exports_router_api_v1,
+    exports_router_v1,
+)
 from .fleet_query import (
     fleet_query_router_api_v1,
     fleet_query_router_v1,
@@ -54,6 +58,8 @@ __all__ = [
     "admin_router",
     "dataframes_router",
     "entity_write_router",
+    "exports_router_api_v1",
+    "exports_router_v1",
     "fleet_query_router_api_v1",
     "fleet_query_router_v1",
     "health_router",

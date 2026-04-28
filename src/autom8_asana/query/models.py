@@ -25,7 +25,19 @@ from autom8_asana.query.join import JoinSpec
 
 
 class Op(StrEnum):
-    """Supported comparison operators."""
+    """Supported comparison operators.
+
+    Sprint 2 additive members per TDD §5 (BETWEEN, DATE_GTE, DATE_LTE) extend the
+    operator vocabulary for date filtering. AST shape is unchanged; per P1-C-03
+    `Comparison.field` stays free-form `str` and `Comparison.value: Any` admits
+    the new value shapes (e.g. `[date_lo, date_hi]` for BETWEEN).
+
+    The new date operators are NOT compiled by `PredicateCompiler` in Phase 1
+    — `compiler.py:53-63` and `compiler.py:192-241` are P1-C-04 forbidden. Date
+    operators are translated to filter expressions by the `/exports` route
+    handler BEFORE the engine call (see ESC-1 resolution in TDD §5.3 +
+    `api/routes/exports.py:translate_date_predicates`).
+    """
 
     EQ = "eq"
     NE = "ne"
@@ -37,6 +49,11 @@ class Op(StrEnum):
     NOT_IN = "not_in"
     CONTAINS = "contains"
     STARTS_WITH = "starts_with"
+    # Sprint 2 additive (Phase 1 ESC-1 resolution): translated by the /exports
+    # route handler, NOT by PredicateCompiler. See TDD §5.3.
+    BETWEEN = "between"
+    DATE_GTE = "date_gte"
+    DATE_LTE = "date_lte"
 
 
 class Comparison(BaseModel):
@@ -44,9 +61,9 @@ class Comparison(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    field: str = Field(description="Column name to compare against.")
-    op: Op = Field(description="Comparison operator to apply.")
-    value: Any = Field(description="Value to compare the field against.")
+    field: str = Field(description="Column name to compare against.", examples=["completed"])
+    op: Op = Field(description="Comparison operator to apply.", examples=["eq"])
+    value: Any = Field(description="Value to compare the field against.", examples=[False])
 
 
 class AndGroup(BaseModel):
