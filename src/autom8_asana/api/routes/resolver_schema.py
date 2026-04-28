@@ -341,7 +341,10 @@ class EnumValueInfo(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    value: str = Field(description="The enum value string.", examples=["active"])
+    value: str = Field(
+        description="The enum value string.",
+        examples=["active"],
+    )
     meaning: str = Field(
         description="Business meaning of this value.",
         examples=["Record is active and in use."],

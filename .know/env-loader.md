@@ -154,3 +154,30 @@ These were surfaced by the ADR-0002 investigation (grep audit, 2026-04-20). Any 
 1. **Layer 2 (`secrets.shared`) contents for autom8y-asana**: The encrypted `.a8/autom8y/secrets.shared` file is not decryptable in a read-only audit. Its contents are treated as opaque ecosystem-shared secrets. If a developer needs to know which secrets are injected at Layer 2, they must decrypt locally with the dotenvx key.
 2. **Layer 4 (`.env/secrets`) contents**: Same constraint as Layer 2. The encrypted project secrets file is not auditable without the dotenvx key.
 3. **`.env/current` interaction**: The `_a8_load_env` function reads `.env/current` (line 337) to determine the active environment name, which in turn determines the Layer-5 file path. This file is not described above because it is not one of the 6 loading layers — it is an environment selector, not a value source. However, devs who rename their environment (e.g., to `staging`) must be aware that Layer 5 becomes `.env/staging`, not `.env/local`.
+
+---
+
+## Stakeholder Affirmation Addendum (2026-04-27)
+
+**Source**: stakeholder affirmation by user `tom@tenuta.io`, captured during session `session-20260427-154543-c703e121` (initiative `verify-active-mrr-provenance`, PRD G5).
+
+### Affirmed facts
+
+1. **`autom8-s3` is the production cache bucket.** All autom8y-asana cache reads and writes — including the metrics CLI (`python -m autom8_asana.metrics active_mrr`), the cache_warmer Lambda, the dataframe-loader code path (`src/autom8_asana/dataframes/offline.py`), and the freshness signal added under PRD `verify-active-mrr-provenance` — target `autom8-s3` as the canonical, sole production bucket.
+
+2. **No multi-environment cache buckets exist.** The ecosystem is standardized on a canary-in-production deployment topology. There is no `autom8-s3-staging`, `autom8-s3-dev`, or analogous environment-specific cache bucket. `autom8-s3` is the one bucket; production data flows through it under the canary discipline.
+
+3. **`AUTOM8Y_ENV=local` is legacy cruft.** The `AUTOM8Y_ENV` environment variable is a vestige of a prior multi-environment intention that was never realized. It does not currently gate behavior in any load-bearing code path of autom8y-asana. Its continued presence in tooling, scripts, or documentation is residual; it carries no live semantics for the cache bucket → environment mapping.
+
+### Architectural implication
+
+The freshness signal emitted by `python -m autom8_asana.metrics active_mrr` reports `provenance.env = "production"` unconditionally. This is correct under the affirmed topology: there is one bucket, one environment, one canary, one production. The PRD G5 evidence token for this binding is `stakeholder-affirmation-2026-04-27`, which propagates verbatim into the JSON envelope's `provenance.evidence` field per TDD freshness-module §4.
+
+### Remediation scope (NOT this addendum)
+
+This addendum **documents** the affirmed state. It does **not propose** remediation for `AUTOM8Y_ENV` cruft removal, multi-environment scaffolding cleanup, or any related hygiene work. Those concerns are owned by the **thermia rite** per:
+
+- PRD `verify-active-mrr-provenance` D7 (deferred-not-disposed defects)
+- T10 handoff dossier (10x-dev → thermia, this initiative's terminal handoff): section 7 carries the `AUTOM8Y_ENV` legacy-cruft remediation as a thermia-scope item
+
+The metrics CLI is correct as-implemented under the canary-in-production topology. Cleanup of legacy multi-environment scaffolding is downstream of this initiative.

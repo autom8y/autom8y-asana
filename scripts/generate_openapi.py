@@ -30,7 +30,7 @@ def _generate_spec() -> str:
 
     app = create_app()
     spec = app.openapi()
-    return json.dumps(spec, indent=2, sort_keys=True) + "\n"
+    return json.dumps(spec, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
 def _write(content: str) -> None:

@@ -22,8 +22,8 @@ import pytest
 
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.models.business.detection.facade import (
-    DETECTION_CACHE_TTL,
     _cache_detection_result,
+    _detection_cache_ttl,
     _get_cached_detection,
     detect_entity_type_async,
 )
@@ -94,11 +94,13 @@ def make_cache_entry(
     task_gid: str,
     result: DetectionResult,
     cached_at: datetime | None = None,
-    ttl: int = DETECTION_CACHE_TTL,
+    ttl: int | None = None,
 ) -> CacheEntry:
     """Create a CacheEntry for a DetectionResult."""
     if cached_at is None:
         cached_at = datetime.now(UTC)
+    if ttl is None:
+        ttl = _detection_cache_ttl()
 
     return CacheEntry(
         key=task_gid,
@@ -258,7 +260,7 @@ class TestCacheDetectionResult:
         assert before <= entry.version <= after
 
     def test_uses_correct_ttl(self, mock_cache: MagicMock) -> None:
-        """FR-VERSION-003: Uses DETECTION_CACHE_TTL (300s)."""
+        """FR-VERSION-003: Uses detection cache TTL (300s) via _detection_cache_ttl()."""
         task = make_task(gid="task_123")
         result = make_detection_result()
 

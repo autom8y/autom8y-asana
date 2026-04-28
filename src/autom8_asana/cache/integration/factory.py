@@ -29,12 +29,14 @@ class CacheProviderFactory:
         1. Explicit cache_provider parameter (handled in AsanaClient)
         2. CacheConfig.enabled=False -> NullCacheProvider
         3. CacheConfig.provider setting (if not None)
-        4. Environment-based auto-detection (AUTOM8Y_ENV)
+        4. Environment-based auto-detection via `settings.is_production`
+           (delegates to Pydantic settings; AUTOM8Y_ENV env var feeds the
+           Tier-1 canonical name per `settings.py:560` and PRD §6 C-1)
         5. InMemoryCacheProvider fallback
 
     Environment Detection (per FR-DEFAULT-005, FR-DEFAULT-006):
-        - AUTOM8Y_ENV=production/staging: Prefer Redis if REDIS_HOST configured
-        - AUTOM8Y_ENV=local/test or not set: Use InMemory
+        - `settings.is_production` true (production/staging): Prefer Redis if REDIS_HOST configured
+        - `settings.is_production` false (local/test or not set): Use InMemory
 
     Example:
         >>> from autom8_asana.config import CacheConfig
