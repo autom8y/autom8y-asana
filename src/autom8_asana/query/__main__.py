@@ -24,7 +24,6 @@ For a standalone entry point that bypasses the settings guard, use:
 from __future__ import annotations
 
 import argparse
-import logging
 import sys
 from typing import IO, Any, Literal
 
@@ -1651,35 +1650,17 @@ def _configure_logging(*, verbose: bool = False, quiet: bool = False) -> None:
     level_name: Literal["DEBUG", "INFO", "WARNING", "ERROR"]
     if quiet:
         level_name = "ERROR"
-        level = logging.CRITICAL + 10  # Suppress everything via stdlib
     elif verbose:
         level_name = "DEBUG"
-        level = logging.DEBUG
     else:
         level_name = "ERROR"
-        level = logging.ERROR
 
-    # Configure stdlib logging to suppress library noise
-    logging.basicConfig(
-        level=level,
-        format="%(message)s",
-        stream=sys.stderr,
-        force=True,
+    # autom8y_log canonical entry: configure once with intercept_stdlib=True
+    # so that any library still using stdlib logging (httpx, boto3, etc.)
+    # routes through the structured pipeline at the configured level.
+    configure_logging(
+        LogConfig(level=level_name, intercept_stdlib=True),
     )
-    for logger_name in (
-        "autom8_asana",
-        "autom8y_log",
-        "autom8y_config",
-        "httpx",
-        "httpcore",
-        "boto3",
-        "botocore",
-        "urllib3",
-    ):
-        logging.getLogger(logger_name).setLevel(level)
-
-    # Reconfigure autom8y_log/structlog to match
-    configure_logging(LogConfig(level=level_name))
 
 
 def main(argv: list[str] | None = None) -> int:
