@@ -67,8 +67,14 @@ class SchemaFieldInfo(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(description="Column name used in query predicates and select clauses.")
-    type: str = Field(description="Data type of the column (e.g., 'Utf8', 'Float64', 'Boolean').")
+    name: str = Field(
+        description="Column name used in query predicates and select clauses.",
+        examples=["status"],
+    )
+    type: str = Field(
+        description="Data type of the column (e.g., 'Utf8', 'Float64', 'Boolean').",
+        examples=["Utf8"],
+    )
     description: str | None = Field(
         default=None,
         description="Human-readable explanation of the field's domain meaning.",
@@ -335,8 +341,11 @@ class EnumValueInfo(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    value: str = Field(description="The enum value string.")
-    meaning: str = Field(description="Business meaning of this value.")
+    value: str = Field(description="The enum value string.", examples=["active"])
+    meaning: str = Field(
+        description="Business meaning of this value.",
+        examples=["Record is active and in use."],
+    )
 
 
 class EnumDetailResponse(BaseModel):
