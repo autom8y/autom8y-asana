@@ -1,254 +1,82 @@
-name: eunomia
+name: sre
 workflow_type: sequential
-description: Test ecosystem and CI/CD pipeline governance lifecycle (Inventory -> Assess -> Plan -> Execute -> Verify)
+description: Reliability lifecycle (Observe → Coordinate → Build → Verify)
 
 # entry_point: The first specialist in the domain workflow (not the CC routing agent).
 # The CC routing agent is manifest.yaml:entry_agent (always potnia for orchestrated rites).
-# For eunomia, entry varies by track:
-#   test     -> test-cartographer
-#   pipeline -> pipeline-cartographer
-#   combined -> test-cartographer (pipeline-cartographer runs in parallel or sequentially after)
 entry_point:
-  agent: test-cartographer
-  by_track:
-    test: test-cartographer
-    pipeline: pipeline-cartographer
-    combined: test-cartographer
+  agent: observability-engineer
   artifact:
-    type: inventory
-    path_template: .sos/wip/eunomia/INVENTORY-{slug}.md
-
-# =============================================================================
-# Track Routing
-# =============================================================================
-# Potnia selects track based on user request or target codebase contents.
-# Track determines which cartographer(s) run in the inventory phase.
-
-track_routing:
-  tracks:
-    - name: test
-      description: "Test ecosystem only (fixtures, mocks, coverage, adversarial files)"
-      inventory_agents: [test-cartographer]
-      assessment_categories:
-        - Mock Discipline
-        - Test Organization
-        - Fixture Hygiene
-        - Coverage Governance
-        - Semantic Adequacy
-
-    - name: pipeline
-      description: "CI/CD pipelines only (workflows, actions, version skew, safety config)"
-      inventory_agents: [pipeline-cartographer]
-      assessment_categories:
-        - Configuration Consistency
-        - Duplication Density
-        - Safety Configuration
-        - Dead Code / Deprecation
-        - Architectural Coherence
-
-    - name: combined
-      description: "Full governance: test ecosystem + CI/CD pipelines (default)"
-      inventory_agents: [test-cartographer, pipeline-cartographer]
-      assessment_categories:
-        - Mock Discipline
-        - Test Organization
-        - Fixture Hygiene
-        - Coverage Governance
-        - Semantic Adequacy
-        - Configuration Consistency
-        - Duplication Density
-        - Safety Configuration
-        - Dead Code / Deprecation
-        - Architectural Coherence
-
-  default: combined
-
-  selection_heuristics:
-    test: "User specifies test focus, or target has no CI config (.github/workflows/, .gitlab-ci.yml)"
-    pipeline: "User specifies CI/CD focus, or target has no test files"
-    combined: "User does not specify, or requests full governance"
-
-# =============================================================================
-# Phases
-# =============================================================================
-# Sequential phases from entry to completion.
-# The inventory phase is special: agent(s) determined by track selection.
-# The AUDIT->RATIONALIZE gate requires explicit user confirmation.
+    type: observability-report
+    path_template: .ledge/reviews/OBS-{slug}.md
 
 phases:
-  - name: inventory
-    agent: "{track}-cartographer"  # Resolved by track routing
-    produces: inventory
-    next: assessment
-    note: "When track=combined, both test-cartographer and pipeline-cartographer run"
+  - name: observation
+    agent: observability-engineer
+    produces: observability-report
+    next: coordination
 
-  - name: assessment
-    agent: entropy-assessor
-    produces: assessment
-    next: planning
-    # AUDIT complexity stops here. User must explicitly opt into RATIONALIZE.
-    # At GOVERN complexity, cross-project synthesis runs after per-project assessments.
-    audit_gate:
-      requires_user_confirmation: true
-      gate_message: "AUDIT complete. Assessment produced. Proceed to RATIONALIZE?"
+  - name: coordination
+    agent: incident-commander
+    produces: reliability-plan
+    next: implementation
+    condition: "complexity >= SERVICE"
 
-  - name: planning
-    agent: consolidation-planner
-    produces: plan
-    next: execution
-    condition: "complexity >= RATIONALIZE"
+  - name: implementation
+    agent: platform-engineer
+    produces: infrastructure-changes
+    next: resilience
 
-  - name: execution
-    agent: rationalization-executor
-    produces: execution-log
-    next: verification
-    condition: "complexity >= RATIONALIZE"
-
-  - name: verification
-    agent: verification-auditor
-    produces: verdict
+  - name: resilience
+    agent: chaos-engineer
+    produces: resilience-report
     next: null
-    condition: "complexity >= RATIONALIZE"
-
-# =============================================================================
-# Complexity Levels
-# =============================================================================
-# AUDIT is the default -- diagnostic only, no code changes.
-# RATIONALIZE requires explicit user authorization past the AUDIT gate.
-# GOVERN adds cross-project synthesis on top of RATIONALIZE.
 
 complexity_levels:
-  - name: AUDIT
-    scope: "Single project, read-only diagnosis. Inventories and diagnoses entropy. No code changes."
-    phases: [inventory, assessment]
-    default: true
+  - name: ALERT
+    scope: "Single alert/dashboard fix"
+    phases: [implementation, resilience]
+  - name: SERVICE
+    scope: "Single service reliability"
+    phases: [observation, coordination, implementation, resilience]
+  - name: SYSTEM
+    scope: "Multi-service SLOs/SLIs"
+    phases: [observation, coordination, implementation, resilience]
+  - name: PLATFORM
+    scope: "Full platform reliability"
+    phases: [observation, coordination, implementation, resilience]
 
-  - name: RATIONALIZE
-    scope: "Single project, diagnosis + transformation. Designs target state, executes consolidation, verifies results."
-    phases: [inventory, assessment, planning, execution, verification]
-
-  - name: GOVERN
-    scope: "Multiple projects, org-level governance. Per-repo inventory and assessment, cross-project synthesis, infrastructure-level improvements."
-    phases: [inventory, assessment, planning, execution, verification]
-    extensions:
-      assessment:
-        cross_project_synthesis: true
-        description: "After per-project assessments, synthesize cross-project patterns and identify infrastructure-level improvements"
-        produces: "SYNTHESIS-{org}.md (org-level health matrix, cross-project patterns, infrastructure recommendations)"
-        clean_bill: "Repos with all categories >= A receive CLEAN-BILL-{repo}.md instead of full ASSESSMENT"
-    batching:
-      max_repos_per_batch: 5
-      grouping: ecosystem_affinity  # Python/pytest, TypeScript/Jest, Go
-      mixed_batches: true  # allowed when affinity groups are small
-    scale_limits:
-      warn: 15   # potnia warns and requests user confirmation
-      refuse: 25 # potnia refuses and asks user to reduce scope
-    execution_model:
-      inventory: per_repo     # independent per-repo inventory
-      assessment: per_repo_then_synthesis  # per-repo assessment, then cross-project synthesis
-      planning: from_synthesis  # consolidation-planner receives SYNTHESIS + all ASSESSMENTs
-      execution: per_repo_dependency_ordered  # dependency-ordered across repos
-      verification: per_repo_plus_org_delta  # per-repo + org-level entropy delta
-
-# =============================================================================
-# Agent roles for command mapping
-# =============================================================================
-# /eunomia            -> potnia (orchestrated, determines track + complexity)
-# /eunomia --audit    -> potnia (AUDIT mode, read-only)
-# /eunomia --govern   -> potnia (GOVERN mode, multi-project)
-
-# Rite-specific commands (synced on rite swap):
-commands:
-  - name: eunomia
-    file: eunomia-switch
-    description: "Switch to eunomia rite for test/CI governance"
-    primary_agent: potnia
-    workflow_phase: all
-
-# =============================================================================
-# Back-Routes
-# =============================================================================
-# All back-routes have max_iterations to prevent infinite loops.
+# Agent roles for command mapping:
+# /architect  → platform-engineer
+# /build      → platform-engineer
+# /qa         → chaos-engineer
+# /hotfix     → incident-commander (fast path)
+# /code-review → chaos-engineer (review mode)
 
 back_routes:
-  - source_phase: verification
-    trigger: "fail(plan_deviation)"
-    target_phase: planning
-    target_agent: consolidation-planner
+  - source_phase: resilience
+    trigger: "fail(acceptance_criteria)"
+    target_phase: observation
+    target_agent: observability-engineer
     requires_user_confirmation: true
-    max_iterations: 1
-    condition: "Execution deviated from plan in ways that affected verification outcome"
-
-  - source_phase: verification
-    trigger: "fail(test_regression)"
-    target_phase: execution
-    target_agent: rationalization-executor
-    requires_user_confirmation: false
+    condition: "Failure is requirement gap, not implementation bug"
     max_iterations: 2
-    condition: "Specific changes caused test failures; revert those changes and re-verify"
+    escalation_on_limit: "Escalate to user: 2 acceptance criteria failure cycles have not resolved the gap. Observability requirements may need SLO redefinition or monitoring strategy change."
 
-  - source_phase: verification
-    trigger: "fail(entropy_worsened)"
-    target_phase: assessment
-    target_agent: entropy-assessor
-    requires_user_confirmation: true
-    max_iterations: 1
-    condition: "Entropy metrics worsened despite following plan -- re-assess with post-execution data"
-
-  - source_phase: execution
-    trigger: "infeasible_change"
-    target_phase: planning
-    target_agent: consolidation-planner
+  - source_phase: resilience
+    trigger: "fail(implementation)"
+    target_phase: implementation
+    target_agent: platform-engineer
     requires_user_confirmation: false
+    condition: "Failure is implementation bug"
     max_iterations: 2
-    condition: "Planned change is technically infeasible as specified"
+    escalation_on_limit: "Escalate to user: 2 implementation failure cycles have not resolved the bug. Infrastructure change may need manual rollback or vendor support."
 
-  - source_phase: assessment
-    trigger: "inventory_gap"
-    target_phase: inventory
-    target_agent: "{track}-cartographer"
+  - source_phase: implementation
+    trigger: "design_conflict"
+    target_phase: coordination
+    target_agent: incident-commander
     requires_user_confirmation: false
-    max_iterations: 1
-    condition: "Assessment reveals areas not inventoried or insufficiently covered"
-
-  # GOVERN-specific back-routes
-  - source_phase: assessment
-    trigger: "cross_project_pattern_discovered"
-    target_phase: assessment
-    target_agent: entropy-assessor
-    requires_user_confirmation: true
-    max_iterations: 1
-    condition: "GOVERN synthesis reveals cross-project pattern not visible in individual assessments — re-assess affected repos"
-    complexity: GOVERN
-
-  - source_phase: verification
-    trigger: "repo_verification_failure"
-    target_phase: execution
-    target_agent: rationalization-executor
-    requires_user_confirmation: false
-    max_iterations: 2
-    condition: "GOVERN: One repo's verification fails — isolate, revert affected commits, continue verifying others"
-    complexity: GOVERN
-
-# =============================================================================
-# External Consultation
-# =============================================================================
-# Other rites can invoke eunomia's diagnostic capability without a full rite swap.
-
-# DEPRECATED (Tenet III Lockdown, 2026-03-30 — ADR-0030)
-# external_consultation had enabled: true but zero runtime support exists.
-# This block was an active mislead — enabled: true on a construct with no
-# runtime backing suggests capability that does not exist.
-#
-# What this was: Cross-rite quick-audit for test/CI governance diagnostics.
-# Allowed review, debt-triage, and arch agents to invoke entropy-assessor.
-#
-# What to use instead: For cross-rite governance workflows, use the
-# knowledge-assembly-line procession template (processions/knowledge-assembly-line.yaml)
-# for knowledge engineering pipelines, or the security-remediation procession
-# template for quality triage pipelines. For lightweight diagnostics, use
-# eunomia's cross_rite_protocol routing in orchestrator.yaml (receives from
-# review, debt-triage, arch; routes to 10x-dev, sre, hygiene, slop-chop).
-#
-# external_consultation:
-#   enabled: false  # was: true (no runtime support per ADR-0030)
+    condition: "Implementation reveals design flaw"
+    max_iterations: 3
+    escalation_on_limit: "Escalate to user: 3 design conflict cycles have not resolved the flaw. Reliability plan may need architectural review or SLO renegotiation."
