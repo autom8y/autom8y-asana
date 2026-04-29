@@ -7,15 +7,17 @@ Use the available agents and slash commands. Delegate complex work to specialist
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-5-agent workflow (sre):
+7-agent workflow (eunomia):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates reliability engineering initiative phases |
-| **observability-engineer** | Designs observability strategy and establishes SLO/SLI baselines |
-| **incident-commander** | Coordinates reliability plans and creates incident runbooks |
-| **platform-engineer** | Implements infrastructure changes and reliability improvements |
-| **chaos-engineer** | Designs and executes chaos experiments to verify resilience |
+| **potnia** | Coordinates governance phases, gates complexity, manages track selection and back-routes |
+| **test-cartographer** | Inventories test ecosystem (files, fixtures, mocks, coverage, adversarial file accumulation) |
+| **pipeline-cartographer** | Inventories CI/CD pipelines (workflows, actions, version skew, safety config, duplication) |
+| **entropy-assessor** | Grades entropy severity and health per category using weakest-link model |
+| **consolidation-planner** | Designs target state with atomic, independently-revertible change specifications |
+| **rationalization-executor** | Executes consolidation plan as atomic commits (one commit per planned change) |
+| **verification-auditor** | Validates execution against plan and baseline, computes entropy delta, issues verdict |
 
 Delegate to specialists via Task tool.
 <!-- KNOSSOS:END quick-start -->
@@ -43,11 +45,13 @@ Agents cannot spawn other agents — only the main thread has Task tool access.
 
 Prompts in `.claude/agents/`:
 
-- `potnia.md` - Coordinates reliability engineering initiative phases
-- `observability-engineer.md` - Designs observability strategy and establishes SLO/SLI baselines
-- `incident-commander.md` - Coordinates reliability plans and creates incident runbooks
-- `platform-engineer.md` - Implements infrastructure changes and reliability improvements
-- `chaos-engineer.md` - Designs and executes chaos experiments to verify resilience
+- `potnia.md` - Coordinates governance phases, gates complexity, manages track selection and back-routes
+- `test-cartographer.md` - Inventories test ecosystem (files, fixtures, mocks, coverage, adversarial file accumulation)
+- `pipeline-cartographer.md` - Inventories CI/CD pipelines (workflows, actions, version skew, safety config, duplication)
+- `entropy-assessor.md` - Grades entropy severity and health per category using weakest-link model
+- `consolidation-planner.md` - Designs target state with atomic, independently-revertible change specifications
+- `rationalization-executor.md` - Executes consolidation plan as atomic commits (one commit per planned change)
+- `verification-auditor.md` - Validates execution against plan and baseline, computes entropy delta, issues verdict
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:

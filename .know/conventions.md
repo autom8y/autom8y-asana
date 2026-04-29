@@ -312,6 +312,88 @@ def _predicate_discriminator(v: Any) -> str:
 - Do not define result types outside the service file unless shared across multiple callers
 - Do not use singular `"example":` key inside Pydantic `Field()` — use `examples=[...]` (plural array); the two sites in `dataframes.py:511,632` are pre-CSI-001 raw-dict exceptions, not the canonical form
 
+### Pattern 1 — Configuration-During-Init Anti-Pattern (GLINT-002)
+
+**Rule**: `get_settings()` — and any call that resolves Pydantic-settings, secret-backed
+fields, or ARN lookups — MUST NOT execute at module-import time. Defer to handler-call
+scope or use a `@cache`-decorated lazy accessor.
+
+**Rationale**: In AWS Lambda, the Parameters and Secrets Lambda Extension HTTP listener
+(`http://127.0.0.1:2773`) is NOT guaranteed to be ready when the runtime imports user
+modules. Settings resolution at import time silently passes in local/unit-test
+environments (where the extension is absent and boto3/env fallbacks succeed) but fails
+in production Lambda on the first cold-start that hits an unready extension. Detection
+latency can reach ~30 days — the failure signal is *absence* of expected CloudWatch
+events rather than an explicit error.
+
+**Canonical worked example**: `_detection_cache_ttl()` lazy accessor in
+`src/autom8_asana/models/business/detection/facade.py`:
+
+```python
+from functools import cache
+
+@cache
+def _detection_cache_ttl() -> int:
+    """Resolve settings lazily — cached after first call, never at import."""
+    return get_settings().cache.ttl_detection
+```
+
+`@cache` ensures settings resolution happens exactly once per process (preserving
+module-level-constant semantics) while deferring resolution until the first handler
+invocation.
+
+**Evidence of recurrence**: Anti-pattern recurred 3× in the 2026-04-29 cascade —
+PR autom8y-asana#35 (`facade.py` lazy-load fix), PR autom8y-asana#36 (`config.py`
+lazy-load fix), PR autom8y-asana#37 (`discovery.py` ARN-resolution fix).
+
+**Regression gate**: `tests/unit/lambda_handlers/test_import_safety.py` (CP-01
+carry-forward from VERDICT §6.1 — not yet authored; future `/10x-dev` scope).
+
+**Cross-reference**: SCAR-LOG-001 in `.know/scar-tissue.md` (defensive pattern record).
+
+**Sources**: GLINT-002 (H) · file:line anchor `src/autom8_asana/models/business/detection/facade.py:78` ·
+VERDICT-eunomia-final-adjudication-2026-04-29.md §6.1 CP-01.
+
+**[KNOW-CANDIDATE] Configuration-during-init anti-pattern codified from 3-recurrence cascade evidence; previously absent from conventions.md.**
+
+---
+
+### Dockerfile Stage-0 / Stage-2 Canonical Pattern (GLINT-008)
+
+**Origin**: PR autom8y-asana#34 introduced this pattern after `autom8y-config 2.0.1`
+IPv4 fix mandated embedding the AWS Parameters and Secrets Lambda Extension binary
+into container-image Lambdas (which cannot use Lambda Layers).
+
+**Stage-0** (`secrets-extension` builder stage): downloads and unpacks the
+AWS Parameters and Secrets Lambda Extension binary into `/opt/extensions/` using an
+Amazon Linux minimal base. Accepts `SECRETS_EXT_LAYER_URL` as a build-arg; no-ops
+gracefully (emits empty `/opt/extensions/`) when the arg is unset (ECS-only builds).
+
+**Stage-2** (runtime stage): copies the extension binary from stage-0 using
+`COPY --link --from=secrets-extension`:
+
+```dockerfile
+COPY --link --from=secrets-extension /opt/extensions/ /opt/extensions/
+```
+
+`--link` preserves layer cache independence — the runtime image is not invalidated
+when only the extension binary changes.
+
+**Canonical file**: `Dockerfile` at repo root (lines 25-55 Stage-0; line 109 Stage-2
+`COPY --link`).
+
+**Enforcement status — CULTURALLY ENFORCED ONLY**: No hadolint rule, grep gate, or
+CI step currently verifies this pattern. Deviations are not caught automatically.
+An ADR-justification requirement for deviations is recommended; a hadolint or
+custom-grep CI step is a deferred M-16 carry-forward (routed to `/sre` via
+VERDICT §7).
+
+**Sources**: GLINT-008 (M) · file:line anchor `Dockerfile:44,109` ·
+VERDICT-eunomia-final-adjudication-2026-04-29.md §7 M-16 (routed to /sre).
+
+**[KNOW-CANDIDATE] Dockerfile Stage-0/Stage-2 pattern documented from canonical PR#34 evidence; previously absent from conventions.md.**
+
+
 ## Experiential Observations (from session history)
 
 The cross-session corpus (18 wrapped sessions, confidence 0.75) shows Bash dominates tool calls (65% of grepped). Edit usage correlates with productive sessions — project-crucible ran 8h25m with 36+ commits across 6 sprints. SCAR test cluster (33 inviolable tests) is documented as a sacred constraint.

@@ -18,12 +18,15 @@ max_incremental_cycles: 3
 # Codebase Scar Tissue
 
 > Regenerated 2026-04-29 (FULL mode). Source hash: `80256049` (post-PR38 merge).
-> 36+ distinct failures documented. One new scar added (SCAR-DISCRIMINATOR-001).
-> One scar discharged (CSI-001). SCAR-WS8 regression test confirmed committed.
+> 38+ distinct failures documented. Four scars promoted from KNOW-CANDIDATE inline
+> blocks (SCAR-LOG-001, SCAR-LP-001) and two new entries added (SCAR-P6-001,
+> SCAR-CW-001). One scar discharged (CSI-001). SCAR-WS8 regression test confirmed.
+> Receipt: GLINT-001, GLINT-005, GLINT-007, GLINT-011 absorbed per
+> VERDICT-eunomia-final-adjudication-2026-04-29.md cascade provenance.
 
 ## Failure Catalog
 
-36+ distinct failures documented from two evidence sources (git commit history + code marker scan). The following SCAR identifiers are confirmed present in the live codebase at source_hash `80256049`: SCAR-005 (20+ refs), SCAR-REG-001 (9 refs), SCAR-IDEM-001 (7 refs), SCAR-015 (5 refs), SCAR-020 (2 refs), SCAR-006 (1 ref). DEF identifiers active: DEF-005 (5 refs), DEF-001 (3 refs), DEF-02 (1 ref).
+38+ distinct failures documented from two evidence sources (git commit history + code marker scan). The following SCAR identifiers are confirmed present in the live codebase at source_hash `80256049`: SCAR-005 (20+ refs), SCAR-REG-001 (9 refs), SCAR-IDEM-001 (7 refs), SCAR-015 (5 refs), SCAR-020 (2 refs), SCAR-006 (1 ref). DEF identifiers active: DEF-005 (5 refs), DEF-001 (3 refs), DEF-02 (1 ref).
 
 ### Full Scar Catalog
 
@@ -63,6 +66,10 @@ max_incremental_cycles: 3
 | SCAR-REG-001 | Section registry GIDs are sequential placeholders — unverified against live Asana API | Startup | `reconciliation/section_registry.py:94,128` |
 | SCAR-WS8 | PAT route trees not consistently listed in `jwt_auth_config.exclude_paths` — JWT middleware rejects PAT requests | Security | `api/main.py:389` |
 | SCAR-DISCRIMINATOR-001 | `_predicate_discriminator` dict-only guard — `NotGroup(not_=AndGroup(...))` fails Pydantic validation when constructed via model-instance kwargs | Data Model / Type Contract | Discovered 2026-04-29; no fix committed (P3 — no production caller reaches this path) |
+| SCAR-LOG-001 | `autom8y-log` SDK returns structlog family (interface-disjoint from stdlib `logging.Logger`) — satellite migration breaks test and public attribute contracts | SDK Interface Gap | WS-4 T3 terminal 2026-04-29; no upstream fix; defer until autom8y-log ships stdlib shim — GLINT-001 / VERDICT-eunomia-final-adjudication-2026-04-29.md |
+| SCAR-LP-001 | lockfile-propagator stub-before-uv-lock ordering: `uv lock` inside sandboxed clone fails when satellite `path =` sources resolve outside sandbox tree | Build Tooling | autom8y PR #174 `f2dfc1c3`; Option-A source_stub.py fix; PT-3 verdict A 2026-04-29 — GLINT-001 / VERDICT-eunomia-final-adjudication-2026-04-29.md |
+| SCAR-P6-001 | Pattern 6 (stale-checkout artifact drift) RECURS at PLAN-AUTHORING altitude — planner trusted unresolved inventory framing without re-running drift-audit | Epistemic / Drift | PLAN-consolidation-2026-04-29.md §3 L101 + §9 L230 (inverted-drift); resolved at SWEEP §6 + PT-E3 §3; VERDICT §5 — GLINT-005 / VERDICT-eunomia-final-adjudication-2026-04-29.md §5 |
+| SCAR-CW-001 | Cache-warmer Lambda cold-start failure: 5 onion-layers (Errno 97 → Errno 111 → HTTP 400 URL-encoding → HTTP 400 init-time config → EntityProjectRegistry ARN-resolution) | Startup / Lambda | PRs #28-#37 (autom8y-asana); PRs #163-#173 (autom8y); tags v1.3.2/v1.3.3 — GLINT-007 / VERDICT-eunomia-final-adjudication-2026-04-29.md |
 | Env Var Naming | `AUTOM8_DATA_API_KEY` typo (missing Y) — production API auth failures | Authentication | `clients/data/config.py:231` |
 | CSI-001 | **DISCHARGED** `docs/api-reference/openapi.json` hand-edited at `cdcfaee6` to add 13 M-02 examples not derivable from Pydantic source | Documentation / Spec Drift | DISCHARGED 2026-04-29 via T-08 (`4d4097c3`), PR #38 (`80256049`) |
 
@@ -92,17 +99,192 @@ not_.comparison  Input should be a valid dictionary or instance of Comparison
 **Anchor**:
 - Implementation: `src/autom8_asana/query/models.py:97-112` (`_predicate_discriminator` function)
 - Type declaration: `src/autom8_asana/query/models.py:129-135` (`PredicateNode = Annotated[...]`)
-- Discovered: 2026-04-29 during eunomia rite CHANGE-001 (recorded in `.sos/wip/eunomia-verdict-2026-04-29.md`)
-- Related commit antecedent: `321909c1` (eunomia rite attempt that surfaced this failure)
-- Glint: `glint-scar-discriminator-001-absent` in `.sos/wip/glints/post-PR38-knowledge-gaps-2026-04-29.md`
+- Discovered: 2026-04-29 during eunomia rite CHANGE-001
+- Related commit antecedent: `321909c1`
 
 **Workaround**: Callers construct nested groups by passing raw dicts (not model instances), OR avoid nested-not patterns entirely. The `_wrap_flat_array_to_and_group` helper at line 115-126 exemplifies the correct dict-passing pattern.
 
-**Proposed Fix**: Add `isinstance(v, BaseModel)` branch before the `return "comparison"` fallthrough that inspects `model_fields` keys (check for `"and_"`, `"or_"`, `"not_"`, `"field"`/`"operator"`) to route model-instance inputs correctly.
+**Proposed Fix**: Add `isinstance(v, BaseModel)` branch before the `return "comparison"` fallthrough that inspects `model_fields` keys to route model-instance inputs correctly.
 
 **Owner-rite for fix**: hygiene-pass-2 (Sprint-4)
 
 **Related throughline**: `canonical-source-integrity` — declared type contract (`PredicateNode` full union) diverges from runtime discriminator behavior (dict-only classification).
+
+---
+
+## SCAR-LOG-001 — autom8y-log SDK lacks stdlib `logging.Logger` interface
+
+**Origin**: WS-4 inaugural-hygiene-cleanup 2026-04-29 T2/T3 compounding-gap pattern.
+**Provenance (GLINT-001)**: promoted from `[KNOW-CANDIDATE]` inline block per
+`VERDICT-eunomia-final-adjudication-2026-04-29.md` cascade; source evidence
+`scar-tissue.md:298-299` (former comment anchor).
+
+**Symptom**: any module migrating from `logging.getLogger(name)` to
+`autom8y_log.get_logger(name)` cannot retain calls or attribute accesses that
+treat the result as a stdlib `logging.Logger`. Direct probe at
+2026-04-29 against `autom8y-log==0.5.x` confirmed 11 of 11 stdlib `Logger`
+attributes (`name`, `isEnabledFor`, `level`, `handlers`, `propagate`,
+`getEffectiveLevel`, `addHandler`, `setLevel`, `removeHandler`,
+`hasHandlers`, `callHandlers`) are ABSENT from both `BoundLoggerLazyProxy`
+(pre-bind) and `BoundLoggerFilteringAtInfo` (post-bind). The SDK returns a
+structlog object family that is interface-disjoint from stdlib `Logger` by
+design.
+
+**Defensive pattern**: when a satellite module exposes a `_logger` attribute
+that internal callers OR tests treat as stdlib-Logger-shaped (e.g.,
+`provider._logger.name`, `provider._logger.isEnabledFor(level)`), do NOT
+migrate the module body to `autom8y_log.get_logger(...)`. The migration
+breaks the test contract AND the public attribute contract. Retain
+`import logging` + a file-level `[tool.ruff.lint.per-file-ignores]` TID251
+exemption with an inline rationale comment pointing at SCAR-LOG-001.
+
+**Vector**: SDK-enhancement initiative at autom8y-log to add a stdlib-Logger-
+compatibility shim — either a `StdlibLoggerAdapter` exposing the 11 attributes
+above by delegation to `logging.getLogger(name)` under the hood, OR a
+`get_stdlib_compatible_logger(name)` factory returning a stdlib-shaped object
+with structured-log fan-out behind the scenes. Until shipped, satellite
+migration of `_defaults/log.py`-class modules is architecturally infeasible.
+
+---
+
+## SCAR-LP-001 — lockfile-propagator stub-before-uv-lock ordering invariant
+
+**Origin**: SDK publish pipeline cascade failures observed in workflow runs `25052186961`
+(autom8y-config 2.0.1) and `25062121802` (autom8y-config 2.0.2); fix landed in
+autom8y PR #174 (merge SHA `f2dfc1c3`); attestation closed under PT-3 verdict A
+on 2026-04-29.
+**Provenance (GLINT-001)**: promoted from `[KNOW-CANDIDATE]` inline block per
+`VERDICT-eunomia-final-adjudication-2026-04-29.md` cascade; source evidence
+`scar-tissue.md:332-333` (former comment anchor).
+
+**Pre-fix failure mode**: `error: Distribution not found at:
+file:///tmp/lockfile-propagator-4qdmcw0j/autom8y-api-schemas` — emitted by
+`uv lock` exit-2 inside the `Notify Satellite Repos` job at
+`autom8y/.github/workflows/sdk-publish-v2.yml:1051-1087` for ALL 5 satellites.
+Wrapped as `LockfileError` at
+`autom8y/tools/lockfile-propagator/src/lockfile_propagator/lockfile_updater.py:113-117`.
+
+**Root cause**: each satellite is cloned into `/tmp/lockfile-propagator-XXXXXXXX/<satellite>/`
+via `SubprocessGitOps.clone_shallow` at `repo_clone.py:99-125`. `uv lock` is
+invoked with `cwd=repo_dir`. Satellite `pyproject.toml` declares `[tool.uv.sources]`
+editable references of shape `path = "../X"` (verified at `pyproject.toml:326-331`
+for autom8y-asana + four sibling files). uv resolves `..` against `repo_dir` — but
+from the sandboxed clone, `..` resolves to `/tmp/lockfile-propagator-XXX/`,
+which contains only OTHER satellite clones — NOT developer-side siblings.
+
+**Fix (Option A — in-tool source stubbing)**: new module `source_stub.py` exporting
+`stub_editable_path_sources(repo_dir, work_root)` that parses `[tool.uv.sources]`,
+discriminates path-shape entries, and writes minimal `pyproject.toml`-only stubs
+at resolved relative-path locations inside `work_root`. Single integration call
+site in `propagator.py` per TDD §3.5; stub creation precedes the uv-runner by
+construction (TDD §5.3). Integration test at `test_source_stub.py:366`
+(`test_integration_autom8y_asana_failure_mode`) reproduces the failure mode
+pre-stub then asserts post-stub `uv lock` succeeds.
+
+**Defensive pattern (three discriminators MUST be honored)**:
+1. Only stub entries where the source-shape declares a relative `path = ...` (do NOT stub `git = ...`, `url = ...`, `index = ...` shapes).
+2. The stub's `pyproject.toml` only requires `[project]` + `[build-system]` for `uv lock` (importable Python modules required only by `uv sync`, not `uv lock` — empirically confirmed TDD §4 OQ-A).
+3. Idempotency on re-run of the same `work_root` (skip when `stub_dir/pyproject.toml` exists).
+
+**Vector**: post-merge production-CI verification DEFERRED. Two post-merge runs
+failed at the `Publish` step (CodeArtifact 409 / version-already-exists) — different
+step from the `Notify Satellite Repos` step the fix targets. Mechanical equivalence
+attested (5/5 satellites' `[tool.uv.sources]` shapes verified for path-shape
+applicability per TDD §4 OQ-C). Production-CI green-on-Notify confirmation tracked
+at defer-watch entry `lockfile-propagator-prod-ci-confirmation` in
+`.know/defer-watch.yaml` with deadline 2026-07-29.
+
+**Cross-reference**: `.ledge/decisions/inaugural-hygiene-cleanup-disposition-WS4-T3-terminal-2026-04-29.md` §4.
+
+---
+
+## SCAR-P6-001 — Pattern 6 recurrence at PLAN-AUTHORING altitude
+
+**Origin**: Eunomia final adjudication 2026-04-29; codified at VERDICT §5.
+**Provenance (GLINT-005)**: new entry per `VERDICT-eunomia-final-adjudication-2026-04-29.md §5`
+(Pattern-6 Recurrence Meta-Finding — Institutional); source evidence
+PLAN-consolidation-2026-04-29.md §3 L101 + §9 L230 (inverted-drift);
+ground-truth re-confirmation at PT-E3 §3 via `git ls-tree origin/main`.
+
+**Background**: CASE Pattern 6 (drift-audit / stale-checkout artifact drift)
+was originally codified at SCAN altitude — auditors reading from stale local
+checkouts and treating local state as authoritative (CASE §4 Q4). This scar
+proves the pattern RECURS at PLAN-AUTHORING altitude.
+
+**Mechanism of recurrence**: consolidation-planner consumed
+INVENTORY-pipelines L347's `[UNATTESTED — DEFER-POST-INVENTORY]` framing
+(correctly tagged at inventory altitude, before drift resolution) and
+propagated the unresolved framing into PLAN even though SWEEP §6 had
+subsequently resolved it. The planner trusted upstream inventory framing
+without verifying whether downstream sweep had discharged the deferred
+question.
+
+**Concrete case**: PLAN §3 L101 + §9 L230 carry the inverted claim:
+`test_source_stub.py` "absent on origin/main; exists only on sprint branch
+`aegis-ufs-sprint3-pure-2026-04-27`". Ground truth: file IS PRESENT at
+autom8y origin/main blob `bf4f74180e15f07a698538afa14f6f82d47bf641` (PR #174
+merge commit `f2dfc1c3`). Local-only absence was a stale-checkout artifact.
+
+**Defensive discipline**: drift-audit must be re-run at ANY altitude where
+mixed-resolution upstream substrates are being consolidated. Synthesis-altitude
+clause (cite: `VERDICT §5 recommendation 2`): *"Re-run drift-audit at any
+altitude where mixed-resolution upstream substrates are being consolidated."*
+Inheriting engagement on CP-02 MUST re-run drift-audit at executor dispatch
+time and MUST NOT trust PLAN §3 L101 framing.
+
+**Agent-relevance**: any consolidation-planner, executor, or orchestrator that
+synthesizes cross-repo state from inventories generated at different points in
+time must verify live branch HEAD before asserting file presence/absence —
+regardless of what prior substrates claim.
+
+---
+
+## SCAR-CW-001 — 5-layer Lambda cold-start failure taxonomy
+
+**Origin**: cache-warmer Lambda SEV2 cascade, autom8y-asana PRs #28-#37,
+autom8y PRs #163-#173, tags v1.3.2/v1.3.3.
+**Provenance (GLINT-007)**: new entry per
+`HANDOFF-sre-to-10x-dev-cache-warmer-init-failure-2026-04-28.md` +
+`VERDICT-eunomia-final-adjudication-2026-04-29.md` CASE Pattern 1.
+
+**The 5 onion-layers** (peeled in recovery order):
+
+1. **Errno 97 EAFNOSUPPORT** — IPv6/IPv4 mismatch: Lambda runtime attempted
+   IPv6 connection to an IPv4-only VPC endpoint. Fixed: network config or
+   extension endpoint binding (PR #28-#29 range).
+2. **Errno 111 ECONNREFUSED** — Dockerfile extension-bundle missing: the
+   Lambda extension binary was absent from the container image. Fixed: correct
+   `COPY` + extension bundle in Dockerfile (PR #30-#31 range).
+3. **HTTP 400 URL over-encoding** — `lambda_extension.py` SDK 2.0.2 fix:
+   endpoint URL was double-encoded. Fixed: SDK upgrade + URL normalization
+   (PR #32-#33, autom8y SDK 2.0.2).
+4. **HTTP 400 init-time settings resolution** — settings-loading called at
+   module import time inside Lambda handler; cold-start initialization order
+   fired before environment was ready. Fixed: lazy-load refactor in PRs #35 +
+   #36 (CASE Pattern 1 recurrence — `facade.py:76`, `detection/config.py`).
+5. **EntityProjectRegistry not initialized** — `discovery.py` ARN-resolution
+   asymmetry: registry init was deferred past the first ARN lookup call. Fixed:
+   eager-init or call-ordering fix in PR #37 (`lambda_handlers/cache_warmer/discovery.py`).
+
+**Teachable methodology pattern — "onion-layer Lambda cold-start debugging"**:
+do not fix the outermost error and redeploy in a single pass. Each layer masks
+the next; the full recovery requires sequential exposure. Budget 5+ rounds for
+any Lambda cold-start failure chain touching (a) networking, (b) container
+image content, (c) SDK URL handling, (d) init-time settings loading, and
+(e) registry initialization order. Each round requires a fresh deployment
+cycle (cold-start re-trigger).
+
+**Defensive pattern for all Lambda handlers calling external services**:
+- Settings/config loading MUST be deferred to function-call time (not module
+  import time) — especially in Lambda handlers where environment population
+  order is non-deterministic at cold start.
+- Registry initialization MUST complete before first external-service call;
+  guard with an explicit init-state check.
+- Layer 3 (URL encoding) is an SDK version dependency; pin and test SDK
+  upgrades against live Lambda extension endpoints.
+
+**Regression anchor**: PR #37 `discovery.py` ARN-resolution fix; lazy-load
+tests in `tests/unit/lambda_handlers/test_import_safety.py` (CP-01, pending).
 
 ---
 
@@ -114,26 +296,24 @@ not_.comparison  Input should be a valid dictionary or instance of Comparison
 - `src/autom8_asana/models/base.py:50` (Task)
 - `src/autom8_asana/models/common.py:52` (NameGid)
 - `src/autom8_asana/models/task.py:47,54,59,70,85` (multiple fields)
-- `src/autom8_asana/api/routes/workflows.py:75,80,85,135,140,145,150,156,161,178,183` (WorkflowEntry/SchemaFieldInfo)
-- `src/autom8_asana/api/routes/resolver_schema.py:72,76,346,350` (EnumValueInfo)
+- `src/autom8_asana/api/routes/workflows.py:75,80,85,135,140,145,150,156,161,178,183`
+- `src/autom8_asana/api/routes/resolver_schema.py:72,76,346,350`
 
-**Verification**: `just spec-gen` reproduces all 13 examples natively post-discharge. `docs/api-reference/openapi.json` now carries 136 `"examples":` entries. Spec-check PASS.
+**Verification**: `just spec-gen` reproduces all 13 examples natively post-discharge. **Status**: DISCHARGED 2026-04-29 (PR #38 merge `80256049`).
 
-**Status**: DISCHARGED 2026-04-29 (PR #38 merge `80256049`).
-
-**Residual exception**: 2 `"example":` (singular) entries remain at `src/autom8_asana/api/routes/dataframes.py:511,632` — raw dict inline OpenAPI 3.0 annotation (pre-existing pattern, not Pydantic `Field()`). These predate CSI-001 and are an exception to the `examples=[...]` convention, not a regression.
+**Residual exception**: 2 `"example":` (singular) entries remain at `src/autom8_asana/api/routes/dataframes.py:511,632` — raw dict inline OpenAPI 3.0 annotation (pre-existing pattern, not Pydantic `Field()`). Not a regression.
 
 ---
 
 ## Category Coverage
 
-10 distinct failure categories applied across all 36+ scars:
+12 distinct failure categories applied across all 38+ scars:
 
 | Category | Scars | Count |
 |---|---|---|
 | Cache Coherence / Stale Data | SCAR-003, 004, 005, 006, 007, S3-LOOP | 6 |
 | Data Model / Contract Violation | SCAR-008, 014, 023, 024, 025, 030, IDEM-001, REG-001, CANDIDATE-B, CANDIDATE-C, SCAR-DISCRIMINATOR-001 | 11 |
-| Startup / Deployment Failure | SCAR-009, 011, 011b, 013, 022 | 5 |
+| Startup / Deployment Failure | SCAR-009, 011, 011b, 013, 022, SCAR-CW-001 | 6 |
 | Workflow Logic Gap | SCAR-016, 017, 018, 019, 020 | 5 |
 | Security / Input Validation | SCAR-027, 028, 029, WS8 | 4 |
 | Concurrency / Race Condition | SCAR-002, 010, 010b | 3 |
@@ -141,8 +321,11 @@ not_.comparison  Input should be a valid dictionary or instance of Comparison
 | Integration Failure / CI | SCAR-021, 026 | 2 |
 | Performance Cliff / Timeout | SCAR-015 | 1 |
 | Observability Gap | Metrics CLI Under-count | 1 |
+| SDK Interface Gap | SCAR-LOG-001 | 1 |
+| Build Tooling | SCAR-LP-001 | 1 |
+| Epistemic / Drift | SCAR-P6-001 | 1 |
 
-Three categories explicitly searched and returned no results: schema migration failures, distributed coordination failures, network partition handling. SCAR-WS8 classified under Security (more precise than Integration).
+Three categories explicitly searched and returned no results: schema migration failures, distributed coordination failures, network partition handling. SCAR-WS8 classified under Security. SCAR-CW-001 classified under Startup (Lambda cold-start chain). SCAR-LOG-001, SCAR-LP-001, SCAR-P6-001 added per GLINT-001, GLINT-007, GLINT-005 respectively.
 
 ---
 
@@ -175,6 +358,10 @@ All major scars have file:line or function-level locations. 22 primary fix paths
 | DEF-005 (client pool) | `src/autom8_asana/api/client_pool.py:201` | Yes |
 | Env Var Naming | `src/autom8_asana/clients/data/config.py:231` (`AUTOM8Y_DATA_API_KEY`) | Yes |
 | PKG-002 (env collision) | `tests/synthetic/conftest.py:78-80` | Yes |
+| SCAR-LP-001 (fix entry point) | `autom8y/tools/lockfile-propagator/src/lockfile_propagator/source_stub.py` | Yes — autom8y PR #174 `f2dfc1c3` |
+| SCAR-LP-001 (integration test) | `autom8y/tools/lockfile-propagator/tests/test_source_stub.py:366` | Yes — blob `bf4f74180e15f07a698538afa14f6f82d47bf641` |
+| SCAR-CW-001 (layer 4 lazy-load) | `src/autom8_asana/lambda_handlers/cache_warmer/facade.py:76`, `detection/config.py` | Yes — PRs #35-#36 |
+| SCAR-CW-001 (layer 5 ARN-resolution) | `src/autom8_asana/lambda_handlers/cache_warmer/discovery.py` | Yes — PR #37 |
 
 ---
 
@@ -233,6 +420,22 @@ Exception on `finalize()` promoted to `logger.exception` with `impact` field at 
 
 No guard added. Workaround: callers use raw dict construction (not model-instance kwargs). No regression test covering `NotGroup(not_=AndGroup([...]))` via model-instance path. This path is syntactically valid per type declaration but fails at runtime. **Unguarded at source_hash `80256049`**. [KNOW-CANDIDATE] Novel scar with no defensive pattern; hygiene-pass-2 regression test needed.
 
+### SCAR-LOG-001 — No Upstream Fix Yet
+
+No stdlib-Logger shim available in autom8y-log as of 2026-04-29. Defensive pattern: retain `import logging` + TID251 per-file-ignores exemption. Migration of any `_defaults/log.py`-class module is blocked until the shim ships.
+
+### SCAR-LP-001 — Option-A Fix Shipped; Production-CI Pending
+
+`source_stub.py` fix landed in autom8y PR #174. Production-CI confirmation deferred per `.know/defer-watch.yaml` entry `lockfile-propagator-prod-ci-confirmation` (deadline 2026-07-29). Do not treat the fix as fully validated until at least one `Notify-Satellite-Repos = SUCCESS` run is confirmed.
+
+### SCAR-CW-001 — Onion-Layer Debugging Pattern (No Regression Test Yet)
+
+PRs #28-#37 closed all 5 layers. Lazy-load regression tests (CP-01 via
+`tests/unit/lambda_handlers/test_import_safety.py`) are carry-forward from
+eunomia Phase 4 SKIP — pending `/10x-dev` engagement. No single regression
+test covers the full 5-layer chain; layers 1-3 (network, Dockerfile, SDK URL)
+are infrastructure-level and require Lambda deployment to re-test.
+
 ### Known Gaps in Defensive Pattern Documentation
 
 - SCAR-004: No dedicated regression test; DEF-005 comment + integration verification only
@@ -242,6 +445,7 @@ No guard added. Workaround: callers use raw dict construction (not model-instanc
 - SCAR-REG-001: Production blocker — sequential placeholder GIDs unverified against live Asana API
 - Metrics CLI Under-count: No defensive guard exists yet; 4 root-cause questions open
 - SCAR-DISCRIMINATOR-001: No defensive guard, no regression test; fix deferred to hygiene-pass-2
+- SCAR-CW-001: CP-01 lazy-load regression test pending; eunomia Phase 4 carry-forward
 
 ---
 
@@ -272,10 +476,14 @@ No guard added. Workaround: callers use raw dict construction (not model-instanc
 | SCAR-REG-001 | platform-engineer | Section GIDs require live API verification before production |
 | SCAR-WS8 | principal-engineer | Every new PAT-tagged router requires corresponding `jwt_auth_config.exclude_paths` entry |
 | SCAR-DISCRIMINATOR-001 | principal-engineer, qa-adversary | When constructing `NotGroup` or any nested predicate node, use raw dicts (not model instances) as kwargs to avoid discriminator fallthrough; test nested-not paths explicitly |
+| SCAR-LOG-001 | principal-engineer | Do NOT migrate `_defaults/log.py`-class modules to `autom8y_log.get_logger(...)` until autom8y-log ships a stdlib-Logger-compatibility shim; retain `import logging` + TID251 per-file exemption — GLINT-001 |
+| SCAR-LP-001 | principal-engineer, architect, qa-adversary | Sandbox-resolver tools cloning consumer repos MUST stub relative-path `[tool.uv.sources]` entries before invoking `uv lock`; apply three-discriminator defensive pattern; `test_source_stub.py:366` is hermetic guard — GLINT-001 |
+| SCAR-P6-001 | consolidation-planner, principal-engineer, architect | Re-run drift-audit at any altitude where mixed-resolution upstream substrates are consolidated; NEVER trust PLAN §3 L101 framing for CP-02; verify live branch HEAD before asserting file presence/absence — GLINT-005 |
+| SCAR-CW-001 | platform-engineer, principal-engineer | Lambda handlers calling external services: (1) defer settings load to function-call time, (2) init registries before first external call, (3) budget 5+ rounds for cold-start failure chains — GLINT-007 |
 | Env Var Naming | principal-engineer | All ecosystem env vars use `AUTOM8Y_` prefix (not `AUTOM8_`) |
 | Metrics CLI Under-count | observability-engineer | `autom8-query` CLI parquet loading silently drops sections — verify bucket mapping |
 
-12 scars still untagged (reduced from 12 at prior hash): SCAR-003, 004, 007, 016–019, 020, 022, 024, 025. [KNOW-CANDIDATE?] These 12 may warrant agent-relevance tags in a subsequent hygiene pass if any touch active development paths.
+12 scars still untagged (reduced from 12 at prior hash): SCAR-003, 004, 007, 016–019, 020, 022, 024, 025.
 
 ---
 
@@ -292,59 +500,6 @@ No guard added. Workaround: callers use raw dict construction (not model-instanc
 9. **SCAR-REG-001 production blocker**: Sequential placeholder GIDs at `section_registry.py:100-107,132-138` must be replaced with verified GIDs before production
 10. **xdist re-enabled (CHANGE-003)**: `test_parallel: true` restored by commit `affbf5a5`. CI verification deferred to sprint-5 post-merge
 11. **SCAR-DISCRIMINATOR-001 unguarded**: No regression test, no defensive pattern, fix deferred to hygiene-pass-2
+12. **SCAR-LP-001 production-CI pending**: defer-watch entry `lockfile-propagator-prod-ci-confirmation` open until 2026-07-29
+13. **SCAR-CW-001 CP-01 regression test pending**: `tests/unit/lambda_handlers/test_import_safety.py` not yet authored; eunomia Phase 4 carry-forward
 
----
-
-<!-- [KNOW-CANDIDATE] SCAR-LOG-001 — authored by janitor at WS-4 T3 terminal closure 2026-04-29. Candidate for absorption into a dedicated ## Scar Entries section on next /know cycle. -->
-
-### SCAR-LOG-001: autom8y-log SDK lacks stdlib `logging.Logger` interface (TENSION-021 candidate)
-
-**Origin**: WS-4 inaugural-hygiene-cleanup 2026-04-29 T2/T3 compounding-gap pattern.
-
-**Symptom**: any module migrating from `logging.getLogger(name)` to
-`autom8y_log.get_logger(name)` cannot retain calls or attribute accesses that
-treat the result as a stdlib `logging.Logger`. Direct probe at
-2026-04-29 against `autom8y-log==0.5.x` confirmed 11 of 11 stdlib `Logger`
-attributes (`name`, `isEnabledFor`, `level`, `handlers`, `propagate`,
-`getEffectiveLevel`, `addHandler`, `setLevel`, `removeHandler`,
-`hasHandlers`, `callHandlers`) are ABSENT from both `BoundLoggerLazyProxy`
-(pre-bind) and `BoundLoggerFilteringAtInfo` (post-bind). The SDK returns a
-structlog object family that is interface-disjoint from stdlib `Logger` by
-design.
-
-**Defensive pattern**: when a satellite module exposes a `_logger` attribute
-that internal callers OR tests treat as stdlib-Logger-shaped (e.g.,
-`provider._logger.name`, `provider._logger.isEnabledFor(level)`), do NOT
-migrate the module body to `autom8y_log.get_logger(...)`. The migration
-breaks the test contract AND the public attribute contract. Retain
-`import logging` + a file-level `[tool.ruff.lint.per-file-ignores]` TID251
-exemption with an inline rationale comment pointing at this scar entry.
-
-**Vector**: SDK-enhancement initiative at autom8y-log to add a stdlib-Logger-
-compatibility shim — either a `StdlibLoggerAdapter` exposing the 11 attributes
-above by delegation to `logging.getLogger(name)` under the hood, OR a
-`get_stdlib_compatible_logger(name)` factory returning a stdlib-shaped object
-with structured-log fan-out behind the scenes. Until shipped, satellite
-migration of `_defaults/log.py`-class modules is architecturally infeasible.
-
----
-
-<!-- [KNOW-CANDIDATE] SCAR-LP-001 — authored by principal-engineer at Phase 4 cleanup-and-attest 2026-04-29 for PT-3 verdict A (CLOSE-WITH-FLAGS) on lockfile-propagator path-resolution fix. Candidate for absorption into the canonical Failure Catalog table on next /know cycle. -->
-
-### SCAR-LP-001: lockfile-propagator stub-before-uv-lock ordering invariant
-
-**Origin**: SDK publish pipeline cascade failures observed in workflow runs `25052186961` (autom8y-config 2.0.1) and `25062121802` (autom8y-config 2.0.2); fix landed in autom8y PR #174 (merge SHA `f2dfc1c3`); attestation closed under PT-3 verdict A on 2026-04-29.
-
-**Pre-fix failure mode (verbatim)**: `error: Distribution not found at: file:///tmp/lockfile-propagator-4qdmcw0j/autom8y-api-schemas` — emitted by `uv lock` exit-2 inside the `Notify Satellite Repos` job at `autom8y/.github/workflows/sdk-publish-v2.yml:1051-1087` for ALL 5 satellites (autom8y-asana, autom8y-data, autom8y-scheduling, autom8y-sms, autom8y-ads). Wrapped as `LockfileError` at `autom8y/tools/lockfile-propagator/src/lockfile_propagator/lockfile_updater.py:113-117`; surfaced in the per-satellite `status="failed"` verdict.
-
-**Root cause (path-resolution under sandboxed temp clone)**: each satellite is cloned by the propagator into `/tmp/lockfile-propagator-XXXXXXXX/<satellite>/` via `SubprocessGitOps.clone_shallow` at `autom8y/tools/lockfile-propagator/src/lockfile_propagator/repo_clone.py:99-125`. `uv lock` is then invoked with `cwd=repo_dir` at `autom8y/tools/lockfile-propagator/src/lockfile_propagator/lockfile_updater.py:96-105`. Each satellite's `pyproject.toml` declares `[tool.uv.sources]` editable references of shape `path = "../X"` (verified at `pyproject.toml:326-331` for autom8y-asana plus the four sibling satellite files). uv resolves `..` against `repo_dir` — but from the sandboxed clone, `..` resolves to `/tmp/lockfile-propagator-XXX/`, which contains only OTHER satellite clones — NOT the developer-side siblings (`autom8y-api-schemas`, `autom8y/sdks/python/...`). Resolution fails. **TDD §5.3 ordering invariant**: stub directories MUST be visible to the uv runner BEFORE `uv lock` fires; the fix prescribes a single insertion point between the post-`checkout_branch` line and the `pyproject_changed = False` line in `propagator.py`.
-
-**Fix shape (in-tool source stubbing — Option A)**: new module `autom8y/tools/lockfile-propagator/src/lockfile_propagator/source_stub.py` exporting `stub_editable_path_sources(repo_dir, work_root)` that parses `[tool.uv.sources]`, discriminates path-shape entries from git/url/index-shape entries, and writes minimal `pyproject.toml`-only stubs (with `[project]` + `[build-system]` hatchling, no Python sources) at the resolved relative-path locations inside `work_root`. Single integration call site in `propagator.py` per TDD §3.5. Stub creation precedes the uv-runner invocation by construction (TDD §5.3 ordering test at `tools/lockfile-propagator/tests/test_propagator.py:359` (`TestPathSourcesStubbedBeforeUvLockRuns`); §5.2 integration test at `tools/lockfile-propagator/tests/test_source_stub.py:366` (`test_integration_autom8y_asana_failure_mode`) reproduces the autom8y-asana failure mode pre-stub then asserts post-stub `uv lock` succeeds).
-
-**Defensive pattern for future propagator-style tools**: any tool that (a) clones consumer repositories into a sandboxed temp directory AND (b) invokes a resolver tool with `cwd=clone_dir` AND (c) the consumer declares relative-path source references resolving outside its own tree — MUST materialize the resolution surface inside the sandbox before invoking the resolver. The trust boundary is the satellite repo's own branch-protected `pyproject.toml`; stubbing inside the sandbox preserves that boundary while making the resolver call viable. Three discriminators MUST be honored: (1) only stub entries where the source-shape declares a relative `path = ...` (do NOT stub `git = ...`, `url = ...`, `index = ...` shapes); (2) the stub's `pyproject.toml` only requires `[project]` + `[build-system]` for `uv lock` (importable Python modules are required only by `uv sync`, NOT by `uv lock` — empirically confirmed in TDD §4 OQ-A); (3) idempotency on re-run of the same `work_root` (skip when `stub_dir/pyproject.toml` exists). The api-schemas-stub composite action at `autom8y/.github/actions/api-schemas-stub/action.yml:1-103` is the precedent at publish-job altitude; SCAR-LP-001 extends the same pattern down to sub-clone altitude.
-
-**Vector**: post-merge production-CI verification is DEFERRED. Two post-merge runs (`25083219816` autom8y-meta and `25084290648` autom8y-google 0.1.0) each FAILED at the `Publish` step (CodeArtifact 409 / version-already-exists) — DIFFERENT step from the `Notify Satellite Repos` step the fix targets — and Notify was therefore SKIPPED on both. Mechanical equivalence is ATTESTED (5/5 satellites' `[tool.uv.sources]` shapes verified for path-shape applicability per TDD §4 OQ-C; canonical autom8y-asana case verified end-to-end via §5.2 integration test). Production-CI green-on-Notify confirmation is tracked at defer-watch entry `lockfile-propagator-prod-ci-confirmation` in `.know/defer-watch.yaml` with deadline 2026-07-29. Closing trigger: any of the 5 satellites' next push-triggered SDK version bump producing a workflow run with `Notify-Satellite-Repos = SUCCESS` AND the `uv-lock` step completing without `Distribution not found`.
-
-**Agent-relevance**: principal-engineer (when modifying or extending the propagator); architect (when designing similar sandbox-resolver tools — apply the three-discriminator defensive pattern); qa-adversary (the §5.2 integration test is a hermetic-CI-without-uv guard via `pytest.mark.skipif(shutil.which("uv") is None, ...)`).
-
-**Cross-reference**: `.ledge/decisions/inaugural-hygiene-cleanup-disposition-WS4-T3-terminal-2026-04-29.md` §4.

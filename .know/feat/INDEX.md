@@ -742,3 +742,28 @@ max_incremental_cycles: 3
 **Throughline anchor**: `canonical-source-integrity` -- `/exports` is now canonical LIVE state. Feature status table is the canonical promotion record.
 
 **Next cycle limit**: 2 remaining incremental cycles before full regeneration required (max_incremental_cycles: 3).
+
+---
+
+## lockfile-propagator
+
+| Field | Value |
+|-------|-------|
+| Name | Lockfile-Propagator In-Tool Source Stubbing |
+| Category | Tooling |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.88 |
+| Status | **proposed** (pending prod-CI green; see defer-watch) |
+| Source Repo | autom8y monorepo (not autom8y-asana source) |
+| Source Hash | f2dfc1c3 (PR #174, autom8y) |
+
+**Source Evidence**:
+- `autom8y/tools/lockfile-propagator/src/lockfile_propagator/source_stub.py`: 327 LOC -- `stub_editable_path_sources(repo_dir, work_root) -> list[StubbedSource]`; parses `[tool.uv.sources]` path entries and creates minimal stub packages before `uv lock` is invoked (GLINT-006; autom8y PR #174 `f2dfc1c3`)
+- `autom8y/tools/lockfile-propagator/src/lockfile_propagator/test_source_stub.py`: 453 LOC -- 12 TDD unit tests (T-A through T-G) + 1 integration test + 1 ordering invariant; 1.38 test-to-source ratio
+- `autom8y/tools/lockfile-propagator/src/lockfile_propagator/propagator.py`: orchestration; single integration call site between `checkout_branch` and `pyproject_changed = False`
+- `.ledge/specs/lockfile-propagator-source-stubbing.tdd.md`: TDD (implementation design)
+- `.ledge/decisions/ADR-lockfile-propagator-source-stubbing.md`: ADR (Option A selected; 8 alternatives evaluated)
+
+**Rationale**: 780+ LOC new module surface (`source_stub.py` + `test_source_stub.py`) remedying a production SDK-publish blocker. The `sdk-publish-v2.yml` workflow invokes the propagator to notify 5 satellite repos (autom8y-asana, autom8y-data, autom8y-scheduling, autom8y-sms, autom8y-ads) after every SDK publish; the path-resolution failure blocked all 5 (workflow runs `25052186961`, `25062121802`). Source stubbing is the architectural decision: create minimal `pyproject.toml`-only stub packages at `path = "../X"` relative-path locations before `uv lock` so uv can resolve them inside the sandboxed clone work_root. Cross-references: SCAR-LP-001 (scar-tissue.md -- path-resolution defensive pattern). Defer-watch: `lockfile-propagator-prod-ci-confirmation` (watch-trigger 2026-05-29; deadline 2026-07-29; Notify-Satellite-Repos green confirmation pending). Provenance: VERDICT eunomia-final-adjudication-2026-04-29.md; GLINT-006. GENERATE.
+

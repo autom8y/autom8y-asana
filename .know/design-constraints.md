@@ -121,6 +121,24 @@ Constraint: Any modification to P1-C-04 frozen ranges must be cross-referenced a
 Severity: Structural — no temporal deadline; permanent design constraint
 Cross-reference: EC-011, SCAR-DISCRIMINATOR-001 (adjacent to but NOT in P1-C-04 frozen — discriminator lives at `query/models.py:97-112`)
 
+**FLEET-SHA-SKEW-001: autom8y-workflows Security SHA Skew Across Fleet** <!-- GLINT-009 | anchor: .github/workflows/gitleaks.yml, trufflehog-scan.yml, dependency-review.yml, zizmor.yml | provenance: VERDICT-eunomia-final-adjudication-2026-04-29.md §7 M-07 -->
+Type: Operational constraint (fleet security posture)
+Anchor: `.github/workflows/gitleaks.yml`, `trufflehog-scan.yml`, `dependency-review.yml`, `zizmor.yml` in autom8y-asana — all four pin `autom8y/autom8y-workflows/...@44b771e516a49a0d964782e4bbd0f0e39b2f97a1`. Scorecard workflow pins `c77acb0cf9e48b17f08180d54e24086016706856` (same as autom8y fleet head). autom8y repo: all 5 security workflows pin `c77acb0c...` uniformly (verified at structural-verification step 2026-04-29).
+Skew surface: 4-of-5 security workflows (gitleaks, dependency-review, trufflehog, zizmor) in autom8y-asana trail the fleet SHA by at least one autom8y-workflows release. The divergence means autom8y-asana runs an older security workflow revision than autom8y on every PR.
+Constraint: Fleet should converge on a single autom8y-workflows SHA across all repos. Current divergence is a P2 security-workflow drift risk — no security gate enforces SHA currency, no CI check compares pinned SHAs across repos. SHA bump must be atomic across affected repos to avoid partial-fleet state.
+Recommended routing: `/arch` for ref-bump batching cadence convention (M-07 per VERDICT §7) OR `/sre` for direct SHA-bump cascade. Cross-reference M-07 (a8 ref-bump batching) from VERDICT §7.
+Severity: P2 (security workflow versions diverge; autom8y-asana not at fleet head; no enforcement mechanism)
+Owner-rite: /arch (cadence) or /sre (direct execution)
+Cross-reference: VERDICT-eunomia-final-adjudication-2026-04-29.md §7 M-07
+
+**DEFER-WATCH-REGISTRY-001: Active Defer-Watch Entries — Cross-Reference** <!-- GLINT-010 | anchor: .know/defer-watch.yaml:1-79 | provenance: VERDICT-eunomia-final-adjudication-2026-04-29.md §4 -->
+Type: Informational constraint (deferred-scope registry)
+See `.know/architecture.md` §Defer-Watch Active Entries for the canonical cross-reference summary.
+Registry hygiene is OWNED by `defer-watch-manifest` legomenon; this entry provides discoverability for agents reading design-constraints without a separate defer-watch.yaml read.
+Active entries as of 2026-04-29 close (2 total, both KEEP-OPEN per EUN-005 audit):
+- `DEFER-WS4-T3-2026-04-29`: autom8y_log SDK stdlib interface gap; watch_trigger 2026-05-29; escalation: rnd-rite
+- `lockfile-propagator-prod-ci-confirmation`: Notify-Satellite-Repos green pending; watch_trigger 2026-05-29; deadline 2026-07-29; escalation: 10x-dev rite
+
 ## Trade-off Documentation
 
 - **TRADE-001**: `raw=True` dual-return type on all 12 `*Client` classes. 115 occurrences of `raw: bool` or `raw=True` across `src/autom8_asana/clients/`.
