@@ -23,7 +23,7 @@ Per PRD-ASANA-SATELLITE Appendix A:
 # Re-exported at this path for backward compatibility -- existing code
 # imports these from autom8_asana.api.models.
 import os
-from typing import Annotated
+from typing import Annotated, Any
 
 from autom8y_api_schemas import (
     ErrorDetail,
@@ -52,6 +52,75 @@ GidStr = Annotated[
     str,
     StringConstraints(pattern=_gid_pattern),
 ]
+
+# ---------------------------------------------------------------------------
+# Exports-specific response envelope
+# ---------------------------------------------------------------------------
+
+# Realistic account-grain example row matching PHASE_1_DEFAULT_COLUMNS + identity_complete.
+# Fields mirror the dataframes route runtime envelope (dataframes.py:165-171) and the
+# PRD §5.2 minimum column projection from exports.py:101-109.
+_EXPORT_ROW_EXAMPLE: dict[str, Any] = {
+    "gid": "1201265144487000",
+    "name": "Acme Corp",
+    "section": "Active",
+    "office_phone": "555-0100",
+    "vertical": "Healthcare",
+    "pipeline_type": "Outreach",
+    "modified_at": "2026-04-01T09:15:00Z",
+    "identity_complete": True,
+}
+
+_EXPORT_META_EXAMPLE: dict[str, Any] = {
+    "request_id": "a1b2c3d4e5f67890",
+    "timestamp": "2026-03-15T10:30:00Z",
+    "pagination": None,
+}
+
+
+def _exports_schema_extra(schema: dict[str, Any], model: type) -> None:  # noqa: ARG001
+    """Inject field-level examples into the meta property.
+
+    The meta field resolves to a $ref; Pydantic does not propagate Field(examples=...)
+    through $ref fields. This callable patches the generated schema in-place so that
+    the meta property carries an examples key alongside its $ref, satisfying the
+    M-02_field_example semantic-score metric.
+
+    Judgment call per AUDIT-followon-ci-2026-04-29-delta.md §2 Q3 + §3 NEW FLAG:
+    example enrichment is the principled path; this callable is non-runtime (schema
+    generation only) and mirrors the pattern used in ErrorDetail.meta.
+    """
+    props = schema.get("properties", {})
+    if "meta" in props:
+        props["meta"]["examples"] = [_EXPORT_META_EXAMPLE]
+
+
+class ExportsSuccessResponse(SuccessResponse[list[dict[str, Any]]]):
+    """Success envelope for POST /exports — account-grain row list.
+
+    Typed variant of SuccessResponse[list[dict[str, Any]]] with field-level
+    examples for the M-02_field_example semantic-score metric. Schema-only
+    enrichment; no runtime behavior change.
+
+    The data field carries a representative account-grain export row
+    (PHASE_1_DEFAULT_COLUMNS + identity_complete per exports.py:101-109).
+
+    Per AUDIT-followon-ci-2026-04-29-delta.md §2 Q3: example enrichment authored
+    to recover M-02_field_example score (baseline 0.5266) after the
+    SuccessResponse[list[dict[str, Any]]] typed schema introduction in BLOCKING-1
+    amendment (b9cf6dbc).
+    """
+
+    data: list[dict[str, Any]] = Field(
+        ...,
+        description="Response data payload",
+        examples=[[_EXPORT_ROW_EXAMPLE]],
+    )
+
+    model_config = ConfigDict(
+        extra="ignore",
+        json_schema_extra=_exports_schema_extra,
+    )
 
 
 class ListTasksParams(BaseModel):
@@ -610,6 +679,7 @@ __all__ = [
     "AsanaResource",
     "ErrorDetail",
     "ErrorResponse",
+    "ExportsSuccessResponse",
     "PaginationMeta",
     "ResponseMeta",
     "SuccessResponse",
