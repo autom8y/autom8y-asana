@@ -10,12 +10,12 @@
       "pass": true
     },
     "M-02_field_example": {
-      "score": 0.4743,
-      "numerator": 83,
-      "denominator": 175,
+      "score": 0.5266,
+      "numerator": 99,
+      "denominator": 188,
       "floor": 0.5,
       "weight": 0.15,
-      "pass": false
+      "pass": true
     },
     "M-03_endpoint_summary": {
       "score": 1.0,
@@ -58,9 +58,8 @@
       "pass": false
     }
   },
-  "composite_score": 0.8809,
+  "composite_score": 0.8887,
   "floor_violations": [
-    "M-02_field_example",
     "M-07_constraint_coverage"
   ],
   "regression_safe": true
