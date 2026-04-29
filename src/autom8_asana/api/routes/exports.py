@@ -359,8 +359,8 @@ async def export_handler(
         )
 
     # 3. ACTIVE-only default section filter when caller omits (TDD §9.3)
-    effective_predicate, default_section_applied = (
-        apply_active_default_section_predicate(request_body.predicate)
+    effective_predicate, default_section_applied = apply_active_default_section_predicate(
+        request_body.predicate
     )
 
     # 4. ESC-1 date predicate translation (TDD §15.1)
@@ -463,7 +463,10 @@ async def export_handler(
 
     # 10. Column projection (PRD §5.2 minimum)
     available_default_cols = [c for c in PHASE_1_DEFAULT_COLUMNS if c in result_df.columns]
-    if "identity_complete" not in available_default_cols and "identity_complete" in result_df.columns:
+    if (
+        "identity_complete" not in available_default_cols
+        and "identity_complete" in result_df.columns
+    ):
         available_default_cols.append("identity_complete")
     if available_default_cols:
         result_df = result_df.select(available_default_cols)

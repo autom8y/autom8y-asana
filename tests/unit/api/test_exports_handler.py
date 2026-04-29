@@ -80,12 +80,13 @@ class TestLeftPreservationGuardWrapper:
         fake_df = pl.DataFrame({"gid": ["1"], "office_phone": ["555"], "vertical": ["s"]})
         mock_strategy = MagicMock()
         mock_strategy._get_dataframe = AsyncMock(return_value=fake_df)
-        with patch(
-            "autom8_asana.services.universal_strategy.get_universal_strategy",
-            return_value=mock_strategy,
-        ), patch(
-            "autom8_asana.api.routes.exports.logger"
-        ) as mock_logger:
+        with (
+            patch(
+                "autom8_asana.services.universal_strategy.get_universal_strategy",
+                return_value=mock_strategy,
+            ),
+            patch("autom8_asana.api.routes.exports.logger") as mock_logger,
+        ):
             await _engine_call_with_left_preservation_guard(
                 entity_type="process",
                 project_gid="123",
@@ -259,20 +260,24 @@ class TestExportHandlerPipeline:
             # Caller omits section → ACTIVE-default fires.
         )
 
-        with patch(
-            "autom8_asana.api.routes.exports.get_universal_strategy",
-            return_value=mock_strategy,
-            create=True,
-        ), patch(
-            "autom8_asana.services.universal_strategy.get_universal_strategy",
-            return_value=mock_strategy,
-        ), patch.object(
-            __import__(
-                "autom8_asana.api.routes.exports", fromlist=["PredicateCompiler"]
-            ).PredicateCompiler,
-            "compile",
-            lambda self, node, schema: pl.col("section").is_in(
-                ["ACTIVE", "BUILDING", "EXECUTING", "PROCESSING", "OPPORTUNITY", "CONTACTED"]
+        with (
+            patch(
+                "autom8_asana.api.routes.exports.get_universal_strategy",
+                return_value=mock_strategy,
+                create=True,
+            ),
+            patch(
+                "autom8_asana.services.universal_strategy.get_universal_strategy",
+                return_value=mock_strategy,
+            ),
+            patch.object(
+                __import__(
+                    "autom8_asana.api.routes.exports", fromlist=["PredicateCompiler"]
+                ).PredicateCompiler,
+                "compile",
+                lambda self, node, schema: pl.col("section").is_in(
+                    ["ACTIVE", "BUILDING", "EXECUTING", "PROCESSING", "OPPORTUNITY", "CONTACTED"]
+                ),
             ),
         ):
             resp = await export_handler(
