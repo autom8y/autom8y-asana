@@ -288,7 +288,7 @@ def apply_active_default_section_predicate(
     )
     if predicate is None:
         return active_filter, True
-    return AndGroup(and_=[active_filter, predicate]), True  # type: ignore[arg-type]
+    return AndGroup.model_validate({"and": [active_filter, predicate]}), True
 
 
 def _validate_section_comparison(node: Comparison) -> None:
@@ -430,7 +430,7 @@ def _split_date_predicates(
             return None, exprs
         if len(survivors) == 1:
             return survivors[0], exprs
-        return AndGroup(and_=survivors), exprs  # type: ignore[arg-type]
+        return AndGroup.model_validate({"and": survivors}), exprs
 
     if isinstance(node, OrGroup):
         # OR / NOT semantics: refuse to split — boolean structure is load-bearing.
