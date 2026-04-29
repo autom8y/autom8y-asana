@@ -1,0 +1,78 @@
+# defer-watch manifest — autom8y-asana
+# Schema: per defer-watch-manifest legomenon. Each entry tracks a deferred scope item
+# pending an external unblock signal, with a named retry-action and watch-trigger date.
+---
+- id: DEFER-WS4-T3-2026-04-29
+  filed_at: 2026-04-29
+  filed_by: architect-enforcer
+  parent_initiative: inaugural-hygiene-cleanup-2026-04-28
+  parent_workstream: WS-4
+  scope: _defaults/log.py migration to autom8y_log SDK
+  status: DEFERRED-pending-upstream-SDK-enhancement
+  blocker: autom8y-log SDK lacks stdlib logging.Logger interface compatibility
+  blocker_artifacts:
+    - SCAR-LOG-001 (autom8y-asana/.know/scar-tissue.md)
+    - COMPLAINT-20260429-WS4-T3-autom8y-log-stdlib-interface-gap.yaml
+  unblock_signal: autom8y-log SDK ships StdlibLoggerAdapter or equivalent stdlib-compat layer
+  unblock_owner: rnd-rite or autom8y-log SDK owners
+  watch_trigger: 2026-05-29
+  escalation_target: rnd-rite Potnia (autom8y-log SDK enhancement initiative)
+  retry_action: >
+    re-enter WS-4 T3 with the SDK enhancement available; expect to remove
+    file-level TID251 exemption at pyproject.toml:272 and replace stdlib logging.getLogger
+    at _defaults/log.py:81 with the SDK shim
+  watch_until: 2026-Q3 (next hygiene cleanup procession)
+  evidence_anchors:
+    - .ledge/decisions/inaugural-hygiene-cleanup-disposition-WS4-T3-terminal-2026-04-29.md §4
+
+- id: lockfile-propagator-prod-ci-confirmation
+  filed_at: 2026-04-29
+  filed_by: principal-engineer
+  parent_initiative: lockfile-propagator-source-stubbing-2026-04-28
+  parent_workstream: Phase-4-cleanup-and-attest
+  scope: production-CI green-on-Notify confirmation for lockfile-propagator path-resolution fix
+  status: DEFERRED-pending-natural-trigger
+  blocker: >
+    No push-triggered SDK version bump has hit the Notify-Satellite-Repos step
+    on a green Publish path since PR #174 merged (SHA f2dfc1c3). Two post-merge
+    workflow runs (25083219816 autom8y-meta, 25084290648 autom8y-google 0.1.0)
+    each FAILED at the Publish step (CodeArtifact 409 / version-already-exists)
+    — a DIFFERENT step from the path-resolution fix surface — and the
+    Notify-Satellite-Repos step was SKIPPED on both. Production-CI mechanical
+    realization on the actual fix surface is therefore UNATTESTED at close-time.
+    Mechanical equivalence (canonical autom8y-asana §5.2 integration test +
+    cross-satellite shape equivalence per TDD §4 OQ-C) IS ATTESTED.
+  watch_for: >
+    Notify-Satellite-Repos green run on the next push-triggered SDK version
+    bump in any of the 5 affected satellites (autom8y-asana, autom8y-data,
+    autom8y-scheduling, autom8y-sms, autom8y-ads) OR any other SDK consumed
+    via [tool.uv.sources] editable path entries by a satellite.
+  close_condition: >
+    A workflow run is observed in autom8y/.github/workflows/sdk-publish-v2.yml
+    where (a) the Publish step succeeds AND (b) the Notify-Satellite-Repos
+    step records status=SUCCESS for at least 1 satellite AND (c) the uv-lock
+    step inside that satellite completes without emitting "Distribution not
+    found at: file:///tmp/lockfile-propagator-..." in stdout/stderr. Single
+    such run is sufficient to discharge.
+  unblock_owner: 10x-dev rite (next SDK publish lands on a fresh version) OR sre rite (if monitoring picks up the natural trigger)
+  watch_trigger: 2026-05-29
+  deadline: 2026-07-29
+  escalation_target: 10x-dev rite Potnia (re-engage with scope expansion to force a no-op SDK version bump if no natural trigger fires by deadline)
+  retry_action: >
+    if no natural trigger by deadline 2026-07-29, re-engage the procession
+    with scope expansion authority to push a no-op autom8y-config patch
+    bump (e.g. 2.0.3-noop) specifically to drive a Notify-Satellite-Repos
+    invocation against the post-#174 propagator. Discharges the defer
+    or surfaces a regression that would have been masked otherwise.
+  inception_anchor: >
+    PT-3 verdict A (CLOSE-WITH-FLAGS) issued by Potnia on 2026-04-29 closing
+    Phase 4 cleanup-and-attest of the lockfile-propagator-source-stubbing
+    initiative. Verdict adjudication recorded in
+    .ledge/handoffs/HANDOFF-sre-to-10x-dev-lockfile-propagator-fix-2026-04-28.md
+    §"Verification Attestation".
+  rite_disjoint_attester: sre-rite (originating critique source per HANDOFF source_rite; the SRE rite is rite-disjoint from the 10x-dev rite that authored the fix — satisfies external-critique-gate-cross-rite-residency Axiom 1 critic-rite-disjointness)
+  evidence_anchors:
+    - .ledge/handoffs/HANDOFF-sre-to-10x-dev-lockfile-propagator-fix-2026-04-28.md §"Verification Attestation"
+    - .ledge/decisions/ADR-lockfile-propagator-source-stubbing.md §Status (proposed-pending-prod-CI-green)
+    - .ledge/specs/lockfile-propagator-source-stubbing.tdd.md §1 Telos Restatement
+    - .know/scar-tissue.md SCAR-LP-001 (Vector paragraph)

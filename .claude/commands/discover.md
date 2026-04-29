@@ -1,7 +1,7 @@
 ---
 name: discover
 description: "Run Myron feature discovery scan across the codebase or a targeted scope. Produces a glint report in .sos/wip/glints/."
-argument-hint: "[codebase|directory:{path}|package:{name}|recent]"
+argument-hint: "[codebase|directory:{path}|package:{name}|recent|--rite {target}]"
 allowed-tools: Bash, Read, Write, Glob, Agent
 model: opus
 ---
@@ -17,12 +17,14 @@ Parse the user's input to determine scope:
 - `directory:{path}` -> scan a specific directory tree
 - `package:{name}` -> scan a specific Go package
 - `recent` -> scan files changed in last 20 commits
+- `--rite {target}` or `rite:{target}` -> rite scan mode (scan a single rite's artifact tree)
 
 Store the parsed scope as `{scope}`. Derive `{scope-slug}` for file naming:
 - `codebase` -> `full`
 - `directory:internal/session` -> `internal-session`
 - `package:internal/materialize` -> `internal-materialize`
 - `recent` -> `recent`
+- `--rite forge` or `rite:forge` -> `rite-forge` (scope_type: `rite`)
 
 ## Pre-flight: Agent Availability
 
@@ -35,12 +37,35 @@ Check if Myron is currently available:
    b. Tell user: "Myron summoned. Restart CC to activate, then re-run /discover."
    c. STOP -- do not attempt Agent("myron") until restart
 
+## Validation (rite scope only)
+
+If scope_type is `rite`, validate the target before dispatch:
+
+1. Check `rites/{target}/manifest.yaml` exists:
+   ```
+   Bash("ls rites/{target}/manifest.yaml 2>/dev/null")
+   ```
+2. If the file does NOT exist:
+   a. List available rites: `Bash("ls rites/")`
+   b. Print error: "Rite '{target}' not found. Available rites: [{comma-separated list from ls}]"
+   c. STOP -- do not dispatch Myron
+
 ## Dispatch
+
+### Standard dispatch (codebase, directory, package, recent)
 
 Invoke Myron with the parsed scope:
 
 ```
 Agent("myron", "Scan scope: {scope}. Produce a glint report following your scan protocol. Output the full glint report (YAML frontmatter + markdown body) as your final response.")
+```
+
+### Rite-scan dispatch (--rite {target})
+
+Invoke Myron with the rite scope:
+
+```
+Agent("myron", "Scan scope: rite:{target}. Target rite directory: rites/{target}/. Produce a Rite Glint Report following your rite-scan protocol. Output the full glint report (YAML frontmatter + markdown body) as your final response.")
 ```
 
 Wait for Myron to return the glint report as its response.

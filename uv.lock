@@ -372,7 +372,7 @@ dev = [
 
 [[package]]
 name = "autom8y-config"
-version = "2.0.1"
+version = "2.0.2"
 source = { editable = "../autom8y/sdks/python/autom8y-config" }
 dependencies = [
     { name = "pydantic" },

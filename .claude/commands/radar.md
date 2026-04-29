@@ -110,51 +110,15 @@ For each radar signal domain, construct a Task prompt using the template below. 
 Task(subagent_type="theoros", prompt="
 ## Radar Signal Analysis: {signal_domain}
 
-You are running a RADAR SIGNAL ANALYSIS, not a standard codebase audit.
-
-Your input is pre-read .know/ file content (structured knowledge about the codebase), NOT raw source code. Your job is to apply the signal criteria to this knowledge and identify opportunities — specific, actionable findings backed by evidence in the .know/ content.
+Follow audit-protocol Mode: signal-analysis.
 
 ### Signal Criteria
 
-{full_criteria_file_content}
+Read(".channel/skills/pinakes/domains/{signal_domain}.md")
 
 ### Input: .know/ Content
 
 {inject the relevant .know/ file content(s) for this signal as specified in the Signal-to-Input Mapping above}
-
-### Your Task
-
-Apply the signal criteria to the provided .know/ content. For each finding:
-
-1. Identify the specific package, domain, or file that the signal fires on.
-2. Assess severity: HIGH | MEDIUM | LOW (use the opportunity schema severity scale).
-3. Assess confidence: source_confidence × evidence_strength (use the opportunity schema formula).
-4. Cite specific evidence from the .know/ content (file paths, line numbers, quoted claims).
-5. Draft a suggested action in consultant-style prose — explain the issue, name the rite or approach, state the expected outcome. Do NOT produce machine enums or structured routing tables.
-6. Suppress findings with confidence < 0.40. Note the count of suppressed findings in your output.
-
-### Output Format
-
-Produce a structured list of findings. For each finding:
-
-```
-FINDING:
-  Signal: {signal_domain}
-  Package/Target: {specific package or file or domain name}
-  Severity: HIGH | MEDIUM | LOW
-  Confidence: {0.00-1.00} ({source_confidence} × {evidence_strength_name} {evidence_strength_multiplier})
-  Evidence:
-    - {specific reference from .know/ content}
-    - {additional reference if applicable}
-  Suggested Action: {consultant-style prose}
-```
-
-After all findings, produce a summary line:
-```
-SUMMARY: {N} findings | {high_count} HIGH, {medium_count} MEDIUM, {low_count} LOW | {suppressed_count} suppressed (confidence < 0.40)
-```
-
-If no findings: output `NO FINDINGS` and a one-sentence explanation of why.
 ")
 ```
 
@@ -341,11 +305,11 @@ Dispatch ALL available theoros for this domain in a SINGLE response block (paral
 Task(subagent_type="theoros", prompt="
 ## Challenge Mode: {adversarial|dialectic}-{domain}
 
-You are running an ADVERSARIAL CHALLENGE of a .know/ file. Your goal is to find evidence that CONTRADICTS claims in the challenged document.
+Follow audit-protocol Mode: adversarial-challenge.
 
 ### Challenge Criteria
 
-{full_criteria_file_content}
+Read(".channel/skills/pinakes/domains/{adversarial_or_dialectic_slug}.md")
 
 ### The Document Being Challenged
 
@@ -354,30 +318,6 @@ Below is the full content of `.know/{domain}.md`. This is what you are challengi
 ---
 {full .know/{domain}.md content}
 ---
-
-### Your Task
-
-Apply the challenge criteria above. Actively search for contradictions, not confirmations.
-
-For each finding, produce:
-
-```
-CHALLENGE FINDING:
-  Claim: {verbatim quote or close paraphrase from .know/{domain}.md, with section reference}
-  Counter-Evidence:
-    - {file path}:{line} — {specific contradiction}
-    - {additional evidence if available}
-  Contradiction Confidence: HIGH | MEDIUM | LOW
-  Recommendation: Update knowledge | Fix code | Accept gap
-  Rationale: {1-3 sentence consultant-style explanation}
-```
-
-After all findings, produce:
-```
-CHALLENGE SUMMARY: {N} contradictions found | {high_count} HIGH, {medium_count} MEDIUM, {low_count} LOW | {N} claims checked
-```
-
-If no contradictions found: output `NO CONTRADICTIONS FOUND` with explanation. State how many claims were checked.
 ")
 ```
 

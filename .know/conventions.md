@@ -1,263 +1,328 @@
 ---
 domain: conventions
-generated_at: "2026-04-24T00:00:00Z"
+generated_at: "2026-04-29T00:09Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
-  - "./app/**/*.py"
-  - "./pyproject.toml"
 generator: theoros
-source_hash: "acff02ab"
-confidence: 0.88
+source_hash: "80256049"
+confidence: 0.92
 format_version: "1.0"
 update_mode: "full"
 incremental_cycle: 0
 max_incremental_cycles: 3
-land_sources:
-  - ".sos/land/workflow-patterns.md"
-land_hash: "1471b813f0f58342c542d2e8c9cd92aba095afec134846cda625c3fa545ec9fe"
 ---
 
 # Codebase Conventions
 
+> Regenerated 2026-04-29 (FULL mode, post-PR38). Source hash: `80256049`.
+> 3 new conventions added: Pydantic v2 `examples=[...]` Field, `logger` parameter naming,
+> and Pydantic v2 discriminated-union callable discriminator discipline.
+
 ## Error Handling Style
 
-### Two Parallel Exception Hierarchies (+ a third at service layer)
+This codebase has a well-layered exception hierarchy with two root bases, domain-specific error modules, and clear boundary-mapping conventions.
 
-This project maintains **multiple** root exception hierarchies that coexist by design:
+### Exception Hierarchy
 
-**1. Asana API hierarchy** (`src/autom8_asana/errors.py`)
-- Root: `AsanaError(Exception)` — for all Asana HTTP/API failures
-- Carries: `message`, `status_code`, `response`, `errors`
-- Subclasses: `AuthenticationError` (401), `ForbiddenError` (403), `NotFoundError` (404), `GoneError` (410), `RateLimitError` (429), `ServerError` (5xx), `TimeoutError`, `ConfigurationError`, `CircuitBreakerOpenError`, `NameNotFoundError`, `HydrationError`, `ResolutionError`
-- Domain groupings: `InsightsError` → `InsightsValidationError`, `InsightsNotFoundError`, `InsightsServiceError`; `ExportError`
-- Factory classmethod `AsanaError.from_response(response)` maps HTTP status via `_STATUS_CODE_MAP` (errors.py:262–272)
-- `RateLimitError` overrides `from_response` to capture `retry_after` from headers
+**Two root bases coexist:**
 
-**2. Infrastructure hierarchy** (`src/autom8_asana/core/errors.py`)
-- Root: `Autom8Error(Exception)` — for transport, cache, automation infrastructure
-- Carries: `message`, `context: dict`, `cause: Exception | None` (set as `__cause__`)
-- Has `transient: bool` class attribute (False by default)
-- Subclasses: `TransportError` (transient=True) → `S3TransportError`, `RedisTransportError`; `CacheError` → `CacheConnectionError` (transient=True); `AutomationError` → `RuleExecutionError`, `SeedingError`, `PipelineActionError`
-- Each transport subclass provides `from_*_error()` factory classmethod wrapping vendor exceptions at boundary
+1. `AsanaError(Exception)` — root for all Asana SDK-facing errors, defined in `src/autom8_asana/errors.py`. Carries `message`, `status_code`, `response`, `errors`. Provides `from_response(cls, response)` class method that maps HTTP status codes to specific subclasses via `_STATUS_CODE_MAP`.
 
-**3. Service layer hierarchy** (`src/autom8_asana/services/errors.py`)
-- Root: `ServiceError(Exception)` — used exclusively in the service layer
-- Provides `error_code: str`, `status_hint: int`, `to_dict()` method
-- Route handlers catch `ServiceError` and convert via `raise_service_error(request_id, e)` (seen on all 14 exception catch sites in `tasks.py`)
-- Services must **never** import FastAPI or raise `HTTPException` (per TDD-SERVICE-LAYER-001)
+2. `Autom8Error(Exception)` — root for cross-cutting infrastructure errors, defined in `src/autom8_asana/core/errors.py`. Carries `message`, `context: dict`, `cause: Exception | None` (explicit chaining via `__cause__`). Each subclass declares `transient: bool` class variable.
 
-**4. Catch-tuple constants** (`core/errors.py:280–329`)
-- `S3_TRANSPORT_ERRORS`, `REDIS_TRANSPORT_ERRORS`, `ALL_TRANSPORT_ERRORS`, `CACHE_TRANSIENT_ERRORS`, `ASANA_API_ERRORS` — import-safe tuples used at catch sites instead of importing botocore/redis types
-- Pattern: `try: from botocore... S3_TRANSPORT_ERRORS = (..., BotoCoreError, ClientError, ...) except ImportError: pass`
+**Per-domain error modules:**
+- `src/autom8_asana/errors.py` — SDK-level Asana errors (`AuthenticationError`, `ForbiddenError`, `NotFoundError`, `RateLimitError`, `ServerError`, `TimeoutError`, `ConfigurationError`, `SyncInAsyncContextError`, `CircuitBreakerOpenError`, `NameNotFoundError`, `HydrationError`, `ResolutionError`, `InsightsError`, `ExportError`)
+- `src/autom8_asana/core/errors.py` — infrastructure errors (`TransportError`, `S3TransportError`, `RedisTransportError`, `CacheError`, `CacheConnectionError`, `AutomationError`, `RuleExecutionError`, `SeedingError`, `PipelineActionError`)
+- `src/autom8_asana/services/errors.py` — service-layer errors (`ServiceError`, `EntityNotFoundError`, `UnknownEntityError`, `TaskNotFoundError`, `EntityTypeMismatchError`, `EntityValidationError`, `InvalidFieldError`, `InvalidParameterError`, `NoValidFieldsError`, `CacheNotReadyError`, `CascadeNotReadyError`, `ServiceNotConfiguredError`)
+- `src/autom8_asana/persistence/errors.py` — save orchestration errors (`SaveOrchestrationError`, `SessionClosedError`, `CyclicDependencyError`, `DependencyResolutionError`, `PartialSaveError`, `UnsupportedOperationError`, `PositioningConflictError`, `GidValidationError`, `SaveSessionError`)
+- `src/autom8_asana/dataframes/errors.py` — DataFrame errors (`DataFrameError`, `SchemaNotFoundError`, `ExtractionError`, `TypeCoercionError`, `SchemaVersionError`, `DataFrameConstructionError`)
+- `src/autom8_asana/query/errors.py` — query engine errors (`QueryEngineError` and subclasses)
+- `src/autom8_asana/api/exception_types.py` — API-layer errors (`ApiError`, `ApiAuthError`, `ApiServiceUnavailableError`, `ApiDataFrameBuildError`)
 
-### Error Context Propagation
+### Error Creation
 
-- Cause chaining uses `self.__cause__ = cause` in `Autom8Error.__init__` — NOT native `raise X from Y` at call sites
-- Rich context stored in `context: dict[str, Any]` on `Autom8Error` subclasses
-- `NameNotFoundError` carries `suggestions`, `available_names` for debugging
+- **Domain errors** use `raise DomainSpecificError("message")` or `raise DomainSpecificError(f"message with {field}")` — always with f-strings for context
+- **Config validation**: `raise ConfigurationError(f"field must be positive, got {self.field}")` inside `__post_init__` of frozen dataclasses
+- **Transport boundary wrapping**: vendor errors (botocore, redis) wrapped into `TransportError` subclasses at backend boundaries so upstream code never imports vendor types
+- **No bare `raise Exception("...")` or `raise RuntimeError("...")` at domain logic** — only in guard conditions
 
-### API Boundary Error Handling
+### Error Wrapping / Chaining
 
-- Routes call `raise_service_error(request_id, e)` converting `ServiceError` → `HTTPException` with envelope format
-- `raise_api_error(request_id, code, message)` for precondition/validation errors in routes
-- All handlers registered in `register_exception_handlers(app)` (`api/errors.py:728`)
-- ADRs: `ADR-ASANA-004` (Error Handling and HTTP Mapping), `ADR-I6-001` (API Error Response Convention)
+- `Autom8Error.__init__` accepts `cause: Exception | None` and explicitly sets `__cause__`. Use when wrapping vendor exception at layer boundary: `raise S3TransportError(..., cause=original_exc)`
+- Transport error tuple constants in `src/autom8_asana/core/errors.py`:
+  - `CACHE_TRANSIENT_ERRORS` — all S3/redis transport errors plus `CacheConnectionError`
+  - `S3_TRANSPORT_ERRORS`, `REDIS_TRANSPORT_ERRORS`, `ALL_TRANSPORT_ERRORS` — progressively composed tuples
+  - Built with try/except ImportError so module loads cleanly when optional backends are absent
+- `AsanaError.from_response(response)` is the canonical factory for HTTP responses
 
-### Exception Files Pattern
+### Transient / Permanent Classification
 
-Each domain package has its own `errors.py`:
-- `src/autom8_asana/errors.py` — SDK/Asana API
-- `src/autom8_asana/core/errors.py` — Infrastructure
-- `src/autom8_asana/services/errors.py` — Service layer
-- `src/autom8_asana/dataframes/errors.py` — DataFrame errors (`DataFrameError` → `SchemaNotFoundError`, `ExtractionError`, `TypeCoercionError`, `SchemaVersionError`, `DataFrameConstructionError`, `ParallelFetchError`)
-- `src/autom8_asana/persistence/errors.py` — `SaveOrchestrationError(AsanaError)`, `SessionClosedError`
-- `src/autom8_asana/api/exception_types.py` — Typed HTTP exceptions (`ApiError`, `ApiAuthError`, `ApiDataFrameBuildError`, `ApiServiceUnavailableError`) replacing bare `HTTPException` raises
+- `Autom8Error` subclasses declare `transient: bool = True/False` as class variable
+- `TransportError` defaults `transient = True`; `CacheError` defaults `transient = False`
+- `RetryableErrorMixin` in `src/autom8_asana/patterns/error_classification.py` provides `is_retryable`, `recovery_hint`, `retry_after_seconds` based on HTTP status semantics (ADR-0079): 429 and 5xx = retryable; other 4xx = not retryable
+- `SaveError` and `ActionResult` (in `persistence/models.py`) inherit `RetryableErrorMixin`
 
-### Future Annotations
+### Error Propagation Style
 
-411 of 478 files (86%) use `from __future__ import annotations` — treat it as effectively mandatory for new files.
+- **Service layer** raises `ServiceError` subclasses; callers do not catch and re-raise generically
+- **API boundary** maps service and SDK errors to HTTP via two functions in `src/autom8_asana/api/errors.py`:
+  - `raise_api_error(request, code, message, status_code, details, headers)` — route-level validation/precondition errors
+  - `raise_service_error(request, error, status_code)` — converts `ServiceError` with request_id context
+  - Global exception handlers registered via `setup_exception_handlers(app)` map `AsanaError` and `FleetError` hierarchies to canonical `ErrorResponse` envelopes with `request_id`
+- ADR-ASANA-004 documents the full SDK-to-HTTP mapping (NotFoundError→404, AuthenticationError→401, RateLimitError→429, ServerError→502, TimeoutError→504)
+
+### Error Handling at Catch Sites
+
+- **Cache degradation**: `except CACHE_TRANSIENT_ERRORS as exc: logger.warning(...)` — swallow transient cache errors; never swallow domain errors
+- **Inline guard**: `except ValueError: pass` used sparingly for format-fallback
+- **Exception logging**: `logger.exception(...)` for unexpected; `logger.error(...)` for permanent; `logger.warning(...)` for transient degradation
+- **`except Exception` catch-alls**: rare and only at top-level handlers
+- Avoid bare `except:` (not observed)
 
 ## File Organization
 
-### Package Structure and Responsibilities
+### Top-Level Package Layout
 
-The `src/autom8_asana/` package is **large** (478 Python files, 26+ subpackages). Organization follows a **domain-layer** model, not simple CRUD grouping:
+`src/autom8_asana/` contains flat modules for SDK surface and sub-packages for domain logic:
 
-| Package | Contents |
-|---------|----------|
-| `api/` | FastAPI app (`main.py`), routes (`routes/`), models, middleware, lifespan, errors, preload |
-| `api/routes/` | One file per route group (e.g., `tasks.py`, `projects.py`); paired `*_models.py` for request/response types |
-| `clients/` | Per-resource Asana API clients; `data/` for data-service clients |
-| `clients/data/` | Internal data service integration; internal modules prefixed with `_` |
-| `clients/data/_endpoints/` | Per-endpoint modules (`insights.py`, `batch.py`, `export.py`, `reconciliation.py`, `simple.py`) |
-| `core/` | Cross-cutting utilities: `logging.py`, `errors.py`, `retry.py`, `entity_registry.py`, `concurrency.py`, `connections.py`, `types.py`, `timing.py` |
-| `models/` | Domain model hierarchy; `models/business/` = entity classes; `models/contracts/` = cross-service contracts |
-| `models/business/` | `BusinessEntity` base, entity classes (`Business`, `Unit`, `Contact`, `Offer`, `Process`, `AssetEdit`), descriptors, mixins, holder factory, registry |
-| `services/` | Service classes (one per domain concern); `errors.py` for service exceptions |
-| `dataframes/` | Polars DataFrame pipeline: `builders/`, `extractors/`, `models/`, `resolver/`, `schemas/`, `views/` |
-| `cache/` | Cache subsystem: `backends/`, `dataframe/`, `integration/`, `models/`, `policies/`, `providers/` |
-| `persistence/` | Write/save pipeline: `actions.py`, `executor.py`, `cascade.py`, `session.py`, `tracker.py`, `pipeline.py` |
-| `resolution/` | Field resolution system: `strategies.py`, `context.py`, `result.py`, `field_resolver.py`, `write_registry.py` |
-| `automation/` | Automation engine: `engine.py`, `pipeline.py`, `events/`, `polling/`, `workflows/` |
-| `lifecycle/` | Task lifecycle management: `engine.py`, `completion.py`, `reopen.py`, `creation.py`, `seeding.py` |
-| `protocols/` | Protocol (structural typing) interfaces |
-| `_defaults/` | Default provider registrations: `auth.py`, `cache.py`, `log.py`, `observability.py` |
-| `transport/` | HTTP transport: `asana_http.py`, `adaptive_semaphore.py`, `sync.py`, `response_handler.py` |
-| `patterns/` | Reusable patterns: `error_classification.py`, `async_method.py` |
-| `observability/` | Observability hooks: `decorators.py`, `context.py`, `correlation.py` |
-| `lambda_handlers/` | AWS Lambda entry points |
-| `query/` | Query engine with `__main__.py` entry point |
+| Module/Package | Purpose |
+|---|---|
+| `client.py` | `AsanaClient` — main SDK entry |
+| `errors.py` | SDK-level exception hierarchy |
+| `config.py` | Frozen dataclasses for configuration |
+| `settings.py` | Pydantic-settings `AsanaSettings` for env var binding |
+| `models/` | Pydantic model types for Asana resources |
+| `api/` | FastAPI application (routes, middleware, lifespan, errors, models) |
+| `clients/` | Thin HTTP client wrappers per Asana resource type |
+| `core/` | Cross-cutting infrastructure (retry, registry, entity types, datetime) |
+| `services/` | Business-logic orchestration |
+| `dataframes/` | Polars DataFrame pipeline (builders, extractors, schemas, models, resolver) |
+| `cache/` | Cache backends, providers, policies, integration adapters |
+| `transport/` | HTTP transport layer (httpx adapters, response handler, adaptive semaphore) |
+| `persistence/` | Save session orchestration |
+| `query/` | Query engine (AST, models, errors, CLI) |
+| `resolution/` | Entity resolution context and budget management |
+| `reconciliation/` | Section reconciliation engine |
+| `automation/` | Workflow automation (events, polling, workflows) |
+| `batch/` | Batch API client |
+| `metrics/` | Business metrics system |
+| `auth/` | Authentication helpers |
+| `search/` | Search client |
+| `patterns/` | Shared design patterns |
+| `protocols/` | Typed protocol interfaces |
+| `observability/` | OpenTelemetry integration |
+| `lifecycle/` | Task lifecycle engine |
+| `lambda_handlers/` | AWS Lambda handler entry points |
+| `_defaults/` | Default factory helpers |
 
 ### File Naming Conventions
 
-- Internal/private modules at package level use `_` prefix: `_defaults/`, `_endpoints/`, `_cache.py`, `_response.py`, `_retry.py`, `_policy.py`, `_pii.py`
-- Security-related helpers in routes: `_security.py`
-- Route-paired model files: `intake_create.py` + `intake_create_models.py`, `resolver.py` + `resolver_models.py`, `resolver_schema.py`
-- Build result types live in dedicated `build_result.py` within their package
+**One concern per file**:
+- Service files: `{entity}_service.py`
+- Client files: `{resource_type}s.py` (plural)
+- Error modules: `errors.py` per package
+- Route model files: `{route_name}_models.py`
+- Route files: `{domain}.py`
+- Internal/private helpers: `_`-prefixed (e.g., `_exports_helpers.py`, `_security.py`)
+- CLI entry points: `__main__.py`
+- Bootstrap/internal helpers: `_bootstrap.py`
 
-### `__init__.py` Export Pattern
+### Within-Package Organization
 
-- Top-level `__init__.py` is a comprehensive public API — exports `AsanaClient`, `BatchClient`, all error types, all model types, observability hooks, protocols
-- Subpackage `__init__.py` files are selective: `api/__init__.py` exports `create_app` and key models; `services/__init__.py` exports only `GidLookupIndex`; most others export little or nothing
-- `core/__init__.py` exports only `gather_with_semaphore`, `get_logger`, `configure`, `reset_logging`
+**`services/`**: One file per service class. Result types live in the same file as the service that produces them. Shared result types get their own file (`resolution_result.py`).
 
-### Entry Points
+**`api/routes/`**: One route file per resource. Route models that are only used by one route live in `{name}_models.py` sibling. Generic models in `api/models.py`. Helper utilities `_`-prefixed.
 
-- API: `src/autom8_asana/api/main.py` → `create_app()` factory function (FastAPI)
-- CLI query tool: `src/autom8_asana/query/__main__.py`
-- AWS Lambda: `src/autom8_asana/lambda_handlers/`
-- Automation polling: `src/autom8_asana/automation/polling/cli.py`
+**`dataframes/`**: Sub-packages per functional layer (`builders/`, `extractors/`, `models/`, `resolver/`, `schemas/`, `views/`). Flat utility modules at root (`annotations.py`, `cascade_utils.py`, `storage.py`).
 
-### Config vs Settings Separation
+**`core/`**: Flat utility modules; no sub-packages. One concern per file.
 
-- `config.py` — root: frozen `@dataclass` types (`RateLimitConfig`, `RetryConfig`, `ConcurrencyConfig`, `TimeoutConfig`, `CircuitBreakerConfig`, `DataFrameConfig`, `CacheConfig`, `AsanaConfig`) — runtime config objects
-- `settings.py` — pydantic-settings classes (`AsanaSettings`, `CacheSettings`, `RedisSettings`, `S3Settings`, etc.) inheriting from `Autom8yBaseSettings` — read environment variables
+**`config.py` vs `settings.py`**: `config.py` holds frozen dataclasses for runtime configuration with `__post_init__` validation. `settings.py` holds Pydantic-settings for environment variable binding.
 
-> Test conventions: See `.know/test-coverage.md` for test file organization, fixture patterns, and coverage gaps.
+### `__init__.py` Export Policy
+
+- Top-level `src/autom8_asana/__init__.py` is the public SDK surface — explicit imports and re-exports with `__all__`
+- Sub-package `__init__.py` export selectively (e.g., `services/__init__.py` exports only `GidLookupIndex`)
+- Empty `__init__.py` valid for marking package boundary
 
 ## Domain-Specific Idioms
 
-### 1. PhoneVerticalPair (pvp) — Central Domain Concept
+### Dual Sync/Async Surface
 
-`PhoneVerticalPair` (abbreviated `pvp`) is the primary keying concept for the data service. Pairs phone number (`office_phone`) with a business vertical (e.g., "Medical"). Canonical key format: `pv1:{phone}:{vertical.lower()}`.
+The SDK exposes both sync and async methods. Convention is `_async` suffix on async variants:
+- `client.tasks.get(gid)` (sync) / `client.tasks.get_async(gid)` (async)
+- `validate_cascade_fields_async()` in `dataframes/builders/cascade_validator.py`
 
-- Defined in `autom8y_core.models.data_service` (external), re-exported via `src/autom8_asana/models/contracts/phone_vertical.py`
-- Utility: `pvp_from_business(business)` in `models/contracts/phone_vertical.py`
-- Abbreviation `pvp` is universal: `pvp.canonical_key`, `pvp_by_key`, `results[pvp.canonical_key]`
+When calling sync inside async is detected at runtime, `SyncInAsyncContextError` is raised (`errors.py:189`, `transport/sync.py`).
 
-### 2. GID — Asana Graph ID
+### GID as String Convention
 
-`GID` (Asana's Global ID) is a numeric string (10–20 digits in production, relaxed in test). Naming convention: always suffix parameter/field names with `_gid` (e.g., `task_gid`, `project_gid`, `workspace_gid`, `entity_gid`, `section_gid`). Never bare `id`.
+Asana Global IDs (GIDs) are always `str`, never `int`. Validation pattern: `r"^\d{10,}$"`. Variables and parameters named `gid` (lowercase). `workspace_gid` is the canonical parameter name.
 
-- Validated via `GidStr` Pydantic type alias (`api/models.py:47–50`) — numeric-only in production, relaxed in test/local via `AUTOM8Y_ENV`
-- Pattern `^\d{1,64}$` for regex validation
+### Configuration as Frozen Dataclasses
 
-### 3. `raw: Literal[True/False]` Overload Pattern
+All runtime configuration is `@dataclass(frozen=True)` in `config.py`. Validation in `__post_init__`. Distinct from `settings.py` (Pydantic-settings for env binding).
 
-Client methods that can return either a parsed model or raw dict use `@overload` with `raw: Literal[False] = ...` and `raw: Literal[True]`. Appears ~200 times in `clients/`. An agent adding a new client method must replicate all three overloads.
+### Logging via `autom8y_log`
 
-### 4. `*_async` Suffix Naming
+All modules use `from autom8y_log import get_logger` then `logger = get_logger(__name__)` at module level. Project-wide logger factory (not stdlib `logging`). Structured kwargs: `logger.warning("event", key=value, key2=value2)`.
 
-Methods named `foo_async` are primary async entry points (e.g., `get_async`, `create_async`, `update_async`). Plain `foo` is the sync wrapper. `async def foo(...)` (no suffix, async) is used for iterator/generator interfaces (e.g., `list_async`, `subtasks_async`). 380 `_async`-suffixed methods exist; 357 are actually `async def`.
+### Protocol-Based Dependency Interfaces
 
-### 5. Descriptor Pattern for Custom Fields
+When a subsystem needs an interface without coupling to a concrete type, a `Protocol` (from `typing`) is defined:
+- `DataFrameStorage(Protocol)` in `dataframes/storage.py`
+- `CustomFieldResolver(Protocol)` in `dataframes/resolver/protocol.py`
+- `RetryPolicy(Protocol)` in `core/retry.py`
+- `IdempotencyStore(Protocol)` in `api/middleware/idempotency.py`
+- `CreationServiceProtocol`, `SectionServiceProtocol` in `lifecycle/engine.py`
 
-Custom field access on `BusinessEntity` subclasses uses Python descriptors (`src/autom8_asana/models/business/descriptors.py`):
-- `CustomFieldDescriptor[T]` is the generic base
-- Concrete types: `TextField`, `EnumField`, `MultiEnumField`, `NumberField`, `IntField`, `PeopleField`, `DateField`
-- Assigned as class attributes; `__set_name__` registers them at definition time
-- Usage: `business.my_field` reads via `__get__`, translating Asana custom field payload to typed Python value
+`@runtime_checkable` added when `isinstance()` checks are needed.
 
-### 6. HolderFactory Pattern
+### Result Types as Dataclasses
 
-Task subtree ownership modelled with `HolderFactory` (`models/business/holder_factory.py`). Subclasses specify `child_type` and `parent_ref` as class kwargs:
+Operations returning multiple outcome values use `@dataclass` result types (not tuples or dicts):
+- `ResolutionResult` in `services/resolution_result.py`
+- `WriteFieldsResult` in `services/field_write_service.py`
+- `BackfillResult` in `services/vertical_backfill.py`
+- `CascadeValidationResult`, `CascadeHealthResult` in `dataframes/builders/cascade_validator.py`
+- `DataFrameResult` in `services/dataframe_service.py`
+- `QueryResult` in `services/query_service.py`
+
+### Cascade Pattern (Dataframes)
+
+`cascade_validator.py` represents project-specific pattern for validating hierarchical data completeness. "Cascade" = parent→child field dependency chains. Audit functions prefixed `audit_`: `audit_cascade_key_nulls`, `audit_cascade_display_nulls`, `audit_phone_e164_compliance`. Health checks use `check_`: `check_cascade_health`.
+
+### ErrorResponse Envelope
+
+All API error responses use `ErrorResponse` envelope (from `api/models.py`) containing `ErrorDetail` and `ResponseMeta`. `request_id` always present. Enforced via `FleetError` + `fleet_error_to_response` from `autom8y_api_schemas.errors`.
+
+### Import-Safe Tuple Constants
+
+Error type tuples in `core/errors.py` use try/except ImportError to build progressively — module loads cleanly whether or not optional backends are installed.
+
+### Pydantic v2 `Field(examples=[...])` Convention (CSI-001 discharged 2026-04-29)
+
+**Canonical form**: `Field(examples=["value"])` — plural array form for all Pydantic model fields exposed in the OpenAPI schema.
+
+**Rationale**: Pydantic v2 generates OpenAPI 3.1 spec using `examples` (plural, array). Using the singular `example` key in a `Field()` call produces no effect — only the array form is recognized by the Pydantic v2 JSON schema generator.
+
+**Evidence**: T-08 (commit `4d4097c3`) lifted 13 hand-edited `"example":` keys from `docs/api-reference/openapi.json` to source-level `Field(examples=[...])` declarations. Verified present at:
+- `src/autom8_asana/models/base.py:50` — `AsanaResource.gid`
+- `src/autom8_asana/models/common.py:52` — `NameGid.gid`
+- `src/autom8_asana/models/task.py:47,54,59,70,85` — `resource_type`, `name`, `notes`, `completed`, `due_on`
+- `src/autom8_asana/api/routes/resolver_schema.py:72,76,346,350` — `SchemaFieldInfo.name/type`, `EnumValueInfo.value/meaning`
+- `src/autom8_asana/api/routes/workflows.py:175,180` — `WorkflowEntry.workflow_id`, `log_prefix`
+
+**Exception — pre-CSI-001 raw-dict inline OpenAPI annotations**: Two sites in `dataframes.py` use the singular `"example":` key inside raw `responses={...}` dict annotations passed directly to the FastAPI route decorator:
+- `src/autom8_asana/api/routes/dataframes.py:511`
+- `src/autom8_asana/api/routes/dataframes.py:632`
+
+These are NOT Pydantic `Field()` calls. They are OpenAPI 3.0-style inline response annotations that predate CSI-001. They are not regressions — they are pre-existing divergent patterns. **Do not replicate this singular form in new `Field()` declarations.** Future Pydantic field declarations MUST use `examples=[...]` (plural array).
+
+**[KNOW-CANDIDATE] New structural convention established by T-08/CSI-001; absent from prior conventions.md.**
+
+### Pydantic v2 Discriminated Union — Callable Discriminator Discipline (SCAR-DISCRIMINATOR-001)
+
+**Pattern location**: `src/autom8_asana/query/models.py:97-135`
+
+When using `Discriminator(callable)` for a Pydantic v2 discriminated union, the callable MUST handle BOTH dict inputs AND model-instance inputs. The current `_predicate_discriminator` function handles only `isinstance(v, dict)` — model-instance inputs fall through to `return "comparison"` (line 112), causing incorrect discriminator resolution for nested model instances.
+
+**Failure mode**: `NotGroup(not_=AndGroup(...))` — passing an `AndGroup` model instance as the child of `NotGroup.not_` will silently misparse as `Comparison` type, failing Pydantic validation.
+
+**Fix pattern** (not yet applied — T-06 follow-up scope):
 ```python
-class DNAHolder(HolderFactory, child_type="DNA", parent_ref="_dna_holder"):
-    ...
+def _predicate_discriminator(v: Any) -> str:
+    if isinstance(v, dict):
+        # ... existing dict branch
+    elif isinstance(v, BaseModel):
+        # inspect model_fields keys to determine variant
+        fields = set(v.model_fields.keys())
+        if "and_" in fields or hasattr(v, "and_"):
+            return "and"
+        # ... etc.
+    return "comparison"
 ```
-Mixins control nesting: `UnitNestedHolderMixin`, `HolderMixin[T]`.
 
-### 7. Registry Pattern
+**Cross-reference**: SCAR-DISCRIMINATOR-001 in `.know/scar-tissue.md`.
 
-Multiple registries follow a consistent class structure with `register()` / `get()` / `lookup()` methods:
-- `EntityRegistry` (`core/entity_registry.py`)
-- `ProjectTypeRegistry` (`models/business/registry.py`) — decorator `@register_entity_class` pattern
-- `SchemaRegistry` (`dataframes/models/registry.py`)
-- `WorkflowRegistry` (`automation/workflows/registry.py`)
-- `EntityWriteRegistry` (`resolution/write_registry.py`)
-
-### 8. BuildResult Pattern
-
-Complex pipeline operations return typed `*Result` dataclasses:
-- `BuildResult` (both `dataframes/builders/` and `cache/dataframe/`)
-- `ReconciliationResult`, `ExecutionResult`, `ProcessorResult`
-- `LifecycleActionResult`, `TransitionResult`, `CreationResult`, `SeedingResult`
-
-These are plain `@dataclass` or `@dataclass(frozen=True)`, not Pydantic models.
-
-### 9. Polars DataFrames (not Pandas)
-
-Uses `polars` (imported as `pl`) throughout the dataframes layer. All DataFrame operations use Polars syntax (`pl.DataFrame`, `pl.col()`, `pl.lit()`, `df.with_columns(...)`, `df["col"]`). Never Pandas.
-
-### 10. structlog Logging
-
-Uses `autom8y_log.get_logger(__name__)` directly (NOT `logging.getLogger`). Module-level: `logger = get_logger(__name__)`. Structured context passed as keyword arguments (structlog pattern). Import: `from autom8y_log import get_logger` (not from `autom8_asana.core.logging`, which is a re-export shim).
-
-### 11. Fleet Envelope Types
-
-API responses always use `SuccessResponse`/`ErrorResponse` from `autom8y_api_schemas`. Imported in `api/models.py` and re-exported for backward compatibility. `build_success_response()` and `build_error_response()` are standard constructors.
-
-### 12. `transient` Flag on Errors
-
-`Autom8Error` subclasses expose a `transient: bool` class attribute. Retry logic reads this to distinguish transient (can retry) from permanent errors. `TransportError.transient = True`, `CacheError.transient = False`, `CacheConnectionError.transient = True`. `S3TransportError.transient` is a `@property` returning False for permanent AWS error codes.
+**[KNOW-CANDIDATE] Callable discriminator dict-only guard is a latent validation gap; no prior mention in conventions.md.**
 
 ## Naming Patterns
 
-### Type Names
+| Pattern | Convention | Examples |
+|---|---|---|
+| Service classes | `{Noun}Service` | `TaskService`, `EntityService`, `SectionService` |
+| Request models | `{Action}{Resource}Request` | `CreateTaskRequest`, `UpdateProjectRequest` |
+| Response models | `{Resource}Response` or `{Action}{Resource}Response` | `CacheRefreshResponse`, `WorkflowInvokeResponse` |
+| Result dataclasses | `{Noun}Result` | `ResolutionResult`, `WriteFieldsResult` |
+| Error classes | `{Specific}Error` | `EntityNotFoundError`, `InvalidFieldError` |
+| Protocol classes | `{Noun}Protocol` or bare suffix optional | `CreationServiceProtocol`, `RetryPolicy`, `DataFrameStorage` |
 
-- **Config dataclasses**: `*Config` suffix — `RateLimitConfig`, `RetryConfig`, `ConcurrencyConfig`, `TimeoutConfig`, `CircuitBreakerConfig`, `DataFrameConfig`, `CacheConfig`, `AsanaConfig`
-- **Settings (pydantic)**: `*Settings` suffix — `AsanaSettings`, `CacheSettings`, `RedisSettings`, `S3Settings`, `DataServiceSettings`, `ObservabilitySettings`, `RuntimeSettings`
-- **Results**: `*Result` suffix — `BuildResult`, `ReconciliationResult`, `ExecutionResult`, `CreationResult`, `SeedingResult`, `LifecycleActionResult`, `MatchResult`, `CascadeValidationResult`
-- **Errors**: `*Error` suffix — universal; no `*Exception` names (except `SyncInAsyncContextError`)
-- **Protocols**: Noun phrases without suffix — `AuthProvider`, `CacheProvider`, `MetricsEmitter`, `DataFrameProvider`, `ObservabilityHook`, `ItemLoader`, `InsightsProvider`
-- **Enums**: `StrEnum` preferred for string-valued (`FreshnessIntent`, `FreshnessState`, `VerificationSource`, `SectionStatus`, `ProbeVerdict`, `AuthMode`); `Enum` for non-string; `IntEnum` for integer (`CompletenessLevel`)
-- **Mixins**: `*Mixin` suffix — `SharedCascadingFieldsMixin`, `FinancialFieldsMixin`, `UpwardTraversalMixin`, `UnitNavigableEntityMixin`, `UnitNestedHolderMixin`, `HolderMixin`
-- **Requests (Pydantic)**: `*Request` suffix — `CreateTaskRequest`, `UpdateTaskRequest`, `MoveSectionRequest`, `ListTasksParams` (params suffix for query param models)
-- **Responses (Pydantic)**: `*Response` suffix — `SuccessResponse`, `ErrorResponse`, `InsightsResponse`, `BatchInsightsResponse`, `QueryResponse`
+### Method Naming
+
+- Async: `_async` suffix (`get_async()`, `execute_async()`, `commit_async()`)
+- Private helpers: single `_` prefix (`_build_error_response()`, `_is_transient()`)
+- Audit functions: `audit_` prefix in dataframes domain
+- Health checks: `check_` prefix
 
 ### Variable Naming
 
-- GID parameters always use `*_gid` suffix: never bare `id`
-- `pvp` is the universal abbreviation for `PhoneVerticalPair`
-- `df` is the universal variable name for Polars DataFrames
+- Logger: `logger = get_logger(__name__)` — module-level canonical name. See `logger` parameter naming convention below.
+- GIDs: always `gid` (lowercase), never `id` or `gid_str`
+- `workspace_gid` canonical for workspace identifiers
+- Module-level private constants: all-caps with `_` prefix (`_ASANA_GID_PATTERN`, `_MINIMUM_OPT_FIELDS`)
+
+### `logger` Parameter Naming Convention (T-06 — autom8y_log SDK)
+
+**Canonical form**: `logger` (not `log`) as the parameter name when passing an `autom8y_log` logger instance to a constructor or function.
+
+**Background**: T-06 (commit `5b2e3b2d`) renamed `log` → `logger` across 6 files to align with autom8y_log SDK conventions. This establishes `logger` as the canonical parameter name project-wide.
+
+**T-06 follow-up scope — 4 violators remain** (NOT yet aligned; pre-existing `log:` parameter sites not covered by T-06):
+
+| File | Line | Pattern |
+|---|---|---|
+| `src/autom8_asana/clients/data/_response.py` | 65 | `log: LogProvider \| Any \| None` (function parameter) |
+| `src/autom8_asana/clients/data/_response.py` | 197 | `log: LogProvider \| Any \| None` (function parameter) |
+| `src/autom8_asana/persistence/holder_ensurer.py` | 72 | `log: Any \| None = None` (constructor parameter) |
+| `src/autom8_asana/persistence/cache_invalidator.py` | 41 | `log: Any \| None = None` (constructor parameter) |
+| `src/autom8_asana/services/vertical_backfill.py` | 63 | `log: Any \| None = None` (constructor parameter) |
+
+**Rule**: All new code MUST use `logger` as the parameter name. The 4 violator files above are pending T-06 follow-up remediation. Agents reading this document: do not replicate the `log:` parameter form in new code.
+
+**[KNOW-CANDIDATE] Explicit violator list with file:line not present in prior conventions.md; prior version only noted the anti-pattern generically.**
 
 ### Acronym Conventions
 
-- `GID` (not `Gid`, not `Id`) — Asana Graph ID, always uppercase in identifiers
-- `PVP` or `pvp` — PhoneVerticalPair shorthand; lowercase `pvp` preferred in variable names
-- `URL` not `Url`; `HTTP` not `Http` in class names (e.g., `HTTPException`)
-- `ID` and `GID` are both uppercase; never `Id` or `Gid`
+- `gid` (lowercase) in code, `GID` in docstrings/comments
+- `URL`, `HTTP`, `S3`, `API`, `ADR`, `GID` — all uppercase in comments
+- Error codes in machine-readable strings: `SCREAMING_SNAKE_CASE` (`RESOURCE_NOT_FOUND`, `VALIDATION_ERROR`)
 
-### Module/Package Naming
+### Package Naming
 
-- Packages are singular nouns: `cache`, `client`, `core`, `model` → plural only for genuine collections: `clients`, `models`, `protocols`, `metrics`, `patterns`
-- Internal packages/modules start with `_`: `_defaults`, `_endpoints`, `_cache`, `_policy`, `_retry`, `_pii`, `_security`
-- No `utils` at top level; utility code goes into named modules (`core/string_utils.py`, `core/field_utils.py`, `core/datetime_utils.py`)
+- All packages: `snake_case`
+- Private helper modules: `_` prefix (`_defaults`, `_exports_helpers.py`, `_security.py`)
 
-### Naming Anti-Patterns to Avoid
+### Anti-Patterns to Avoid
 
-- Do not use `id` for Asana identifiers — always `*_gid`
-- Do not name a module `utils.py` at top level — use specific names
-- Do not mix `*Settings` and `*Config` — `Settings` reads env vars, `Config` is a frozen dataclass for runtime wiring
-- Do not use `get_logger` from `autom8_asana.core.logging` in new code — import directly from `autom8y_log`
-- Do not name async methods without `_async` suffix when a sync variant exists at the same level
+- Do not use `log` as the logger variable or parameter name — use `logger` (see T-06 convention above; 4 legacy sites pending cleanup)
+- Do not raise `Exception` or `RuntimeError` for domain logic failures
+- Do not import `CacheNotWarmError` from `services/query_service.py` (defined ad-hoc) — should relocate to `services/errors.py`
+- Do not define result types outside the service file unless shared across multiple callers
+- Do not use singular `"example":` key inside Pydantic `Field()` — use `examples=[...]` (plural array); the two sites in `dataframes.py:511,632` are pre-CSI-001 raw-dict exceptions, not the canonical form
+
+## Experiential Observations (from session history)
+
+The cross-session corpus (18 wrapped sessions, confidence 0.75) shows Bash dominates tool calls (65% of grepped). Edit usage correlates with productive sessions — project-crucible ran 8h25m with 36+ commits across 6 sprints. SCAR test cluster (33 inviolable tests) is documented as a sacred constraint.
+
+Coverage floor is `>=80%` non-negotiable per project-crucible. Parametrize rate target `>=8%` (current 0.90% per session-layer view; 11.6% per static analysis). 86.8% local fixture ratio identified as anti-pattern.
+
+Cross-rite transitions: `ari sync --rite=...` documented in session-20260415-032649 (hygiene↔10x-dev), session-20260427-232025 (rnd→10x-dev planned).
 
 ## Knowledge Gaps
 
-1. **`clients/data/_pii.py`** — Not read; PII handling conventions in the data client undocumented here.
-2. **`patterns/error_classification.py`** — Not read in depth; `RetryableErrorMixin` and `HasError` protocol details.
-3. **`automation/workflows/`** — Workflow-specific idioms (conversation_audit, insights, payment_reconciliation) not explored.
-4. **`lambda_handlers/`** — Entry-point and handler naming patterns in Lambda context not audited.
-5. **`cache/policies/`** — Cache policy naming and application pattern not documented.
-6. **Test conventions** — Deferred to `.know/test-coverage.md` per domain separation.
+- The `patterns/` package has only `error_classification.py` observed
+- `lifecycle/engine.py` Protocol inventory is grep-based; full lifecycle idioms not fully traced
+- `automation/` sub-packages (`events/`, `polling/`, `workflows/`) not individually inspected
+- `search/`, `batch/` full API surface not traced
