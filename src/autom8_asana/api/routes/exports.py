@@ -50,6 +50,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.models import SuccessResponse
 from autom8_asana.api.routes._exports_helpers import (
     InvalidSectionError,
     apply_active_default_section_predicate,
@@ -511,7 +512,7 @@ async def export_handler(
         "boolean column on every row; format-negotiable JSON | CSV | Parquet. "
         "S2S-authenticated via SERVICE_JWT_SCHEME."
     ),
-    response_model=None,
+    response_model=SuccessResponse[list[dict[str, Any]]],
     openapi_extra={
         "x-fleet-side-effects": [],
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
@@ -543,7 +544,7 @@ async def post_export_v1(
         "PAT_BEARER_SCHEME middleware (same surface as /api/v1/dataframes/* "
         "routes)."
     ),
-    response_model=None,
+    response_model=SuccessResponse[list[dict[str, Any]]],
     openapi_extra={
         "x-fleet-side-effects": [],
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
