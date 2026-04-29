@@ -141,6 +141,9 @@ jobs:
         env:
           HYPOTHESIS_PROFILE: ci
           AUTOM8Y_ENV: test
+          # PR-scope envelope: 5 examples on PRs, 25 on main/nightly.
+          # Default in tests/test_openapi_fuzz.py:70 remains 25 (local dev).
+          SCHEMATHESIS_MAX_EXAMPLES: ${{ github.event_name == 'pull_request' && '5' || '25' }}
         run: |
           python -m pytest tests/test_openapi_fuzz.py \
             -x -q --timeout=300 --no-header \
