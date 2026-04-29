@@ -102,3 +102,22 @@
     - .ledge/specs/PLAN-actual-blockers-2026-04-29.md §3.3 (Option C hybrid disposition)
     - .ledge/reviews/VERDICT-eunomia-final-adjudication-2026-04-29.md §5 (Pattern-6-Recurrence Meta-Finding)
     - .know/scar-tissue.md SCAR-P6-001
+
+- id: test-session-track-100-entities-perf-optimization
+  filed_at: 2026-04-29
+  filed_by: janitor (hygiene rite, ADR-followon-ci-flake-threshold-2026-04-29)
+  parent_initiative: followon-ci-failures-2026-04-29
+  scope: optimize test_session_track_100_entities runtime under <400ms
+  status: DEFERRED-pending-perf-optimization-rite
+  blocker: hygiene rite scope excludes perf optimization; routes /sre or /10x-dev
+  watch_trigger: 2026-07-29
+  deadline: 2026-10-29
+  escalation_target: /sre rite Potnia (or /10x-dev if perf treated as feature work)
+  retry_action: >
+    profile test runtime under realistic CI runner conditions; identify bottleneck
+    (likely DB I/O or Polars eager-eval); optimize OR mark test as long-running
+    and move to non-shard pool
+  evidence_anchors:
+    - .ledge/decisions/ADR-followon-ci-flake-threshold-2026-04-29.md
+    - .ledge/reviews/SMELL-followon-ci-2026-04-29.md F3
+    - "workflow-run URL: 25109444280/job/73579221418"

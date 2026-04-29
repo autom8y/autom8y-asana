@@ -65,6 +65,9 @@ pytestmark = [
         strict=False,
     ),
     pytest.mark.fuzz,
+    pytest.mark.xdist_group("fuzz"),  # pin all fuzz tests to same xdist worker
+    # With --dist=load, xdist_group("fuzz") routes all tests in this module to
+    # the same worker, preserving co-locality of module-level app/schema state.
 ]
 
 _MAX_EXAMPLES = int(os.environ.get("SCHEMATHESIS_MAX_EXAMPLES", "25"))
@@ -75,6 +78,9 @@ hypothesis_settings.register_profile(
     deadline=10_000,  # 10s per example — prevents unbounded CI runner time
     suppress_health_check=[HealthCheck.too_slow],
     derandomize=True,
+    database=None,  # disable write channel: derandomize=True skips DB reads;
+    # database=None also disables writes, eliminating the latent
+    # write-collision vector when xdist workers run in parallel.
 )
 hypothesis_settings.load_profile(
     os.environ.get("HYPOTHESIS_PROFILE", "ci"),

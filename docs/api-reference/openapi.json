@@ -905,6 +905,50 @@
         "title": "ExportRequest",
         "type": "object"
       },
+      "ExportsSuccessResponse": {
+        "description": "Success envelope for POST /exports — account-grain row list.\n\nTyped variant of SuccessResponse[list[dict[str, Any]]] with field-level\nexamples for the M-02_field_example semantic-score metric. Schema-only\nenrichment; no runtime behavior change.\n\nThe data field carries a representative account-grain export row\n(PHASE_1_DEFAULT_COLUMNS + identity_complete per exports.py:101-109).\n\nPer AUDIT-followon-ci-2026-04-29-delta.md §2 Q3: example enrichment authored\nto recover M-02_field_example score (baseline 0.5266) after the\nSuccessResponse[list[dict[str, Any]]] typed schema introduction in BLOCKING-1\namendment (b9cf6dbc).",
+        "properties": {
+          "data": {
+            "description": "Response data payload",
+            "examples": [
+              [
+                {
+                  "gid": "1201265144487000",
+                  "identity_complete": true,
+                  "modified_at": "2026-04-01T09:15:00Z",
+                  "name": "Acme Corp",
+                  "office_phone": "555-0100",
+                  "pipeline_type": "Outreach",
+                  "section": "Active",
+                  "vertical": "Healthcare"
+                }
+              ]
+            ],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta",
+            "description": "Response metadata",
+            "examples": [
+              {
+                "request_id": "a1b2c3d4e5f67890",
+                "timestamp": "2026-03-15T10:30:00Z"
+              }
+            ]
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "ExportsSuccessResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3734,7 +3778,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
+                  "$ref": "#/components/schemas/ExportsSuccessResponse"
                 }
               }
             },
@@ -8356,7 +8400,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
+                  "$ref": "#/components/schemas/ExportsSuccessResponse"
                 }
               }
             },

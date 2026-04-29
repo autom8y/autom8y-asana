@@ -16,6 +16,7 @@ Usage:
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING
 
 from autom8y_log import get_logger
@@ -25,16 +26,30 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_reset_registry: list[Callable[[], None]] = []
+# Per-worker registry: keyed by pytest-xdist worker ID so that parallel
+# workers each maintain an independent reset-function list.  Outside of
+# xdist (serial runs, non-pytest contexts) the key falls back to "main".
+# Registration order within each key is preserved (append-on-import).
+_reset_registry: dict[str, list[Callable[[], None]]] = {}
+
+
+def _worker_key() -> str:
+    """Return the current worker identifier for registry isolation."""
+    return os.environ.get("PYTEST_XDIST_WORKER", "main")
 
 
 def register_reset(fn: Callable[[], None]) -> None:
     """Register a callable to be invoked by ``SystemContext.reset_all()``.
 
     Duplicates are silently ignored so re-importing a module is safe.
+    Registrations are keyed per xdist worker so parallel workers maintain
+    independent reset lists.
     """
-    if fn not in _reset_registry:
-        _reset_registry.append(fn)
+    key = _worker_key()
+    if key not in _reset_registry:
+        _reset_registry[key] = []
+    if fn not in _reset_registry[key]:
+        _reset_registry[key].append(fn)
 
 
 class SystemContext:
@@ -46,9 +61,11 @@ class SystemContext:
 
         Intended for test fixtures. Resets are ordered to respect
         dependencies: registries first, then caches, then settings.
+        Registration order is preserved per-worker (append-on-import
+        discipline ensures dependency ordering).
         """
-        # --- Registration-based resets ---
-        for fn in _reset_registry:
+        # --- Registration-based resets (worker-local list) ---
+        for fn in _reset_registry.get(_worker_key(), []):
             fn()
 
         logger.debug("system_context_reset_all_complete")

@@ -50,8 +50,7 @@ from autom8_asana.query.models import (
     RowsRequest,
     RowsResponse,
 )
-from autom8_asana.services.errors import InvalidFieldError, ServiceError
-from autom8_asana.services.errors import CacheNotWarmError
+from autom8_asana.services.errors import CacheNotWarmError, InvalidFieldError, ServiceError
 from autom8_asana.services.query_service import (
     EntityQueryService,
     resolve_section_index,

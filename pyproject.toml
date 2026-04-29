@@ -110,7 +110,7 @@ timeout_method = "thread"
 # because crashed workers never flush .coverage data. ``loadfile`` grouping
 # guarantees per-file isolation on a single worker, which sidesteps the
 # cross-item state corruption without disabling parallelism entirely.
-addopts = "--dist=loadfile"
+addopts = "--dist=load"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests requiring live API access",
