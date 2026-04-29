@@ -330,6 +330,22 @@ POST /api/v1/webhooks/inbound
 
 Settings via `get_settings()` (cached singleton, `@lru_cache`). Override chain: `pyproject.toml` deps → env vars → `Settings` → `AsanaConfig` per-client → `DataServiceConfig` → Lambda secrets via `resolve_secret_from_env()` from `autom8y-config`.
 
+## Defer-Watch Active Entries <!-- GLINT-010 | anchor: .know/defer-watch.yaml:1-79 | provenance: VERDICT-eunomia-final-adjudication-2026-04-29.md §4 -->
+
+> Cross-reference summary of `.know/defer-watch.yaml` active entries as of 2026-04-29 close.
+> Registry hygiene is OWNED by the `defer-watch-manifest` legomenon; this section provides
+> discoverability for agents reading architecture.md without a separate defer-watch.yaml read.
+> Both entries adjudicated KEEP-OPEN (EUN-005 audit, VERDICT §4). Watch-triggers fire 2026-05-29.
+
+| Entry ID | Scope | Status | Watch Trigger | Deadline | Escalation |
+|---|---|---|---|---|---|
+| `DEFER-WS4-T3-2026-04-29` | `_defaults/log.py` migration to autom8y_log SDK; blocked on SDK lacking stdlib `logging.Logger` compat | DEFERRED-pending-upstream-SDK-enhancement | 2026-05-29 | 2026-Q3 | rnd-rite (autom8y-log SDK enhancement) |
+| `lockfile-propagator-prod-ci-confirmation` | Production-CI green confirmation for lockfile-propagator path-resolution fix; Notify-Satellite-Repos step SKIPPED on last 2 post-merge runs (CodeArtifact 409 at earlier Publish step) | DEFERRED-pending-natural-trigger | 2026-05-29 | 2026-07-29 | 10x-dev rite (next SDK publish on fresh version) or sre rite |
+
+**DEFER-WS4-T3-2026-04-29** unblock signal: autom8y-log SDK ships `StdlibLoggerAdapter` or equivalent stdlib-compat layer. Retry action: re-enter WS-4 T3, remove `pyproject.toml:272` TID251 exemption, replace `_defaults/log.py:81` stdlib call with SDK shim. Anchored at `scar-tissue.md` SCAR-LOG-001.
+
+**lockfile-propagator-prod-ci-confirmation** close condition: a `sdk-publish-v2.yml` run where Publish step succeeds AND Notify-Satellite-Repos records `status=SUCCESS` for at least 1 satellite AND the uv-lock step inside that satellite completes without emitting `"Distribution not found at: file:///tmp/lockfile-propagator-..."`. If no natural trigger fires by 2026-07-29 deadline, re-engage with authority to push a no-op autom8y-config patch bump to force the confirmation. Anchored at `scar-tissue.md` SCAR-LP-001 and `ADR-lockfile-propagator-source-stubbing.md §Status`.
+
 ## Experiential Observations (from session history)
 
 The cross-session corpus shows 18 wrapped sessions across 15 initiative clusters with project-asana-pipeline-extraction Phase 0/1 carrying the first explicit telos discipline (telos_deadline 2026-05-11). Cross-rite handoff patterns observed: review→10x-dev→sre (offer-data-gaps), hygiene↔10x-dev (project-crucible), rnd→10x-dev (asana-pipeline-extraction). Hot path artifacts cluster around `api/{models.py, routes/tasks.py}`, `clients/data/{client.py, config.py}`, `services/{gid_push.py, resolution_result.py, universal_strategy.py}`, `dataframes/builders/cascade_validator.py`.

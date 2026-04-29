@@ -100,7 +100,7 @@ Packages with no integration or validation tests: `auth`, `core`, `models`, `met
 
 - `fail_under = 80` in `pyproject.toml` (`[tool.coverage.report]`); branch coverage enabled (`branch = true`); source scoped to `src/autom8_asana`
 - Coverage exclusion lines: `pragma: no cover`, `if TYPE_CHECKING:`, `@abstractmethod`, `raise NotImplementedError`, `if __name__ == "__main__":`
-- The 80% floor is a CI hard gate.
+- **Coverage gate status (GLINT-003)**: `pyproject.toml:126` declares `fail_under = 80` (intent). `.github/workflows/test.yml:52` sets `coverage_threshold: 0` with an inline comment: *"per-shard coverage is meaningless with test_splits > 1; aggregate coverage should be validated in a separate post-merge job."* That separate post-merge job does NOT exist in the workflow directory (8 workflow files; none implements aggregate coverage enforcement). **Net effect: the declared 80% floor is not enforced in CI — the gate is coverage theater.** The `fail_under = 80` setting causes `pytest --cov` to fail locally but the CI workflow explicitly disables it. The only enforced coverage threshold across the a8 fleet is a8 Go at 55% (`go-ci.yml:57-64`). Provenance: GLINT-003 / pyproject.toml:126 + test.yml:52 / VERDICT-eunomia-final-adjudication-2026-04-29.md.
 
 ## Testing Conventions
 
@@ -159,6 +159,32 @@ Note: `test_exports_helpers_walk_predicate_property.py` uses the word "property"
 - **`moto`**: AWS/S3 mocking; conditionally available
 - **SDK testing doubles**: `autom8y_log.testing.MockLogger`, `autom8y_cache.testing.MockCacheProvider`
 - **`schemathesis` + `hypothesis`**: OpenAPI property-based fuzzing
+
+### MockTask Proliferation (Known Convention Drift)
+
+12 `class MockTask:` definitions exist across the autom8y-asana test suite (GLINT-004):
+
+- **1 canonical**: `tests/_shared/mocks.py:10` — the authoritative `MockTask` for automation/polling tests.
+- **11 bespoke**: Local redefinitions in individual test files (see list below). Only 2 conftest files import from the canonical: `tests/unit/automation/polling/conftest.py:340` and `tests/integration/automation/polling/conftest.py:163`.
+
+**Bespoke locations** (file:line — source evidence GLINT-004 anchors):
+- `tests/unit/dataframes/test_cascading_resolver.py:34`
+- `tests/unit/dataframes/test_resolver.py:58`
+- `tests/unit/automation/test_templates.py:24`
+- `tests/unit/automation/test_onboarding_comment.py:19`
+- `tests/unit/automation/test_pipeline_hierarchy.py:77`
+- `tests/unit/automation/test_pipeline.py:72`
+- `tests/unit/automation/test_assignee_resolution.py:18`
+- `tests/unit/automation/test_integration.py:103`
+- `tests/integration/test_unit_cascade_resolution.py:61`
+- `tests/integration/test_platform_performance.py:52`
+- `tests/integration/test_cascading_field_resolution.py:43`
+
+**Convention**: New tests that require a `MockTask` MUST import from `tests/_shared/mocks`. Bespoke redefinitions are a consolidation routing target (hygiene rite). Canonical adoption convention codification is a documentation routing target (/docs).
+
+**SDK testing doubles utilization**: `autom8y_log.testing`/`autom8y_cache.testing` imported in 5 of 504 non-conftest test files (1% adoption). Doubles are funneled through root conftest fixtures (`MockLogger`, `MockCacheProvider`); direct per-test imports are rare.
+
+Provenance: GLINT-004 / tests/_shared/mocks.py:10 / VERDICT-eunomia-final-adjudication-2026-04-29.md.
 
 ### Fixture Infrastructure
 
