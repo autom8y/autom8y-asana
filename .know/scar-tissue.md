@@ -237,6 +237,11 @@ synthesizes cross-repo state from inventories generated at different points in
 time must verify live branch HEAD before asserting file presence/absence —
 regardless of what prior substrates claim.
 
+**See also**: `.claude/skills/drift-audit-discipline/SKILL.md` — codified
+synthesis-altitude clause (repo-local Stage 1 mint, 2026-04-29, hygiene rite
+actual-blockers initiative). Fleet promotion deferred: `.know/defer-watch.yaml`
+entry `id: drift-audit-discipline-fleet-promotion`.
+
 ---
 
 ## SCAR-CW-001 — 5-layer Lambda cold-start failure taxonomy

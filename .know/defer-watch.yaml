@@ -76,3 +76,29 @@
     - .ledge/decisions/ADR-lockfile-propagator-source-stubbing.md §Status (proposed-pending-prod-CI-green)
     - .ledge/specs/lockfile-propagator-source-stubbing.tdd.md §1 Telos Restatement
     - .know/scar-tissue.md SCAR-LP-001 (Vector paragraph)
+
+- id: drift-audit-discipline-fleet-promotion
+  filed_at: 2026-04-29
+  filed_by: janitor (hygiene rite)
+  parent_initiative: actual-blockers-2026-04-29
+  scope: >
+    promote drift-audit-discipline skill from repo-local
+    (.claude/skills/drift-audit-discipline/SKILL.md) to knossos-altitude
+    for fleet availability (knossos/rites/shared/mena/drift-audit-discipline/)
+  status: DEFERRED-pending-cross-repo-coordination
+  blocker: >
+    satellite-primitive-promotion protocol requires cross-repo orchestration
+    with knossos repo; hygiene-rite authority boundary grants repo-local
+    skill modification but routes cross-repo promotion via
+    satellite-primitive-promotion skill
+  watch_trigger: 2026-05-29
+  deadline: 2026-09-29
+  escalation_target: ecosystem rite Potnia
+  retry_action: >
+    invoke satellite-primitive-promotion to lift drift-audit-discipline skill
+    from autom8y-asana repo-local to knossos canonical shared-mena altitude;
+    verify no content divergence has accrued during promotion window
+  evidence_anchors:
+    - .ledge/specs/PLAN-actual-blockers-2026-04-29.md §3.3 (Option C hybrid disposition)
+    - .ledge/reviews/VERDICT-eunomia-final-adjudication-2026-04-29.md §5 (Pattern-6-Recurrence Meta-Finding)
+    - .know/scar-tissue.md SCAR-P6-001
