@@ -65,6 +65,9 @@ pytestmark = [
         strict=False,
     ),
     pytest.mark.fuzz,
+    pytest.mark.xdist_group("fuzz"),  # pin all fuzz tests to same xdist worker
+    # With --dist=load, xdist_group("fuzz") routes all tests in this module to
+    # the same worker, preserving co-locality of module-level app/schema state.
 ]
 
 _MAX_EXAMPLES = int(os.environ.get("SCHEMATHESIS_MAX_EXAMPLES", "25"))
