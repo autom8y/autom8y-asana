@@ -26,10 +26,12 @@ from __future__ import annotations
 
 from datetime import date as _date
 from datetime import datetime as _datetime
-from typing import Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import polars as pl
-
 from autom8y_log import get_logger
 
 from autom8_asana.models.business.activity import PROCESS_PIPELINE_SECTIONS
@@ -106,7 +108,7 @@ class InvalidSectionError(ValueError):
 # ---------------------------------------------------------------------------
 
 
-def attach_identity_complete(df: "pl.DataFrame") -> "pl.DataFrame":
+def attach_identity_complete(df: pl.DataFrame) -> pl.DataFrame:
     """Attach the ``identity_complete`` boolean column.
 
     Definition (PRD §5.3):
@@ -141,10 +143,10 @@ def attach_identity_complete(df: "pl.DataFrame") -> "pl.DataFrame":
 
 
 def filter_incomplete_identity(
-    df: "pl.DataFrame",
+    df: pl.DataFrame,
     *,
     include: bool,
-) -> "pl.DataFrame":
+) -> pl.DataFrame:
     """Drop rows with ``identity_complete=false`` when caller opts in.
 
     Default per PRD §3.1: ``include=True`` → null-key rows surface with the flag
@@ -165,10 +167,10 @@ def filter_incomplete_identity(
 
 
 def dedupe_by_key(
-    df: "pl.DataFrame",
+    df: pl.DataFrame,
     *,
     keys: list[str],
-) -> "pl.DataFrame":
+) -> pl.DataFrame:
     """Dedupe by ``keys`` using the most-recent-by-modified_at policy.
 
     Per TDD §3.4 + DEFER-WATCH-1: when multiple input rows collapse to the same
@@ -346,7 +348,7 @@ class DateTranslationResult:
     def __init__(
         self,
         cleaned_predicate: PredicateNode | None,
-        date_filter_expr: "pl.Expr | None",
+        date_filter_expr: pl.Expr | None,
     ) -> None:
         self.cleaned_predicate = cleaned_predicate
         self.date_filter_expr = date_filter_expr
@@ -373,7 +375,7 @@ def _coerce_date_value(value: Any) -> _date:
     )
 
 
-def _build_date_expr(comparison: Comparison) -> "pl.Expr":
+def _build_date_expr(comparison: Comparison) -> pl.Expr:
     """Translate a single date-op Comparison into a Polars filter expression.
 
     BETWEEN: value is ``[lo, hi]`` (inclusive both bounds).
@@ -398,7 +400,7 @@ def _build_date_expr(comparison: Comparison) -> "pl.Expr":
 
 def _split_date_predicates(
     node: PredicateNode | None,
-) -> tuple[PredicateNode | None, list["pl.Expr"]]:
+) -> tuple[PredicateNode | None, list[pl.Expr]]:
     """Walk ``node``, extract date-op Comparisons, return (cleaned, exprs).
 
     Per TDD §5.3 ESC-1 resolution: the route handler translates date operators
@@ -418,7 +420,7 @@ def _split_date_predicates(
 
     if isinstance(node, AndGroup):
         survivors: list[PredicateNode] = []
-        exprs: list["pl.Expr"] = []
+        exprs: list[pl.Expr] = []
         for child in node.and_:
             child_clean, child_exprs = _split_date_predicates(child)
             exprs.extend(child_exprs)

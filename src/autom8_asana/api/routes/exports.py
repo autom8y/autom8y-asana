@@ -40,8 +40,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 from autom8y_log import get_logger
-from fastapi.responses import Response
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves at runtime
     AsanaClientDualMode,
@@ -73,12 +72,13 @@ from autom8_asana.query.models import (
     PredicateNode,
 )
 from autom8_asana.services.errors import (
+    CacheNotWarmError,
     UnknownEntityError,
 )
-from autom8_asana.services.errors import CacheNotWarmError
 
 if TYPE_CHECKING:
     import polars as pl
+    from fastapi.responses import Response
 
 __all__ = [
     "ExportOptions",
@@ -240,7 +240,7 @@ async def _engine_call_with_left_preservation_guard(
     client: Any,
     request_id: str,
     predicate_join_semantics: str,
-) -> "pl.DataFrame":
+) -> pl.DataFrame:
     """Wrap the engine eager DataFrame fetch with the LEFT-PRESERVATION GUARD.
 
     Per ADR-engine-left-preservation-guard §4 mechanism (a): the wrapper runs
@@ -337,7 +337,7 @@ async def export_handler(
 
     # 1. Entity validation
     try:
-        ctx = entity_service.validate_entity_type(request_body.entity_type)  # type: ignore[attr-defined]
+        entity_service.validate_entity_type(request_body.entity_type)  # type: ignore[attr-defined]
     except UnknownEntityError as e:
         raise_api_error(
             request_id,
@@ -381,7 +381,7 @@ async def export_handler(
     registry = SchemaRegistry.get_instance()
     schema = registry.get_schema(_to_pascal_case(request_body.entity_type))
     compiler = PredicateCompiler()
-    base_filter_expr: "pl.Expr | None" = None
+    base_filter_expr: pl.Expr | None = None
     if cleaned_predicate is not None:
         try:
             base_filter_expr = compiler.compile(cleaned_predicate, schema)
@@ -404,7 +404,7 @@ async def export_handler(
     # Combine: date_filter AND base_filter (both AND-merged downstream).
     # NOTE: polars Expr objects do NOT support truthiness (the implicit
     # ``or`` overload raises TypeError). Use explicit ``is not None`` guards.
-    combined_filter_expr: "pl.Expr | None"
+    combined_filter_expr: pl.Expr | None
     if base_filter_expr is not None and date_filter_expr is not None:
         combined_filter_expr = base_filter_expr & date_filter_expr
     elif base_filter_expr is not None:
@@ -416,7 +416,7 @@ async def export_handler(
 
     # 6. Per-project fetch + filter + concat
     predicate_join_semantics = _resolve_predicate_join_semantics(request_body.options)
-    frames: list["pl.DataFrame"] = []
+    frames: list[pl.DataFrame] = []
     for project_gid in request_body.project_gids:
         try:
             df = await _engine_call_with_left_preservation_guard(

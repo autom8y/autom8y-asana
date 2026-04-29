@@ -30,7 +30,6 @@ from autom8_asana.api.routes._exports_helpers import (
 )
 from autom8_asana.query.models import AndGroup, Comparison, NotGroup, Op, OrGroup
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

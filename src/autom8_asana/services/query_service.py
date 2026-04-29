@@ -28,7 +28,9 @@ import polars as pl
 from autom8y_log import get_logger
 from autom8y_telemetry import trace_computation
 
-from autom8_asana.services.errors import CacheNotWarmError  # noqa: F401 — backward-compat re-export; callers may still import from here
+from autom8_asana.services.errors import (
+    CacheNotWarmError,  # noqa: F401 — backward-compat re-export; callers may still import from here
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
