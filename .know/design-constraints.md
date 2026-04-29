@@ -85,14 +85,17 @@ Deadline: 2026-05-06
 Severity: P1 (every dirty `ari sync` reproduces the failure mode)
 Operational consequence: Any `ari sync` verdict issued against a dirty tree is unreliable and must be treated as invalid.
 
-**M02-MONITOR-001: M-02 Score CI Tripwire Absent — Floor Already Breached**
+**M02-MONITOR-001: M-02 Score CI Tripwire — DISCHARGED 2026-04-29**
 Type: Observability constraint (CI)
-Anchor: `scripts/aegis-check.py:48-86`, `.ci/semantic-baseline.json:12`
-Current state (empirically verified at `6b303485`): `semantic-baseline.json` M-02 score = **0.4743** (numerator: 83/175, floor: 0.5). Floor is CURRENTLY BREACHED. `aegis-check.py` checks endpoint-level memory/coverage — does NOT check `examples=` field presence or count at the Pydantic source level.
-Constraint: Add proxy metric `count(fields_with_examples) / count(total_fields)` to `aegis-check.py` as a CI gate with floor threshold 0.50 (matching `semantic-baseline.json` floor). Current score 0.4743 means 92 of 175 fields currently lack `examples=`. Breach is active — not prospective.
-Severity: P1 (floor currently breached; CI does not surface this; PR-merge will not block on M-02 regression)
-Deadline: 2026-05-06 (Sprint-4 priority)
-Cross-reference: CSI-001 DISCHARGED (scar-tissue.md) — CSI-001 fixed the spec-gen gap; M02-MONITOR-001 is the missing CI enforcement that would prevent regression.
+Anchor: `.ci/semantic-baseline.json:12-19`
+Status: **DISCHARGED via HYG-T1 commit `7dd9aa5d`** (2026-04-29). Empirical recompute against post-T-10 spec: M-02 = 99/188 = 0.5266 (above 0.5 floor, pass: true). Stale baseline (0.4743, pass: false) was a pre-T-08 artifact never refreshed; no actual source-side regression.
+Original concern (preserved as historical evidence): "score 0.4743 / numerator 83 / denominator 175 / pass: false" was the pre-T-08 baseline. After T-08 (`4d4097c3`) lifted 13 examples to Pydantic source and T-10 (`80c2cc90`) regenerated openapi.json, `.ci/semantic-baseline.json` was never updated until HYG-T1.
+Residual concern (carry-forward): a CI tripwire to prevent FUTURE regression is still absent — `aegis-check.py` does NOT enforce `examples=` count. If a future PR removes `examples=` declarations from Pydantic source, no CI gate will catch the regression until a manual `semantic-baseline.json` refresh. Adding `count(fields_with_examples) / count(total_fields)` to `aegis-check.py` remains a Sprint-4 hygiene candidate but is no longer a P1 (no active breach).
+Severity: P3 (was P1 — downgraded since active breach is discharged; remaining concern is prospective regression detection)
+Deadline: Sprint-4 (advisory, not blocking)
+Cross-reference: CSI-001 DISCHARGED (scar-tissue.md) — CSI-001 fixed the spec-gen gap; HYG-T1 brought the baseline JSON into alignment.
+
+Companion finding (carry-forward): During HYG-T1 empirical recompute, M-01/M-03/M-04/M-05/M-06 baseline denominators were observed to be stale (175→188 fields, 53→55 endpoints) but all metrics still pass their respective floors. Janitor explicitly did NOT silently re-baseline these; a separate `/task` could refresh denominators for accuracy without affecting pass/fail status.
 
 **WORKTREE-001: Parallel-Worktree Contamination Protocol Absent**
 Type: Operational constraint (development hygiene)
