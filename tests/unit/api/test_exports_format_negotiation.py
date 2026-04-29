@@ -162,9 +162,7 @@ class TestEsc3SizeMeasurement:
         from unittest.mock import patch
 
         df = _sample_df()
-        with patch(
-            "autom8_asana.api.routes.dataframes._export_format_logger"
-        ) as mock_logger:
+        with patch("autom8_asana.api.routes.dataframes._export_format_logger") as mock_logger:
             _format_csv_response(df, request_id="req-csv")
         mock_logger.info.assert_called_once()
         call_args = mock_logger.info.call_args
@@ -180,9 +178,7 @@ class TestEsc3SizeMeasurement:
         from unittest.mock import patch
 
         df = _sample_df()
-        with patch(
-            "autom8_asana.api.routes.dataframes._export_format_logger"
-        ) as mock_logger:
+        with patch("autom8_asana.api.routes.dataframes._export_format_logger") as mock_logger:
             _format_parquet_response(df, request_id="req-pq")
         mock_logger.info.assert_called_once()
         call_args = mock_logger.info.call_args

@@ -136,9 +136,7 @@ def attach_identity_complete(df: "pl.DataFrame") -> "pl.DataFrame":
         return df.with_columns(identity_complete=pl.lit(False))
 
     return df.with_columns(
-        identity_complete=(
-            pl.col("office_phone").is_not_null() & pl.col("vertical").is_not_null()
-        )
+        identity_complete=(pl.col("office_phone").is_not_null() & pl.col("vertical").is_not_null())
     )
 
 
@@ -233,15 +231,25 @@ def _walk_predicate(
         return on_comparison(node)
     if isinstance(node, AndGroup):
         return combine(
-            [_walk_predicate(c, on_comparison=on_comparison, default=default, combine=combine) for c in node.and_]
+            [
+                _walk_predicate(c, on_comparison=on_comparison, default=default, combine=combine)
+                for c in node.and_
+            ]
         )
     if isinstance(node, OrGroup):
         return combine(
-            [_walk_predicate(c, on_comparison=on_comparison, default=default, combine=combine) for c in node.or_]
+            [
+                _walk_predicate(c, on_comparison=on_comparison, default=default, combine=combine)
+                for c in node.or_
+            ]
         )
     if isinstance(node, NotGroup):
         return combine(
-            [_walk_predicate(node.not_, on_comparison=on_comparison, default=default, combine=combine)]
+            [
+                _walk_predicate(
+                    node.not_, on_comparison=on_comparison, default=default, combine=combine
+                )
+            ]
         )
     return default
 
@@ -376,8 +384,7 @@ def _build_date_expr(comparison: Comparison) -> "pl.Expr":
     if comparison.op == Op.BETWEEN:
         if not isinstance(comparison.value, (list, tuple)) or len(comparison.value) != 2:
             raise ValueError(
-                f"BETWEEN requires a [low, high] list of length 2; "
-                f"got {comparison.value!r}"
+                f"BETWEEN requires a [low, high] list of length 2; got {comparison.value!r}"
             )
         lo = _coerce_date_value(comparison.value[0])
         hi = _coerce_date_value(comparison.value[1])

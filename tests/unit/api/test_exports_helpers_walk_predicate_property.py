@@ -77,9 +77,7 @@ class TestPredicateReferencesFieldBehavior:
     def test_comparison_leaf_no_match(self, comp_other: Comparison) -> None:
         assert predicate_references_field(comp_other, "section") is False
 
-    def test_and_group_of_2_match(
-        self, comp_section: Comparison, comp_other: Comparison
-    ) -> None:
+    def test_and_group_of_2_match(self, comp_section: Comparison, comp_other: Comparison) -> None:
         node = AndGroup(and_=[comp_section, comp_other])
         assert predicate_references_field(node, "section") is True
 
@@ -88,9 +86,7 @@ class TestPredicateReferencesFieldBehavior:
         node = AndGroup(and_=[comp_other, comp_other2])
         assert predicate_references_field(node, "section") is False
 
-    def test_or_group_of_3_match(
-        self, comp_section: Comparison, comp_other: Comparison
-    ) -> None:
+    def test_or_group_of_3_match(self, comp_section: Comparison, comp_other: Comparison) -> None:
         comp3 = Comparison(field="gid", op=Op.EQ, value="y")
         node = OrGroup(or_=[comp_other, comp_section, comp3])
         assert predicate_references_field(node, "section") is True
