@@ -40,6 +40,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 from autom8y_log import get_logger
+from fastapi.responses import Response  # noqa: TC002 — pydantic resolves at OpenAPI emit time
 from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves at runtime
@@ -78,7 +79,6 @@ from autom8_asana.services.errors import (
 
 if TYPE_CHECKING:
     import polars as pl
-    from fastapi.responses import Response
 
 __all__ = [
     "ExportOptions",

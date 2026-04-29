@@ -2142,6 +2142,41 @@
         "title": "SuccessResponse[list[WorkflowEntry]]",
         "type": "object"
       },
+      "SuccessResponse_list_dict_str__Any___": {
+        "examples": [
+          {
+            "data": {
+              "id": "123",
+              "name": "Example resource"
+            },
+            "meta": {
+              "request_id": "a1b2c3d4e5f67890",
+              "timestamp": "2026-03-15T10:30:00Z"
+            }
+          }
+        ],
+        "properties": {
+          "data": {
+            "description": "Response data payload",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ResponseMeta",
+            "description": "Response metadata"
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "SuccessResponse[list[dict[str, Any]]]",
+        "type": "object"
+      },
       "Task": {
         "description": "Asana Task resource model.\n\nUses NameGid for typed resource references (assignee, projects, etc.).\nCustom fields and complex nested structures remain as dicts.\n\nUnknown fields from API responses are silently ignored (per ADR-0005).\n\nExample:\n    >>> from autom8_asana.models import Task\n    >>> task = Task.model_validate(api_response)\n    >>> if task.assignee:\n    ...     print(f\"Assigned to {task.assignee.name}\")",
         "properties": {
@@ -3734,7 +3769,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
+                  "$ref": "#/components/schemas/SuccessResponse_list_dict_str__Any___"
                 }
               }
             },
@@ -8356,7 +8391,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessResponse"
+                  "$ref": "#/components/schemas/SuccessResponse_list_dict_str__Any___"
                 }
               }
             },
