@@ -2,9 +2,9 @@
   "spec_path": "docs/api-reference/openapi.json",
   "metrics": {
     "M-01_field_description": {
-      "score": 0.9657,
-      "numerator": 169,
-      "denominator": 175,
+      "score": 0.9681,
+      "numerator": 182,
+      "denominator": 188,
       "floor": 0.8,
       "weight": 0.25,
       "pass": true
@@ -19,32 +19,32 @@
     },
     "M-03_endpoint_summary": {
       "score": 1.0,
-      "numerator": 53,
-      "denominator": 53,
+      "numerator": 55,
+      "denominator": 55,
       "floor": 0.9,
       "weight": 0.15,
       "pass": true
     },
     "M-04_error_coverage": {
-      "score": 0.9434,
-      "numerator": 50,
-      "denominator": 53,
+      "score": 0.9455,
+      "numerator": 52,
+      "denominator": 55,
       "floor": 0.7,
       "weight": 0.15,
       "pass": true
     },
     "M-05_type_strictness": {
-      "score": 0.9886,
-      "numerator": 173,
-      "denominator": 175,
+      "score": 0.984,
+      "numerator": 185,
+      "denominator": 188,
       "floor": 0.9,
       "weight": 0.15,
       "pass": true
     },
     "M-06_extension_completeness": {
       "score": 1.0,
-      "numerator": 23,
-      "denominator": 23,
+      "numerator": 25,
+      "denominator": 25,
       "floor": 0.3,
       "weight": 0.1,
       "pass": true
@@ -58,7 +58,7 @@
       "pass": false
     }
   },
-  "composite_score": 0.8887,
+  "composite_score": 0.889,
   "floor_violations": [
     "M-07_constraint_coverage"
   ],
