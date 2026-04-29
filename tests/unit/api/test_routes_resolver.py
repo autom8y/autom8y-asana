@@ -20,6 +20,7 @@ Test Matrix (per TDD Appendix B):
 
 from __future__ import annotations
 
+import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
@@ -430,39 +431,57 @@ class TestResolveDiscoveryIncomplete:
                 app.state.entity_project_registry = registry
 
             mock_discover.side_effect = no_setup
-            test_app = create_app()
 
-            # Override get_auth_context so AuthContextDep doesn't attempt
-            # real JWT validation or bot PAT lookup in this isolated test app.
-            async def _mock_get_auth_context() -> AuthContext:
-                return AuthContext(
-                    mode=AuthMode.JWT,
-                    asana_pat="test_bot_pat",
-                    caller_service="autom8_data",
-                )
+            # Set env vars before create_app() so JWTAuthMiddleware reads
+            # AUTH__DEV_MODE=true at construction time. Mirrors the pattern
+            # in tests/unit/api/conftest.py:64-105.
+            _prev_dev_mode = os.environ.get("AUTH__DEV_MODE")
+            _prev_env = os.environ.get("AUTOM8Y_ENV")
+            os.environ["AUTH__DEV_MODE"] = "true"
+            os.environ["AUTOM8Y_ENV"] = "LOCAL"
+            try:
+                test_app = create_app()
 
-            test_app.dependency_overrides[get_auth_context] = _mock_get_auth_context
-
-            jwt_token = "header.payload.signature"
-
-            with TestClient(test_app) as test_client:
-                with patch(
-                    "autom8_asana.api.routes.internal.validate_service_token",
-                    _mock_jwt_validation(),
-                ):
-                    response = test_client.post(
-                        "/v1/resolve/unit",
-                        headers={"Authorization": f"Bearer {jwt_token}"},
-                        json={
-                            "criteria": [
-                                {"phone": "+15551234567", "vertical": "dental"},
-                            ]
-                        },
+                # Override get_auth_context so AuthContextDep doesn't attempt
+                # real JWT validation or bot PAT lookup in this isolated test app.
+                async def _mock_get_auth_context() -> AuthContext:
+                    return AuthContext(
+                        mode=AuthMode.JWT,
+                        asana_pat="test_bot_pat",
+                        caller_service="autom8_data",
                     )
 
-                assert response.status_code == 503
-                data = response.json()
-                assert data["error"]["code"] == "DISCOVERY_INCOMPLETE"
+                test_app.dependency_overrides[get_auth_context] = _mock_get_auth_context
+
+                jwt_token = "header.payload.signature"
+
+                with TestClient(test_app) as test_client:
+                    with patch(
+                        "autom8_asana.api.routes.internal.validate_service_token",
+                        _mock_jwt_validation(),
+                    ):
+                        response = test_client.post(
+                            "/v1/resolve/unit",
+                            headers={"Authorization": f"Bearer {jwt_token}"},
+                            json={
+                                "criteria": [
+                                    {"phone": "+15551234567", "vertical": "dental"},
+                                ]
+                            },
+                        )
+
+                    assert response.status_code == 503
+                    data = response.json()
+                    assert data["error"]["code"] == "DISCOVERY_INCOMPLETE"
+            finally:
+                if _prev_dev_mode is None:
+                    os.environ.pop("AUTH__DEV_MODE", None)
+                else:
+                    os.environ["AUTH__DEV_MODE"] = _prev_dev_mode
+                if _prev_env is None:
+                    os.environ.pop("AUTOM8Y_ENV", None)
+                else:
+                    os.environ["AUTOM8Y_ENV"] = _prev_env
 
 
 class TestResolveInputOrder:
