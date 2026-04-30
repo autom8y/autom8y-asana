@@ -49,12 +49,13 @@ repos:
     hooks:
       - id: gitleaks
 
-  # Hadolint (Dockerfile linting)
+  # Hadolint (Dockerfile linting) — config: .hadolint.yaml (ADR-013)
   - repo: https://github.com/hadolint/hadolint
-    rev: v2.12.0
+    rev: v2.14.0
     hooks:
       - id: hadolint-docker
         name: hadolint
         entry: hadolint
         language: docker_image
         types: [dockerfile]
+        args: [--config, .hadolint.yaml, --failure-threshold, warning]
