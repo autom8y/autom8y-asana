@@ -670,3 +670,79 @@ intact:
 outcome (c). V2-003 is independent of V2-002 adjudication and may proceed
 without further measurement gating.
 
+---
+
+## §9 SPRINT-2A FINDING — §8.4 HYPOTHESIS FALSIFICATION
+
+**Authored**: 2026-04-30 by platform-engineer under Sprint-2 engagement
+(session-20260430-115401-513947b2). This section is a re-grounding amendment
+appended at Sprint-2A close-gate; it does NOT retroactively edit §8.4 prose
+above. The historical record of /sre Sprint-1's hypothesis is preserved
+intact at §8.4; this section adjusts the actionable interpretation
+post-falsification.
+
+### §9.1 Investigation outcome
+
+Sprint-2 SRE-002a investigation
+(`.sos/wip/sre/INVESTIGATION-runner-sizing-2026-04-30.md`) **structurally
+falsified** the §8.4 hypothesis premise at zero probe-CI cost via direct
+file/log inspection (charter §4.2 step 4 escape valve invoked before any
+probe was spent).
+
+Adjudication: **NO-LEVER (autom8y-asana-local)** — recorded at
+`.ledge/decisions/ADR-008-runner-sizing-no-lever-2026-04-30.md`.
+
+### §9.2 The premise §8.4 cited (and its falsification)
+
+| Claim (per supplement §8.4 hypothesis) | Reality (per investigation §§2-3) | Source |
+|---|---|---|
+| "2-vCPU runner" | `ubuntu-24.04` standard hosted runner; **4-vCPU / 16GB RAM** | `gh run view 25138295569 --log` runner image stanza |
+| "`-n 4` worker count (literal)" | `-n auto` (resolved by reusable workflow) | `autom8y-workflows@c88caabd:.github/workflows/satellite-ci-reusable.yml:527-528` |
+| Runtime worker count | **4 workers** (gw0..gw3 concurrent) | CI log run-25138295569 shard-1/4: `"created: 4/4 workers"` |
+| "thrashing causes regression" | 4 workers on 4 cores = **1:1 ratio**; no thrashing precondition | direct from above three rows |
+
+### §9.3 Implication for §8.4 prose
+
+§8.4 prose above (`:598-623`) remains historically valid as a record of
+/sre Sprint-1's hypothesis at that time. The Sprint-2 finding does NOT
+retroactively edit §8.4 — it APPENDS a re-grounding clarification here in
+§9.
+
+The actionable lever cited in §8.4 (runner-sizing) is foreclosed at
+autom8y-asana-local altitude per ADR-008. Cross-repo runner-tier upgrade
+(Path B) is RESERVED and not pursued in this engagement; charter §7.1
+protocol requires explicit user authorization, multi-satellite SHA pinning,
+and chaos-engineer canary validation that are out-of-proportion to the
+residual scope post-falsification.
+
+### §9.4 What §8.4 sub-routes mean post-falsification
+
+- **SRE-002a (runner-sizing)**: **NO-LEVER per ADR-008. Closed.** The
+  "4-on-2 thrashing" precondition does not exist on the current CI substrate.
+- **SRE-002b (xdist worker-count tuning)**: still has empirical scope. `-n
+  auto` resolves to 4 workers, but `-n 2` may yield different ROI under
+  shard-imbalance conditions (Amdahl effects shift when test mix is
+  uneven). Sprint-2B will adjudicate.
+- **SRE-002c (shard-balance refresh)**: still has empirical scope. The 561s
+  shard-3/4 variance noted at investigation §5.4 (run `25138295569`, +25%
+  above 447s p50) indicates `.test_durations` may need refresh under
+  post-T1D `--dist=load` topology. Sprint-2B will adjudicate.
+
+### §9.5 Routing for the unresolved residual
+
+The parent `VERDICT-test-perf` §9.2 risk (CI shard p50 = 447s baseline; post-T1+T2
+fix at 514s shows +15% regression direction) remains live. SRE-002b/c are
+the levers Sprint-2 still has; if they don't deliver ≥20% reduction,
+supplement §9.6 (forthcoming at Sprint-2 close-gate) will route the runner-
+sizing path to a future engagement under explicit user authorization (a new
+HANDOFF-sre-to-arch architecture-decision authoring or HANDOFF-sre-to-sre-v2
+re-engagement; ADR-008 §5.2 records the re-engagement preconditions).
+
+### §9.6 RESERVED for Sprint-2 close-gate
+
+[Empty placeholder — observability-engineer authors §9.6 at engagement close
+after Sprint-2B/C close, mirroring the existing §8 closure-disposition
+structure. Anchor: V2 charter §6 closure-discharge clause.]
+
+
+
