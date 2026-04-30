@@ -40,35 +40,29 @@ class TestRateLimitConfig:
         assert config.max_requests == 1000
         assert config.window_seconds == 30
 
-    def test_rejects_zero_max_requests(self) -> None:
-        """Rejects max_requests of zero."""
+    @pytest.mark.parametrize(
+        ("field", "value", "must_contain"),
+        [
+            ("max_requests", 0, ("max_requests", "positive")),
+            ("max_requests", -10, ("max_requests",)),
+            ("window_seconds", 0, ("window_seconds", "positive")),
+            ("window_seconds", -5, ("window_seconds",)),
+        ],
+        ids=[
+            "rejects_zero_max_requests",
+            "rejects_negative_max_requests",
+            "rejects_zero_window_seconds",
+            "rejects_negative_window_seconds",
+        ],
+    )
+    def test_rejects_invalid_field(
+        self, field: str, value: int | float, must_contain: tuple[str, ...]
+    ) -> None:
+        """Rejects invalid value for the named field."""
         with pytest.raises(ConfigurationError) as exc_info:
-            RateLimitConfig(max_requests=0)
-
-        assert "max_requests" in str(exc_info.value)
-        assert "positive" in str(exc_info.value)
-
-    def test_rejects_negative_max_requests(self) -> None:
-        """Rejects negative max_requests."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            RateLimitConfig(max_requests=-10)
-
-        assert "max_requests" in str(exc_info.value)
-
-    def test_rejects_zero_window_seconds(self) -> None:
-        """Rejects window_seconds of zero."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            RateLimitConfig(window_seconds=0)
-
-        assert "window_seconds" in str(exc_info.value)
-        assert "positive" in str(exc_info.value)
-
-    def test_rejects_negative_window_seconds(self) -> None:
-        """Rejects negative window_seconds."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            RateLimitConfig(window_seconds=-5)
-
-        assert "window_seconds" in str(exc_info.value)
+            RateLimitConfig(**{field: value})
+        for token in must_contain:
+            assert token in str(exc_info.value)
 
 
 class TestRetryConfig:
@@ -107,42 +101,35 @@ class TestRetryConfig:
 
         assert config.max_retries == 0
 
-    def test_rejects_negative_max_retries(self) -> None:
-        """Rejects negative max_retries."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            RetryConfig(max_retries=-1)
-
-        assert "max_retries" in str(exc_info.value)
-        assert "non-negative" in str(exc_info.value)
-
     def test_accepts_zero_base_delay(self) -> None:
         """Zero base_delay is valid (no initial delay)."""
         config = RetryConfig(base_delay=0)
 
         assert config.base_delay == 0
 
-    def test_rejects_negative_base_delay(self) -> None:
-        """Rejects negative base_delay."""
+    @pytest.mark.parametrize(
+        ("field", "value", "must_contain"),
+        [
+            ("max_retries", -1, ("max_retries", "non-negative")),
+            ("base_delay", -0.1, ("base_delay", "non-negative")),
+            ("max_delay", 0, ("max_delay", "positive")),
+            ("max_delay", -10.0, ("max_delay",)),
+        ],
+        ids=[
+            "rejects_negative_max_retries",
+            "rejects_negative_base_delay",
+            "rejects_zero_max_delay",
+            "rejects_negative_max_delay",
+        ],
+    )
+    def test_rejects_invalid_field(
+        self, field: str, value: int | float, must_contain: tuple[str, ...]
+    ) -> None:
+        """Rejects invalid value for the named field."""
         with pytest.raises(ConfigurationError) as exc_info:
-            RetryConfig(base_delay=-0.1)
-
-        assert "base_delay" in str(exc_info.value)
-        assert "non-negative" in str(exc_info.value)
-
-    def test_rejects_zero_max_delay(self) -> None:
-        """Rejects max_delay of zero."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            RetryConfig(max_delay=0)
-
-        assert "max_delay" in str(exc_info.value)
-        assert "positive" in str(exc_info.value)
-
-    def test_rejects_negative_max_delay(self) -> None:
-        """Rejects negative max_delay."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            RetryConfig(max_delay=-10.0)
-
-        assert "max_delay" in str(exc_info.value)
+            RetryConfig(**{field: value})
+        for token in must_contain:
+            assert token in str(exc_info.value)
 
     def test_rejects_exponential_base_less_than_one(self) -> None:
         """Rejects exponential_base less than 1."""
@@ -176,35 +163,29 @@ class TestConcurrencyConfig:
         assert config.read_limit == 100
         assert config.write_limit == 25
 
-    def test_rejects_zero_read_limit(self) -> None:
-        """Rejects read_limit of zero."""
+    @pytest.mark.parametrize(
+        ("field", "value", "must_contain"),
+        [
+            ("read_limit", 0, ("read_limit", "positive")),
+            ("read_limit", -5, ("read_limit",)),
+            ("write_limit", 0, ("write_limit", "positive")),
+            ("write_limit", -10, ("write_limit",)),
+        ],
+        ids=[
+            "rejects_zero_read_limit",
+            "rejects_negative_read_limit",
+            "rejects_zero_write_limit",
+            "rejects_negative_write_limit",
+        ],
+    )
+    def test_rejects_invalid_field(
+        self, field: str, value: int | float, must_contain: tuple[str, ...]
+    ) -> None:
+        """Rejects invalid value for the named field."""
         with pytest.raises(ConfigurationError) as exc_info:
-            ConcurrencyConfig(read_limit=0)
-
-        assert "read_limit" in str(exc_info.value)
-        assert "positive" in str(exc_info.value)
-
-    def test_rejects_negative_read_limit(self) -> None:
-        """Rejects negative read_limit."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            ConcurrencyConfig(read_limit=-5)
-
-        assert "read_limit" in str(exc_info.value)
-
-    def test_rejects_zero_write_limit(self) -> None:
-        """Rejects write_limit of zero."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            ConcurrencyConfig(write_limit=0)
-
-        assert "write_limit" in str(exc_info.value)
-        assert "positive" in str(exc_info.value)
-
-    def test_rejects_negative_write_limit(self) -> None:
-        """Rejects negative write_limit."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            ConcurrencyConfig(write_limit=-10)
-
-        assert "write_limit" in str(exc_info.value)
+            ConcurrencyConfig(**{field: value})
+        for token in must_contain:
+            assert token in str(exc_info.value)
 
 
 class TestTimeoutConfig:
@@ -233,65 +214,37 @@ class TestTimeoutConfig:
         assert config.write == 60.0
         assert config.pool == 20.0
 
-    def test_rejects_zero_connect(self) -> None:
-        """Rejects connect timeout of zero."""
+    @pytest.mark.parametrize(
+        ("field", "value", "must_contain"),
+        [
+            ("connect", 0, ("connect", "positive")),
+            ("connect", -1.0, ("connect",)),
+            ("read", 0, ("read", "positive")),
+            ("read", -5.0, ("read",)),
+            ("write", 0, ("write", "positive")),
+            ("write", -10.0, ("write",)),
+            ("pool", 0, ("pool", "positive")),
+            ("pool", -2.0, ("pool",)),
+        ],
+        ids=[
+            "rejects_zero_connect",
+            "rejects_negative_connect",
+            "rejects_zero_read",
+            "rejects_negative_read",
+            "rejects_zero_write",
+            "rejects_negative_write",
+            "rejects_zero_pool",
+            "rejects_negative_pool",
+        ],
+    )
+    def test_rejects_invalid_field(
+        self, field: str, value: int | float, must_contain: tuple[str, ...]
+    ) -> None:
+        """Rejects invalid value for the named field."""
         with pytest.raises(ConfigurationError) as exc_info:
-            TimeoutConfig(connect=0)
-
-        assert "connect" in str(exc_info.value)
-        assert "positive" in str(exc_info.value)
-
-    def test_rejects_negative_connect(self) -> None:
-        """Rejects negative connect timeout."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            TimeoutConfig(connect=-1.0)
-
-        assert "connect" in str(exc_info.value)
-
-    def test_rejects_zero_read(self) -> None:
-        """Rejects read timeout of zero."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            TimeoutConfig(read=0)
-
-        assert "read" in str(exc_info.value)
-        assert "positive" in str(exc_info.value)
-
-    def test_rejects_negative_read(self) -> None:
-        """Rejects negative read timeout."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            TimeoutConfig(read=-5.0)
-
-        assert "read" in str(exc_info.value)
-
-    def test_rejects_zero_write(self) -> None:
-        """Rejects write timeout of zero."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            TimeoutConfig(write=0)
-
-        assert "write" in str(exc_info.value)
-        assert "positive" in str(exc_info.value)
-
-    def test_rejects_negative_write(self) -> None:
-        """Rejects negative write timeout."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            TimeoutConfig(write=-10.0)
-
-        assert "write" in str(exc_info.value)
-
-    def test_rejects_zero_pool(self) -> None:
-        """Rejects pool timeout of zero."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            TimeoutConfig(pool=0)
-
-        assert "pool" in str(exc_info.value)
-        assert "positive" in str(exc_info.value)
-
-    def test_rejects_negative_pool(self) -> None:
-        """Rejects negative pool timeout."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            TimeoutConfig(pool=-2.0)
-
-        assert "pool" in str(exc_info.value)
+            TimeoutConfig(**{field: value})
+        for token in must_contain:
+            assert token in str(exc_info.value)
 
 
 class TestConnectionPoolConfig:
@@ -317,50 +270,33 @@ class TestConnectionPoolConfig:
         assert config.max_keepalive_connections == 50
         assert config.keepalive_expiry == 60.0
 
-    def test_rejects_zero_max_connections(self) -> None:
-        """Rejects max_connections of zero."""
+    @pytest.mark.parametrize(
+        ("field", "value", "must_contain"),
+        [
+            ("max_connections", 0, ("max_connections", "positive")),
+            ("max_connections", -10, ("max_connections",)),
+            ("max_keepalive_connections", 0, ("max_keepalive_connections", "positive")),
+            ("max_keepalive_connections", -5, ("max_keepalive_connections",)),
+            ("keepalive_expiry", 0, ("keepalive_expiry", "positive")),
+            ("keepalive_expiry", -15.0, ("keepalive_expiry",)),
+        ],
+        ids=[
+            "rejects_zero_max_connections",
+            "rejects_negative_max_connections",
+            "rejects_zero_max_keepalive_connections",
+            "rejects_negative_max_keepalive_connections",
+            "rejects_zero_keepalive_expiry",
+            "rejects_negative_keepalive_expiry",
+        ],
+    )
+    def test_rejects_invalid_field(
+        self, field: str, value: int | float, must_contain: tuple[str, ...]
+    ) -> None:
+        """Rejects invalid value for the named field."""
         with pytest.raises(ConfigurationError) as exc_info:
-            ConnectionPoolConfig(max_connections=0)
-
-        assert "max_connections" in str(exc_info.value)
-        assert "positive" in str(exc_info.value)
-
-    def test_rejects_negative_max_connections(self) -> None:
-        """Rejects negative max_connections."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            ConnectionPoolConfig(max_connections=-10)
-
-        assert "max_connections" in str(exc_info.value)
-
-    def test_rejects_zero_max_keepalive_connections(self) -> None:
-        """Rejects max_keepalive_connections of zero."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            ConnectionPoolConfig(max_keepalive_connections=0)
-
-        assert "max_keepalive_connections" in str(exc_info.value)
-        assert "positive" in str(exc_info.value)
-
-    def test_rejects_negative_max_keepalive_connections(self) -> None:
-        """Rejects negative max_keepalive_connections."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            ConnectionPoolConfig(max_keepalive_connections=-5)
-
-        assert "max_keepalive_connections" in str(exc_info.value)
-
-    def test_rejects_zero_keepalive_expiry(self) -> None:
-        """Rejects keepalive_expiry of zero."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            ConnectionPoolConfig(keepalive_expiry=0)
-
-        assert "keepalive_expiry" in str(exc_info.value)
-        assert "positive" in str(exc_info.value)
-
-    def test_rejects_negative_keepalive_expiry(self) -> None:
-        """Rejects negative keepalive_expiry."""
-        with pytest.raises(ConfigurationError) as exc_info:
-            ConnectionPoolConfig(keepalive_expiry=-15.0)
-
-        assert "keepalive_expiry" in str(exc_info.value)
+            ConnectionPoolConfig(**{field: value})
+        for token in must_contain:
+            assert token in str(exc_info.value)
 
 
 class TestAsanaConfig:

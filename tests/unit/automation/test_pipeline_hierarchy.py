@@ -15,6 +15,7 @@ import pytest
 
 from autom8_asana.automation.pipeline import PipelineConversionRule
 from autom8_asana.models.business.process import ProcessType
+from tests._shared.mocks import MockTask
 
 
 class MockProcessHolder:
@@ -72,14 +73,6 @@ class MockProcess:
     @property
     def process_holder(self) -> MockProcessHolder | None:
         return self._process_holder
-
-
-class MockTask:
-    """Mock Task for new task."""
-
-    def __init__(self, gid: str = "new_task_123", name: str | None = None) -> None:
-        self.gid = gid
-        self.name = name
 
 
 class MockSaveResult:

@@ -402,6 +402,33 @@ Coverage floor is `>=80%` non-negotiable per project-crucible. Parametrize rate 
 
 Cross-rite transitions: `ari sync --rite=...` documented in session-20260415-032649 (hygiene↔10x-dev), session-20260427-232025 (rnd→10x-dev planned).
 
+### MockTask Import Convention (HYG-003 — discharged 2026-04-30)
+
+**Rule**: New tests requiring `MockTask` MUST import from the canonical
+`tests/_shared/mocks` module. Bespoke redefinition is forbidden.
+
+**Canonical location**: `tests/_shared/mocks.py:10`. The class is a strict
+superset of all attribute schemas observed across the 11 prior bespoke
+variants (cascading-resolver family, automation family, integration family,
+plus dict-wrapper paradigm via `_data` kwarg + `model_dump()` method).
+
+**Import form**: `from tests._shared.mocks import MockTask`
+
+**Rationale**: Prevents schema fragmentation. Prior to HYG-003, 11 bespoke
+`class MockTask` definitions diverged across `tests/unit/dataframes/`,
+`tests/unit/automation/`, and `tests/integration/`. Schema drift between
+bespoke variants caused silent attribute-not-found surprises. Consolidation
+discharged 2026-04-30 per HANDOFF-eunomia-to-hygiene-2026-04-29 HYG-003 +
+charter PYTHIA-INAUGURAL-CONSULT-2026-04-30-hygiene-sprint §5.
+
+**Extension protocol**: if a future test needs an attribute not in the
+superset, EXTEND the canonical (additive only — no breaking changes to
+existing kwargs). Do NOT mint a new bespoke. If extension would break an
+existing caller, route to /eunomia or /10x for production-side type
+unification per charter §10.
+
+**Cross-reference**: HYG-003 PLAN at `.sos/wip/hygiene/PLAN-hyg-003-2026-04-30.md`.
+
 ## Knowledge Gaps
 
 - The `patterns/` package has only `error_classification.py` observed

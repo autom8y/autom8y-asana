@@ -26,6 +26,7 @@ from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
 from autom8_asana.models.business.detection import EntityType
 from autom8_asana.models.business.fields import get_cascading_field
 from autom8_asana.services.gid_lookup import GidLookupIndex
+from tests._shared.mocks import MockTask
 
 # =============================================================================
 # Test Fixtures
@@ -38,38 +39,6 @@ class MockNameGid:
     def __init__(self, gid: str, name: str | None = None) -> None:
         self.gid = gid
         self.name = name
-
-
-class MockTask:
-    """Mock Task object for testing cascading resolution."""
-
-    def __init__(
-        self,
-        gid: str,
-        name: str | None = None,
-        parent: MockNameGid | None = None,
-        custom_fields: list[dict[str, Any]] | None = None,
-        memberships: list[dict[str, Any]] | None = None,
-        created_at: str = "2024-01-01T00:00:00Z",
-        modified_at: str = "2024-01-01T00:00:00Z",
-        completed: bool = False,
-        completed_at: str | None = None,
-        due_on: str | None = None,
-        tags: list[Any] | None = None,
-        resource_subtype: str = "default_task",
-    ) -> None:
-        self.gid = gid
-        self.name = name
-        self.parent = parent
-        self.custom_fields = custom_fields or []
-        self.memberships = memberships or []
-        self.created_at = created_at
-        self.modified_at = modified_at
-        self.completed = completed
-        self.completed_at = completed_at
-        self.due_on = due_on
-        self.tags = tags or []
-        self.resource_subtype = resource_subtype
 
 
 def make_custom_field(
