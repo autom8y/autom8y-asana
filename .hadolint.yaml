@@ -1,0 +1,32 @@
+# hadolint configuration — Dockerfile lint enforcement (SRE-005)
+# Authority: ADR-013-sre-005-hadolint-2026-04-30.md
+# Audit substrate: .sos/wip/sre/AUDIT-sre-005-dockerfile-2026-04-30.md §6
+# Charter: PYTHIA-INAUGURAL-CONSULT-2026-04-30-sprint3 §5.3 (B2)
+
+failure-threshold: warning
+
+trustedRegistries:
+  - public.ecr.aws
+  - ghcr.io
+  - docker.io
+
+override:
+  # Error tier — STRONG-coverage of M-16 adjacent patterns (P-4 SHA-pin, P-6 USER, P-2 COPY-from, JSON CMD/ENTRYPOINT)
+  error:
+    - DL3007  # Using latest tag (P-4 violation)
+    - DL3002  # Last USER should not be root (P-6)
+    - DL3022  # COPY --from references undefined stage (P-2 partial)
+    - DL3025  # Use arguments JSON notation for CMD/ENTRYPOINT
+  # Warning tier — apt-get hygiene + pip cache; non-blocking for Dockerfile.dev intentional unpins
+  warning:
+    - DL3006  # Always tag the version of an image explicitly
+    - DL3009  # Delete the apt-get lists after installing
+    - DL3015  # Avoid additional packages by specifying --no-install-recommends
+    - DL3042  # Avoid use of cache directory with pip (--no-cache-dir)
+    - DL3059  # Multiple consecutive RUN instructions; consider consolidating
+
+# DL3008 (pin versions in apt-get install) ignored — Dockerfile.dev intentionally
+# leaves curl/gcc unpinned per TDD-LOCAL-DEV-ENV §4.3 (dev-class carve-out).
+# Lift if dev → prod migration occurs.
+ignored:
+  - DL3008

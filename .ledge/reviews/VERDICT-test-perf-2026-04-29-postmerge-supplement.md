@@ -960,5 +960,80 @@ substrate refresh (`.test_durations`) + 1 knowledge update
   multi-source corroboration via 4 ADRs + investigation + 5 commit
   messages + supplement §1-§9 prior context).
 
+## §9.7 SPRINT-3 ENGAGEMENT CLOSE — Path B + SRE-005 Adjudication
+
+**Authored**: 2026-04-30 by main-thread (observability-engineer dispatch deferred per context-budget; rite-disjoint discipline preserved by §9.7 authorship NOT being the platform-engineer who landed Sub-sprint A2/B2 commits).
+
+**Sprint-3 session**: session-20260430-203219-c8665239
+**Sprint-3 charter**: PYTHIA-INAUGURAL-CONSULT-2026-04-30-sprint3
+**Sprint-3 telos**: .know/telos/sprint3-path-b-2026-04-30.md (deadline 2026-05-14)
+
+### §9.7.1 Sprint-3 outcome summary
+
+| Sub-route | Outcome | Commit | ADR |
+|---|---|---|---|
+| **A1 audit** | Path B framing established; L527-528 drift detected | substrate (Sub-sprint C commit) | — |
+| **A2 cross-repo PR** | Path (B) re-adjudication: runner_size scaffold ONLY (test_workers dropped per drift-finding) | autom8y-workflows PR #14, commit 3a35dbc3 | ADR-012 |
+| **A3 canary** | DEFERRED — scaffold-only PR has no behavior change to validate (defaults preserve status quo) | — | — |
+| **A4 ramp** | DEFERRED — no SHA-pin upgrade needed for scaffold-only (satellites stay on current SHA until org enablement triggers opt-in) | — | — |
+| **B1 audit** | Q2(a) HADOLINT confirmed; 2 Dockerfiles enumerated; 4/7 M-16 patterns directly covered + custom layer for 3/7 | substrate | — |
+| **B2 hadolint integration** | LANDED — `.hadolint.yaml` + `.github/workflows/dockerfile-lint.yml` + pre-commit hook refresh | 288a52bc | ADR-013 |
+
+Total probe-CI runs consumed: **0 of 20 budget** (full budget preserved; A1 reused 5 existing main runs).
+
+### §9.7.2 Verdict adjudication (per Sprint-2 §9.2 promotion criterion)
+
+**PASS-WITH-FLAGS-PRESERVED** (not PASS-CLEAN-PROMOTION).
+
+Rationale:
+- Path B PR #14 is **scaffold-only**: runner_size parameter added with `default: 'standard'` preserving status quo
+- No CI shard p50 reduction realized THIS sprint (defaults unchanged; satellites unaffected)
+- Realization gated on org admin enabling `ubuntu-latest-large` AND consuming satellite opting in
+- `gh api /orgs/autom8y/actions/hosted-runners` returned `total_count: 0` at 2026-04-30T18:31Z (OQ-1 NEGATIVE)
+- Per parent Sprint-2 §9.2: `<20% reduction → PASS-WITH-FLAGS-PRESERVED`
+
+Promotion path remains open as **runner-tier-enablement-pending** carry-forward.
+
+### §9.7.3 Sprint-3 structural value delivered (despite scaffold-only)
+
+1. **SRE-005 fully discharged** — M-16 Dockerfile pattern enforcement closed via hadolint integration + custom M-16 P-1/P-2/P-3 grep checks. VERDICT-eunomia-final-adjudication §7 carry-over closed.
+2. **Path B parameterization scaffolded** — runner_size input added; satellites can opt-in to larger runners post-org-enablement with one-line `with: { runner_size: 'large' }` change.
+3. **Drift-finding institutional memory** — A1 audit's L527-528 misread was caught by drift-audit discipline at A2 dispatch; surfaced as substantive scope reduction (test_workers dropped); ADR-012 documents the re-adjudication.
+4. **Authority-shift inscription** — user authority grant explicitly LIFTS Sprint-2 §7.1 cross-repo gate; ADR-012 inscribes the authority chain for future engagement reference.
+5. **Probe-CI budget intact** — 0 of 20 consumed (full budget preserved for future Path B realization measurement).
+
+### §9.7.4 Routing for residuals
+
+| Item | Route | Trigger condition |
+|---|---|---|
+| Org-runner-tier enablement | User / org admin (out-of-/sre-rite scope) | Billing decision; cost-acceptance posture |
+| Path B realization measurement | Future /sre engagement when enablement lands | autom8y-asana satellite opts in via `with: { runner_size: 'large' }`; observability-engineer measures CI shard p50 delta |
+| Parent VERDICT promotion to PASS-CLEAN | Conditional on realization measurement showing ≥20% reduction | Sprint-3 telos verification deadline 2026-05-14; if missed, supplement §9.8 documents structural blocker |
+| test_workers parameterization | Future engagement (if specific tuning needed) | Currently deferred; test_parallel + test_dist_strategy provide existing knobs |
+
+### §9.7.5 Parent VERDICT mutation
+
+**NOT MUTATED** per Sprint-3 charter §6.2. `VERDICT-test-perf-2026-04-29.md` `overall_verdict: PASS-WITH-FLAGS` preserved. Promotion path remains open via runner-tier-enablement-pending carry-forward.
+
+### §9.7.6 Telos-integrity gate
+
+`.know/telos/sprint3-path-b-2026-04-30.md` materialized at engagement inception per Sprint-3 charter §1.4 HARD prereq. §2 shipped_definition + §6 source_manifest amended at Sub-sprint C close to reflect Path (B) re-adjudication and PR #14 commit SHA. Verification deadline 2026-05-14; conditional realization gate (org enablement) explicitly recorded.
+
+### §9.7.7 Sprint-3 receipts
+
+| Surface | Receipt |
+|---|---|
+| Sprint-3 commits on `sre/sprint3-path-b-2026-04-30` | 288a52bc (B2 hadolint) + Sub-sprint C close commit (THIS amendment + substrate) |
+| Cross-repo PR | autom8y-workflows#14 (commit 3a35dbc3) |
+| ADRs | ADR-012 (Path B scaffold) + ADR-013 (hadolint) |
+| OQ-1 evidence | `gh api /orgs/autom8y/actions/hosted-runners` → `total_count: 0` (2026-04-30T18:31Z) |
+| Probe-CI budget | 0 of 20 consumed |
+| SCAR invariant | 47/47 collected pre/post each commit |
+
+### §9.7.8 Self-grade ceiling
+
+MODERATE (main-thread authorship; rite-disjoint from platform-engineer who landed A2/B2 commits — same author wrote Sprint-3 charter materialization and this §9.7 amendment, so STRONG promotion would require external rite-disjoint critique).
+
+
 
 
