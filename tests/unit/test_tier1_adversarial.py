@@ -54,66 +54,33 @@ if TYPE_CHECKING:
 class TestModelRequiredFields:
     """Test required fields enforcement across all models."""
 
-    def test_workspace_requires_gid(self) -> None:
-        """Workspace model requires gid field."""
+    @pytest.mark.parametrize(
+        "model_class",
+        [
+            Workspace,
+            User,
+            Project,
+            Section,
+            CustomField,
+            CustomFieldEnumOption,
+            CustomFieldSetting,
+            NameGid,
+        ],
+        ids=[
+            "workspace_requires_gid",
+            "user_requires_gid",
+            "project_requires_gid",
+            "section_requires_gid",
+            "custom_field_requires_gid",
+            "custom_field_enum_option_requires_gid",
+            "custom_field_setting_requires_gid",
+            "namegid_requires_gid",
+        ],
+    )
+    def test_model_requires_gid(self, model_class: type) -> None:
+        """Model rejects empty dict; required gid field surfaced in errors."""
         with pytest.raises(ValidationError) as exc_info:
-            Workspace.model_validate({})
-
-        errors = exc_info.value.errors()
-        assert any(e["loc"] == ("gid",) for e in errors)
-
-    def test_user_requires_gid(self) -> None:
-        """User model requires gid field."""
-        with pytest.raises(ValidationError) as exc_info:
-            User.model_validate({})
-
-        errors = exc_info.value.errors()
-        assert any(e["loc"] == ("gid",) for e in errors)
-
-    def test_project_requires_gid(self) -> None:
-        """Project model requires gid field."""
-        with pytest.raises(ValidationError) as exc_info:
-            Project.model_validate({})
-
-        errors = exc_info.value.errors()
-        assert any(e["loc"] == ("gid",) for e in errors)
-
-    def test_section_requires_gid(self) -> None:
-        """Section model requires gid field."""
-        with pytest.raises(ValidationError) as exc_info:
-            Section.model_validate({})
-
-        errors = exc_info.value.errors()
-        assert any(e["loc"] == ("gid",) for e in errors)
-
-    def test_custom_field_requires_gid(self) -> None:
-        """CustomField model requires gid field."""
-        with pytest.raises(ValidationError) as exc_info:
-            CustomField.model_validate({})
-
-        errors = exc_info.value.errors()
-        assert any(e["loc"] == ("gid",) for e in errors)
-
-    def test_custom_field_enum_option_requires_gid(self) -> None:
-        """CustomFieldEnumOption model requires gid field."""
-        with pytest.raises(ValidationError) as exc_info:
-            CustomFieldEnumOption.model_validate({})
-
-        errors = exc_info.value.errors()
-        assert any(e["loc"] == ("gid",) for e in errors)
-
-    def test_custom_field_setting_requires_gid(self) -> None:
-        """CustomFieldSetting model requires gid field."""
-        with pytest.raises(ValidationError) as exc_info:
-            CustomFieldSetting.model_validate({})
-
-        errors = exc_info.value.errors()
-        assert any(e["loc"] == ("gid",) for e in errors)
-
-    def test_namegid_requires_gid(self) -> None:
-        """NameGid model requires gid field."""
-        with pytest.raises(ValidationError) as exc_info:
-            NameGid.model_validate({})
+            model_class.model_validate({})
 
         errors = exc_info.value.errors()
         assert any(e["loc"] == ("gid",) for e in errors)
