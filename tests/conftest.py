@@ -65,39 +65,30 @@ os.environ["AUTOM8Y_ENV"] = "test"
 # This must be set BEFORE any AuthSettings instantiation.
 os.environ.setdefault("AUTH__JWKS_URL", "http://localhost:8000/.well-known/jwks.json")
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from autom8y_log.testing import MockLogger
 
 from autom8_asana.config import AsanaConfig
+from autom8_asana.protocols.auth import AuthProvider
+from autom8_asana.transport.asana_http import AsanaHttpClient
 
 
-class MockHTTPClient:
-    """Mock HTTP client for testing (8-method superset)."""
-
-    def __init__(self) -> None:
-        self.get = AsyncMock()
-        self.post = AsyncMock()
-        self.put = AsyncMock()
-        self.delete = AsyncMock()
-        self.request = AsyncMock()
-        self.get_paginated = AsyncMock()
-        self.post_multipart = AsyncMock()
-        self.get_stream_url = AsyncMock()
+def _make_mock_http_client() -> MagicMock:
+    """Factory: spec'd mock HTTP client (8-method superset)."""
+    return MagicMock(spec=AsanaHttpClient)
 
 
-class MockAuthProvider:
-    """Mock auth provider for testing."""
-
-    def get_secret(self, key: str) -> str:
-        return "test-token"
+def _make_mock_auth_provider() -> MagicMock:
+    """Factory: spec'd mock auth provider."""
+    return MagicMock(spec=AuthProvider)
 
 
 @pytest.fixture
-def mock_http() -> MockHTTPClient:
+def mock_http() -> MagicMock:
     """Create a mock HTTP client."""
-    return MockHTTPClient()
+    return _make_mock_http_client()
 
 
 @pytest.fixture
@@ -107,9 +98,9 @@ def config() -> AsanaConfig:
 
 
 @pytest.fixture
-def auth_provider() -> MockAuthProvider:
+def auth_provider() -> MagicMock:
     """Create a mock auth provider."""
-    return MockAuthProvider()
+    return _make_mock_auth_provider()
 
 
 @pytest.fixture

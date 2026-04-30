@@ -21,6 +21,17 @@ import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+from autom8_asana.client import AsanaClient
+from autom8_asana.lifecycle.engine import (
+    CompletionServiceProtocol,
+    CreationServiceProtocol,
+    InitActionRegistryProtocol,
+    ReopenServiceProtocol,
+    SectionServiceProtocol,
+    WiringServiceProtocol,
+)
+from autom8_asana.resolution.context import ResolutionContext
+
 
 def _run_async(coro):
     """Run an async coroutine in a fresh event loop.
@@ -86,7 +97,7 @@ def _make_mock_process(
 
 def _make_mock_client() -> MagicMock:
     """Create a mock AsanaClient with stubs for all API calls."""
-    client = MagicMock()
+    client = MagicMock(spec=AsanaClient)
     client.tasks = MagicMock()
     client.tasks.update_async = AsyncMock()
     client.tasks.get_async = AsyncMock()
@@ -490,7 +501,7 @@ class TestCascadingSectionService:
         )
 
         # Mock ResolutionContext
-        ctx = MagicMock()
+        ctx = MagicMock(spec=ResolutionContext)
         ctx.offer_async = AsyncMock(return_value=mock_offer)
         ctx.unit_async = AsyncMock(return_value=mock_unit)
         ctx.business_async = AsyncMock(return_value=mock_business)
@@ -524,7 +535,7 @@ class TestCascadingSectionService:
         paginator.collect = AsyncMock(return_value=[])
         client.sections.list_for_project_async = MagicMock(return_value=paginator)
 
-        ctx = MagicMock()
+        ctx = MagicMock(spec=ResolutionContext)
         ctx.offer_async = AsyncMock(return_value=mock_offer)
 
         async def _run():
@@ -548,7 +559,7 @@ class TestCascadingSectionService:
         mock_offer.gid = "offer_gid"
         mock_offer.memberships = []  # No memberships
 
-        ctx = MagicMock()
+        ctx = MagicMock(spec=ResolutionContext)
         ctx.offer_async = AsyncMock(return_value=mock_offer)
 
         async def _run():
@@ -582,7 +593,7 @@ class TestCascadingSectionService:
         paginator.collect = AsyncMock(return_value=[make_section("Sales Process", "sec_1")])
         client.sections.list_for_project_async = MagicMock(return_value=paginator)
 
-        ctx = MagicMock()
+        ctx = MagicMock(spec=ResolutionContext)
         ctx.offer_async = AsyncMock(return_value=mock_offer)
 
         async def _run():
@@ -615,7 +626,7 @@ class TestDependencyWiringService:
         mock_unit.offer_holder = MagicMock()
         mock_unit.offer_holder.gid = "offer_holder_gid"
 
-        ctx = MagicMock()
+        ctx = MagicMock(spec=ResolutionContext)
         ctx.unit_async = AsyncMock(return_value=mock_unit)
         ctx.business_async = AsyncMock(return_value=MagicMock())
 
@@ -825,7 +836,7 @@ class TestInitActionHandlers:
         action_config = MagicMock()
         action_config.comment_template = None
         process = _make_mock_process()
-        ctx = MagicMock()
+        ctx = MagicMock(spec=ResolutionContext)
         ctx.business_async = AsyncMock(return_value=MagicMock(name="Biz", gid="biz_gid"))
 
         async def _run():
@@ -846,7 +857,7 @@ class TestInitActionHandlers:
         action_config = MagicMock()
         action_config.type = "activate_campaign"
         process = _make_mock_process()
-        ctx = MagicMock()
+        ctx = MagicMock(spec=ResolutionContext)
         business_mock = MagicMock()
         business_mock.name = "Biz"
         business_mock.gid = "biz_gid"
@@ -871,7 +882,7 @@ class TestInitActionHandlers:
         action_config = MagicMock()
         action_config.condition = "video*"
         process = _make_mock_process()
-        ctx = MagicMock()
+        ctx = MagicMock(spec=ResolutionContext)
         business_mock = MagicMock()
         business_mock.products = None
         ctx.business_async = AsyncMock(return_value=business_mock)
@@ -896,7 +907,7 @@ class TestInitActionHandlers:
         action_config = MagicMock()
         action_config.condition = "video*"
         process = _make_mock_process()
-        ctx = MagicMock()
+        ctx = MagicMock(spec=ResolutionContext)
         business_mock = MagicMock()
         business_mock.products = ["seo", "ppc"]
         ctx.business_async = AsyncMock(return_value=business_mock)
@@ -936,35 +947,35 @@ class TestLifecycleEngineIntegration:
             config = LifecycleConfig(CONFIG_PATH)
 
         # Mock creation service
-        creation_service = MagicMock()
+        creation_service = MagicMock(spec=CreationServiceProtocol)
         creation_service.create_process_async = AsyncMock(
             return_value=CreationResult(success=True, entity_gid="new_proc_gid")
         )
 
         # Mock section service
-        section_service = MagicMock()
+        section_service = MagicMock(spec=SectionServiceProtocol)
         section_service.cascade_async = AsyncMock(
             return_value=CascadeResult(updates=["offer_gid", "unit_gid"])
         )
 
         # Mock completion service
-        completion_service = MagicMock()
+        completion_service = MagicMock(spec=CompletionServiceProtocol)
         completion_service.complete_source_async = AsyncMock(
             return_value=CompletionResult(completed=["source_gid"])
         )
 
         # Mock init action registry
-        init_action_registry = MagicMock()
+        init_action_registry = MagicMock(spec=InitActionRegistryProtocol)
         init_action_registry.execute_actions_async = AsyncMock(
             return_value=[LifecycleActionResult(success=True, entity_gid="play_gid")]
         )
 
         # Mock wiring service
-        wiring_service = MagicMock()
+        wiring_service = MagicMock(spec=WiringServiceProtocol)
         wiring_service.wire_defaults_async = AsyncMock(return_value=WiringResult(wired=["dep_gid"]))
 
         # Mock reopen service
-        reopen_service = MagicMock()
+        reopen_service = MagicMock(spec=ReopenServiceProtocol)
         reopen_service.reopen_async = AsyncMock(
             return_value=ReopenResult(success=True, entity_gid="reopened_gid")
         )
@@ -1353,7 +1364,7 @@ class TestEdgeCasesAdversarial:
         target_stage.project_gid = "proj_sales"
         target_stage.target_section = "OPPORTUNITY"
 
-        ctx = MagicMock()
+        ctx = MagicMock(spec=ResolutionContext)
         ctx.resolve_holder_async = AsyncMock(return_value=None)
 
         async def _run():
@@ -1393,7 +1404,7 @@ class TestEdgeCasesAdversarial:
         target_stage.project_gid = "proj_sales"
         target_stage.target_section = "OPPORTUNITY"
 
-        ctx = MagicMock()
+        ctx = MagicMock(spec=ResolutionContext)
 
         async def _run():
             return await service.reopen_async(target_stage, ctx, process)
@@ -1430,12 +1441,12 @@ class TestEdgeCasesAdversarial:
         engine = LifecycleEngine(
             client,
             config,
-            creation_service=MagicMock(),
-            section_service=MagicMock(),
-            completion_service=MagicMock(),
-            init_action_registry=MagicMock(),
-            wiring_service=MagicMock(),
-            reopen_service=MagicMock(),
+            creation_service=MagicMock(spec=CreationServiceProtocol),
+            section_service=MagicMock(spec=SectionServiceProtocol),
+            completion_service=MagicMock(spec=CompletionServiceProtocol),
+            init_action_registry=MagicMock(spec=InitActionRegistryProtocol),
+            wiring_service=MagicMock(spec=WiringServiceProtocol),
+            reopen_service=MagicMock(spec=ReopenServiceProtocol),
         )
 
         process = _make_mock_process()
@@ -1492,19 +1503,19 @@ class TestEdgeCasesAdversarial:
         client = _make_mock_client()
         config = LifecycleConfig(CONFIG_PATH)
 
-        creation_service = MagicMock()
+        creation_service = MagicMock(spec=CreationServiceProtocol)
         creation_service.create_process_async = AsyncMock(
             return_value=CreationResult(success=True, entity_gid="new_gid")
         )
-        section_service = MagicMock()
+        section_service = MagicMock(spec=SectionServiceProtocol)
         section_service.cascade_async = AsyncMock(return_value=CascadeResult(updates=[]))
-        completion_service = MagicMock()
+        completion_service = MagicMock(spec=CompletionServiceProtocol)
         completion_service.complete_source_async = AsyncMock(
             return_value=CompletionResult(completed=[])
         )
-        init_action_registry = MagicMock()
+        init_action_registry = MagicMock(spec=InitActionRegistryProtocol)
         init_action_registry.execute_actions_async = AsyncMock(return_value=[])
-        wiring_service = MagicMock()
+        wiring_service = MagicMock(spec=WiringServiceProtocol)
         wiring_service.wire_defaults_async = AsyncMock(return_value=WiringResult(wired=[]))
 
         engine = LifecycleEngine(
@@ -1515,7 +1526,7 @@ class TestEdgeCasesAdversarial:
             completion_service=completion_service,
             init_action_registry=init_action_registry,
             wiring_service=wiring_service,
-            reopen_service=MagicMock(),
+            reopen_service=MagicMock(spec=ReopenServiceProtocol),
         )
 
         proc_a = _make_mock_process(gid="A", process_type_value="sales")
@@ -1572,7 +1583,7 @@ class TestEdgeCasesAdversarial:
 
         unknown_action = InitActionConfig(type="nonexistent_handler")
         process = _make_mock_process()
-        ctx = MagicMock()
+        ctx = MagicMock(spec=ResolutionContext)
 
         async def _run():
             return await registry.execute_actions_async(
@@ -1597,12 +1608,12 @@ class TestEdgeCasesAdversarial:
         engine = LifecycleEngine(
             client,
             config,
-            creation_service=MagicMock(),
-            section_service=MagicMock(),
-            completion_service=MagicMock(),
-            init_action_registry=MagicMock(),
-            wiring_service=MagicMock(),
-            reopen_service=MagicMock(),
+            creation_service=MagicMock(spec=CreationServiceProtocol),
+            section_service=MagicMock(spec=SectionServiceProtocol),
+            completion_service=MagicMock(spec=CompletionServiceProtocol),
+            init_action_registry=MagicMock(spec=InitActionRegistryProtocol),
+            wiring_service=MagicMock(spec=WiringServiceProtocol),
+            reopen_service=MagicMock(spec=ReopenServiceProtocol),
         )
 
         process = _make_mock_process()
