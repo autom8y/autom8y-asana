@@ -738,11 +738,227 @@ sizing path to a future engagement under explicit user authorization (a new
 HANDOFF-sre-to-arch architecture-decision authoring or HANDOFF-sre-to-sre-v2
 re-engagement; ADR-008 §5.2 records the re-engagement preconditions).
 
-### §9.6 RESERVED for Sprint-2 close-gate
+## §9.6 SPRINT-2 ENGAGEMENT CLOSE — Adjudication + Routing
 
-[Empty placeholder — observability-engineer authors §9.6 at engagement close
-after Sprint-2B/C close, mirroring the existing §8 closure-disposition
-structure. Anchor: V2 charter §6 closure-discharge clause.]
+**Authored**: 2026-04-30 by observability-engineer at Sprint-2 close-gate
+(session-20260430-115401-513947b2). Rite-disjoint from platform-engineer
+authorship of Sprint-2A/B/C commits ddcb4af2 → b9c85654 → 0dc9108a →
+470d85a0 → 29fdaad1 (5-commit chain on branch
+`sre/sprint2-residuals-2026-04-30`). This section discharges the
+charter §9.3 amendment surface and closes the supplement for Sprint-2
+purposes.
+
+### §9.6.1 Sprint-2 outcome summary
+
+| Sub-route | Disposition | Commit | ADR | Probe-CI consumed |
+|---|---|---|---|---|
+| SRE-002a (runner-sizing) | NO-LEVER (autom8y-asana-local) | `ddcb4af2` | ADR-008 | 0 of 9 (zero-cost falsification at investigation §6.1) |
+| SRE-002b (xdist worker-count) | NO-LOCAL-OVERRIDE (autom8y-asana-local) | `b9c85654` | ADR-009 | 0 of 6 (HALT at protocol §3 file-inspection) |
+| SRE-002c (`.test_durations` regen) | REGEN-WIN (variance −10.83pp; bottleneck unchanged) | `0dc9108a` | (chore commit; ADR-010 §3 cites as substrate) | 0 (local LPT simulation) |
+| SRE-003 (4→N shard expansion) | STAY-AT-4 (cost-benefit monotone unfavorable) | `470d85a0` | ADR-010 | 0 of 4 (offline pytest-split planner unambiguity) |
+| SRE-004 (post-merge coverage) | AUTHOR-NEW-WORKFLOW (`post-merge-coverage.yml`) | `29fdaad1` | ADR-011 | 0 of 4 (authoring-altitude; first-fire post-merge) |
+| SRE-005 (M-16 Dockerfile pattern) | DEFER → /hygiene backlog | (no commit) | (no ADR) | n/a (Q3(b) at charter §10) |
+
+**Cumulative probe-CI runs consumed**: **0 of 20** budget per charter §11.2.
+The full 20-run probe budget is preserved unspent — the full-pantheon
+orchestration pattern surfaced empirical findings via direct
+file/log/source inspection rather than CI probes. This is itself a
+load-bearing structural finding for future engagement budget-sizing
+(see §9.6.3 item 1).
+
+### §9.6.2 Verdict-promotion adjudication (per charter §9.2 criteria)
+
+**Pre-merge measurement available at this engagement close-gate**:
+
+The 002c regen substrate (`0dc9108a`) provides offline-simulated
+slowest-shard projections under the post-engagement workload composition.
+Per the commit message at `0dc9108a`:
+
+- Inter-shard variance: 33.12% → 22.29% (−10.83pp) — substantive
+  variance reduction
+- Slowest-shard pytest pure time at N=4: 98.11s
+  (per ADR-010 §4.2 anchor; production-marker-filtered)
+- Single-file outlier (`tests/test_openapi_fuzz.py` at 111.46s) is
+  MARKER-EXCLUDED from the sharded ci job per `.github/workflows/test.yml:56`
+  (per ADR-010 §4.4 load-bearing finding) — does not contribute to
+  production CI shard wallclock
+- Slowest-shard observed wallclock at most-recent CI sample (run-id
+  `25138295569`): 561s ≈ 98s pytest pure + ~463s CI fixed-overhead per
+  shard (449.5s ± 3% envelope per ADR-010 §4.3 cost-benefit table)
+
+**Post-merge measurement deferred**: requires Sprint-2 PR merge to main
+plus a 5-run sample on main HEAD per charter §9.1; this cannot complete
+in the present engagement (PR not yet authored at close-gate authoring
+time; see §9.6.4 routing for first-fire verification).
+
+**Provisional promotion adjudication**: **PASS-WITH-FLAGS-PRESERVED**
+(NOT PASS-CLEAN-PROMOTION).
+
+**Rationale**:
+
+1. **Charter §9.2 PASS-CLEAN criterion is structurally unreachable from
+   Sprint-2 substrate.** PASS-CLEAN requires ≥20% CI shard p50 reduction
+   vs BASELINE 447s (i.e., post ≤358s). Sprint-2 lever 002c projects
+   ≤5% pytest-portion improvement (variance reduction is a tail-trim,
+   not mean-shift). The 463s CI fixed-overhead per shard cannot be
+   moved at autom8y-asana-local altitude.
+
+2. **Three NO-LEVER sibling ADRs structurally close the
+   autom8y-asana-local optimization surface.** ADR-008 (runner-sizing
+   foreclosed; runner is GitHub-managed at the reusable-workflow
+   altitude), ADR-009 (xdist `-n N` is hardcoded at
+   `autom8y-workflows@c88caabd:.github/workflows/satellite-ci-reusable.yml:528`,
+   not parameterized as a workflow input), and ADR-010 (shard expansion
+   monotone unfavorable across N=4..8). The binding constraints all
+   reside in the cross-repo `autom8y/autom8y-workflows` reusable
+   workflow.
+
+3. **Path B (cross-repo runner-tier upgrade probe) is RESERVED, not
+   pursued.** Charter §7.1 protocol requires explicit user authorization,
+   multi-satellite SHA pinning, and chaos-engineer canary validation —
+   out-of-proportion to the residual scope at Sprint-2 close. ADR-008 §5.2
+   records the re-engagement preconditions for future Path B work.
+
+The 002c regen substrate (variance −10.83pp) is genuine operational value
+but does not satisfy the §9.2 PASS-CLEAN threshold by itself.
+
+### §9.6.3 What Sprint-2 actually delivered
+
+Despite NO-LEVER outcomes on 3 of 4 SRE-002 sub-routes, Sprint-2
+delivered structural value at the engagement substrate level:
+
+1. **Empirical falsification of supplement §8.4 hypothesis at zero
+   probe-CI cost.** ADR-008 §3 documents three direct-inspection
+   anchors that falsified the "2-vCPU thrashing under -n 4" premise:
+   the runner is empirically 4-vCPU (`ubuntu-24.04` standard hosted),
+   `-n auto` resolves to 4 workers (1:1 worker-to-core ratio), and
+   the thrashing precondition does not exist on the current CI substrate.
+   This preserves the full 20-run probe-CI budget per charter §11.2 for
+   future engagement and is itself a Sprint-2 budget-architecture finding.
+
+2. **Substrate refresh (`.test_durations` regen).** Commit `0dc9108a`
+   reduced inter-shard variance from 33.12% → 22.29% (−10.83pp) under
+   the post-V2-001-B / post-HYG-001 workload composition. The prior
+   `.test_durations` was committed at `b6e6a04c` during the perf
+   engagement (2026-04-29) BEFORE both the auth-isolation fix and the
+   SCAR codification; regen captures current relative test costs. This
+   is the substrate-readiness gate for any future shard-expansion
+   engagement.
+
+3. **GLINT-003 closure (coverage-gate-theater → enforced post-merge).**
+   ADR-011 + commit `29fdaad1` author `.github/workflows/post-merge-coverage.yml`
+   running `pytest --cov-fail-under=80` single-shard on push to main.
+   The pre-fix state (`pyproject.toml:127` declared 80% floor with
+   `.github/workflows/test.yml:52` `coverage_threshold: 0` disabling
+   the gate) is replaced by an actually-firing post-merge gate.
+   `.know/test-coverage.md` updated from theater-flagged to enforced.
+
+4. **CI fixed-overhead diagnosis (~463s/shard quantified).** The 002c
+   regen cross-check (commit message at `0dc9108a`) and ADR-010 §4.3
+   cost-benefit table establish that CI fixed-overhead (fixture init,
+   parallel-worker contention, dependency install, OIDC auth, cache
+   restore/save) is ~449.5s ± 3% per shard — 4.6:1 ratio over pytest
+   pure time at N=4. This reframes future optimization scope toward
+   reusable-workflow cache/install/setup patterns rather than worker-
+   count or shard-count tuning at the satellite caller altitude.
+
+5. **Path B authorization gate preserved (no speculative cross-repo
+   work).** Three NO-LEVER ADRs (008/009/010) explicitly RESERVE
+   cross-repo work under charter §7.1 rather than executing it
+   speculatively. The user-authorization seam is held intact for
+   future Path B engagement; charter §8.6 "taking no prisoners"
+   intensification clause is honored (no soft-close, no scope absorption).
+
+### §9.6.4 Routing for unresolved residuals
+
+| Item | Route | Trigger condition |
+|---|---|---|
+| Path B cross-repo runner-tier upgrade probe (ADR-008 §5.2) | Future engagement (new HANDOFF-sre-to-arch OR explicit re-engagement) | User-authorization grant per charter §7.1; multi-satellite SHA pinning + chaos-engineer canary required |
+| Path B xdist worker-count parameterization at `autom8y-workflows` (ADR-009) | Same as above | Bundle with Path B runner-tier work for fleet-coordination efficiency |
+| `post-merge-coverage.yml` first-fire wallclock + `--cov-fail-under=80` enforcement attestation | Scheduled background agent (~1-2 weeks post-merge) | First push to main fires the new gate; observability-engineer captures wallclock + coverage-percentage delta vs `pyproject.toml:127` floor |
+| Reusable-workflow CI fixed-overhead reduction (cache/install/setup) | Future engagement at `autom8y/autom8y-workflows` altitude | Path B work would naturally subsume this; new HANDOFF-sre-to-arch route |
+| HYG-002/003/004 (mock spec, MockTask, parametrize-promote) | `/hygiene` rite resume | User invocation; pattern from PR #45 close per charter §10 |
+| SRE-005 (M-16 Dockerfile pattern enforcement) | `/hygiene` rite (DEFER per charter Q3(b)) | User invocation; tooling decision more native to /hygiene than /sre |
+| Loadfile-vs-load comment-vs-addopts discrepancy at `pyproject.toml:103-113` (per ADR-009 commit message routing) | `/reflect` complaint queue | Next engagement scope; cosmetic but worth surfacing |
+
+### §9.6.5 Parent VERDICT mutation
+
+**Recommendation**: parent `VERDICT-test-perf-2026-04-29.md` `overall_verdict`
+remains at **`PASS-WITH-FLAGS`**. NO frontmatter mutation in this engagement.
+
+This is the structurally-correct outcome per charter §9.2: PASS-WITH-FLAGS-PRESERVED
+discharges the §9 amendment surface without claiming a promotion the
+substrate cannot support. The supplement frontmatter `promotion_verdict:
+PASS-WITH-FLAGS-NEW` (set by §1 at Sprint-1 close) and the §8.3 V2-002
+adjudication of `PASS-WITH-FLAGS-CARRIED` are both consistent with this
+Sprint-2 close determination — the parent VERDICT has carried PASS-WITH-FLAGS
+through three engagements (Sprint-1 SRE-001 supplement, V2-002 amendment
+at §8, Sprint-2 close at §9.6) and structurally remains there.
+
+**Promotion path preserved for future engagement**:
+
+- IF Path B cross-repo work lands at `autom8y/autom8y-workflows` AND
+  post-merge measurement shows ≥20% CI shard p50 reduction vs BASELINE
+  447s → amend supplement at §9.7 with promotion recommendation + amend
+  parent VERDICT frontmatter `overall_verdict: PASS-WITH-FLAGS →
+  PASS-CLEAN`.
+- IF Path B is never authorized AND ≥3 months elapse without further
+  levers identified → consider alternate close path:
+  PASS-WITH-FLAGS-OPERATIONALIZED (formal acknowledgment that
+  PASS-WITH-FLAGS is the durable terminal state because the binding
+  constraint lives at an altitude this engagement chain has structurally
+  closed). This would be a §9.8 amendment authored under future engagement.
+
+### §9.6.6 Sprint-2 receipts (per-commit attestation table)
+
+| Commit SHA | Scope | ADR | Lines changed | Verification gate |
+|---|---|---|---|---|
+| `ddcb4af2` | SRE-002a NO-LEVER + supplement §9 re-grounding | ADR-008 (274 lines) | +1270 (4 files) | Investigation §6.1 + ADR-008 §3 SVR file-read anchors (3 anchors); `.sos/wip/sre/INVESTIGATION-runner-sizing-2026-04-30.md:1-630` |
+| `b9c85654` | SRE-002b NO-LOCAL-OVERRIDE | ADR-009 (269 lines) | +269 (1 file) | ADR-009 §3 three independent file:line anchors (test.yml caller / pyproject.toml / `autom8y-workflows@c88caabd:.../satellite-ci-reusable.yml:527-528`) |
+| `0dc9108a` | SRE-002c `.test_durations` regen | (commit message + ADR-010 §3 substrate citation) | ±12716 keys (1 file) | Local LPT simulation; pytest run 12713 passed / 3 skipped / 42.21s wallclock; variance 33.12% → 22.29% |
+| `470d85a0` | SRE-003 STAY-AT-4 | ADR-010 (319 lines) | +319 (1 file) | ADR-010 §4 four SVR anchors (controllability + offline planner + cost-benefit + fuzz-marker-exclusion); reproducible from any branch checkout |
+| `29fdaad1` | SRE-004 post-merge-coverage.yml + GLINT-003 update | ADR-011 (370 lines) | +470 (3 files: workflow + ADR + .know/test-coverage.md) | ADR-011 §1/§2/§4 four file-read SVR anchors (`pyproject.toml:127` / `test.yml:49-52` / `post-merge-coverage.yml:80-88` / `test.yml:56`); first-fire verification deferred to post-merge per §9.6.4 |
+
+**Total Sprint-2 substrate**: 5 commits, 4 ADRs (008/009/010/011) + 1
+investigation (`INVESTIGATION-runner-sizing-2026-04-30.md`, 630 lines)
++ 1 charter (`PYTHIA-INAUGURAL-CONSULT-2026-04-30-sprint2.md`, 290 lines)
++ 1 new workflow file (`post-merge-coverage.yml`, 99 lines) + 1
+substrate refresh (`.test_durations`) + 1 knowledge update
+(`.know/test-coverage.md` GLINT-003 entry).
+
+### §9.6.7 Engagement-close meta
+
+- **Sprint-2 session**: `session-20260430-115401-513947b2` (parent
+  `session-20260429-190827-422f0668` from Sprint-1)
+- **Branch**: `sre/sprint2-residuals-2026-04-30` cut from `main@a7af2457`
+- **HEAD at close**: `29fdaad1` (5 commits ahead of main)
+- **Probe-CI runs consumed**: **0 of 20** budget per charter §11.2 —
+  full budget preserved
+- **Specialist dispatches**: pythia (charter authorship) +
+  platform-engineer × 5 (002a investigation/close, 002b probe, 002c
+  regen, 003 sizing, 004 workflow authoring) + observability-engineer
+  × 1 (this §9.6 amendment, rite-disjoint per charter §9 verdict-discharge
+  contract)
+- **Working-tree integrity**: preserved across all 5 Sprint-2 commits.
+  Pre-existing untracked/modified state (`.knossos/sync/state.json`,
+  `.know/aegis/baselines.json`, `aegis-report.json`, `.worktrees/`,
+  delta-AUDIT artifacts) is platform-runtime substrate not authored
+  by Sprint-2 and is excluded from the §9.6 amendment commit per
+  charter §11.7 explicit-paths discipline.
+- **"Taking no prisoners" entrenchment honored**: no soft-close, no
+  scope-creep absorption, no theater. Three NO-LEVER ADRs explicitly
+  RESERVE Path B rather than speculatively executing cross-repo work;
+  PASS-WITH-FLAGS-PRESERVED rather than aspirational PASS-CLEAN claim;
+  Path B authorization seam held intact for user.
+- **Telos-integrity gate-C discipline**: every load-bearing claim in
+  this §9.6 amendment carries either a commit SHA, a file:line anchor,
+  or an ADR § citation. Routing recommendations at §9.6.4 carry trigger
+  conditions rather than open-ended promises.
+- **Self-grade ceiling**: STRONG (rite-disjoint authorship —
+  observability-engineer authoring this §9.6 amendment is structurally
+  separate from platform-engineer authorship of the 5 Sprint-2 commits;
+  multi-source corroboration via 4 ADRs + investigation + 5 commit
+  messages + supplement §1-§9 prior context).
 
 
 
