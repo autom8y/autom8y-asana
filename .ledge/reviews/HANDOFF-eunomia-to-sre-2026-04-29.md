@@ -11,6 +11,13 @@ initiative: "test-suite efficiency optimization (CI-shape residuals — sprint-o
 created_at: "2026-04-29T17:04:00Z"
 status: in_progress
 handoff_status: accepted
+sprint_3_continuation_session: session-20260430-203219-c8665239
+items_status:
+  SRE-001: closed (Sprint-1 supplement §1-§7; PASS-WITH-FLAGS-NEW)
+  SRE-002: in_progress (Sprint-2 §8.4 sub-routes 002a/002b adjudicated NO-LEVER; 002c REGEN-WIN; Sprint-3 Path B scaffold only — runner_size parameter added via autom8y-workflows PR #14 commit 3a35dbc3; full realization gated on org-runner-tier enablement)
+  SRE-003: closed (Sprint-2 ADR-010 STAY-AT-4)
+  SRE-004: closed (Sprint-2 commit 29fdaad1; post-merge-coverage.yml + GLINT-003 closure)
+  SRE-005: closed (Sprint-3 commit 288a52bc; ADR-013 hadolint integration; M-16 enforcement landed)
 source_artifacts:
   - .ledge/reviews/VERDICT-test-perf-2026-04-29.md
   - .ledge/reviews/BASELINE-test-perf-2026-04-29.md
