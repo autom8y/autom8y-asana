@@ -11,11 +11,14 @@ import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from autom8_asana.automation.workflows.base import WorkflowResult
+from autom8_asana.automation.workflows.base import WorkflowAction, WorkflowResult
+from autom8_asana.client import AsanaClient
+from autom8_asana.clients.data.client import DataServiceClient
 from autom8_asana.lambda_handlers.workflow_handler import (
     WorkflowHandlerConfig,
     create_workflow_handler,
 )
+from autom8y_events import EventPublisher
 
 # --- Helpers ---
 
@@ -61,7 +64,7 @@ def _mock_workflow(
     result: WorkflowResult | None = None,
     entities: list[dict] | None = None,
 ) -> MagicMock:
-    wf = MagicMock()
+    wf = MagicMock(spec=WorkflowAction)
     wf.validate_async = AsyncMock(return_value=validation_errors or [])
     wf.enumerate_async = AsyncMock(
         return_value=entities if entities is not None else [{"gid": "123"}]
@@ -92,10 +95,10 @@ class TestCreateWorkflowHandler:
         mock_emit: MagicMock,
     ) -> None:
         """Successful execution returns statusCode 200 with result body."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -124,10 +127,10 @@ class TestCreateWorkflowHandler:
         mock_emit: MagicMock,
     ) -> None:
         """Event overrides are merged with default_params."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -157,10 +160,10 @@ class TestCreateWorkflowHandler:
         mock_emit: MagicMock,
     ) -> None:
         """Validation errors produce status='skipped'."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -188,10 +191,10 @@ class TestCreateWorkflowHandler:
         mock_emit: MagicMock,
     ) -> None:
         """Extra metadata keys are included in the response body."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -245,10 +248,10 @@ class TestCreateWorkflowHandler:
         mock_emit: MagicMock,
     ) -> None:
         """WorkflowExecutionCount metric is emitted on each invocation."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -276,10 +279,10 @@ class TestCreateWorkflowHandler:
         mock_emit: MagicMock,
     ) -> None:
         """WorkflowDuration metric is emitted on success."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -324,10 +327,10 @@ class TestCreateWorkflowHandler:
         mock_emit: MagicMock,
     ) -> None:
         """WorkflowValidationSkipped metric is emitted when validation fails."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -361,10 +364,10 @@ class TestHandlerEnumerateExecuteOrchestration:
         mock_emit: MagicMock,
     ) -> None:
         """enumerate_async is called before execute_async."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -396,10 +399,10 @@ class TestHandlerEnumerateExecuteOrchestration:
         """EntityScope fields match event."""
         from autom8_asana.core.scope import EntityScope
 
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -426,10 +429,10 @@ class TestHandlerEnumerateExecuteOrchestration:
         mock_emit: MagicMock,
     ) -> None:
         """dry_run=True in event propagates to params."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -456,10 +459,10 @@ class TestHandlerEnumerateExecuteOrchestration:
         """Empty event produces default EntityScope (full enumeration)."""
         from autom8_asana.core.scope import EntityScope
 
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -515,10 +518,10 @@ class TestHandlerWorkflowRegistration:
             get_workflow_registry,
         )
 
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -544,10 +547,10 @@ class TestHandlerWorkflowRegistration:
         mock_emit: MagicMock,
     ) -> None:
         """Second invocation in warm container does not raise on re-registration."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -585,10 +588,10 @@ class TestBridgeEventEmission:
         mock_emit: MagicMock,
     ) -> None:
         """BridgeExecutionComplete event is published after successful execution."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -598,7 +601,7 @@ class TestBridgeEventEmission:
         config = _make_config(workflow_factory=factory, workflow_id="emit-test")
 
         with patch("autom8y_events.EventPublisher") as mock_publisher_cls:
-            mock_publisher = MagicMock()
+            mock_publisher = MagicMock(spec=EventPublisher)
             mock_publisher_cls.return_value = mock_publisher
 
             handler = create_workflow_handler(config)
@@ -630,10 +633,10 @@ class TestBridgeEventEmission:
         mock_emit: MagicMock,
     ) -> None:
         """Event publish failure is swallowed -- handler returns 200."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -643,7 +646,7 @@ class TestBridgeEventEmission:
         config = _make_config(workflow_factory=factory)
 
         with patch("autom8y_events.EventPublisher") as mock_publisher_cls:
-            mock_publisher = MagicMock()
+            mock_publisher = MagicMock(spec=EventPublisher)
             mock_publisher.publish.side_effect = RuntimeError("EventBridge down")
             mock_publisher_cls.return_value = mock_publisher
 
@@ -665,10 +668,10 @@ class TestBridgeEventEmission:
         mock_emit: MagicMock,
     ) -> None:
         """No event is published when validation fails (skipped status)."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -678,7 +681,7 @@ class TestBridgeEventEmission:
         config = _make_config(workflow_factory=factory)
 
         with patch("autom8y_events.EventPublisher") as mock_publisher_cls:
-            mock_publisher = MagicMock()
+            mock_publisher = MagicMock(spec=EventPublisher)
             mock_publisher_cls.return_value = mock_publisher
 
             handler = create_workflow_handler(config)
@@ -702,10 +705,10 @@ class TestBridgeEventEmission:
         """When autom8y-events is not installed, emission is silently skipped."""
         import sys
 
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -741,10 +744,10 @@ class TestBridgeEventEmission:
         mock_emit: MagicMock,
     ) -> None:
         """dry_run flag from WorkflowResult metadata is included in event detail."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -754,7 +757,7 @@ class TestBridgeEventEmission:
         config = _make_config(workflow_factory=factory)
 
         with patch("autom8y_events.EventPublisher") as mock_publisher_cls:
-            mock_publisher = MagicMock()
+            mock_publisher = MagicMock(spec=EventPublisher)
             mock_publisher_cls.return_value = mock_publisher
 
             handler = create_workflow_handler(config)
@@ -794,10 +797,10 @@ class TestFleetObservability:
         mock_emit_ts: MagicMock,
     ) -> None:
         """BridgeFleetHealth=1.0 emitted to fleet namespace on success."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -828,10 +831,10 @@ class TestFleetObservability:
         mock_emit_ts: MagicMock,
     ) -> None:
         """Fleet DMS timestamp emitted to fleet namespace on success."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -863,10 +866,10 @@ class TestFleetObservability:
         mock_emit_ts: MagicMock,
     ) -> None:
         """BridgeFleetHealth=0.0 emitted on validation skip (kill-switch/circuit breaker)."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -909,10 +912,10 @@ class TestFleetObservability:
         mock_emit_ts: MagicMock,
     ) -> None:
         """No fleet metrics or DMS emitted when fleet_namespace=None."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -947,10 +950,10 @@ class TestFleetObservability:
         mock_emit_ts: MagicMock,
     ) -> None:
         """No fleet failure metric on validation skip when fleet_namespace=None."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -980,10 +983,10 @@ class TestFleetObservability:
         mock_emit_ts: MagicMock,
     ) -> None:
         """Existing per-bridge metrics (Tier 1) still emitted alongside fleet metrics."""
-        mock_asana = MagicMock()
+        mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
-        mock_ds = AsyncMock()
+        mock_ds = AsyncMock(spec=DataServiceClient)
         mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
@@ -1097,8 +1100,8 @@ async def _invoke_fleet(
             patch("autom8_asana.client.AsanaClient") as mock_asana_class,
             patch("autom8_asana.clients.data.client.DataServiceClient") as mock_ds_class,
         ):
-            mock_asana_class.return_value = MagicMock()
-            mock_ds = AsyncMock()
+            mock_asana_class.return_value = MagicMock(spec=AsanaClient)
+            mock_ds = AsyncMock(spec=DataServiceClient)
             mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
             mock_ds.__aexit__ = AsyncMock(return_value=False)
             mock_ds_class.return_value = mock_ds
@@ -1367,8 +1370,8 @@ class TestSPOF1Recovery:
             patch("autom8_asana.client.AsanaClient") as mock_asana_class,
             patch("autom8_asana.clients.data.client.DataServiceClient") as mock_ds_class,
         ):
-            mock_asana_class.return_value = MagicMock()
-            mock_ds = AsyncMock()
+            mock_asana_class.return_value = MagicMock(spec=AsanaClient)
+            mock_ds = AsyncMock(spec=DataServiceClient)
             mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
             mock_ds.__aexit__ = AsyncMock(return_value=False)
             mock_ds_class.return_value = mock_ds
