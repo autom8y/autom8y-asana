@@ -61,6 +61,7 @@ class TestPhoneNormalizer:
         assert norm.normalize(e164) == e164
         assert norm.normalize(norm.normalize("(555) 123-4567")) == "+15551234567"
 
+    @pytest.mark.scar
     def test_normalize_trailing_whitespace_stripped(self) -> None:
         """Trailing whitespace is handled (SCAR-020 guard).
 

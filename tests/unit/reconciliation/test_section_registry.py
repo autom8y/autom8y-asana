@@ -25,6 +25,7 @@ Regression test for: src/autom8_asana/reconciliation/section_registry.py
 
 from __future__ import annotations
 
+import pytest
 from unittest.mock import MagicMock, patch
 
 from autom8_asana.reconciliation.section_registry import (
@@ -46,6 +47,7 @@ class TestLooksSequential:
     set differ by exactly 1 (fabricated placeholder pattern).
     """
 
+    @pytest.mark.scar
     def test_returns_true_for_sequential_placeholder_gids(self) -> None:
         """Sequential integer GIDs (the fabricated pattern) are detected."""
         sequential = frozenset(
@@ -58,6 +60,7 @@ class TestLooksSequential:
         )
         assert _looks_sequential(sequential) is True
 
+    @pytest.mark.scar
     def test_returns_true_for_longer_sequential_run(self) -> None:
         """Longer sequential runs are also detected."""
         sequential = frozenset(
@@ -72,6 +75,7 @@ class TestLooksSequential:
         )
         assert _looks_sequential(sequential) is True
 
+    @pytest.mark.scar
     def test_returns_false_for_non_sequential_production_gids(self) -> None:
         """Realistic Asana production GIDs are not flagged as sequential.
 
@@ -89,22 +93,27 @@ class TestLooksSequential:
         )
         assert _looks_sequential(non_sequential) is False
 
+    @pytest.mark.scar
     def test_returns_false_for_single_gid(self) -> None:
         """Single-element sets cannot be sequential."""
         assert _looks_sequential(frozenset({"1201081073731600"})) is False
 
+    @pytest.mark.scar
     def test_returns_false_for_empty_set(self) -> None:
         """Empty sets are not sequential."""
         assert _looks_sequential(frozenset()) is False
 
+    @pytest.mark.scar
     def test_returns_false_for_two_element_non_consecutive(self) -> None:
         """Two GIDs with a gap > 1 are not sequential."""
         assert _looks_sequential(frozenset({"1000000000000000", "1000000000000005"})) is False
 
+    @pytest.mark.scar
     def test_returns_false_for_invalid_non_numeric(self) -> None:
         """Non-numeric GIDs cannot be checked for sequence; returns False."""
         assert _looks_sequential(frozenset({"abc", "def", "ghi", "jkl"})) is False
 
+    @pytest.mark.scar
     def test_mixed_sequential_and_non_sequential(self) -> None:
         """A large set where fewer than the threshold pairs are sequential.
 
@@ -146,6 +155,7 @@ class TestValidateGidSet:
     therefore cannot be captured with pytest's caplog fixture.
     """
 
+    @pytest.mark.scar
     def test_sequential_gids_call_logger_warning(self) -> None:
         """Sequential placeholder GIDs cause logger.warning at startup validation."""
         sequential = frozenset(
@@ -167,6 +177,7 @@ class TestValidateGidSet:
             f"Expected warning event about fabricated GIDs; got: {event_name!r}"
         )
 
+    @pytest.mark.scar
     def test_sequential_gids_warning_passes_registry_name(self) -> None:
         """Warning call passes registry name in extra kwargs for diagnostic tracing."""
         sequential = frozenset(
@@ -188,6 +199,7 @@ class TestValidateGidSet:
             f"Expected extra['registry']='MY_REGISTRY'; got extra={extra}"
         )
 
+    @pytest.mark.scar
     def test_non_numeric_gids_call_logger_error(self) -> None:
         """Non-numeric GIDs that fail the Asana format pattern cause logger.error."""
         invalid = frozenset({"placeholder-gid", "not-a-number"})
@@ -202,6 +214,7 @@ class TestValidateGidSet:
             f"Expected error event about invalid GID format; got: {event_name!r}"
         )
 
+    @pytest.mark.scar
     def test_valid_non_sequential_gids_emit_no_logs(self) -> None:
         """Non-sequential, valid-format GIDs produce no warning or error calls."""
         valid = frozenset(
@@ -240,6 +253,7 @@ class TestProductionGidSetsAreSequential:
     sequential. See VERIFY-BEFORE-PROD annotation in section_registry.py.
     """
 
+    @pytest.mark.scar
     def test_excluded_section_gids_are_detected_as_sequential(self) -> None:
         """Current EXCLUDED_SECTION_GIDS are sequential placeholders (SCAR-REG-001).
 
@@ -252,6 +266,7 @@ class TestProductionGidSetsAreSequential:
             "and remove the VERIFY-BEFORE-PROD annotation in section_registry.py."
         )
 
+    @pytest.mark.scar
     def test_unit_section_gids_are_detected_as_sequential(self) -> None:
         """Current UNIT_SECTION_GIDS are sequential placeholders (SCAR-REG-001).
 
@@ -264,6 +279,7 @@ class TestProductionGidSetsAreSequential:
             "and remove the VERIFY-BEFORE-PROD annotation in section_registry.py."
         )
 
+    @pytest.mark.scar
     def test_excluded_section_gids_warn_at_module_validation(self) -> None:
         """_validate_gid_set() calls logger.warning for current EXCLUDED_SECTION_GIDS.
 

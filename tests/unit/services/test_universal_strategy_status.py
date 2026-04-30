@@ -167,6 +167,7 @@ class TestClassifyGids:
 
         assert result[0] == ("u-ignored", "ignored")
 
+    @pytest.mark.scar
     def test_classify_gids_null_section_returns_none(
         self, unit_status_df: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
@@ -248,6 +249,7 @@ class TestClassifyGids:
         assert all(status is None for _, status in result)
         assert len(result) == 2
 
+    @pytest.mark.scar
     def test_classify_gids_gid_not_in_dataframe_returns_none(
         self, unit_status_df: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:

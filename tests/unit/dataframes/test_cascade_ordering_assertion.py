@@ -10,6 +10,7 @@ full WarmupOrderingError guard ships in WS-4a.
 
 from __future__ import annotations
 
+import pytest
 from collections import defaultdict
 
 
@@ -51,6 +52,7 @@ def _build_cascade_deps() -> dict[str, set[str]]:
     return deps
 
 
+@pytest.mark.scar
 def test_warmable_entities_same_set_as_cascade_warm_phases() -> None:
     """M-04a: warmable_entities() and cascade_warm_phases() cover the same entities."""
     from autom8_asana.core.entity_registry import get_registry
@@ -67,6 +69,7 @@ def test_warmable_entities_same_set_as_cascade_warm_phases() -> None:
     )
 
 
+@pytest.mark.scar
 def test_cascade_providers_warm_before_consumers() -> None:
     """M-04b: No cascade consumer warms before its provider (SCAR-005/006 invariant).
 
@@ -110,6 +113,7 @@ def test_cascade_providers_warm_before_consumers() -> None:
     )
 
 
+@pytest.mark.scar
 def test_cascade_dependency_graph_is_nonempty() -> None:
     """M-04c: The cascade dependency graph has entries (sanity check).
 

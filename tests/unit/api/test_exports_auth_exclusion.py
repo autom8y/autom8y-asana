@@ -23,6 +23,7 @@ sync with router registration is a structural invariant.
 from __future__ import annotations
 
 import os
+import pytest
 
 # Match the env hygiene that ``tests/test_openapi_endpoint.py`` uses: the
 # fleet JWTAuthMiddleware production-URL guard requires an idempotency
@@ -53,6 +54,7 @@ def _get_jwt_exclude_paths() -> list[str]:
     )
 
 
+@pytest.mark.scar
 def test_exports_route_tree_excluded_from_jwt_auth() -> None:
     """``/api/v1/exports/*`` MUST be in JWT exclude_paths (DEF-08 regression).
 
@@ -70,6 +72,7 @@ def test_exports_route_tree_excluded_from_jwt_auth() -> None:
     )
 
 
+@pytest.mark.scar
 def test_pat_route_trees_co_excluded_consistently() -> None:
     """Every PAT-tag route tree present in the app must be JWT-excluded.
 

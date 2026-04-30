@@ -644,6 +644,7 @@ class TestAuditCascadeKeyNulls:
             assert extra["cascade_key_nulls"]["office_phone"]["null_count"] == 10
             assert extra["cascade_key_nulls"]["office_phone"]["null_rate"] == 0.1
 
+    @pytest.mark.scar
     def test_high_nulls_logs_error(self) -> None:
         """Null rate above 20% -> severity 'error'."""
         # 30 nulls out of 100 = 30% (SCAR-005 scenario)

@@ -1384,6 +1384,7 @@ class TestEntityTypeBindingRegression:
                 f"Add an EntityType enum member and _TYPE_MAP entry for it."
             )
 
+    @pytest.mark.scar
     def test_all_resolvable_entities_have_entity_type(self) -> None:
         """Every entity with a primary_project_gid has a non-None entity_type.
 
