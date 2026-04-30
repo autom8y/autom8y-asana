@@ -141,48 +141,28 @@ def stories_client(
 class TestWebhookSignatureVerificationValid:
     """Tests for valid webhook signature verification."""
 
-    def test_verify_signature_valid_empty_body(self) -> None:
-        """verify_signature handles empty request body."""
-        secret = "test_secret"
-        body = b""
+    @pytest.mark.parametrize(
+        ("body", "secret"),
+        [
+            (b"", "test_secret"),
+            (b'{"events":[{"resource":{"gid":"123"}}]}', "my_webhook_secret_123"),
+            (b"x" * 1_000_000, "secret"),
+            (b'{"test": "data"}', "secret_with_unicode_"),
+            (bytes(range(256)), "secret"),
+            (b'{"test": "data"}', "test_secret"),
+        ],
+        ids=[
+            "valid_empty_body",
+            "valid_json_body",
+            "valid_large_body",
+            "valid_unicode_secret",
+            "valid_binary_body",
+            "valid_lowercase_sig_case_sensitivity",
+        ],
+    )
+    def test_verify_signature_valid(self, body: bytes, secret: str) -> None:
+        """verify_signature accepts correctly-derived signature for body+secret."""
         expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-
-        result = WebhooksClient.verify_signature(body, expected, secret)
-        assert result is True
-
-    def test_verify_signature_valid_json_body(self) -> None:
-        """verify_signature validates standard JSON body."""
-        secret = "my_webhook_secret_123"
-        body = b'{"events":[{"resource":{"gid":"123"}}]}'
-        expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-
-        result = WebhooksClient.verify_signature(body, expected, secret)
-        assert result is True
-
-    def test_verify_signature_valid_large_body(self) -> None:
-        """verify_signature handles large request bodies."""
-        secret = "secret"
-        body = b"x" * 1_000_000  # 1MB body
-        expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-
-        result = WebhooksClient.verify_signature(body, expected, secret)
-        assert result is True
-
-    def test_verify_signature_valid_unicode_secret(self) -> None:
-        """verify_signature handles Unicode characters in secret."""
-        secret = "secret_with_unicode_"
-        body = b'{"test": "data"}'
-        expected = hmac.new(secret.encode("utf-8"), body, hashlib.sha256).hexdigest()
-
-        result = WebhooksClient.verify_signature(body, expected, secret)
-        assert result is True
-
-    def test_verify_signature_valid_binary_body(self) -> None:
-        """verify_signature handles binary data in body."""
-        secret = "secret"
-        body = bytes(range(256))  # All possible byte values
-        expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-
         result = WebhooksClient.verify_signature(body, expected, secret)
         assert result is True
 
@@ -190,68 +170,45 @@ class TestWebhookSignatureVerificationValid:
 class TestWebhookSignatureVerificationInvalid:
     """Tests for invalid webhook signature rejection."""
 
-    def test_verify_signature_invalid_wrong_signature(self) -> None:
-        """verify_signature rejects wrong signature."""
-        result = WebhooksClient.verify_signature(
-            b'{"events": []}',
-            "completely_wrong_signature",
-            "test_secret",
-        )
+    @pytest.mark.parametrize(
+        ("body", "sig", "secret"),
+        [
+            (b'{"events": []}', "completely_wrong_signature", "test_secret"),
+            (
+                b'{"test": "data"}',
+                hmac.new(b"test_secret", b'{"test": "data"}', hashlib.sha256).hexdigest()[:32],
+                "test_secret",
+            ),
+            (
+                b'{"test": "data"}',
+                hmac.new(b"wrong_secret", b'{"test": "data"}', hashlib.sha256).hexdigest(),
+                "correct_secret",
+            ),
+            (
+                b'{"events": [{"malicious": true}]}',
+                hmac.new(b"test_secret", b'{"events": []}', hashlib.sha256).hexdigest(),
+                "test_secret",
+            ),
+            (b'{"events": []}', "", "test_secret"),
+            (
+                b'{"test": "data"}',
+                hmac.new(b"test_secret", b'{"test": "data"}', hashlib.sha256).hexdigest().upper(),
+                "test_secret",
+            ),
+        ],
+        ids=[
+            "invalid_wrong_signature",
+            "invalid_truncated_signature",
+            "invalid_wrong_secret",
+            "invalid_modified_body",
+            "invalid_empty_signature",
+            "invalid_uppercase_sig_case_sensitivity",
+        ],
+    )
+    def test_verify_signature_invalid(self, body: bytes, sig: str, secret: str) -> None:
+        """verify_signature rejects mismatched/tampered signature."""
+        result = WebhooksClient.verify_signature(body, sig, secret)
         assert result is False
-
-    def test_verify_signature_invalid_truncated_signature(self) -> None:
-        """verify_signature rejects truncated signature."""
-        secret = "test_secret"
-        body = b'{"test": "data"}'
-        correct = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-        truncated = correct[:32]  # Half the signature
-
-        result = WebhooksClient.verify_signature(body, truncated, secret)
-        assert result is False
-
-    def test_verify_signature_invalid_wrong_secret(self) -> None:
-        """verify_signature rejects signature computed with wrong secret."""
-        body = b'{"test": "data"}'
-        wrong_sig = hmac.new(b"wrong_secret", body, hashlib.sha256).hexdigest()
-
-        result = WebhooksClient.verify_signature(body, wrong_sig, "correct_secret")
-        assert result is False
-
-    def test_verify_signature_invalid_modified_body(self) -> None:
-        """verify_signature rejects signature when body was modified."""
-        secret = "test_secret"
-        original_body = b'{"events": []}'
-        sig = hmac.new(secret.encode(), original_body, hashlib.sha256).hexdigest()
-
-        # Attacker modifies body
-        modified_body = b'{"events": [{"malicious": true}]}'
-
-        result = WebhooksClient.verify_signature(modified_body, sig, secret)
-        assert result is False
-
-    def test_verify_signature_invalid_empty_signature(self) -> None:
-        """verify_signature rejects empty signature."""
-        result = WebhooksClient.verify_signature(
-            b'{"events": []}',
-            "",
-            "test_secret",
-        )
-        assert result is False
-
-    def test_verify_signature_invalid_case_sensitivity(self) -> None:
-        """verify_signature is case-sensitive for hex signatures."""
-        secret = "test_secret"
-        body = b'{"test": "data"}'
-        sig_lower = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
-        sig_upper = sig_lower.upper()
-
-        # Lowercase is valid
-        assert WebhooksClient.verify_signature(body, sig_lower, secret) is True
-        # Uppercase should also work since hexdigest returns lowercase
-        # but let's verify both are handled properly
-        # Note: compare_digest will compare exact strings, uppercase would fail
-        # if the expected is lowercase. This is expected behavior.
-        assert WebhooksClient.verify_signature(body, sig_upper, secret) is False
 
 
 class TestWebhookSignatureTimingSafety:
