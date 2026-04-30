@@ -9,8 +9,10 @@ priority: medium
 blocking: false
 initiative: "test-suite efficiency optimization (perf-track residual cleanup)"
 created_at: "2026-04-29T17:01:00Z"
-status: proposed
-handoff_status: pending
+status: in_progress
+handoff_status: accepted
+accepted_at: "2026-04-30T08:55:20Z"
+accepted_by_session: session-20260430-105520-40481a0e
 source_artifacts:
   - .ledge/reviews/VERDICT-test-perf-2026-04-29.md
   - .ledge/reviews/BASELINE-test-perf-2026-04-29.md
