@@ -19,6 +19,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+@pytest.mark.scar
 class TestWG01L1StartupValidation:
     """WG-01: L1 ordering conflict raises ValueError at startup.
 
@@ -75,6 +76,7 @@ class TestWG01L1StartupValidation:
                 validate_cascade_ordering()
 
 
+@pytest.mark.scar
 class TestWG02L2PrePhaseGate:
     """WG-02: L2 pre-phase gate blocks when cascade provider is missing.
 
@@ -139,6 +141,7 @@ class TestWG02L2PrePhaseGate:
         )
 
 
+@pytest.mark.scar
 class TestWG03L3PerEntityAssertion:
     """WG-03: L3 per-entity assertion warns when provider data is absent.
 
@@ -175,6 +178,7 @@ class TestWG03L3PerEntityAssertion:
         assert hasattr(ProgressiveProjectBuilder, "_check_cascade_provider_data")
 
 
+@pytest.mark.scar
 class TestWG04ErrorPropagation:
     """WG-04: WarmupOrderingError propagates past BROAD-CATCH handlers.
 
@@ -223,6 +227,7 @@ class TestWG04ErrorPropagation:
         )
 
 
+@pytest.mark.scar
 class TestWG05LambdaParity:
     """WG-05: Lambda cache warmer uses cascade-safe ordering.
 

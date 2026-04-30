@@ -26,6 +26,7 @@ Regression test for: src/autom8_asana/api/middleware/idempotency.py:730
 from __future__ import annotations
 
 import json
+import pytest
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -87,6 +88,7 @@ async def _post(
 # ===========================================================================
 
 
+@pytest.mark.scar
 class TestFinalizeFailureObservability:
     """SCAR-IDEM-001: finalize exception is surfaced via logger.exception.
 
@@ -148,6 +150,7 @@ class TestFinalizeFailureObservability:
 # ===========================================================================
 
 
+@pytest.mark.scar
 class TestResponseReturnedOnFinalizeFailure:
     """The caller must receive their response even if finalize fails.
 
@@ -196,6 +199,7 @@ class TestResponseReturnedOnFinalizeFailure:
 # ===========================================================================
 
 
+@pytest.mark.scar
 class TestDoubleExecutionRiskAfterFinalizeFailure:
     """SCAR-IDEM-001 known gap: when finalize fails, the key is NOT stored.
 

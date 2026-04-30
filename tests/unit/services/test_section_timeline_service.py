@@ -738,6 +738,7 @@ class TestScaleBoundary:
     ~3,800 production scale that triggered SCAR-015.
     """
 
+    @pytest.mark.scar
     async def test_timeline_computation_under_threshold_at_production_scale(
         self,
     ) -> None:

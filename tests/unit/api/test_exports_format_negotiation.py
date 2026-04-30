@@ -13,6 +13,7 @@ from __future__ import annotations
 import io
 
 import polars as pl
+import pytest
 
 from autom8_asana.api.routes.dataframes import (
     MIME_CSV,
@@ -51,6 +52,7 @@ class TestFormatNegotiationCsvBranch:
         )
         assert resp.media_type == MIME_CSV
 
+    @pytest.mark.scar
     def test_csv_body_contains_identity_complete_column(self) -> None:
         df = _sample_df()
         resp = _format_csv_response(df, request_id="req-1")
