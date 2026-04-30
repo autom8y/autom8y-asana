@@ -433,76 +433,36 @@ class TestBatchResultPropertyEdgeCases:
     """Tests for BatchResult property edge cases with various status codes."""
 
     # Status code boundary tests
-    def test_status_199_is_failure(self) -> None:
-        """199 status is failure (below 2xx range)."""
-        result = BatchResult(status_code=199)
-        assert not result.success
-        assert result.error is not None
-
-    def test_status_200_is_success(self) -> None:
-        """200 status is success."""
-        result = BatchResult(status_code=200)
-        assert result.success
-
-    def test_status_201_is_success(self) -> None:
-        """201 Created is success."""
-        result = BatchResult(status_code=201)
-        assert result.success
-
-    def test_status_204_is_success(self) -> None:
-        """204 No Content is success."""
-        result = BatchResult(status_code=204)
-        assert result.success
-
-    def test_status_299_is_success(self) -> None:
-        """299 is success (upper bound of 2xx)."""
-        result = BatchResult(status_code=299)
-        assert result.success
-
-    def test_status_300_is_failure(self) -> None:
-        """300 is failure (3xx redirect range)."""
-        result = BatchResult(status_code=300)
-        assert not result.success
-
-    def test_status_400_is_failure(self) -> None:
-        """400 Bad Request is failure."""
-        result = BatchResult(status_code=400)
-        assert not result.success
-
-    def test_status_401_is_failure(self) -> None:
-        """401 Unauthorized is failure."""
-        result = BatchResult(status_code=401)
-        assert not result.success
-
-    def test_status_403_is_failure(self) -> None:
-        """403 Forbidden is failure."""
-        result = BatchResult(status_code=403)
-        assert not result.success
-
-    def test_status_404_is_failure(self) -> None:
-        """404 Not Found is failure."""
-        result = BatchResult(status_code=404)
-        assert not result.success
-
-    def test_status_429_is_failure(self) -> None:
-        """429 Rate Limited is failure."""
-        result = BatchResult(status_code=429)
-        assert not result.success
-
-    def test_status_500_is_failure(self) -> None:
-        """500 Internal Server Error is failure."""
-        result = BatchResult(status_code=500)
-        assert not result.success
-
-    def test_status_502_is_failure(self) -> None:
-        """502 Bad Gateway is failure."""
-        result = BatchResult(status_code=502)
-        assert not result.success
-
-    def test_status_503_is_failure(self) -> None:
-        """503 Service Unavailable is failure."""
-        result = BatchResult(status_code=503)
-        assert not result.success
+    @pytest.mark.parametrize(
+        "status_code, expected_success, expected_has_error",
+        [
+            pytest.param(199, False, True, id="status_199_is_failure"),
+            pytest.param(200, True, None, id="status_200_is_success"),
+            pytest.param(201, True, None, id="status_201_is_success"),
+            pytest.param(204, True, None, id="status_204_is_success"),
+            pytest.param(299, True, None, id="status_299_is_success"),
+            pytest.param(300, False, None, id="status_300_is_failure"),
+            pytest.param(400, False, None, id="status_400_is_failure"),
+            pytest.param(401, False, None, id="status_401_is_failure"),
+            pytest.param(403, False, None, id="status_403_is_failure"),
+            pytest.param(404, False, None, id="status_404_is_failure"),
+            pytest.param(429, False, None, id="status_429_is_failure"),
+            pytest.param(500, False, None, id="status_500_is_failure"),
+            pytest.param(502, False, None, id="status_502_is_failure"),
+            pytest.param(503, False, None, id="status_503_is_failure"),
+        ],
+    )
+    def test_status_code_classification(
+        self,
+        status_code: int,
+        expected_success: bool,
+        expected_has_error: bool | None,
+    ) -> None:
+        """Status code maps to success (2xx) or failure (non-2xx) classification."""
+        result = BatchResult(status_code=status_code)
+        assert result.success is expected_success
+        if expected_has_error is not None:
+            assert (result.error is not None) is expected_has_error
 
     # Missing body/headers tests
     def test_missing_body_success(self) -> None:
