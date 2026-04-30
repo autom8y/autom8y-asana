@@ -116,6 +116,7 @@ markers = [
     "integration: marks tests as integration tests requiring live API access",
     "benchmark: marks tests as performance benchmarks",
     "fuzz: OpenAPI hypothesis fuzz tests (heavy — excluded from sharded CI runs)",
+    "scar: scar-tissue regression tests (selectable via `pytest -m scar`); see .know/scar-tissue.md",
 ]
 
 [tool.coverage.run]
