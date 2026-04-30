@@ -21,6 +21,7 @@ from autom8_asana.dataframes.resolver import (
     MockCustomFieldResolver,
     NameNormalizer,
 )
+from tests._shared.mocks import MockTask
 
 # ============================================================================
 # Test Fixtures
@@ -53,13 +54,6 @@ class MockCustomField:
         self.display_value = display_value
         self.date_value = date_value
         self.people_value = people_value
-
-
-class MockTask:
-    """Mock Task object for testing."""
-
-    def __init__(self, custom_fields: list[dict[str, Any]] | None = None) -> None:
-        self.custom_fields = custom_fields or []
 
 
 # ============================================================================

@@ -17,6 +17,7 @@ from autom8_asana.automation.events.types import EventType
 from autom8_asana.automation.pipeline import PipelineConversionRule
 from autom8_asana.core.creation import generate_entity_name
 from autom8_asana.models.business.process import ProcessSection, ProcessType
+from tests._shared.mocks import MockTask
 
 
 class MockProcessType(Enum):
@@ -67,22 +68,6 @@ class Process(MockProcess):
     """Mock entity with class name 'Process' for TriggerCondition tests."""
 
     pass
-
-
-class MockTask:
-    """Mock Task for template task."""
-
-    def __init__(
-        self,
-        gid: str = "template_123",
-        name: str | None = None,
-        notes: str | None = None,
-        num_subtasks: int | None = None,
-    ) -> None:
-        self.gid = gid
-        self.name = name
-        self.notes = notes
-        self.num_subtasks = num_subtasks
 
 
 class MockSection:

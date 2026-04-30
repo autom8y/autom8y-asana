@@ -35,6 +35,7 @@ from autom8_asana.persistence.models import (
     AutomationResult,
     SaveResult,
 )
+from tests._shared.mocks import MockTask
 
 if TYPE_CHECKING:
     from autom8_asana.automation.context import AutomationContext
@@ -98,20 +99,6 @@ class Process(_MockProcessBase):
     """Process entity mock with correct class name for TriggerCondition matching."""
 
     pass
-
-
-class MockTask:
-    """Mock Task for template task."""
-
-    def __init__(
-        self,
-        gid: str = "task_123",
-        name: str | None = None,
-        notes: str | None = None,
-    ) -> None:
-        self.gid = gid
-        self.name = name
-        self.notes = notes
 
 
 class MockSection:

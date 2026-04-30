@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from autom8_asana.automation.templates import TemplateDiscovery
+from tests._shared.mocks import MockTask
 
 
 class MockSection:
@@ -19,20 +20,6 @@ class MockSection:
     def __init__(self, gid: str, name: str | None = None) -> None:
         self.gid = gid
         self.name = name
-
-
-class MockTask:
-    """Mock Task for testing."""
-
-    def __init__(
-        self,
-        gid: str,
-        name: str | None = None,
-        notes: str | None = None,
-    ) -> None:
-        self.gid = gid
-        self.name = name
-        self.notes = notes
 
 
 class MockPageIterator:

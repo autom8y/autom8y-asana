@@ -15,6 +15,7 @@ from autom8_asana._defaults.cache import InMemoryCacheProvider
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
 from autom8_asana.dataframes.schemas.unit import UNIT_SCHEMA
+from tests._shared.mocks import MockTask
 
 # Test data: Simulated Business -> Unit hierarchy
 BUSINESS_TASK = {
@@ -58,16 +59,6 @@ UNIT_TASKS = [
 ]
 
 
-class MockTask:
-    """Mock Task-like object with model_dump method."""
-
-    def __init__(self, data: dict) -> None:
-        self._data = data
-
-    def model_dump(self, exclude_none: bool = False) -> dict:
-        return self._data
-
-
 class MockTasksClient:
     """Mock TasksClient that returns Business task when requested."""
 
@@ -81,7 +72,7 @@ class MockTasksClient:
         self.call_count += 1
         self.fetched_gids.append(gid)
         if gid == "business-001":
-            return MockTask(BUSINESS_TASK)
+            return MockTask(_data=BUSINESS_TASK)
         return None
 
 

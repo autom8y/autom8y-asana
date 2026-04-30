@@ -35,6 +35,7 @@ from autom8_asana.dataframes.resolver.cascading import (
     CascadingFieldResolver,
     TaskParentFetcher,
 )
+from tests._shared.mocks import MockTask
 
 # =============================================================================
 # Test Fixtures
@@ -47,30 +48,6 @@ class MockNameGid:
     def __init__(self, gid: str, name: str | None = None) -> None:
         self.gid = gid
         self.name = name
-
-
-class MockTask:
-    """Mock Task object for testing."""
-
-    def __init__(
-        self,
-        gid: str,
-        name: str | None = None,
-        parent: MockNameGid | None = None,
-        custom_fields: list[dict[str, Any]] | None = None,
-    ) -> None:
-        self.gid = gid
-        self.name = name
-        self.parent = parent
-        self.custom_fields = custom_fields or []
-        self.memberships: list[dict[str, Any]] = []
-        self.created_at = "2024-01-01T00:00:00Z"
-        self.modified_at = "2024-01-01T00:00:00Z"
-        self.completed = False
-        self.completed_at = None
-        self.due_on = None
-        self.tags: list[Any] = []
-        self.resource_subtype = "default_task"
 
 
 @pytest.fixture
@@ -102,12 +79,16 @@ def parent_hierarchy() -> dict[str, MockTask]:
                 "text_value": "555-123-4567",
             }
         ],
+        created_at="2024-01-01T00:00:00Z",
+        modified_at="2024-01-01T00:00:00Z",
     )
 
     unit = MockTask(
         gid="unit-1",
         name="Unit Task",
         parent=MockNameGid(gid="business-1"),
+        created_at="2024-01-01T00:00:00Z",
+        modified_at="2024-01-01T00:00:00Z",
     )
 
     tasks: dict[str, MockTask] = {
@@ -121,6 +102,8 @@ def parent_hierarchy() -> dict[str, MockTask]:
             gid=f"task-{i}",
             name=f"Task {i}",
             parent=MockNameGid(gid="unit-1"),
+            created_at="2024-01-01T00:00:00Z",
+            modified_at="2024-01-01T00:00:00Z",
         )
         tasks[task.gid] = task
 

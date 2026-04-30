@@ -14,13 +14,7 @@ import pytest
 
 from autom8_asana.automation.pipeline import PipelineConversionRule
 from autom8_asana.models.business.process import ProcessType
-
-
-class MockTask:
-    """Mock Task for testing."""
-
-    def __init__(self, gid: str = "new_task_123") -> None:
-        self.gid = gid
+from tests._shared.mocks import MockTask
 
 
 class MockMembership:

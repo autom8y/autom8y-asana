@@ -17,6 +17,7 @@ from autom8_asana.dataframes.views.cf_utils import (
     get_custom_field_value,
 )
 from autom8_asana.models.business.detection import EntityType
+from tests._shared.mocks import MockTask
 
 # ============================================================================
 # Test Fixtures
@@ -29,24 +30,6 @@ class MockNameGid:
     def __init__(self, gid: str, name: str | None = None) -> None:
         self.gid = gid
         self.name = name
-
-
-class MockTask:
-    """Mock Task object for testing cascading resolution."""
-
-    def __init__(
-        self,
-        gid: str,
-        name: str | None = None,
-        parent: MockNameGid | None = None,
-        custom_fields: list[dict[str, Any]] | None = None,
-        memberships: list[dict[str, Any]] | None = None,
-    ) -> None:
-        self.gid = gid
-        self.name = name
-        self.parent = parent
-        self.custom_fields = custom_fields or []
-        self.memberships = memberships or []
 
 
 def make_custom_field(
