@@ -10,8 +10,9 @@ full WarmupOrderingError guard ships in WS-4a.
 
 from __future__ import annotations
 
-import pytest
 from collections import defaultdict
+
+import pytest
 
 
 def _build_cascade_deps() -> dict[str, set[str]]:

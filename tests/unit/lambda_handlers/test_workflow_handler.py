@@ -11,6 +11,8 @@ import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from autom8y_events import EventPublisher
+
 from autom8_asana.automation.workflows.base import WorkflowAction, WorkflowResult
 from autom8_asana.client import AsanaClient
 from autom8_asana.clients.data.client import DataServiceClient
@@ -18,7 +20,6 @@ from autom8_asana.lambda_handlers.workflow_handler import (
     WorkflowHandlerConfig,
     create_workflow_handler,
 )
-from autom8y_events import EventPublisher
 
 # --- Helpers ---
 
