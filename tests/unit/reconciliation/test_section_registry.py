@@ -25,8 +25,9 @@ Regression test for: src/autom8_asana/reconciliation/section_registry.py
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from autom8_asana.reconciliation.section_registry import (
     EXCLUDED_SECTION_GIDS,
