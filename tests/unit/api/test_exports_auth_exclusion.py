@@ -23,6 +23,7 @@ sync with router registration is a structural invariant.
 from __future__ import annotations
 
 import os
+
 import pytest
 
 # Match the env hygiene that ``tests/test_openapi_endpoint.py`` uses: the

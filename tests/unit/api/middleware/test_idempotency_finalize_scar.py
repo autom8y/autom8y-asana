@@ -26,11 +26,11 @@ Regression test for: src/autom8_asana/api/middleware/idempotency.py:730
 from __future__ import annotations
 
 import json
-import pytest
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import httpx
+import pytest
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
