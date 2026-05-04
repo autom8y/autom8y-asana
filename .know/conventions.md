@@ -1,12 +1,12 @@
 ---
 domain: conventions
-generated_at: "2026-04-29T00:09Z"
+generated_at: "2026-05-04T00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
 generator: theoros
-source_hash: "80256049"
-confidence: 0.92
+source_hash: "20ef7952"
+confidence: 0.93
 format_version: "1.0"
 update_mode: "full"
 incremental_cycle: 0
@@ -15,9 +15,9 @@ max_incremental_cycles: 3
 
 # Codebase Conventions
 
-> Regenerated 2026-04-29 (FULL mode, post-PR38). Source hash: `80256049`.
-> 3 new conventions added: Pydantic v2 `examples=[...]` Field, `logger` parameter naming,
-> and Pydantic v2 discriminated-union callable discriminator discipline.
+> Regenerated 2026-05-04 (FULL mode). Source hash: `20ef7952`.
+> Updated: CacheNotWarmError anti-pattern resolved (moved to `services/errors.py`).
+> New: dual structured logging styles documented. `_logger` private-name outliers noted.
 
 ## Error Handling Style
 
@@ -34,7 +34,7 @@ This codebase has a well-layered exception hierarchy with two root bases, domain
 **Per-domain error modules:**
 - `src/autom8_asana/errors.py` — SDK-level Asana errors (`AuthenticationError`, `ForbiddenError`, `NotFoundError`, `RateLimitError`, `ServerError`, `TimeoutError`, `ConfigurationError`, `SyncInAsyncContextError`, `CircuitBreakerOpenError`, `NameNotFoundError`, `HydrationError`, `ResolutionError`, `InsightsError`, `ExportError`)
 - `src/autom8_asana/core/errors.py` — infrastructure errors (`TransportError`, `S3TransportError`, `RedisTransportError`, `CacheError`, `CacheConnectionError`, `AutomationError`, `RuleExecutionError`, `SeedingError`, `PipelineActionError`)
-- `src/autom8_asana/services/errors.py` — service-layer errors (`ServiceError`, `EntityNotFoundError`, `UnknownEntityError`, `TaskNotFoundError`, `EntityTypeMismatchError`, `EntityValidationError`, `InvalidFieldError`, `InvalidParameterError`, `NoValidFieldsError`, `CacheNotReadyError`, `CascadeNotReadyError`, `ServiceNotConfiguredError`)
+- `src/autom8_asana/services/errors.py` — service-layer errors (`ServiceError`, `EntityNotFoundError`, `UnknownEntityError`, `TaskNotFoundError`, `EntityTypeMismatchError`, `EntityValidationError`, `InvalidFieldError`, `InvalidParameterError`, `NoValidFieldsError`, `CacheNotReadyError`, `CascadeNotReadyError`, `ServiceNotConfiguredError`, `CacheNotWarmError`)
 - `src/autom8_asana/persistence/errors.py` — save orchestration errors (`SaveOrchestrationError`, `SessionClosedError`, `CyclicDependencyError`, `DependencyResolutionError`, `PartialSaveError`, `UnsupportedOperationError`, `PositioningConflictError`, `GidValidationError`, `SaveSessionError`)
 - `src/autom8_asana/dataframes/errors.py` — DataFrame errors (`DataFrameError`, `SchemaNotFoundError`, `ExtractionError`, `TypeCoercionError`, `SchemaVersionError`, `DataFrameConstructionError`)
 - `src/autom8_asana/query/errors.py` — query engine errors (`QueryEngineError` and subclasses)
@@ -50,6 +50,8 @@ This codebase has a well-layered exception hierarchy with two root bases, domain
 ### Error Wrapping / Chaining
 
 - `Autom8Error.__init__` accepts `cause: Exception | None` and explicitly sets `__cause__`. Use when wrapping vendor exception at layer boundary: `raise S3TransportError(..., cause=original_exc)`
+- `raise ... from e` pattern used at transport boundaries: `raise TimeoutError(...) from e` in `transport/asana_http.py`, `raise ConfigurationError(...) from e` in `automation/polling/config_loader.py`
+- `raise ... from None` used in CLI error conversion to suppress chained traceback for user-facing errors: `src/autom8_asana/query/__main__.py:120`
 - Transport error tuple constants in `src/autom8_asana/core/errors.py`:
   - `CACHE_TRANSIENT_ERRORS` — all S3/redis transport errors plus `CacheConnectionError`
   - `S3_TRANSPORT_ERRORS`, `REDIS_TRANSPORT_ERRORS`, `ALL_TRANSPORT_ERRORS` — progressively composed tuples
@@ -67,9 +69,9 @@ This codebase has a well-layered exception hierarchy with two root bases, domain
 
 - **Service layer** raises `ServiceError` subclasses; callers do not catch and re-raise generically
 - **API boundary** maps service and SDK errors to HTTP via two functions in `src/autom8_asana/api/errors.py`:
-  - `raise_api_error(request, code, message, status_code, details, headers)` — route-level validation/precondition errors
-  - `raise_service_error(request, error, status_code)` — converts `ServiceError` with request_id context
-  - Global exception handlers registered via `setup_exception_handlers(app)` map `AsanaError` and `FleetError` hierarchies to canonical `ErrorResponse` envelopes with `request_id`
+  - `raise_api_error(request_id, status_code, code, message, details, headers)` — route-level validation/precondition errors
+  - `raise_service_error(request_id, error, headers)` — converts `ServiceError` with request_id context
+  - Global exception handlers registered via `register_exception_handlers(app)` map `AsanaError`, `FleetError`, and `ApiError` hierarchies to canonical `ErrorResponse` envelopes with `request_id`
 - ADR-ASANA-004 documents the full SDK-to-HTTP mapping (NotFoundError→404, AuthenticationError→401, RateLimitError→429, ServerError→502, TimeoutError→504)
 
 ### Error Handling at Catch Sites
@@ -144,6 +146,7 @@ This codebase has a well-layered exception hierarchy with two root bases, domain
 
 - Top-level `src/autom8_asana/__init__.py` is the public SDK surface — explicit imports and re-exports with `__all__`
 - Sub-package `__init__.py` export selectively (e.g., `services/__init__.py` exports only `GidLookupIndex`)
+- `__all__` is present in all major `__init__.py` files: `core/`, `cache/`, `transport/`, `dataframes/`, `clients/`, `lambda_handlers/`, `patterns/`, `metrics/`, `reconciliation/`
 - Empty `__init__.py` valid for marking package boundary
 
 ## Domain-Specific Idioms
@@ -153,20 +156,38 @@ This codebase has a well-layered exception hierarchy with two root bases, domain
 The SDK exposes both sync and async methods. Convention is `_async` suffix on async variants:
 - `client.tasks.get(gid)` (sync) / `client.tasks.get_async(gid)` (async)
 - `validate_cascade_fields_async()` in `dataframes/builders/cascade_validator.py`
+- `warm_cache_async()` in `client.py`
 
-When calling sync inside async is detected at runtime, `SyncInAsyncContextError` is raised (`errors.py:189`, `transport/sync.py`).
+When calling sync inside async is detected at runtime, `SyncInAsyncContextError` is raised (`errors.py:189`, `transport/sync.py`). Async usage is pervasive: 2,381 `async def` / `await` occurrences across source.
 
 ### GID as String Convention
 
-Asana Global IDs (GIDs) are always `str`, never `int`. Validation pattern: `r"^\d{10,}$"`. Variables and parameters named `gid` (lowercase). `workspace_gid` is the canonical parameter name.
+Asana Global IDs (GIDs) are always `str`, never `int`. Validation pattern: `r"^\d{1,64}$"` (production; relaxed in test/local environments). Variables and parameters named `gid` (lowercase). `workspace_gid` is the canonical parameter name. `GidStr` is the Pydantic v2 annotated type alias defined in `api/models.py` using `Annotated[str, StringConstraints(pattern=...)]` — environment-aware (strict in prod, permissive in test/local).
 
 ### Configuration as Frozen Dataclasses
 
-All runtime configuration is `@dataclass(frozen=True)` in `config.py`. Validation in `__post_init__`. Distinct from `settings.py` (Pydantic-settings for env binding).
+All runtime configuration is `@dataclass(frozen=True)` in `config.py`. Validation in `__post_init__`. Distinct from `settings.py` (Pydantic-settings for env binding). Examples: `RateLimitConfig`, `RetryConfig`, `ConcurrencyConfig`, `TimeoutConfig`, `ConnectionPoolConfig`, `S3LocationConfig`, `DataFrameConfig`, `CacheConfig`, `AsanaConfig`.
 
 ### Logging via `autom8y_log`
 
-All modules use `from autom8y_log import get_logger` then `logger = get_logger(__name__)` at module level. Project-wide logger factory (not stdlib `logging`). Structured kwargs: `logger.warning("event", key=value, key2=value2)`.
+All modules use `from autom8y_log import get_logger` then `logger = get_logger(__name__)` at module level. Project-wide logger factory (not stdlib `logging`).
+
+**Two coexisting call styles** (both syntactically valid):
+
+1. **Keyword-arg style** (autom8y_log native / structlog-style) — preferred in most source:
+   ```python
+   logger.warning("circuit_breaker_state_change", name=self._config.name, state="open")
+   logger.debug("Bulk API call failed", error=str(r))
+   ```
+
+2. **`extra={}` dict style** (stdlib logging compat) — used in `api/errors.py` and some cache/dataframe paths:
+   ```python
+   logger.info("authentication_failed", extra={"request_id": request_id, "error_code": "INVALID_CREDENTIALS"})
+   ```
+
+Both forms are accepted. The keyword form is the majority convention; `extra={}` appears to be used where stdlib logging handler compatibility is required. **New code should prefer the keyword form** unless working inside `api/errors.py` context where `extra={}` is the established style.
+
+**2 private-naming outliers**: `dataframes/cache_integration.py:40` and `models/business/fields.py:20` use `_logger` (underscore-prefixed). Do not replicate — canonical module-level name is `logger`.
 
 ### Protocol-Based Dependency Interfaces
 
@@ -176,6 +197,7 @@ When a subsystem needs an interface without coupling to a concrete type, a `Prot
 - `RetryPolicy(Protocol)` in `core/retry.py`
 - `IdempotencyStore(Protocol)` in `api/middleware/idempotency.py`
 - `CreationServiceProtocol`, `SectionServiceProtocol` in `lifecycle/engine.py`
+- `ConnectionManager(Protocol)` in `core/connections.py`
 
 `@runtime_checkable` added when `isinstance()` checks are needed.
 
@@ -188,6 +210,7 @@ Operations returning multiple outcome values use `@dataclass` result types (not 
 - `CascadeValidationResult`, `CascadeHealthResult` in `dataframes/builders/cascade_validator.py`
 - `DataFrameResult` in `services/dataframe_service.py`
 - `QueryResult` in `services/query_service.py`
+- `ReconciliationResult`, `ProcessorResult`, `ExecutionResult` in `reconciliation/`
 
 ### Cascade Pattern (Dataframes)
 
@@ -195,11 +218,19 @@ Operations returning multiple outcome values use `@dataclass` result types (not 
 
 ### ErrorResponse Envelope
 
-All API error responses use `ErrorResponse` envelope (from `api/models.py`) containing `ErrorDetail` and `ResponseMeta`. `request_id` always present. Enforced via `FleetError` + `fleet_error_to_response` from `autom8y_api_schemas.errors`.
+All API error responses use `ErrorResponse` envelope (from `autom8y_api_schemas`, re-exported via `api/models.py`) containing `ErrorDetail` and `ResponseMeta`. `request_id` always present. Enforced via `FleetError` + `fleet_error_to_response` from `autom8y_api_schemas.errors`. `build_success_response()` and `build_error_response()` are fleet-standard factories for response construction.
 
 ### Import-Safe Tuple Constants
 
-Error type tuples in `core/errors.py` use try/except ImportError to build progressively — module loads cleanly whether or not optional backends are installed.
+Error type tuples in `core/errors.py` use try/except ImportError to build progressively — module loads cleanly whether or not optional backends are installed. Pattern:
+```python
+REDIS_TRANSPORT_ERRORS: tuple[type[Exception], ...] = (RedisTransportError,)
+try:
+    from redis import RedisError
+    REDIS_TRANSPORT_ERRORS = (RedisTransportError, RedisError)
+except ImportError:
+    pass
+```
 
 ### Pydantic v2 `Field(examples=[...])` Convention (CSI-001 discharged 2026-04-29)
 
@@ -219,8 +250,6 @@ Error type tuples in `core/errors.py` use try/except ImportError to build progre
 - `src/autom8_asana/api/routes/dataframes.py:632`
 
 These are NOT Pydantic `Field()` calls. They are OpenAPI 3.0-style inline response annotations that predate CSI-001. They are not regressions — they are pre-existing divergent patterns. **Do not replicate this singular form in new `Field()` declarations.** Future Pydantic field declarations MUST use `examples=[...]` (plural array).
-
-**[KNOW-CANDIDATE] New structural convention established by T-08/CSI-001; absent from prior conventions.md.**
 
 ### Pydantic v2 Discriminated Union — Callable Discriminator Discipline (SCAR-DISCRIMINATOR-001)
 
@@ -246,32 +275,59 @@ def _predicate_discriminator(v: Any) -> str:
 
 **Cross-reference**: SCAR-DISCRIMINATOR-001 in `.know/scar-tissue.md`.
 
-**[KNOW-CANDIDATE] Callable discriminator dict-only guard is a latent validation gap; no prior mention in conventions.md.**
+### MockTask Import Convention (HYG-003 — discharged 2026-04-30)
+
+**Rule**: New tests requiring `MockTask` MUST import from the canonical
+`tests/_shared/mocks` module. Bespoke redefinition is forbidden.
+
+**Canonical location**: `tests/_shared/mocks.py:10`. The class is a strict
+superset of all attribute schemas observed across the 11 prior bespoke
+variants (cascading-resolver family, automation family, integration family,
+plus dict-wrapper paradigm via `_data` kwarg + `model_dump()` method).
+
+**Import form**: `from tests._shared.mocks import MockTask`
+
+**Rationale**: Prevents schema fragmentation. Prior to HYG-003, 11 bespoke
+`class MockTask` definitions diverged across `tests/unit/dataframes/`,
+`tests/unit/automation/`, and `tests/integration/`. Schema drift between
+bespoke variants caused silent attribute-not-found surprises.
+
+**Extension protocol**: if a future test needs an attribute not in the
+superset, EXTEND the canonical (additive only — no breaking changes to
+existing kwargs). Do NOT mint a new bespoke.
+
+### `from __future__ import annotations` Convention
+
+417 of 484 source files (86%) use `from __future__ import annotations` as the first import. This defers type annotation evaluation and enables forward references without string quoting. All new files in the source root should include this import.
 
 ## Naming Patterns
 
 | Pattern | Convention | Examples |
 |---|---|---|
-| Service classes | `{Noun}Service` | `TaskService`, `EntityService`, `SectionService` |
+| Service classes | `{Noun}Service` | `TaskService`, `EntityService`, `SectionService`, `EntityQueryService` |
 | Request models | `{Action}{Resource}Request` | `CreateTaskRequest`, `UpdateProjectRequest` |
 | Response models | `{Resource}Response` or `{Action}{Resource}Response` | `CacheRefreshResponse`, `WorkflowInvokeResponse` |
-| Result dataclasses | `{Noun}Result` | `ResolutionResult`, `WriteFieldsResult` |
-| Error classes | `{Specific}Error` | `EntityNotFoundError`, `InvalidFieldError` |
-| Protocol classes | `{Noun}Protocol` or bare suffix optional | `CreationServiceProtocol`, `RetryPolicy`, `DataFrameStorage` |
+| Result dataclasses | `{Noun}Result` | `ResolutionResult`, `WriteFieldsResult`, `QueryResult` |
+| Error classes | `{Specific}Error` | `EntityNotFoundError`, `InvalidFieldError`, `CacheNotWarmError` |
+| Config dataclasses | `{Domain}Config` | `RateLimitConfig`, `CircuitBreakerConfig`, `DataServiceConfig` |
+| Client classes | `{Resource}sClient` | `TasksClient`, `SectionsClient`, `TagsClient` |
+| Protocol classes | `{Noun}Protocol` or bare noun | `CreationServiceProtocol`, `RetryPolicy`, `DataFrameStorage` |
 
 ### Method Naming
 
-- Async: `_async` suffix (`get_async()`, `execute_async()`, `commit_async()`)
+- Async: `_async` suffix (`get_async()`, `execute_async()`, `commit_async()`, `warm_cache_async()`)
 - Private helpers: single `_` prefix (`_build_error_response()`, `_is_transient()`)
 - Audit functions: `audit_` prefix in dataframes domain
 - Health checks: `check_` prefix
+- Lazy accessors: `_` prefix + `@functools.cache` decorator (e.g., `_detection_cache_ttl()`)
 
 ### Variable Naming
 
-- Logger: `logger = get_logger(__name__)` — module-level canonical name. See `logger` parameter naming convention below.
+- Logger: `logger = get_logger(__name__)` — module-level canonical name (unprefixed). **Exception**: `_logger` exists in 2 files (`dataframes/cache_integration.py`, `models/business/fields.py`) — do not replicate.
 - GIDs: always `gid` (lowercase), never `id` or `gid_str`
 - `workspace_gid` canonical for workspace identifiers
-- Module-level private constants: all-caps with `_` prefix (`_ASANA_GID_PATTERN`, `_MINIMUM_OPT_FIELDS`)
+- Module-level private constants: all-caps with `_` prefix (`_ASANA_GID_PATTERN`, `_MINIMUM_OPT_FIELDS`, `_STATUS_CODE_MAP`)
+- Module-level public constants: all-caps without prefix (`PHASE_1_DEFAULT_COLUMNS`, `BASE_SCHEMA`)
 
 ### `logger` Parameter Naming Convention (T-06 — autom8y_log SDK)
 
@@ -289,28 +345,28 @@ def _predicate_discriminator(v: Any) -> str:
 | `src/autom8_asana/persistence/cache_invalidator.py` | 41 | `log: Any \| None = None` (constructor parameter) |
 | `src/autom8_asana/services/vertical_backfill.py` | 63 | `log: Any \| None = None` (constructor parameter) |
 
-**Rule**: All new code MUST use `logger` as the parameter name. The 4 violator files above are pending T-06 follow-up remediation. Agents reading this document: do not replicate the `log:` parameter form in new code.
-
-**[KNOW-CANDIDATE] Explicit violator list with file:line not present in prior conventions.md; prior version only noted the anti-pattern generically.**
+**Rule**: All new code MUST use `logger` as the parameter name. The 4 violator files above are pending T-06 follow-up remediation. Do not replicate the `log:` parameter form in new code.
 
 ### Acronym Conventions
 
 - `gid` (lowercase) in code, `GID` in docstrings/comments
 - `URL`, `HTTP`, `S3`, `API`, `ADR`, `GID` — all uppercase in comments
-- Error codes in machine-readable strings: `SCREAMING_SNAKE_CASE` (`RESOURCE_NOT_FOUND`, `VALIDATION_ERROR`)
+- Error codes in machine-readable strings: `SCREAMING_SNAKE_CASE` (`RESOURCE_NOT_FOUND`, `VALIDATION_ERROR`, `MISSING_AUTH`)
 
 ### Package Naming
 
 - All packages: `snake_case`
-- Private helper modules: `_` prefix (`_defaults`, `_exports_helpers.py`, `_security.py`)
+- Private helper modules: `_` prefix (`_defaults`, `_exports_helpers.py`, `_security.py`, `_bootstrap.py`)
 
 ### Anti-Patterns to Avoid
 
 - Do not use `log` as the logger variable or parameter name — use `logger` (see T-06 convention above; 4 legacy sites pending cleanup)
 - Do not raise `Exception` or `RuntimeError` for domain logic failures
-- Do not import `CacheNotWarmError` from `services/query_service.py` (defined ad-hoc) — should relocate to `services/errors.py`
+- Do not define `CacheNotWarmError` locally — import from `services/errors.py` (resolved in `20ef7952`; `query_service.py` now re-exports with `noqa: F401`)
 - Do not define result types outside the service file unless shared across multiple callers
 - Do not use singular `"example":` key inside Pydantic `Field()` — use `examples=[...]` (plural array); the two sites in `dataframes.py:511,632` are pre-CSI-001 raw-dict exceptions, not the canonical form
+- Do not use `_logger` as the module-level logger name — use `logger` (unprefixed)
+- Do not replicate the `extra={}` logging style outside `api/errors.py` context — prefer keyword-arg form `logger.warning("event", key=value)`
 
 ### Pattern 1 — Configuration-During-Init Anti-Pattern (GLINT-002)
 
@@ -354,8 +410,6 @@ carry-forward from VERDICT §6.1 — not yet authored; future `/10x-dev` scope).
 **Sources**: GLINT-002 (H) · file:line anchor `src/autom8_asana/models/business/detection/facade.py:78` ·
 VERDICT-eunomia-final-adjudication-2026-04-29.md §6.1 CP-01.
 
-**[KNOW-CANDIDATE] Configuration-during-init anti-pattern codified from 3-recurrence cascade evidence; previously absent from conventions.md.**
-
 ---
 
 ### Dockerfile Stage-0 / Stage-2 Canonical Pattern (GLINT-008)
@@ -391,47 +445,28 @@ VERDICT §7).
 **Sources**: GLINT-008 (M) · file:line anchor `Dockerfile:44,109` ·
 VERDICT-eunomia-final-adjudication-2026-04-29.md §7 M-16 (routed to /sre).
 
-**[KNOW-CANDIDATE] Dockerfile Stage-0/Stage-2 pattern documented from canonical PR#34 evidence; previously absent from conventions.md.**
-
 
 ## Experiential Observations (from session history)
 
-The cross-session corpus (18 wrapped sessions, confidence 0.75) shows Bash dominates tool calls (65% of grepped). Edit usage correlates with productive sessions — project-crucible ran 8h25m with 36+ commits across 6 sprints. SCAR test cluster (33 inviolable tests) is documented as a sacred constraint.
+The cross-session corpus (18+ wrapped sessions) shows Bash dominates tool calls (65% of grepped). Edit usage correlates with productive sessions — project-crucible ran 8h25m with 36+ commits across 6 sprints. SCAR test cluster (33 inviolable tests) is documented as a sacred constraint.
 
-Coverage floor is `>=80%` non-negotiable per project-crucible. Parametrize rate target `>=8%` (current 0.90% per session-layer view; 11.6% per static analysis). 86.8% local fixture ratio identified as anti-pattern.
-
-Cross-rite transitions: `ari sync --rite=...` documented in session-20260415-032649 (hygiene↔10x-dev), session-20260427-232025 (rnd→10x-dev planned).
-
-### MockTask Import Convention (HYG-003 — discharged 2026-04-30)
-
-**Rule**: New tests requiring `MockTask` MUST import from the canonical
-`tests/_shared/mocks` module. Bespoke redefinition is forbidden.
-
-**Canonical location**: `tests/_shared/mocks.py:10`. The class is a strict
-superset of all attribute schemas observed across the 11 prior bespoke
-variants (cascading-resolver family, automation family, integration family,
-plus dict-wrapper paradigm via `_data` kwarg + `model_dump()` method).
-
-**Import form**: `from tests._shared.mocks import MockTask`
-
-**Rationale**: Prevents schema fragmentation. Prior to HYG-003, 11 bespoke
-`class MockTask` definitions diverged across `tests/unit/dataframes/`,
-`tests/unit/automation/`, and `tests/integration/`. Schema drift between
-bespoke variants caused silent attribute-not-found surprises. Consolidation
-discharged 2026-04-30 per HANDOFF-eunomia-to-hygiene-2026-04-29 HYG-003 +
-charter PYTHIA-INAUGURAL-CONSULT-2026-04-30-hygiene-sprint §5.
-
-**Extension protocol**: if a future test needs an attribute not in the
-superset, EXTEND the canonical (additive only — no breaking changes to
-existing kwargs). Do NOT mint a new bespoke. If extension would break an
-existing caller, route to /eunomia or /10x for production-side type
-unification per charter §10.
-
-**Cross-reference**: HYG-003 PLAN at `.sos/wip/hygiene/PLAN-hyg-003-2026-04-30.md`.
+Coverage floor is `>=80%` non-negotiable per project-crucible. Parametrize rate target `>=8%`. 86.8% local fixture ratio identified as anti-pattern.
 
 ## Knowledge Gaps
 
-- The `patterns/` package has only `error_classification.py` observed
+- The `patterns/` package has only `error_classification.py` and `async_method.py` observed; full idiom inventory not traced
 - `lifecycle/engine.py` Protocol inventory is grep-based; full lifecycle idioms not fully traced
 - `automation/` sub-packages (`events/`, `polling/`, `workflows/`) not individually inspected
 - `search/`, `batch/` full API surface not traced
+- Dual logging styles (`extra={}` vs keyword-arg) origin not fully traced — may have autom8y_log SDK version dependency
+
+```metadata
+confidence: 0.93
+error_handling_style_grade: A
+file_organization_grade: A
+domain_specific_idioms_grade: A
+naming_patterns_grade: B
+overall_grade: A
+source_hash: "20ef7952"
+generated_at: "2026-05-04T00:00Z"
+```
