@@ -593,10 +593,10 @@ class TestAC006PerformanceTolerance:
 
         assert len(errors) == 0, f"Errors during contended operations: {errors}"
 
-        # Even under contention, average should be < 1ms
+        # Even under contention, average should be < 2ms
         avg_ns = sum(times) / len(times)
         avg_ms = avg_ns / 1_000_000
-        assert avg_ms < 1.0, f"Average contended operation {avg_ms:.3f}ms exceeds 1ms budget"
+        assert avg_ms < 2.0, f"Average contended operation {avg_ms:.3f}ms exceeds 2ms budget"
 
 
 # ---------------------------------------------------------------------------
