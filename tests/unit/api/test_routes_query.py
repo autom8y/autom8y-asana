@@ -37,6 +37,13 @@ from autom8_asana.api.main import create_app
 from autom8_asana.services.errors import CacheNotWarmError
 from autom8_asana.services.resolver import EntityProjectRegistry
 
+# Sprint W1-E loadgroup-fallout fix (DW-W1E-LOADGROUP-FALLOUT-001):
+# Pin all tests in this file to a single xdist worker. Heavy AsyncMock + dependency_overrides
+# usage causes test-isolation issues under --dist=loadgroup that round-robin --dist=load
+# masked via lucky test-ordering co-location. File-level grouping mirrors W1-E precedent
+# at tests/unit/lambda_handlers/test_workflow_handler.py (commit e2ccc474).
+pytestmark = [pytest.mark.xdist_group("query_routes")]
+
 
 def _mock_jwt_validation(service_name: str = "autom8_data"):
     """Helper to create a mock JWT validation that returns valid claims."""
