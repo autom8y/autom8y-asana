@@ -4,7 +4,7 @@
 Use the available agents and slash commands. Agents activate automatically when your prompt matches their description.
 <!-- KNOSSOS:END execution-mode -->
 
-<!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
+<!-- KNOSSOS:START quick-start source=ACTIVE_RITE+agents regenerate=true -->
 ## Quick Start
 
 5-agent workflow (sre):
