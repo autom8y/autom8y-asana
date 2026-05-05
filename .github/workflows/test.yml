@@ -82,6 +82,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      actions: read    # cross-workflow actions/download-artifact (consumer-gate from autom8y SDK-publish-v2.yml). Ports autom8y-ads PR #34 (commit 5080898 / merge 596db166) Path β remediation per AP-CANDIDATE-cross-fleet-consumer-gate-silent-bypass-survey N=2.
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -122,6 +123,24 @@ jobs:
           path: /tmp/candidate-wheel
           run-id: ${{ inputs.candidate_wheel_run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify candidate wheel present (consumer-gate fail-loud)
+        if: inputs.candidate_wheel_run_id != ''
+        run: |
+          # Test-purpose-integrity guard: when consumer-gate dispatch passes
+          # candidate_wheel_run_id, the candidate wheel MUST be present.
+          # Silent-bypass would mean fuzz tests run against pyproject.toml-
+          # resolved wheel instead of candidate. Per hygiene-sprint-3
+          # 2026-05-05 cross-fleet port from autom8y-ads PR #34 (Path β
+          # remediation; AP-CANDIDATE-cross-fleet-consumer-gate-silent-
+          # bypass-survey N=2 mitigation). Preserves continue-on-error: true
+          # at job-level for actual fuzz pytest failures only.
+          if ! ls /tmp/candidate-wheel/*.whl >/dev/null 2>&1; then
+            echo "::error::Consumer-gate test-purpose violation: candidate_wheel_run_id was set (${{ inputs.candidate_wheel_run_id }}) but no .whl file found at /tmp/candidate-wheel/. Cross-workflow actions/download-artifact likely failed; check fuzz job permissions and source workflow run-id validity."
+            exit 1
+          fi
+          echo "Consumer-gate candidate wheel present at /tmp/candidate-wheel/:"
+          ls -la /tmp/candidate-wheel/
 
       - name: Install candidate wheel (consumer-gate)
         if: inputs.candidate_wheel_run_id != ''
