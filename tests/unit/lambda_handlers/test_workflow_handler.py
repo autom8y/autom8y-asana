@@ -11,6 +11,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from autom8y_events import EventPublisher
 
 from autom8_asana.automation.workflows.base import WorkflowAction, WorkflowResult
@@ -20,6 +21,30 @@ from autom8_asana.lambda_handlers.workflow_handler import (
     WorkflowHandlerConfig,
     create_workflow_handler,
 )
+
+# Sprint W1-E H-1 remediation (ADR-w1e §5 OQ-4 + TDD §3.3, 2026-05-04):
+# Pin all tests in this module to the same xdist worker via xdist_group.
+# These tests share AsyncMock(spec=DataServiceClient) context-manager
+# teardown patterns (e.g. L554-556, L1104-1106) executing inside the
+# new event loop spawned by ``asyncio.run`` in the production handler
+# (workflow_handler.py:97). With ``--dist=load`` (pyproject.toml:113
+# post-8f99a801) round-robin item distribution interleaves these tests
+# across workers gw0..gw3, producing the cross-item state corruption
+# documented in CI shard 4/4 worker-crash signature (run 25258237857
+# at TestHandlerWorkflowRegistration::test_handler_warm_container_reregistration
+# + run 25188629600 at same; both surfaced "node down: Not properly
+# terminated" + "worker 'gwN' crashed").
+#
+# The xdist_group marker is FORWARD-COMPATIBLE: it is a no-op under
+# ``--dist=load`` (per pytest-xdist docs: load mode does NOT honor
+# xdist_group markers) and ACTIVATES when CIMS Phase 2 coordinates the
+# fleet-CI-altitude switch to ``--dist=loadgroup`` per ADR-w1e §5 OQ-4
+# escalation path. Until that switch lands, this scaffold preserves the
+# coordination surface so the marker is in place when the strategy
+# change is dispatched. Pattern mirrors tests/test_openapi_fuzz.py:68
+# (existing xdist_group("fuzz") marker landed in PR #44 / commit
+# 8f99a801's sibling work).
+pytestmark = [pytest.mark.xdist_group("workflow_handler")]
 
 # --- Helpers ---
 
