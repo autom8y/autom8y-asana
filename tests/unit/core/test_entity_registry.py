@@ -408,8 +408,9 @@ class TestGlobalRegistry:
 
     def test_descriptor_count(self) -> None:
         """Registry has expected number of descriptors."""
+        # Sprint 1 — asana-clean-break-leaf: +2 for project + section descriptors.
         registry = get_registry()
-        assert len(registry.all_descriptors()) == 27
+        assert len(registry.all_descriptors()) == 29
 
     def test_warmable_count_and_order(self) -> None:
         """Warmable entities match expected count and priority order."""
@@ -1270,6 +1271,9 @@ EXPECTED_SCHEMA_COLUMN_COUNTS: list[tuple[str, int]] = [
     ("process_reactivation", 16),  # 13 base + 3 process-specific
     ("process_account_error", 16),  # 13 base + 3 process-specific
     ("process_expansion", 16),  # 13 base + 3 process-specific
+    # Sprint 1 — asana-clean-break-leaf: S-07 minimal schema (13 base + 3 extras).
+    ("project", 16),  # 13 base + 3 project-specific (status, office_phone, vertical)
+    ("section", 16),  # 13 base + 3 section-specific (status, office_phone, vertical)
 ]
 
 
