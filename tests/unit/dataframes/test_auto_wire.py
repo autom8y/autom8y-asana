@@ -57,6 +57,9 @@ class TestSchemaRegistryAutoWire:
             "ProcessReactivation",
             "ProcessAccountError",
             "ProcessExpansion",
+            # Sprint 1 — asana-clean-break-leaf: S-07 minimal schemas.
+            "Project",
+            "Section",
         ]
     )
 

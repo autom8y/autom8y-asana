@@ -123,6 +123,9 @@ class TestImportTimeValidation:
             "ProcessReactivation",
             "ProcessAccountError",
             "ProcessExpansion",
+            # Sprint 1 — asana-clean-break-leaf: S-07 minimal schemas use SchemaExtractor.
+            "Project",
+            "Section",
         }
         assert warned_entities == expected_warned, (
             f"Expected warnings for {expected_warned}, got {warned_entities}"
@@ -201,6 +204,9 @@ class TestSchemaAudit:
             "ProcessReactivation",
             "ProcessAccountError",
             "ProcessExpansion",
+            # Sprint 1 — asana-clean-break-leaf: S-07 minimal schemas.
+            "Project",
+            "Section",
         }
         assert task_types == expected, (
             f"Schema inventory mismatch. "
