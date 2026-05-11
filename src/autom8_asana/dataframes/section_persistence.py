@@ -63,6 +63,7 @@ __all__ = [
     "SectionStatus",
     "SectionInfo",
     "create_section_persistence",
+    "is_honest_complete",
 ]
 
 logger = get_logger(__name__)
@@ -207,6 +208,31 @@ class SectionManifest(BaseModel):
     def get_section_name_index(self) -> dict[str, str]:
         """Return a ``{name.lower(): gid}`` mapping for sections with names."""
         return {info.name.lower(): gid for gid, info in self.sections.items() if info.name}
+
+
+def is_honest_complete(manifest: SectionManifest) -> bool:
+    """Derive honest_contract_complete from manifest per-section failure tracking.
+
+    Sprint 1 — asana-clean-break-leaf T1.5 (PG-01).
+    AC-3 binding: TRUE iff zero sections have SectionStatus.FAILED in the manifest.
+    This helper is the DERIVATION SITE — never shortcut-stamped (S-01 REFUSED).
+
+    Option G binding: envelope-canonical receipt shape per PR #271
+    FW-AUTOM8Y_ENV-CANONICAL. True iff all known sections completed without failure.
+
+    Args:
+        manifest: SectionManifest from SectionPersistence.get_manifest_async().
+
+    Returns:
+        True if all sections are COMPLETE (no FAILed sections); False otherwise.
+        An empty manifest (no sections) returns True (vacuously complete).
+    """
+    if not manifest.sections:
+        return True
+    return all(
+        info.status == SectionStatus.COMPLETE
+        for info in manifest.sections.values()
+    )
 
 
 class SectionPersistence:

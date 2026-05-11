@@ -352,6 +352,20 @@ class RowsMeta(BaseModel):
         default=None,
         description="Ratio of data age to configured TTL (1.0 = at TTL boundary).",
     )
+    # Sprint 1 — asana-clean-break-leaf T1.5 (PG-01 mandatory).
+    # Option G binding: envelope-canonical receipt shape per PR #271 FW-AUTOM8Y_ENV-CANONICAL.
+    # AC-3: DERIVED from SectionPersistence.get_manifest_async() via is_honest_complete().
+    # S-01 (unconditional True) is REFUSED — this field reflects real per-section completeness.
+    # Default False: if no manifest is available, we do not claim completeness.
+    honest_contract_complete: bool = Field(
+        default=False,
+        description=(
+            "Structural attestation field. True iff zero sections have SectionStatus.FAILED "
+            "in the SectionManifest at query time. Derived from SectionPersistence — not "
+            "fabricated. False if no manifest exists or any section failed during progressive build."
+        ),
+        examples=[True],
+    )
 
 
 class RowsResponse(BaseModel):

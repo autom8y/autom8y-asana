@@ -299,10 +299,33 @@ class EntityQueryService:
     # Freshness info from last get_dataframe() call
     _last_freshness_info: FreshnessInfo | None = field(default=None, init=False, repr=False)
 
+    # Sprint 1 — asana-clean-break-leaf T1.5.
+    # Lazy SectionPersistence for honest_contract_complete derivation.
+    # DEF-005 guard: uses create_section_persistence() which uses the same
+    # storage backend as the write path.
+    _section_persistence: Any = field(default=None, init=False, repr=False)
+
     @property
     def last_freshness_info(self) -> FreshnessInfo | None:
         """Public accessor for freshness info (DataFrameProvider protocol)."""
         return self._last_freshness_info
+
+    @property
+    def section_persistence(self) -> Any:
+        """Lazy accessor for SectionPersistence (honest_contract_complete derivation).
+
+        Sprint 1 — asana-clean-break-leaf T1.5.
+        DEF-005 guard: uses create_section_persistence() which shares the same
+        storage backend as the write path (SectionPersistence from progressive build).
+
+        Returns:
+            SectionPersistence instance (created on first access, cached).
+        """
+        if self._section_persistence is None:
+            from autom8_asana.dataframes.section_persistence import create_section_persistence
+
+            object.__setattr__(self, "_section_persistence", create_section_persistence())
+        return self._section_persistence
 
     def __post_init__(self) -> None:
         """Initialize default strategy factory."""
