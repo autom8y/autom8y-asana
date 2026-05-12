@@ -1,16 +1,16 @@
 ---
 domain: test-coverage
-generated_at: "2026-05-04T12:48Z"
+generated_at: "2026-05-08T00:00Z"
 expires_after: "7d"
 source_scope:
   - "./tests/**/*.py"
   - "./pyproject.toml"
 generator: theoros
-source_hash: "20ef7952"
+source_hash: "8980bcd7"
 confidence: 0.92
 format_version: "1.0"
-update_mode: "full"
-incremental_cycle: 0
+update_mode: "incremental"
+incremental_cycle: 1
 max_incremental_cycles: 3
 land_sources:
   - ".sos/land/workflow-patterns.md"
@@ -107,11 +107,19 @@ Packages with no integration or validation tests: `auth`, `core`, `models`, `met
 
 - **Runner**: `pytest` with `asyncio_mode = "auto"` (all `async def test_*` execute without `@pytest.mark.asyncio`)
 - **Test command**: `pytest` from project root; `testpaths = ["tests"]`
-- **Parallel execution**: `pytest-xdist` with `--dist=load` (effective runtime config as of `addopts` in `pyproject.toml`). NOTE: The comment block above `addopts` in `pyproject.toml` references `--dist=loadfile` and explains the R5-FIX rationale — this is a known doc drift; the comment describes a prior state before xdist topology was updated. The fuzz module is isolated via `xdist_group("fuzz")` marker (pins all fuzz tests to a single worker under `--dist=load`).
+- **Parallel execution**: `pytest-xdist` with `--dist=loadgroup` (current `addopts` in `pyproject.toml`, commit `149d3673`). The `loadgroup` strategy ACTIVATES `xdist_group` markers — all tests carrying the same `xdist_group` value are pinned to the same worker. Prior doc drift (comment describing `--dist=loadfile` / R5-FIX rationale) is now resolved; `pyproject.toml:103-105` carries a forward-pointer to the substantive rationale in `test_workflow_handler.py` and `test_openapi_fuzz.py`.
 - **Timeout**: 60 seconds per test; `timeout_method = "thread"`
 - **Coverage**: `pytest --cov`; `fail_under = 80`, branch coverage, source `src/autom8_asana`
 
-xdist history: disabled → re-enabled (commit `affbf5a5`) → `--dist=load` → `--dist=loadfile` (commit `8fd0aefb`) → `--dist=load` (commit `8f99a801`; current).
+**xdist history**: disabled → re-enabled (commit `affbf5a5`) → `--dist=load` → `--dist=loadfile` (commit `8fd0aefb`) → `--dist=load` (commit `8f99a801`) → `--dist=loadgroup` (commit `149d3673`; current).
+
+**xdist_group markers inventory** (3 active groups):
+
+| Group | File | Purpose |
+|---|---|---|
+| `xdist_group("fuzz")` | `tests/test_openapi_fuzz.py` | Pins schemathesis/hypothesis fuzz tests to a single worker; prevents cross-worker state corruption |
+| `xdist_group("workflow_handler")` | `tests/unit/lambda_handlers/test_workflow_handler.py` | Pins tests sharing `AsyncMock(spec=DataServiceClient)` teardown patterns executed inside `asyncio.run` event loops; was FORWARD-COMPATIBLE no-op under `--dist=load`, now ACTIVE under `--dist=loadgroup` (commit `149d3673`) |
+| `xdist_group("query_routes")` | `tests/unit/api/test_routes_query.py` | Pins tests with heavy `AsyncMock` + `dependency_overrides` isolation that produced contention under `--dist=loadgroup` without co-location (DW-W1E-LOADGROUP-FALLOUT-001) |
 
 ### Test Naming
 
@@ -135,9 +143,9 @@ xdist history: disabled → re-enabled (commit `affbf5a5`) → `--dist=load` →
 | `@pytest.mark.fuzz` | 1 module | OpenAPI hypothesis fuzz |
 | `@pytest.mark.xfail` | 1 module (`test_openapi_fuzz.py`) | 47 pre-existing schemathesis violations |
 
-**Parametrize adoption (HYG-004)**: 148 call-sites across 63 files. This represents a significant improvement from 132 call-sites / 57 files / 11.6% rate (source_hash `6b303485`) to 12.4% rate following the parametrize-promote campaign (Phases 1, 2A, 2B, 2C).
+**Parametrize adoption (HYG-004)**: 148 call-sites across 63 files (verified at HEAD `8980bcd7`). Unchanged from prior cycle. Rate: 12.4%.
 
-**SCAR marker (HYG-001)**: `@pytest.mark.scar` registered in `pyproject.toml` with 35 invocations across 11 test files. Enables `pytest -m scar` selection of the inviolable regression cluster.
+**SCAR marker (HYG-001)**: `@pytest.mark.scar` registered in `pyproject.toml` with 35 invocations across 11 test files (verified at HEAD `8980bcd7`; unchanged from prior cycle). Enables `pytest -m scar` selection of the inviolable regression cluster.
 
 ### Property Tests (Hypothesis)
 
@@ -151,7 +159,7 @@ Note: `test_exports_helpers_walk_predicate_property.py` uses "property" in its n
 
 - **`AsyncMock`** (stdlib `unittest.mock`): all async method mocking; dominant pattern
 - **`MagicMock`**: sync objects (services, clients, config)
-- **`MagicMock(spec=)`** (HYG-002): 136 call-sites across 33 files — interface-enforcing mocks that fail fast on attribute typos. This is the canonical spec-enforcing mock pattern adopted post-HYG-002 campaign.
+- **`MagicMock(spec=)`** (HYG-002): 136 call-sites across 33 files — interface-enforcing mocks that fail fast on attribute typos. This is the canonical spec-enforcing mock pattern adopted post-HYG-002 campaign. Count verified at HEAD `8980bcd7`.
 - **`patch`** (`unittest.mock.patch`): context manager and decorator in 96+ files
 - **`respx`**: httpx mocking; ~16 files for HTTP call interception
 - **`fakeredis`**: Redis mocking; conditionally available
@@ -161,7 +169,7 @@ Note: `test_exports_helpers_walk_predicate_property.py` uses "property" in its n
 
 ### MockTask Canonicalization (HYG-003 — COMPLETE)
 
-`MockTask` is now fully canonicalized: **1 definition** in `tests/_shared/mocks.py`, **0 bespoke** class-level redefinitions remaining. Prior cycle documented 12 `class MockTask:` definitions (11 bespoke). HYG-003 completed consolidation to the canonical source. `MockTasksClient` (2 remaining occurrences) is a distinct class, not a `MockTask` variant.
+`MockTask` is fully canonicalized: **1 definition** in `tests/_shared/mocks.py`, **0 bespoke** class-level redefinitions remaining (verified at HEAD `8980bcd7`; `grep -rn "class MockTask" tests/` returns only the canonical definition). `MockTasksClient` (2 remaining occurrences in `tests/unit/automation/test_waiter.py` and `tests/integration/test_unit_cascade_resolution.py`) is a distinct class, not a `MockTask` variant.
 
 **Convention**: New tests that require a `MockTask` MUST import from `tests/_shared/mocks`. Bespoke redefinitions are prohibited.
 
@@ -211,21 +219,29 @@ No `fixtures/`, `testdata/`, or `data/` directories in `tests/`. All test data i
 
 ### xdist Configuration
 
-- **Runtime**: `--dist=load` (effective in `addopts`; commit `8f99a801` switched from `loadfile` back to `load`)
-- **Fuzz module isolation**: `xdist_group("fuzz")` in `tests/test_openapi_fuzz.py` pins all fuzz tests to a single worker under `--dist=load`, preventing cross-worker state corruption for schemathesis/hypothesis state
-- **Doc drift**: Comment block in `pyproject.toml` above `addopts` describes `--dist=loadfile` rationale (R5-FIX) — this comment is stale; current effective config is `--dist=load`
+- **Runtime**: `--dist=loadgroup` (current `addopts`, commit `149d3673`). Under `loadgroup`, `xdist_group` markers are ACTIVE — tests in the same group are routed to the same worker.
+- **xdist_group markers**: 3 active groups (`fuzz`, `workflow_handler`, `query_routes`) — see Markers table above.
+- **Resolved doc drift**: Prior knowledge noted a stale `--dist=loadfile` comment in `pyproject.toml`. That drift is fully resolved at `8980bcd7`: `pyproject.toml:103-105` now carries a minimal forward-pointer comment ("--dist=loadgroup activates xdist_group markers; substantive rationale lives at tests/unit/lambda_handlers/test_workflow_handler.py:25-46 + tests/test_openapi_fuzz.py:64-72") with no stale R5-FIX text.
 - **Hypothesis DB**: Write channel disabled in CI to prevent cross-worker database corruption
 
 ### PR Sharding
 
 - 4-shard matrix using `pytest-split` with `coverage_threshold: 0` per shard (per-shard coverage meaningless at 25% each)
-- `tests/unit/lambda_handlers/test_workflow_handler.py` and `tests/test_openapi_fuzz.py` historically caused worker crashes (commits `d0a6335b` context); `xdist_group` + `--dist=load` is the current mitigation
+- `tests/unit/lambda_handlers/test_workflow_handler.py` and `tests/test_openapi_fuzz.py` historically caused worker crashes (commits `d0a6335b` context); `xdist_group` + `--dist=loadgroup` is the current mitigation
+- **`.test_durations` refresh** (commit `e7698907`): retrained from trailing main n>=10. Affects pytest-split shard balance across the 4-shard PR matrix. Automated weekly refresh via `.github/workflows/durations-refresh.yml` (weekly cron; opens a `chore/durations-refresh-{run_id}` PR when durations change).
 
 ### Post-Merge Coverage Gate
 
 - `.github/workflows/post-merge-coverage.yml` enforces `pytest --cov-fail-under=80` on push to main (SRE-004 / ADR-011)
 - Project-crucible 6-sprint run achieved 87.59% coverage baseline (36+ commits, 13,072→12,320 tests post-dedup campaigns)
 - Consumer-gate poll timeout raised 900s→2400s due to autom8y-asana wall-clock constraints
+
+### Performance Budgets
+
+- `TestAC006PerformanceTolerance` (`tests/unit/persistence/test_session_concurrency.py`):
+  - `test_lock_overhead_track`: < 1ms per operation
+  - `test_lock_overhead_state_read`: < 100µs (well under 1ms)
+  - `test_lock_overhead_under_contention`: < 2ms (widened from 1ms, commit `f37802f2` / B-3 — accommodates scheduler jitter under contention without false failures)
 
 ### Assertion Density
 
@@ -328,7 +344,7 @@ External tree style (separate `tests/` directory, not co-located with source). T
 
 ### SCAR Test Cluster
 
-35 `@pytest.mark.scar` invocations across 11 test files (HYG-001 — up from 33 inviolable references in prior cycle). The `scar` marker is registered in `pyproject.toml` and enables `pytest -m scar` selection. Files include `tests/unit/api/test_exports_auth_exclusion.py` (SCAR-WS8), `tests/unit/api/middleware/test_idempotency_finalize_scar.py`, `tests/unit/reconciliation/test_section_registry.py`.
+35 `@pytest.mark.scar` invocations across 11 test files (HYG-001 — verified at HEAD `8980bcd7`). The `scar` marker is registered in `pyproject.toml` and enables `pytest -m scar` selection. Files include `tests/unit/api/test_exports_auth_exclusion.py` (SCAR-WS8), `tests/unit/api/middleware/test_idempotency_finalize_scar.py`, `tests/unit/reconciliation/test_section_registry.py`.
 
 ## Knowledge Gaps
 
@@ -338,4 +354,43 @@ External tree style (separate `tests/` directory, not co-located with source). T
 4. **`tests/synthetic/test_synthetic_coverage.py` purpose** — contents not read; filename suggests coverage gap detection
 5. **`services/intake_*_service.py` service-layer isolation** — tested only through route tests; direct service error path coverage unknown
 6. **Schemathesis 47 xfails pending triage** — pre-existing OpenAPI contract violations in `test_openapi_fuzz.py` that have not been resolved or categorized
-7. **Stale `--dist=loadfile` comment in `pyproject.toml`** — comment block above `addopts` describes `loadfile` rationale but current `addopts = "--dist=load"`; a documentation correction is warranted
+
+```metadata
+criteria_grades:
+  coverage_gaps:
+    grade: A
+    pct: 92
+    weight: 0.40
+    notes: >
+      All untested packages identified with criticality assessment. Critical paths assessed.
+      Prioritized gap list produced. Lifecycle safety gap (loop_detector) flagged at #2.
+      Incremental cycle: no new gaps introduced; all prior gaps unchanged at HEAD 8980bcd7.
+  testing_conventions:
+    grade: A
+    pct: 93
+    weight: 0.30
+    notes: >
+      xdist topology fully documented including new --dist=loadgroup switch and 3 xdist_group
+      markers. MockTask HYG-003 complete verified. MagicMock(spec=) count confirmed 136.
+      Performance budget widening (2ms contention) documented. Stale doc drift resolved.
+  test_structure_summary:
+    grade: A
+    pct: 92
+    weight: 0.30
+    notes: >
+      Distribution summary, heavily tested areas, directory layout, integration vs unit
+      distinction all current. .test_durations refresh cadence documented under CI topology.
+overall_grade: A
+overall_pct: 92.3
+confidence: 0.92
+source_hash: "8980bcd7"
+incremental_notes: >
+  Major change: xdist topology switched from --dist=load to --dist=loadgroup (commit 149d3673).
+  xdist_group markers inventory expanded from 1 to 3 groups (added workflow_handler, query_routes).
+  Prior doc-drift (stale loadfile comment) confirmed resolved in pyproject.toml.
+  .test_durations refresh cadence documented via durations-refresh.yml weekly cron.
+  Performance budget: TestAC006 contention budget widened 1ms->2ms (commit f37802f2).
+  Marker counts (parametrize=148, scar=35, MagicMock(spec=)=136) verified at HEAD.
+  Import-order ruff fixes across 4 test files: no semantic test changes.
+  Knowledge gap #7 (stale loadfile comment) removed — resolved.
+```

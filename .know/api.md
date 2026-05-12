@@ -1,15 +1,15 @@
 ---
 domain: api
-generated_at: "2026-05-04T00:00Z"
+generated_at: "2026-05-08T00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/autom8_asana/api/**/*.py"
   - "./docs/api-reference/openapi.json"
 generator: theoros
-source_hash: "20ef7952"
+source_hash: "8980bcd7"
 confidence: 0.93
 format_version: "1.0"
-update_mode: "full"
+update_mode: "time-only"
 incremental_cycle: 0
 max_incremental_cycles: 3
 ---

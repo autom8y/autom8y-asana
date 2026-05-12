@@ -1,6 +1,6 @@
 ---
 domain: obs
-generated_at: "2026-05-04T00:00Z"
+generated_at: "2026-05-08T00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
@@ -8,11 +8,11 @@ source_scope:
   - "./.ledge/specs/cache-freshness-observability.md"
   - "./.ledge/specs/cache-freshness-runbook.md"
 generator: theoros
-source_hash: "20ef7952"
+source_hash: "8980bcd7"
 confidence: 0.84
 format_version: "1.0"
-update_mode: "full"
-incremental_cycle: 0
+update_mode: "incremental"
+incremental_cycle: 1
 max_incremental_cycles: 3
 ---
 
@@ -29,18 +29,18 @@ max_incremental_cycles: 3
 
 ## OBS-EXPORTS-001: Exports Route Instrumentation Gap (P2)
 
-**Status**: OPEN | **Severity**: P2 | **Pre-GA Deadline**: 2026-06-15
+**Status**: OPEN | **Severity**: P2 | **Pre-GA Deadline**: 2026-06-15 (38 days remaining as of 2026-05-08)
 
 ### Anchor
 
 - `src/autom8_asana/api/routes/exports.py:92` — `logger = get_logger(__name__)` (log correlation only)
-- `src/autom8_asana/api/routes/exports.py` — zero `metric.`, `tracer.`, `counter.`, `histogram.`, or `span.` calls (grep count: 0, verified at source_hash `20ef7952`)
-- `src/autom8_asana/api/routes/_exports_helpers.py` — three logger calls (column-source warning, identity-suppression warning, no-matching-columns warning) but zero metric/span calls
+- `src/autom8_asana/api/routes/exports.py` — zero `metric.`, `tracer.`, `counter.`, `histogram.`, or `span.` calls (grep count: 0, verified at source_hash `8980bcd7`)
+- `src/autom8_asana/api/routes/_exports_helpers.py` — three logger calls (column-source warning, identity-suppression warning, no-matching-columns warning) but zero metric/span calls (grep count: 0, verified at source_hash `8980bcd7`)
 - Inherited surface: `add_otel_trace_ids` OTel processor wired in `api/lifespan.py` (log correlation only — no child span wraps the exports handler)
 
-### Verification Against SHA 20ef7952
+### Verification Against SHA 8980bcd7
 
-`git diff 6b303485..20ef7952 -- src/autom8_asana/api/routes/exports.py` returned zero lines touching instrumentation. The delta for `exports.py` and `_exports_helpers.py` in this range is limited to schema enrichment (`ExportsSuccessResponse`, example rows in `api/models.py`) — no trace, metric, counter, histogram, or span additions. **OBS-EXPORTS-001 remains open and unaddressed.**
+Commits `8980bcd7..f37802f2` (Sprint-3 hygiene, xdist activation, persistence test budget, autom8y-core lower-bound lift) do not touch `exports.py` or `_exports_helpers.py`. The `autom8y-core>=4.2.0` lower-bound bump (`f6864435`) is a token/config SDK — it carries no observability surface. Grep at HEAD (`8980bcd7`) returns 0 matches for all instrumentation patterns in both files. **OBS-EXPORTS-001 remains open and unaddressed.**
 
 ### Symptom
 
@@ -89,9 +89,9 @@ A regression in `_walk_predicate` visitor or date-predicate translation would su
 | Lambda: workflow handler | `autom8y_telemetry.aws` `instrument_lambda`, `emit_success_timestamp` | `lambda_handlers/workflow_handler.py` (lines 36-39, 95, 316, 330) |
 | Payment reconciliation | `@trace_reconciliation` | `automation/workflows/payment_reconciliation/workflow.py` (line 164) |
 
-**Instrumentation gap — exports route (OBS-EXPORTS-001)**: `api/routes/exports.py` and `api/routes/_exports_helpers.py` are LIVE on main with zero `autom8y_telemetry` span instrumentation. Verified at source_hash `20ef7952`.
+**Instrumentation gap — exports route (OBS-EXPORTS-001)**: `api/routes/exports.py` and `api/routes/_exports_helpers.py` are LIVE on main with zero `autom8y_telemetry` span instrumentation. Verified at source_hash `8980bcd7`.
 
-**Instrumentation gap — bridge_base (H-006)**: `automation/workflows/bridge_base.py:191-195` documents `trace_computation` not applied with the comment "H-006 gap: trace_computation decorator is NOT available in version 0.6.1". This is the foundation for all Lambda workflow bridges. Gap remains open at source_hash `20ef7952`.
+**Instrumentation gap — bridge_base (H-006)**: `src/autom8_asana/automation/workflows/bridge_base.py:191-195` documents `trace_computation` not applied with the comment "H-006 gap: trace_computation decorator is NOT available in version 0.6.1". This is the foundation for all Lambda workflow bridges. Gap remains open at source_hash `8980bcd7`.
 
 **Uninstrumented Lambda handlers**: 10 of 13 non-shared handlers have no `autom8y_telemetry` import beyond CloudWatch via shared `emit_metric()` utility: `pipeline_stage_aggregator`, `reconciliation_runner`, `checkpoint`, `payment_reconciliation`, `insights_export`, `push_orchestrator`, `conversation_audit`, `story_warmer`, `cache_invalidate`, `timeout`.
 
@@ -275,7 +275,7 @@ Platform-level Prometheus metrics (`autom8y_http_*`) provided by `instrument_app
 
 **Gap — exports handler**: No spans for `POST /v1/exports` or `POST /api/v1/exports` (OBS-EXPORTS-001).
 
-**Gap — bridge_base**: `automation/workflows/bridge_base.py:191-195` has documented TODO; all Lambda workflow bridges uninstrumented at bridge layer.
+**Gap — bridge_base**: `src/autom8_asana/automation/workflows/bridge_base.py:191-195` has documented TODO; all Lambda workflow bridges uninstrumented at bridge layer.
 
 ### HTTP Auto-Instrumentation
 
@@ -414,8 +414,8 @@ No Grafana dashboards, CloudWatch dashboards, or other dashboard definitions fou
 
 | ID | Surface | Severity | Deadline | Status |
 |---|---|---|---|---|
-| OBS-EXPORTS-001 | `api/routes/exports.py`, `api/routes/_exports_helpers.py` | P2 | 2026-06-15 | OPEN — unaddressed in SHA 20ef7952 |
-| H-006 | `automation/workflows/bridge_base.py:191-195` | P3 | Unknown | OPEN — `trace_computation` not available in 0.6.1; inline TODO |
+| OBS-EXPORTS-001 | `api/routes/exports.py`, `api/routes/_exports_helpers.py` | P2 | 2026-06-15 (38 days) | OPEN — unaddressed in SHA 8980bcd7 |
+| H-006 | `src/autom8_asana/automation/workflows/bridge_base.py:191-195` | P3 | Unknown | OPEN — `trace_computation` not available in 0.6.1; inline TODO persists at SHA 8980bcd7 |
 | LAMBDA-OBS-001 | 10 of 13 Lambda handlers (no `autom8y_telemetry` span instrumentation) | P3 | None declared | OPEN — CloudWatch only |
 | LOG-TRACE-LAMBDA | Lambda handlers: `add_otel_trace_ids` not wired | P3 | None declared | OPEN |
 | SAMPLING-UNDOC | No `OTEL_TRACES_SAMPLER` env var configured | P3 | None declared | OPEN |
@@ -435,15 +435,20 @@ No Grafana dashboards, CloudWatch dashboards, or other dashboard definitions fou
 6. **CloudWatch alarm deployment status**: ALERT-1, ALERT-2, DMS-1 are specified in observability spec but no IaC creates them. Live alarm state unverified.
 7. **Grafana dashboard existence**: No dashboard definitions in-repo. External tooling state unknown.
 8. **On-call ownership**: No escalation policy or rotation ownership documented for any alert.
-9. **OBS-EXPORTS-001 timeline**: SRE sprint timeline for instrumentation implementation not confirmed beyond pre-GA deadline 2026-06-15.
+9. **OBS-EXPORTS-001 timeline**: SRE sprint timeline for instrumentation implementation not confirmed beyond pre-GA deadline 2026-06-15 (38 days as of 2026-05-08).
 
 ```metadata
 confidence: 0.84
-observation_mode: full
-source_hash: "20ef7952"
-prior_source_hash: "6b303485"
+observation_mode: incremental
+source_hash: "8980bcd7"
+prior_source_hash: "20ef7952"
 delta_obs_relevant: false
 obs_exports_001_status: OPEN
+obs_exports_001_deadline_days_remaining: 38
+h006_status: OPEN
+lambda_uninstrumented_count: 10
+lambda_total_non_shared: 13
+autom8y_core_version_bump_obs_impact: none
 grades:
   instrumentation_depth: D
   credential_topology_integrity: F
@@ -451,7 +456,7 @@ grades:
   slo_sli_maturity: D
   alerting_runbook_coverage: D
 overall_grade: F
-weighted_score: 42.5
+weighted_score: 45.25
 criteria_weights:
   instrumentation_depth: 0.25
   credential_topology_integrity: 0.25
@@ -472,8 +477,9 @@ score_calculation:
   - "45 x 0.10 = 4.50"
   - "total: 45.25 → F"
 change_from_prior:
-  slo_sli_maturity: "F(5%) → D(40%) — new SLO definitions captured from .ledge/specs/cache-freshness-observability.md"
-  alerting_runbook_coverage: "F(20%) → D(45%) — ALERT-1, ALERT-2, DMS-1 + runbook linkage captured from observability spec"
-  instrumentation_depth: "D(60%) → D(65%) — no new instrumentation added in delta; minor grade stability due to prior observation count refinement"
-  overall: "F(35.75%) → F(45.25%) — improved from new observability spec material captured; still failing due to core topology and SLO gaps"
+  source_hash: "20ef7952 → 8980bcd7"
+  obs_exports_001: "still OPEN — zero instrumentation hits at HEAD; deadline countdown updated to 38 days"
+  h006: "still OPEN — bridge_base.py:191-195 TODO persists"
+  autom8y_core_bump: "autom8y-core>=4.2.0 lower-bound lift (f6864435) carries no observability surface; no grade impact"
+  overall: "no change — F(45.25%) maintained"
 ```

@@ -1,6 +1,7 @@
 ---
 domain: release/history
 generated_at: "2026-03-26T03:23:00Z"
+expires_after: 30d
 source_scope:
   - "./.know/release/"
 generator: pipeline-monitor
