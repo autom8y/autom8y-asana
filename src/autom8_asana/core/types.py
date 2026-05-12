@@ -52,5 +52,11 @@ class EntityType(Enum):
     LOCATION = "location"
     HOURS = "hours"
 
+    # Asana structural types (Sprint 1 — asana-clean-break-leaf)
+    # HC-6 check: no upstream conflict detected at HEAD 8980bcd7.
+    # PG-05 elevated into Sprint 1 per user authorization 2026-05-11.
+    PROJECT = "project"
+    SECTION = "section"
+
     # Fallback
     UNKNOWN = "unknown"

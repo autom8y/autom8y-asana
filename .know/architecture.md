@@ -1,16 +1,16 @@
 ---
 domain: architecture
-generated_at: "2026-05-04T12:48Z"
+generated_at: "2026-05-08T00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
   - "./pyproject.toml"
 generator: theoros
-source_hash: "20ef7952"
+source_hash: "8980bcd7"
 confidence: 0.92
 format_version: "1.0"
-update_mode: "full"
-incremental_cycle: 0
+update_mode: "incremental"
+incremental_cycle: 1
 max_incremental_cycles: 3
 land_sources:
   - ".sos/land/initiative-history.md"
@@ -427,7 +427,7 @@ pyproject.toml deps
 | `autom8y_cache` | `autom8y-cache>=0.4.0` | SDK cache protocol, schema versioning |
 | `autom8y_log` | `autom8y-log>=0.5.6` | `get_logger()`, `configure_logging()`, `add_otel_trace_ids` |
 | `autom8y_telemetry` | `autom8y-telemetry[aws,fastapi,otlp]>=0.6.1` | `trace_computation()`, `get_tracer()` |
-| `autom8y_core` | `autom8y-core>=4.0.0,<5.0.0` | `TokenManager`, `Config` (query CLI live mode) |
+| `autom8y_core` | `autom8y-core>=4.2.0,<5.0.0` | `TokenManager`, `Config` (query CLI live mode) |
 | `autom8y_events` | `autom8y-events>=1.2.0,<2.0.0` | Optional; automation event transport |
 | Asana API | Direct HTTP | All Asana resource operations via `AsanaHttpClient` |
 | autom8y-data service | `DataServiceClient` | Insights, exports, reconciliation, batch |
@@ -445,7 +445,7 @@ Cross-session corpus: 18 sessions (2026-03-02 to 2026-04-28), 15 initiative clus
 
 The 13-step startup sequence in `lifespan.py` deliberately moves cache warm-up to a background task (step 14) to avoid blocking ECS health checks. The `validate_cascade_ordering()` call at step 13 is a fail-fast guard added post-hoc after misconfiguration caused silent warm-up ordering bugs.
 
-The `autom8y_log` SDK migration (`20ef7952`) progresses two modules: `query/__main__.py` and `models/business/fields.py`. The `_defaults/log.py` migration remains blocked (DEFER-WS4-T3-2026-04-29). The `core/system_context.py` xdist isolation (`20ef7952`) enables true parallel test worker isolation without singleton state contamination.
+The `autom8y_log` SDK migration (`20ef7952`) progresses two modules: `query/__main__.py` and `models/business/fields.py`. The `_defaults/log.py` migration remains blocked (DEFER-WS4-T3-2026-04-29). The `core/system_context.py` xdist isolation (`20ef7952`) enables true parallel test worker isolation without singleton state contamination. The `autom8y-core` lower bound was lifted from `>=4.0.0` to `>=4.2.0` (Path γ dep bump, `8980bcd7`). Test distribution topology shifted from `--dist=load` to `--dist=loadgroup` (`8980bcd7`); rationale lives at `tests/unit/lambda_handlers/test_workflow_handler.py:25-46` and `tests/test_openapi_fuzz.py:64-72`.
 
 ## Knowledge Gaps
 

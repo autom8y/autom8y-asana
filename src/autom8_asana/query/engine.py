@@ -224,6 +224,14 @@ class QueryEngine:
         # Read freshness info from query_service side-channel
         freshness_meta = self._get_freshness_meta()
 
+        # 12.5 Derive honest_contract_complete from SectionPersistence manifest.
+        # Sprint 1 — asana-clean-break-leaf T1.5 (PG-01, AC-3).
+        # S-01 (unconditional True) is REFUSED. Derivation reads SectionManifest
+        # at query time and delegates to is_honest_complete() at
+        # section_persistence.py (canonical derivation site).
+        # DEF-005 scar: manifest read must use same storage backend as writer.
+        honest_contract_complete = await self._derive_honest_contract_complete(project_gid)
+
         return RowsResponse(
             data=data,
             meta=RowsMeta(
@@ -234,6 +242,7 @@ class QueryEngine:
                 entity_type=entity_type,
                 project_gid=project_gid,
                 query_ms=round(elapsed_ms, 2),
+                honest_contract_complete=honest_contract_complete,
                 **join_meta,  # type: ignore[arg-type]
                 **freshness_meta,  # type: ignore[arg-type]
             ),
@@ -464,6 +473,64 @@ class QueryEngine:
             "data_age_seconds": freshness_info.data_age_seconds,
             "staleness_ratio": freshness_info.staleness_ratio,
         }
+
+    async def _derive_honest_contract_complete(self, project_gid: str) -> bool:
+        """Derive honest_contract_complete from SectionPersistence manifest.
+
+        Sprint 1 — asana-clean-break-leaf T1.5.
+        S-01 (unconditional True) is REFUSED. This method reads the live
+        SectionManifest from the DataFrameProvider's storage backend and
+        delegates to is_honest_complete() (canonical derivation site at
+        section_persistence.py).
+
+        DEF-005 guard: uses the provider's storage reference (same backend
+        as the writer) to avoid cache-split regression.
+
+        Returns:
+            True iff all manifest sections are COMPLETE with no FAILED sections.
+            False if no manifest exists (not yet built) or any section failed.
+        """
+        # DEF-005: access SectionPersistence via provider's section_persistence
+        # attribute if available (EntityQueryService exposes it).
+        # Fall back to False if not accessible — never shortcut-stamps True.
+        try:
+            section_persistence = getattr(self.provider, "section_persistence", None)
+            if section_persistence is None:
+                logger.debug(
+                    "honest_contract_no_section_persistence",
+                    project_gid=project_gid,
+                )
+                return False
+
+            from autom8_asana.dataframes.section_persistence import (
+                SectionManifest,
+                is_honest_complete,
+            )
+
+            manifest = await section_persistence.get_manifest_async(project_gid)
+            if not isinstance(manifest, SectionManifest):
+                logger.debug(
+                    "honest_contract_no_manifest",
+                    project_gid=project_gid,
+                )
+                return False
+
+            result = is_honest_complete(manifest)
+            logger.debug(
+                "honest_contract_derived",
+                project_gid=project_gid,
+                honest_contract_complete=result,
+                total_sections=manifest.total_sections,
+                completed_sections=manifest.completed_sections,
+            )
+            return result
+        except Exception:  # noqa: BLE001  # BROAD-CATCH: defensive; never blocks response
+            logger.warning(
+                "honest_contract_derivation_failed",
+                project_gid=project_gid,
+                exc_info=True,
+            )
+            return False
 
     async def _execute_entity_join(
         self,

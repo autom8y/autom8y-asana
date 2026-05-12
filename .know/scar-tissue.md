@@ -1,6 +1,6 @@
 ---
 domain: scar-tissue
-generated_at: "2026-05-04T00:00Z"
+generated_at: "2026-05-08T00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
@@ -8,41 +8,45 @@ source_scope:
   - "./pyproject.toml"
   - "./.github/workflows/**"
 generator: theoros
-source_hash: "20ef7952"
+source_hash: "8980bcd7"
 confidence: 0.95
 format_version: "1.0"
-update_mode: "full"
-incremental_cycle: 0
+update_mode: "incremental"
+incremental_cycle: 1
 max_incremental_cycles: 3
+land_sources:
+  - ".sos/land/scar-tissue.md"
+land_hash: "a15a024ce204de3301b612526c5b1b59e4841fa3d3d70f2226e1b430cd73da1e"
 ---
 
 # Codebase Scar Tissue
 
-> Regenerated 2026-05-04 (FULL mode). Source hash: `20ef7952` (65 commits since prior
-> baseline `80256049`; post-PR38 through PR49 + CIMS CHANGE-004).
-> 38+ distinct failures documented. Prior catalog fully preserved. Four scars
-> remain promoted from KNOW-CANDIDATE baseline (SCAR-LOG-001, SCAR-LP-001,
-> SCAR-P6-001, SCAR-CW-001). One scar discharged (CSI-001 — historical). No new
-> SCAR discharges between `80256049` and `20ef7952`.
+> Incremental update 2026-05-08 (cycle 1/3). Source hash: `8980bcd7` (5 commits since prior
+> baseline `20ef7952`; PRs #57-#59 + hygiene Sprint-3 CI hardening).
+> 41+ distinct failures documented. Three new SCARs added this cycle
+> (SCAR-W1E-LOADGROUP-001, SCAR-CONSUMER-GATE-001, SCAR-ARTIPACKED-001).
+> Prior catalog fully preserved. SCAR-LOG-001 still active (autom8y-log >=0.5.6,
+> no stdlib shim). SCAR-CW-001 CP-01 still pending.
 >
-> Key delta since prior baseline:
-> - HYG-001 (commit `36eaec6c`): @pytest.mark.scar applied to 47 SCAR regression tests
-> - HYG-002 (commits `2158de02`, `3f4580ff`): MagicMock(spec=) adopted in root fixtures
->   and test_workflow_handler.py (136 spec= calls now present in tests/ at HEAD)
-> - xdist switched from `--dist=loadfile` to `--dist=load` (commit `8f99a801`) per
->   SRE engagement; pyproject.toml:113 reflects `--dist=load` at HEAD
-> - Auth-isolation regression (DEF-08 / SCAR-WS8): fix confirmed and regression-tested;
->   eunomia v2 issued PASS-WITH-FLAGS-CARRIED adjudication (commit `85ed9ea7`)
-> - SCAR-DISCRIMINATOR-001: still unguarded (no regression test, no fix; P3)
-> - SCAR-CW-001 CP-01 regression test: still pending (test_import_safety.py absent)
-> - SCAR-LOG-001 widened scope: `query/__main__.py` and `models/business/fields.py`
->   migrated to autom8y_log SDK (commits `6b303485`, `547b28d2`)
-> - SCAR-CANDIDATE-B and SCAR-CANDIDATE-C: still candidates, no formal SCAR IDs
+> Key delta since `20ef7952`:
+> - SCAR-W1E-LOADGROUP-001 (commit `149d3673`): cross-item state corruption under
+>   --dist=load in test_workflow_handler.py + test_routes_query.py; fixed via
+>   xdist_group markers + switch to --dist=loadgroup (pyproject.toml:105 at HEAD)
+> - SCAR-CONSUMER-GATE-001 (commit `8980bcd7`): cross-fleet silent-bypass when
+>   candidate_wheel_run_id set but artifact download fails; fail-loud guard now wired
+> - SCAR-ARTIPACKED-001 (commit `8980bcd7`): zizmor artipacked credential-leak via
+>   actions:read + cross-workflow artifact download + default persist-credentials=true;
+>   mitigated with persist-credentials: false on fuzz job checkout
+> - xdist strategy shifted: --dist=load -> --dist=loadgroup (pyproject.toml:105)
+> - autom8y-core lower bound lifted: >=4.0.0 -> >=4.2.0 (commit `f6864435`)
+> - TestAC006 lock-overhead budget widened 1ms->2ms under contention (commit `f37802f2`)
+> - @pytest.mark.scar count: 35 (unchanged from `20ef7952`)
+> - test_import_safety.py (SCAR-CW-001 CP-01): still absent
 
 ## Failure Catalog
 
-38+ distinct failures documented from two evidence sources (git commit history + code marker
-scan). SCAR identifiers confirmed in the live codebase at source_hash `20ef7952`:
+41+ distinct failures documented from two evidence sources (git commit history + code marker
+scan). SCAR identifiers confirmed in the live codebase at source_hash `8980bcd7`:
 
 **In src/ (by count)**: SCAR-005 (14 refs), DEF-005 (3 refs), DEF-001 (2 refs),
 SCAR-REG-001 (2 refs), SCAR-IDEM-001 (1 ref), DEF-02 (1 ref).
@@ -88,11 +92,14 @@ DEF-005 (2 refs), DEF-002 (2 refs), SCAR-006 (1 ref).
 | SCAR-IDEM-001 | Idempotency `finalize()` exception silently swallowed — double-execution risk on retry | Data Model | `api/middleware/idempotency.py:719` |
 | SCAR-REG-001 | Section registry GIDs are sequential placeholders — unverified against live Asana API | Startup | `reconciliation/section_registry.py:94,128` |
 | SCAR-WS8 | PAT route trees not consistently listed in `jwt_auth_config.exclude_paths` — JWT middleware rejects PAT requests | Security | `api/main.py:389`; regression test `test_exports_auth_exclusion.py` confirmed |
-| SCAR-DISCRIMINATOR-001 | `_predicate_discriminator` dict-only guard — `NotGroup(not_=AndGroup(...))` fails Pydantic validation when constructed via model-instance kwargs | Data Model / Type Contract | Discovered 2026-04-29; no fix at `20ef7952` (P3 — no production path) |
+| SCAR-DISCRIMINATOR-001 | `_predicate_discriminator` dict-only guard — `NotGroup(not_=AndGroup(...))` fails Pydantic validation when constructed via model-instance kwargs | Data Model / Type Contract | Discovered 2026-04-29; no fix at `8980bcd7` (P3 — no production path) |
 | SCAR-LOG-001 | `autom8y-log` SDK returns structlog family (interface-disjoint from stdlib `logging.Logger`) — satellite migration breaks test and public attribute contracts | SDK Interface Gap | WS-4 T3 terminal 2026-04-29; no upstream fix; defer until autom8y-log ships stdlib shim — GLINT-001 |
 | SCAR-LP-001 | lockfile-propagator stub-before-uv-lock ordering: `uv lock` fails when satellite `path =` sources resolve outside sandbox tree | Build Tooling | autom8y PR #174 `f2dfc1c3`; Option-A source_stub.py fix — GLINT-001 |
 | SCAR-P6-001 | Pattern 6 (stale-checkout artifact drift) RECURS at PLAN-AUTHORING altitude — planner trusted unresolved inventory framing without re-running drift-audit | Epistemic / Drift | Resolved at SWEEP §6 + PT-E3 §3; VERDICT §5 — GLINT-005 |
 | SCAR-CW-001 | Cache-warmer Lambda cold-start failure: 5 onion-layers (Errno 97 → Errno 111 → HTTP 400 URL-encoding → HTTP 400 init-time config → EntityProjectRegistry ARN-resolution) | Startup / Lambda | PRs #28-#37 (autom8y-asana); tags v1.3.2/v1.3.3 — GLINT-007 |
+| SCAR-W1E-LOADGROUP-001 | xdist --dist=load round-robin interleaves AsyncMock teardown across workers — cross-item state corruption causes "node down: Not properly terminated" / "worker 'gwN' crashed" | Test Infrastructure | `149d3673`; xdist_group markers + --dist=loadgroup switch |
+| SCAR-CONSUMER-GATE-001 | candidate_wheel_run_id set but actions/download-artifact fails silently — fuzz tests run against pyproject.toml-resolved wheel, not candidate | Integration / CI | `8980bcd7`; fail-loud guard in `.github/workflows/test.yml:135-147` |
+| SCAR-ARTIPACKED-001 | zizmor artipacked: actions:read + cross-workflow download-artifact + persist-credentials=true checkout leaks git extraheader credential into uploaded artifacts | Security | `8980bcd7`; `persist-credentials: false` on fuzz job checkout |
 | Env Var Naming | `AUTOM8_DATA_API_KEY` typo (missing Y) — production API auth failures | Authentication | `clients/data/config.py:231` |
 | CSI-001 | **DISCHARGED** `docs/api-reference/openapi.json` hand-edited to add 13 M-02 examples not derivable from Pydantic source | Documentation / Spec Drift | DISCHARGED 2026-04-29 via T-08 (`4d4097c3`), PR #38 (`80256049`) |
 
@@ -104,7 +111,99 @@ DEF-005 (2 refs), DEF-002 (2 refs), SCAR-006 (1 ref).
 
 ---
 
-## SCAR-DISCRIMINATOR-001 (Added 2026-04-29 — Still Unguarded at `20ef7952`)
+## SCAR-W1E-LOADGROUP-001 (Added 2026-05-08)
+
+**Severity**: P2 — caused repeated CI shard 4/4 worker crashes blocking fleet CI.
+
+**Symptom**: Under `--dist=load`, pytest-xdist round-robin item distribution interleaves
+`AsyncMock(spec=DataServiceClient)` context-manager teardown patterns from
+`test_workflow_handler.py` across workers gw0..gw3. The AsyncMock teardown executes inside
+the new event loop spawned by `asyncio.run` in the production handler
+(`workflow_handler.py:97`). Cross-worker teardown produces:
+- "node down: Not properly terminated"
+- "worker 'gwN' crashed"
+
+CI run evidence: run 25258237857 at `TestHandlerWorkflowRegistration::test_handler_warm_container_reregistration` + run 25188629600 (same test, same signature).
+
+**Secondary manifestation (DW-W1E-LOADGROUP-FALLOUT-001)**: `test_routes_query.py` also
+affected. Heavy `AsyncMock + dependency_overrides` usage causes isolation failures under
+`--dist=loadgroup` that `--dist=load` masked via lucky test-ordering co-location.
+
+**Fix**: Two-part:
+1. `pytestmark = [pytest.mark.xdist_group("workflow_handler")]` at `tests/unit/lambda_handlers/test_workflow_handler.py:47`
+2. `pytestmark = [pytest.mark.xdist_group("query_routes")]` at `tests/unit/api/test_routes_query.py:45`
+3. `addopts = "--dist=loadgroup"` activated in `pyproject.toml:105` (commit `149d3673`)
+
+**Status at `8980bcd7`**: `--dist=loadgroup` is ACTIVE in pyproject.toml. Both xdist_group
+markers are live and enforced. The markers were described as "forward-compatible scaffolding"
+in the test comments (written before the switch landed), but the switch has since landed.
+
+**Defensive pattern**: Any test file using `AsyncMock` with event-loop-spawning production
+code OR `dependency_overrides` that mutate shared FastAPI app state MUST use
+`pytestmark = [pytest.mark.xdist_group("...")]` under `--dist=loadgroup`.
+
+---
+
+## SCAR-CONSUMER-GATE-001 (Added 2026-05-08)
+
+**Severity**: P2 — silent test-purpose violation; cross-fleet pattern (N=2: autom8y-ads PR #34
+Path β + autom8y-asana PR #59 Path A+D port).
+
+**Symptom**: When `candidate_wheel_run_id` workflow input is set (signaling intent to test a
+candidate wheel), `actions/download-artifact` can fail silently if:
+- The artifact was not uploaded (wrong run-id)
+- Cross-workflow `actions:read` permission is absent
+- The artifact name doesn't match
+
+Without a fail-loud guard, the fuzz step proceeds, installs whatever
+`pip install` resolves from pyproject.toml, and reports a green result against the
+pyproject.toml-pinned wheel — not the candidate. The consumer gate has been bypassed with
+no signal.
+
+**Survey designation**: AP-CANDIDATE-cross-fleet-consumer-gate-silent-bypass-survey N=2.
+
+**Fix**: Explicit guard at `.github/workflows/test.yml:135-147`:
+```
+- name: Verify candidate wheel present (consumer-gate fail-loud)
+  if: inputs.candidate_wheel_run_id != ''
+  run: |
+    if ! ls /tmp/candidate-wheel/*.whl 1>/dev/null 2>&1; then
+      echo "::error::Consumer-gate test-purpose violation: ..."
+      exit 1
+    fi
+```
+
+**Defensive pattern**: Any workflow accepting a `candidate_wheel_run_id` input MUST include
+a fail-loud artifact-presence check immediately after `actions/download-artifact`. Silence
+from a missing artifact is indistinguishable from a successful but empty download.
+
+---
+
+## SCAR-ARTIPACKED-001 (Added 2026-05-08)
+
+**Severity**: P2 — security; credential-bleed vector into CI artifacts.
+
+**Root cause (zizmor artipacked finding)**: Three conditions combine:
+1. Workflow job has `permissions: actions:read` (needed for cross-workflow `download-artifact`)
+2. `actions/checkout` default `persist-credentials: true` — git stores auth token as
+   extraheader in `.git/config`
+3. `actions/upload-artifact` (or any subsequent step writing to a path under `.git/`) uploads
+   the credential-containing config into the artifact
+
+When a downstream job (or external actor with artifact-read access) downloads the artifact,
+the git extraheader credential is present and usable for the lifetime of the token.
+
+**Fix**: `persist-credentials: false` on all checkout steps in jobs that also run
+`actions/download-artifact` with cross-workflow scope. Applied at
+`.github/workflows/test.yml:95` (fuzz job checkout) and `:201` (secondary checkout).
+
+**Defensive pattern**: Any job combining `actions:read` permission + `actions/checkout` +
+`actions/download-artifact` MUST set `persist-credentials: false` on the checkout step.
+The zizmor `artipacked` rule flags this automatically; add zizmor to CI scorecard scans.
+
+---
+
+## SCAR-DISCRIMINATOR-001 (Added 2026-04-29 — Still Unguarded at `8980bcd7`)
 
 **Severity**: P3 — no production caller currently constructs `NotGroup(not_=group)`.
 
@@ -134,7 +233,7 @@ not_.comparison  Input should be a valid dictionary or instance of Comparison
 
 **Symptom**: Any module migrating to `autom8y_log.get_logger(name)` cannot retain calls treating the result as stdlib `logging.Logger`. Probe at 2026-04-29 confirmed 11 of 11 stdlib `Logger` attributes absent from both `BoundLoggerLazyProxy` and `BoundLoggerFilteringAtInfo`.
 
-**Status at `20ef7952`**: Still active. No stdlib shim shipped. Two modules newly migrated to autom8y_log in 65-commit delta: `query/__main__.py` (`6b303485`) and `models/business/fields.py` (`547b28d2`). Verify neither exposes `_logger` attribute to tests.
+**Status at `8980bcd7`**: Still active. `autom8y-log>=0.5.6` in pyproject.toml:23 — no stdlib shim shipped. autom8y-core lifted to >=4.2.0 (commit `f6864435`) does not affect autom8y-log line. Defer-watch entry `DEFER-WS4-T3-2026-04-29` deadline 2026-Q3.
 
 **Defensive pattern**: When a satellite module exposes `_logger` that internal callers or tests treat as stdlib-Logger-shaped, retain `import logging` + TID251 per-file `[tool.ruff.lint.per-file-ignores]` exemption with inline SCAR-LOG-001 rationale comment. Do NOT migrate.
 
@@ -190,7 +289,7 @@ not_.comparison  Input should be a valid dictionary or instance of Comparison
 - Registry initialization MUST complete before first external-service call.
 - Pin and test SDK upgrades against live Lambda extension endpoints.
 
-**Regression anchor**: `tests/unit/lambda_handlers/test_import_safety.py` (CP-01) — NOT YET AUTHORED at `20ef7952`; eunomia Phase 4 carry-forward.
+**Regression anchor**: `tests/unit/lambda_handlers/test_import_safety.py` (CP-01) — NOT YET AUTHORED at `8980bcd7`; eunomia Phase 4 carry-forward.
 
 ---
 
@@ -202,13 +301,13 @@ not_.comparison  Input should be a valid dictionary or instance of Comparison
 
 **Residual exception**: 2 `"example":` (singular) entries at `src/autom8_asana/api/routes/dataframes.py:511,632` — raw dict inline OpenAPI 3.0 annotation (pre-CSI-001 pattern, not regressions).
 
-**Status**: DISCHARGED 2026-04-29 (PR #38 `80256049`). Still discharged at `20ef7952`.
+**Status**: DISCHARGED 2026-04-29 (PR #38 `80256049`). Still discharged at `8980bcd7`.
 
 ---
 
 ## Category Coverage
 
-13 distinct failure categories applied across all 38+ scars:
+14 distinct failure categories applied across all 41+ scars:
 
 | Category | Scars | Count |
 |---|---|---|
@@ -216,15 +315,16 @@ not_.comparison  Input should be a valid dictionary or instance of Comparison
 | Data Model / Contract Violation | SCAR-008, 014, 023, 024, 025, 030, IDEM-001, REG-001, CANDIDATE-B, CANDIDATE-C, DISCRIMINATOR-001 | 11 |
 | Startup / Deployment Failure | SCAR-009, 011, 011b, 013, 022, CW-001 | 6 |
 | Workflow Logic Gap | SCAR-016, 017, 018, 019, 020 | 5 |
-| Security / Input Validation | SCAR-027, 028, 029, WS8 | 4 |
+| Security / Input Validation | SCAR-027, 028, 029, WS8, ARTIPACKED-001 | 5 |
 | Concurrency / Race Condition | SCAR-002, 010, 010b | 3 |
 | Authentication / Authorization | SCAR-012, Env Var Naming | 2 |
-| Integration Failure / CI | SCAR-021, 026 | 2 |
+| Integration Failure / CI | SCAR-021, 026, CONSUMER-GATE-001 | 3 |
 | Performance Cliff / Timeout | SCAR-015 | 1 |
 | Observability Gap | Metrics CLI Under-count | 1 |
 | SDK Interface Gap | SCAR-LOG-001 | 1 |
 | Build Tooling | SCAR-LP-001 | 1 |
 | Epistemic / Drift | SCAR-P6-001 | 1 |
+| Test Infrastructure | SCAR-W1E-LOADGROUP-001 | 1 |
 
 Three categories explicitly searched and returned no results: schema migration failures, distributed coordination failures, network partition handling.
 
@@ -232,7 +332,7 @@ Three categories explicitly searched and returned no results: schema migration f
 
 ## Fix-Location Mapping
 
-25+ primary fix paths verified at source_hash `20ef7952`:
+28+ primary fix paths verified at source_hash `8980bcd7`:
 
 | Scar | Primary Fix Path | Verified |
 |---|---|---|
@@ -251,7 +351,7 @@ Three categories explicitly searched and returned no results: schema migration f
 | SCAR-IDEM-001 | `src/autom8_asana/api/middleware/idempotency.py:719` | Yes |
 | SCAR-REG-001 | `src/autom8_asana/reconciliation/section_registry.py:94,128` | Yes |
 | SCAR-WS8 / DEF-08 | `src/autom8_asana/api/main.py:389` (`/api/v1/exports/*` in exclude_paths) | Yes |
-| SCAR-DISCRIMINATOR-001 (bug) | `src/autom8_asana/query/models.py:97-112` (`_predicate_discriminator`) | Yes — confirmed no fix at `20ef7952` |
+| SCAR-DISCRIMINATOR-001 (bug) | `src/autom8_asana/query/models.py:97-112` (`_predicate_discriminator`) | Yes — confirmed no fix at `8980bcd7` |
 | SCAR-DISCRIMINATOR-001 (type decl) | `src/autom8_asana/query/models.py:129-135` (`PredicateNode`) | Yes |
 | SCAR-S3-LOOP | `src/autom8_asana/core/retry.py:198` (`_PERMANENT_S3_ERROR_CODES`) | Yes |
 | DEF-001 (resolver route) | `src/autom8_asana/api/routes/resolver.py:335` | Yes |
@@ -262,6 +362,11 @@ Three categories explicitly searched and returned no results: schema migration f
 | SCAR-LP-001 (fix entry point) | `autom8y/tools/lockfile-propagator/src/lockfile_propagator/source_stub.py` | Yes — autom8y PR #174 `f2dfc1c3` |
 | SCAR-CW-001 (layer 4 lazy-load) | `src/autom8_asana/lambda_handlers/cache_warmer/facade.py:76`, `detection/config.py` | Yes — PRs #35-#36 |
 | SCAR-CW-001 (layer 5 ARN-resolution) | `src/autom8_asana/lambda_handlers/cache_warmer/discovery.py` | Yes — PR #37 |
+| SCAR-W1E-LOADGROUP-001 (xdist_group wf) | `tests/unit/lambda_handlers/test_workflow_handler.py:47` | Yes — commit `149d3673` |
+| SCAR-W1E-LOADGROUP-001 (xdist_group qr) | `tests/unit/api/test_routes_query.py:45` | Yes — commit `149d3673` |
+| SCAR-W1E-LOADGROUP-001 (dist mode) | `pyproject.toml:105` (`addopts = "--dist=loadgroup"`) | Yes — active at HEAD |
+| SCAR-CONSUMER-GATE-001 | `.github/workflows/test.yml:135-147` (fail-loud guard) | Yes — commit `8980bcd7` |
+| SCAR-ARTIPACKED-001 | `.github/workflows/test.yml:95,201` (`persist-credentials: false`) | Yes — commit `8980bcd7` |
 
 ---
 
@@ -278,7 +383,7 @@ Three categories explicitly searched and returned no results: schema migration f
 
 ### Session Thread Safety (SCAR-010/010b)
 
-`threading.RLock()` on all state mutations; `_require_open()` context manager at `src/autom8_asana/persistence/session.py`. Regression: `tests/unit/persistence/test_session_concurrency.py` (19+ tests).
+`threading.RLock()` on all state mutations; `_require_open()` context manager at `src/autom8_asana/persistence/session.py`. Regression: `tests/unit/persistence/test_session_concurrency.py` (19+ tests). Note: `TestAC006PerformanceTolerance::test_lock_overhead_under_contention` budget widened from 1ms to 2ms at `f37802f2` (B-3 recalibration for slower CI runners).
 
 ### Session Snapshot Ordering (SCAR-008 / DEF-001)
 
@@ -310,17 +415,33 @@ Exception on `finalize()` promoted to `logger.exception` with `impact` field at 
 
 `_PERMANENT_S3_ERROR_CODES: frozenset[str]` at `src/autom8_asana/core/retry.py:198` — permanent codes bypass circuit-breaker retry loop. Regression: `tests/unit/dataframes/test_storage.py` (S3-LOOP test cluster).
 
+### xdist Worker Isolation (SCAR-W1E-LOADGROUP-001)
+
+`pytestmark = [pytest.mark.xdist_group("...")]` at module level for any test file with:
+- `AsyncMock` whose teardown executes inside event loops spawned by production code
+- `dependency_overrides` that mutate shared FastAPI app state
+
+Current groups: `"workflow_handler"` (`test_workflow_handler.py:47`), `"query_routes"` (`test_routes_query.py:45`), `"fuzz"` (`test_openapi_fuzz.py:68`). Fleet strategy: `--dist=loadgroup` active at `pyproject.toml:105`.
+
+### Consumer-Gate Fail-Loud (SCAR-CONSUMER-GATE-001)
+
+Explicit `ls /tmp/candidate-wheel/*.whl` existence check after `actions/download-artifact`. Exits 1 with `::error::` annotation if artifact absent when `candidate_wheel_run_id` is set. Location: `.github/workflows/test.yml:135-147`.
+
+### Artipacked Credential Hygiene (SCAR-ARTIPACKED-001)
+
+`persist-credentials: false` on all `actions/checkout` steps in jobs combining `actions:read` permission + `actions/download-artifact`. Applied at `.github/workflows/test.yml:95` and `:201`. zizmor scorecard scan now catches regressions.
+
 ### BROAD-CATCH Classification
 
 20+ `except Exception` blocks annotated with `ADVISORY` or `SCAR-IDEM-001: VERIFY-BEFORE-PROD` comments to distinguish intentional vs. defensive catches.
 
 ### SCAR-DISCRIMINATOR-001 — No Defensive Pattern Yet
 
-No guard at `20ef7952`. Workaround: callers use raw dict construction. No regression test. **Unguarded**. Fix deferred to hygiene-pass-2.
+No guard at `8980bcd7`. Workaround: callers use raw dict construction. No regression test. **Unguarded**. Fix deferred to hygiene-pass-2.
 
 ### SCAR-LOG-001 — No Upstream Fix Yet
 
-No stdlib-Logger shim in autom8y-log as of 2026-05-04. Defensive pattern: retain `import logging` + TID251 per-file-ignores exemption. Two newly migrated modules (`query/__main__.py`, `models/business/fields.py`) — verify no `_logger` attribute exposure to tests.
+No stdlib-Logger shim in autom8y-log as of 2026-05-08. `autom8y-log>=0.5.6` unchanged in pyproject.toml. Defensive pattern: retain `import logging` + TID251 per-file-ignores exemption.
 
 ### SCAR-LP-001 — Option-A Fix Shipped; Production-CI Pending
 
@@ -328,7 +449,7 @@ No stdlib-Logger shim in autom8y-log as of 2026-05-04. Defensive pattern: retain
 
 ### SCAR-CW-001 — Onion-Layer Debugging Pattern (No Regression Test Yet)
 
-PRs #28-#37 closed all 5 layers. CP-01 (`tests/unit/lambda_handlers/test_import_safety.py`) absent at `20ef7952`. Layers 1-3 (network, Dockerfile, SDK URL) are infrastructure-level and require Lambda deployment to re-test.
+PRs #28-#37 closed all 5 layers. CP-01 (`tests/unit/lambda_handlers/test_import_safety.py`) absent at `8980bcd7`. Layers 1-3 (network, Dockerfile, SDK URL) are infrastructure-level and require Lambda deployment to re-test.
 
 ### Known Gaps in Defensive Pattern Documentation
 
@@ -345,9 +466,10 @@ PRs #28-#37 closed all 5 layers. CP-01 (`tests/unit/lambda_handlers/test_import_
 
 ## Scar Test Cluster Status
 
-**Formal `@pytest.mark.scar` cluster**: 35 decorator invocations across 11 files at `20ef7952`.
-HYG-001 (commit `36eaec6c`) applied 47 markers; class-level application accounts for the
-decorator-count vs test-function-count delta. Marker registered in `pyproject.toml`:
+**Formal `@pytest.mark.scar` cluster**: 35 decorator invocations across 11 files at `8980bcd7`.
+Unchanged from `20ef7952`. The 7 files modified in PRs #57-#59 received only ruff I001
+import-order style fixes (no semantic marker changes) or xdist_group additions (not scar markers).
+Marker registered in `pyproject.toml`:
 ```
 "scar: scar-tissue regression tests (selectable via `pytest -m scar`); see .know/scar-tissue.md"
 ```
@@ -367,7 +489,7 @@ Selectable: `pytest -m scar`
 | `tests/unit/services/test_section_timeline_service.py` | SCAR-015 | 1 |
 | `tests/unit/core/test_entity_registry.py` | SCAR-005/006 | 1 |
 
-**Inviolable pre-HYG-001 regression tests (33 baseline)**: SCAR-001/005/006/010/010b/020/026/027, SCAR-WS8, S3-LOOP, TENSION-001 — all preserved at `20ef7952`.
+**Inviolable pre-HYG-001 regression tests (33 baseline)**: SCAR-001/005/006/010/010b/020/026/027, SCAR-WS8, S3-LOOP, TENSION-001 — all preserved at `8980bcd7`.
 
 ---
 
@@ -380,7 +502,8 @@ Selectable: `pytest -m scar`
 - **Init-time settings loading in Lambda** (SCAR-CW-001 layer 4 + SCAR-009 pattern): lazy-load pattern is the established fix.
 - **PAT route auth exclusion gaps** (SCAR-WS8): PAT-tagged routes must have corresponding `exclude_paths` entries; now regression-tested.
 - **Mock drift / spec= omission** (SCAR-026): HYG-002 partial adoption in progress.
-- **Test infrastructure scale friction**: xdist crashes (fixed via `--dist=load`); fixture explosion (HYG-004 parametrize-promote).
+- **Test infrastructure scale friction**: xdist crashes (SCAR-W1E-LOADGROUP-001 — now fixed via `--dist=loadgroup` + xdist_group markers); fixture explosion (HYG-004 parametrize-promote).
+- **Cross-fleet CI silent-bypass** (SCAR-CONSUMER-GATE-001): autom8y-ads PR #34 + autom8y-asana PR #59 — N=2 fleet pattern; fail-loud guard now standard.
 - **Pattern 6 (stale-checkout drift)** (SCAR-P6-001): now also manifests at PLAN-AUTHORING altitude, not just SCAN altitude.
 
 ### One-Time Events
@@ -422,6 +545,9 @@ Selectable: `pytest -m scar`
 | SCAR-LP-001 | principal-engineer, architect, qa-adversary | Sandbox-resolver tools cloning consumer repos MUST stub relative-path `[tool.uv.sources]` entries before invoking `uv lock`; apply three-discriminator defensive pattern — GLINT-001 |
 | SCAR-P6-001 | consolidation-planner, principal-engineer, architect | Re-run drift-audit at any altitude where mixed-resolution upstream substrates are consolidated; verify live branch HEAD before asserting file presence/absence — GLINT-005 |
 | SCAR-CW-001 | platform-engineer, principal-engineer | Lambda handlers calling external services: (1) defer settings load to function-call time, (2) init registries before first external call, (3) budget 5+ rounds for cold-start failure chains — GLINT-007 |
+| SCAR-W1E-LOADGROUP-001 | qa-adversary, principal-engineer | Any test file with AsyncMock + production event-loop spawning OR dependency_overrides must use xdist_group marker; verify --dist=loadgroup active in pyproject.toml |
+| SCAR-CONSUMER-GATE-001 | platform-engineer | Every workflow accepting candidate_wheel_run_id must include post-download fail-loud artifact-presence check; silence from failed download is indistinguishable from empty artifact |
+| SCAR-ARTIPACKED-001 | platform-engineer | Any job combining actions:read + actions/checkout + cross-workflow download-artifact must set persist-credentials: false; zizmor artipacked rule detects regressions |
 | Env Var Naming | principal-engineer | All ecosystem env vars use `AUTOM8Y_` prefix (not `AUTOM8_`) |
 | Metrics CLI Under-count | observability-engineer | `autom8-query` CLI parquet loading silently drops sections — verify bucket mapping before trusting CLI output |
 
@@ -440,16 +566,16 @@ Selectable: `pytest -m scar`
 7. **SCAR-026 mock-spec audit incomplete**: HYG-002 partial; systematic all-mocks audit pending
 8. **SCAR-IDEM-001 mitigation incomplete**: double-execution risk for S2S strict-once callers; observability-only fix
 9. **SCAR-REG-001 production blocker**: Sequential placeholder GIDs at `section_registry.py:100-107,132-138` must be replaced with verified GIDs
-10. **xdist `--dist=load` CI regression**: SRE engagement PASS-WITH-FLAGS-CARRIED; slowest shard +15% vs BASELINE; CI runner-sizing is binding constraint (not pytest-internal)
+10. **xdist `--dist=loadgroup` active**: Prior gap item (--dist=load PASS-WITH-FLAGS-CARRIED) resolved. New watch: verify no new xdist_group grouping gaps emerge as test suite grows under loadgroup strategy
 11. **SCAR-DISCRIMINATOR-001 unguarded**: No regression test, no defensive pattern; fix deferred to hygiene-pass-2
 12. **SCAR-LP-001 production-CI pending**: defer-watch entry `lockfile-propagator-prod-ci-confirmation` open until 2026-07-29
 13. **SCAR-CW-001 CP-01 regression test pending**: `tests/unit/lambda_handlers/test_import_safety.py` not yet authored
-14. **SCAR-LOG-001 scope widened**: `query/__main__.py` and `models/business/fields.py` migrated to autom8y_log SDK in 65-commit delta; verify no `_logger` attribute exposure to tests
+14. **SCAR-LOG-001 active**: `autom8y-log>=0.5.6` unchanged; no stdlib shim; defer-watch `DEFER-WS4-T3-2026-04-29` deadline 2026-Q3
 
 ```metadata
 domain: scar-tissue
-source_hash: "20ef7952"
-generated_at: "2026-05-04T00:00Z"
+source_hash: "8980bcd7"
+generated_at: "2026-05-08T00:00Z"
 confidence: 0.95
 criteria_grades:
   failure_catalog_completeness:
@@ -462,7 +588,7 @@ criteria_grades:
     weight: 0.25
   fix_location_mapping:
     grade: A
-    pct: 92
+    pct: 93
     weight: 0.20
   defensive_pattern_documentation:
     grade: B
@@ -470,16 +596,20 @@ criteria_grades:
     weight: 0.15
   agent_relevance_tagging:
     grade: A
-    pct: 90
+    pct: 91
     weight: 0.10
 overall_grade: A
-overall_pct: 92
+overall_pct: 93
 notes: >
-  38+ scars catalogued from dual evidence sources (git history + code markers).
-  13 failure categories documented with explicit-absence notation.
-  35 @pytest.mark.scar decorator invocations across 11 files (HYG-001).
+  41+ scars catalogued from dual evidence sources (git history + code markers).
+  14 failure categories documented with explicit-absence notation.
+  3 new SCARs added: SCAR-W1E-LOADGROUP-001 (xdist isolation failure),
+  SCAR-CONSUMER-GATE-001 (cross-fleet silent bypass, N=2),
+  SCAR-ARTIPACKED-001 (CI credential-leak vector).
+  35 @pytest.mark.scar decorator invocations across 11 files (unchanged from 20ef7952).
+  --dist=loadgroup now ACTIVE at pyproject.toml:105.
   Main gaps: SCAR-DISCRIMINATOR-001 unguarded, SCAR-CW-001 CP-01 pending,
   SCAR-026 mock-spec audit incomplete, 12 scars without agent tags.
-  Experiential knowledge from .sos/land/scar-tissue.md integrated and verified
-  against HEAD. Metrics CLI under-count (4 open questions) remains unresolved.
+  SCAR-LOG-001 still active (autom8y-log no stdlib shim). SCAR-LP-001 prod-CI pending.
+  Incremental cycle 1/3; next full regeneration recommended at cycle 3 or next major delta.
 ```

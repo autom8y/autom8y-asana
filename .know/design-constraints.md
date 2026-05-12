@@ -1,6 +1,6 @@
 ---
 domain: design-constraints
-generated_at: "2026-05-04T00:00Z"
+generated_at: "2026-05-08T00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
@@ -8,28 +8,31 @@ source_scope:
   - "./.github/workflows/*.yml"
   - "./.ci/semantic-baseline.json"
 generator: theoros
-source_hash: "20ef7952"
+source_hash: "8980bcd7"
 confidence: 0.93
 format_version: "1.0"
-update_mode: "full"
-incremental_cycle: 0
+update_mode: "incremental"
+incremental_cycle: 1
 max_incremental_cycles: 3
+land_sources:
+  - ".sos/land/initiative-history.md"
+land_hash: "62e88f60226e924b7fc0298605ce934fc6c36a3b4090ed524a4ef0d3cc4a05ff"
 ---
 
 # Codebase Design Constraints
 
-> Regenerated 2026-05-04 (FULL mode). Source hash: `20ef7952`. Prior source hash: `6b303485`.
-> All prior TENSIONs, LBCs, ECs, and RISKs preserved with post-diff anchor verification.
+> Incremental update 2026-05-08 (commits `20ef7952`..`8980bcd7`). Prior source hash: `20ef7952` (FULL mode, 2026-05-04).
 >
-> **KEY UPDATES vs `6b303485`**:
-> - M-02 confirmed PASSING (0.5266, pass: true) — RISK-012 status updated to prospective-only
-> - M-07_constraint_coverage is now the active failing metric (0.5714, floor: 0.6, pass: false)
-> - `SystemContext._reset_registry` is now a per-xdist-worker dict (was a flat list) — **new LBC-012**
-> - `ExportsSuccessResponse` added to `api/models.py` — **new load-bearing schema surface** (LBC-013)
-> - Gitleaks workflow gained concurrency control (group: `gitleaks-${{ github.ref }}`, cancel-in-progress: true) — new CI operational constraint
-> - UP046/UP047 ruff suppression comments at `pyproject.toml:227-228` remain stale (`requires-python = ">=3.12"` not `>=3.11`)
-> - New ADRs landed: ADR-008 through ADR-013 (runner sizing, xdist, shard expansion, post-merge coverage, path-b scaffold, hadolint)
-> - SCAR test cluster expanded: 35 tests bear `@pytest.mark.scar` (was documented as 33)
+> **KEY UPDATES vs `20ef7952`**:
+> - TENSION-012 stale ruff suppression re-verified: UP046/UP047 comments at `pyproject.toml:219-220` still cite `>=3.11`; `requires-python = ">=3.12"` — stale comment confirmed UNCHANGED
+> - autom8y-core lower bound lifted `>=4.0.0` → `>=4.2.0` (`pyproject.toml:25`, commit `f6864435`)
+> - xdist topology: `--dist=load` → `--dist=loadgroup` (`pyproject.toml:105`, commit `149d3673`) — new **CI-XDIST-LOADGROUP-001**
+> - Consumer-gate fail-loud guard added to `.github/workflows/test.yml` (commit `9cbdb13e`) — new **CONSUMER-GATE-FAILSAFE-001**
+> - zizmor artipacked credential-leak mitigation: `persist-credentials: false` + `actions: read` permission added to `test.yml` fuzz checkout (commit `8980bcd7`) — note appended to **FLEET-SHA-SKEW-001**
+> - New durations-refresh workflow: `.github/workflows/durations-refresh.yml` (CIMS Phase 2 Sprint 2 CHANGE-002) — **CI-CONCURRENCY-001** updated
+> - Scorecard push-to-main trigger removed (CHANGE-001 SM-1A-4) — **CI-CONCURRENCY-001** updated
+> - Lock-overhead contention budget widened 1ms → 2ms (commit `f37802f2`) — new **PERF-BUDGET-REGRESSION-001**
+> - EC-013 telos deadline: 3 days remaining (2026-05-11; today 2026-05-08) — CRITICALLY URGENT
 
 ## Tension Catalog
 
@@ -79,7 +82,7 @@ Location: `src/autom8_asana/api/models.py:121`. `ExportsSuccessResponse` overrid
 Trade-off: The override prevents mypy/Pydantic complaints when the exports handler wraps a `list[dict]` in the standard envelope. Tightening or relaxing the parent `SuccessResponse` would require re-examining this subclass. Resolution cost: Low.
 
 **TENSION-012: UP046/UP047 Ruff Suppression Comments Stale**
-Location: `pyproject.toml:227-228`. Comments say `"requires-python still >=3.11"` but `pyproject.toml:10` now reads `requires-python = ">=3.12"`. The suppressions are harmless but misleading — they cite a Python version constraint that no longer exists.
+Location: `pyproject.toml:219-220`. Comments say `"requires-python still >=3.11"` but `pyproject.toml:10` now reads `requires-python = ">=3.12"`. The suppressions are harmless but misleading — they cite a Python version constraint that no longer exists. Re-verified at `8980bcd7`: stale comments unchanged (lines shifted from 227-228 to 219-220 due to unrelated edits; content unchanged).
 Resolution cost: Trivial (comment update only).
 
 ## Operational Constraints (process and platform)
@@ -116,7 +119,7 @@ Status: **FAILING**. M-07 score = 0.5714 (numerator: 4/7, floor: 0.6, pass: fals
 Evidence: `floor_violations: ["M-07_constraint_coverage"]`. `aegis-check.py` reports this but CI is set `regression_safe: true` (does not block PRs). The 3 uncovered constraint slots are unknown without re-running `aegis-check.py` against the spec.
 Severity: P2 (active floor violation; CI not blocking due to `regression_safe: true`)
 Deadline: Sprint-4 (before re-baselining)
-Cross-reference: RISK-013 (new RISK entry below)
+Cross-reference: RISK-013
 
 **WORKTREE-001: Parallel-Worktree Contamination Protocol Absent**
 Type: Operational constraint (development hygiene)
@@ -151,6 +154,7 @@ Skew surface: 4-of-5 security workflows trail the fleet SHA.
 Constraint: Fleet should converge on a single autom8y-workflows SHA. SHA bump must be atomic across affected repos.
 Severity: P2 (security workflow versions diverge; no CI enforcement)
 Owner-rite: /arch (cadence) or /sre (direct execution)
+**Update at `8980bcd7`**: `test.yml` fuzz checkout now sets `persist-credentials: false` (zizmor artipacked credential-leak mitigation, commit `8980bcd7`). This is a targeted per-checkout hardening — it does not change the overall fleet SHA skew status but adds a per-step credential isolation guard. The fuzz job also gained `actions: read` permission to support cross-workflow `download-artifact` for consumer-gate. See CONSUMER-GATE-FAILSAFE-001.
 
 **DEFER-WATCH-REGISTRY-001: Active Defer-Watch Entries — Cross-Reference**
 Type: Informational constraint (deferred-scope registry)
@@ -159,13 +163,53 @@ Active entries as of 2026-04-29 close (2 total, both KEEP-OPEN per EUN-005 audit
 - `DEFER-WS4-T3-2026-04-29`: autom8y_log SDK stdlib interface gap; watch_trigger 2026-05-29; escalation: rnd-rite
 - `lockfile-propagator-prod-ci-confirmation`: Notify-Satellite-Repos green pending; watch_trigger 2026-05-29; deadline 2026-07-29; escalation: 10x-dev rite
 
-**CI-CONCURRENCY-001: Gitleaks Workflow Concurrency Control** [NEW at `20ef7952`]
+**CI-CONCURRENCY-001: CI Concurrency Controls** [UPDATED at `8980bcd7`]
 Type: Operational constraint (CI)
-Anchor: `.github/workflows/gitleaks.yml:3-5`.
-`concurrency: group: gitleaks-${{ github.ref }}, cancel-in-progress: true` added by commit `20ef7952`. Only `gitleaks.yml` has this control among the 4 security workflows. `trufflehog-scan.yml`, `dependency-review.yml`, and `zizmor.yml` lack equivalent concurrency guards.
-Constraint: Gitleaks is now safe from concurrent runs on the same branch. The other 3 security workflows can still queue multiple simultaneous runs. Inconsistent concurrency posture across fleet security workflows.
+State at `20ef7952`: Only `gitleaks.yml` had concurrency control (`group: gitleaks-${{ github.ref }}, cancel-in-progress: true`). `trufflehog-scan.yml`, `dependency-review.yml`, and `zizmor.yml` lacked equivalent guards. Scorecard had `push: branches: [main]` trigger active.
+
+Updates at `8980bcd7`:
+- **Scorecard push trigger removed** (CHANGE-001 SM-1A-4, commit `9cbdb13e`): `.github/workflows/scorecard.yml` no longer triggers on `push: branches: [main]`. Triggers are now `schedule` (Monday 06:00 UTC) + `workflow_dispatch` only.
+- **durations-refresh workflow added** (CIMS Phase 2 Sprint 2 CHANGE-002, commit `9cbdb13e`): `.github/workflows/durations-refresh.yml` runs weekly Monday 09:00 UTC. Opens auto-PR labeled `ci-maintenance` when `.test_durations` changes. Includes concurrency control: `group: durations-refresh-${{ github.ref }}, cancel-in-progress: true`.
+
+Current posture: `gitleaks.yml` and `durations-refresh.yml` have concurrency guards; `scorecard.yml`, `trufflehog-scan.yml`, `dependency-review.yml`, `zizmor.yml` do not.
 Severity: P3 (informational; no active incident)
 Cross-reference: FLEET-SHA-SKEW-001
+
+**CI-XDIST-LOADGROUP-001: xdist Topology Shift to --dist=loadgroup** [NEW at `8980bcd7`]
+Type: Operational/testing constraint (CI + local test execution)
+Anchor: `pyproject.toml:105`, commit `149d3673` (Sprint W1-E close).
+Change: `addopts` shifted from `--dist=load` to `--dist=loadgroup`. The R5-FIX rationale comment block previously in `pyproject.toml` was removed; rationale now lives in per-test-file comments:
+- `tests/unit/lambda_handlers/test_workflow_handler.py:25-46` — xdist_group("workflow_handler") rationale; cross-worker AsyncMock teardown corruption documented (CI runs 25258237857, 25188629600)
+- `tests/test_openapi_fuzz.py:64-72` — xdist_group("fuzz") rationale; module-level `app/schema` state co-locality
+
+Files pinned via `xdist_group` markers at Sprint W1-E close (DW-W1E-LOADGROUP-FALLOUT-001):
+- `tests/unit/lambda_handlers/test_workflow_handler.py` — `pytestmark = [pytest.mark.xdist_group("workflow_handler")]`
+- `tests/unit/api/test_routes_query.py` — `pytestmark = [pytest.mark.xdist_group("query_routes")]`
+- `tests/test_openapi_fuzz.py` — `pytest.mark.xdist_group("fuzz")` (pre-existing, landed earlier)
+
+**Structural implication**: Any new test that has cross-test state (singletons, async-mock teardown, `dependency_overrides`, module-level app fixtures) MUST adopt an `xdist_group` marker. Without it, `--dist=loadgroup` may still interleave the test with unrelated tests, but tests within a group are guaranteed co-locality. The `xdist_group` marker is forward-compatible: it is a no-op under `--dist=load` and activates under `--dist=loadgroup`.
+Severity: Structural — affects all new test authoring
+Cross-reference: LBC-014 (see Load-Bearing Code)
+
+**CONSUMER-GATE-FAILSAFE-001: Consumer-Gate Fail-Loud Guard** [NEW at `8980bcd7`]
+Type: Operational constraint (CI cross-fleet safety)
+Anchor: `.github/workflows/test.yml:135-150`, commit `9cbdb13e`.
+Context: Cross-fleet consumer-gate silent-bypass survey AP-CANDIDATE-cross-fleet-consumer-gate-silent-bypass-survey N=2 — autom8y-ads PR #34 (Path β remediation, commits 5080898/596db166) identified that when `candidate_wheel_run_id` is set but the wheel artifact download fails silently, the test suite runs against the wrong package version. autom8y-asana is the second fleet member to receive this remediation.
+Guard: Step "Verify candidate wheel present (consumer-gate fail-loud)" at `test.yml:135-150`. When `candidate_wheel_run_id` is non-empty and no `.whl` file is found at `/tmp/candidate-wheel/`, CI exits with an error:
+```
+::error::Consumer-gate test-purpose violation: candidate_wheel_run_id was set (...) but no .whl file found at /tmp/candidate-wheel/. Cross-workflow actions/download-artifact likely failed...
+```
+The `actions: read` permission added at `test.yml:85` supports `actions/download-artifact` cross-workflow artifact access (required for consumer-gate dispatch from `autom8y/sdk-publish-v2.yml`).
+Severity: P2 (cross-fleet test-purpose integrity; silent bypass was a silent failure mode)
+Cross-reference: FLEET-SHA-SKEW-001, RITE-SUBSTRATE-INTEGRITY-001
+
+**PERF-BUDGET-REGRESSION-001: Lock-Overhead Contention Budget Widened 1ms → 2ms** [NEW at `8980bcd7`]
+Type: Performance budget lever-loosening
+Anchor: `tests/unit/persistence/test_session_concurrency.py:596-599`, commit `f37802f2` (B-3).
+Change: `test_lock_overhead_under_contention` budget widened from `< 1ms` to `< 2ms` per operation under contention. The non-contention budgets (`test_lock_overhead_track`: `< 1ms`; `test_lock_overhead_state_read`: `< 100us`) are unchanged.
+Classification: This is a deliberate budget relaxation, not a performance improvement. The test was intermittently flapping on CI runners under load. The 2ms ceiling is still performant for the expected workload, but it is a regression relative to the original 1ms SLA.
+Severity: P3 — no active incident, but represents reduced performance assertion coverage for the contended path. Any optimization work on `DeferredSessionStore` locking should target returning the ceiling to 1ms.
+Cross-reference: RISK-015
 
 ## Trade-off Documentation
 
@@ -176,10 +220,11 @@ Cross-reference: FLEET-SHA-SKEW-001
 - **TRADE-005**: ADR-0025 big-bang S3 cutover, no fallback. Referenced but ADR-0025 not in `.ledge/decisions/` (21 ADRs present, none numbered ADR-0025). May live in `.claude/agent-memory/`.
 - **TRADE-006**: `DataServiceConfig.max_batch_size >= 500` constraint documented in `query/fetcher.py:8-10`. Current code at `clients/data/config.py:256-263` validates `>=1` and `<=1000`. The 500-threshold concern is real but code validation is at `>= 1`.
 - **TRADE-007**: `DynamoDBIdempotencyStore` degrades silently to passthrough on connectivity failures. `api/main.py:339-344` emits `idempotency_store_degraded` warning and falls back to `NoopIdempotencyStore`.
-- **TRADE-008: Deprecated Query Endpoint Kept Until Sunset Date.** `api/routes/query.py:7,541,561,669`. `POST /v1/query/{entity_type}` deprecated with sunset `2026-06-01`. Today (2026-05-04) leaves ~28 days. Metric `deprecated_query_endpoint_used` (line 669) tracks usage. Legacy model classes preserved until sunset.
+- **TRADE-008: Deprecated Query Endpoint Kept Until Sunset Date.** `api/routes/query.py:7,541,561,669`. `POST /v1/query/{entity_type}` deprecated with sunset `2026-06-01`. Today (2026-05-08) leaves ~24 days. Metric `deprecated_query_endpoint_used` (line 669) tracks usage. Legacy model classes preserved until sunset.
 - **TRADE-009: LEFT-PRESERVATION GUARD as NO-OP Structural Seam in Phase 1.** `api/routes/exports.py:236-284` (`_engine_call_with_left_preservation_guard`). Phase 1 ships single-entity exports — no LEFT JOIN fires, the GUARD is a structural NO-OP. Seam exists for Sprint 4 qa-adversary verification + Phase 2 architect inheritance. Per `ADR-engine-left-preservation-guard.md §4`.
 - **TRADE-010: ESC-1 Date Predicates Under OR/NOT Unsupported in Phase 1.** `api/routes/_exports_helpers.py:369-417`. Date operators (`BETWEEN`, `DATE_GTE`, `DATE_LTE`) inside `OrGroup` or `NotGroup` rejected with `ValueError` in Phase 1. Restriction: extracting date Comparisons from OR/NOT semantics would alter boolean meaning.
 - **TRADE-011: ExportsSuccessResponse Typed Schema Over Wire Envelope.** [NEW at `20ef7952`] `api/models.py:98-127`. The `ExportsSuccessResponse` subclass of `SuccessResponse[list[dict[str, Any]]]` exists purely to inject `examples=` for the M-02 semantic score metric. It uses `extra="ignore"` to avoid Pydantic validation failures when the wire response includes untyped dict fields. No runtime behavior change — schema-generation only. The `_exports_schema_extra` callable patches the `meta` property in the generated JSON schema. Why: M-02 score recovery after typed schema introduction in BLOCKING-1 amendment.
+- **TRADE-012: autom8y-core Lower Bound Lifted to >=4.2.0.** [NEW at `8980bcd7`] `pyproject.toml:25`. Lower bound raised from `>=4.0.0` to `>=4.2.0` (commit `f6864435`, Path γ). Environments with autom8y-core 4.0.x or 4.1.x will now fail dependency resolution. Rationale lives in commit message. Upper bound `<5.0.0` unchanged. Consumers of autom8y-asana as a library must carry autom8y-core `>=4.2.0`.
 
 ## Abstraction Gap Mapping
 
@@ -209,6 +254,7 @@ Cross-reference: FLEET-SHA-SKEW-001
 - **LBC-011: Router Registration Order in api/main.py.** `api/main.py:431-441`. `fleet_query_router_v1`, `fleet_query_router_api_v1`, `exports_router_v1`, `exports_router_api_v1` MUST register BEFORE `query_router`. Failure mode is silent at startup (no error), only manifests on first request to affected path. Confirmed at `20ef7952`.
 - **LBC-012: SystemContext._reset_registry is now Per-Worker Dict.** [NEW at `20ef7952`] `core/system_context.py:33`. Changed from `list[Callable]` to `dict[str, list[Callable]]`. Callers invoking `SystemContext.reset_all()` outside xdist continue to work (key `"main"` is used). Any code that previously held a reference to the list or read `_reset_registry` directly is now broken. No known external callers access `_reset_registry` directly (private name), but this is load-bearing for test isolation across the full suite. Safe-refactor requirement: maintain `_worker_key()` contract if xdist environment detection logic changes.
 - **LBC-013: ExportsSuccessResponse as Typed Schema Surface.** [NEW at `20ef7952`] `api/models.py:98-127`. `ExportsSuccessResponse` is now the `response_model=` for both `/v1/exports` and `/api/v1/exports` mounts (confirmed at `exports.py:515,547`). Changing the `data` field type or the `json_schema_extra` callable affects the generated OpenAPI spec and M-02 semantic score baseline. Dependents: `exports.py:515`, `exports.py:547`, `aegis-synthetic-coverage.yml`, `.ci/semantic-baseline.json`.
+- **LBC-014: xdist_group Markers as Test Co-Locality Contract.** [NEW at `8980bcd7`] `tests/unit/lambda_handlers/test_workflow_handler.py`, `tests/unit/api/test_routes_query.py`, `tests/test_openapi_fuzz.py`. Under `--dist=loadgroup`, these markers guarantee co-locality of tests with shared state. Removing or changing `xdist_group` group names without auditing cross-test state dependencies will cause worker crashes or silent test-isolation failures (the exact failure mode documented in CI runs 25258237857, 25188629600). Cross-reference: CI-XDIST-LOADGROUP-001.
 
 ## Evolution Constraints
 
@@ -219,15 +265,18 @@ Cross-reference: FLEET-SHA-SKEW-001
 - **EC-005**: `autom8y_interop` partial migration blocked on upstream PRs.
 - **EC-006**: Exception narrowing in preload (I6 backlog) not yet run.
 - **EC-007**: Reconciliation section GIDs require production API verification before deployment.
-- **EC-008: Deprecated Query Endpoint Frozen Until 2026-06-01.** `api/routes/query.py:7,541`. Today (2026-05-04) leaves ~28 days. Callers tracked via `deprecated_query_endpoint_used` metric.
+- **EC-008: Deprecated Query Endpoint Frozen Until 2026-06-01.** `api/routes/query.py:7,541`. Today (2026-05-08) leaves ~24 days. Callers tracked via `deprecated_query_endpoint_used` metric.
 - **EC-009: ADR-0001 secretspec Profile Split — Implemented.** `metrics/__main__.py:19-49` references `[profiles.cli]`. Test `tests/unit/metrics/test_main.py::TestPreflightParity::test_inline_and_secretspec_enforce_same_required_vars` enforces parity.
-- **EC-010: Python Version Constraint — No Upper Bound.** `pyproject.toml:10`: `requires-python = ">=3.12"` (upper bound `<3.14` removed earlier). Linter config suppresses UP046/UP047 with stale comments citing `>=3.11`.
+- **EC-010: Python Version Constraint — No Upper Bound.** `pyproject.toml:10`: `requires-python = ">=3.12"` (upper bound `<3.14` removed earlier). Linter config suppresses UP046/UP047 with stale comments citing `>=3.11` at `pyproject.toml:219-220`.
 - **EC-011: query/engine.py:139-178,:181 and query/join.py — P1-C-04 Frozen.** `query/engine.py:139-178,181`, `query/join.py`, `query/compiler.py:53-63,192-241`. Explicitly P1-C-04 FORBIDDEN per `api/routes/exports.py:14` docstring. Phase 2 may modify under LEFT-PRESERVATION GUARD ADR architecture. See FROZEN-RANGE-IMPORTERS-001.
 - **EC-012: ExportOptions extra="allow" — Do Not Tighten Until Phase 2.** `api/routes/exports.py:141`. Bound by `ADR-engine-left-preservation-guard.md §4.1`.
-- **EC-013: project-asana-pipeline-extraction Telos Deadline.** Phase 0/1 carries `telos_deadline: 2026-05-11`. Today (2026-05-04) leaves 7 days. Primary deliverable is Phase 1 exports route. Agents must not restructure the exports surface without confirming sprint scope. [KNOW-CANDIDATE] Telos deadline imminent — all exports constraints are at peak criticality.
+- **EC-013: project-asana-pipeline-extraction Telos Deadline — CRITICALLY URGENT.** Phase 0/1 carries `telos_deadline: 2026-05-11`. Today (2026-05-08) leaves **3 days**. Primary deliverable is Phase 1 exports route. Agents must not restructure the exports surface without confirming sprint scope. [KNOW-CANDIDATE] Telos deadline at 3 days remaining — all exports constraints are at maximum criticality.
 - **EC-014: SCAR Test Cluster Now pytest.mark.scar Tagged.** [NEW at `20ef7952`] 35 tests across 11 files bear `@pytest.mark.scar` (HYG-001 sprint, commit `36eaec6c`). These tests are inviolable regression guards. The `scar` marker is registered in `pyproject.toml` (via `7cd7ffd6`). Running `pytest -m scar` isolates this cluster. Do not modify or delete `@pytest.mark.scar` tests without an ADR.
 - **EC-015: Post-Merge Coverage CI Job Added.** [NEW at `20ef7952`] `.github/workflows/post-merge-coverage.yml` introduced (SRE-004, commit `29fdaad1`). `cancel-in-progress: false` — post-merge gates must run to completion. This is a new persistent CI surface; any refactor that changes test pass/fail distribution will affect post-merge coverage reporting.
 - **EC-016: Hadolint Dockerfile Lint Gate Added.** [NEW at `20ef7952`] `.github/workflows/dockerfile-lint.yml` introduced (SRE-005, per ADR-013). Any Dockerfile changes must pass hadolint with config `.hadolint.yaml`. The gate is authoritative per ADR-013-sre-005-hadolint-2026-04-30.md.
+- **EC-017: autom8y-core Lower Bound Now >=4.2.0.** [NEW at `8980bcd7`] `pyproject.toml:25`. Environments carrying autom8y-core 4.0.x or 4.1.x are now excluded. Any package consuming autom8y-asana as a library must ensure autom8y-core `>=4.2.0` in their own dependency graph. Path γ commit `f6864435`.
+- **EC-018: xdist Topology Fixed at --dist=loadgroup.** [NEW at `8980bcd7`] `pyproject.toml:105`. Tests with shared state MUST use `xdist_group` markers (see CI-XDIST-LOADGROUP-001). Any reversion to `--dist=load` must audit the three pinned groups first to determine whether loadgroup-specific state isolation assumptions would be broken.
+- **EC-019: Durations Refresh Auto-PR Cadence.** [NEW at `8980bcd7`] `.github/workflows/durations-refresh.yml`. `.test_durations` is now auto-refreshed weekly. PRs from `chore/durations-refresh-*` branches labeled `ci-maintenance` are machine-generated. Do not hand-edit `.test_durations` mid-sprint; wait for the weekly auto-PR or manually trigger `workflow_dispatch`.
 
 ## Risk Zone Mapping
 
@@ -245,6 +294,7 @@ Cross-reference: FLEET-SHA-SKEW-001
 - **RISK-012: M-02 Score Floor — RESOLVED, PROSPECTIVE RISK REMAINS.** `.ci/semantic-baseline.json:12-18`. M-02 score = 0.5266 (floor: 0.50) at `20ef7952` — now PASSING. Original breach (0.4743) was discharged via HYG-T1. Prospective risk: `aegis-check.py` does not enforce `examples=` count; a future PR removing `examples=` from Pydantic source will not be caught until a manual baseline refresh. Severity: P3 (downgraded from P1 — no active breach).
 - **RISK-013: M-07 Constraint Coverage Floor Actively Breached.** [NEW at `20ef7952`] `.ci/semantic-baseline.json:52-59`. M-07 score = 0.5714 (floor: 0.6, pass: false). `regression_safe: true` prevents CI blocking. The 3 missing constraint coverage slots are unknown without re-running `aegis-check.py` against the spec. Every PR that adds endpoints without `x-constraint` annotations widens the gap. Cross-reference: M07-MONITOR-001. Recommended guard: add constraint-annotation discipline to PR review checklist.
 - **RISK-014: SystemContext Per-Worker Registration Gap Under xdist.** [NEW at `20ef7952`] `core/system_context.py:33,48-51`. If a module registers its reset function in the main process before xdist forks workers, that registration lands on key `"main"` — which workers never consult. Singletons imported only in the main process would not reset between worker tests. No test currently covers this boundary. Cross-reference: LBC-012, GAP-010.
+- **RISK-015: Lock-Overhead Contention Assertion Loosened — Reduced Performance Coverage.** [NEW at `8980bcd7`] `tests/unit/persistence/test_session_concurrency.py:596-599`. The `test_lock_overhead_under_contention` budget was widened from `< 1ms` to `< 2ms` to address CI flapping (commit `f37802f2`, B-3). The non-contention paths remain at 1ms and 100us respectively. This is a performance assertion regression: the codebase no longer guarantees sub-1ms contended lock overhead. Cross-reference: PERF-BUDGET-REGRESSION-001.
 
 ## Experiential Observations (from session history)
 
@@ -252,13 +302,14 @@ The 18-session corpus surfaces frozen/sacred areas:
 - **SCAR test cluster**: 35 tests now formally tagged `@pytest.mark.scar` (HYG-001). These are inviolable regression guards. Prior documentation cited 33 — actual count at `20ef7952` is 35.
 - **Coverage floor**: `>=80%` non-negotiable per project-crucible sprint-6
 - **Cascade-spike sessions** (session-20260303-173218, 134822): explicit "do not unpark or interfere" constraint from project-asana-pipeline-extraction
-- **Telos deadline pressure**: project-asana-pipeline-extraction Phase 1 telos_deadline is 2026-05-11. Today (2026-05-04) leaves 7 days — highest-urgency active constraint in the codebase.
+- **Telos deadline pressure**: project-asana-pipeline-extraction Phase 1 telos_deadline is 2026-05-11. Today (2026-05-08) leaves **3 days** — highest-urgency active constraint in the codebase. [KNOW-CANDIDATE] 3 days to telos; all exports changes require explicit sprint scope confirmation.
 
 Recurring tensions documented across sessions:
 - CascadingFieldResolver null rates (~30% on units, 30-40% on Offer office) manifested in 3 distinct sessions
 - Cascade-contract bypass on fast-paths (S3 fast-path + Offer source=None)
 - Test-suite scale/speed (13,072→12,320 reduction, xdist disabled then re-enabled, CI <60s target)
 - autom8y-asana identified as fleet's binding CI constraint (consumer-gate timeout 900s→2400s)
+- Sprint W1-E xdist worker-crash signature documented (CI runs 25258237857, 25188629600) — resolved by loadgroup topology shift
 
 Architecture review for Data Attachment Bridge (session-20260318) parked at requirements with no follow-up — load-bearing risk that hasn't been addressed.
 
@@ -275,11 +326,12 @@ Architecture review for Data Attachment Bridge (session-20260318) parked at requ
 9. `query/engine.py` P1-C-04 boundary exact scope: lines 139-178 and 181 frozen but full module structure / what changes are permitted in Phase 1 not independently documented outside exports route docstring.
 10. HYG-001 and RITE-SUBSTRATE-INTEGRITY-001 gate logic: out-of-tree (knossos/ari platform), not expressible as code anchor.
 11. RISK-014 (xdist per-worker registration gap): no test exercises main-process-vs-worker singleton registration boundary; actual exposure unquantified.
+12. autom8y-core 4.2.0 changelog: the specific APIs or behaviors introduced in 4.2.0 that motivated the lower bound lift are not documented in-repo (commit message is the only source).
 
 ```metadata
 confidence: 0.93
-generated_at: "2026-05-04T00:00Z"
-source_hash: "20ef7952"
+generated_at: "2026-05-08T00:00Z"
+source_hash: "8980bcd7"
 criteria_grades:
   tension_catalog: "A"
   trade_off_documentation: "A"
@@ -289,11 +341,13 @@ criteria_grades:
   risk_zone_mapping: "A"
 overall_grade: "A"
 notes: >
-  FULL refresh. All prior entries verified at 20ef7952.
-  12 new entries added (TENSION-011, TENSION-012, M07-MONITOR-001,
-  CI-CONCURRENCY-001, TRADE-011, GAP-010, LBC-012, LBC-013,
-  EC-013 updated urgency, EC-014..EC-016, RISK-013..RISK-014).
-  RISK-012 downgraded from P1 to P3 (breach discharged).
-  SCAR cluster count corrected: 35 not 33.
-  Telos deadline: 7 days remaining at generation time.
+  INCREMENTAL update (cycle 1 of 3). Prior: FULL at 20ef7952 (2026-05-04).
+  New entries: CI-XDIST-LOADGROUP-001, CONSUMER-GATE-FAILSAFE-001,
+  PERF-BUDGET-REGRESSION-001, TRADE-012, EC-017..EC-019, LBC-014, RISK-015.
+  Updated entries: CI-CONCURRENCY-001 (scorecard push trigger removed,
+  durations-refresh added), FLEET-SHA-SKEW-001 (zizmor artipacked note),
+  TENSION-012 (line numbers shifted, stale comment re-verified unchanged),
+  EC-013 urgency updated to 3 days, EC-008 TRADE-008 sunset countdown updated.
+  All prior TENSIONs/LBCs/ECs/RISKs preserved.
+  Telos deadline: 3 days remaining at generation time.
 ```

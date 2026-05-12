@@ -1,17 +1,17 @@
 ---
 domain: db
-generated_at: "2026-05-04T12:48Z"
+generated_at: "2026-05-08T00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
   - "./pyproject.toml"
   - "./docker-compose*.yml"
 generator: theoros
-source_hash: "20ef7952"
+source_hash: "8980bcd7"
 confidence: 0.95
 format_version: "1.0"
-update_mode: "full"
-incremental_cycle: 0
+update_mode: "incremental"
+incremental_cycle: 1
 max_incremental_cycles: 3
 ---
 
@@ -25,7 +25,7 @@ Asana REST API over HTTP. All data persistence is handled at three tiers:
 remote API, Redis cache, and S3-backed Parquet. No ORM framework, no
 relational migration directory, and no database driver dependency is present.
 
-## Detection Evidence (as of `20ef7952`, 2026-05-04)
+## Detection Evidence (as of `8980bcd7`, 2026-05-08)
 
 | Signal | Checked Against | Result |
 |--------|----------------|--------|
@@ -36,7 +36,13 @@ relational migration directory, and no database driver dependency is present.
 | `pyproject.toml` DB dependencies | `[project.dependencies]` + all extras | **Absent** |
 | Docker-compose DB services | `docker-compose.yml`, `docker-compose.override.yml` | **Redis only; no Postgres/MySQL** |
 | Terraform RDS resources | `find *.tf` | **0 files** |
-| New-code DB patterns (diff `8c58f930`→`20ef7952`) | 34 changed Python files | **0 DB imports** |
+| New-code DB patterns (diff `20ef7952`→`8980bcd7`) | `pyproject.toml` only (dep bump) | **0 DB imports** |
+
+**Note on `autom8y-core>=4.2.0` dep bump** (commit `f6864435`): The lower-bound
+lift from `>=4.0.0` to `>=4.2.0` does not introduce a relational DB layer.
+`autom8y-core` is a token/config SDK (auth token lifecycle, configuration
+resolution). No ORM, no DB driver, no migration machinery. The bump is a
+version constraint tightening only.
 
 If this finding is ever incorrect, check for:
 - ORM model files (SQLModel, SQLAlchemy, Django ORM)
@@ -73,7 +79,7 @@ schema.
 
 - **Library**: `polars>=0.20.0` + `boto3>=1.42.19`
 - **Abstraction**: `src/autom8_asana/dataframes/storage.py` →
-  `S3DataFrameStorage` (canonical S3 write abstraction as of `20ef7952`)
+  `S3DataFrameStorage` (canonical S3 write abstraction as of `8980bcd7`)
 - **Secondary**: `src/autom8_asana/lifecycle/observation_store.py` (parquet
   append path for lifecycle observation records)
 - **S3 prefix pattern**: `s3://{ASANA_CACHE_S3_BUCKET}/dataframes/{project_gid}/`
@@ -123,7 +129,7 @@ Because this project has no database layer, the verification cadence is:
 ## Knowledge Gaps
 
 None. The negative finding is high-confidence (0.95). All detection signals
-checked exhaustively against project root source tree. The 34-file diff since
-`8c58f930` introduces no new persistence patterns. Parquet/S3 tier expanded
-with `freshness.py`, `sla_profile.py`, and `cloudwatch_emit.py` — all use
-`boto3` for S3/CloudWatch only, no relational DB.
+checked exhaustively against project root source tree. The 5-commit diff since
+`20ef7952` (2026-05-04 → 2026-05-08) introduces no new persistence patterns.
+The sole in-scope change is a `pyproject.toml` lower-bound tightening on
+`autom8y-core` (token/config SDK; no DB layer). Confidence unchanged at 0.95.

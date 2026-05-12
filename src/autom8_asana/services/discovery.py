@@ -31,6 +31,14 @@ def _normalize_project_name(name: str) -> str:
     """
     EXPLICIT_MAPPINGS: dict[str, str] = {
         "paid content": "asset_edit",
+        # Sprint 2 receiver-surface — Item C (AC-R3):
+        # "asana projects" / "projects" → entity_type="project"
+        # "asana sections" / "sections" → entity_type="section"
+        # These pluralised names are what Asana workspace shows for project/section lists.
+        "asana projects": "project",
+        "projects": "project",
+        "asana sections": "section",
+        "sections": "section",
     }
 
     normalized = name.lower().strip()
@@ -183,7 +191,13 @@ async def discover_entity_projects_async() -> EntityProjectRegistry:
                     )
 
         # --- Phase 3: Discovery Fallback (fill gaps via name normalization) ---
-        ENTITY_TYPES: list[str] = list(ENTITY_MODEL_MAP.keys())
+        # Sprint 2 receiver-surface — Item C (AC-R3):
+        # Include "project" and "section" in the entity types list so Phase 3
+        # name-normalization can discover and register them from the live workspace.
+        # These types have primary_project_gid=None so Phase 2 skips them;
+        # Phase 3 matches "Asana Projects" / "Projects" and "Asana Sections" / "Sections"
+        # via the explicit mappings in _normalize_project_name().
+        ENTITY_TYPES: list[str] = list(ENTITY_MODEL_MAP.keys()) + ["project", "section"]
 
         for project_name, project_gid in discovered_projects.items():
             if project_gid in model_gids_used:
@@ -226,12 +240,42 @@ async def discover_entity_projects_async() -> EntityProjectRegistry:
                     )
 
         # Log any entity types not found
-        registered = set(entity_registry.get_all_entity_types())
+        registered_check = set(entity_registry.get_all_entity_types())
         for entity_type in ENTITY_TYPES:
-            if entity_type not in registered:
+            if entity_type not in registered_check:
                 logger.warning(
                     "entity_project_not_found",
                     extra={"entity_type": entity_type},
+                )
+
+        # Sprint 2 receiver-surface — Item C (AC-R3) log gate.
+        # Emit explicit signal for project/section discovery so the lifespan
+        # startup log can be audited for AC-R3 compliance.
+        registered_at_close = set(entity_registry.get_all_entity_types())
+        for gid_entity_type in ("project", "section"):
+            if gid_entity_type in registered_at_close:
+                logger.info(
+                    "entity_project_section_discovery_confirmed",
+                    extra={
+                        "entity_type": gid_entity_type,
+                        "project_gid": entity_registry.get_project_gid(gid_entity_type),
+                        "status": "registered",
+                        "ac_r3": True,
+                    },
+                )
+            else:
+                logger.warning(
+                    "entity_project_section_discovery_missing",
+                    extra={
+                        "entity_type": gid_entity_type,
+                        "status": "not_registered",
+                        "detail": (
+                            "No Asana project found matching 'Asana Projects'/'Projects' "
+                            f"or 'Asana Sections'/'Sections' for entity_type='{gid_entity_type}'. "
+                            "Add explicit GID via EntityProjectRegistry.register() or ensure "
+                            "workspace has a matching project name."
+                        ),
+                    },
                 )
 
         logger.info(
@@ -239,7 +283,7 @@ async def discover_entity_projects_async() -> EntityProjectRegistry:
             extra={
                 "registered_types": entity_registry.get_all_entity_types(),
                 "model_registered": list(registered_from_model),
-                "discovery_registered": list(registered - registered_from_model),
+                "discovery_registered": list(registered_at_close - registered_from_model),
                 "is_ready": entity_registry.is_ready(),
             },
         )

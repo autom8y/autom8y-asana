@@ -412,15 +412,40 @@ async def query_rows(
     """Query entity rows with composable predicate filtering.
 
     See PRD-dynamic-query-service FR-004.
+
+    Body-precedence rule (Sprint 2 receiver-surface — A1):
+    When ``request_body.project_gid`` is present, it overrides the
+    registry-derived ``project_gid``. Entity schema/descriptor validation
+    still runs via ``validate_entity_type`` to confirm the entity is registered;
+    only the GID lookup is overridden.  This enables arbitrary Asana fleet GIDs
+    without static EntityProjectRegistry pre-registration.
     """
     # 1. Entity validation via EntityServiceDep
+    # validate_entity_type checks schema registration + descriptor existence;
+    # it does NOT inspect the request body — precedence altitude is here.
     try:
         ctx = entity_service.validate_entity_type(entity_type)
     except ServiceError as e:
         raise_service_error(request_id, e)
 
+    # Sprint 2 A1 — body-precedence branch.
+    # Body GID wins over registry-routed GID when present.
+    if request_body.project_gid is not None:
+        resolved_project_gid = request_body.project_gid
+        logger.info(
+            "query_rows_body_gid_precedence",
+            extra={
+                "entity_type": entity_type,
+                "body_project_gid": request_body.project_gid,
+                "registry_project_gid": ctx.project_gid,
+            },
+        )
+    else:
+        # Legacy path: registry-routed GID (Sprint 1 semantics preserved).
+        resolved_project_gid = ctx.project_gid
+
     # 2. Build section index (manifest-first, enum fallback)
-    section_index = await resolve_section_index(request_body.section, entity_type, ctx.project_gid)
+    section_index = await resolve_section_index(request_body.section, entity_type, resolved_project_gid)
 
     # 3. Execute query
     query_service = EntityQueryService()
@@ -429,7 +454,7 @@ async def query_rows(
         async with AsanaClient(token=ctx.bot_pat) as client:
             result = await engine.execute_rows(
                 entity_type=entity_type,
-                project_gid=ctx.project_gid,
+                project_gid=resolved_project_gid,
                 client=client,
                 request=request_body,
                 section_index=section_index,

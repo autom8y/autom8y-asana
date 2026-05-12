@@ -845,6 +845,52 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         category=EntityCategory.OBSERVATION,
         primary_project_gid=None,
     ),
+    # =========================================================================
+    # Asana Structural Types (Sprint 1 — asana-clean-break-leaf)
+    # PG-05 elevated into Sprint 1 per user authorization 2026-05-11.
+    # HC-6 check: no upstream conflict detected at HEAD 8980bcd7.
+    #
+    # T1.4 — Shortcut S-06 invoked: primary_project_gid=None (dynamic).
+    # Production remediation: workspace-discovery registers the live GID via
+    # EntityProjectRegistry.register() at startup. The GID resolves at runtime
+    # via services/resolver.py:338-348 (get_resolvable_entities → EntityProjectRegistry).
+    # Smoke tests register synthetic GIDs directly for isolation.
+    #
+    # T1.3 — Shortcut S-07 invoked: minimal schema (3 columns beyond base).
+    # Full column-parity (30+ columns) is PG-02, deferred to Sprint 2.
+    # =========================================================================
+    EntityDescriptor(
+        name="project",
+        pascal_name="Project",
+        display_name="Asana Projects",
+        entity_type=None,  # Bound via _bind_entity_types() to EntityType.PROJECT
+        category=EntityCategory.LEAF,
+        # S-06: primary_project_gid=None; GID registered dynamically at runtime.
+        # Sprint 2: workspace-discovery registers the live GID. For smoke tests,
+        # register via EntityProjectRegistry.register("project", <gid>, "Asana Projects").
+        primary_project_gid=None,
+        default_ttl_seconds=300,
+        warmable=False,  # Not warmed; query path loads on demand
+        schema_module_path="autom8_asana.dataframes.schemas.project.PROJECT_SCHEMA",
+        # Generic SchemaExtractor satisfies strict_triad_validation=True.
+        # S-07: Sprint 2 PG-02 will add a dedicated ProjectExtractor for full column parity.
+        extractor_class_path="autom8_asana.dataframes.extractors.schema.SchemaExtractor",
+    ),
+    EntityDescriptor(
+        name="section",
+        pascal_name="Section",
+        display_name="Asana Sections",
+        entity_type=None,  # Bound via _bind_entity_types() to EntityType.SECTION
+        category=EntityCategory.LEAF,
+        # S-06: primary_project_gid=None; GID registered dynamically at runtime.
+        primary_project_gid=None,
+        default_ttl_seconds=300,
+        warmable=False,  # Not warmed; query path loads on demand
+        schema_module_path="autom8_asana.dataframes.schemas.section.SECTION_SCHEMA",
+        # Generic SchemaExtractor satisfies strict_triad_validation=True.
+        # S-07: Sprint 2 PG-02 will add a dedicated SectionExtractor for full column parity.
+        extractor_class_path="autom8_asana.dataframes.extractors.schema.SchemaExtractor",
+    ),
 )
 
 
@@ -882,6 +928,9 @@ def _bind_entity_types() -> None:
         "videography_holder": EntityType.VIDEOGRAPHY_HOLDER,
         "offer_holder": EntityType.OFFER_HOLDER,
         "process_holder": EntityType.PROCESS_HOLDER,
+        # Sprint 1 — asana-clean-break-leaf: PG-05 elevated; HC-6 check passed.
+        "project": EntityType.PROJECT,
+        "section": EntityType.SECTION,
     }
 
     for desc in ENTITY_DESCRIPTORS:

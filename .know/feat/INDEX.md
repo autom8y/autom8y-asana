@@ -1,31 +1,44 @@
 ---
 domain: feat/index
-generated_at: "2026-04-29T23:16Z"
+generated_at: "2026-05-08T00:00Z"
 expires_after: "30d"
 source_scope:
   - "./.know/architecture.md"
   - "./.know/api.md"
   - "./src/autom8_asana/**/*.py"
 generator: theoros
-source_hash: "6b303485"
-confidence: 0.92
+source_hash: "8980bcd7"
+prior_source_hash: "6b303485"
+confidence: 0.93
 format_version: "1.0"
 update_mode: "incremental"
-incremental_cycle: 1
+incremental_cycle: 2
 max_incremental_cycles: 3
 ---
 
-# Feature Census
+# Feature Census — autom8y-asana @ HEAD `8980bcd7`
 
-> 33 features identified across 8 categories. 29 recommended for GENERATE, 4 recommended for SKIP.
-> Incremental update: `/exports` route promoted from absent/WIP to LIVE (PR #38, commit 80256049, 2026-04-29).
+**Census Date**: 2026-05-08
+**Source Hash**: `8980bcd7`
+**Prior Index Hash**: `6b303485` (2026-04-29)
+**Commits Since Prior Index**: 20 commits (2026-04-29 → 2026-05-08; CI, tests, style, deps, docs — no new source files added to `src/autom8_asana/`)
+
+**Summary Counts**: 41 features across 7 categories. 37 GENERATE, 4 SKIP.
+- **Per category**: Core Platform 12 (9G/3S), Business Domain 10 (10G), Automation 5 (5G), User-Facing API 4 (4G), Infrastructure 7 (6G/1S), Services 1 (1G), Tooling 2 (2G)
+- **Prior census**: 33 features (29 GENERATE, 4 SKIP)
+- **Net new features**: +8 (gid-data-sync-pipeline, business-seeder, section-timeline, vertical-backfill, admin-cache-control, workflow-invoke-api, plus 2 from finer Core Platform decomposition)
+- **Removed**: 0
+- **Boundary corrections**: 1 (custom-field-descriptor-dsl subsumed into business-domain-model)
 
 ---
 
-## sdk-client-facade
+## Category: Core Platform
+
+### sdk-client-facade
 
 | Field | Value |
 |-------|-------|
+| Slug | `sdk-client-facade` |
 | Name | AsanaClient SDK Facade |
 | Category | Core Platform |
 | Complexity | HIGH |
@@ -33,19 +46,19 @@ max_incremental_cycles: 3
 | Confidence | 0.97 |
 
 **Source Evidence**:
-- `src/autom8_asana/client.py`: Primary SDK entry point, `AsanaClient` class with lazy-initialized resource clients, thread-safe via double-checked locking, sync/async support
-- `src/autom8_asana/__init__.py`: Exports `AsanaClient` as top-level public API surface
-- `README.md`: Featured in Quick Start as the primary user-facing object
-- `docs/sdk-reference/client.md`: Dedicated SDK reference page
+- `src/autom8_asana/client.py` — `AsanaClient` class, primary SDK entry point
+- `src/autom8_asana/__init__.py` — top-level public export
+- `README.md` — Quick Start entry
 
-**Rationale**: The `AsanaClient` facade is the primary user-facing interface of the entire SDK. It has a dedicated SDK reference page, is featured in README Quick Start, and is the entry point through which all resource clients are composed. Multiple modules import it directly. All three GENERATE heuristics are met: user-facing interface, 10+ dependent files, multiple module dependencies. GENERATE.
+**Rationale**: Primary user-facing SDK interface; 10+ dependent modules; multiple cross-cutting imports. Boundary verified unchanged. GENERATE.
 
 ---
 
-## resource-clients
+### resource-clients
 
 | Field | Value |
 |-------|-------|
+| Slug | `resource-clients` |
 | Name | Asana Resource Clients |
 | Category | Core Platform |
 | Complexity | HIGH |
@@ -53,19 +66,18 @@ max_incremental_cycles: 3
 | Confidence | 0.96 |
 
 **Source Evidence**:
-- `src/autom8_asana/clients/`: 18 client files -- tasks, projects, sections, users, workspaces, webhooks, goals, portfolios, tags, stories, attachments, teams, custom_fields, batch, name_resolver, task_operations, task_ttl, goal_followers, goal_relationships
-- `src/autom8_asana/clients/base.py`: `BaseClient` pattern shared by all resource clients
-- `docs/sdk-reference/resource-clients.md`: Dedicated SDK reference page
-- `docs/api-reference/endpoints/tasks.md`: REST API reference
+- `src/autom8_asana/clients/` — 18+ client files (tasks, projects, sections, users, workspaces, webhooks, goals, portfolios, tags, stories, attachments, teams, custom_fields, batch, name_resolver, task_operations, task_ttl, goal_followers, goal_relationships)
+- `src/autom8_asana/clients/base.py` — `BaseClient` shared pattern
 
-**Rationale**: 18 client files with a shared base pattern, user-facing interface via REST API routes (tasks_router, projects_router, etc.), dedicated documentation. Multiple REST endpoints depend on these. GENERATE.
+**Rationale**: 18 client files, user-facing REST API routes, shared base pattern. Boundary unchanged. GENERATE.
 
 ---
 
-## http-transport
+### http-transport
 
 | Field | Value |
 |-------|-------|
+| Slug | `http-transport` |
 | Name | Asana HTTP Transport Layer |
 | Category | Core Platform |
 | Complexity | MEDIUM |
@@ -73,20 +85,19 @@ max_incremental_cycles: 3
 | Confidence | 0.95 |
 
 **Source Evidence**:
-- `src/autom8_asana/transport/asana_http.py`: `AsanaHttpClient` wrapping `autom8y_http`, Asana-specific response unwrapping
-- `src/autom8_asana/transport/adaptive_semaphore.py`: AIMD adaptive concurrency control (halves concurrency on 429, increments on success)
-- `src/autom8_asana/transport/config_translator.py`: Translates SDK config to rate limiter / circuit breaker / retry configs
-- `src/autom8_asana/transport/response_handler.py`: Response envelope unwrapping
-- `docs/runbooks/RUNBOOK-rate-limiting.md`: Dedicated operational runbook
+- `src/autom8_asana/transport/asana_http.py` — `AsanaHttpClient`
+- `src/autom8_asana/transport/adaptive_semaphore.py` — AIMD adaptive concurrency
+- `src/autom8_asana/transport/config_translator.py`, `response_handler.py`, `sync.py`
 
-**Rationale**: 6 transport files with cross-cutting concerns (rate limiting, circuit breaking, retry, AIMD semaphore). Dedicated runbook. Used by every resource client. GENERATE.
+**Rationale**: 5+ transport files, cross-cutting rate-limit/circuit-breaker/retry/AIMD semaphore; used by every resource client. GENERATE.
 
 ---
 
-## asana-models
+### asana-models
 
 | Field | Value |
 |-------|-------|
+| Slug | `asana-models` |
 | Name | Pydantic v2 Asana Resource Models |
 | Category | Core Platform |
 | Complexity | MEDIUM |
@@ -94,18 +105,17 @@ max_incremental_cycles: 3
 | Confidence | 0.95 |
 
 **Source Evidence**:
-- `src/autom8_asana/models/`: 12+ model files -- task.py, project.py, section.py, user.py, webhook.py, goal.py, portfolio.py, custom_field.py, tag.py, story.py, team.py, workspace.py
-- `docs/sdk-reference/models.md`: Dedicated SDK reference
-- `docs/sdk-reference/exceptions.md`: SDK reference for exception hierarchy
+- `src/autom8_asana/models/` — 12+ model files (task.py, project.py, section.py, user.py, webhook.py, goal.py, portfolio.py, custom_field.py, tag.py, story.py, team.py, workspace.py)
 
-**Rationale**: 12+ files, user-facing typed return values from every SDK call, dedicated SDK reference. The base `AsanaResource` class is imported by all domain models. GENERATE.
+**Rationale**: 12+ files, user-facing typed return values from every SDK call, shared `AsanaResource` base. GENERATE.
 
 ---
 
-## save-session
+### save-session
 
 | Field | Value |
 |-------|-------|
+| Slug | `save-session` |
 | Name | SaveSession Unit of Work Pattern |
 | Category | Core Platform |
 | Complexity | HIGH |
@@ -113,21 +123,18 @@ max_incremental_cycles: 3
 | Confidence | 0.98 |
 
 **Source Evidence**:
-- `src/autom8_asana/persistence/session.py`: `SaveSession` context manager -- the unit of work implementation
-- `src/autom8_asana/persistence/`: 20 files -- action_executor, action_ordering, actions, cascade, executor, graph, healing, holder_concurrency, holder_construction, holder_ensurer, pipeline, reorder, tracker, validation
-- `docs/guides/save-session.md`: Full guide
-- `docs/sdk-reference/persistence.md`: SDK reference
-- `docs/runbooks/RUNBOOK-savesession-debugging.md`: Operational runbook
-- `README.md`: Featured in Quick Start
+- `src/autom8_asana/persistence/session.py` — `SaveSession` context manager
+- `src/autom8_asana/persistence/` — 20 files
 
-**Rationale**: 20 implementation files, a dedicated guide, SDK reference, debugging runbook, and README Quick Start entry. Dependency ordering, healing, cascade execution -- a rich self-contained subsystem. GENERATE.
+**Rationale**: 20 implementation files, 4/5-phase `SavePipeline` (Validate→Prepare→Execute→Actions→Confirm). GENERATE.
 
 ---
 
-## cache-subsystem
+### cache-subsystem
 
 | Field | Value |
 |-------|-------|
+| Slug | `cache-subsystem` |
 | Name | Multi-Tier Intelligent Cache Subsystem |
 | Category | Core Platform |
 | Complexity | HIGH |
@@ -135,18 +142,17 @@ max_incremental_cycles: 3
 | Confidence | 0.99 |
 
 **Source Evidence**:
-- `src/autom8_asana/cache/`: 52+ files across backends (memory, redis, s3), dataframe (build_coordinator, circuit_breaker, coalescer, warmer), integration (freshness_coordinator, staleness_coordinator, mutation_invalidator, hierarchy_warmer, schema_providers, stories, upgrader), models, policies, providers
-- `docs/guides/cache-system.md`: Full guide
-- `docs/runbooks/RUNBOOK-cache-troubleshooting.md`: Operational runbook
+- `src/autom8_asana/cache/` — 52+ files across backends (memory, redis, s3), dataframe (build_coordinator, circuit_breaker, coalescer, warmer), integration (freshness_coordinator, staleness_coordinator, mutation_invalidator, hierarchy_warmer, autom8_adapter, upgrader), models, policies, providers
 
-**Rationale**: 52+ implementation files, the single largest subsystem. Multiple backends (memory, Redis, S3), tiered caching, circuit breaker, coalescer, staleness detection, mutation invalidation. Dedicated guide and runbook. GENERATE.
+**Rationale**: 52+ files, largest single subsystem. Multiple backends, tiered caching, circuit breaker, coalescer, staleness detection, mutation invalidation. Note: `cache/integration/autom8_adapter.py` (466 LOC) + `upgrader.py` (211 LOC) = 677 LOC migration path subsumed here. GENERATE.
 
 ---
 
-## dataframe-layer
+### dataframe-layer
 
 | Field | Value |
 |-------|-------|
+| Slug | `dataframe-layer` |
 | Name | Polars DataFrame Analytics Layer |
 | Category | Core Platform |
 | Complexity | HIGH |
@@ -154,19 +160,18 @@ max_incremental_cycles: 3
 | Confidence | 0.97 |
 
 **Source Evidence**:
-- `src/autom8_asana/dataframes/`: builders (progressive, section, base), extractors, models (registry, schema, task_row), schemas (base, unit, contact, offer, asset_edit), views, resolver, cache_integration
-- `docs/guides/dataframes.md`: Full guide
-- `docs/api-reference/endpoints/dataframes.md`: REST API reference
-- `src/autom8_asana/api/routes/dataframes.py`: User-facing `dataframes_router` endpoint
+- `src/autom8_asana/dataframes/` — 45+ files across builders, schemas, extractors, models, resolver, views
+- `src/autom8_asana/api/routes/dataframes.py` — user-facing `dataframes_router` endpoint
 
-**Rationale**: 47+ source files, dedicated guide, API reference, user-facing REST endpoint. Polars-based with multiple extractor strategies and schema definitions per entity type. GENERATE.
+**Rationale**: 45+ source files, user-facing REST endpoint, Polars-based with multiple extractor strategies. GENERATE.
 
 ---
 
-## query-engine
+### query-engine
 
 | Field | Value |
 |-------|-------|
+| Slug | `query-engine` |
 | Name | DataFrame Query Engine with Compiled Predicates |
 | Category | Core Platform |
 | Complexity | HIGH |
@@ -174,20 +179,20 @@ max_incremental_cycles: 3
 | Confidence | 0.97 |
 
 **Source Evidence**:
-- `src/autom8_asana/query/`: 18 files -- engine, compiler, fetcher, join, aggregator, temporal, timeline_provider, hierarchy, introspection, saved, formatters, guards, cli, models, offline_provider, data_service_entities
-- `src/autom8_asana/api/routes/query.py`: User-facing `/rows` and `/aggregate` endpoints
-- `docs/guides/entity-query.md`: Full guide
-- `docs/api-reference/endpoints/query.md`: API reference
-- `docs/guides/search-query-builder.md` and `search-cookbook.md`: Two dedicated search guides
+- `src/autom8_asana/query/` — 18 files (engine, compiler, fetcher, join, aggregator, temporal, timeline_provider, hierarchy, introspection, saved, formatters, guards, models, offline_provider, data_service_entities, errors, `__main__`)
+- `src/autom8_asana/api/routes/query.py` — user-facing `/rows`, `/aggregate`, `/sections` endpoints
+- `queries/` — 4 saved named queries (active_offers, mrr_by_vertical, offers_with_business, offers_with_spend)
+- `query/models.py:54-56` — BETWEEN, DATE_GTE, DATE_LTE LIVE since Sprint-3
 
-**Rationale**: 18 implementation files, user-facing API endpoints, 3 documentation artifacts. Compiled predicate trees, cross-entity joins, aggregation, temporal queries, timeline queries, CLI interface. Sprint-3 (post-PR38) additive Op enum members BETWEEN, DATE_GTE, DATE_LTE are LIVE in `query/models.py:54-56` -- confirmed in source. GENERATE.
+**Rationale**: 18 implementation files, S2S REST endpoints, compiled predicate trees, temporal queries, timeline queries, saved queries corpus, CLI interface. GENERATE.
 
 ---
 
-## entity-registry
+### entity-registry
 
 | Field | Value |
 |-------|-------|
+| Slug | `entity-registry` |
 | Name | EntityRegistry (Descriptor-Driven Entity Metadata) |
 | Category | Core Platform |
 | Complexity | MEDIUM |
@@ -195,446 +200,19 @@ max_incremental_cycles: 3
 | Confidence | 0.92 |
 
 **Source Evidence**:
-- `src/autom8_asana/core/entity_registry.py`: `EntityDescriptor` and `EntityRegistry` -- singleton metadata store for 17+ entity descriptors
-- `src/autom8_asana/core/project_registry.py`: Project GID registry
-- `src/autom8_asana/core/registry_validation.py`: Cross-registry consistency validation
+- `src/autom8_asana/core/entity_registry.py` — `EntityDescriptor`, `EntityRegistry` singleton
+- `src/autom8_asana/core/project_registry.py` — Project GID constants (9 pipeline projects)
+- `src/autom8_asana/core/registry_validation.py` — cross-registry consistency validation
 
-**Rationale**: 3 registry files but imported by virtually every domain module -- dataframes, cache integration, query engine, persistence, services. Described in architecture seed as "the single source of truth for entity configuration." Cross-cutting concern. GENERATE.
-
----
-
-## business-domain-model
-
-| Field | Value |
-|-------|-------|
-| Name | Business Domain Entity Model |
-| Category | Business Domain |
-| Complexity | HIGH |
-| Recommendation | **GENERATE** |
-| Confidence | 0.98 |
-
-**Source Evidence**:
-- `src/autom8_asana/models/business/`: 60+ files -- business, unit, contact, offer, process, location, hours, asset_edit, dna, descriptors, holder_factory, hydration, fields, mixins, activity, patterns
-- `docs/guides/business-models.md`: Full guide
-- `docs/sdk-reference/business-models.md`: SDK reference
-- `docs/runbooks/RUNBOOK-business-model-navigation.md`: Runbook
-
-**Rationale**: 60+ source files -- the largest domain model package. Multiple entity types (Business, Unit, Contact, Offer, Process, Location, Hours, AssetEdit, DNA), holder relationships, hydration. Dedicated guide, SDK reference, and runbook. GENERATE.
+**Rationale**: 3 files imported by virtually every domain module. Singleton source of truth for entity configuration. GENERATE.
 
 ---
 
-## entity-detection
+### batch-api-client
 
 | Field | Value |
 |-------|-------|
-| Name | Multi-Tier Entity Type Detection |
-| Category | Business Domain |
-| Complexity | HIGH |
-| Recommendation | **GENERATE** |
-| Confidence | 0.97 |
-
-**Source Evidence**:
-- `src/autom8_asana/models/business/detection/`: 8 files -- facade, tier1, tier2, tier3, tier4, config, types
-- `docs/runbooks/RUNBOOK-detection-troubleshooting.md`: Dedicated runbook
-
-**Rationale**: 8 implementation files with a tiered detection system (tiers 1-4) and dedicated troubleshooting runbook. Governs how Asana tasks are classified into business entity types -- a cross-cutting concern used by dataframe extractors, lifecycle, and persistence. GENERATE.
-
----
-
-## fuzzy-entity-matching
-
-| Field | Value |
-|-------|-------|
-| Name | Fuzzy Matching Engine for Entity Deduplication |
-| Category | Business Domain |
-| Complexity | HIGH |
-| Recommendation | **GENERATE** |
-| Confidence | 0.90 |
-
-**Source Evidence**:
-- `src/autom8_asana/models/business/matching/`: 6 files -- engine, blocking, comparators, normalizers, models, config
-- `src/autom8_asana/api/routes/matching.py`: Hidden user-facing `POST /v1/matching/query` endpoint
-- `src/autom8_asana/services/matching_service.py`: Matching service orchestration
-
-**Rationale**: 6 implementation files plus a user-facing (hidden) REST endpoint and dedicated service. Blocking strategy, comparators, normalizers -- a standalone deduplication engine. Multiple modules use it (seeder, reconciliation, resolution). GENERATE.
-
----
-
-## entity-resolution
-
-| Field | Value |
-|-------|-------|
-| Name | Entity Resolution (Phone+Vertical to GID) |
-| Category | Business Domain |
-| Complexity | HIGH |
-| Recommendation | **GENERATE** |
-| Confidence | 0.96 |
-
-**Source Evidence**:
-- `src/autom8_asana/resolution/`: 8 files -- field_resolver, strategies, context, budget, result, selection, write_registry
-- `src/autom8_asana/api/routes/resolver.py`: User-facing `POST /v1/resolve/{type}` endpoint
-- `docs/guides/entity-resolution.md`: Full guide
-- `docs/api-reference/endpoints/resolver.md`: API reference
-
-**Rationale**: 8 implementation files, user-facing REST endpoint (resolver_router), dedicated guide, and API reference. Resolves phone+vertical pairs to Asana GIDs across entity types. GENERATE.
-
----
-
-## lifecycle-engine
-
-| Field | Value |
-|-------|-------|
-| Name | Entity Lifecycle Pipeline (4-Phase Transition Engine) |
-| Category | Business Domain |
-| Complexity | HIGH |
-| Recommendation | **GENERATE** |
-| Confidence | 0.98 |
-
-**Source Evidence**:
-- `src/autom8_asana/lifecycle/`: 16 files -- engine, creation, completion, reopen, wiring, sections, init_actions, seeding, config, dispatch, webhook, webhook_dispatcher, observation, observation_store, loop_detector, startup
-- `config/lifecycle_stages.yaml`: Data-driven pipeline DAG configuration with 10 stages
-- `docs/guides/lifecycle-engine.md`: Full guide
-- `docs/runbooks/RUNBOOK-pipeline-automation.md`: Runbook
-
-**Rationale**: 16 implementation files (expanded from 12 in prior census), YAML-driven lifecycle DAG with 10 named stages, dedicated guide and runbook. Adds observation/observation_store, loop_detector, and webhook_dispatcher since prior census. GENERATE.
-
----
-
-## intake-pipeline
-
-| Field | Value |
-|-------|-------|
-| Name | Intake Business Creation Pipeline |
-| Category | Business Domain |
-| Complexity | HIGH |
-| Recommendation | **GENERATE** |
-| Confidence | 0.88 |
-
-**Source Evidence**:
-- `src/autom8_asana/api/routes/intake_create.py`: S2S JWT `POST /v1/intake/business` and `POST /v1/intake/process` endpoints
-- `src/autom8_asana/api/routes/intake_resolve.py`: S2S JWT intake resolution routes
-- `src/autom8_asana/api/routes/intake_custom_fields.py`: S2S JWT intake custom field write routes
-- `src/autom8_asana/services/intake_create_service.py`: Business creation orchestration
-- `src/autom8_asana/services/intake_resolve_service.py`: Intake resolution service
-- `src/autom8_asana/services/intake_custom_field_service.py`: Custom field write service
-
-**Rationale**: 20+ files across 3 dedicated routes, 3 dedicated services, and matching model files. User-facing S2S REST endpoints for business creation and process routing. The intake pipeline has its own distinct service layer, auth model (S2S JWT), and business logic for creating entities. GENERATE.
-
----
-
-## payment-reconciliation
-
-| Field | Value |
-|-------|-------|
-| Name | Payment Reconciliation Processing (Excel Output) |
-| Category | Business Domain |
-| Complexity | HIGH |
-| Recommendation | **GENERATE** |
-| Confidence | 0.88 |
-
-**Source Evidence**:
-- `src/autom8_asana/reconciliation/`: 6 files -- engine, executor, processor, report, section_registry
-- `src/autom8_asana/lambda_handlers/payment_reconciliation.py`: Lambda handler for reconciliation workflow
-- `src/autom8_asana/lambda_handlers/reconciliation_runner.py`: Reconciliation runner Lambda
-- `src/autom8_asana/models/business/reconciliation.py`: Reconciliation domain model
-- `src/autom8_asana/automation/workflows/payment_reconciliation/`: Dedicated automation workflow (formatter + workflow)
-
-**Rationale**: 6 standalone reconciliation package files plus Lambda handler, runner, business model, and dedicated automation workflow. The `openpyxl` dependency in `pyproject.toml` exists specifically for Excel output in this feature. 11 total files across multiple packages. GENERATE.
-
----
-
-## automation-engine
-
-| Field | Value |
-|-------|-------|
-| Name | Automation Rule Engine and Workflow Orchestration |
-| Category | Automation |
-| Complexity | HIGH |
-| Recommendation | **GENERATE** |
-| Confidence | 0.97 |
-
-**Source Evidence**:
-- `src/autom8_asana/automation/`: 10 files -- engine, pipeline, context, base, config, seeding, templates, validation, waiter, events
-- `src/autom8_asana/automation/workflows/`: pipeline_transition, section_resolution, bridge_base, mixins, registry, protocols
-- `docs/guides/automation-pipelines.md`: Full guide
-- `docs/guides/pipeline-automation-setup.md`: Setup guide
-- `docs/runbooks/RUNBOOK-pipeline-automation.md`: Operational runbook
-
-**Rationale**: 35+ implementation files total, two dedicated guides, one runbook. Contains the full automation rule engine, workflow registry, and concrete workflow implementations. GENERATE.
-
----
-
-## data-attachment-bridge
-
-| Field | Value |
-|-------|-------|
-| Name | Data Attachment Bridge (Backend-to-Asana Reporting Pipeline) |
-| Category | Automation |
-| Complexity | HIGH |
-| Recommendation | **GENERATE** |
-| Confidence | 0.95 |
-
-**Source Evidence**:
-- `src/autom8_asana/automation/workflows/insights/workflow.py`: InsightsExportWorkflow -- 12-table HTML ads insights report to Offer attachments
-- `src/autom8_asana/automation/workflows/conversation_audit/workflow.py`: ConversationAuditWorkflow -- SMS/conversation CSV export to ContactHolder attachments
-- `src/autom8_asana/automation/workflows/mixins.py`: `AttachmentReplacementMixin` -- shared upload-first/delete-old pattern
-- `src/autom8_asana/lambda_handlers/insights_export.py`: Lambda handler
-- `src/autom8_asana/lambda_handlers/conversation_audit.py`: Lambda handler
-
-**Rationale**: Cross-cutting architectural pattern: both InsightsExportWorkflow and ConversationAuditWorkflow share the same archetype (fetch from data backend, format as file, attach to Asana entity). Shared contract, shared mixin, shared Lambda factory. Understanding this pattern is essential for future reporting bridges. GENERATE.
-
----
-
-## event-emission
-
-| Field | Value |
-|-------|-------|
-| Name | Async Event Emission Pipeline |
-| Category | Automation |
-| Complexity | MEDIUM |
-| Recommendation | **GENERATE** |
-| Confidence | 0.88 |
-
-**Source Evidence**:
-- `src/autom8_asana/automation/events/`: 6 files -- emitter, envelope, rule, transport, types, config
-- `pyproject.toml`: `events = ["autom8y-events>=0.1.0"]` optional dependency group
-
-**Rationale**: 6 implementation files with its own types, envelope model, rules, and transport abstraction. The `autom8y-events` optional dependency exists specifically for this. Multiple modules use it post-save. GENERATE.
-
----
-
-## polling-scheduler
-
-| Field | Value |
-|-------|-------|
-| Name | Polling-Based Automation Scheduler |
-| Category | Automation |
-| Complexity | MEDIUM |
-| Recommendation | **GENERATE** |
-| Confidence | 0.90 |
-
-**Source Evidence**:
-- `src/autom8_asana/automation/polling/`: 6 files -- scheduler, trigger_evaluator, action_executor, config_schema, config_loader, cli
-- `config/rules/conversation-audit.yaml`: Declarative scheduling rule with cron-style scheduler and frequency
-- `pyproject.toml`: `scheduler = ["apscheduler>=3.10.0"]` optional dependency
-
-**Rationale**: 6 files, declarative YAML config schema, CLI interface, and dedicated optional dependency group. Operators configure rules in YAML that drive scheduled workflows. GENERATE.
-
----
-
-## webhooks
-
-| Field | Value |
-|-------|-------|
-| Name | Asana Webhook Inbound Event Processing |
-| Category | User-Facing API |
-| Complexity | MEDIUM |
-| Recommendation | **GENERATE** |
-| Confidence | 0.95 |
-
-**Source Evidence**:
-- `src/autom8_asana/api/routes/webhooks.py`: `webhooks_router` for inbound webhook events
-- `src/autom8_asana/clients/webhooks.py`: Webhook management client
-- `src/autom8_asana/lifecycle/webhook.py`: Webhook event-to-lifecycle dispatch
-- `src/autom8_asana/lifecycle/webhook_dispatcher.py`: Webhook dispatcher (new since prior census)
-- `docs/guides/webhooks.md`: Full guide
-
-**Rationale**: User-facing REST endpoint, management client, lifecycle dispatch + dispatcher, and dedicated guide. Token validation and loop prevention are documented. GENERATE.
-
----
-
-## entity-write-api
-
-| Field | Value |
-|-------|-------|
-| Name | Entity Write API (Field Coercion and Partial Success) |
-| Category | User-Facing API |
-| Complexity | MEDIUM |
-| Recommendation | **GENERATE** |
-| Confidence | 0.95 |
-
-**Source Evidence**:
-- `src/autom8_asana/api/routes/entity_write.py`: `entity_write_router` -- `PATCH /api/v1/entity/{type}/{gid}`
-- `src/autom8_asana/services/field_write_service.py`: Write orchestration
-- `docs/guides/entity-write.md`: Full guide
-- `docs/api-reference/endpoints/entity-write.md`: API reference
-
-**Rationale**: User-facing REST endpoint, dedicated write service, guide, and API reference. Covers field resolution, coercion, and partial success patterns. GENERATE.
-
----
-
-## business-metrics
-
-| Field | Value |
-|-------|-------|
-| Name | Business Metrics Computation (MRR, Ad Spend) |
-| Category | User-Facing API |
-| Complexity | MEDIUM |
-| Recommendation | **GENERATE** |
-| Confidence | 0.90 |
-
-**Source Evidence**:
-- `src/autom8_asana/metrics/`: 7 files -- compute, registry, metric, expr, resolve, definitions/
-- `src/autom8_asana/metrics/definitions/`: metric definitions (offer.py defining `active_mrr` and `active_ad_spend`)
-- `src/autom8_asana/metrics/__main__.py`: CLI compute entry point
-
-**Rationale**: 7 implementation files, registered metric definitions (MRR, ad spend), expression DSL, and a standalone CLI compute entry point. The registry pattern makes this an extensible subsystem. GENERATE.
-
----
-
-## exports-route
-
-| Field | Value |
-|-------|-------|
-| Name | Polars-backed /exports Route with Predicate-Tree Compilation |
-| Category | User-Facing API |
-| Complexity | MEDIUM |
-| Recommendation | **GENERATE** |
-| Confidence | 0.95 |
-| Status | **LIVE** |
-| live_since | 2026-04-29 |
-| pr_merge | #38 / commit 80256049 |
-| telos_deadline | 2026-05-11 (Phase 1 -- DELIVERED with 12 days margin) |
-| phase | 1 (complete); Phase 2 deferred |
-| obs_status | F (OBS-EXPORTS-001 open -- zero metrics/SLOs/alerts) |
-| m02_status | discharged via T-08 (CSI-001 -- 136 examples= entries in openapi.json) |
-
-**Source Evidence**:
-- `src/autom8_asana/api/routes/exports.py`: Primary route handler -- dual-mount at `/api/v1/exports` and `/v1/exports` (empirically confirmed in openapi.json); `_walk_predicate` visitor for predicate-tree traversal
-- `src/autom8_asana/api/routes/_exports_helpers.py`: Helper module for exports predicate compilation
-- `tests/unit/api/test_exports_auth_exclusion.py`: Auth exclusion tests
-- `tests/unit/api/test_exports_contract.py`: Contract tests (class-based organization)
-- `tests/unit/api/test_exports_format_negotiation.py`: Format negotiation tests
-- `tests/unit/api/test_exports_handler.py`: Handler tests
-- `tests/unit/api/test_exports_helpers.py`: Helper unit tests
-- `tests/unit/api/test_exports_helpers_walk_predicate_property.py`: T-04b behavior-preservation property tests
-
-**Rationale**: User-facing REST endpoint (dual-mount confirmed live in openapi.json), 6 committed test files covering multiple behavioral dimensions, `_walk_predicate` visitor is a new architectural pattern (T-04b, commit `d9abbc1f`). Route imports from frozen-range compiler (`exports.py:65`). PR #38 merged 2026-04-29. All GENERATE heuristics met: user-facing interface, test cluster, cross-module dependency (query compiler). OBS-EXPORTS-001 open -- zero span instrumentation on live route (pre-GA gap, deadline 2026-06-15). [KNOW-CANDIDATE] First census entry for /exports route -- promoted to LIVE status post-PR38. GENERATE.
-
----
-
-## fastapi-server
-
-| Field | Value |
-|-------|-------|
-| Name | FastAPI HTTP Server (ECS Mode) |
-| Category | Infrastructure |
-| Complexity | HIGH |
-| Recommendation | **GENERATE** |
-| Confidence | 0.96 |
-
-**Source Evidence**:
-- `src/autom8_asana/api/`: 35+ files -- main, lifespan, startup, dependencies, middleware (idempotency, core), client_pool, rate_limit, health_models, metrics, errors, preload (legacy + progressive), all route modules
-- `src/autom8_asana/entrypoint.py`: Dual-mode entrypoint that starts uvicorn for ECS mode
-- `docker-compose.yml`: Docker deployment artifact
-- `Dockerfile`: Container build artifact
-- `pyproject.toml`: `api = ["fastapi>=0.115.0", "autom8y-api-schemas>=1.5.0", "uvicorn[standard]>=0.27.0", "slowapi>=0.1.9"]` optional dependency group
-
-**Rationale**: 35+ implementation files, 19 registered routers, middleware stack (CORS, rate limiting, idempotency, request logging, request ID), startup/lifespan handling, Docker deployment artifacts. GENERATE.
-
----
-
-## lambda-handlers
-
-| Field | Value |
-|-------|-------|
-| Name | AWS Lambda Function Handlers |
-| Category | Infrastructure |
-| Complexity | HIGH |
-| Recommendation | **GENERATE** |
-| Confidence | 0.95 |
-
-**Source Evidence**:
-- `src/autom8_asana/lambda_handlers/`: 13 handler files -- cache_warmer, cache_invalidate, cloudwatch, checkpoint, workflow_handler, insights_export, conversation_audit, payment_reconciliation, pipeline_stage_aggregator, push_orchestrator, reconciliation_runner, story_warmer, timeout
-- `src/autom8_asana/entrypoint.py`: Lambda mode detection via `AWS_LAMBDA_RUNTIME_API` env var
-- `pyproject.toml`: `lambda = ["awslambdaric>=2.2.0"]` optional dependency group
-
-**Rationale**: 13 Lambda handler files (up from 7 in prior census), dual-mode entrypoint selects Lambda mode at runtime, dedicated optional dependency group. Handlers cover cache warming, invalidation, CloudWatch metrics, checkpoint writes, workflow dispatch, pipeline stage aggregation, GID push, and story warming. GENERATE.
-
----
-
-## authentication
-
-| Field | Value |
-|-------|-------|
-| Name | Authentication (JWT / BotPAT / DualMode / S2S) |
-| Category | Infrastructure |
-| Complexity | MEDIUM |
-| Recommendation | **GENERATE** |
-| Confidence | 0.95 |
-
-**Source Evidence**:
-- `src/autom8_asana/auth/`: 5 files -- jwt_validator, bot_pat, dual_mode, service_token, audit
-- `docs/guides/authentication.md`: Full guide
-- `pyproject.toml`: `auth = ["autom8y-auth[observability]>=2.0.0"]` optional dependency group
-
-**Rationale**: 5 implementation files, dedicated guide, and dedicated optional dependency group. Four authentication strategies (JWT, BotPAT, DualMode, ServiceToken) plus an audit module. GENERATE.
-
----
-
-## observability
-
-| Field | Value |
-|-------|-------|
-| Name | Observability (Correlation IDs, Metrics, Telemetry) |
-| Category | Infrastructure |
-| Complexity | MEDIUM |
-| Recommendation | **GENERATE** |
-| Confidence | 0.88 |
-
-**Source Evidence**:
-- `src/autom8_asana/observability/`: 3 files -- context, correlation, decorators
-- `src/autom8_asana/api/metrics.py`: API-level Prometheus metrics
-- `src/autom8_asana/protocols/observability.py`: Protocol definition for observability hooks
-- `src/autom8_asana/lambda_handlers/cloudwatch.py`: CloudWatch metrics emission Lambda
-- `pyproject.toml`: `autom8y-telemetry[aws,fastapi,otlp]>=0.6.0` and `autom8y-events` dependencies
-
-**Rationale**: 3 implementation files plus protocol definitions, API metrics module, and dedicated CloudWatch Lambda handler. Correlation ID tracking is a cross-cutting concern. Note: OBS-EXPORTS-001 is an open gap (exports route has zero instrumentation post-PR38). GENERATE.
-
----
-
-## data-service-client
-
-| Field | Value |
-|-------|-------|
-| Name | autom8_data Satellite Service Client (Ad Performance Insights) |
-| Category | Infrastructure |
-| Complexity | HIGH |
-| Recommendation | **GENERATE** |
-| Confidence | 0.95 |
-
-**Source Evidence**:
-- `src/autom8_asana/clients/data/`: 14 files -- client, config, models, README, endpoints (batch, export, insights, reconciliation, simple)
-- `docs/contracts/openapi-data-service-client.yaml`: OpenAPI contract for data service
-- `src/autom8_asana/automation/workflows/insights/workflow.py`: Workflow consuming insights data
-
-**Rationale**: 14 implementation files, cross-service client with its own OpenAPI contract, batch requests, circuit breaker, retry behavior, emergency kill switch. Consumed by insights export workflow and business model integration. GENERATE.
-
----
-
-## query-cli
-
-| Field | Value |
-|-------|-------|
-| Name | autom8-query CLI Tool |
-| Category | Tooling |
-| Complexity | LOW |
-| Recommendation | **GENERATE** |
-| Confidence | 0.85 |
-
-**Source Evidence**:
-- `src/autom8_query_cli.py`: CLI entry point
-- `pyproject.toml`: `[project.scripts] autom8-query = "autom8_query_cli:main"` entry point registration
-- `src/autom8_asana/query/cli.py`: CLI implementation within query package
-
-**Rationale**: Registered CLI entry point in `pyproject.toml`, user-facing command. Though only a few files, this is the project's explicitly registered command-line tool and qualifies by the user-facing interface heuristic. GENERATE.
-
----
-
-## batch-api-client
-
-| Field | Value |
-|-------|-------|
+| Slug | `batch-api-client` |
 | Name | Asana Batch API Client |
 | Category | Core Platform |
 | Complexity | LOW |
@@ -642,16 +220,17 @@ max_incremental_cycles: 3
 | Confidence | 0.75 |
 
 **Source Evidence**:
-- `src/autom8_asana/batch/`: 2 files -- client, models (plus __init__.py)
+- `src/autom8_asana/batch/` — 2 files (client, models)
 
-**Rationale**: Only 2 implementation files. The Batch API client is a thin wrapper used internally by `SaveSession` to submit chunked operations to Asana's batch endpoint. No direct user-facing interface surface; it is an implementation detail of the persistence layer. Fewer than 5 files, no decision records, pure utility. SKIP.
+**Rationale**: 2 files, internal implementation detail of persistence layer, no direct user-facing surface. SKIP.
 
 ---
 
-## search-service
+### search-service
 
 | Field | Value |
 |-------|-------|
+| Slug | `search-service` |
 | Name | Search Service over Cached DataFrames |
 | Category | Core Platform |
 | Complexity | LOW |
@@ -659,35 +238,17 @@ max_incremental_cycles: 3
 | Confidence | 0.72 |
 
 **Source Evidence**:
-- `src/autom8_asana/search/`: 2 files -- service, models
+- `src/autom8_asana/search/` — 2 files (service, models)
 
-**Rationale**: Only 2 implementation files. The search service wraps the query engine for a specific access pattern. Overlaps significantly with the `query-engine` feature. It is a thin service facade with no dedicated guide or decision records. SKIP.
-
----
-
-## settings-configuration
-
-| Field | Value |
-|-------|-------|
-| Name | Pydantic Settings and Environment Configuration |
-| Category | Infrastructure |
-| Complexity | LOW |
-| Recommendation | **SKIP** |
-| Confidence | 0.80 |
-
-**Source Evidence**:
-- `src/autom8_asana/settings.py`: `Settings` singleton with 10 sub-settings groups
-- `docs/sdk-reference/configuration.md`: SDK reference
-- `README.md`: Environment variable table
-
-**Rationale**: Single file. While environment configuration spans ~85 variables and is well-documented, it is a pure utility/infrastructure concern with no cross-cutting behavior of its own. Settings is a dependency of every feature, not a feature itself. SKIP.
+**Rationale**: Thin service facade over query-engine. 2 files, no dedicated guide or ADR. SKIP.
 
 ---
 
-## protocol-di-layer
+### protocol-di-layer
 
 | Field | Value |
 |-------|-------|
+| Slug | `protocol-di-layer` |
 | Name | Protocol / Dependency Injection Layer |
 | Category | Core Platform |
 | Complexity | LOW |
@@ -695,75 +256,673 @@ max_incremental_cycles: 3
 | Confidence | 0.85 |
 
 **Source Evidence**:
-- `src/autom8_asana/protocols/`: 8 files -- auth, cache, dataframe_provider, insights, item_loader, log, metrics, observability
-- `docs/sdk-reference/protocols.md`: SDK reference
+- `src/autom8_asana/protocols/` — 8 files (auth, cache, dataframe_provider, insights, item_loader, log, metrics, observability)
 
-**Rationale**: 8 files defining PEP 544 Protocol structural interfaces with no executable logic. These are structural primitives (DI boundary definitions), not features themselves. The test-coverage knowledge file explicitly notes "absence of tests is expected and correct." SKIP.
-
----
-
-## Census Gaps
-
-1. **Business Seeder boundary**: `models/business/` does not have a standalone `seeder.py` visible at this scan, but `automation/seeding.py` and `lifecycle/seeding.py` both handle seeding logic. The relationship between them is partially unclear -- may warrant a distinct `business-seeder` feature if seeding has its own knowledge surface.
-
-2. **Section Timeline feature**: `services/section_timeline_service.py` and `api/routes/section_timelines.py` form a distinct endpoint group (`/api/v1/offers` prefix, PAT auth). This is small (2-3 files) and was subsumed under `resource-clients` and `dataframe-layer`, but the offer timeline pattern may warrant separation if it grows.
-
-3. **New Lambda handlers not in prior census**: 6 new handlers (pipeline_stage_aggregator, push_orchestrator, reconciliation_runner, story_warmer, timeout, checkpoint) were subsumed under `lambda-handlers`. The pipeline_stage_aggregator and push_orchestrator appear to be related to a GID push / pipeline counting subsystem that may be its own distinct feature as the codebase evolves.
-
-4. **`patterns/` package**: Only 2 files observed. Contents confirm `async_method.py` and `error_classification.py` -- shared behavioral patterns. Subsumed under `save-session` and general conventions; too thin for a standalone feature entry.
-
-5. **`_defaults/` standalone providers**: `EnvAuthProvider`, `NullCacheProvider`, `DefaultLogProvider`, `NullObservabilityHook` in `_defaults/` are subsumed under `authentication` and `cache-subsystem` respectively. These could form a distinct "SDK Standalone Mode" feature if the protocol/DI surface is documented separately.
-
-6. **No ADRs found**: The `docs/` directory has no `decisions/` or `adr/` subdirectory at filesystem level. Feature decisions are embedded in runbooks and guide documents rather than formal ADR files. This criterion source category is confirmed absent (not a scan gap).
-
-7. **`/exports` route now fully catalogued**: Previously absent from INDEX (not tracked as WIP). Resolved in incremental cycle 1 -- feature entry `exports-route` added above (LIVE, PR #38). Gap closed.
+**Rationale**: PEP 544 Protocol structural interfaces with no executable logic. Structural primitives, not a feature. SKIP.
 
 ---
 
-## Incremental Update Log
+## Category: Business Domain
 
-### Cycle 1 -- 2026-04-29 (post-PR38)
-
-**Trigger**: PR #38 merged (commit `80256049`). `/exports` route promoted from untracked to LIVE on main.
-
-**Changes**:
-- Added `exports-route` feature entry (LIVE, GENERATE, confidence 0.95)
-  - Dual-mount confirmed: `/api/v1/exports` and `/v1/exports` in openapi.json
-  - 6 committed test files confirmed (including `test_exports_helpers_walk_predicate_property.py`)
-  - OBS-EXPORTS-001 open: zero span instrumentation, no SLOs, no alerts (pre-GA gap, deadline 2026-06-15)
-  - M-02 / CSI-001 discharged via T-08: 136 `examples=` entries in openapi.json confirmed
-- Updated `query-engine` rationale: Sprint-3 Op enum extensions (BETWEEN, DATE_GTE, DATE_LTE) confirmed LIVE in `query/models.py:54-56`
-- Updated `observability` rationale: OBS-EXPORTS-001 cross-reference added
-- Census Gaps item 7: `/exports` gap marked closed
-- Feature count: 32 -> 33 (29 GENERATE, 4 SKIP)
-- source_hash: `c213958` -> `6b303485` (current HEAD, 2 hotfix commits post-PR38 merge)
-- confidence: 0.91 -> 0.92
-
-**Throughline anchor**: `canonical-source-integrity` -- `/exports` is now canonical LIVE state. Feature status table is the canonical promotion record.
-
-**Next cycle limit**: 2 remaining incremental cycles before full regeneration required (max_incremental_cycles: 3).
-
----
-
-## lockfile-propagator
+### business-domain-model
 
 | Field | Value |
 |-------|-------|
+| Slug | `business-domain-model` |
+| Name | Business Domain Entity Model |
+| Category | Business Domain |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.98 |
+
+**Source Evidence**:
+- `src/autom8_asana/models/business/` — 60+ files (business, unit, contact, offer, process, location, hours, asset_edit, dna, descriptors, holder_factory, hydration, fields, mixins, activity, patterns, reconciliation, registry, resolution, seeder, section_timeline, matching/*, detection/*, contracts/)
+- `src/autom8_asana/models/business/descriptors.py` — 740 LOC, 8 typed descriptor classes (`CustomFieldDescriptor[T]`, TextField, PhoneTextField, EnumField, MultiEnumField, NumberField, IntField, PeopleField, DateField) with `ParentRef[T]`, `HolderRef[T]`
+
+**Rationale**: 60+ source files, the largest domain model package. Descriptor DSL (740 LOC) is subsumed here — it is the primary typed access layer for custom fields across all entity types. GENERATE.
+
+[KNOW-CANDIDATE] Custom field descriptor DSL (740 LOC, `descriptors.py`) is not documented in existing `business-domain-model.md` — high-value addition to the per-feature knowledge file.
+
+---
+
+### entity-detection
+
+| Field | Value |
+|-------|-------|
+| Slug | `entity-detection` |
+| Name | Multi-Tier Entity Type Detection |
+| Category | Business Domain |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.97 |
+
+**Source Evidence**:
+- `src/autom8_asana/models/business/detection/` — 8 files (facade, tier1, tier2, tier3, tier4, config, types + adversarial tests)
+
+**Rationale**: 8 files, tiered detection system (tiers 1-4), cross-cutting concern. Boundary unchanged. GENERATE.
+
+---
+
+### fuzzy-entity-matching
+
+| Field | Value |
+|-------|-------|
+| Slug | `fuzzy-entity-matching` |
+| Name | Fuzzy Matching Engine for Entity Deduplication |
+| Category | Business Domain |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.90 |
+
+**Source Evidence**:
+- `src/autom8_asana/models/business/matching/` — 6 files (engine, blocking, comparators, normalizers, models, config)
+- `src/autom8_asana/api/routes/matching.py` — hidden `POST /v1/matching/query` endpoint
+- `src/autom8_asana/services/matching_service.py` — orchestration service
+
+**Rationale**: 6 implementation files + user-facing (hidden) REST endpoint + service. Blocking strategy, comparators, normalizers. GENERATE.
+
+---
+
+### entity-resolution
+
+| Field | Value |
+|-------|-------|
+| Slug | `entity-resolution` |
+| Name | Entity Resolution (Phone+Vertical to GID) |
+| Category | Business Domain |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.96 |
+
+**Source Evidence**:
+- `src/autom8_asana/resolution/` — 7 files (field_resolver, strategies, context, budget, result, selection, write_registry)
+- `src/autom8_asana/api/routes/resolver.py` — `POST /v1/resolve/{type}` endpoint
+- `src/autom8_asana/services/universal_strategy.py` — `UniversalResolutionStrategy` (`DynamicIndex`-backed)
+
+**Rationale**: 8+ files, user-facing REST endpoint. Resolves phone+vertical pairs to Asana GIDs. GENERATE.
+
+---
+
+### lifecycle-engine
+
+| Field | Value |
+|-------|-------|
+| Slug | `lifecycle-engine` |
+| Name | Entity Lifecycle Pipeline (4-Phase Transition Engine) |
+| Category | Business Domain |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.98 |
+
+**Source Evidence**:
+- `src/autom8_asana/lifecycle/` — 17 files: engine, completion, creation, dispatch, init_actions, loop_detector, observation, observation_store, reopen, sections, seeding, webhook, webhook_dispatcher, wiring, config, `__init__`
+- `config/lifecycle_stages.yaml` — pipeline DAG configuration
+
+**Rationale**: 17 implementation files (current count; prior said 16), YAML-driven lifecycle DAG, 4-phase engine (Create→Configure→Actions→Wire). GENERATE.
+
+---
+
+### intake-pipeline
+
+| Field | Value |
+|-------|-------|
+| Slug | `intake-pipeline` |
+| Name | Intake Business Creation Pipeline |
+| Category | Business Domain |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.88 |
+
+**Source Evidence**:
+- `src/autom8_asana/api/routes/intake_create.py` — `POST /v1/intake/business`, `POST /v1/intake/process`
+- `src/autom8_asana/api/routes/intake_resolve.py` — intake resolution routes
+- `src/autom8_asana/api/routes/intake_custom_fields.py` — custom field write routes
+- `src/autom8_asana/services/intake_create_service.py`, `intake_resolve_service.py`, `intake_custom_field_service.py` — services
+
+**Rationale**: 20+ files across 3 dedicated routes + 3 dedicated services. S2S JWT auth. GENERATE.
+
+---
+
+### payment-reconciliation
+
+| Field | Value |
+|-------|-------|
+| Slug | `payment-reconciliation` |
+| Name | Payment Reconciliation Processing (Excel Output) |
+| Category | Business Domain |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.88 |
+
+**Source Evidence**:
+- `src/autom8_asana/reconciliation/` — 5 files (engine, executor, processor, report, section_registry)
+- `src/autom8_asana/lambda_handlers/payment_reconciliation.py`, `reconciliation_runner.py`
+- `src/autom8_asana/models/business/reconciliation.py`
+- `src/autom8_asana/automation/workflows/payment_reconciliation/` — dedicated workflow
+
+**Rationale**: 6 standalone reconciliation package files + Lambda handlers + business model + automation workflow. `openpyxl` dep exists specifically for Excel output. 11+ total files. GENERATE.
+
+---
+
+### section-timeline
+
+| Field | Value |
+|-------|-------|
+| Slug | `section-timeline` |
+| Name | Section Timeline Service (Offer Lifecycle History) |
+| Category | Business Domain |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.90 |
+
+**Source Evidence**:
+- `src/autom8_asana/api/routes/section_timelines.py` — 200 LOC, `GET /api/v1/offers`, PAT auth
+- `src/autom8_asana/services/section_timeline_service.py` — 738 LOC, `SectionTimeline` computation
+- `src/autom8_asana/models/business/section_timeline.py` — 226 LOC, `SectionInterval`, `SectionTimeline`, `OfferTimelineEntry` domain types
+- Tests: `tests/unit/api/test_section_timelines.py`, `tests/unit/services/test_section_timeline_service.py`, `tests/unit/models/test_section_timeline.py`
+
+**Rationale**: 4 files / 1,164 LOC (route + service + model + tests), user-facing PAT endpoint at `/api/v1/offers`, own domain types. Prior census gap item 2 underestimated at "2-3 files" — actual is 4 files and substantially more complex. GENERATE.
+
+[KNOW-CANDIDATE] New feature entry, not in prior INDEX — distinct from `dataframe-layer` and `resource-clients`.
+
+---
+
+### vertical-backfill
+
+| Field | Value |
+|-------|-------|
+| Slug | `vertical-backfill` |
+| Name | Vertical Backfill Service (Entity Enrichment from Notes) |
+| Category | Business Domain |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.87 |
+
+**Source Evidence**:
+- `src/autom8_asana/services/vertical_backfill.py` — 290 LOC, `VerticalBackfillService`, `BackfillResult`, `parse_vertical_from_notes()`
+- `tests/unit/services/test_vertical_backfill.py` — dedicated unit test
+
+**Rationale**: Standalone service with `BackfillResult` dataclass and notes-field parser; conceptually distinct from entity-resolution and entity-write-api. 290 LOC with own test cluster. GENERATE.
+
+[KNOW-CANDIDATE] New feature entry, not in prior INDEX.
+
+---
+
+### business-seeder
+
+| Field | Value |
+|-------|-------|
+| Slug | `business-seeder` |
+| Name | Business Entity Seeder (Field Population Across Lifecycle) |
+| Category | Business Domain |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.90 |
+
+**Source Evidence**:
+- `src/autom8_asana/models/business/seeder.py` — 617 LOC, `BusinessSeeder` domain class
+- `src/autom8_asana/automation/seeding.py` — 816 LOC, `FieldSeeder` with `WriteResult`
+- `src/autom8_asana/lifecycle/seeding.py` — 302 LOC, lifecycle bridge
+- Tests: `tests/unit/models/business/test_seeder.py`, `tests/unit/automation/test_seeding.py`, `tests/unit/automation/test_seeding_write.py`, `tests/unit/lifecycle/test_seeding.py`
+
+**Rationale**: 3 production files / 1,735 LOC spanning 3 packages (models/business, automation, lifecycle), 4 test files. Prior census gap item 1 noted "boundary unclear" — now resolved: `BusinessSeeder` (domain class) + `FieldSeeder` (automation write path) + lifecycle bridge form a coherent feature. GENERATE.
+
+[KNOW-CANDIDATE] New feature entry, not in prior INDEX — prior census gap item 1 ("Business Seeder boundary") resolved.
+
+---
+
+## Category: Automation
+
+### automation-engine
+
+| Field | Value |
+|-------|-------|
+| Slug | `automation-engine` |
+| Name | Automation Rule Engine and Workflow Orchestration |
+| Category | Automation |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.97 |
+
+**Source Evidence**:
+- `src/autom8_asana/automation/` — engine, pipeline, context, base, config, seeding, templates, validation, waiter, events
+- `src/autom8_asana/automation/workflows/` — pipeline_transition, section_resolution, bridge_base, mixins, registry, protocols + concrete workflow implementations
+
+**Rationale**: 35+ implementation files. Full automation rule engine, workflow registry, concrete implementations. GENERATE.
+
+---
+
+### data-attachment-bridge
+
+| Field | Value |
+|-------|-------|
+| Slug | `data-attachment-bridge` |
+| Name | Data Attachment Bridge (Backend-to-Asana Reporting Pipeline) |
+| Category | Automation |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.95 |
+
+**Source Evidence**:
+- `src/autom8_asana/automation/workflows/insights/workflow.py` — InsightsExportWorkflow
+- `src/autom8_asana/automation/workflows/conversation_audit/workflow.py` — ConversationAuditWorkflow
+- `src/autom8_asana/automation/workflows/mixins.py` — `AttachmentReplacementMixin`
+- `src/autom8_asana/lambda_handlers/insights_export.py`, `conversation_audit.py`
+
+**Rationale**: Cross-cutting architectural pattern (fetch→format→attach), shared mixin, two concrete workflows. GENERATE.
+
+---
+
+### event-emission
+
+| Field | Value |
+|-------|-------|
+| Slug | `event-emission` |
+| Name | Async Event Emission Pipeline |
+| Category | Automation |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.88 |
+
+**Source Evidence**:
+- `src/autom8_asana/automation/events/` — 6 files (emitter, envelope, rule, transport, types, config)
+- `pyproject.toml` — `events = ["autom8y-events>=1.2.0,<2.0.0"]` optional dependency
+
+**Rationale**: 6 files, own types and envelope model, optional dependency group. GENERATE.
+
+---
+
+### polling-scheduler
+
+| Field | Value |
+|-------|-------|
+| Slug | `polling-scheduler` |
+| Name | Polling-Based Automation Scheduler |
+| Category | Automation |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.90 |
+
+**Source Evidence**:
+- `src/autom8_asana/automation/polling/` — 7 files: polling_scheduler, trigger_evaluator, action_executor, config_schema, config_loader, cli, **structured_logger** (new — not in prior census)
+- `config/rules/conversation-audit.yaml` — declarative scheduling rule
+- `pyproject.toml` — `scheduler = ["apscheduler>=3.10.0"]` optional dependency
+
+**Rationale**: 7 files (1 more than prior census documented; `structured_logger.py` added), YAML config schema, CLI interface, dedicated optional dependency group. GENERATE.
+
+---
+
+### workflow-invoke-api
+
+| Field | Value |
+|-------|-------|
+| Slug | `workflow-invoke-api` |
+| Name | Workflow Invocation API (HTTP-facing Workflow Dispatch Surface) |
+| Category | Automation |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.88 |
+
+**Source Evidence**:
+- `src/autom8_asana/api/routes/workflows.py` — 461 LOC, `WorkflowInvokeRequest`, `WorkflowInvokeResponse`, `WorkflowEntry`, `register_workflow_config()`
+- `src/autom8_asana/lambda_handlers/workflow_handler.py` — `WorkflowHandlerConfig` registry
+- `src/autom8_asana/api/lifespan.py` — `register_workflow_config()` called ×2 on startup
+
+**Rationale**: 461 LOC route + `WorkflowHandlerConfig` registry + HTTP-facing invocation surface with `WorkflowEntry` listing endpoint, 202-Accepted async execution, Lambda-vs-HTTP dispatch mode. Conceptually distinct from `automation-engine` (which covers the execution engine). User-facing endpoint with S2S JWT auth. GENERATE.
+
+[KNOW-CANDIDATE] New feature entry — HTTP-facing workflow invocation surface distinct from automation-engine execution side.
+
+---
+
+## Category: User-Facing API
+
+### webhooks
+
+| Field | Value |
+|-------|-------|
+| Slug | `webhooks` |
+| Name | Asana Webhook Inbound Event Processing |
+| Category | User-Facing API |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.95 |
+
+**Source Evidence**:
+- `src/autom8_asana/api/routes/webhooks.py` — `webhooks_router`, inbound event processing
+- `src/autom8_asana/clients/webhooks.py` — webhook management client
+- `src/autom8_asana/lifecycle/webhook.py`, `lifecycle/webhook_dispatcher.py` — lifecycle dispatch
+
+**Rationale**: User-facing REST endpoint, management client, lifecycle dispatch + dispatcher. Token validation and loop prevention documented. GENERATE.
+
+---
+
+### entity-write-api
+
+| Field | Value |
+|-------|-------|
+| Slug | `entity-write-api` |
+| Name | Entity Write API (Field Coercion and Partial Success) |
+| Category | User-Facing API |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.95 |
+
+**Source Evidence**:
+- `src/autom8_asana/api/routes/entity_write.py` — `PATCH /api/v1/entity/{type}/{gid}`
+- `src/autom8_asana/services/field_write_service.py` — write orchestration
+
+**Rationale**: User-facing REST endpoint, dedicated write service, field resolution/coercion, partial success patterns. GENERATE.
+
+---
+
+### business-metrics
+
+| Field | Value |
+|-------|-------|
+| Slug | `business-metrics` |
+| Name | Business Metrics Computation (MRR, Ad Spend) |
+| Category | User-Facing API |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.90 |
+
+**Source Evidence**:
+- `src/autom8_asana/metrics/` — 7 files (compute, registry, metric, expr, resolve, sla_profile, cloudwatch_emit, freshness, definitions/)
+- `src/autom8_asana/metrics/__main__.py` — CLI compute entry point
+- `src/autom8_asana/metrics/definitions/` — `offer.py` (active_mrr, active_ad_spend), `lifecycle.py`
+
+**Rationale**: 7+ files, registered metric definitions, expression DSL, standalone CLI compute entry point, registry pattern. GENERATE.
+
+---
+
+### exports-route
+
+| Field | Value |
+|-------|-------|
+| Slug | `exports-route` |
+| Name | Polars-backed /exports Route with Predicate-Tree Compilation |
+| Category | User-Facing API |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.95 |
+| Status | **LIVE** |
+| live_since | 2026-04-29 |
+| telos_deadline | 2026-05-11 (Phase 1 — DELIVERED) |
+| obs_status | F (OBS-EXPORTS-001 OPEN — zero metrics/SLOs/alerts, deadline 2026-06-15) |
+
+**Source Evidence**:
+- `src/autom8_asana/api/routes/exports.py` — primary route handler, dual-mount `/api/v1/exports` + `/v1/exports`
+- `src/autom8_asana/api/routes/_exports_helpers.py` — predicate compilation helpers, `_walk_predicate` visitor
+- Tests: 6 committed test files (`test_exports_auth_exclusion.py`, `test_exports_contract.py`, `test_exports_format_negotiation.py`, `test_exports_handler.py`, `test_exports_helpers.py`, `test_exports_helpers_walk_predicate_property.py`)
+- Commits since prior INDEX: 5 commits modifying `exports.py` / `_exports_helpers.py`
+
+**Rationale**: User-facing live REST endpoint, 6 test files, `_walk_predicate` visitor architectural pattern, imports from frozen-range compiler. **Missing per-feature knowledge file `.know/feat/exports-route.md` (highest-priority gap per Myron glint).** GENERATE.
+
+---
+
+## Category: Infrastructure
+
+### fastapi-server
+
+| Field | Value |
+|-------|-------|
+| Slug | `fastapi-server` |
+| Name | FastAPI HTTP Server (ECS Mode) |
+| Category | Infrastructure |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.96 |
+
+**Source Evidence**:
+- `src/autom8_asana/api/` — 35+ files (main, lifespan, dependencies, middleware/, preload/, client_pool, fleet_query_adapter, models, routes/)
+- `src/autom8_asana/entrypoint.py` — dual-mode entry point
+- `Dockerfile`, `docker-compose.yml`
+
+**Rationale**: 35+ files, 22 registered routers (4 dual-mounted), 13-step startup sequence, middleware stack. GENERATE.
+
+---
+
+### lambda-handlers
+
+| Field | Value |
+|-------|-------|
+| Slug | `lambda-handlers` |
+| Name | AWS Lambda Function Handlers |
+| Category | Infrastructure |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.95 |
+
+**Source Evidence**:
+- `src/autom8_asana/lambda_handlers/` — 13 files: cache_warmer, cache_invalidate, cloudwatch, checkpoint, workflow_handler, insights_export, conversation_audit, payment_reconciliation, pipeline_stage_aggregator, push_orchestrator, reconciliation_runner, story_warmer, timeout
+- `src/autom8_asana/entrypoint.py` — Lambda mode detection via `AWS_LAMBDA_RUNTIME_API`
+- `pyproject.toml` — `lambda = ["awslambdaric>=2.2.0"]` optional dependency
+
+**Rationale**: 13 Lambda handler files, dual-mode entrypoint. GENERATE.
+
+---
+
+### admin-cache-control
+
+| Field | Value |
+|-------|-------|
+| Slug | `admin-cache-control` |
+| Name | Admin Cache Control API (Force-Rebuild / Incremental-Rebuild) |
+| Category | Infrastructure |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.85 |
+
+**Source Evidence**:
+- `src/autom8_asana/api/routes/admin.py` — 522 LOC, `POST /v1/admin/cache/refresh`, `include_in_schema=False`
+- References: ADR (TDD-cache-freshness-remediation Fix 4), security constraint (Bedrock W4C-P3 / SEC-DT-10 / D-017), super-admin gate (`admin:access` permission)
+- `src/autom8_asana/api/routes/internal.py` — `require_service_claims` used by admin route (load-bearing dependency, 11 routes import it)
+
+**Rationale**: 522 LOC operational endpoint, S2S JWT + super-admin permission gate, force-full-rebuild vs incremental modes, Lambda invocation side path, hidden from OpenAPI but real production surface. GENERATE.
+
+[KNOW-CANDIDATE] New feature entry — not in prior INDEX.
+
+---
+
+### authentication
+
+| Field | Value |
+|-------|-------|
+| Slug | `authentication` |
+| Name | Authentication (JWT / BotPAT / DualMode / S2S / ServiceClaims) |
+| Category | Infrastructure |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.95 |
+
+**Source Evidence**:
+- `src/autom8_asana/auth/` — 5 files (jwt_validator, bot_pat, dual_mode, service_token, audit)
+- `src/autom8_asana/api/routes/internal.py` — 172 LOC, `ServiceClaims`, `require_service_claims` dependency (imported by 11 route files)
+- `pyproject.toml` — `auth = ["autom8y-auth[observability]>=3.3.0"]` optional dependency
+
+**Rationale**: 5 auth files + load-bearing `internal.py` dependency. Four auth strategies + ServiceClaims claim-extraction pattern. `internal.py` subsumed here. GENERATE.
+
+---
+
+### observability
+
+| Field | Value |
+|-------|-------|
+| Slug | `observability` |
+| Name | Observability (Correlation IDs, Metrics, Telemetry) |
+| Category | Infrastructure |
+| Complexity | MEDIUM |
+| Recommendation | **GENERATE** |
+| Confidence | 0.88 |
+
+**Source Evidence**:
+- `src/autom8_asana/observability/` — 3 files (context, correlation, decorators)
+- `src/autom8_asana/api/metrics.py` — Prometheus metrics
+- `src/autom8_asana/protocols/observability.py` — protocol definition
+- `src/autom8_asana/lambda_handlers/cloudwatch.py` — CloudWatch metrics emission Lambda
+
+**Rationale**: Cross-cutting correlation ID tracking, Prometheus metrics, CloudWatch Lambda, OTel telemetry. OBS-EXPORTS-001 open gap. GENERATE.
+
+---
+
+### data-service-client
+
+| Field | Value |
+|-------|-------|
+| Slug | `data-service-client` |
+| Name | autom8_data Satellite Service Client (Ad Performance Insights) |
+| Category | Infrastructure |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.95 |
+
+**Source Evidence**:
+- `src/autom8_asana/clients/data/` — 14+ files (client, config, models, _cache, _metrics, _normalize, _pii, _policy, _response, _retry, endpoints/batch, endpoints/export, endpoints/insights, endpoints/reconciliation, endpoints/simple)
+
+**Rationale**: 14 implementation files, cross-service client, own PII handling, circuit breaker, retry behavior, emergency kill switch. GENERATE.
+
+---
+
+### settings-configuration
+
+| Field | Value |
+|-------|-------|
+| Slug | `settings-configuration` |
+| Name | Pydantic Settings and Environment Configuration |
+| Category | Infrastructure |
+| Complexity | LOW |
+| Recommendation | **SKIP** |
+| Confidence | 0.80 |
+
+**Source Evidence**:
+- `src/autom8_asana/settings.py` — `Settings` singleton, 50+ env vars
+
+**Rationale**: Single file, pure infrastructure concern, no cross-cutting behavior of its own. Settings is a dependency of every feature, not a feature itself. SKIP.
+
+---
+
+## Category: Services
+
+### gid-data-sync-pipeline
+
+| Field | Value |
+|-------|-------|
+| Slug | `gid-data-sync-pipeline` |
+| Name | GID Data Sync Pipeline (GID Mapping + Account Status Push) |
+| Category | Services |
+| Complexity | HIGH |
+| Recommendation | **GENERATE** |
+| Confidence | 0.93 |
+
+**Source Evidence**:
+- `src/autom8_asana/services/gid_push.py` — 536 LOC, `GidPushResponse`, `AccountStatusPushResponse`, exports GID mappings and account status to autom8_data post-cache-warm
+- `src/autom8_asana/services/gid_lookup.py` — 318 LOC, `GidLookupIndex`, `build_gid_index_data`
+- `src/autom8_asana/lambda_handlers/push_orchestrator.py` — 207 LOC, sequences post-warm side-effects; documents FLAG-1 (stays in lambda_handlers to avoid circular deps)
+- `src/autom8_asana/lambda_handlers/pipeline_stage_aggregator.py` — 217 LOC, ephemeral pipeline stage summaries per ADR (Option C)
+- Tests: `tests/unit/services/test_gid_push.py`, `tests/unit/services/test_gid_lookup.py`, `tests/unit/lambda_handlers/test_push_orchestrator.py`, `tests/unit/lambda_handlers/test_pipeline_stage_aggregator.py`
+- Importers: `cache/dataframe/factory.py`, `core/registry_validation.py`, `api/preload/progressive.py`, `api/preload/legacy.py`, `services/universal_strategy.py`, `services/dataframe_service.py`, `api/routes/admin.py`
+
+**Rationale**: 4 production files / 1,278 LOC, 4 test files, explicit architectural constraint (FLAG-1), ADR reference, cross-service push pattern. Imported by 7+ modules. GENERATE.
+
+[KNOW-CANDIDATE] New feature entry — prior census gap item 3 noted as "may be its own distinct feature"; now confirmed.
+
+---
+
+## Category: Tooling
+
+### query-cli
+
+| Field | Value |
+|-------|-------|
+| Slug | `query-cli` |
+| Name | autom8-query CLI Tool |
+| Category | Tooling |
+| Complexity | LOW |
+| Recommendation | **GENERATE** |
+| Confidence | 0.85 |
+
+**Source Evidence**:
+- `src/autom8_query_cli.py` — standalone CLI entry point (TID251-exempt, uses direct httpx)
+- `pyproject.toml` — `[project.scripts] autom8-query = "autom8_query_cli:main"` registered entry point
+- `src/autom8_asana/query/__main__.py` — 10 subcommands
+
+**Rationale**: Registered CLI entry point in `pyproject.toml`, user-facing command. GENERATE.
+
+---
+
+### lockfile-propagator
+
+| Field | Value |
+|-------|-------|
+| Slug | `lockfile-propagator` |
 | Name | Lockfile-Propagator In-Tool Source Stubbing |
 | Category | Tooling |
 | Complexity | MEDIUM |
 | Recommendation | **GENERATE** |
 | Confidence | 0.88 |
-| Status | **proposed** (pending prod-CI green; see defer-watch) |
+| Status | **proposed** (pending prod-CI green; defer-watch `lockfile-propagator-prod-ci-confirmation`) |
 | Source Repo | autom8y monorepo (not autom8y-asana source) |
-| Source Hash | f2dfc1c3 (PR #174, autom8y) |
 
 **Source Evidence**:
-- `autom8y/tools/lockfile-propagator/src/lockfile_propagator/source_stub.py`: 327 LOC -- `stub_editable_path_sources(repo_dir, work_root) -> list[StubbedSource]`; parses `[tool.uv.sources]` path entries and creates minimal stub packages before `uv lock` is invoked (GLINT-006; autom8y PR #174 `f2dfc1c3`)
-- `autom8y/tools/lockfile-propagator/src/lockfile_propagator/test_source_stub.py`: 453 LOC -- 12 TDD unit tests (T-A through T-G) + 1 integration test + 1 ordering invariant; 1.38 test-to-source ratio
-- `autom8y/tools/lockfile-propagator/src/lockfile_propagator/propagator.py`: orchestration; single integration call site between `checkout_branch` and `pyproject_changed = False`
-- `.ledge/specs/lockfile-propagator-source-stubbing.tdd.md`: TDD (implementation design)
-- `.ledge/decisions/ADR-lockfile-propagator-source-stubbing.md`: ADR (Option A selected; 8 alternatives evaluated)
+- `autom8y/tools/lockfile-propagator/src/lockfile_propagator/source_stub.py` — 327 LOC, `stub_editable_path_sources()`
+- `.ledge/specs/lockfile-propagator-source-stubbing.tdd.md` — TDD spec
+- `.ledge/decisions/ADR-lockfile-propagator-source-stubbing.md` — ADR (Option A, 8 alternatives evaluated)
 
-**Rationale**: 780+ LOC new module surface (`source_stub.py` + `test_source_stub.py`) remedying a production SDK-publish blocker. The `sdk-publish-v2.yml` workflow invokes the propagator to notify 5 satellite repos (autom8y-asana, autom8y-data, autom8y-scheduling, autom8y-sms, autom8y-ads) after every SDK publish; the path-resolution failure blocked all 5 (workflow runs `25052186961`, `25062121802`). Source stubbing is the architectural decision: create minimal `pyproject.toml`-only stub packages at `path = "../X"` relative-path locations before `uv lock` so uv can resolve them inside the sandboxed clone work_root. Cross-references: SCAR-LP-001 (scar-tissue.md -- path-resolution defensive pattern). Defer-watch: `lockfile-propagator-prod-ci-confirmation` (watch-trigger 2026-05-29; deadline 2026-07-29; Notify-Satellite-Repos green confirmation pending). Provenance: VERDICT eunomia-final-adjudication-2026-04-29.md; GLINT-006. GENERATE.
+**Rationale**: ADR + TDD spec + 780+ LOC. Boundary note: source lives in autom8y monorepo, not autom8y-asana. **Missing per-feature knowledge file `.know/feat/lockfile-propagator.md`.** GENERATE.
+
+---
+
+## Census Gaps
+
+### 1. Boundary-ambiguity decisions
+
+- **gid-data-sync-pipeline vs lambda-handlers**: `push_orchestrator.py` and `pipeline_stage_aggregator.py` could be subsumed under `lambda-handlers` (prior census) OR promoted to standalone (this census promotes them: 1,278 LOC, FLAG-1 architectural constraint, ADR reference, own test cluster, 7+ importers). Dual reference in evidence — not a conflict.
+- **workflow-invoke-api vs automation-engine**: `workflows.py` route (461 LOC) split out because it is the HTTP invocation surface with own request/response contract and registry hook.
+- **custom-field-descriptor-dsl vs business-domain-model**: 740 LOC subsumed under `business-domain-model` (descriptor DSL is integral typed access layer for custom fields, not independently consumable). KNOW-CANDIDATE marker on `business-domain-model` ensures the knowledge file documents this subsystem.
+
+### 2. Glints NOT promoted to standalone features
+
+| Glint | Decision | Reason |
+|-------|----------|--------|
+| `glint-feat-cache-migration-adapter` | Subsumed into `cache-subsystem` | 677 LOC migration path is a dimension of cache operations |
+| `glint-feat-queries-saved-corpus` | Subsumed into `query-engine` | YAML corpus is user-facing dimension of query engine |
+| `glint-feat-custom-field-descriptor-dsl` | Subsumed into `business-domain-model` | Integral to business model layer |
+| `glint-feat-internal-service-auth` | Subsumed into `authentication` | 11 importers — shared infrastructure, not a feature |
+| `glint-polling-structured-logger-undocumented` | Architecture doc gap only | Filing for architecture.md update |
+| `glint-feat-lockfile-propagator-knowledge-gap` | Knowledge gap only | Feature already in INDEX; missing `.know/feat/` file is GENERATE queue item |
+| `glint-feat-exports-route-knowledge-gap` | Knowledge gap only | Highest-priority GENERATE queue item |
+| `glint-prototypes-telemetry-poc` | DISMISS | Prototype directory, not production code |
+| `glint-feat-search-service-skip-confirmed` | DISMISS | Already SKIP in INDEX, confirmed correct |
+
+### 3. Orphan check — `.know/feat/{slug}.md` files on disk vs new census
+
+All 32 existing `.know/feat/` knowledge files (excluding INDEX.md) correspond to features in the new census. Zero orphans detected.
+
+**Missing knowledge files for GENERATE features (require GENERATE queue action)**:
+- `.know/feat/exports-route.md` — **MISSING** (highest priority, telos-adjacent)
+- `.know/feat/lockfile-propagator.md` — **MISSING** (lower priority, proposed status)
+- `.know/feat/section-timeline.md` — **NEW FEATURE**
+- `.know/feat/vertical-backfill.md` — **NEW FEATURE**
+- `.know/feat/business-seeder.md` — **NEW FEATURE**
+- `.know/feat/gid-data-sync-pipeline.md` — **NEW FEATURE**
+- `.know/feat/admin-cache-control.md` — **NEW FEATURE**
+- `.know/feat/workflow-invoke-api.md` — **NEW FEATURE**
+
+### 4. Telos-aware urgency markers (deadline 2026-05-11, 3 days remaining)
+
+Features under `project-asana-pipeline-extraction` telos:
+- `exports-route` — Phase 1 DELIVERED. OBS-EXPORTS-001 open (deadline 2026-06-15). Missing knowledge file is the remaining gap.
+- `gid-data-sync-pipeline` — Under-documented; relevant to pipeline extraction telos as the post-warm data push component.
+
+### 5. Source categories scanned
+
+| Source Category | Status | Count |
+|---|---|---|
+| Module/package directories (`src/autom8_asana/**/*.py`) | Scanned via architecture seed + targeted file checks | 33 sub-packages |
+| Entry points (`entrypoint.py`, `api/main.py`, `lambda_handlers/`, `query/__main__.py`) | Scanned | 4 entry points |
+| Decision records (`docs/decisions/`, `.ledge/decisions/`) | Confirmed | ADR-lockfile-propagator referenced |
+| User-facing interface definitions (routes, CLI) | Scanned via architecture seed (22 routers) + targeted source reads | 22 routers + 2 CLI scripts |
+| Project documentation (`README.md`, `docs/`) | Consulted via architecture seed references | Used for rationale validation |
+| Existing codebase knowledge (`.know/*.md`) | Read: architecture.md (fresh), prior INDEX.md | Used as structural map |
+| Configuration and workflow definitions (`config/`, `pyproject.toml`, `.github/`) | Consulted via architecture seed | pyproject.toml optional deps confirmed |
 

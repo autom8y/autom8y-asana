@@ -11,6 +11,8 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
+import re
+
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -20,6 +22,10 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+# Asana GID pattern: exactly 16 decimal digits.
+# Sprint 2 receiver-surface — A1 body-precedence field validator.
+_ASANA_GID_PATTERN: re.Pattern[str] = re.compile(r"^\d{16}$")
 
 from autom8_asana.query.join import JoinSpec
 
@@ -296,12 +302,47 @@ class RowsRequest(BaseModel):
         default=None,
         description="Cross-entity join specification for enriching rows.",
     )
+    # Sprint 2 receiver-surface — A1 body-precedence fields.
+    # When present, body GID wins over registry-routed GID at the route handler.
+    # Allows arbitrary Asana fleet project GIDs without pre-registration.
+    # Pattern: exactly 16 decimal digits (Asana GID format).
+    project_gid: str | None = Field(
+        default=None,
+        description=(
+            "Optional Asana project GID (16 decimal digits). "
+            "When set, overrides the EntityProjectRegistry-derived project_gid "
+            "for this request. Enables arbitrary-GID consumer flows without "
+            "requiring static registry pre-registration."
+        ),
+        examples=["1200653012566782"],
+    )
+    section_gid: str | None = Field(
+        default=None,
+        description=(
+            "Optional Asana section GID (16 decimal digits). "
+            "When set alongside project_gid, scopes the query to this section. "
+            "Only valid when project_gid is also provided."
+        ),
+        examples=["1200653012566783"],
+    )
 
     @field_validator("where", mode="before")
     @classmethod
     def wrap_flat_array(cls, v: Any) -> Any:
         """Auto-wrap bare list to AND group (FR-001 sugar)."""
         return _wrap_flat_array_to_and_group(v)
+
+    @field_validator("project_gid", "section_gid", mode="before")
+    @classmethod
+    def validate_asana_gid(cls, v: Any) -> Any:
+        """Validate Asana GID format: exactly 16 decimal digits."""
+        if v is None:
+            return v
+        if not isinstance(v, str) or not _ASANA_GID_PATTERN.match(v):
+            raise ValueError(
+                f"Invalid Asana GID '{v}': must be exactly 16 decimal digits (e.g., '1200653012566782')"
+            )
+        return v
 
     @model_validator(mode="after")
     def section_classification_exclusive(self) -> RowsRequest:
@@ -352,10 +393,52 @@ class RowsMeta(BaseModel):
         default=None,
         description="Ratio of data age to configured TTL (1.0 = at TTL boundary).",
     )
+    # Sprint 1 — asana-clean-break-leaf T1.5 (PG-01 mandatory).
+    # Option G binding: envelope-canonical receipt shape per PR #271 FW-AUTOM8Y_ENV-CANONICAL.
+    # AC-3: DERIVED from SectionPersistence.get_manifest_async() via is_honest_complete().
+    # S-01 (unconditional True) is REFUSED — this field reflects real per-section completeness.
+    # Default False: if no manifest is available, we do not claim completeness.
+    honest_contract_complete: bool = Field(
+        default=False,
+        description=(
+            "Structural attestation field. True iff zero sections have SectionStatus.FAILED "
+            "in the SectionManifest at query time. Derived from SectionPersistence — not "
+            "fabricated. False if no manifest exists or any section failed during progressive build."
+        ),
+        examples=[True],
+    )
 
 
 class RowsResponse(BaseModel):
-    """Response body for /rows endpoint."""
+    """Response body for /rows endpoint.
+
+    Canonical envelope shape (B1 ratification — Sprint 2 receiver-surface):
+    The route handler returns ``SuccessResponse[RowsResponse]``, producing a
+    **double-envelope** JSON shape::
+
+        {
+            "data": {                        # SuccessResponse.data
+                "data": [...],               # RowsResponse.data  (rows)
+                "meta": {                    # RowsResponse.meta
+                    "total_count": N,
+                    "project_gid": "...",
+                    "honest_contract_complete": true|false,
+                    ...
+                }
+            }
+        }
+
+    Consumer-side access pattern (autom8 legacy Sprint 2)::
+
+        rows = response.json()["data"]["data"]
+        meta = response.json()["data"]["meta"]
+        project_gid = meta["project_gid"]
+        honest = meta["honest_contract_complete"]
+
+    Option B1 chosen: double-envelope confirmed canonical. Consumer ADR §3.4
+    must reference ``response.json()['data']['data']`` (not ``['data']`` directly).
+    SVR-4 (HANDOFF-10x-dev-to-rnd §2.2) resolved by this docstring amendment.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
