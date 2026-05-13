@@ -226,7 +226,7 @@ class _BaseIntakeHandler:
                 "handler": cls.__name__,
             },
         )
-        return result
+        return result  # type: ignore[no-any-return]  # trace_computation erases type; BuildResult is TYPE_CHECKING-only
 
 
 class ProjectTaskHandler(_BaseIntakeHandler):
