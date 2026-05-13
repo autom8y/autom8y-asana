@@ -8,10 +8,9 @@ See ADR-QE-002 for the rationale behind this approach.
 
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 from typing import Annotated, Any, Literal
-
-import re
 
 from pydantic import (
     BaseModel,
@@ -23,11 +22,11 @@ from pydantic import (
     model_validator,
 )
 
+from autom8_asana.query.join import JoinSpec
+
 # Asana GID pattern: exactly 16 decimal digits.
 # Sprint 2 receiver-surface — A1 body-precedence field validator.
 _ASANA_GID_PATTERN: re.Pattern[str] = re.compile(r"^\d{16}$")
-
-from autom8_asana.query.join import JoinSpec
 
 
 class Op(StrEnum):

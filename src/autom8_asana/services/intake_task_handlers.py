@@ -48,7 +48,6 @@ from autom8_asana.dataframes.models.registry import get_schema
 from autom8_asana.dataframes.resolver.default import DefaultCustomFieldResolver
 from autom8_asana.dataframes.section_persistence import create_section_persistence
 from autom8_asana.services.gid_lookup import build_gid_index_data
-from autom8_asana.settings import get_settings
 
 if TYPE_CHECKING:
     from autom8_asana.dataframes.builders.build_result import BuildResult

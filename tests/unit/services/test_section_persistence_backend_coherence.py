@@ -137,15 +137,14 @@ class TestDef005S3BackendCoherence:
         If write-path bucket != read-path bucket, get_manifest_async() returns None
         and is_honest_complete() returns False — honest_contract_complete is silently wrong.
         """
-        from autom8_asana.dataframes.storage import S3DataFrameStorage
         from autom8_asana.config import S3LocationConfig
+        from autom8_asana.dataframes.storage import S3DataFrameStorage
 
         # Simulate the common app settings
         BUCKET = "production-coherence-bucket"
         ENDPOINT = "https://s3.us-east-1.amazonaws.com"
 
         # --- Write path (preload progressive.py ~L298) ---
-        # SectionPersistence(storage=S3DataFrameStorage(location=S3LocationConfig(bucket=BUCKET)))
         write_location = S3LocationConfig(bucket=BUCKET, region="us-east-1", endpoint_url=ENDPOINT)
         write_storage = S3DataFrameStorage(location=write_location)
         write_persistence = SectionPersistence(storage=write_storage)
