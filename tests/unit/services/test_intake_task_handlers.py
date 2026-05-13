@@ -49,7 +49,6 @@ def _make_mock_build_result(total_rows: int = 5) -> MagicMock:
     return result
 
 
-
 class TestIntakeEventPayload:
     """Unit tests for IntakeEventPayload dataclass."""
 

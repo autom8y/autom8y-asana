@@ -445,7 +445,9 @@ async def query_rows(
         resolved_project_gid = ctx.project_gid
 
     # 2. Build section index (manifest-first, enum fallback)
-    section_index = await resolve_section_index(request_body.section, entity_type, resolved_project_gid)
+    section_index = await resolve_section_index(
+        request_body.section, entity_type, resolved_project_gid
+    )
 
     # 3. Execute query
     query_service = EntityQueryService()

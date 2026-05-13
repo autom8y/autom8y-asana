@@ -229,10 +229,7 @@ def is_honest_complete(manifest: SectionManifest) -> bool:
     """
     if not manifest.sections:
         return True
-    return all(
-        info.status == SectionStatus.COMPLETE
-        for info in manifest.sections.values()
-    )
+    return all(info.status == SectionStatus.COMPLETE for info in manifest.sections.values())
 
 
 class SectionPersistence:

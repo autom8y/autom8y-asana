@@ -32,7 +32,9 @@ from autom8_asana.dataframes.section_persistence import (
 )
 
 
-def _make_mock_s3_settings(bucket: str = "test-bucket", endpoint_url: str = "http://localhost:9000") -> MagicMock:
+def _make_mock_s3_settings(
+    bucket: str = "test-bucket", endpoint_url: str = "http://localhost:9000"
+) -> MagicMock:
     """Create mock S3Settings with a defined bucket and endpoint."""
     s3 = MagicMock()
     s3.bucket = bucket
@@ -73,12 +75,8 @@ class TestDef005S3BackendCoherence:
             ),
             # S3DataFrameStorage and S3LocationConfig are lazy-imported inside
             # create_section_persistence(); patch at source module.
-            patch(
-                "autom8_asana.dataframes.storage.S3DataFrameStorage"
-            ) as mock_storage_cls,
-            patch(
-                "autom8_asana.config.S3LocationConfig"
-            ) as mock_location_cls,
+            patch("autom8_asana.dataframes.storage.S3DataFrameStorage") as mock_storage_cls,
+            patch("autom8_asana.config.S3LocationConfig") as mock_location_cls,
         ):
             mock_storage_instance = MagicMock()
             mock_storage_cls.return_value = mock_storage_instance

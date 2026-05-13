@@ -72,6 +72,7 @@ def _get_workspace_gid() -> str | None:
 
         return os.environ.get("ASANA_WORKSPACE_GID")
 
+
 # Key used by callers to pass the Asana project GID in the event payload.
 # Both handlers enforce that this key is present and non-empty.
 EVENT_KEY_PROJECT_GID = "project_gid"

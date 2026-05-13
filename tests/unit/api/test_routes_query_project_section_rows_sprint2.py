@@ -28,9 +28,9 @@ import pytest
 from autom8_asana.services.resolver import EntityProjectRegistry
 
 # Synthetic 16-digit GIDs (S-06 pattern).
-_REGISTRY_PROJECT_GID = "9990000000000001"   # what the registry returns
-_BODY_PROJECT_GID = "1234567890123456"        # body override — different from registry
-_BODY_SECTION_GID = "9876543210987654"        # section_gid companion
+_REGISTRY_PROJECT_GID = "9990000000000001"  # what the registry returns
+_BODY_PROJECT_GID = "1234567890123456"  # body override — different from registry
+_BODY_SECTION_GID = "9876543210987654"  # section_gid companion
 
 JWT_TOKEN = "header.payload.signature"
 
