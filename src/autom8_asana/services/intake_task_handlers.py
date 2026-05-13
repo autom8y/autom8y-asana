@@ -48,7 +48,9 @@ from autom8_asana.dataframes.models.registry import get_schema
 from autom8_asana.dataframes.resolver.default import DefaultCustomFieldResolver
 from autom8_asana.dataframes.section_persistence import create_section_persistence
 from autom8_asana.services.gid_lookup import build_gid_index_data
-from autom8_asana.settings import get_settings
+from autom8_asana.settings import (
+    get_settings,  # noqa: F401  # mock-patch target for unittest.mock.patch; restored after F401 false-positive caught at PR #60 5th-gate
+)
 
 if TYPE_CHECKING:
     from autom8_asana.dataframes.builders.build_result import BuildResult
@@ -71,6 +73,7 @@ def _get_workspace_gid() -> str | None:
         import os
 
         return os.environ.get("ASANA_WORKSPACE_GID")
+
 
 # Key used by callers to pass the Asana project GID in the event payload.
 # Both handlers enforce that this key is present and non-empty.
@@ -226,7 +229,7 @@ class _BaseIntakeHandler:
                 "handler": cls.__name__,
             },
         )
-        return result
+        return result  # type: ignore[no-any-return]  # trace_computation erases type; BuildResult is TYPE_CHECKING-only
 
 
 class ProjectTaskHandler(_BaseIntakeHandler):

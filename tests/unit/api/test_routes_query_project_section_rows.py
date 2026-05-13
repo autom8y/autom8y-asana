@@ -214,9 +214,7 @@ class TestProjectRowsSmoke:
             "honest_contract_complete must be bool, not fabricated string/None"
         )
 
-    def test_ac3_project_rows_honest_contract_complete_true_when_all_complete(
-        self, client
-    ) -> None:
+    def test_ac3_project_rows_honest_contract_complete_true_when_all_complete(self, client) -> None:
         """AC-3 (positive case): honest_contract_complete=True propagates when engine derives True.
 
         Patches QueryEngine._derive_honest_contract_complete() to return True,

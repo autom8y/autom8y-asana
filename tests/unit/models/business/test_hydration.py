@@ -53,6 +53,8 @@ class TestEntityType:
             "PROCESS",
             "LOCATION",
             "HOURS",
+            "PROJECT",
+            "SECTION",
             "UNKNOWN",
         }
         actual = {e.name for e in EntityType}
