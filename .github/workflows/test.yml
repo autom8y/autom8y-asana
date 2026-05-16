@@ -123,14 +123,32 @@ jobs:
         with:
           enable-cache: true
 
+      # G1-W05 WI-2 FIX-A (2026-05-16): cross-repo App-token mint.
+      # secrets.GITHUB_TOKEN is satellite-scoped and cannot read
+      # artifacts from autom8y/autom8y (the source workflow run repo).
+      # Mirrors autom8y-workflows/satellite-ci-reusable.yml@L297-L305
+      # canonical pattern. Without this, download-artifact emits 404
+      # ("Not Found") — a permission-denied masquerading as missing
+      # artifact, eliminating fuzz coverage attestation for asana.
+      - name: Generate App token for cross-repo artifact download (consumer-gate)
+        id: cross-repo-app-token
+        if: inputs.candidate_wheel_run_id != ''
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547 # v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          owner: autom8y
+          repositories: autom8y
+
       - name: Download candidate wheel (consumer-gate)
         if: inputs.candidate_wheel_run_id != ''
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: candidate-wheel
           path: /tmp/candidate-wheel
+          repository: autom8y/autom8y
           run-id: ${{ inputs.candidate_wheel_run_id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.cross-repo-app-token.outputs.token }}
 
       - name: Verify candidate wheel present (consumer-gate fail-loud)
         if: inputs.candidate_wheel_run_id != ''
