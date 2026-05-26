@@ -31,6 +31,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error, raise_service_error
+from autom8_asana.api.exception_types import ApiDataFrameBuildError
 from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
@@ -483,6 +484,14 @@ async def query_rows(
             )
     except QueryEngineError as e:
         _raise_query_error(request_id, e)
+    except ApiDataFrameBuildError:
+        # ADR-G2RECV-002: request-time build-on-miss for body-parameterized entities
+        # raises a typed 503 (DATAFRAME_BUILD_FAILED / _ERROR / _TIMEOUT, or
+        # CACHE_BUILD_IN_PROGRESS). The error already carries status 503 +
+        # retry_after; the registered api_dataframe_build_error_handler renders the
+        # canonical envelope. Re-raise so it reaches that handler rather than being
+        # swallowed here. NEVER a 500, NEVER a silent empty-200.
+        raise
     except CacheNotWarmError as e:
         raise_api_error(
             request_id,

@@ -9,6 +9,7 @@ This module provides schema-driven resolution using DynamicIndex for O(1) lookup
 
 from __future__ import annotations
 
+import asyncio
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -729,20 +730,30 @@ class UniversalResolutionStrategy:
         project_gid: str,
         client: AsanaClient,
     ) -> pl.DataFrame | None:
-        """Get DataFrame from cache, return None on miss.
+        """Get DataFrame from cache; build on miss for body-parameterized entities.
 
         Uses injected _cached_dataframe if available (from @dataframe_cache decorator),
         otherwise attempts to retrieve from DataFrameCache.
 
-        Note: DataFrame builds happen at warmup, not request-time.
-        This method does NOT trigger builds on cache miss.
+        Serving contract (ADR-G2RECV-002):
+        - Offer-domain entities (``body_parameterized=False``) are cache-only — a
+          miss returns ``None`` exactly as before (they are warmed out-of-band by a
+          scheduled cache_warmer). This is the hard non-regression.
+        - Body-parameterized entities (``body_parameterized=True``, e.g.
+          project/section) take an arbitrary per-request GID and are never warmed,
+          so on a miss they build inline via :meth:`_build_on_miss` (lock-coalesced,
+          timeout-bounded) and the result is written to the cache for warm reuse.
 
         Args:
             project_gid: Project GID.
             client: AsanaClient.
 
         Returns:
-            Polars DataFrame or None if not cached.
+            Polars DataFrame, or None on miss for cache-only (offer-domain) entities.
+
+        Raises:
+            ApiDataFrameBuildError: For body-parameterized entities only, when an
+                inline build fails, times out, or a coalesced wait times out (→ 503).
         """
         # Use cached DataFrame from @dataframe_cache decorator if available
         if self._cached_dataframe is not None:
@@ -783,7 +794,177 @@ class UniversalResolutionStrategy:
                 },
             )
 
+        # Cache miss. Body-parameterized entities (project/section) build on
+        # demand here; offer-domain entities fall through to the cache-only
+        # `return None` (warmed out-of-band). Gate is strictly the descriptor
+        # flag — ADR-G2RECV-002 hard non-regression (T-BOD-3).
+        from autom8_asana.core.entity_registry import get_registry
+
+        descriptor = get_registry().get(self.entity_type)
+        if descriptor is not None and descriptor.body_parameterized:
+            return await self._build_on_miss(project_gid, client)
+
         return None
+
+    async def _build_on_miss(
+        self,
+        project_gid: str,
+        client: AsanaClient,
+    ) -> pl.DataFrame | None:
+        """Build a DataFrame inline on a cache miss for a body-parameterized entity.
+
+        Reuses the cache coalescer's proven lock/wait/release primitives (the same
+        control flow the ``@dataframe_cache`` decorator runs for offer-domain
+        ``resolve()``), adding an explicit ``asyncio.wait_for`` timeout guard that
+        the decorator lacks. The guard is mandatory: there is no server-side request
+        timeout (uvicorn has no ``--timeout-keep-alive``; no in-repo ALB/ECS request
+        timeout), so this is the only bound on a pathological build (TDD §10.5).
+
+        Concurrency (dedup, not double-build): the coalescer lock is keyed on
+        ``(project_gid, entity_type)``. The first request for an uncached pair
+        acquires the lock and builds; concurrent SAME-pair requests wait via
+        :meth:`wait_for_build_async` and read the built result. Distinct GIDs do
+        not contend.
+
+        Error mapping (construct-validity line, TDD §10.6):
+        - Build OK (rows >= 0, including a legit EMPTY project) → return the frame
+          (non-None), which yields a 200 (``data: []`` for an empty project).
+        - Build returns ``None`` → 503 ``DATAFRAME_BUILD_FAILED``.
+        - Build raises → 503 ``DATAFRAME_BUILD_ERROR``.
+        - Inline build exceeds the timeout → 503 ``DATAFRAME_BUILD_TIMEOUT``.
+        - Coalesced wait exceeds its timeout → 503 ``CACHE_BUILD_IN_PROGRESS``.
+        On every failure/timeout the lock is released ``success=False`` so the
+        circuit breaker records the failure and a repeatedly-slow GID fast-fails.
+
+        Args:
+            project_gid: Body-supplied project GID to build.
+            client: AsanaClient for data fetching.
+
+        Returns:
+            The built (possibly empty) DataFrame.
+
+        Raises:
+            ApiDataFrameBuildError: On build failure, build timeout, or wait timeout.
+        """
+        from autom8_asana.api.exception_types import ApiDataFrameBuildError
+        from autom8_asana.cache.dataframe.factory import (
+            get_dataframe_cache_provider,
+        )
+
+        settings = get_settings()
+        build_timeout = settings.cache.dataframe_build_timeout_seconds
+        wait_timeout = settings.cache.dataframe_build_wait_seconds
+
+        cache = get_dataframe_cache_provider()
+
+        # No cache configured → build raw under the timeout guard, no coalescing.
+        if cache is None:
+            return await self._guarded_build(project_gid, client, build_timeout)
+
+        acquired = await cache.acquire_build_lock_async(project_gid, self.entity_type)
+
+        if not acquired:
+            # Another worker is building THIS (gid, entity); wait then read.
+            entry = await cache.wait_for_build_async(
+                project_gid,
+                self.entity_type,
+                timeout_seconds=wait_timeout,
+            )
+            if entry is not None:
+                df_wait: pl.DataFrame | None = entry.dataframe
+                return df_wait
+            raise ApiDataFrameBuildError(
+                "CACHE_BUILD_IN_PROGRESS",
+                "DataFrame build in progress, retry shortly",
+                retry_after_seconds=5,
+            )
+
+        # This worker builds.
+        try:
+            df, watermark = await asyncio.wait_for(
+                self._build_dataframe(project_gid, client),
+                timeout=build_timeout,
+            )
+            if df is None:
+                await cache.release_build_lock_async(project_gid, self.entity_type, success=False)
+                raise ApiDataFrameBuildError(
+                    "DATAFRAME_BUILD_FAILED",
+                    "Failed to build DataFrame",
+                    retry_after_seconds=30,
+                )
+            # Non-None frame (rows >= 0): a legit empty project is a real 200.
+            await cache.put_async(project_gid, self.entity_type, df, watermark)
+            await cache.release_build_lock_async(project_gid, self.entity_type, success=True)
+            built_df: pl.DataFrame | None = df
+            return built_df
+        except TimeoutError:
+            await cache.release_build_lock_async(project_gid, self.entity_type, success=False)
+            raise ApiDataFrameBuildError(
+                "DATAFRAME_BUILD_TIMEOUT",
+                "DataFrame build exceeded time budget",
+                retry_after_seconds=30,
+            )
+        except ApiDataFrameBuildError:
+            # Already a typed 503 (e.g. DATAFRAME_BUILD_FAILED above); lock already
+            # released on those paths. Re-raise without double-release.
+            raise
+        except Exception as e:  # noqa: BLE001 -- BROAD-CATCH at build boundary: every build error converts to a typed 503 (never a 500); lock released success=False to record the circuit-breaker failure
+            await cache.release_build_lock_async(project_gid, self.entity_type, success=False)
+            raise ApiDataFrameBuildError(
+                "DATAFRAME_BUILD_ERROR",
+                f"Build failed: {type(e).__name__}",
+                retry_after_seconds=30,
+            )
+
+    async def _guarded_build(
+        self,
+        project_gid: str,
+        client: AsanaClient,
+        build_timeout: float,
+    ) -> pl.DataFrame | None:
+        """Run an inline build under the timeout guard with no cache/coalescer.
+
+        Used only when no DataFrameCache provider is configured. Maps the same
+        outcomes to typed 503s as the coalesced path (no lock to release).
+
+        Args:
+            project_gid: Body-supplied project GID to build.
+            client: AsanaClient for data fetching.
+            build_timeout: Max seconds the build may run.
+
+        Returns:
+            The built (possibly empty) DataFrame.
+
+        Raises:
+            ApiDataFrameBuildError: On build failure or timeout.
+        """
+        from autom8_asana.api.exception_types import ApiDataFrameBuildError
+
+        try:
+            df, _watermark = await asyncio.wait_for(
+                self._build_dataframe(project_gid, client),
+                timeout=build_timeout,
+            )
+        except TimeoutError:
+            raise ApiDataFrameBuildError(
+                "DATAFRAME_BUILD_TIMEOUT",
+                "DataFrame build exceeded time budget",
+                retry_after_seconds=30,
+            )
+        except Exception as e:  # noqa: BLE001 -- BROAD-CATCH at build boundary: every build error converts to a typed 503 (never a 500)
+            raise ApiDataFrameBuildError(
+                "DATAFRAME_BUILD_ERROR",
+                f"Build failed: {type(e).__name__}",
+                retry_after_seconds=30,
+            )
+        if df is None:
+            raise ApiDataFrameBuildError(
+                "DATAFRAME_BUILD_FAILED",
+                "Failed to build DataFrame",
+                retry_after_seconds=30,
+            )
+        guarded_df: pl.DataFrame | None = df
+        return guarded_df
 
     async def _build_dataframe(
         self,

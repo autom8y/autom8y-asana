@@ -121,14 +121,16 @@ class ApiServiceUnavailableError(ApiError):
 class ApiDataFrameBuildError(ApiError):
     """DataFrame cache build infrastructure error (503).
 
-    Raised by the dataframe_cache decorator when a cache build is
-    in progress, fails, or has no build method configured.
+    Raised by the dataframe_cache decorator and by the request-time
+    build-on-miss path (ADR-G2RECV-002) when a cache build is in progress,
+    fails, times out, or has no build method configured.
 
     Error codes:
         CACHE_BUILD_IN_PROGRESS - Another request is building, retry shortly
         DATAFRAME_BUILD_UNAVAILABLE - No build method configured
         DATAFRAME_BUILD_FAILED - Build returned None
         DATAFRAME_BUILD_ERROR - Build raised an unexpected exception
+        DATAFRAME_BUILD_TIMEOUT - Inline build exceeded the time budget
     """
 
     def __init__(
