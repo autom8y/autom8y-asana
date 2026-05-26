@@ -1,47 +1,45 @@
 """G2-RECV build-on-demand tests — request-time build for body-parameterized entities.
 
-Implements TDD-G2RECV §12 test plan (T-BOD-1..8) and ADR-G2RECV-002. These tests
-exercise the synchronous build-on-miss path inside
-``UniversalResolutionStrategy._get_dataframe`` / ``_build_on_miss``. The cold-cache
-first request for a body-parameterized entity (project/section) MUST build inline and
-return 200 (AC-G2R-5), not 503.
+Implements TDD-G2RECV §12 test plan (T-BOD-1..8) and ADR-G2RECV-002.
+
+Option B (G2-RECV frame-quality convergence fix): ``_build_on_miss`` no longer
+builds inline and returns a DataFrame.  Instead it launches a background build
+(via ``_swr_build_callback``) and ALWAYS raises a retryable 503
+``CACHE_BUILD_IN_PROGRESS``.  The warm-hit path (T-BOD-2) and the offer-domain
+non-regression (T-BOD-3) are unchanged.
 
 Critical fidelity discipline:
 - The route-level tests MUST NOT patch ``_get_dataframe`` (that is the method under
   test). We let ``_get_dataframe`` / ``_build_on_miss`` run for real and patch only
-  ``_build_dataframe`` (the Asana fetch + ProgressiveProjectBuilder leaf) and the
-  cache provider. Unit tests must not hit the network.
+  the cache provider and ``_swr_build_callback`` (the background leaf). Unit tests
+  must not hit the network.
+- Patching ``_build_dataframe`` is now PROHIBITED for cold-miss tests — that mock
+  is exactly why the frame-quality gap slipped past CI (the old inline path was
+  being tested, not the background-build path).
 - T-BOD-3 locks the hard non-regression: offer-domain (``body_parameterized=False``)
   entities still return None on a cache miss and NEVER enter ``_build_on_miss``.
 
 CI-fragility discipline (SCAR-W1E-LOADGROUP-001 follow-on):
-    This file was previously a CI-only worker-crash trigger. The raw-asyncio unit
-    tests (``asyncio.create_task`` / ``asyncio.gather`` for the same-GID coalescer,
-    and a ``hang`` coroutine driven under ``asyncio.wait_for`` for the inline-build
-    timeout) left event-loop / task state that — co-resident under
-    ``xdist --dist=loadgroup`` with the fragile ``workflow_handler`` group's
-    ``asyncio.run`` + ``AsyncMock`` teardown — crashed the Linux worker (SIGKILL,
-    "node down"). It did NOT reproduce on macOS. The fix re-expresses every AC via
-    the proven-safe route-level FastAPI TestClient pattern (or a single plain
-    ``await`` that leaves no pending tasks). No ``asyncio.create_task`` /
-    ``asyncio.gather`` / ``asyncio.ensure_future`` / ``hang``-under-``wait_for``
-    remains in any test body here. See "Coalescer concurrency coverage" note on
-    ``TestTBOD5BuildFailure`` for where the dropped concurrency ACs now live.
+    Background-build tests use ``asyncio.create_task`` internally but the test
+    itself only ``await``s ``_build_on_miss`` once and then awaits a short
+    ``asyncio.sleep`` for teardown.  This is the same pattern used in
+    ``test_g2_recv_frame_quality.py`` and does NOT trigger the CI worker crash.
 
-Outcome → status contract (TDD §10.6):
-    build OK rows>0      → 200 (rows)
-    build OK zero rows   → 200 (data: [], total_count: 0)   [legit empty project]
-    build returns None   → 503 DATAFRAME_BUILD_FAILED
-    build raises         → 503 DATAFRAME_BUILD_ERROR
-    inline build timeout → 503 DATAFRAME_BUILD_TIMEOUT
+Outcome → status contract (new, Option B):
+    cache warm (any entity)          → 200 (rows served from cache)
+    cold miss body_parameterized     → 503 CACHE_BUILD_IN_PROGRESS (retryable)
+    cold miss offer-domain           → resolver returns None → query-layer 404/empty
+    warm retry after background build→ 200 (served from cache)
 """
 
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from unittest.mock import AsyncMock, MagicMock, patch
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 import polars as pl
 import pytest
@@ -216,18 +214,25 @@ def _post_project_rows(client, body: dict[str, Any] | None = None):
     )
 
 
-class TestTBOD1ColdBuild200:
-    """T-BOD-1 / AC-G2R-5: cold cache → first request builds inline → 200 with rows."""
+class TestTBOD1ColdBuild503:
+    """T-BOD-1 / Option B: cold cache → background build launched → 503 retryable.
 
-    def test_cold_request_builds_and_returns_200(self, client) -> None:
+    Option B changes the cold-miss contract: instead of building inline and
+    returning 200, the first cold request for a body-parameterized entity now
+    launches a background build and returns 503 CACHE_BUILD_IN_PROGRESS.
+    A subsequent request after the background build completes will serve 200
+    from the warm cache.
+    """
+
+    def test_cold_request_launches_background_build_and_returns_503(self, client) -> None:
         _assert_no_sprint2_fixture()
         cache = FakeDataFrameCache()
-        df = _make_project_dataframe()
-        watermark = datetime.now(UTC)
+        mock_asana = MagicMock()
+        mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
+        mock_asana.__aexit__ = AsyncMock(return_value=None)
 
-        cache, mock_asana, client_patch, build_kwargs = _route_patches(
-            build_return=(df, watermark), cache=cache
-        )
+        async def _noop_swr(cache_arg: Any, project_gid: str, entity_type: str) -> None:
+            """No-op background build stub so no real Asana network I/O occurs."""
 
         with (
             patch(
@@ -235,27 +240,24 @@ class TestTBOD1ColdBuild200:
                 _mock_jwt_validation(),
             ),
             patch("autom8_asana.auth.bot_pat.get_bot_pat", return_value="test_bot_pat"),
-            client_patch as mock_client_class,
+            patch("autom8_asana.client.AsanaClient") as mock_client_class,
             patch(
                 "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
                 return_value=cache,
             ),
-            patch.object(
-                UniversalResolutionStrategy, "_build_dataframe", **build_kwargs
-            ) as mock_build,
+            patch(
+                "autom8_asana.cache.dataframe.factory._swr_build_callback",
+                side_effect=_noop_swr,
+            ),
         ):
             mock_client_class.return_value = mock_asana
             response = _post_project_rows(client)
 
-        assert response.status_code == 200, (
-            f"cold build must yield 200, got {response.status_code}: {response.text}"
+        assert response.status_code == 503, (
+            f"cold miss must yield 503 CACHE_BUILD_IN_PROGRESS (Option B), "
+            f"got {response.status_code}: {response.text}"
         )
-        body = response.json()["data"]
-        assert len(body["data"]) > 0, "expected non-empty rows from the built frame"
-        assert body["meta"]["project_gid"] == _BODY_PROJECT_GID
-        mock_build.assert_awaited_once()
-        # Built frame was written to cache for warm reuse.
-        assert cache._store.get((_BODY_PROJECT_GID, "project")) is not None
+        assert response.json()["error"]["code"] == "CACHE_BUILD_IN_PROGRESS"
 
 
 class TestTBOD2WarmSecondHit:
@@ -353,73 +355,64 @@ class TestTBOD3OfferDomainNonRegression:
         mock_build_on_miss.assert_awaited_once()
 
 
-class TestTBOD5BuildFailure:
-    """T-BOD-5 / 5b: build returns None → 503 FAILED; build raises → 503 ERROR.
+class TestTBOD5ColdMissAlways503:
+    """T-BOD-5 / Option B: cold miss for body-parameterized entity → always 503.
 
-    Coalescer concurrency coverage (formerly T-BOD-4 same-GID dedup and T-BOD-8
-    waiter-timeout) is intentionally NOT re-driven here. Those ACs require raw
-    ``asyncio.create_task`` / ``asyncio.gather`` / ``asyncio.Event``-under-
-    ``wait_for`` orchestration in the test body — the exact pattern that crashed
-    the CI Linux worker under xdist co-residency. The same-GID build coalescer and
-    the waiter-timeout path are the real ``DataFrameCache`` implementation's
-    responsibility and are covered by the cache layer's own tests, not re-driven
-    against ``UniversalResolutionStrategy`` here.
+    Option B removes all the inline build failure modes (DATAFRAME_BUILD_FAILED,
+    DATAFRAME_BUILD_ERROR) from the request path.  Every cold miss now returns
+    CACHE_BUILD_IN_PROGRESS regardless of what happens during the background build.
+
+    The background build failure is captured by the done-callback logger (not
+    surfaced to the caller synchronously).  A subsequent cold request after a
+    failed build will trigger a new background build attempt (the in-flight key
+    is cleared on failure).
+
+    Tests for dedup and background task lifecycle live in
+    ``tests/unit/services/test_g2_recv_frame_quality.py`` (AC-G2R6-BG1..3).
     """
 
-    async def test_build_returns_none_raises_failed(self) -> None:
+    async def test_build_on_miss_always_raises_cache_build_in_progress(self) -> None:
+        """_build_on_miss raises CACHE_BUILD_IN_PROGRESS on cold miss (no exception
+        from the background build is surfaced synchronously)."""
+        from autom8_asana.services import universal_strategy as _us_mod
+
         cache = FakeDataFrameCache()
         strategy = get_universal_strategy("project")
         client = MagicMock()
+
+        # Clear in-flight set so the test always starts from cold state.
+        _us_mod._background_builds.discard((_BODY_PROJECT_GID, "project"))
+
+        async def _noop_swr(cache_arg: Any, project_gid: str, entity_type: str) -> None:
+            pass
 
         with (
             patch(
                 "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
                 return_value=cache,
             ),
-            patch.object(
-                UniversalResolutionStrategy,
-                "_build_dataframe",
-                new=AsyncMock(return_value=(None, datetime.now(UTC))),
-            ),
-        ):
-            with pytest.raises(ApiDataFrameBuildError) as exc:
-                await strategy._build_on_miss(_BODY_PROJECT_GID, client)
-
-        assert exc.value.code == "DATAFRAME_BUILD_FAILED"
-        assert exc.value.status_code == 503
-        # Lock released success=False (circuit-breaker failure path).
-        assert cache._locks.get((_BODY_PROJECT_GID, "project")) is False
-
-    async def test_build_raises_maps_to_error(self) -> None:
-        cache = FakeDataFrameCache()
-        strategy = get_universal_strategy("project")
-        client = MagicMock()
-
-        with (
             patch(
-                "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
-                return_value=cache,
-            ),
-            patch.object(
-                UniversalResolutionStrategy,
-                "_build_dataframe",
-                new=AsyncMock(side_effect=RuntimeError("asana boom")),
+                "autom8_asana.cache.dataframe.factory._swr_build_callback",
+                side_effect=_noop_swr,
             ),
         ):
             with pytest.raises(ApiDataFrameBuildError) as exc:
                 await strategy._build_on_miss(_BODY_PROJECT_GID, client)
 
-        assert exc.value.code == "DATAFRAME_BUILD_ERROR"
+        assert exc.value.code == "CACHE_BUILD_IN_PROGRESS"
         assert exc.value.status_code == 503
-        assert cache._locks.get((_BODY_PROJECT_GID, "project")) is False
 
-    def test_build_failure_route_returns_503(self, client) -> None:
-        """End-to-end: build returns None → route returns 503 (not 500, not empty 200)."""
+    def test_cold_miss_route_returns_503_cache_build_in_progress(self, client) -> None:
+        """End-to-end: cold body-parameterized miss → route returns 503
+        CACHE_BUILD_IN_PROGRESS (not 500, not empty 200, not DATAFRAME_BUILD_FAILED)."""
         _assert_no_sprint2_fixture()
         cache = FakeDataFrameCache()
         mock_asana = MagicMock()
         mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
         mock_asana.__aexit__ = AsyncMock(return_value=None)
+
+        async def _noop_swr(cache_arg: Any, project_gid: str, entity_type: str) -> None:
+            pass
 
         with (
             patch(
@@ -432,47 +425,44 @@ class TestTBOD5BuildFailure:
                 "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
                 return_value=cache,
             ),
-            patch.object(
-                UniversalResolutionStrategy,
-                "_build_dataframe",
-                new=AsyncMock(return_value=(None, datetime.now(UTC))),
+            patch(
+                "autom8_asana.cache.dataframe.factory._swr_build_callback",
+                side_effect=_noop_swr,
             ),
         ):
             mock_client_class.return_value = mock_asana
             response = _post_project_rows(client)
 
         assert response.status_code == 503, (
-            f"build failure must be 503, got {response.status_code}: {response.text}"
+            f"cold miss must be 503, got {response.status_code}: {response.text}"
         )
         assert response.status_code != 500
-        assert response.json()["error"]["code"] == "DATAFRAME_BUILD_FAILED"
+        assert response.json()["error"]["code"] == "CACHE_BUILD_IN_PROGRESS"
 
 
-class TestTBOD6BuildTimeout:
-    """T-BOD-6: inline build exceeds the timeout → 503 DATAFRAME_BUILD_TIMEOUT, no hang.
+class TestTBOD6WarmRetryAfterBackgroundBuild:
+    """T-BOD-6 (Option B): after background build completes, warm retry returns 200.
 
-    Reformed to the ROUTE level (the proven-safe equivalent of the dropped raw-
-    asyncio unit test): patch settings so ``dataframe_build_timeout_seconds`` is
-    near-zero and mock ``_build_dataframe`` with a coroutine whose single short
-    ``await asyncio.sleep`` exceeds that budget. The production ``asyncio.wait_for``
-    guard cancels the inner build on timeout — the cancellation is contained inside
-    the TestClient's per-request portal/loop (torn down before the test returns),
-    so no pending task or event-loop state leaks across tests. This is the safe
-    counterpart to the former ``hang``-coroutine-under-``wait_for`` unit test.
+    The inline timeout (DATAFRAME_BUILD_TIMEOUT) no longer exists — Option B
+    removes the request-bound ``asyncio.wait_for`` guard.  T-BOD-6 is repurposed
+    to verify the two-phase flow: cold miss → 503 → warm cache → 200.
+
+    The warm-hit path after background completion is already covered by
+    ``TestTBOD2WarmSecondHit`` (pre-warmed cache).  This test makes the
+    causality explicit: first request triggers background build, second request
+    (after cache is warm) returns 200.
     """
 
-    def test_build_timeout_route_returns_503(self, client) -> None:
+    def test_warm_retry_after_background_build_returns_200(self, client) -> None:
         _assert_no_sprint2_fixture()
+        # Start with an empty cache → first request will get 503.
         cache = FakeDataFrameCache()
         mock_asana = MagicMock()
         mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
         mock_asana.__aexit__ = AsyncMock(return_value=None)
 
-        async def slow_build(project_gid: str, client: Any) -> tuple[pl.DataFrame, datetime]:
-            # One short sleep that exceeds the near-zero patched build budget; the
-            # production wait_for guard cancels this coroutine on timeout.
-            await asyncio.sleep(0.2)
-            return _make_project_dataframe(), datetime.now(UTC)
+        async def _noop_swr(cache_arg: Any, project_gid: str, entity_type: str) -> None:
+            pass
 
         with (
             patch(
@@ -485,58 +475,65 @@ class TestTBOD6BuildTimeout:
                 "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
                 return_value=cache,
             ),
-            patch.object(
-                UniversalResolutionStrategy,
-                "_build_dataframe",
-                new=AsyncMock(side_effect=slow_build),
+            patch(
+                "autom8_asana.cache.dataframe.factory._swr_build_callback",
+                side_effect=_noop_swr,
             ),
-            patch("autom8_asana.services.universal_strategy.get_settings") as mock_settings,
         ):
-            mock_settings.return_value.cache.dataframe_build_timeout_seconds = 0.01
-            mock_settings.return_value.cache.dataframe_build_wait_seconds = 0.01
             mock_client_class.return_value = mock_asana
-            response = _post_project_rows(client)
+            # First request — cold miss → 503.
+            first_response = _post_project_rows(client)
 
-        assert response.status_code == 503, (
-            f"inline build timeout must be 503, got {response.status_code}: {response.text}"
+        assert first_response.status_code == 503
+        assert first_response.json()["error"]["code"] == "CACHE_BUILD_IN_PROGRESS"
+
+        # Simulate background build completing by pre-warming the cache.
+        cache._store[(_BODY_PROJECT_GID, "project")] = _make_project_dataframe()
+
+        with (
+            patch(
+                "autom8_asana.api.routes.internal.validate_service_token",
+                _mock_jwt_validation(),
+            ),
+            patch("autom8_asana.auth.bot_pat.get_bot_pat", return_value="test_bot_pat"),
+            patch("autom8_asana.client.AsanaClient") as mock_client_class,
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
+                return_value=cache,
+            ),
+        ):
+            mock_client_class.return_value = mock_asana
+            # Second request — warm hit → 200.
+            second_response = _post_project_rows(client)
+
+        assert second_response.status_code == 200, (
+            f"warm retry after background build must yield 200, "
+            f"got {second_response.status_code}: {second_response.text}"
         )
-        assert response.status_code != 500
-        assert response.json()["error"]["code"] == "DATAFRAME_BUILD_TIMEOUT"
-        # Lock released success=False so the circuit breaker records the timeout.
-        assert cache._locks.get((_BODY_PROJECT_GID, "project")) is False
+        body = second_response.json()["data"]
+        assert len(body["data"]) > 0, "expected non-empty rows from warm cache"
 
 
 class TestTBOD7LegitEmptyProject:
-    """T-BOD-7: build succeeds with ZERO rows → 200 data:[] (distinguished from failure)."""
+    """T-BOD-7 (Option B): legit empty project is served 200 from warm cache.
 
-    async def test_empty_build_returns_frame_not_none(self) -> None:
-        cache = FakeDataFrameCache()
-        strategy = get_universal_strategy("project")
-        client = MagicMock()
-        empty = _empty_project_dataframe()
+    Option B: the background build eventually puts the frame (even if empty)
+    into the cache.  A warm-hit request with the empty frame returns 200
+    data:[] (distinguishing a legit empty project from an uncached one).
 
-        with (
-            patch(
-                "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
-                return_value=cache,
-            ),
-            patch.object(
-                UniversalResolutionStrategy,
-                "_build_dataframe",
-                new=AsyncMock(return_value=(empty, datetime.now(UTC))),
-            ),
-        ):
-            result = await strategy._build_on_miss(_BODY_PROJECT_GID, client)
+    The cold-miss path (before the background build completes) returns 503
+    CACHE_BUILD_IN_PROGRESS — this is indistinguishable from a non-empty
+    cold-miss project by the caller until the build completes.
+    """
 
-        assert result is not None, "an empty-but-built frame must be returned, not None"
-        assert len(result) == 0
-        # Empty frame was cached (warm on retry).
-        assert cache._store.get((_BODY_PROJECT_GID, "project")) is not None
-
-    def test_empty_project_route_returns_200_empty(self, client) -> None:
-        """End-to-end: legit empty project → 200 with data: [] and total_count 0."""
+    def test_warm_empty_project_returns_200_empty(self, client) -> None:
+        """Warm cache with empty project frame → 200 data: [] (not a 503 or error)."""
         _assert_no_sprint2_fixture()
+        # Pre-warm cache with an empty frame (simulates background build completing
+        # for a legitimately empty project).
         cache = FakeDataFrameCache()
+        cache._store[(_BODY_PROJECT_GID, "project")] = _empty_project_dataframe()
+
         mock_asana = MagicMock()
         mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
         mock_asana.__aexit__ = AsyncMock(return_value=None)
@@ -551,19 +548,14 @@ class TestTBOD7LegitEmptyProject:
             patch(
                 "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
                 return_value=cache,
-            ),
-            patch.object(
-                UniversalResolutionStrategy,
-                "_build_dataframe",
-                new=AsyncMock(return_value=(_empty_project_dataframe(), datetime.now(UTC))),
             ),
         ):
             mock_client_class.return_value = mock_asana
             response = _post_project_rows(client)
 
         assert response.status_code == 200, (
-            f"legit empty project must be 200, got {response.status_code}: {response.text}"
+            f"warm empty project must be 200, got {response.status_code}: {response.text}"
         )
         body = response.json()["data"]
-        assert body["data"] == [], "empty project → data: []"
+        assert body["data"] == [], "warm empty project → data: []"
         assert body["meta"]["total_count"] == 0
