@@ -45,6 +45,11 @@ __all__ = [
 # (project_gid, entity_type) see the key already present and return the
 # retryable 503 immediately without spawning a second background build.
 _background_builds: set[tuple[str, str]] = set()
+# Strong references to the live background build tasks. asyncio.create_task only
+# gives the loop a WEAK reference, so a task with no external strong ref can be
+# garbage-collected mid-flight (CPython asyncio footgun). Hold the task here and
+# discard it in the done-callback so the build runs to completion.
+_background_tasks: set[asyncio.Task[None]] = set()
 
 # Exception tuples for narrowed exception handling
 _INDEX_BUILD_ERRORS = CACHE_TRANSIENT_ERRORS + (RuntimeError,)
@@ -899,6 +904,7 @@ class UniversalResolutionStrategy:
 
             def _done(task: asyncio.Task[None]) -> None:
                 _background_builds.discard(key)
+                _background_tasks.discard(task)
                 exc = task.exception() if not task.cancelled() else None
                 if exc is not None:
                     logger.warning(
@@ -914,6 +920,7 @@ class UniversalResolutionStrategy:
                 _swr_build_callback(cache, project_gid, self.entity_type),
                 name=f"bg-build:{self.entity_type}:{project_gid}",
             )
+            _background_tasks.add(task)
             task.add_done_callback(_done)
             logger.info(
                 "background_build_launched",
