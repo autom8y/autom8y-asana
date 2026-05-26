@@ -103,7 +103,15 @@ class EntityService:
         descriptor = self._entity_registry.require(entity_type)
         project_gid = self._project_registry.get_project_gid(entity_type)
 
-        if project_gid is None:
+        # A1 receiver-surface (4822eaad): body-parameterized entities (project,
+        # section) carry their GID in the request body, not the registry. A None
+        # registry GID is expected-and-correct for them — the route's A1
+        # body-precedence branch supplies the real GID. The route MUST fail-fast
+        # (4xx) if no body GID is provided; passing None into the engine is a
+        # defect (see query.py risk-1 guard). Offer-domain entities
+        # (body_parameterized=False) keep the registry-GID requirement: GATE 2
+        # still raises ServiceNotConfiguredError when their GID is None.
+        if project_gid is None and not descriptor.body_parameterized:
             raise ServiceNotConfiguredError(f"No project configured for entity type: {entity_type}")
 
         bot_pat = self._acquire_bot_pat()

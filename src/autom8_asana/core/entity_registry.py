@@ -105,6 +105,12 @@ class EntityDescriptor:
         entity_type: EntityType enum member, or None for entities without one.
         category: Classification as root, composite, leaf, or holder.
         primary_project_gid: Asana project GID, or None.
+        body_parameterized: True if the entity's project GID arrives per-request
+            in the query body (A1 receiver-surface contract, commit 4822eaad)
+            rather than from a statically-registered EntityProjectRegistry GID.
+            Body-parameterized types (project, section) are resolvable on schema
+            presence alone — they do not require registration. Offer-domain types
+            keep the default (False) and still require a registry GID.
         model_class_path: Dotted import path for lazy model class resolution.
         parent_entity: Name of the parent entity type, or None for root.
         holder_for: Name of the leaf entity this holder contains, or None.
@@ -142,6 +148,7 @@ class EntityDescriptor:
 
     # --- Asana Project ---
     primary_project_gid: str | None = None
+    body_parameterized: bool = False
     model_class_path: str | None = None
 
     # --- Hierarchy ---
@@ -869,6 +876,9 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         # Sprint 2: workspace-discovery registers the live GID. For smoke tests,
         # register via EntityProjectRegistry.register("project", <gid>, "Asana Projects").
         primary_project_gid=None,
+        # A1 receiver-surface (4822eaad): GID arrives per-request in the query
+        # body. Resolvable on schema presence alone; no registry GID required.
+        body_parameterized=True,
         default_ttl_seconds=300,
         warmable=False,  # Not warmed; query path loads on demand
         schema_module_path="autom8_asana.dataframes.schemas.project.PROJECT_SCHEMA",
@@ -884,6 +894,9 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         category=EntityCategory.LEAF,
         # S-06: primary_project_gid=None; GID registered dynamically at runtime.
         primary_project_gid=None,
+        # A1 receiver-surface (4822eaad): GID arrives per-request in the query
+        # body. Resolvable on schema presence alone; no registry GID required.
+        body_parameterized=True,
         default_ttl_seconds=300,
         warmable=False,  # Not warmed; query path loads on demand
         schema_module_path="autom8_asana.dataframes.schemas.section.SECTION_SCHEMA",

@@ -124,6 +124,8 @@ class CacheSettings(Autom8yBaseSettings):
         ASANA_CACHE_PROVIDER: Explicit provider ("memory", "redis", "tiered", "none")
         ASANA_CACHE_TTL_DEFAULT: Default TTL in seconds
         ASANA_CACHE_MEMORY_MAX_SIZE: Maximum entries in in-memory cache
+        ASANA_DF_BUILD_TIMEOUT_SECONDS: Inline build-on-miss timeout (default: 25.0)
+        ASANA_DF_BUILD_WAIT_SECONDS: Coalesced-waiter timeout (default: 30.0)
 
     Attributes:
         enabled: Whether caching is enabled
@@ -236,6 +238,31 @@ class CacheSettings(Autom8yBaseSettings):
         default=1,
         description="DataFrame cache circuit breaker success threshold to close",
         ge=1,
+    )
+
+    # --- Request-time build-on-demand (G2-RECV, ADR-G2RECV-002) ---
+    # Bounds for the synchronous build-on-miss path used by body-parameterized
+    # entities (project/section). uvicorn runs with no request-processing timeout
+    # (scripts/entrypoint.sh: no --timeout-keep-alive) and there is no in-repo
+    # ALB/ECS request timeout, so these app-level guards are the ONLY bound on a
+    # pathological inline build. See TDD-G2RECV §10.5.
+    dataframe_build_timeout_seconds: float = Field(
+        default=25.0,
+        validation_alias=AliasChoices(
+            "ASANA_DF_BUILD_TIMEOUT_SECONDS",
+            "ASANA_CACHE_DATAFRAME_BUILD_TIMEOUT_SECONDS",
+        ),
+        description="Max seconds an inline request-time DataFrame build may run before timing out (503 DATAFRAME_BUILD_TIMEOUT)",
+        gt=0.0,
+    )
+    dataframe_build_wait_seconds: float = Field(
+        default=30.0,
+        validation_alias=AliasChoices(
+            "ASANA_DF_BUILD_WAIT_SECONDS",
+            "ASANA_CACHE_DATAFRAME_BUILD_WAIT_SECONDS",
+        ),
+        description="Max seconds a coalesced request waits for another worker's build before failing (503 CACHE_BUILD_IN_PROGRESS)",
+        gt=0.0,
     )
 
     @field_validator("provider", mode="before")

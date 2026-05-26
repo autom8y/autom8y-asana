@@ -31,6 +31,7 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error, raise_service_error
+from autom8_asana.api.exception_types import ApiDataFrameBuildError
 from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
@@ -50,7 +51,12 @@ from autom8_asana.query.models import (
     RowsRequest,
     RowsResponse,
 )
-from autom8_asana.services.errors import CacheNotWarmError, InvalidFieldError, ServiceError
+from autom8_asana.services.errors import (
+    CacheNotWarmError,
+    InvalidFieldError,
+    InvalidParameterError,
+    ServiceError,
+)
 from autom8_asana.services.query_service import (
     EntityQueryService,
     resolve_section_index,
@@ -430,6 +436,7 @@ async def query_rows(
 
     # Sprint 2 A1 — body-precedence branch.
     # Body GID wins over registry-routed GID when present.
+    resolved_project_gid: str | None
     if request_body.project_gid is not None:
         resolved_project_gid = request_body.project_gid
         logger.info(
@@ -443,6 +450,19 @@ async def query_rows(
     else:
         # Legacy path: registry-routed GID (Sprint 1 semantics preserved).
         resolved_project_gid = ctx.project_gid
+
+    # risk-1 fail-fast guard: body-parameterized entities (project, section)
+    # carry ctx.project_gid=None. If the body omitted project_gid, the resolved
+    # GID is None — fail-fast with a clear 400 rather than passing None into the
+    # query engine (which would 500 or silently misbehave). Locked by T5.
+    if resolved_project_gid is None:
+        raise_service_error(
+            request_id,
+            InvalidParameterError(
+                f"project_gid is required in the request body for body-parameterized "
+                f"entity type: {entity_type}"
+            ),
+        )
 
     # 2. Build section index (manifest-first, enum fallback)
     section_index = await resolve_section_index(
@@ -464,6 +484,14 @@ async def query_rows(
             )
     except QueryEngineError as e:
         _raise_query_error(request_id, e)
+    except ApiDataFrameBuildError:
+        # ADR-G2RECV-002: request-time build-on-miss for body-parameterized entities
+        # raises a typed 503 (DATAFRAME_BUILD_FAILED / _ERROR / _TIMEOUT, or
+        # CACHE_BUILD_IN_PROGRESS). The error already carries status 503 +
+        # retry_after; the registered api_dataframe_build_error_handler renders the
+        # canonical envelope. Re-raise so it reaches that handler rather than being
+        # swallowed here. NEVER a 500, NEVER a silent empty-200.
+        raise
     except CacheNotWarmError as e:
         raise_api_error(
             request_id,
@@ -517,6 +545,19 @@ async def query_aggregate(
         ctx = entity_service.validate_entity_type(entity_type)
     except ServiceError as e:
         raise_service_error(request_id, e)
+
+    # risk-1 fail-fast guard: the aggregate endpoint has no body project_gid
+    # field, so a body-parameterized entity (ctx.project_gid=None) cannot supply
+    # a GID here. Fail-fast with a clear 400 rather than passing None downstream.
+    if ctx.project_gid is None:
+        raise_service_error(
+            request_id,
+            InvalidParameterError(
+                f"Entity type {entity_type} is body-parameterized and is not "
+                f"supported by the aggregate endpoint (no body project_gid field). "
+                f"Use POST /v1/query/{entity_type}/rows with a body project_gid."
+            ),
+        )
 
     # 2. Build section index
     section_index = await resolve_section_index(request_body.section, entity_type, ctx.project_gid)
@@ -605,6 +646,19 @@ async def query_entities(
         ctx = entity_service.validate_entity_type(entity_type)
     except ServiceError as e:
         raise_service_error(request_id, e)
+
+    # risk-1 fail-fast guard: the deprecated legacy endpoint has no body
+    # project_gid field, so a body-parameterized entity (ctx.project_gid=None)
+    # cannot supply a GID here. Fail-fast with a clear 400.
+    if ctx.project_gid is None:
+        raise_service_error(
+            request_id,
+            InvalidParameterError(
+                f"Entity type {entity_type} is body-parameterized and is not "
+                f"supported by this deprecated endpoint (no body project_gid field). "
+                f"Use POST /v1/query/{entity_type}/rows with a body project_gid."
+            ),
+        )
 
     # 2. Field validation via QueryService
     if request_body.where:

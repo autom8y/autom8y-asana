@@ -328,12 +328,15 @@ def get_resolvable_entities(
         )
         return _cached_entities
 
+    from autom8_asana.core.entity_registry import get_registry
     from autom8_asana.dataframes.models.registry import SchemaRegistry
 
     if schema_registry is None:
         schema_registry = SchemaRegistry.get_instance()
     if project_registry is None:
         project_registry = EntityProjectRegistry.get_instance()
+
+    entity_registry = get_registry()
 
     resolvable: set[str] = set()
 
@@ -343,14 +346,25 @@ def get_resolvable_entities(
         schema = schema_registry.get_schema(task_type)
         entity_type = schema.name  # "asset_edit", "unit", etc.
 
-        # Check if entity has a registered project
-        if project_registry.get_project_gid(entity_type) is not None:
+        # A1 receiver-surface (4822eaad): body-parameterized entities (project,
+        # section) are resolvable on schema presence alone — their GID arrives
+        # per-request in the query body, not from a static registry registration.
+        # Offer-domain entities (body_parameterized=False) still require a
+        # registry GID; the predicate reduces to the pre-existing condition for
+        # them, so the offer-domain gate is provably preserved.
+        descriptor = entity_registry.get(entity_type)
+        is_body_param = bool(descriptor and descriptor.body_parameterized)
+        has_registry_gid = project_registry.get_project_gid(entity_type) is not None
+
+        if is_body_param or has_registry_gid:
             resolvable.add(entity_type)
             logger.debug(
                 "entity_discovered_resolvable",
                 extra={
                     "entity_type": entity_type,
                     "task_type": task_type,
+                    "body_parameterized": is_body_param,
+                    "has_registry_gid": has_registry_gid,
                 },
             )
 
