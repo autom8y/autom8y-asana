@@ -41,8 +41,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    # Pinned to SHA 33096f8c (autom8y-workflows PR #17: opt-in test_maxprocesses worker cap). Update when autom8y-workflows changes.
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@33096f8ce0c73e739bd1034a6927fdd9b3e40c03
+    # Pinned to SHA cbc3c58e (autom8y-workflows PR #18: pin spectral-rulesets 1.22.2 — 1.22.3 crashed Spectral fleet-wide; includes PR #17 test_maxprocesses). Update when autom8y-workflows changes.
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@cbc3c58e56f3e0adeaf57101c0400d8f5d7845ed
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
