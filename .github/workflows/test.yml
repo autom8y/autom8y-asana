@@ -41,8 +41,8 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    # Pinned to SHA 0fb7b75373 (Path-A ADR-keyed exemption metadata, autom8y-workflows PR #8). Update when autom8y-workflows changes.
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@c88caabd8d9bba883e6a42628bdc2bba6d30512b
+    # Pinned to SHA 33096f8c (autom8y-workflows PR #17: opt-in test_maxprocesses worker cap). Update when autom8y-workflows changes.
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@33096f8ce0c73e739bd1034a6927fdd9b3e40c03
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
@@ -52,6 +52,11 @@ jobs:
       coverage_threshold: 0
       test_timeout: 40
       test_parallel: true
+      # Cap xdist workers: -n auto (4 on the runner) under push-mode coverage
+      # exhausts runner RAM and OOM-kills a worker on the asyncio-heavy
+      # lambda_handler tests. 2 workers restores headroom. Pairs with the
+      # workflow_handler test hardening in this PR (belt + suspenders).
+      test_maxprocesses: 2
       test_splits: 4
       test_markers_exclude: ${{ github.event_name == 'pull_request' && 'not integration and not benchmark and not slow and not fuzz' || 'not integration and not benchmark and not fuzz' }}
       run_integration: ${{ github.event_name == 'push' }}
