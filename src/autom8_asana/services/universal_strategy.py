@@ -38,6 +38,14 @@ __all__ = [
     "UniversalResolutionStrategy",
 ]
 
+# Module-level strong-reference set for background build dedup + GC-prevention.
+# Key: (project_gid, entity_type).  Entry is present while the background task
+# is running; removed in the task's done-callback (success OR failure).
+# Prevents thundering-herd: concurrent cold requests for the same
+# (project_gid, entity_type) see the key already present and return the
+# retryable 503 immediately without spawning a second background build.
+_background_builds: set[tuple[str, str]] = set()
+
 # Exception tuples for narrowed exception handling
 _INDEX_BUILD_ERRORS = CACHE_TRANSIENT_ERRORS + (RuntimeError,)
 _DATAFRAME_BUILD_ERRORS = CACHE_TRANSIENT_ERRORS + (RuntimeError, ValueError)
@@ -811,114 +819,112 @@ class UniversalResolutionStrategy:
         project_gid: str,
         client: AsanaClient,
     ) -> pl.DataFrame | None:
-        """Build a DataFrame inline on a cache miss for a body-parameterized entity.
+        """Background-build path for body-parameterized cold-cache misses.
 
-        Reuses the cache coalescer's proven lock/wait/release primitives (the same
-        control flow the ``@dataframe_cache`` decorator runs for offer-domain
-        ``resolve()``), adding an explicit ``asyncio.wait_for`` timeout guard that
-        the decorator lacks. The guard is mandatory: there is no server-side request
-        timeout (uvicorn has no ``--timeout-keep-alive``; no in-repo ALB/ECS request
-        timeout), so this is the only bound on a pathological build (TDD §10.5).
+        Option B — background build to completion + retryable 503 (G2-RECV
+        frame-quality convergence fix, Sprint 2).
 
-        Concurrency (dedup, not double-build): the coalescer lock is keyed on
-        ``(project_gid, entity_type)``. The first request for an uncached pair
-        acquires the lock and builds; concurrent SAME-pair requests wait via
-        :meth:`wait_for_build_async` and read the built result. Distinct GIDs do
-        not contend.
+        Problem (diagnosed): the old inline path wrapped the full
+        ``ProgressiveProjectBuilder`` build in ``asyncio.wait_for`` with
+        ``dataframe_build_timeout_seconds`` (25 s). For a real fleet project
+        the full progressive build exceeds 25 s → the coroutine is *cancelled*
+        before all sections complete → the manifest is never all-COMPLETE →
+        ``_derive_honest_contract_complete`` (engine.py:477) correctly returns
+        False → the consumer HC-2 gate refuses.
 
-        Error mapping (construct-validity line, TDD §10.6):
-        - Build OK (rows >= 0, including a legit EMPTY project) → return the frame
-          (non-None), which yields a 200 (``data: []`` for an empty project).
-        - Build returns ``None`` → 503 ``DATAFRAME_BUILD_FAILED``.
-        - Build raises → 503 ``DATAFRAME_BUILD_ERROR``.
-        - Inline build exceeds the timeout → 503 ``DATAFRAME_BUILD_TIMEOUT``.
-        - Coalesced wait exceeds its timeout → 503 ``CACHE_BUILD_IN_PROGRESS``.
-        On every failure/timeout the lock is released ``success=False`` so the
-        circuit breaker *records* the failure. Note: the build path does NOT
-        consult ``is_open`` (matching the ``@dataframe_cache`` decorator's existing
-        behavior), so the breaker does not itself fast-fail a never-warmed
-        body-parameterized GID — the ``asyncio.wait_for`` build timeout above is
-        the actual bound that prevents a pathological/slow GID from wedging.
+        Fix: launch the build as a fire-and-forget background task (no
+        request-bound cancellation) via the cache's registered SWR build callback
+        (``_swr_build_callback`` in ``factory.py``).  The callback mints its own
+        bot PAT + ``AsanaClient`` + workspace so it survives request teardown and
+        runs ``ProgressiveProjectBuilder.build_progressive_async(resume=True)`` to
+        completion, then ``cache.put_async``es the full frame.  The caller gets an
+        immediate retryable 503; a subsequent request hits the warm cache and the
+        now all-COMPLETE manifest.
+
+        Dedup (no thundering-herd / double-build):
+        Module-level ``_background_builds`` set keyed on
+        ``(project_gid, entity_type)`` prevents a second background task from
+        being spawned while the first is still running.  Concurrent cold requests
+        for the same GID both return the retryable 503 immediately; only one
+        background build runs.  The set entry is cleared in the task's
+        ``done_callback`` (success OR failure) so the next cold request after a
+        failed build can retry.
+
+        Fallback (no cache configured):
+        When the DataFrameCache provider is None there is nowhere to put the
+        background result and no SWR callback is registered.  Fall back to the
+        original inline-with-timeout guarded build so the no-cache code path
+        is unchanged.
 
         Args:
             project_gid: Body-supplied project GID to build.
-            client: AsanaClient for data fetching.
+            client: Request-scoped AsanaClient (NOT passed to the background task).
 
         Returns:
-            The built (possibly empty) DataFrame.
+            Never returns a DataFrame — always raises ``ApiDataFrameBuildError``.
+            The return type annotation is kept as ``pl.DataFrame | None`` so the
+            call-sites in ``_get_dataframe`` remain unchanged.
 
         Raises:
-            ApiDataFrameBuildError: On build failure, build timeout, or wait timeout.
+            ApiDataFrameBuildError: ``CACHE_BUILD_IN_PROGRESS`` (retryable 503)
+                when a background build was launched or is already running.
+                Includes ``retry_after_seconds`` so the caller knows when to retry.
         """
         from autom8_asana.api.exception_types import ApiDataFrameBuildError
         from autom8_asana.cache.dataframe.factory import (
+            _swr_build_callback,
             get_dataframe_cache_provider,
         )
 
-        settings = get_settings()
-        build_timeout = settings.cache.dataframe_build_timeout_seconds
-        wait_timeout = settings.cache.dataframe_build_wait_seconds
-
         cache = get_dataframe_cache_provider()
 
-        # No cache configured → build raw under the timeout guard, no coalescing.
+        # No cache configured → fall back to the original inline-with-timeout
+        # guarded build.  The background path requires a cache to persist the
+        # completed frame and a SWR callback to build without the request client.
         if cache is None:
-            return await self._guarded_build(project_gid, client, build_timeout)
-
-        acquired = await cache.acquire_build_lock_async(project_gid, self.entity_type)
-
-        if not acquired:
-            # Another worker is building THIS (gid, entity); wait then read.
-            entry = await cache.wait_for_build_async(
-                project_gid,
-                self.entity_type,
-                timeout_seconds=wait_timeout,
-            )
-            if entry is not None:
-                df_wait: pl.DataFrame | None = entry.dataframe
-                return df_wait
-            raise ApiDataFrameBuildError(
-                "CACHE_BUILD_IN_PROGRESS",
-                "DataFrame build in progress, retry shortly",
-                retry_after_seconds=5,
+            settings = get_settings()
+            return await self._guarded_build(
+                project_gid, client, settings.cache.dataframe_build_timeout_seconds
             )
 
-        # This worker builds.
-        try:
-            df, watermark = await asyncio.wait_for(
-                self._build_dataframe(project_gid, client),
-                timeout=build_timeout,
+        # Module-level in-flight set for dedup.  If a background build for this
+        # (gid, entity_type) pair is already running, return retryable 503
+        # immediately without launching a second build.
+        key = (project_gid, self.entity_type)
+        if key not in _background_builds:
+            # First cold request for this pair: add to in-flight set and spawn
+            # the background task.  The done-callback removes the key so a
+            # subsequent request after a failed build can trigger a fresh attempt.
+            _background_builds.add(key)
+
+            def _done(task: asyncio.Task[None]) -> None:
+                _background_builds.discard(key)
+                exc = task.exception() if not task.cancelled() else None
+                if exc is not None:
+                    logger.warning(
+                        "background_build_failed",
+                        extra={
+                            "project_gid": project_gid,
+                            "entity_type": self.entity_type,
+                            "error": str(exc),
+                        },
+                    )
+
+            task = asyncio.create_task(
+                _swr_build_callback(cache, project_gid, self.entity_type),
+                name=f"bg-build:{self.entity_type}:{project_gid}",
             )
-            if df is None:
-                await cache.release_build_lock_async(project_gid, self.entity_type, success=False)
-                raise ApiDataFrameBuildError(
-                    "DATAFRAME_BUILD_FAILED",
-                    "Failed to build DataFrame",
-                    retry_after_seconds=30,
-                )
-            # Non-None frame (rows >= 0): a legit empty project is a real 200.
-            await cache.put_async(project_gid, self.entity_type, df, watermark)
-            await cache.release_build_lock_async(project_gid, self.entity_type, success=True)
-            built_df: pl.DataFrame | None = df
-            return built_df
-        except TimeoutError:
-            await cache.release_build_lock_async(project_gid, self.entity_type, success=False)
-            raise ApiDataFrameBuildError(
-                "DATAFRAME_BUILD_TIMEOUT",
-                "DataFrame build exceeded time budget",
-                retry_after_seconds=30,
+            task.add_done_callback(_done)
+            logger.info(
+                "background_build_launched",
+                extra={"project_gid": project_gid, "entity_type": self.entity_type},
             )
-        except ApiDataFrameBuildError:
-            # Already a typed 503 (e.g. DATAFRAME_BUILD_FAILED above); lock already
-            # released on those paths. Re-raise without double-release.
-            raise
-        except Exception as e:  # noqa: BLE001 -- BROAD-CATCH at build boundary: every build error converts to a typed 503 (never a 500); lock released success=False to record the circuit-breaker failure
-            await cache.release_build_lock_async(project_gid, self.entity_type, success=False)
-            raise ApiDataFrameBuildError(
-                "DATAFRAME_BUILD_ERROR",
-                f"Build failed: {type(e).__name__}",
-                retry_after_seconds=30,
-            )
+
+        raise ApiDataFrameBuildError(
+            "CACHE_BUILD_IN_PROGRESS",
+            "DataFrame build in progress, retry shortly",
+            retry_after_seconds=30,
+        )
 
     async def _guarded_build(
         self,
