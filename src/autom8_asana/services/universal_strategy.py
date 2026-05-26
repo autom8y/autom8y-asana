@@ -834,7 +834,11 @@ class UniversalResolutionStrategy:
         - Inline build exceeds the timeout → 503 ``DATAFRAME_BUILD_TIMEOUT``.
         - Coalesced wait exceeds its timeout → 503 ``CACHE_BUILD_IN_PROGRESS``.
         On every failure/timeout the lock is released ``success=False`` so the
-        circuit breaker records the failure and a repeatedly-slow GID fast-fails.
+        circuit breaker *records* the failure. Note: the build path does NOT
+        consult ``is_open`` (matching the ``@dataframe_cache`` decorator's existing
+        behavior), so the breaker does not itself fast-fail a never-warmed
+        body-parameterized GID — the ``asyncio.wait_for`` build timeout above is
+        the actual bound that prevents a pathological/slow GID from wedging.
 
         Args:
             project_gid: Body-supplied project GID to build.

@@ -229,3 +229,149 @@ T1-T5 on the **unregistered** path. Honor the §8 risk-1 fail-fast guard (mandat
 investigate risk-2 (report finding; fix only if QA shows persistent 503). Do NOT modify
 A1+B1 (`4822eaad`), `require_business_scope` (`api/main.py:395`), or relax the
 offer-domain registry-GID requirement (T3 locks this).
+
+---
+
+## 10. Build-on-demand component (closes risk-2 → AC-G2R-5 cold 200)
+
+> Added 2026-05-26 on `fix/g2-recv-body-parameterized-resolvability` @ 9fbfd766.
+> Design decision: ADR-G2RECV-002 (Option (i) SYNC build-on-request). This section
+> is the implementation spec for principal-engineer. All anchors re-read this session.
+
+### 10.1 The gap risk-2 left open
+
+The resolvability fix made the rows endpoint REACHABLE; it returns 503
+CACHE_NOT_WARMED cold because `_get_dataframe` (universal_strategy.py:727) is
+cache-only by design (:737-738) and project/section are never warmed
+(`warmable=False`, entity_registry.py:881,899). The rows path
+(query_service.py:387) calls `_get_dataframe`, NOT the decorated `resolve()`, so
+the existing `@dataframe_cache` build-on-miss never fires here.
+
+### 10.2 Change surface (exact files:functions)
+
+| # | File:anchor | Change |
+|---|-------------|--------|
+| C6 | `services/universal_strategy.py` `_get_dataframe` (:727-786) | After the DataFrameCache `get_async` miss (the final `return None` at :786), insert a gate: resolve `descriptor = get_registry().get(self.entity_type)`; `if descriptor and descriptor.body_parameterized: return await self._build_on_miss(project_gid, client)`. Offer-domain falls through to the unchanged `return None`. |
+| C7 | `services/universal_strategy.py` NEW `_build_on_miss(self, project_gid, client) -> pl.DataFrame \| None` | Private method implementing the lock→build→put→release flow (§10.3). Reuses cache primitives `acquire_build_lock_async` / `wait_for_build_async` / `release_build_lock_async` / `put_async` (dataframe_cache.py:734-803). Build wrapped in `asyncio.wait_for(self._build_dataframe(...), timeout=BUILD_TIMEOUT_SECONDS)`. |
+| C8 | `settings.py` | Two settings-backed constants: `dataframe_build_timeout_seconds: float = 25.0` (inline build cap) and `dataframe_build_wait_seconds: float = 30.0` (waiter cap, matches decorator default). Env: `ASANA_DF_BUILD_TIMEOUT_SECONDS`, `ASANA_DF_BUILD_WAIT_SECONDS`. |
+| C9 | `api/exception_types.py` `ApiDataFrameBuildError` (:121) | Add documented error code `DATAFRAME_BUILD_TIMEOUT` to the docstring enum (no new class; reuse the 503 carrier with `retry_after_seconds`). |
+| C10 | `api/routes/query.py` `query_rows` (:484-493 region) | Add `except ApiDataFrameBuildError as e:` arm mapping `e.code`/`e.status_code`/`e.details` to the API error envelope (the error already carries status 503 + retry_after). Confirm `aggregate` (:494+) and legacy (:571+) endpoints either reject body-parameterized types or share this mapping. |
+
+No change to `_build_dataframe` / `_build_entity_dataframe` / `ProgressiveProjectBuilder` — they are reused as-is.
+
+### 10.3 `_build_on_miss` control flow (lifted from decorator.py:279-285, +timeout guard)
+
+```
+async def _build_on_miss(self, project_gid, client) -> pl.DataFrame | None:
+    cache = get_dataframe_cache_provider()
+    if cache is None:                       # no cache configured → build raw, no lock
+        return await _guarded_build(project_gid, client)   # asyncio.wait_for(_build_dataframe)
+
+    acquired = await cache.acquire_build_lock_async(project_gid, self.entity_type)
+    if not acquired:
+        # another request is building THIS (gid, entity) → wait, return its result
+        entry = await cache.wait_for_build_async(project_gid, self.entity_type,
+                                                 timeout_seconds=BUILD_WAIT_SECONDS)
+        if entry is not None:
+            return entry.dataframe
+        raise ApiDataFrameBuildError("CACHE_BUILD_IN_PROGRESS",
+            "DataFrame build in progress, retry shortly", retry_after_seconds=5)
+
+    # this request builds
+    try:
+        df, watermark = await asyncio.wait_for(
+            self._build_dataframe(project_gid, client),  # returns (df, watermark)
+            timeout=BUILD_TIMEOUT_SECONDS,
+        )
+        if df is None:
+            await cache.release_build_lock_async(project_gid, self.entity_type, success=False)
+            raise ApiDataFrameBuildError("DATAFRAME_BUILD_FAILED",
+                "Failed to build DataFrame", retry_after_seconds=30)
+        await cache.put_async(project_gid, self.entity_type, df, watermark)
+        await cache.release_build_lock_async(project_gid, self.entity_type, success=True)
+        return df                                  # may be an EMPTY frame → legit 200
+    except asyncio.TimeoutError:
+        await cache.release_build_lock_async(project_gid, self.entity_type, success=False)
+        raise ApiDataFrameBuildError("DATAFRAME_BUILD_TIMEOUT",
+            "DataFrame build exceeded time budget", retry_after_seconds=30)
+    except ApiDataFrameBuildError:
+        raise
+    except Exception as e:   # BROAD-CATCH at build boundary → typed 503
+        await cache.release_build_lock_async(project_gid, self.entity_type, success=False)
+        raise ApiDataFrameBuildError("DATAFRAME_BUILD_ERROR",
+            f"Build failed: {type(e).__name__}", retry_after_seconds=30)
+```
+
+Note `_build_dataframe` (universal_strategy.py:788) returns a `(df, watermark)`
+tuple — `_build_on_miss` unpacks it; `put_async` takes `(project_gid, entity_type,
+df, watermark)` (dataframe_cache.py:590).
+
+### 10.4 Concurrency
+
+Dedup, not double-build. Lock key is per `(project_gid, entity_type)` via the
+coalescer (dataframe_cache.py:751 `_build_key`). One worker builds a given GID;
+concurrent same-GID requests wait. Distinct GIDs build in parallel (no false
+contention). This is the decorator's verified pattern — no new concurrency code.
+
+### 10.5 Timeout
+
+uvicorn runs with NO request-processing timeout (verified `scripts/entrypoint.sh:53`
+— `python -m uvicorn ... --factory`, no `--timeout-keep-alive`); no ALB/ECS request
+timeout is configured in-repo. The `asyncio.wait_for(BUILD_TIMEOUT_SECONDS)` guard
+is therefore the ONLY bound on a pathological build and is mandatory, not optional.
+Waiter bounded by `BUILD_WAIT_SECONDS`. Both settings-backed (C8). On timeout the
+lock is released `success=False`, recording a circuit-breaker failure
+(dataframe_cache.py:778-779) so a repeatedly slow GID fast-fails subsequent calls.
+
+### 10.6 Error mapping (200 vs 503 — the construct-validity line)
+
+| Outcome | HTTP | Code |
+|---------|------|------|
+| Build OK, rows > 0 | 200 | RowsResponse (B1 double-envelope) |
+| Build OK, **zero rows** (legit empty project) | **200** | RowsResponse, `data: []`, `total_count: 0` |
+| Build returned `None` | 503 | `DATAFRAME_BUILD_FAILED` |
+| Build raised | 503 | `DATAFRAME_BUILD_ERROR` |
+| Inline build exceeded `BUILD_TIMEOUT_SECONDS` | 503 | `DATAFRAME_BUILD_TIMEOUT` |
+| Waiting on another build, exceeded `BUILD_WAIT_SECONDS` | 503 | `CACHE_BUILD_IN_PROGRESS` |
+
+"Empty project" (200) vs "build failed" (503) is distinguished by `df is not None`
+— a built empty frame is `put_async`'d and returned; a failed build returns `None`
+or raises. NEVER a silent empty-rows 200 masking a failure, NEVER a 500.
+
+## 11. Subsequent-request warmth
+
+After a successful `_build_on_miss`, the frame is written via `put_async` (C7), so
+the next request for the same (GID, entity) hits warm in `_get_dataframe`'s existing
+DataFrameCache `get_async` branch (universal_strategy.py:768) and returns 200
+without rebuilding. TTL/eviction follows the existing DataFrameCache policy
+(unchanged). No per-GID warming registration is created — warmth is request-driven
+and ephemeral, which is correct for arbitrary body-supplied GIDs.
+
+## 12. Test plan (build-on-demand)
+
+Extends §7 (T1-T5 resolvability tests, unchanged). New tests:
+
+| ID | Scenario | Assert |
+|----|----------|--------|
+| **T-BOD-1** | Cold cache → first `POST /v1/query/project/rows` with valid body `project_gid` | 200; RowsResponse; `_build_dataframe` invoked once; result written to cache (`put_async` called). **This is AC-G2R-5.** |
+| **T-BOD-2** | Warm second hit (same GID, immediately after T-BOD-1) | 200; `_build_dataframe` NOT invoked again (served from cache `get_async`). |
+| **T-BOD-3** | **Offer-domain non-regression** — cold `offer`/`unit` query with no warm cache | Behavior UNCHANGED: `_get_dataframe` returns `None` → `CacheNotWarmError` → 503 CACHE_NOT_WARMED. `_build_on_miss` NOT invoked (descriptor `body_parameterized=False`). Hard gate from ADR-G2RECV-002. |
+| **T-BOD-4** | Concurrency — two simultaneous cold requests, SAME GID | `_build_dataframe` invoked exactly ONCE; both requests get 200 with identical rows (one builds, one waits via `wait_for_build_async`). No double-build. |
+| **T-BOD-4b** | Concurrency — two simultaneous cold requests, DIFFERENT GIDs | Both build (no false contention); both 200. |
+| **T-BOD-5** | Build failure — `_build_dataframe` returns `None` | 503 `DATAFRAME_BUILD_FAILED`; lock released `success=False`; circuit-breaker failure recorded. NOT 500, NOT empty 200. |
+| **T-BOD-5b** | Build raises | 503 `DATAFRAME_BUILD_ERROR`; lock released `success=False`. |
+| **T-BOD-6** | Timeout — `_build_dataframe` exceeds `BUILD_TIMEOUT_SECONDS` (inject slow build) | 503 `DATAFRAME_BUILD_TIMEOUT` within ~budget; request does NOT hang; lock released `success=False`. |
+| **T-BOD-7** | **Legit empty project** — build succeeds, zero rows | **200**; `data: []`; `total_count: 0`; frame written to cache (warm on retry). Distinguished from T-BOD-5. |
+| **T-BOD-8** | Waiter timeout — second request waits, builder exceeds `BUILD_WAIT_SECONDS` | Second request 503 `CACHE_BUILD_IN_PROGRESS` with `retry_after_seconds`. |
+
+## 13. Handoff delta to principal-engineer (build-on-demand)
+
+Implement C6-C10 per §10.2, the §10.3 `_build_on_miss` flow, the §10.5 mandatory
+`asyncio.wait_for` guard, and §12 T-BOD-1..8. The build-on-miss branch MUST be
+gated strictly on `descriptor.body_parameterized` (T-BOD-3 locks offer-domain
+non-regression — this is a REJECT condition if violated). Reuse the existing cache
+coalescer primitives and `_build_dataframe`/`ProgressiveProjectBuilder` as-is — do
+NOT write new concurrency or build machinery. Do NOT decorate the strategy class
+with `@dataframe_cache` (off-path; would touch offer-domain `resolve()`). Do NOT
+modify A1+B1 (`4822eaad`), `require_business_scope` (`api/main.py:395`), or the
+offer-domain `return None` cache-only path.

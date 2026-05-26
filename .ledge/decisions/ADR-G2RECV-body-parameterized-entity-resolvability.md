@@ -221,3 +221,245 @@ unchanged.
 - `require_business_scope=True` @ `api/main.py:395`: untouched.
 - Offer-domain registry-GID requirement: preserved by `body_parameterized=False` default
   and locked by non-regression test.
+
+---
+
+# ADR-G2RECV-002 (Addendum) — Request-time build-on-demand for body-parameterized entities
+
+> Appended 2026-05-26. Closes ADR-G2RECV-001 §risk-2 (cold-cache 503 on AC-G2R-5).
+> Status: Proposed — pending principal-engineer implementation under TDD-G2RECV §10-12.
+> complexity: MODULE. Disciplines: option-enumeration-discipline, structural-verification-receipt, assessment-methodology (P-06 weighting / P-07 proxy).
+
+## Context
+
+ADR-G2RECV-001 made `POST /v1/query/{project|section}/rows` **reachable** (the A1
+body-precedence branch is no longer dead code). But a cold request now returns
+**503 CACHE_NOT_WARMED** rather than the 200 RowsResponse that AC-G2R-5 requires.
+
+### Verified root cause (anchors re-read on `fix/g2-recv-body-parameterized-resolvability` @ 9fbfd766)
+
+The rows path is cache-only and never builds on the request path:
+
+```
+POST /v1/query/project/rows {"project_gid": "<body gid>"}
+  └─ query_rows()                                  api/routes/query.py:403
+       └─ EntityQueryService.query(...)            services/query_service.py:337
+            └─ strategy._get_dataframe(project_gid, client)   query_service.py:387
+                 │   universal_strategy.py:727 — returns None on miss BY DESIGN
+                 │   (:737-738 "DataFrame builds happen at warmup, not request-time;
+                 │    This method does NOT trigger builds on cache miss.")
+                 └─ None
+            └─ df is None → raise CacheNotWarmError  query_service.py:389-404
+       └─ except CacheNotWarmError → 503 CACHE_NOT_WARMED  query.py:486-493
+```
+
+Offer-domain entities only return 200 because a scheduled `cache_warmer` lambda
+pre-populates them (`warmable=True`). `project`/`section` are `warmable=False`
+(entity_registry.py:881,899 — `body_parameterized=True`) and take ARBITRARY
+body-supplied GIDs, so they are **never warmed** → always cold → always 503.
+
+### Build machinery already exists, but is NOT on this path
+
+- `_build_dataframe` (universal_strategy.py:788) → `_build_entity_dataframe`
+  (:812) → `ProgressiveProjectBuilder.build_progressive_async(resume=True)`
+  (dataframes/builders/progressive.py:446). VERIFIED present.
+- The `@dataframe_cache` class decorator (cache/dataframe/decorator.py:27)
+  implements the **full** build-on-miss flow: cache-hit → lock-acquire →
+  build+put → release, with coalescer-based dedup (`acquire_build_lock_async`,
+  `wait_for_build_async(timeout_seconds=30.0)`, `release_build_lock_async`) and
+  circuit-breaker integration. VERIFIED at decorator.py:99-285 and
+  cache/integration/dataframe_cache.py:734-803.
+- **But the decorator wraps `resolve()`, NOT `_get_dataframe()`.** The rows query
+  path calls `_get_dataframe()` (query_service.py:387), so the decorator's
+  build-on-miss is not reachable from the rows endpoint. `get_universal_strategy`
+  (universal_strategy.py:956) returns an UNDECORATED strategy. VERIFIED: no class
+  in src/ carries `@dataframe_cache` (grep-zero on `@dataframe_cache` class
+  applications).
+
+## Decision
+
+**Adopt Option (i): synchronous build-on-request, inside `_get_dataframe`, strictly
+gated on `descriptor.body_parameterized`, reusing the cache's existing coalescer
+lock primitives for concurrency dedup, and wrapping the build in an explicit
+`asyncio.wait_for(...)` timeout guard.**
+
+On a cache miss in `_get_dataframe`, when (and only when) the strategy's entity
+descriptor is `body_parameterized`, the strategy:
+
+1. attempts to acquire the build lock (`acquire_build_lock_async`);
+2. if NOT acquired (another request is building the same GID), waits via
+   `wait_for_build_async(timeout_seconds=BUILD_WAIT_SECONDS)` and returns the
+   warm result, or raises a typed build-timeout error on wait timeout;
+3. if acquired, runs `_build_dataframe(project_gid, client)` under
+   `asyncio.wait_for(..., timeout=BUILD_TIMEOUT_SECONDS)`, writes the result to
+   the DataFrameCache (`put_async`), releases the lock (success=True), and
+   returns the built DataFrame;
+4. on build returning `None`, build raising, or build timing out: releases the
+   lock (success=False, which records a circuit-breaker failure) and raises a
+   typed error that maps to a clean 503 (`DATAFRAME_BUILD_*`) — NOT a 500, NOT a
+   silent empty-rows 200.
+
+A **legitimately empty** project (build succeeded, zero rows) returns a built,
+empty DataFrame → 200 with `data: []` and `total_count: 0` (a real empty result,
+distinguished from build-failure by the fact that `put_async` was called and the
+DataFrame is non-`None`).
+
+Offer-domain entities (`body_parameterized=False`) are **untouched**: the miss
+path returns `None` exactly as today (cache-only), preserving the warmed/cache-only
+serving contract. This is the hard non-regression from ADR-G2RECV-001.
+
+### Why the build-on-miss branch lives in `_get_dataframe` (not the decorator)
+
+The rows query path calls `_get_dataframe()` directly (query_service.py:387). The
+decorator wraps `resolve()` and is therefore off-path. Three sub-options were
+considered for WHERE the build lives (see Options Considered §Wiring); the chosen
+wiring adds a private helper invoked from `_get_dataframe`'s miss branch, gated on
+the descriptor flag, so the offer-domain `return None` path is provably preserved
+(it is the `else` of an `if descriptor.body_parameterized` branch).
+
+## Options Considered
+
+### Option (i) — SYNC build-on-request inside `_get_dataframe` (CHOSEN)
+
+Build the DataFrame inline on the request path on miss; cache it; return 200 with
+rows on the **first** hit.
+
+- **(+)** Satisfies AC-G2R-5 literally: the cold probe returns **200** (real rows
+  or a legit empty-but-built result), not a 503-then-retry. The consumer's
+  documented behavior is to fall back to legacy on any non-200 — a 503 on the
+  probe defeats the receiver. One-shot 200 is the only behavior that closes
+  AC-G2R-5 without a consumer change.
+- **(+)** Reuses the EXACT proven primitives the decorator already uses
+  (`acquire_build_lock_async` / `wait_for_build_async` / `release_build_lock_async`
+  / `put_async` + circuit breaker). No new concurrency machinery; we lift the
+  decorator's well-tested control flow into the `_get_dataframe` miss branch.
+- **(+)** `_build_entity_dataframe` already routes through
+  `ProgressiveProjectBuilder(resume=True)`, which uses manifest tracking and
+  section-level persistence — a re-run after a partial build resumes rather than
+  refetching, bounding the practical cost of the cold path.
+- **(−)** A cold build is a synchronous Asana fetch + progressive build on the
+  request path. uvicorn (entrypoint: `scripts/entrypoint.sh:53` — `python -m
+  uvicorn ... --factory`, NO `--timeout-keep-alive` / no request-processing
+  timeout) imposes no server-side hard limit, so a pathological large project
+  could hang the worker. **Mitigation: mandatory `asyncio.wait_for` guard**
+  (BUILD_TIMEOUT_SECONDS) — this is the load-bearing reason the timeout guard is
+  not optional. There is no ALB/ECS request-timeout config in this repo (infra is
+  external); the application MUST self-bound.
+- **(−)** Holds a worker for the build duration. Acceptable for body-parameterized
+  types: they are low-frequency, S2S, per-GID, and the lock coalesces concurrent
+  duplicates so only one worker builds per (GID, entity).
+
+### Option (ii) — ASYNC warm-then-retry (kick off build on 503, consumer retries)
+
+503 triggers a background build; the consumer retries and gets 200 once warm.
+
+- **(+)** Lowest request latency on the cold path; no worker held for the build.
+- **(+)** Matches the existing decorator's "in-progress → 503 retry-after"
+  semantics for the second concurrent caller.
+- **(−)** **Fails AC-G2R-5 as written**: the AC wants a **200** on the probe. The
+  consumer falls back to legacy on a non-200 (verified intent in the G2-RECV
+  handoff), so a first-request 503 means the receiver path is never exercised on
+  the probe — the AC's user-visible outcome (200 RowsResponse, cold) is not
+  realized on the first call.
+- **(−)** Requires the consumer to implement retry/backoff specifically for these
+  types, OR a probe-warm step — a cross-surface change beyond this MODULE's scope
+  and beyond the locked A1+B1 contract.
+- **(−)** Background-build orchestration on a request thread (fire-and-forget
+  task) is fragile under ECS task recycling; the build can be lost mid-flight with
+  no caller awaiting it.
+
+### Option (iii) — Apply `@dataframe_cache` decorator (or a `build_on_miss` flag) to the strategy
+
+Decorate `UniversalResolutionStrategy` (or set a flag) so the decorator's existing
+build-on-miss fires.
+
+- **(+)** Zero new build/concurrency code — the decorator already does all of it.
+- **(−)** **Off-path**: the decorator wraps `resolve()`, but the rows query path
+  calls `_get_dataframe()` (query_service.py:387), not `resolve()`. Decorating the
+  class does not put build-on-miss on the rows path without ALSO rerouting
+  query_service to `resolve()` — a larger, riskier change that touches the
+  offer-domain serving path (REJECT: offer-domain is FROZEN).
+- **(−)** Decorating globally would change offer-domain `resolve()` behavior
+  (currently undecorated). Gating the decorator per-entity is not expressible —
+  the decorator is a class decorator, applied at class-definition time, not
+  per-instance/per-entity. A factory that conditionally decorates per entity_type
+  is possible but reintroduces the very name-set special-casing ADR-G2RECV-001
+  Option B rejected.
+- **(−)** The decorator's miss path raises `CACHE_BUILD_IN_PROGRESS` (503) for the
+  **building** request too unless a hit follows — it is designed around
+  warm-then-retry for offer-domain. Re-targeting it for first-hit-200 needs the
+  build to be awaited inline anyway, which is Option (i) by another name.
+
+**Wiring sub-decision (where the branch lives):** inside `_get_dataframe`'s miss
+branch, after the DataFrameCache `get_async` miss, as
+`if descriptor.body_parameterized: return await self._build_on_miss(...)`. The
+descriptor is fetched via `get_registry().get(self.entity_type)` — the same
+lookup `_get_custom_field_resolver` (universal_strategy.py:919) already performs,
+so no new dependency. The offer-domain path is the untouched `return None` that
+follows the branch.
+
+### Decision rationale
+
+Option (i) is selected because AC-G2R-5 demands a **cold 200**, and only an inline
+build produces a 200 on the first request without a consumer-side change (the
+consumer falls back to legacy on non-200, per the locked receiver contract). The
+search space is genuinely constrained by the AC's "200 on probe, cold" wording:
+Option (ii) is eliminated by the consumer fallback semantics, Option (iii) by the
+decorator being off the `_get_dataframe` path and not per-entity gateable. Option
+(i) reuses the decorator's proven lock/wait/release/circuit-breaker primitives
+(so we inherit its concurrency correctness) and adds the one thing the decorator
+lacks for this surface — an explicit build **timeout guard** — which the cold,
+arbitrary-GID, server-timeout-free context makes mandatory.
+
+The offer-domain non-regression is structurally guaranteed: build-on-miss is the
+`if descriptor.body_parameterized` true-branch; offer-domain (`False`) falls
+through to the unchanged `return None`.
+
+## Concurrency, Timeout, Error mapping
+
+- **Concurrency (dedup, not double-build):** reuse the coalescer. The first
+  request for an uncached (GID, entity) acquires the lock and builds; concurrent
+  requests for the SAME (GID, entity) get `acquired=False` and
+  `wait_for_build_async` the result. Distinct GIDs do not contend (the lock key is
+  per `(project_gid, entity_type)`). This is the decorator's exact pattern
+  (decorator.py:279-285), lifted.
+- **Timeout (mandatory):** `BUILD_TIMEOUT_SECONDS` (proposed default 25s, settings-
+  backed) wraps the inline build via `asyncio.wait_for`. `BUILD_WAIT_SECONDS`
+  (proposed default 30s — matches the decorator's `wait_for_build_async` default)
+  bounds the waiter. On either timeout: typed 503 with `retry_after_seconds`, lock
+  released `success=False` (circuit-breaker records the failure, so a repeatedly
+  pathological GID trips the breaker and fast-fails subsequent requests). uvicorn
+  imposes no request timeout (verified: no `--timeout-keep-alive` in
+  `scripts/entrypoint.sh:53`), so the app-level guard is the only bound.
+- **Error mapping (clean, not 500, not silent empty):**
+  - build returns `None` → 503 `DATAFRAME_BUILD_FAILED` (existing code, exception_types.py:130).
+  - build raises → 503 `DATAFRAME_BUILD_ERROR` (existing code).
+  - `asyncio.wait_for` TimeoutError → 503 `DATAFRAME_BUILD_TIMEOUT` (new code on
+    `ApiDataFrameBuildError`, or reuse `CACHE_BUILD_IN_PROGRESS` with retry_after).
+  - wait-for-other-build timeout → 503 `CACHE_BUILD_IN_PROGRESS` (existing).
+  - build succeeds with zero rows → **200**, `data: []`, `total_count: 0` (legit
+    empty; distinguished because the DataFrame is non-`None` and was `put_async`'d).
+  The route maps these via the existing `except CacheNotWarmError` plus a new
+  `except ApiDataFrameBuildError` arm (query.py:486 region). Distinguishing
+  "empty project" (200) from "build failed" (503) is the construct-validity line
+  [assessment-methodology P-07]: the proxy for "real result" is "build completed
+  and returned a non-None frame", not "rows > 0".
+
+## Reversibility Assessment
+
+**Two-way door.** The change is additive: a new private `_build_on_miss` branch in
+`_get_dataframe` gated on a defaulted descriptor flag that is already `False` for
+all offer-domain types, plus two settings-backed timeout constants and one new
+error code. No schema migration, no wire-contract change (B1 double-envelope
+response is unchanged — a built 200 has the same shape as a warmed 200). Reverting
+is deleting the branch; offer-domain behavior is untouched throughout. No
+stakeholder sign-off beyond code review.
+
+## Compliance with locked constraints
+
+- A1+B1 @ `4822eaad`: untouched. The 200 RowsResponse shape is identical for built
+  vs warmed results.
+- `require_business_scope=True` @ `api/main.py:395`: untouched.
+- Offer-domain serving FROZEN (cache-only/warmed): preserved by the
+  `if descriptor.body_parameterized` gate — offer-domain falls through to the
+  unchanged `return None`. Locked by non-regression test (TDD §12 T-BOD-3).
