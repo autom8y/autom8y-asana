@@ -46,7 +46,17 @@ from autom8_asana.lambda_handlers.workflow_handler import (
 # The xdist_group marker is PRESERVED. With ``--dist=loadgroup``
 # (pyproject.toml:105) it co-locates this module's tests on a single worker,
 # bounding their combined footprint and keeping teardown ordering deterministic.
-pytestmark = [pytest.mark.xdist_group("workflow_handler")]
+pytestmark = [
+    pytest.mark.xdist_group("workflow_handler"),
+    # QUARANTINE: this handler runs asyncio.run internally; under CI resource
+    # pressure (coverage memory, co-resident load) that pattern SIGKILLs the
+    # pytest-xdist worker ("node down"), intermittently failing the sharded gate
+    # regardless of how the tests invoke it. Excluded from the sharded run via
+    # test_markers_exclude; executed single-process (no xdist worker to crash)
+    # in the non-blocking `workflow-handler-isolated` job. See pyproject marker
+    # note + PR #63.
+    pytest.mark.worker_isolated,
+]
 
 # --- Helpers ---
 

@@ -109,6 +109,7 @@ markers = [
     "benchmark: marks tests as performance benchmarks",
     "fuzz: OpenAPI hypothesis fuzz tests (heavy — excluded from sharded CI runs)",
     "scar: scar-tissue regression tests (selectable via `pytest -m scar`); see .know/scar-tissue.md",
+    "worker_isolated: tests whose in-handler asyncio.run + AsyncMock teardown SIGKILLs an xdist worker under CI resource pressure (the recurring 'workflow_handler worker crash' scar). Excluded from the sharded CI run; executed single-process in a non-blocking job. Remove when the production handler/test-harness drops the nested-loop pattern.",
 ]
 
 [tool.coverage.run]
