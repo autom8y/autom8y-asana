@@ -41,8 +41,9 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    # Pinned to SHA 0fb7b75373 (Path-A ADR-keyed exemption metadata, autom8y-workflows PR #8). Update when autom8y-workflows changes.
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@c88caabd8d9bba883e6a42628bdc2bba6d30512b
+    # TEMP (PRE-MERGE VALIDATION): pointing at autom8y-workflows#17 branch to validate
+    # test_maxprocesses. RE-PIN to the merged SHA before merging this PR (see PR #62).
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@fix/ci-test-maxprocesses-input
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
@@ -52,6 +53,9 @@ jobs:
       coverage_threshold: 0
       test_timeout: 40
       test_parallel: true
+      # Cap xdist workers: -n auto OOM-kills a worker on the 7-16GB runner for this
+      # memory-heavy suite (swap-thrash → SIGKILL). 2 workers restores RAM headroom.
+      test_maxprocesses: 2
       test_splits: 4
       test_markers_exclude: ${{ github.event_name == 'pull_request' && 'not integration and not benchmark and not slow and not fuzz' || 'not integration and not benchmark and not fuzz' }}
       run_integration: ${{ github.event_name == 'push' }}
