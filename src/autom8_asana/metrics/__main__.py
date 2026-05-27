@@ -493,10 +493,13 @@ def main() -> None:
     from autom8_asana.metrics.freshness import (
         FreshnessError,
         FreshnessReport,
+        compute_verification_age,
         format_human_lines,
         format_json_envelope,
+        format_verification_human_line,
         format_warning,
         parse_duration_spec,
+        read_manifest_sync,
     )
     from autom8_asana.metrics.registry import MetricRegistry
     from autom8_asana.models.business.activity import CLASSIFIERS
@@ -841,6 +844,39 @@ def main() -> None:
         )
         sys.exit(1)
 
+    # ----- Verification-age signal (ADR-006 §Decision-2/3/4 / TDD §2.3/§2.3.1) -----
+    # Read the manifest synchronously (the metric emission path is sync)
+    # and join classifier active-section names against SectionInfo.name to
+    # compute verification_age. Falls back to VerificationAge.unavailable
+    # on any failure (classifier-missing, manifest-missing, join-empty,
+    # or read error) -- the operator then sees only mutation_age, which
+    # is the safe degrade per §Decision-6.
+    try:
+        from autom8_asana.dataframes.section_persistence import (
+            create_section_persistence,
+        )
+
+        _persistence = create_section_persistence()
+        _manifest = read_manifest_sync(_persistence, project_gid)
+        verification = compute_verification_age(
+            manifest=_manifest,
+            entity_type=metric.scope.entity_type,
+            threshold_seconds=threshold_seconds,
+        )
+    except Exception as ve:  # BROAD-CATCH: degrade to mutation-axis  # noqa: BLE001
+        # Per ADR §Decision-6 graceful degrade: any failure in the
+        # verification path collapses to the mutation signal so the CLI
+        # still prints a useful number. Surface as stderr so the
+        # condition is at least observable.
+        print(
+            f"WARNING: verification_age unavailable, falling back to mutation_age: {ve!r}",
+            file=sys.stderr,
+        )
+        from autom8_asana.metrics.freshness import VerificationAge
+
+        verification = VerificationAge.unavailable(threshold_seconds)
+    report = report.with_verification(verification)
+
     # Detect zero-result-set: parquets present but compute pipeline yielded
     # zero rows. Distinct from empty-prefix per TDD §3.4 + latent #5.
     zero_result = len(result) == 0
@@ -864,6 +900,14 @@ def main() -> None:
         # Default mode: emit additive freshness lines per AC-1.2.
         for line in format_human_lines(report):
             print(line)
+        # ADR-006 §Decision-4 additive line: verification_age, when
+        # available. Pure addition; back-compat with ADR-001's
+        # default-mode output preserved (we never DROP the parquet-mtime
+        # line, only append below it).
+        if report.verification is not None:
+            v_line = format_verification_human_line(report.verification)
+            if v_line is not None:
+                print(v_line)
 
     # WARNING line (stderr) for stale data — both default and JSON modes.
     if report.stale:
@@ -898,9 +942,31 @@ def main() -> None:
         force_warm_latency_seconds=None,
     )
 
-    # Exit code resolution per TDD §3.5 matrix.
-    if args.strict and (report.stale or zero_result):
-        sys.exit(1)
+    # Exit code resolution per TDD §3.5 matrix, amended by ADR-006
+    # §Decision-4: under --strict the alarmable SLI is the
+    # verification-recency signal (when available); mutation_age is
+    # context-only and NOT promoted. When the verification signal is
+    # unavailable (manifest-join empty, classifier missing) we fall back
+    # to the ADR-001 behavior so --strict still has *something* to alarm
+    # on -- the conservative degrade per ADR-006 §Decision-6.
+    if args.strict:
+        verification_stale = (
+            report.verification is not None
+            and report.verification.available
+            and report.verification.stale
+        )
+        if (
+            verification_stale
+            or zero_result
+            or (
+                # Fallback path: verification unavailable -> retain v1
+                # --strict semantics (mutation_age stale) so the operator
+                # still gets a non-zero exit on legacy / un-warmed states.
+                (report.verification is None or not report.verification.available)
+                and report.stale
+            )
+        ):
+            sys.exit(1)
 
 
 def _emit_freshness_io_error(fe: FreshnessError) -> None:  # noqa: F821

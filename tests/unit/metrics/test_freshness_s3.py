@@ -280,8 +280,9 @@ class TestJsonEnvelopeSchemaValidation:
             "provenance",
         ):
             assert field in envelope, f"Required field missing: {field}"
-        # schema_version const = 1
-        assert envelope["schema_version"] == 1
+        # ADR-006 §Decision-4 / TDD §2.4: schema_version bumped 1 -> 2.
+        # v1 top-level fields preserved byte-for-byte (asserted above).
+        assert envelope["schema_version"] == 2
         # freshness sub-fields
         for field in (
             "oldest_mtime",
