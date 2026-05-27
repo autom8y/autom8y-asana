@@ -95,6 +95,20 @@ class SectionInfo(BaseModel):
     rows_fetched: int = 0
     chunks_checkpointed: int = 0
 
+    # Verification-recency stamp (per ADR-006 §Decision-1 / TDD §2.1).
+    # Records the instant the section's cached content was last confirmed
+    # against Asana (any probe verdict != PROBE_FAILED), independent of byte
+    # changes. Distinct from ``written_at`` (mutation-recency). ``None`` =
+    # never verified (legacy manifest or never-probed section).
+    #
+    # NOTE on field-name collision: ``cache/models/freshness_stamp.py``
+    # ``FreshnessStamp.last_verified_at`` exists in an unrelated cache
+    # subsystem with different semantics. They share a name but live in
+    # different modules; do not conflate. This field is the manifest-tier
+    # verification-recency stamp used by the metrics CLI for the
+    # ``verification_age`` SLI (ADR-006).
+    last_verified_at: datetime | None = None
+
     model_config = {"use_enum_values": True}
 
 
