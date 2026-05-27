@@ -232,7 +232,7 @@ class SectionFreshnessProber:
         self,
         stale_results: list[SectionProbeResult],
         dataframe_view: DataFrameViewPlugin | None = None,
-    ) -> int:
+    ) -> tuple[int, frozenset[str]]:
         """Apply delta merges for stale sections in parallel.
 
         Per IMP-08: Each delta application is independent (different sections,
@@ -251,14 +251,19 @@ class SectionFreshnessProber:
             dataframe_view: Optional DataFrameViewPlugin for row extraction.
 
         Returns:
-            Number of sections successfully delta-updated.
+            Tuple of (updated_count, applied_gids), where applied_gids is a
+            frozenset of section GIDs whose delta-apply SUCCEEDED. The stamp
+            block in ``progressive._probe_freshness`` consumes applied_gids
+            to gate ``last_verified_at`` on per-section reconciliation
+            success (ADR-006 §Decision-5c / TDD §2.2 D4) — a delta verdict
+            whose apply FAILED is NOT stamp-eligible.
         """
         from autom8_asana.core.concurrency import gather_with_semaphore
 
         view = dataframe_view or self._dataframe_view
 
         if not stale_results:
-            return 0
+            return 0, frozenset()
 
         results = await gather_with_semaphore(
             (self._apply_section_delta(result, view) for result in stale_results),
@@ -267,6 +272,7 @@ class SectionFreshnessProber:
         )
 
         updated_count = 0
+        applied_gids: set[str] = set()
         for i, outcome in enumerate(results):
             if isinstance(outcome, BaseException):
                 logger.error(
@@ -281,6 +287,7 @@ class SectionFreshnessProber:
                 )
             elif outcome:
                 updated_count += 1
+                applied_gids.add(stale_results[i].section_gid)
 
         logger.info(
             "freshness_delta_complete",
@@ -291,7 +298,7 @@ class SectionFreshnessProber:
             },
         )
 
-        return updated_count
+        return updated_count, frozenset(applied_gids)
 
     async def _apply_section_delta(
         self,
