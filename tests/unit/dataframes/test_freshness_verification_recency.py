@@ -71,9 +71,7 @@ def _make_manifest(
         project_gid=project_gid,
         entity_type=entity_type,
         total_sections=len(sections),
-        completed_sections=sum(
-            1 for s in sections.values() if s.status == SectionStatus.COMPLETE
-        ),
+        completed_sections=sum(1 for s in sections.values() if s.status == SectionStatus.COMPLETE),
         sections=sections,
         schema_version="v1",
     )
@@ -356,9 +354,7 @@ def _make_progressive_builder_with_fakes(
     # freshness module via patch.object.
     fake_prober = MagicMock()
     fake_prober.probe_all_async = AsyncMock(return_value=probe_results or [])
-    fake_prober.apply_deltas_async = AsyncMock(
-        return_value=(len(applied_gids), applied_gids)
-    )
+    fake_prober.apply_deltas_async = AsyncMock(return_value=(len(applied_gids), applied_gids))
     persistence.save_should_raise = save_should_raise
     return builder, persistence, fake_prober
 
@@ -427,9 +423,7 @@ class TestStampReseedIntegration:
 
         out_clean = persistence.manifest.sections["sec_clean"]
         out_failed = persistence.manifest.sections["sec_failed_delta"]
-        assert out_clean.last_verified_at is not None, (
-            "T14 FAIL: CLEAN section should be stamped."
-        )
+        assert out_clean.last_verified_at is not None, "T14 FAIL: CLEAN section should be stamped."
         assert out_failed.last_verified_at is None, (
             "T14 FAIL: a delta-requiring verdict whose delta-apply "
             "FAILED was stamped anyway. Stamp must gate on "
@@ -472,9 +466,7 @@ class TestStampReseedIntegration:
             assert probed == 1
             # Metric emitted (assert on the error() call).
             error_events = [
-                c.args[0]
-                for c in progressive_mod.logger.error.call_args_list
-                if c.args
+                c.args[0] for c in progressive_mod.logger.error.call_args_list if c.args
             ]
             assert "section_last_verified_stamp_failed" in error_events, (
                 "T10 FAIL: stamp-phase exception was silently swallowed. "
@@ -527,9 +519,7 @@ class TestStampReseedIntegration:
         try:
             await self._invoke_probe(builder, manifest, section_names={}, fake_prober=fake_prober)
             warning_events = [
-                c.args[0]
-                for c in progressive_mod.logger.warning.call_args_list
-                if c.args
+                c.args[0] for c in progressive_mod.logger.warning.call_args_list if c.args
             ]
             assert "section_name_contract_violation" in warning_events, (
                 "T11 FAIL: a ≥2-section manifest with all-null names did "
@@ -592,9 +582,7 @@ class TestStampReseedIntegration:
         try:
             await self._invoke_probe(builder, manifest, section_names={}, fake_prober=fake_prober)
             error_events = [
-                c.args[0]
-                for c in progressive_mod.logger.error.call_args_list
-                if c.args
+                c.args[0] for c in progressive_mod.logger.error.call_args_list if c.args
             ]
             assert "section_name_contract_violation" in error_events, (
                 "T11 (ERROR tier) FAIL: post-warm null-name violation did "
@@ -647,7 +635,9 @@ class TestStampReseedIntegration:
             manifest,
             probe_results=probe_results,
         )
-        await self._invoke_probe(builder, manifest, section_names=section_names, fake_prober=fake_prober)
+        await self._invoke_probe(
+            builder, manifest, section_names=section_names, fake_prober=fake_prober
+        )
         for gid, name in section_names.items():
             assert persistence.manifest.sections[gid].name == name, (
                 f"T16 FAIL: section {gid} name was not re-seeded from "
@@ -691,14 +681,10 @@ class TestStampReseedIntegration:
         try:
             await self._invoke_probe(builder, manifest, section_names={}, fake_prober=fake_prober)
             warning_events = [
-                c.args[0]
-                for c in progressive_mod.logger.warning.call_args_list
-                if c.args
+                c.args[0] for c in progressive_mod.logger.warning.call_args_list if c.args
             ]
             error_events = [
-                c.args[0]
-                for c in progressive_mod.logger.error.call_args_list
-                if c.args
+                c.args[0] for c in progressive_mod.logger.error.call_args_list if c.args
             ]
             assert "section_name_contract_violation" not in warning_events
             assert "section_name_contract_violation" not in error_events
@@ -1025,9 +1011,7 @@ class TestD11DeltaApplyThreadsName:
         persistence = MagicMock()
         persistence.read_section_async = AsyncMock(return_value=existing_df)
         persistence.write_section_async = AsyncMock(return_value=True)
-        persistence.update_manifest_section_async = AsyncMock(
-            return_value=manifest
-        )
+        persistence.update_manifest_section_async = AsyncMock(return_value=manifest)
 
         # Stub client: tasks.list_async returns 0 modified tasks (the
         # delta-apply path collapses to "removed nothing, added
@@ -1069,16 +1053,13 @@ class TestD11DeltaApplyThreadsName:
         updated, applied = await prober.apply_deltas_async([probe])
 
         assert updated == 1, "delta-apply did not succeed on the fixture"
-        assert section_gid in applied, (
-            "applied_gids must include the section to be stamp-eligible"
-        )
+        assert section_gid in applied, "applied_gids must include the section to be stamp-eligible"
         # The load-bearing assertion: write_section_async was called
         # with name="orig" (NOT None). Without the D11 fix, the call
         # would lack `name=` and the kwarg would be absent (defaulting
         # to None inside write_section_async itself).
         assert persistence.write_section_async.await_count == 1, (
-            "D11 FAIL: expected exactly one write_section_async call on "
-            "the delta-apply path."
+            "D11 FAIL: expected exactly one write_section_async call on the delta-apply path."
         )
         call = persistence.write_section_async.await_args
         # The kwarg MUST be supplied and MUST be the warm-entry name.
@@ -1134,9 +1115,7 @@ class TestD11DeltaApplyThreadsName:
         tasks_pi = MagicMock()
         task_obj = MagicMock()
         task_obj.gid = "t1"
-        task_obj.model_dump = MagicMock(
-            return_value={"gid": "t1", "name": "task one"}
-        )
+        task_obj.model_dump = MagicMock(return_value={"gid": "t1", "name": "task one"})
         tasks_pi.collect = AsyncMock(return_value=[task_obj])
         client.tasks.list_async.return_value = tasks_pi
 

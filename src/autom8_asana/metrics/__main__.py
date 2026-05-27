@@ -979,8 +979,7 @@ def main() -> None:
                 # Fallback path: verification unavailable -> retain v1
                 # --strict semantics (mutation_age stale) so the operator
                 # still gets a non-zero exit on legacy / un-warmed states.
-                (report.verification is None or not report.verification.available)
-                and report.stale
+                (report.verification is None or not report.verification.available) and report.stale
             )
         ):
             sys.exit(1)
