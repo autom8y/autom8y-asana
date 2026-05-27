@@ -38,6 +38,8 @@ import sys
 import time
 from typing import TYPE_CHECKING
 
+from autom8y_log import get_logger
+
 from autom8_asana.cache.integration.force_warm import (
     LAMBDA_ARN_ENV_VAR as _FORCE_WARM_REQUIRED_ENV,
 )
@@ -46,6 +48,8 @@ from autom8_asana.cache.integration.force_warm import (
     force_warm,
 )
 from autom8_asana.metrics.cloudwatch_emit import emit_freshness_probe_metrics
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from autom8_asana.metrics.freshness import FreshnessError, FreshnessReport
@@ -866,11 +870,24 @@ def main() -> None:
     except Exception as ve:  # BROAD-CATCH: degrade to mutation-axis  # noqa: BLE001
         # Per ADR §Decision-6 graceful degrade: any failure in the
         # verification path collapses to the mutation signal so the CLI
-        # still prints a useful number. Surface as stderr so the
-        # condition is at least observable.
-        print(
-            f"WARNING: verification_age unavailable, falling back to mutation_age: {ve!r}",
-            file=sys.stderr,
+        # still prints a useful number.
+        #
+        # D10 (QA-gate-2): emit as a structured ERROR-level log event
+        # rather than a stderr ``print`` so the degrade is alarmable on
+        # the standard structured-log channel -- matching the warm-path
+        # ``section_last_verified_stamp_failed`` convention at
+        # ``progressive.py``. ``autom8y_log`` writes ERROR to stderr by
+        # default, so the user-visible CLI surface remains intact;
+        # operators monitoring CloudWatch / aggregated logs additionally
+        # see a structured event with project_gid / error / error_type.
+        logger.error(
+            "verification_age_compute_failed",
+            extra={
+                "project_gid": project_gid,
+                "metric_name": metric.name,
+                "error": str(ve),
+                "error_type": type(ve).__name__,
+            },
         )
         from autom8_asana.metrics.freshness import VerificationAge
 
