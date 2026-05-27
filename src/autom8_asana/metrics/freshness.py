@@ -67,6 +67,56 @@ _EPOCH_UTC = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 @dataclass(frozen=True)
+class VerificationAge:
+    """Per ADR-006 verification-recency signal scoped to active-classified sections.
+
+    Distinct from the mutation-recency signal (``max_age_seconds`` /
+    ``oldest_mtime`` on ``FreshnessReport``). Verification-recency tracks
+    when the cached content was last confirmed against Asana (any probe
+    verdict != PROBE_FAILED), independent of byte changes.
+
+    Carries ``in_scope_count`` so the CLI can include the denominator in
+    the human-readable line. ``oldest_verified_at`` is the floor used to
+    derive ``max_age_seconds``; ``threshold_seconds`` is the cadence-tied
+    SLA-class threshold. ``backfill_used`` is True iff any in-scope
+    section had ``last_verified_at is None`` and the reader fell back to
+    that section's ``written_at`` (legacy / never-probed; backfills on
+    next probe per ADR-006 §Decision-6).
+
+    Constructors:
+      - ``from_manifest_join``: production path; joins active-section
+        classifier names against ``SectionInfo.name``.
+      - ``unavailable``: degraded sentinel when classifier-missing,
+        manifest-missing, or join-empty (per QA-gate-2 condition 1's
+        degrade rules).
+    """
+
+    oldest_verified_at: datetime | None
+    max_age_seconds: int
+    threshold_seconds: int
+    in_scope_count: int
+    backfill_used: bool
+    available: bool
+
+    @classmethod
+    def unavailable(cls, threshold_seconds: int) -> VerificationAge:
+        """Sentinel when verification_age cannot be computed."""
+        return cls(
+            oldest_verified_at=None,
+            max_age_seconds=0,
+            threshold_seconds=threshold_seconds,
+            in_scope_count=0,
+            backfill_used=False,
+            available=False,
+        )
+
+    @property
+    def stale(self) -> bool:
+        """True iff verification_age exceeds the threshold AND signal is available."""
+        return self.available and self.max_age_seconds > self.threshold_seconds
+
+
+@dataclass(frozen=True)
 class FreshnessReport:
     """Immutable freshness signal derived from S3 parquet listing.
 
@@ -81,6 +131,13 @@ class FreshnessReport:
     The `mtimes` tuple retains the per-key mtime list for distribution-aware
     statistics (e.g., SectionAgeP95Seconds). Empty tuple when parquet_count==0.
     Per HANDOFF §1 work-item-4 SectionAgeP95Seconds requirement (P4 §4 SLI-4).
+
+    Per ADR-006, the historical ``max_age_seconds`` continues to encode
+    **mutation-recency** (``now - min(parquet mtime)``); the alarmable
+    **verification-recency** signal lives in the optional ``verification``
+    attribute, populated by ``with_verification`` after a successful
+    manifest read in the CLI. Pre-ADR-006 consumers see the v1 contract
+    byte-for-byte.
     """
 
     oldest_mtime: datetime
@@ -91,6 +148,27 @@ class FreshnessReport:
     bucket: str
     prefix: str
     mtimes: tuple[datetime, ...] = ()
+    verification: VerificationAge | None = None
+
+    def with_verification(self, verification: VerificationAge | None) -> FreshnessReport:
+        """Return a new FreshnessReport with the supplied verification block.
+
+        Immutable dataclass — instances are constructed once and never
+        mutated; this helper produces a sibling carrying the
+        post-manifest-read verification block (per ADR-006 §Decision-4 /
+        TDD §2.3).
+        """
+        return FreshnessReport(
+            oldest_mtime=self.oldest_mtime,
+            newest_mtime=self.newest_mtime,
+            max_age_seconds=self.max_age_seconds,
+            threshold_seconds=self.threshold_seconds,
+            parquet_count=self.parquet_count,
+            bucket=self.bucket,
+            prefix=self.prefix,
+            mtimes=self.mtimes,
+            verification=verification,
+        )
 
     @property
     def stale(self) -> bool:
@@ -388,14 +466,27 @@ def format_json_envelope(
     env: str,
     bucket_evidence: str,
 ) -> dict[str, Any]:
-    """Build the AC-3.1 JSON envelope dict (TDD §4 schema v1).
+    """Build the JSON envelope dict (schema v2 per ADR-006 §Decision-4 / TDD §2.4).
 
     The dict is JSON-serializable as-is (no datetime objects). Calling
     json.dumps(envelope, sort_keys=True) produces a deterministic byte-for-byte
     serialization for a given S3 state.
 
+    Schema v1 -> v2 (ADR-006 amend / ADR-001 §Consequences gated):
+        - schema_version: 1 -> 2
+        - additive: ``mutation_age`` (alias for the existing ``freshness``
+          block; the original block name is RETAINED byte-for-byte so v1
+          consumers keep working).
+        - additive: ``verification_age`` block carrying the
+          verification-recency signal. Always present; carries
+          ``available: false`` when the manifest join did not resolve.
+
+    Existing v1 fields are unchanged (additive only); regex- /
+    path-anchored consumers of v1 fields keep working.
+
     Args:
-        report: FreshnessReport.
+        report: FreshnessReport (may carry verification block via
+            ``with_verification``).
         value: Computed metric value, or None for null-value emission.
         metric_name: e.g., "active_mrr".
         currency: e.g., "USD".
@@ -403,21 +494,55 @@ def format_json_envelope(
         bucket_evidence: Citation token for the bucket->env mapping per PRD G5.
 
     Returns:
-        JSON-serializable dict matching the schema in TDD §4.2.
+        JSON-serializable dict matching the schema v2 shape.
     """
+    # Existing v1 freshness block (mutation-axis). RETAINED verbatim.
+    mutation_block = {
+        "oldest_mtime": _fmt_dt_iso(report.oldest_mtime),
+        "newest_mtime": _fmt_dt_iso(report.newest_mtime),
+        "max_age_seconds": report.max_age_seconds,
+        "threshold_seconds": report.threshold_seconds,
+        "stale": report.stale,
+        "parquet_count": report.parquet_count,
+    }
+
+    # v2: verification block (ADR-006 §Decision-4). Always present so
+    # operators can detect the unavailable state explicitly rather than
+    # via field absence.
+    verification = report.verification
+    if verification is not None and verification.available and verification.oldest_verified_at:
+        verification_block: dict[str, Any] = {
+            "available": True,
+            "oldest_verified_at": _fmt_dt_iso(verification.oldest_verified_at),
+            "max_age_seconds": verification.max_age_seconds,
+            "threshold_seconds": verification.threshold_seconds,
+            "stale": verification.stale,
+            "in_scope_count": verification.in_scope_count,
+            "backfill_used": verification.backfill_used,
+        }
+    else:
+        verification_block = {
+            "available": False,
+            "oldest_verified_at": None,
+            "max_age_seconds": 0,
+            "threshold_seconds": (
+                verification.threshold_seconds if verification is not None else 0
+            ),
+            "stale": False,
+            "in_scope_count": 0,
+            "backfill_used": False,
+        }
+
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "metric": metric_name,
         "value": value,
         "currency": currency,
-        "freshness": {
-            "oldest_mtime": _fmt_dt_iso(report.oldest_mtime),
-            "newest_mtime": _fmt_dt_iso(report.newest_mtime),
-            "max_age_seconds": report.max_age_seconds,
-            "threshold_seconds": report.threshold_seconds,
-            "stale": report.stale,
-            "parquet_count": report.parquet_count,
-        },
+        # v1 'freshness' block retained byte-for-byte for back-compat.
+        "freshness": mutation_block,
+        # v2 additive: explicit mutation_age + verification_age blocks.
+        "mutation_age": mutation_block,
+        "verification_age": verification_block,
         "provenance": {
             "bucket": report.bucket,
             "prefix": report.prefix,
@@ -436,3 +561,173 @@ def format_warning(report: FreshnessReport) -> str:
     threshold_human = format_duration(report.threshold_seconds)
     observed_human = format_duration(report.max_age_seconds)
     return f"WARNING: data older than {threshold_human} (max_age={observed_human})"
+
+
+# ---------------------------------------------------------------------------
+# Verification-age sync bridge (ADR-006 §Decision-8 / TDD §2.3.1)
+# ---------------------------------------------------------------------------
+
+
+def read_manifest_sync(persistence: Any, project_gid: str) -> Any:
+    """Synchronously read the section manifest for a project.
+
+    Wraps the async ``persistence.get_manifest_async(project_gid)`` in
+    ``asyncio.run``, guarded by a running-loop check so the caller fails
+    LOUDLY rather than silently nesting (the ``RuntimeError`` the QA gate
+    flagged at D2). The default metric-emission path at
+    ``__main__.py::main()`` is synchronous (no running loop), so the
+    ``asyncio.run`` branch is the production path; the explicit raise on
+    the nested-loop branch is a safety net for any future caller that
+    might invoke us from async context.
+
+    Args:
+        persistence: A ``SectionPersistence`` instance.
+        project_gid: Asana project GID.
+
+    Returns:
+        The ``SectionManifest`` or ``None`` (forwarded from
+        ``get_manifest_async``).
+
+    Raises:
+        RuntimeError: when invoked from within a running event loop --
+            this is the loud-not-silent guard per QA-gate-2 condition 4.
+    """
+    import asyncio
+
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop -- safe to drive our own.
+        return asyncio.run(persistence.get_manifest_async(project_gid))
+    # A loop IS running: asyncio.run would raise. Surface it rather than
+    # nest. This path is not expected on the synchronous main() emission
+    # path; if a future caller hits it they need to switch to an async
+    # call site, not silently nest a second loop.
+    raise RuntimeError(
+        "read_manifest_sync called from within a running event loop; "
+        "the metric emission path must remain synchronous (per ADR-006 "
+        "§Decision-8 / TDD §2.3.1 nested-loop guard)"
+    )
+
+
+def compute_verification_age(
+    *,
+    manifest: Any,
+    entity_type: str,
+    threshold_seconds: int,
+    now: datetime | None = None,
+) -> VerificationAge:
+    """Compute the verification-recency signal for ``entity_type`` against ``manifest``.
+
+    Per ADR-006 §Decision-2/3/6 and TDD §2.3. Joins the classifier's
+    active section *names* (lower-cased) against ``SectionInfo.name`` and
+    computes ``now - min(last_verified_at)`` over the in-scope set.
+    Sections with ``last_verified_at is None`` fall back to
+    ``written_at`` (§Decision-6); the result still computes, and the
+    next probe will backfill a real stamp.
+
+    Returns ``VerificationAge.unavailable(...)`` when the join resolves
+    empty (classifier-missing, manifest-missing, or no in-scope section
+    has either ``last_verified_at`` or ``written_at``). The reader's
+    caller degrades to the mutation-axis signal in that case.
+
+    Args:
+        manifest: ``SectionManifest`` (or ``None``).
+        entity_type: Metric ``scope.entity_type`` (e.g. ``"offer"``,
+            ``"unit"``).
+        threshold_seconds: Cadence-tied threshold (the SLA-class active
+            interval per ``sla_profile.py``).
+        now: Override for ``datetime.now(tz=UTC)``; injectable for
+            deterministic tests.
+
+    Returns:
+        A ``VerificationAge`` instance. ``available=False`` means
+        ``verification_age`` could not be computed; the caller falls back
+        to ``mutation_age``.
+    """
+    # Lazy import to keep the metrics.freshness module importable in
+    # environments that do not load the dataframes substack at import
+    # time.
+    from autom8_asana.models.business.activity import CLASSIFIERS
+
+    if now is None:
+        now = datetime.now(tz=UTC)
+
+    if manifest is None:
+        return VerificationAge.unavailable(threshold_seconds)
+
+    classifier = CLASSIFIERS.get(entity_type)
+    if classifier is None:
+        return VerificationAge.unavailable(threshold_seconds)
+
+    active_names = classifier.active_sections()
+    if not active_names:
+        return VerificationAge.unavailable(threshold_seconds)
+
+    # Build the in-scope set by joining classifier names (lower-case)
+    # against manifest entries' SectionInfo.name (case-normalized).
+    oldest: datetime | None = None
+    in_scope = 0
+    backfill_used = False
+    for _gid, info in manifest.sections.items():
+        # info.name may be None on pre-re-seed manifests. With ≥2 sections
+        # this is also surfaced by the §2.6 contract violation in the
+        # warm path; here we simply skip null-name entries (the join is
+        # name-based; they cannot match).
+        if not info.name:
+            continue
+        if info.name.lower() not in active_names:
+            continue
+        # In scope.
+        candidate = info.last_verified_at
+        if candidate is None:
+            # §Decision-6 backfill: fall back to written_at; legacy /
+            # never-probed sections produce a still-correct floor and
+            # backfill to a real stamp on the next probe.
+            candidate = info.written_at
+            if candidate is not None:
+                backfill_used = True
+        if candidate is None:
+            continue
+        in_scope += 1
+        if oldest is None or candidate < oldest:
+            oldest = candidate
+
+    if oldest is None or in_scope == 0:
+        return VerificationAge.unavailable(threshold_seconds)
+
+    age = int((now - oldest).total_seconds())
+    if age < 0:
+        age = 0  # clock skew protection (mirrors max_age clamp)
+    return VerificationAge(
+        oldest_verified_at=oldest,
+        max_age_seconds=age,
+        threshold_seconds=threshold_seconds,
+        in_scope_count=in_scope,
+        backfill_used=backfill_used,
+        available=True,
+    )
+
+
+def format_verification_human_line(verification: VerificationAge) -> str | None:
+    """Return the additive default-mode stdout line, or ``None`` when unavailable.
+
+    Format (when available):
+        ``"verification age: oldest=YYYY-MM-DD HH:MM UTC, max_age=Nh Nm (N in-scope sections[, backfill])"``
+
+    Returns ``None`` when the verification signal is unavailable so the
+    caller can choose to emit a degraded-state line, omit it, or pair it
+    with the existing mutation_age line per ADR-006 §Decision-6
+    degrade-to-mutation policy.
+    """
+    if not verification.available or verification.oldest_verified_at is None:
+        return None
+    parts = [
+        f"verification age: oldest={_fmt_dt_human(verification.oldest_verified_at)}",
+        f"max_age={format_duration(verification.max_age_seconds)}",
+    ]
+    suffix = f"({verification.in_scope_count} in-scope sections"
+    if verification.backfill_used:
+        suffix += ", backfill"
+    suffix += ")"
+    return ", ".join(parts) + " " + suffix

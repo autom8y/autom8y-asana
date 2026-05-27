@@ -189,16 +189,27 @@ class TestClockSkewAndExtremeFormatting:
 # ---------------------------------------------------------------------------
 
 
-# JSON schema transcribed from TDD freshness-module.tdd.md §4.2 (draft-2020-12).
-# Mirrors the engineer's actual `format_json_envelope` output structure.
+# JSON schema transcribed from TDD freshness-verification-recency §2.4
+# (ADR-006 amends ADR-001 envelope: schema_version 1 -> 2, additive only).
+# The v1 ``freshness`` + ``provenance`` blocks are PRESERVED BYTE-FOR-BYTE;
+# v2 adds ``mutation_age`` (alias of freshness) and ``verification_age``.
 TDD_JSON_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "FreshnessEnvelope",
     "type": "object",
     "additionalProperties": False,
-    "required": ["schema_version", "metric", "value", "currency", "freshness", "provenance"],
+    "required": [
+        "schema_version",
+        "metric",
+        "value",
+        "currency",
+        "freshness",
+        "mutation_age",
+        "verification_age",
+        "provenance",
+    ],
     "properties": {
-        "schema_version": {"type": "integer", "const": 1},
+        "schema_version": {"type": "integer", "const": 2},
         "metric": {"type": "string"},
         "value": {"type": ["number", "null"]},
         "currency": {"type": "string"},
@@ -220,6 +231,51 @@ TDD_JSON_SCHEMA = {
                 "threshold_seconds": {"type": "integer", "minimum": 1},
                 "stale": {"type": "boolean"},
                 "parquet_count": {"type": "integer", "minimum": 0},
+            },
+        },
+        # mutation_age: explicit alias of the v1 freshness block.
+        "mutation_age": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "oldest_mtime",
+                "newest_mtime",
+                "max_age_seconds",
+                "threshold_seconds",
+                "stale",
+                "parquet_count",
+            ],
+            "properties": {
+                "oldest_mtime": {"type": "string"},
+                "newest_mtime": {"type": "string"},
+                "max_age_seconds": {"type": "integer", "minimum": 0},
+                "threshold_seconds": {"type": "integer", "minimum": 1},
+                "stale": {"type": "boolean"},
+                "parquet_count": {"type": "integer", "minimum": 0},
+            },
+        },
+        # verification_age: ADR-006 verification-recency signal.
+        # available=false when the manifest join did not resolve.
+        "verification_age": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": [
+                "available",
+                "oldest_verified_at",
+                "max_age_seconds",
+                "threshold_seconds",
+                "stale",
+                "in_scope_count",
+                "backfill_used",
+            ],
+            "properties": {
+                "available": {"type": "boolean"},
+                "oldest_verified_at": {"type": ["string", "null"]},
+                "max_age_seconds": {"type": "integer", "minimum": 0},
+                "threshold_seconds": {"type": "integer", "minimum": 0},
+                "stale": {"type": "boolean"},
+                "in_scope_count": {"type": "integer", "minimum": 0},
+                "backfill_used": {"type": "boolean"},
             },
         },
         "provenance": {
@@ -306,9 +362,11 @@ class TestLatentDecisionVerification:
     def test_latent_3_envelope_includes_schema_version_parquet_count_prefix(self) -> None:
         """L#3: schema_version + freshness.parquet_count + provenance.prefix
         are present in the envelope per TDD §4.2.
+
+        ADR-006 amend: schema_version bumped 1 -> 2; v1 fields preserved.
         """
         envelope = _make_envelope()
-        assert envelope["schema_version"] == 1
+        assert envelope["schema_version"] == 2
         assert "parquet_count" in envelope["freshness"]
         assert "prefix" in envelope["provenance"]
 

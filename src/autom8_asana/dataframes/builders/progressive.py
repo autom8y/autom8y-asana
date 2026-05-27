@@ -226,6 +226,7 @@ class ProgressiveProjectBuilder:
         self,
         section_gids: list[str],
         resume: bool,
+        section_names: dict[str, str] | None = None,
     ) -> _ResumeResult:
         """Check for existing manifest and probe freshness.
 
@@ -237,6 +238,15 @@ class ProgressiveProjectBuilder:
         Args:
             section_gids: All section GIDs in the project.
             resume: Whether to attempt resume from existing manifest.
+            section_names: Optional ``{gid: name}`` map sourced from the
+                warm-entry section listing
+                (``_list_sections()``, ``progressive.py:472``). Threaded into
+                ``_probe_freshness`` to re-seed COMPLETE/null-name sections
+                inside the stamp block (ADR-006 §Decision-7 / TDD §2.2.1
+                edit 1). Empty dict is the cold-build / no-section-list
+                sentinel (per QA item 6, prefer ``{}`` over ``None`` at
+                call sites; this signature defaults to ``None`` only to
+                keep mocks and test doubles working).
 
         Returns:
             _ResumeResult with manifest, sections to fetch, and metrics.
@@ -301,7 +311,9 @@ class ProgressiveProjectBuilder:
         )
 
         # Probe COMPLETE sections for freshness
-        probed, delta_updated = await self._probe_freshness(manifest)
+        probed, delta_updated = await self._probe_freshness(
+            manifest, section_names=section_names if section_names is not None else {}
+        )
         sections_probed = probed
         sections_delta_updated = delta_updated
 
@@ -316,6 +328,7 @@ class ProgressiveProjectBuilder:
     async def _probe_freshness(
         self,
         manifest: SectionManifest,
+        section_names: dict[str, str] | None = None,
     ) -> tuple[int, int]:
         """Probe completed sections for freshness and apply deltas.
 
@@ -323,6 +336,12 @@ class ProgressiveProjectBuilder:
 
         Args:
             manifest: Complete manifest to probe.
+            section_names: ``{gid: name}`` map sourced from the warm-entry
+                ``_list_sections()`` call. Used to re-seed COMPLETE
+                sections whose ``SectionInfo.name`` is ``None`` (the prod
+                steady state per QA 2026-05-27 re-probe). Pass ``{}`` on
+                the cold-build / no-named-sections path; ``None`` is
+                normalised to ``{}`` internally.
 
         Returns:
             Tuple of (sections_probed, sections_delta_updated).
@@ -335,11 +354,14 @@ class ProgressiveProjectBuilder:
         if get_settings().runtime.section_freshness_probe == "0":
             return 0, 0
 
+        names_map: dict[str, str] = section_names or {}
+
         try:
             from autom8_asana.dataframes.builders.freshness import (
                 ProbeVerdict,
                 SectionFreshnessProber,
             )
+            from autom8_asana.dataframes.section_persistence import SectionStatus
 
             prober = SectionFreshnessProber(
                 client=self._client,
@@ -348,10 +370,18 @@ class ProgressiveProjectBuilder:
                 manifest=manifest,
                 schema=self._schema,
                 dataframe_view=self._dataframe_view,
+                # D11 (QA-gate-2): thread the same names_map the stamp +
+                # re-seed pass uses, so the prober's delta-apply path
+                # supplies ``name=`` to ``write_section_async`` and does
+                # NOT propagate ``prior.name=None`` on existing prod
+                # manifests. Single source of truth for section names
+                # across the warm.
+                section_names=names_map,
             )
             probe_results = await prober.probe_all_async()
             sections_probed = len(probe_results)
             sections_delta_updated = 0
+            applied_gids: frozenset[str] = frozenset()
 
             stale = [
                 r
@@ -359,7 +389,7 @@ class ProgressiveProjectBuilder:
                 if r.verdict not in (ProbeVerdict.CLEAN, ProbeVerdict.PROBE_FAILED)
             ]
             if stale:
-                sections_delta_updated = await prober.apply_deltas_async(
+                sections_delta_updated, applied_gids = await prober.apply_deltas_async(
                     stale,
                     dataframe_view=self._dataframe_view,
                 )
@@ -371,6 +401,136 @@ class ProgressiveProjectBuilder:
                         "sections_probed": sections_probed,
                         "sections_stale": len(stale),
                         "sections_delta_updated": sections_delta_updated,
+                    },
+                )
+
+            # --- Stamp + re-seed pass (ADR-006 §Decision-5/7/7a, TDD §2.2/§2.2.1/§2.6) ---
+            #
+            # Re-load the authoritative manifest from persistence (the
+            # in-memory ``manifest`` is stale w.r.t. delta writes done by
+            # ``apply_deltas_async``). Re-seed null names from the warm-
+            # entry section list AND stamp ``last_verified_at`` on
+            # stamp-eligible sections, then persist ONCE.
+            #
+            # Stamp-eligibility (per ADR §Decision-5):
+            #  - PROBE_FAILED          -> never stamps (5a)
+            #  - CLEAN                 -> stamps directly (5b — prober
+            #                             trustworthy after the §2.5 fix
+            #                             for watermark-bearing sections;
+            #                             null-watermark sections retain
+            #                             the pre-existing hash-only
+            #                             detection, documented residual)
+            #  - delta verdicts        -> stamp ONLY if section_gid is in
+            #                             applied_gids (5c / D4)
+            #
+            # The stamp pass lives under its OWN try/except so a stamp-
+            # phase exception emits ``section_last_verified_stamp_failed``
+            # rather than disappearing into the outer BROAD-CATCH (D6 /
+            # ADR §Decision-9).
+            DELTA_VERDICTS = {
+                ProbeVerdict.CONTENT_CHANGED,
+                ProbeVerdict.STRUCTURE_CHANGED,
+                ProbeVerdict.NO_BASELINE,
+            }
+
+            try:
+                fresh_manifest = await self._persistence.get_manifest_async(self._project_gid)
+                if fresh_manifest is not None:
+                    now = datetime.now(UTC)
+
+                    # Re-seed pass: COMPLETE sections with null name get
+                    # their name from the warm-entry section list. Runs
+                    # unconditionally on every warm of a COMPLETE manifest
+                    # — the gate is ``info.name is None`` (no-op once
+                    # populated).
+                    reseeded = 0
+                    for gid, info in fresh_manifest.sections.items():
+                        if (
+                            info.status == SectionStatus.COMPLETE
+                            and info.name is None
+                            and gid in names_map
+                        ):
+                            info.name = names_map[gid]
+                            reseeded += 1
+
+                    # Stamp pass.
+                    stamped = 0
+                    for r in probe_results:
+                        if r.verdict == ProbeVerdict.PROBE_FAILED:
+                            continue
+                        if r.verdict in DELTA_VERDICTS and r.section_gid not in applied_gids:
+                            # delta-requiring verdict whose delta did not
+                            # apply — not stamp-eligible (ADR §Decision-5c).
+                            continue
+                        stamp_info = fresh_manifest.sections.get(r.section_gid)
+                        if stamp_info is not None:
+                            stamp_info.last_verified_at = now
+                            stamped += 1
+
+                    if stamped or reseeded:
+                        await self._persistence._save_manifest_async(fresh_manifest)
+                        logger.info(
+                            "section_last_verified_stamped",
+                            extra={
+                                "project_gid": self._project_gid,
+                                "stamped": stamped,
+                                "reseeded": reseeded,
+                            },
+                        )
+
+                    # §2.6 / Decision-7 / 7a data-state assertion.
+                    # Fires after the re-seed pass: a ≥2-section manifest
+                    # with ANY null name is a contract violation. Alarm
+                    # tier discriminates the re-seed window:
+                    #   - no in-scope section stamped (post-deploy, never
+                    #     warmed) -> WARN advisory, reseed_window=true
+                    #   - ≥1 in-scope section stamped (warmed, name still
+                    #     null) -> ERROR alarmable, reseed_window=false
+                    if len(fresh_manifest.sections) >= 2:
+                        null_name_gids = [
+                            gid
+                            for gid, info in fresh_manifest.sections.items()
+                            if info.name is None
+                        ]
+                        if null_name_gids:
+                            any_stamped = any(
+                                info.last_verified_at is not None
+                                for info in fresh_manifest.sections.values()
+                            )
+                            if any_stamped:
+                                # True post-warm contract violation.
+                                logger.error(
+                                    "section_name_contract_violation",
+                                    extra={
+                                        "project_gid": self._project_gid,
+                                        "null_name_count": len(null_name_gids),
+                                        "total_sections": len(fresh_manifest.sections),
+                                        "reseed_window": False,
+                                    },
+                                )
+                            else:
+                                # Re-seed window: never-warmed manifest.
+                                # Advisory only; do NOT page.
+                                logger.warning(
+                                    "section_name_contract_violation",
+                                    extra={
+                                        "project_gid": self._project_gid,
+                                        "null_name_count": len(null_name_gids),
+                                        "total_sections": len(fresh_manifest.sections),
+                                        "reseed_window": True,
+                                    },
+                                )
+            except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
+                # ADR §Decision-9 / TDD §2.2 (D6): surface stamp-phase
+                # failure as an alarmable metric rather than letting the
+                # outer BROAD-CATCH swallow it silently. The warm still
+                # completes (we DO NOT re-raise).
+                logger.error(
+                    "section_last_verified_stamp_failed",
+                    extra={
+                        "project_gid": self._project_gid,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
                     },
                 )
 
@@ -491,8 +651,19 @@ class ProgressiveProjectBuilder:
                 fetch_time_ms=0.0,
             )
 
+        # Build the warm-entry section-names map for the §2.2.1 re-seed
+        # (ADR-006 §Decision-7). Mirrors the pattern at
+        # ``_ensure_manifest`` (`progressive.py:407`). Empty dict on the
+        # cold-build / no-named-sections path keeps the dict.get / `in`
+        # semantics clean (per QA item 6).
+        section_names_map: dict[str, str] = {
+            s.gid: s.name for s in sections if isinstance(s.name, str)
+        }
+
         # Step 2: Check resume and probe freshness
-        resume_result = await self._check_resume_and_probe(section_gids, resume)
+        resume_result = await self._check_resume_and_probe(
+            section_gids, resume, section_names=section_names_map
+        )
 
         # Step 3: Ensure manifest exists
         await self._ensure_manifest(
@@ -746,6 +917,16 @@ class ProgressiveProjectBuilder:
         self._checkpoint_df = None
         self._checkpoint_task_count = 0
 
+        # Re-seed channel (TDD §2.2.1 edit 3 / ADR-006 §Decision-7):
+        # when the warm-entry Section object is available we thread its
+        # ``name`` into the completion site so existing prod manifests
+        # whose ``SectionInfo.name`` was wiped get re-populated on the
+        # first re-completion/delta-write. Asana sometimes returns a
+        # non-string ``name`` (None) -- guard for that.
+        section_name: str | None = None
+        if section is not None and isinstance(section.name, str):
+            section_name = section.name
+
         try:
             await self._persistence.update_manifest_section_async(
                 self._project_gid,
@@ -776,6 +957,7 @@ class ProgressiveProjectBuilder:
                     SectionStatus.COMPLETE,
                     rows=0,
                     gid_hash=compute_gid_hash([]),
+                    name=section_name,
                 )
                 return True
 
@@ -805,7 +987,9 @@ class ProgressiveProjectBuilder:
             section_df, gid_hash, watermark = await self._build_section_dataframe(tasks)
 
             # Phase 5: Persist to S3
-            return await self._persist_section(section_gid, section_df, gid_hash, watermark)
+            return await self._persist_section(
+                section_gid, section_df, gid_hash, watermark, name=section_name
+            )
 
         except Exception as e:  # BROAD-CATCH: isolation  # noqa: BLE001
             logger.error(
@@ -1125,6 +1309,8 @@ class ProgressiveProjectBuilder:
         section_df: pl.DataFrame,
         gid_hash: str,
         watermark: datetime | None,
+        *,
+        name: str | None = None,
     ) -> bool:
         """Store section DataFrame in memory and persist to S3.
 
@@ -1133,6 +1319,8 @@ class ProgressiveProjectBuilder:
             section_df: Built DataFrame for this section.
             gid_hash: SHA256 hash of sorted task GIDs.
             watermark: Max modified_at timestamp, if available.
+            name: Optional section name to re-seed into the manifest on
+                completion (per TDD §2.2.1 edit 3 / ADR-006 §Decision-7).
 
         Returns:
             True if S3 write succeeded.
@@ -1147,6 +1335,7 @@ class ProgressiveProjectBuilder:
             section_df,
             watermark=watermark,
             gid_hash=gid_hash,
+            name=name,
         )
 
     async def _write_checkpoint(

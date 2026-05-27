@@ -95,6 +95,20 @@ class SectionInfo(BaseModel):
     rows_fetched: int = 0
     chunks_checkpointed: int = 0
 
+    # Verification-recency stamp (per ADR-006 §Decision-1 / TDD §2.1).
+    # Records the instant the section's cached content was last confirmed
+    # against Asana (any probe verdict != PROBE_FAILED), independent of byte
+    # changes. Distinct from ``written_at`` (mutation-recency). ``None`` =
+    # never verified (legacy manifest or never-probed section).
+    #
+    # NOTE on field-name collision: ``cache/models/freshness_stamp.py``
+    # ``FreshnessStamp.last_verified_at`` exists in an unrelated cache
+    # subsystem with different semantics. They share a name but live in
+    # different modules; do not conflate. This field is the manifest-tier
+    # verification-recency stamp used by the metrics CLI for the
+    # ``verification_age`` SLI (ADR-006).
+    last_verified_at: datetime | None = None
+
     model_config = {"use_enum_values": True}
 
 
@@ -167,14 +181,36 @@ class SectionManifest(BaseModel):
         *,
         watermark: datetime | None = None,
         gid_hash: str | None = None,
+        name: str | None = None,
     ) -> None:
-        """Mark a section as complete."""
+        """Mark a section as complete.
+
+        Carries ``name`` and ``last_verified_at`` forward from the prior
+        ``SectionInfo`` (heals the QA-D1 / D5 wipe at the source per ADR-006
+        §Decision-7 and TDD §2.2.1).
+
+        Args:
+            section_gid: Section GID to mark complete.
+            rows: Row count for the completed section.
+            watermark: Max modified_at timestamp (for freshness probing).
+            gid_hash: SHA256 hash of sorted GIDs (for structure-change probe).
+            name: Optional fresh section name. When supplied, takes
+                precedence over ``prior.name``; when ``None``, falls back to
+                ``prior.name`` (carry-forward). This is the re-seed channel
+                for existing prod manifests whose ``prior.name is None``
+                (see TDD §2.2.1 edit 3 + ADR-006 §Decision-7).
+        """
+        prior = self.sections.get(section_gid)
+        prior_name = prior.name if prior is not None else None
+        prior_last_verified_at = prior.last_verified_at if prior is not None else None
         self.sections[section_gid] = SectionInfo(
             status=SectionStatus.COMPLETE,
             rows=rows,
             written_at=datetime.now(UTC),
             watermark=watermark,
             gid_hash=gid_hash,
+            name=name if name is not None else prior_name,
+            last_verified_at=prior_last_verified_at,
         )
         self.completed_sections = len(self.get_complete_section_gids())
 
@@ -439,6 +475,7 @@ class SectionPersistence:
         *,
         watermark: datetime | None = None,
         gid_hash: str | None = None,
+        name: str | None = None,
     ) -> SectionManifest | None:
         """Update a section's status in the manifest.
 
@@ -453,6 +490,8 @@ class SectionPersistence:
             error: Error message (for failed status).
             watermark: Max modified_at timestamp (for complete status).
             gid_hash: SHA256 hash of sorted GIDs (for complete status).
+            name: Optional fresh section name for the COMPLETE path (re-seed
+                channel per TDD §2.2.1 edit 3; ignored for other statuses).
 
         Returns:
             Updated manifest, or None on error.
@@ -467,7 +506,7 @@ class SectionPersistence:
 
             if status == SectionStatus.COMPLETE:
                 manifest.mark_section_complete(
-                    section_gid, rows, watermark=watermark, gid_hash=gid_hash
+                    section_gid, rows, watermark=watermark, gid_hash=gid_hash, name=name
                 )
             elif status == SectionStatus.FAILED:
                 manifest.mark_section_failed(section_gid, error or "Unknown error")
@@ -516,6 +555,7 @@ class SectionPersistence:
         *,
         watermark: datetime | None = None,
         gid_hash: str | None = None,
+        name: str | None = None,
     ) -> bool:
         """Write a section DataFrame to S3.
 
@@ -525,6 +565,10 @@ class SectionPersistence:
             df: Polars DataFrame for this section.
             watermark: Max modified_at timestamp for freshness probing.
             gid_hash: SHA256 hash of sorted task GIDs for structural change detection.
+            name: Optional fresh section name (re-seed channel per TDD §2.2.1
+                edit 3). When supplied, threaded into
+                ``mark_section_complete`` to re-populate a wiped
+                ``SectionInfo.name`` on existing prod manifests.
 
         Returns:
             True if written successfully.
@@ -560,6 +604,7 @@ class SectionPersistence:
                 rows=len(df),
                 watermark=watermark,
                 gid_hash=gid_hash,
+                name=name,
             )
         else:
             logger.error(

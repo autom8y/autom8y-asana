@@ -209,6 +209,14 @@ class TestFormatJsonEnvelope:
     """format_json_envelope — PRD AC-3.1 envelope schema."""
 
     def test_envelope_shape(self) -> None:
+        """ADR-006 §Decision-4 / TDD §2.4: envelope is schema_version v2.
+
+        v1 fields (``freshness``, ``provenance``, top-level scalars) are
+        retained byte-for-byte. v2 adds ``mutation_age`` (alias of the
+        existing freshness block) and ``verification_age``. When the
+        report carries no verification block, ``verification_age`` is
+        present with ``available: false``.
+        """
         report = FreshnessReport(
             oldest_mtime=datetime(2026, 3, 26, 4, 17, 0, tzinfo=UTC),
             newest_mtime=datetime(2026, 4, 27, 14, 1, 0, tzinfo=UTC),
@@ -226,26 +234,34 @@ class TestFormatJsonEnvelope:
             env="production",
             bucket_evidence="stakeholder-affirmation-2026-04-27",
         )
-        assert envelope == {
-            "schema_version": 1,
-            "metric": "active_mrr",
-            "value": 94076.00,
-            "currency": "USD",
-            "freshness": {
-                "oldest_mtime": "2026-03-26T04:17:00Z",
-                "newest_mtime": "2026-04-27T14:01:00Z",
-                "max_age_seconds": 2802960,
-                "threshold_seconds": 21600,
-                "stale": True,
-                "parquet_count": 71,
-            },
-            "provenance": {
-                "bucket": "autom8-s3",
-                "prefix": "dataframes/1143843662099250/sections/",
-                "env": "production",
-                "evidence": "stakeholder-affirmation-2026-04-27",
-            },
+        # v1 contract preserved verbatim.
+        assert envelope["schema_version"] == 2
+        assert envelope["metric"] == "active_mrr"
+        assert envelope["value"] == 94076.00
+        assert envelope["currency"] == "USD"
+        assert envelope["freshness"] == {
+            "oldest_mtime": "2026-03-26T04:17:00Z",
+            "newest_mtime": "2026-04-27T14:01:00Z",
+            "max_age_seconds": 2802960,
+            "threshold_seconds": 21600,
+            "stale": True,
+            "parquet_count": 71,
         }
+        assert envelope["provenance"] == {
+            "bucket": "autom8-s3",
+            "prefix": "dataframes/1143843662099250/sections/",
+            "env": "production",
+            "evidence": "stakeholder-affirmation-2026-04-27",
+        }
+        # v2 additive: mutation_age is an explicit alias of freshness.
+        assert envelope["mutation_age"] == envelope["freshness"]
+        # v2 additive: verification_age block; available=false when no
+        # verification block was attached to the report.
+        assert envelope["verification_age"]["available"] is False
+        assert envelope["verification_age"]["max_age_seconds"] == 0
+        assert envelope["verification_age"]["stale"] is False
+        assert envelope["verification_age"]["in_scope_count"] == 0
+        assert envelope["verification_age"]["backfill_used"] is False
 
     def test_envelope_round_trip_through_json(self) -> None:
         """Determinism: json.dumps(sort_keys=True) is reproducible."""

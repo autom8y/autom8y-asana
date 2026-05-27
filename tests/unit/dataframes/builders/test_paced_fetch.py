@@ -298,7 +298,12 @@ class TestEmptySectionNoPacing:
 
         assert result is True
         mock_sleep.assert_not_called()
-        # Should be marked COMPLETE with 0 rows
+        # Should be marked COMPLETE with 0 rows. ADR-006 §Decision-7 /
+        # TDD §2.2.1 edit 3 adds a `name=None` keyword to the empty-section
+        # completion path (the Section object is unavailable here -- the
+        # test passes ``None`` as the section arg to
+        # ``_fetch_and_persist_section`` -- so the re-seed channel forwards
+        # name=None and the carry-forward semantic kicks in elsewhere).
         builder._persistence.update_manifest_section_async.assert_any_call(
             "proj_123",
             "sec_1",
@@ -313,6 +318,7 @@ class TestEmptySectionNoPacing:
                     else None,
                 ),
             ),
+            name=None,
         )
 
 

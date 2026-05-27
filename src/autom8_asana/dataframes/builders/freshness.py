@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
@@ -25,6 +25,8 @@ from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.builders.fields import BASE_OPT_FIELDS
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from autom8_asana.client import AsanaClient
     from autom8_asana.dataframes.models.schema import DataFrameSchema
     from autom8_asana.dataframes.section_persistence import (
@@ -53,6 +55,55 @@ def compute_gid_hash(gids: list[str]) -> str:
         Truncated SHA256 hex digest (16 chars).
     """
     return hashlib.sha256("|".join(sorted(gids)).encode()).hexdigest()[:16]
+
+
+def _parse_dt(value: Any) -> datetime | None:
+    """Best-effort parse of an Asana ``modified_at`` value into an aware UTC datetime.
+
+    Asana returns ISO-8601 strings (e.g. ``"2026-05-26T18:42:00.123Z"``);
+    SDK shapes may also surface a ``datetime`` directly. Return ``None``
+    on anything we cannot interpret -- the caller treats ``None`` as
+    "cannot prove a strict-after edit" and falls through to CLEAN.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        # Normalize naive datetimes to UTC -- comparisons against the
+        # stored watermark (aware) would otherwise raise TypeError.
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value
+    if isinstance(value, str):
+        try:
+            # ``fromisoformat`` accepts the "+00:00" form natively;
+            # Asana's "Z" suffix needs a small substitution on Python
+            # versions where fromisoformat is strict about that.
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
+def _any_modified_after(tasks: list[Any], watermark: datetime) -> bool:
+    """Return True iff any task in ``tasks`` has ``modified_at`` strictly > watermark.
+
+    The watermark-task-identity test that closes the QA D3 / spike
+    line-72-73 false-CLEAN blind spot for watermark-bearing sections
+    (ADR-006 §Revision-2-correction / TDD §2.5).
+
+    A single returned task whose ``modified_at`` is the inclusive
+    boundary (``== watermark``) stays CLEAN -- this is what protects
+    against the false-positive storm on the steady-state boundary
+    task. An edit to the watermark task itself or to a single-task
+    section produces ``modified_at > watermark`` and is caught.
+    """
+    if not tasks:
+        return False
+    for t in tasks:
+        t_modified = _parse_dt(getattr(t, "modified_at", None))
+        if t_modified is not None and t_modified > watermark:
+            return True
+    return False
 
 
 class ProbeVerdict(StrEnum):
@@ -103,6 +154,7 @@ class SectionFreshnessProber:
         *,
         dataframe_view: DataFrameViewPlugin | None = None,
         max_concurrent: int = 8,
+        section_names: Mapping[str, str | None] | None = None,
     ) -> None:
         self._client = client
         self._persistence = persistence
@@ -111,6 +163,24 @@ class SectionFreshnessProber:
         self._schema = schema
         self._dataframe_view = dataframe_view
         self._max_concurrent = max_concurrent
+        # ``section_names``: ``{gid: name}`` map sourced from the warm-entry
+        # ``_list_sections()`` call (threaded through
+        # ``progressive._probe_freshness``). Same source the stamp + re-seed
+        # pass uses -- single source of truth for names across the warm.
+        #
+        # D11 (QA-gate-2): without this, the prober's delta-apply path calls
+        # ``write_section_async`` without ``name=``, so a section renamed or
+        # deleted in Asana mid-warm (absent from ``_list_sections()`` but
+        # present in the manifest) gets re-completed with ``prior.name``
+        # carry-forward only. If ``prior.name`` is ``None`` (existing prod
+        # steady state) and the GID is NOT in ``names_map`` (because the
+        # section was renamed/deleted mid-warm), the row lands with
+        # ``name=None`` + ``last_verified_at=now`` -> permanent ERROR-tier
+        # ``section_name_contract_violation`` because ``any_stamped=True``.
+        # Passing ``section_names`` here lets the delta path supply the
+        # carried-forward name to ``write_section_async``, matching the
+        # re-seed pass in ``progressive._probe_freshness``.
+        self._section_names: Mapping[str, str | None] = section_names or {}
 
     async def probe_all_async(self) -> list[SectionProbeResult]:
         """Probe all COMPLETE sections for freshness with bounded concurrency.
@@ -189,19 +259,33 @@ class SectionFreshnessProber:
                 )
 
             # Step 4: modified_since check (only if hash matches)
+            #
+            # Watermark-task-identity test per ADR-006 §Decision-5b / TDD §2.5.
+            # The old `len(modified_tasks) > 1` gate missed:
+            #   - any edit to a single-task section, and
+            #   - an edit to the exact watermark task itself
+            # because ``modified_since`` is inclusive (``>=``), so the
+            # boundary task is always returned even when unchanged. We
+            # now fetch ``modified_at`` alongside ``gid`` and flag
+            # CONTENT_CHANGED when ANY returned task has
+            # ``modified_at > watermark`` (strict). An unchanged boundary
+            # task has ``modified_at == watermark`` -> CLEAN.
+            #
+            # Residual (documented, NOT a regression): null-watermark
+            # sections (~21/34 offer, ~4/17 unit per QA 2026-05-27)
+            # bypass this branch entirely and retain the pre-existing
+            # hash-only detection. ADR-006 §Revision-2-correction (D8).
             if section_info.watermark is not None:
-                watermark_iso = section_info.watermark.isoformat()
+                watermark = section_info.watermark
+                watermark_iso = watermark.isoformat()
                 modified_tasks = await self._client.tasks.list_async(
                     section=section_gid,
                     modified_since=watermark_iso,
-                    opt_fields=["gid"],
+                    opt_fields=["gid", "modified_at"],
                     limit=2,
                 ).collect()
 
-                # Per POC: modified_since is inclusive (>=), so the task at
-                # exactly the watermark is always returned (1 false-positive).
-                # >1 means real changes exist.
-                if len(modified_tasks) > 1:
+                if _any_modified_after(modified_tasks, watermark):
                     return SectionProbeResult(
                         section_gid,
                         ProbeVerdict.CONTENT_CHANGED,
@@ -232,7 +316,7 @@ class SectionFreshnessProber:
         self,
         stale_results: list[SectionProbeResult],
         dataframe_view: DataFrameViewPlugin | None = None,
-    ) -> int:
+    ) -> tuple[int, frozenset[str]]:
         """Apply delta merges for stale sections in parallel.
 
         Per IMP-08: Each delta application is independent (different sections,
@@ -251,14 +335,19 @@ class SectionFreshnessProber:
             dataframe_view: Optional DataFrameViewPlugin for row extraction.
 
         Returns:
-            Number of sections successfully delta-updated.
+            Tuple of (updated_count, applied_gids), where applied_gids is a
+            frozenset of section GIDs whose delta-apply SUCCEEDED. The stamp
+            block in ``progressive._probe_freshness`` consumes applied_gids
+            to gate ``last_verified_at`` on per-section reconciliation
+            success (ADR-006 §Decision-5c / TDD §2.2 D4) — a delta verdict
+            whose apply FAILED is NOT stamp-eligible.
         """
         from autom8_asana.core.concurrency import gather_with_semaphore
 
         view = dataframe_view or self._dataframe_view
 
         if not stale_results:
-            return 0
+            return 0, frozenset()
 
         results = await gather_with_semaphore(
             (self._apply_section_delta(result, view) for result in stale_results),
@@ -267,6 +356,7 @@ class SectionFreshnessProber:
         )
 
         updated_count = 0
+        applied_gids: set[str] = set()
         for i, outcome in enumerate(results):
             if isinstance(outcome, BaseException):
                 logger.error(
@@ -281,6 +371,7 @@ class SectionFreshnessProber:
                 )
             elif outcome:
                 updated_count += 1
+                applied_gids.add(stale_results[i].section_gid)
 
         logger.info(
             "freshness_delta_complete",
@@ -291,7 +382,7 @@ class SectionFreshnessProber:
             },
         )
 
-        return updated_count
+        return updated_count, frozenset(applied_gids)
 
     async def _apply_section_delta(
         self,
@@ -426,13 +517,24 @@ class SectionFreshnessProber:
             if max_val is not None:
                 new_watermark = max_val if isinstance(max_val, datetime) else None
 
-        # Persist updated section
+        # Persist updated section.
+        #
+        # D11 (QA-gate-2): thread the warm-entry section name so the
+        # delta-apply path supplies ``name=`` to
+        # ``write_section_async`` -> ``update_manifest_section_async`` ->
+        # ``mark_section_complete``. Without this, ``mark_section_complete``
+        # would only see the ``prior.name`` carry-forward; on existing prod
+        # manifests where ``prior.name is None``, that propagates ``None``
+        # indefinitely on the delta path. The same ``self._section_names``
+        # is what ``progressive._probe_freshness`` uses to drive the
+        # stamp+re-seed pass -- single source of truth.
         await self._persistence.write_section_async(
             self._project_gid,
             section_gid,
             merged_df,
             watermark=new_watermark,
             gid_hash=new_gid_hash,
+            name=self._section_names.get(section_gid),
         )
 
         logger.info(
@@ -474,6 +576,10 @@ class SectionFreshnessProber:
         if not tasks:
             from autom8_asana.dataframes.section_persistence import SectionStatus
 
+            # D11: empty-section completion also runs through
+            # mark_section_complete -- thread the same name so it does
+            # NOT propagate ``prior.name=None`` for sections absent from
+            # the warm-entry list.
             await self._persistence.update_manifest_section_async(
                 self._project_gid,
                 section_gid,
@@ -481,6 +587,7 @@ class SectionFreshnessProber:
                 rows=0,
                 watermark=None,
                 gid_hash=compute_gid_hash([]),
+                name=self._section_names.get(section_gid),
             )
             return True
 
@@ -516,12 +623,16 @@ class SectionFreshnessProber:
             if max_val is not None:
                 watermark = max_val if isinstance(max_val, datetime) else None
 
+        # D11: full re-fetch also persists with name= so the delta path
+        # is symmetric with the §2.2.1 fix in
+        # _fetch_and_persist_section (progressive.py:1325).
         await self._persistence.write_section_async(
             self._project_gid,
             section_gid,
             section_df,
             watermark=watermark,
             gid_hash=gid_hash,
+            name=self._section_names.get(section_gid),
         )
 
         logger.info(
