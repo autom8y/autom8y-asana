@@ -638,14 +638,24 @@ class TestMaxResultRows:
         with pytest.raises(ValidationError):
             RowsRequest.model_validate({"limit": -1})
 
-    def test_pydantic_rejects_limit_above_1000(self) -> None:
-        """RowsRequest caps at 1000 at the API layer."""
+    def test_pydantic_rejects_limit_above_10000(self) -> None:
+        """RowsRequest caps at 10000 at the API layer (G2-RECV frame-parity, C-5)."""
         with pytest.raises(ValidationError):
-            RowsRequest.model_validate({"limit": 1001})
+            RowsRequest.model_validate({"limit": 10_001})
 
     def test_pydantic_allows_limit_1000(self) -> None:
         req = RowsRequest.model_validate({"limit": 1000})
         assert req.limit == 1000
+
+    def test_pydantic_allows_limit_10000(self) -> None:
+        """New cap: limit=10000 validates (G2-RECV frame-parity, C-5)."""
+        req = RowsRequest.model_validate({"limit": 10_000})
+        assert req.limit == 10_000
+
+    def test_pydantic_allows_limit_2539(self) -> None:
+        """Consumer canary row delta (2539) validates after cap raise."""
+        req = RowsRequest.model_validate({"limit": 2539})
+        assert req.limit == 2539
 
 
 # ---------------------------------------------------------------------------
@@ -1620,7 +1630,7 @@ class TestPaginationEdgeCases:
 
     async def test_limit_clamped_by_max_result_rows(self) -> None:
         """limit: 50000 with MAX_RESULT_ROWS=10000 is clamped."""
-        # RowsRequest caps at 1000, but QueryLimits clamps further
+        # RowsRequest now caps at 10000 (G2-RECV frame-parity C-5), but QueryLimits clamps further.
         # Test the engine-level clamping
         schema = DataFrameSchema(
             name="test",

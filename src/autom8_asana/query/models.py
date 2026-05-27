@@ -281,8 +281,8 @@ class RowsRequest(BaseModel):
     limit: int = Field(
         default=100,
         ge=1,
-        le=1000,
-        description="Maximum number of rows to return (1-1000).",
+        le=10_000,
+        description="Maximum number of rows to return (1-10000). Clamped at server by max_result_rows.",
     )
     offset: int = Field(
         default=0,
