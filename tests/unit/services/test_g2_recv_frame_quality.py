@@ -219,11 +219,19 @@ def _make_mock_persistence_writing() -> MagicMock:
         *,
         watermark: datetime | None = None,
         gid_hash: str | None = None,
+        name: str | None = None,
     ) -> bool:
+        """Per ADR-006 §Decision-7 / TDD §2.2.1 edit 3, ``write_section_async``
+        gained an optional ``name`` keyword to re-seed the manifest entry's
+        ``SectionInfo.name`` on completion. This mock accepts it to stay
+        signature-compatible; it does not need to record the name to
+        satisfy the test's COMPLETE/honest-complete assertions.
+        """
         manifest = _ensure_manifest(project_gid, "project")
         manifest.sections[section_gid] = SectionInfo(
             status=SectionStatus.COMPLETE,
             rows=len(df),
+            name=name,
         )
         return True
 

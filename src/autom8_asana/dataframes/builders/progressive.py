@@ -455,9 +455,9 @@ class ProgressiveProjectBuilder:
                             # delta-requiring verdict whose delta did not
                             # apply — not stamp-eligible (ADR §Decision-5c).
                             continue
-                        info = fresh_manifest.sections.get(r.section_gid)
-                        if info is not None:
-                            info.last_verified_at = now
+                        stamp_info = fresh_manifest.sections.get(r.section_gid)
+                        if stamp_info is not None:
+                            stamp_info.last_verified_at = now
                             stamped += 1
 
                     if stamped or reseeded:
