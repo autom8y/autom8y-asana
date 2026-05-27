@@ -964,3 +964,374 @@ class TestT7TwoSignalEnvelope:
         # stale True (context, but under ADR-006 §Decision-4 mutation is
         # NOT --strict-promoted).
         assert envelope["freshness"]["stale"] is True
+
+
+# ---------------------------------------------------------------------------
+# D11 (QA-gate-2): delta-apply path threads `name=` into write_section_async
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.scar
+class TestD11DeltaApplyThreadsName:
+    """D11 (SCAR / QA-gate-2): the prober's delta-apply path supplies
+    ``name=`` to ``write_section_async`` from the ``section_names`` map
+    threaded into ``SectionFreshnessProber.__init__``.
+
+    Without the threading, ``write_section_async`` is called WITHOUT
+    ``name=`` -> ``update_manifest_section_async(name=None)`` ->
+    ``mark_section_complete(name=None)`` -> the carry-forward falls back
+    to ``prior.name``, which is ``None`` on existing prod manifests. A
+    section renamed/deleted in Asana mid-warm (and therefore absent from
+    ``_list_sections()`` -> not in the warm-entry names map) would lose
+    its name permanently AND get stamped ``last_verified_at=now`` ->
+    permanent ERROR-tier ``section_name_contract_violation``.
+
+    This test forces the delta-apply path via a CONTENT_CHANGED probe
+    result and a non-empty existing parquet, then asserts that
+    ``write_section_async`` was called with ``name="orig"`` (the
+    warm-entry name from ``section_names``), NOT ``None``.
+    """
+
+    async def test_delta_apply_supplies_name_from_section_names(self) -> None:
+        import polars as pl
+
+        from autom8_asana.dataframes.builders.freshness import (
+            SectionFreshnessProber,
+        )
+
+        watermark = datetime(2026, 5, 27, 0, 0, tzinfo=UTC)
+        section_gid = "sec_renamed"
+        manifest = _make_manifest(
+            {
+                section_gid: SectionInfo(
+                    status=SectionStatus.COMPLETE,
+                    rows=2,
+                    # prod steady state: name wiped to None by the
+                    # pre-D1 mark_section_complete defect, persisted
+                    # to S3 manifests in production.
+                    name=None,
+                    watermark=watermark,
+                    gid_hash=compute_gid_hash(["t1", "t2"]),
+                )
+            }
+        )
+
+        # Existing parquet (DataFrame with a 'gid' column so the delta
+        # path takes the merge branch, not the full-refetch fallback).
+        existing_df = pl.DataFrame({"gid": ["t1", "t2"]})
+
+        # Stub persistence: read_section_async returns the existing
+        # parquet; write_section_async records its kwargs.
+        persistence = MagicMock()
+        persistence.read_section_async = AsyncMock(return_value=existing_df)
+        persistence.write_section_async = AsyncMock(return_value=True)
+        persistence.update_manifest_section_async = AsyncMock(
+            return_value=manifest
+        )
+
+        # Stub client: tasks.list_async returns 0 modified tasks (the
+        # delta-apply path collapses to "removed nothing, added
+        # nothing"; merged_df == existing_df; we only care that the
+        # final write_section_async call carries name=).
+        client = MagicMock()
+        pi_empty = MagicMock()
+        pi_empty.collect = AsyncMock(return_value=[])
+        client.tasks.list_async.return_value = pi_empty
+
+        schema = MagicMock()
+        schema.version = "v1"
+        # Make to_polars_schema return something Polars accepts.
+        schema.to_polars_schema = MagicMock(return_value={"gid": pl.Utf8})
+
+        # The warm-entry names map (the live single source of truth).
+        # Section is in _list_sections() under its current name "orig".
+        section_names: dict[str, str | None] = {section_gid: "orig"}
+
+        prober = SectionFreshnessProber(
+            client=client,
+            persistence=persistence,
+            project_gid="proj_1",
+            manifest=manifest,
+            schema=schema,
+            section_names=section_names,
+        )
+
+        # Drive the delta path directly via apply_deltas_async with a
+        # CONTENT_CHANGED probe result. This is the path that previously
+        # called write_section_async WITHOUT name=.
+        probe = SectionProbeResult(
+            section_gid,
+            ProbeVerdict.CONTENT_CHANGED,
+            current_gids=["t1", "t2"],
+            current_gid_hash=compute_gid_hash(["t1", "t2"]),
+        )
+
+        updated, applied = await prober.apply_deltas_async([probe])
+
+        assert updated == 1, "delta-apply did not succeed on the fixture"
+        assert section_gid in applied, (
+            "applied_gids must include the section to be stamp-eligible"
+        )
+        # The load-bearing assertion: write_section_async was called
+        # with name="orig" (NOT None). Without the D11 fix, the call
+        # would lack `name=` and the kwarg would be absent (defaulting
+        # to None inside write_section_async itself).
+        assert persistence.write_section_async.await_count == 1, (
+            "D11 FAIL: expected exactly one write_section_async call on "
+            "the delta-apply path."
+        )
+        call = persistence.write_section_async.await_args
+        # The kwarg MUST be supplied and MUST be the warm-entry name.
+        assert "name" in call.kwargs, (
+            "D11 FAIL: write_section_async was called without name= -- "
+            "the delta-apply path is not threading the warm-entry name. "
+            "A section renamed/deleted in Asana mid-warm would land "
+            "with name=None and stamp last_verified_at=now, producing a "
+            "permanent ERROR-tier section_name_contract_violation."
+        )
+        assert call.kwargs["name"] == "orig", (
+            f"D11 FAIL: write_section_async received name="
+            f"{call.kwargs['name']!r}, expected 'orig' from "
+            "section_names. The prober's delta-apply path is not "
+            "consuming the single-source-of-truth names map."
+        )
+
+    async def test_full_refetch_supplies_name_from_section_names(self) -> None:
+        """D11 (SCAR): the full-refetch fallback path
+        (``_full_section_refetch`` invoked on NO_BASELINE or missing
+        parquet) ALSO supplies ``name=`` to ``write_section_async``.
+        Symmetric with the delta-merge path."""
+        import polars as pl
+
+        from autom8_asana.dataframes.builders.freshness import (
+            SectionFreshnessProber,
+        )
+        from autom8_asana.dataframes.views.dataframe_view import (
+            DataFrameViewPlugin,
+        )
+
+        section_gid = "sec_no_baseline"
+        manifest = _make_manifest(
+            {
+                section_gid: SectionInfo(
+                    status=SectionStatus.COMPLETE,
+                    rows=0,
+                    name=None,
+                    # gid_hash is None -> NO_BASELINE verdict.
+                )
+            }
+        )
+
+        persistence = MagicMock()
+        # read_section_async returns None -> _full_section_refetch path.
+        persistence.read_section_async = AsyncMock(return_value=None)
+        persistence.write_section_async = AsyncMock(return_value=True)
+        persistence.update_manifest_section_async = AsyncMock(return_value=manifest)
+
+        client = MagicMock()
+        # Full refetch fetches with BASE_OPT_FIELDS; return 1 task so we
+        # take the populated-write branch (not the empty branch).
+        tasks_pi = MagicMock()
+        task_obj = MagicMock()
+        task_obj.gid = "t1"
+        task_obj.model_dump = MagicMock(
+            return_value={"gid": "t1", "name": "task one"}
+        )
+        tasks_pi.collect = AsyncMock(return_value=[task_obj])
+        client.tasks.list_async.return_value = tasks_pi
+
+        schema = MagicMock()
+        schema.version = "v1"
+        schema.to_polars_schema = MagicMock(return_value={"gid": pl.Utf8})
+
+        # Minimal stub view: returns row dicts that match the schema.
+        view = MagicMock(spec=DataFrameViewPlugin)
+        view._extract_rows_async = AsyncMock(return_value=[{"gid": "t1"}])
+
+        section_names: dict[str, str | None] = {section_gid: "orig"}
+
+        prober = SectionFreshnessProber(
+            client=client,
+            persistence=persistence,
+            project_gid="proj_1",
+            manifest=manifest,
+            schema=schema,
+            dataframe_view=view,
+            section_names=section_names,
+        )
+
+        probe = SectionProbeResult(
+            section_gid,
+            ProbeVerdict.NO_BASELINE,
+            current_gids=["t1"],
+            current_gid_hash=compute_gid_hash(["t1"]),
+        )
+
+        updated, applied = await prober.apply_deltas_async([probe])
+        assert updated == 1
+        assert section_gid in applied
+        assert persistence.write_section_async.await_count == 1
+        call = persistence.write_section_async.await_args
+        assert "name" in call.kwargs and call.kwargs["name"] == "orig", (
+            "D11 FAIL: _full_section_refetch did not thread the "
+            "warm-entry name into write_section_async."
+        )
+
+    async def test_full_refetch_empty_tasks_supplies_name(self) -> None:
+        """D11 (SCAR): the empty-tasks branch of ``_full_section_refetch``
+        (calling ``update_manifest_section_async`` directly when the
+        section has zero tasks) ALSO threads ``name=``."""
+        from autom8_asana.dataframes.builders.freshness import (
+            SectionFreshnessProber,
+        )
+
+        section_gid = "sec_empty"
+        manifest = _make_manifest(
+            {
+                section_gid: SectionInfo(
+                    status=SectionStatus.COMPLETE,
+                    rows=0,
+                    name=None,
+                )
+            }
+        )
+
+        persistence = MagicMock()
+        persistence.read_section_async = AsyncMock(return_value=None)
+        persistence.update_manifest_section_async = AsyncMock(return_value=manifest)
+        persistence.write_section_async = AsyncMock(return_value=True)
+
+        client = MagicMock()
+        # Empty list of tasks -> empty branch.
+        pi_empty = MagicMock()
+        pi_empty.collect = AsyncMock(return_value=[])
+        client.tasks.list_async.return_value = pi_empty
+
+        schema = MagicMock()
+        schema.version = "v1"
+
+        section_names: dict[str, str | None] = {section_gid: "orig"}
+
+        prober = SectionFreshnessProber(
+            client=client,
+            persistence=persistence,
+            project_gid="proj_1",
+            manifest=manifest,
+            schema=schema,
+            section_names=section_names,
+        )
+
+        probe = SectionProbeResult(
+            section_gid,
+            ProbeVerdict.NO_BASELINE,
+            current_gids=[],
+            current_gid_hash=compute_gid_hash([]),
+        )
+
+        updated, applied = await prober.apply_deltas_async([probe])
+        assert updated == 1
+        assert section_gid in applied
+        # The empty branch routes through update_manifest_section_async
+        # (not write_section_async) -- assert THAT path got name=.
+        assert persistence.update_manifest_section_async.await_count == 1
+        call = persistence.update_manifest_section_async.await_args
+        assert call.kwargs.get("name") == "orig", (
+            "D11 FAIL: the empty-tasks branch of _full_section_refetch "
+            "did not thread name= into update_manifest_section_async; "
+            "an empty re-fetched section would land with name=None."
+        )
+
+    async def test_unknown_section_gid_falls_back_to_none(self) -> None:
+        """D11 negative: if a section GID is NOT in ``section_names``
+        (e.g. the section was deleted from Asana mid-warm and is no
+        longer in ``_list_sections()``), the delta-apply still supplies
+        ``name=`` -- but the value is ``None``. The downstream
+        ``mark_section_complete`` carry-forward then falls back to
+        ``prior.name`` (which may also be ``None`` on prod), and the
+        §2.6 alarm tier surfaces the resulting null-name section as the
+        true contract violation. No silent breakage; behavior matches
+        the design intent that the warm-entry list is the single source
+        of truth."""
+        import polars as pl
+
+        from autom8_asana.dataframes.builders.freshness import (
+            SectionFreshnessProber,
+        )
+
+        section_gid = "sec_orphan"
+        manifest = _make_manifest(
+            {
+                section_gid: SectionInfo(
+                    status=SectionStatus.COMPLETE,
+                    rows=2,
+                    name=None,
+                    watermark=datetime(2026, 5, 27, 0, 0, tzinfo=UTC),
+                    gid_hash=compute_gid_hash(["t1", "t2"]),
+                )
+            }
+        )
+
+        existing_df = pl.DataFrame({"gid": ["t1", "t2"]})
+        persistence = MagicMock()
+        persistence.read_section_async = AsyncMock(return_value=existing_df)
+        persistence.write_section_async = AsyncMock(return_value=True)
+        persistence.update_manifest_section_async = AsyncMock(return_value=manifest)
+
+        client = MagicMock()
+        pi_empty = MagicMock()
+        pi_empty.collect = AsyncMock(return_value=[])
+        client.tasks.list_async.return_value = pi_empty
+
+        schema = MagicMock()
+        schema.version = "v1"
+        schema.to_polars_schema = MagicMock(return_value={"gid": pl.Utf8})
+
+        # Empty names map -> section is "orphan" w.r.t. warm-entry list.
+        prober = SectionFreshnessProber(
+            client=client,
+            persistence=persistence,
+            project_gid="proj_1",
+            manifest=manifest,
+            schema=schema,
+            section_names={},
+        )
+
+        probe = SectionProbeResult(
+            section_gid,
+            ProbeVerdict.CONTENT_CHANGED,
+            current_gids=["t1", "t2"],
+            current_gid_hash=compute_gid_hash(["t1", "t2"]),
+        )
+
+        await prober.apply_deltas_async([probe])
+        call = persistence.write_section_async.await_args
+        assert "name" in call.kwargs, (
+            "D11: write_section_async must always receive name= kwarg "
+            "(even if the value is None for orphan GIDs)."
+        )
+        assert call.kwargs["name"] is None, (
+            "D11: GID not in section_names should receive name=None "
+            "(orphan-window contract); the §2.6 alarm tier surfaces "
+            "this as the true contract violation downstream."
+        )
+
+    def test_prober_default_section_names_is_empty(self) -> None:
+        """D11: the new ``section_names`` constructor kwarg defaults to
+        ``None`` (normalized to empty dict internally). Existing
+        single-process tests that construct the prober without the new
+        kwarg keep working."""
+        from autom8_asana.dataframes.builders.freshness import (
+            SectionFreshnessProber,
+        )
+
+        manifest = _make_manifest({})
+        prober = SectionFreshnessProber(
+            client=MagicMock(),
+            persistence=MagicMock(),
+            project_gid="proj_1",
+            manifest=manifest,
+            schema=MagicMock(),
+        )
+        # Internal accessor: empty dict, not None (consumers do
+        # ``self._section_names.get(gid)`` -- None would crash).
+        assert prober._section_names == {}

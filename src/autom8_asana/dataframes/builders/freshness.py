@@ -25,6 +25,8 @@ from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.builders.fields import BASE_OPT_FIELDS
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from autom8_asana.client import AsanaClient
     from autom8_asana.dataframes.models.schema import DataFrameSchema
     from autom8_asana.dataframes.section_persistence import (
@@ -152,6 +154,7 @@ class SectionFreshnessProber:
         *,
         dataframe_view: DataFrameViewPlugin | None = None,
         max_concurrent: int = 8,
+        section_names: Mapping[str, str | None] | None = None,
     ) -> None:
         self._client = client
         self._persistence = persistence
@@ -160,6 +163,24 @@ class SectionFreshnessProber:
         self._schema = schema
         self._dataframe_view = dataframe_view
         self._max_concurrent = max_concurrent
+        # ``section_names``: ``{gid: name}`` map sourced from the warm-entry
+        # ``_list_sections()`` call (threaded through
+        # ``progressive._probe_freshness``). Same source the stamp + re-seed
+        # pass uses -- single source of truth for names across the warm.
+        #
+        # D11 (QA-gate-2): without this, the prober's delta-apply path calls
+        # ``write_section_async`` without ``name=``, so a section renamed or
+        # deleted in Asana mid-warm (absent from ``_list_sections()`` but
+        # present in the manifest) gets re-completed with ``prior.name``
+        # carry-forward only. If ``prior.name`` is ``None`` (existing prod
+        # steady state) and the GID is NOT in ``names_map`` (because the
+        # section was renamed/deleted mid-warm), the row lands with
+        # ``name=None`` + ``last_verified_at=now`` -> permanent ERROR-tier
+        # ``section_name_contract_violation`` because ``any_stamped=True``.
+        # Passing ``section_names`` here lets the delta path supply the
+        # carried-forward name to ``write_section_async``, matching the
+        # re-seed pass in ``progressive._probe_freshness``.
+        self._section_names: Mapping[str, str | None] = section_names or {}
 
     async def probe_all_async(self) -> list[SectionProbeResult]:
         """Probe all COMPLETE sections for freshness with bounded concurrency.
@@ -496,13 +517,24 @@ class SectionFreshnessProber:
             if max_val is not None:
                 new_watermark = max_val if isinstance(max_val, datetime) else None
 
-        # Persist updated section
+        # Persist updated section.
+        #
+        # D11 (QA-gate-2): thread the warm-entry section name so the
+        # delta-apply path supplies ``name=`` to
+        # ``write_section_async`` -> ``update_manifest_section_async`` ->
+        # ``mark_section_complete``. Without this, ``mark_section_complete``
+        # would only see the ``prior.name`` carry-forward; on existing prod
+        # manifests where ``prior.name is None``, that propagates ``None``
+        # indefinitely on the delta path. The same ``self._section_names``
+        # is what ``progressive._probe_freshness`` uses to drive the
+        # stamp+re-seed pass -- single source of truth.
         await self._persistence.write_section_async(
             self._project_gid,
             section_gid,
             merged_df,
             watermark=new_watermark,
             gid_hash=new_gid_hash,
+            name=self._section_names.get(section_gid),
         )
 
         logger.info(
@@ -544,6 +576,10 @@ class SectionFreshnessProber:
         if not tasks:
             from autom8_asana.dataframes.section_persistence import SectionStatus
 
+            # D11: empty-section completion also runs through
+            # mark_section_complete -- thread the same name so it does
+            # NOT propagate ``prior.name=None`` for sections absent from
+            # the warm-entry list.
             await self._persistence.update_manifest_section_async(
                 self._project_gid,
                 section_gid,
@@ -551,6 +587,7 @@ class SectionFreshnessProber:
                 rows=0,
                 watermark=None,
                 gid_hash=compute_gid_hash([]),
+                name=self._section_names.get(section_gid),
             )
             return True
 
@@ -586,12 +623,16 @@ class SectionFreshnessProber:
             if max_val is not None:
                 watermark = max_val if isinstance(max_val, datetime) else None
 
+        # D11: full re-fetch also persists with name= so the delta path
+        # is symmetric with the §2.2.1 fix in
+        # _fetch_and_persist_section (progressive.py:1325).
         await self._persistence.write_section_async(
             self._project_gid,
             section_gid,
             section_df,
             watermark=watermark,
             gid_hash=gid_hash,
+            name=self._section_names.get(section_gid),
         )
 
         logger.info(

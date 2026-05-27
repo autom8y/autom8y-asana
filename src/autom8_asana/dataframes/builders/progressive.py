@@ -370,6 +370,13 @@ class ProgressiveProjectBuilder:
                 manifest=manifest,
                 schema=self._schema,
                 dataframe_view=self._dataframe_view,
+                # D11 (QA-gate-2): thread the same names_map the stamp +
+                # re-seed pass uses, so the prober's delta-apply path
+                # supplies ``name=`` to ``write_section_async`` and does
+                # NOT propagate ``prior.name=None`` on existing prod
+                # manifests. Single source of truth for section names
+                # across the warm.
+                section_names=names_map,
             )
             probe_results = await prober.probe_all_async()
             sections_probed = len(probe_results)
