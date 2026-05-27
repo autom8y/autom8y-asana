@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
@@ -53,6 +53,55 @@ def compute_gid_hash(gids: list[str]) -> str:
         Truncated SHA256 hex digest (16 chars).
     """
     return hashlib.sha256("|".join(sorted(gids)).encode()).hexdigest()[:16]
+
+
+def _parse_dt(value: Any) -> datetime | None:
+    """Best-effort parse of an Asana ``modified_at`` value into an aware UTC datetime.
+
+    Asana returns ISO-8601 strings (e.g. ``"2026-05-26T18:42:00.123Z"``);
+    SDK shapes may also surface a ``datetime`` directly. Return ``None``
+    on anything we cannot interpret -- the caller treats ``None`` as
+    "cannot prove a strict-after edit" and falls through to CLEAN.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        # Normalize naive datetimes to UTC -- comparisons against the
+        # stored watermark (aware) would otherwise raise TypeError.
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value
+    if isinstance(value, str):
+        try:
+            # ``fromisoformat`` accepts the "+00:00" form natively;
+            # Asana's "Z" suffix needs a small substitution on Python
+            # versions where fromisoformat is strict about that.
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
+def _any_modified_after(tasks: list[Any], watermark: datetime) -> bool:
+    """Return True iff any task in ``tasks`` has ``modified_at`` strictly > watermark.
+
+    The watermark-task-identity test that closes the QA D3 / spike
+    line-72-73 false-CLEAN blind spot for watermark-bearing sections
+    (ADR-006 §Revision-2-correction / TDD §2.5).
+
+    A single returned task whose ``modified_at`` is the inclusive
+    boundary (``== watermark``) stays CLEAN -- this is what protects
+    against the false-positive storm on the steady-state boundary
+    task. An edit to the watermark task itself or to a single-task
+    section produces ``modified_at > watermark`` and is caught.
+    """
+    if not tasks:
+        return False
+    for t in tasks:
+        t_modified = _parse_dt(getattr(t, "modified_at", None))
+        if t_modified is not None and t_modified > watermark:
+            return True
+    return False
 
 
 class ProbeVerdict(StrEnum):
@@ -189,19 +238,33 @@ class SectionFreshnessProber:
                 )
 
             # Step 4: modified_since check (only if hash matches)
+            #
+            # Watermark-task-identity test per ADR-006 §Decision-5b / TDD §2.5.
+            # The old `len(modified_tasks) > 1` gate missed:
+            #   - any edit to a single-task section, and
+            #   - an edit to the exact watermark task itself
+            # because ``modified_since`` is inclusive (``>=``), so the
+            # boundary task is always returned even when unchanged. We
+            # now fetch ``modified_at`` alongside ``gid`` and flag
+            # CONTENT_CHANGED when ANY returned task has
+            # ``modified_at > watermark`` (strict). An unchanged boundary
+            # task has ``modified_at == watermark`` -> CLEAN.
+            #
+            # Residual (documented, NOT a regression): null-watermark
+            # sections (~21/34 offer, ~4/17 unit per QA 2026-05-27)
+            # bypass this branch entirely and retain the pre-existing
+            # hash-only detection. ADR-006 §Revision-2-correction (D8).
             if section_info.watermark is not None:
-                watermark_iso = section_info.watermark.isoformat()
+                watermark = section_info.watermark
+                watermark_iso = watermark.isoformat()
                 modified_tasks = await self._client.tasks.list_async(
                     section=section_gid,
                     modified_since=watermark_iso,
-                    opt_fields=["gid"],
+                    opt_fields=["gid", "modified_at"],
                     limit=2,
                 ).collect()
 
-                # Per POC: modified_since is inclusive (>=), so the task at
-                # exactly the watermark is always returned (1 false-positive).
-                # >1 means real changes exist.
-                if len(modified_tasks) > 1:
+                if _any_modified_after(modified_tasks, watermark):
                     return SectionProbeResult(
                         section_gid,
                         ProbeVerdict.CONTENT_CHANGED,

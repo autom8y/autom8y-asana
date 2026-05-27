@@ -72,10 +72,22 @@ def _make_manifest(
     )
 
 
-def _make_task_mock(gid: str) -> MagicMock:
-    """Create a mock task with a gid."""
+def _make_task_mock(gid: str, modified_at: datetime | None = None) -> MagicMock:
+    """Create a mock task with a gid.
+
+    Optionally attaches ``modified_at`` (set via ``MagicMock(...)``-style
+    attribute assignment so ``getattr(task, "modified_at", None)`` in the
+    prober returns the provided value rather than another auto-magicked
+    MagicMock). Pass ``modified_at=None`` (default) when the test
+    exercises the pre-modified_at-aware behaviour.
+    """
     t = MagicMock()
     t.gid = gid
+    # MagicMock auto-magics every attribute access, so unset attributes
+    # default to a MagicMock(). Explicitly set modified_at so the
+    # _parse_dt(getattr(t, "modified_at", None)) path sees the intended
+    # value (or None, which is the "no signal" sentinel).
+    t.modified_at = modified_at
     return t
 
 
@@ -168,7 +180,7 @@ class TestSectionFreshnessProber:
         assert results[0].verdict == ProbeVerdict.STRUCTURE_CHANGED
 
     async def test_probe_content_changed(self) -> None:
-        """Hash matches but modified_since returns >1 → CONTENT_CHANGED."""
+        """Hash matches; a returned task has modified_at strictly > watermark -> CONTENT_CHANGED."""
         gids = ["t1", "t2"]
         stored_hash = compute_gid_hash(gids)
         watermark = datetime(2026, 1, 1, tzinfo=UTC)
@@ -186,8 +198,14 @@ class TestSectionFreshnessProber:
 
         # First call: GID fetch returns same tasks
         gid_tasks = [_make_task_mock("t1"), _make_task_mock("t2")]
-        # Second call: modified_since returns 2 tasks (1 false positive + 1 real change)
-        modified_tasks = [_make_task_mock("t1"), _make_task_mock("t2")]
+        # Second call: modified_since returns 2 tasks — one at the inclusive
+        # boundary (modified_at == watermark) and one strictly after
+        # (real edit). The watermark-task-identity test catches the
+        # strict-after edit even though the boundary task is present.
+        modified_tasks = [
+            _make_task_mock("t1", modified_at=watermark),  # boundary
+            _make_task_mock("t2", modified_at=datetime(2026, 1, 2, tzinfo=UTC)),  # edit
+        ]
 
         prober, client = self._make_prober(
             manifest,
@@ -202,7 +220,7 @@ class TestSectionFreshnessProber:
         assert results[0].verdict == ProbeVerdict.CONTENT_CHANGED
 
     async def test_probe_clean(self) -> None:
-        """Hash matches and modified_since returns <=1 → CLEAN."""
+        """Hash matches; the lone returned task is the unchanged boundary -> CLEAN."""
         gids = ["t1", "t2"]
         stored_hash = compute_gid_hash(gids)
         watermark = datetime(2026, 1, 1, tzinfo=UTC)
@@ -219,8 +237,11 @@ class TestSectionFreshnessProber:
         )
 
         gid_tasks = [_make_task_mock("t1"), _make_task_mock("t2")]
-        # Only 1 task from modified_since (the inclusive boundary false-positive)
-        modified_tasks = [_make_task_mock("t1")]
+        # Only 1 task from modified_since whose modified_at == watermark
+        # (the inclusive boundary task; unchanged). The strict-> test
+        # leaves this CLEAN -- no false-positive storm on the steady-state
+        # boundary task.
+        modified_tasks = [_make_task_mock("t1", modified_at=watermark)]
 
         prober, client = self._make_prober(
             manifest,
