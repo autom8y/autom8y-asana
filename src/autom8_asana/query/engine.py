@@ -187,7 +187,19 @@ class QueryEngine:
         df = df.slice(request.offset, effective_limit)
 
         # 11. Select columns (gid always included per PRD)
-        select_fields = request.select or ["gid", "name", "section"]
+        # C-4: Registry lookup inserted BEFORE the global literal fallback.
+        # For entities with a non-empty default_projection (project, section),
+        # use that as the default.  For all other entities the registry returns ()
+        # and we fall through to the global literal ["gid", "name", "section"].
+        # Sovereignty-critical: the literal must remain the fallback for offer-domain
+        # entities so existing callers (limit<=100 today) are unaffected.
+        if request.select is not None:
+            select_fields = request.select
+        else:
+            from autom8_asana.core.entity_registry import get_registry as _get_registry
+
+            _default_proj = _get_registry().get_default_projection(entity_type)
+            select_fields = list(_default_proj) if _default_proj else ["gid", "name", "section"]
 
         # Validate select fields against schema
         for col_name in select_fields:

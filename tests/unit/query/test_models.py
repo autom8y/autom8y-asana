@@ -184,8 +184,10 @@ class TestRowsRequestSugar:
     def test_limit_bounds(self) -> None:
         with pytest.raises(ValidationError):
             RowsRequest.model_validate({"limit": 0})
+        # Cap raised from 1000 to 10000 (G2-RECV frame-parity C-5).
+        # 1001 now validates; 10001 should still raise.
         with pytest.raises(ValidationError):
-            RowsRequest.model_validate({"limit": 1001})
+            RowsRequest.model_validate({"limit": 10_001})
 
     def test_offset_non_negative(self) -> None:
         with pytest.raises(ValidationError):

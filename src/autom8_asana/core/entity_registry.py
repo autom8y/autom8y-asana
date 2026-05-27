@@ -172,6 +172,9 @@ class EntityDescriptor:
     aliases: tuple[str, ...] = ()
     join_keys: tuple[tuple[str, str], ...] = ()  # ((target, key), ...)
     key_columns: tuple[str, ...] = ()
+    default_projection: tuple[
+        str, ...
+    ] = ()  # Full column list for default select; () falls through to global literal
 
     # --- Discovery ---
     explicit_name_mappings: tuple[tuple[str, str], ...] = ()
@@ -393,6 +396,18 @@ class EntityRegistry:
         desc = self._by_name.get(name)
         if desc is not None:
             return desc.key_columns
+        return ()
+
+    def get_default_projection(self, name: str) -> tuple[str, ...]:
+        """Get default projection columns for query select.
+
+        Returns the full column list declared on the descriptor.
+        Empty tuple () means no override — the caller falls through to
+        the global default literal (e.g. ["gid", "name", "section"]).
+        """
+        desc = self._by_name.get(name)
+        if desc is not None:
+            return desc.default_projection
         return ()
 
 
@@ -885,6 +900,26 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         # Generic SchemaExtractor satisfies strict_triad_validation=True.
         # S-07: Sprint 2 PG-02 will add a dedicated ProjectExtractor for full column parity.
         extractor_class_path="autom8_asana.dataframes.extractors.schema.SchemaExtractor",
+        # G2-RECV frame-parity: full 16-col default projection so consumers get
+        # office_phone/vertical without explicit select.  Sourced from PROJECT_SCHEMA.column_names().
+        default_projection=(
+            "gid",
+            "name",
+            "type",
+            "date",
+            "created",
+            "due_on",
+            "is_completed",
+            "completed_at",
+            "url",
+            "last_modified",
+            "section",
+            "tags",
+            "parent_gid",
+            "status",
+            "office_phone",
+            "vertical",
+        ),
     ),
     EntityDescriptor(
         name="section",
@@ -903,6 +938,26 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         # Generic SchemaExtractor satisfies strict_triad_validation=True.
         # S-07: Sprint 2 PG-02 will add a dedicated SectionExtractor for full column parity.
         extractor_class_path="autom8_asana.dataframes.extractors.schema.SchemaExtractor",
+        # G2-RECV frame-parity: full 16-col default projection (mirrors project).
+        # AC-G2P6-5: section receives same full projection as project.
+        default_projection=(
+            "gid",
+            "name",
+            "type",
+            "date",
+            "created",
+            "due_on",
+            "is_completed",
+            "completed_at",
+            "url",
+            "last_modified",
+            "section",
+            "tags",
+            "parent_gid",
+            "status",
+            "office_phone",
+            "vertical",
+        ),
     ),
 )
 
