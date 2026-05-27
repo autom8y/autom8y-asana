@@ -746,6 +746,16 @@ class ProgressiveProjectBuilder:
         self._checkpoint_df = None
         self._checkpoint_task_count = 0
 
+        # Re-seed channel (TDD §2.2.1 edit 3 / ADR-006 §Decision-7):
+        # when the warm-entry Section object is available we thread its
+        # ``name`` into the completion site so existing prod manifests
+        # whose ``SectionInfo.name`` was wiped get re-populated on the
+        # first re-completion/delta-write. Asana sometimes returns a
+        # non-string ``name`` (None) -- guard for that.
+        section_name: str | None = None
+        if section is not None and isinstance(section.name, str):
+            section_name = section.name
+
         try:
             await self._persistence.update_manifest_section_async(
                 self._project_gid,
@@ -776,6 +786,7 @@ class ProgressiveProjectBuilder:
                     SectionStatus.COMPLETE,
                     rows=0,
                     gid_hash=compute_gid_hash([]),
+                    name=section_name,
                 )
                 return True
 
@@ -805,7 +816,9 @@ class ProgressiveProjectBuilder:
             section_df, gid_hash, watermark = await self._build_section_dataframe(tasks)
 
             # Phase 5: Persist to S3
-            return await self._persist_section(section_gid, section_df, gid_hash, watermark)
+            return await self._persist_section(
+                section_gid, section_df, gid_hash, watermark, name=section_name
+            )
 
         except Exception as e:  # BROAD-CATCH: isolation  # noqa: BLE001
             logger.error(
@@ -1125,6 +1138,8 @@ class ProgressiveProjectBuilder:
         section_df: pl.DataFrame,
         gid_hash: str,
         watermark: datetime | None,
+        *,
+        name: str | None = None,
     ) -> bool:
         """Store section DataFrame in memory and persist to S3.
 
@@ -1133,6 +1148,8 @@ class ProgressiveProjectBuilder:
             section_df: Built DataFrame for this section.
             gid_hash: SHA256 hash of sorted task GIDs.
             watermark: Max modified_at timestamp, if available.
+            name: Optional section name to re-seed into the manifest on
+                completion (per TDD §2.2.1 edit 3 / ADR-006 §Decision-7).
 
         Returns:
             True if S3 write succeeded.
@@ -1147,6 +1164,7 @@ class ProgressiveProjectBuilder:
             section_df,
             watermark=watermark,
             gid_hash=gid_hash,
+            name=name,
         )
 
     async def _write_checkpoint(
