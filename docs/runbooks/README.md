@@ -56,6 +56,7 @@ Include severity in the Problem Statement to help responders prioritize.
 | [RUNBOOK-rate-limiting.md](RUNBOOK-rate-limiting.md) | Rate Limiting | HTTP 429 errors, rate limit exceeded, slow requests, token bucket depletion, hierarchy warming backpressure |
 | [RUNBOOK-savesession-debugging.md](RUNBOOK-savesession-debugging.md) | SaveSession | Save failures, dependency graph errors, partial failures, healing system issues |
 | [RUNBOOK-detection-troubleshooting.md](RUNBOOK-detection-troubleshooting.md) | Detection | Entity type detection failures, tier fallback issues |
+| [RUNBOOK-freshness-verification-recency.md](RUNBOOK-freshness-verification-recency.md) | Freshness / Observability | `SectionNameContractViolationError` alarm, `verification_age` climb, re-seed-window WARN, stamp-phase failures, null-watermark residual |
 
 ## Creating a New Runbook
 
