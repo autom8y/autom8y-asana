@@ -1106,3 +1106,457 @@ soundness grade per self-ref-evidence-grade-rule; source-existence and
 file:line claims are STRONG-within-gate (deterministic, re-runnable).
 STRONG upgrade discharges at the QA-gate-2 post-build prod re-probe per
 the carry conditions above.*
+
+---
+
+# QA-gate-2 (post-build) — 2026-05-27
+
+Final post-build gate. Mandate: adversarially validate the IMPLEMENTATION on
+branch `feat/freshness-verification-recency` (6 commits off `origin/main`)
+against TDD rev-3 and the principal-engineer's flagged risks. Build a probe
+that empirically verifies T11-T16 actually FAIL on a deliberately-unfixed
+checkout (the prior gate's load-bearing anti-theater condition). Evidence
+discipline: source verification by file:line at this gate's authoring time;
+test-bite verification by direct mutation+re-run; live S3 fleet re-probe.
+MODERATE ceiling per self-ref-evidence-grade-rule (this gate IS the external
+corroboration the rev-3 gate deferred — but it remains single-reviewer; STRONG
+requires the post-deploy prod re-probe per QA-gate-3 carry conditions).
+
+## §A — Faithfulness to the TDD (per-design-item)
+
+Each item verified at the named file:line in the actual implementation:
+
+| Item | TDD Reference | Source at impl | Disposition |
+|------|--------------|----------------|-------------|
+| D1 carry-forward + alarm tier (§2.2.1 / §2.6 / §Decision-7a) | `section_persistence.py:181-215` (`mark_section_complete` with `name`+`last_verified_at` carry-forward) + `progressive.py:482-515` (alarm-tier discriminator) | **PASS** — carry-forward present at `:212-213` (`name=name if name is not None else prior_name`, `last_verified_at=prior_last_verified_at`); alarm-tier `if any_stamped:` discriminator at `:493` correctly maps `reseed_window=False` (ERROR) / `reseed_window=True` (WARN) via `logger.error` / `logger.warning` |
+| D2 sync→async bridge (§2.3.1) | `metrics/freshness.py:567-602` (`read_manifest_sync`) + `__main__.py:854-878` (call site) | **PASS** — running-loop guard at `:583-589` raises `RuntimeError` rather than nesting; sync path drives `asyncio.run(persistence.get_manifest_async(...))` at `:586`. Test `TestReadManifestSyncLoopGuard::test_running_loop_raises_loudly` exercises the guard inside an actual `asyncio.run()` context |
+| D3 prober watermark-task-identity (§2.5) | `freshness.py:81-104` (`_any_modified_after` helper) + `:255-270` (call site under `if section_info.watermark is not None`) | **PASS** — strict `t_modified > watermark` at `:102`; no `>=` (no false-positive on boundary); residual null-watermark path retains pre-existing hash-only behavior (documented residual per ADR §Revision-2-correction / D8) |
+| D4 applied_gids stamp gating (§Decision-5c) | `freshness.py:298-364` (`apply_deltas_async` returns `tuple[int, frozenset[str]]`; per-section success accumulated to `applied_gids` at `:353`) + `progressive.py:454-457` (stamp loop gates on `applied_gids` for delta verdicts) | **PASS** — return-contract change applied; `applied_gids` accumulator at `freshness.py:338,353`; gate at `progressive.py:454` (`if r.verdict in DELTA_VERDICTS and r.section_gid not in applied_gids: continue`) |
+| D6 stamp-fail metric (§Decision-9) | `progressive.py:516-528` (stamp-block BROAD-CATCH emits `section_last_verified_stamp_failed` via `logger.error`) | **PASS** — distinct from the outer warm BROAD-CATCH; emits `extra={project_gid, error, error_type}`; warm completes (no re-raise) |
+| Two-signal CLI envelope (§2.4) | `metrics/freshness.py:466-559` (`format_json_envelope` v2) + `__main__.py:903-911` (default-mode `format_verification_human_line`) + `:945-969` (`--strict` re-routed to verification_stale) | **PASS** — schema_version=2 at `:537`; `freshness` block preserved byte-for-byte at `:512-519`; `mutation_age` aliased identically; `verification_age` always present (`available: false` when unavailable); `--strict` promotes `verification_stale` and degrades to mutation `report.stale` only when verification is unavailable |
+
+All six TDD items implemented faithfully at the named file:line. Source-grounded
+PASS.
+
+## §B — Anti-theater empirical verification of T11–T16
+
+Methodology: deliberately mutate the production code to remove each test's
+load-bearing guard, run the test, confirm it FAILS with the expected message;
+then restore. This is the empirical version of the rev-3 gate's deferred carry
+condition 3. Mutations were applied to in-tree source, run, then reverted via
+`Edit`; final `diff` against `/tmp/*.bak` of all three production files
+returned **DIFFS DONE (no leftover mutations)**.
+
+| Test | Mutation applied | Expected fail mode | Empirical result |
+|------|------------------|---------------------|------------------|
+| **T11 (WARN tier)** | Gate the §2.6 assertion block as `if False and len(fresh_manifest.sections) >= 2:` | WARN-tier `section_name_contract_violation` not emitted | **FAILED** — `AssertionError: assert 'section_name_contract_violation' in []` |
+| **T11 (ERROR tier)** | Same mutation as WARN | ERROR-tier not emitted on post-warm null-name | **FAILED** — same assertion class |
+| **T12** | Change strict `>` to `>=` in `_any_modified_after` | Single-task edit (modified_at > watermark) still flagged True (so T12 still passes — not a useful target for T12) | T12 PASSED on the mutated build (T12 only tests the positive case, where strict-or-inclusive doesn't matter). The discriminating test is T13-negative below. |
+| **T13 (negative case — no false-positive storm)** | Change strict `>` to `>=` in `_any_modified_after` (line 102) | Unchanged boundary task wrongly classified as changed | **FAILED** — `AssertionError: T13 FAIL: unchanged boundary task (modified_at == watermark) was wrongly classified as changed -- this would produce a false-positive storm on every warm.` This is the LOAD-BEARING T13 contract — confirmed-bites |
+| **T14** | Disable `applied_gids` gate (`if False and r.verdict in DELTA_VERDICTS and r.section_gid not in applied_gids:`) | Delta-fail section is stamped anyway | **FAILED** — `AssertionError: T14 FAIL: a delta-requiring verdict whose delta-apply FAILED was stamped anyway` |
+| **T15** | Restore the wipe (`name=None, last_verified_at=None`) in `mark_section_complete` | Carry-forward gone; name wiped to None | **FAILED** — `AssertionError: T15 FAIL: mark_section_complete wiped 'name' to None instead of carrying it forward` |
+| **T16 (re-seed)** | Remove the `info.name = names_map[gid]` assignment | section_names threaded but not consumed; name stays None | **FAILED** — `AssertionError: T16 FAIL: section sec_1 name was not re-seeded from section_names ... assert None == 'Active'` |
+| **T16 (single-write contract)** | Add a duplicate `await self._persistence._save_manifest_async(fresh_manifest)` | Two saves instead of one | **FAILED** — `AssertionError: T16 FAIL: re-seed + stamp produced 2 saves; should be 1` |
+
+**T11–T16 anti-theater verdict: REAL — all guards genuinely bite.** Each
+mutation reproduces a precisely-articulated failure message that names the
+discipline being violated. None of the tests are signature-only theater; each
+exercises the load-bearing semantics. T16 in particular tests both the
+threading-and-consumption AND the single-write contract — two independent
+assertions that together close the rev-3 gate's deepest concern. **The rev-3
+gate's blocking gap (D7 re-seed fictionality) is empirically closed.**
+
+## §C — Engineer-flagged risk dispositions
+
+### Risk 1 — Re-seed window WARN cardinality. **PASS (with operational caveat).**
+
+Live fleet re-probed at this gate's authoring time:
+
+```
+1143843662099250: total=34 name_null=34 lv_null=34
+1200653012566782: total=5  name_null=5  lv_null=5
+1200775689604552: total=4  name_null=4  lv_null=4
+1201081073731555: total=17 name_null=17 lv_null=17
+1201319387632570: total=11 name_null=11 lv_null=11
+1201753128450029: total=9  name_null=9  lv_null=9
+1202204184560785: total=21 name_null=21 lv_null=21
+1203404998225231: total=2  name_null=2  lv_null=2
+1203992664400125: total=1  name_null=1  lv_null=1   ← only 1 section, EXEMPT from §2.6
+1208231632857419: total=9  name_null=9  lv_null=9
+1209442727608287: total=6  name_null=6  lv_null=6
+```
+
+**Fleet: 11 projects, 10 with ≥2 sections.** First post-deploy warm cycle:
+all 10 projects fire `section_name_contract_violation` at WARN
+(`reseed_window=true`). Code-level verification: `progressive.py:507` is
+`logger.warning(...)`, not `logger.error(...)`. Non-pageable AS LONG AS the
+CloudWatch alarm filter is keyed on log-LEVEL (or includes `reseed_window:false`
+discriminator). The violation fires per-warm-cycle (warm Lambda cadence,
+typically ~5min), not per-metrics-invocation — cardinality bounded.
+
+**OPERATIONAL CAVEAT (BUILD-CARRIED → SRE-CARRIED):** if CloudWatch alarms
+are wired to the event name `section_name_contract_violation` without filtering
+on log-LEVEL or the `reseed_window` extra, the deploy will fire 10 simultaneous
+alarms on the first warm wave. The TDD §2.6 / ADR §Decision-7a explicitly
+delegates this discrimination to the alarm wiring; the code does its part.
+**SRE handoff MUST verify the alarm is keyed on `reseed_window=false` (or
+ERROR-level only) before deploy.** This is condition #2 of the QA-gate-3
+discharge.
+
+### Risk 3 — `_save_manifest_async` cross-class private call. **FLAG (accepted, latent fragility).**
+
+Verified: `progressive.py:464` calls `self._persistence._save_manifest_async(fresh_manifest)` — a single-underscore "private" method
+on `SectionPersistence` called from `ProgressiveProjectBuilder`. Python permits
+this; no encapsulation enforcement. **No dedicated signature contract test
+exists** (`grep _save_manifest_async tests/` returns mock setups, not contract
+assertions). However: this pattern is **pre-existing** (multiple tests at
+`test_paced_fetch_edge_cases.py:103,337`, `test_checkpoint_resume.py:79`,
+`test_adversarial_pacing.py:103,337` already mock `_save_manifest_async` on the
+persistence — the cross-class coupling is well-established in the codebase
+predating this change). Mypy passes, signature stable. Risk: if
+`_save_manifest_async` is ever renamed (e.g., to `save_manifest_async` —
+removing the underscore to formalize it as public), `progressive.py:464` would
+silently break (no compile-time check, just `AttributeError` at runtime). **No
+new defect; flag as latent fragility for SRE-monitorable / future-refactor
+attention.**
+
+### Risk 4 — `compute_verification_age` broad-catch. **D10 NEW (MEDIUM-LOW — observability asymmetry).**
+
+Inspected `__main__.py:854-877`. The broad-catch surface:
+- `try:` block covers `create_section_persistence()`, `read_manifest_sync(...)`,
+  `compute_verification_age(...)`.
+- `except Exception as ve` (BLE001 silenced) — degrades to
+  `VerificationAge.unavailable(threshold_seconds)`.
+- **Observability path: `print(f"WARNING: verification_age unavailable, ... {ve!r}", file=sys.stderr)`** — emits to stderr, **NOT** via `logger.error` with structured `extra`.
+
+**Asymmetry with the warm-path stamp-failure metric:** `progressive.py:521-528`
+uses `logger.error("section_last_verified_stamp_failed", extra={project_gid,
+error, error_type})` — structured, alarmable through standard log pipelines.
+The metrics-CLI path's `print(...)` to stderr is observable on the CLI but
+**not on the standard structured-log channel**. A fleet-wide degrade of the
+verification path (e.g., classifier wiring drift, persistence-credential
+drift) would silently degrade to `mutation_age` (the OLD signal) with operators
+seeing only stderr text — not a CloudWatch metric increment.
+
+**D10 NEW — MEDIUM-LOW.** This is an observability gap, not a defect that
+ships broken behavior. The fallback IS correct (degrade to mutation per
+§Decision-6). **Recommend (CONDITIONAL):** convert `print(...)` to
+`logger.error("verification_age_compute_failed", extra={...})` so the degrade
+is alarmable. **Not blocking** because the fallback is correct and the gap is
+recoverable post-ship without code change to the alarm wiring (one-line edit).
+File at PR-comment-level for follow-up.
+
+### Risk 5 — `schema_version 1→2` hard-pin search. **PASS.**
+
+Wider-codebase grep results:
+- `sla_profile.py:_validate_schema_version` pins `CURRENT_SCHEMA_VERSION`
+  with `V-1` errors — this validator operates on `TtlManifest`/`TtlSidecar`
+  (the cache TTL profile, ADR-005 logical schema), a **disjoint** subsystem
+  from the freshness envelope. The `schema_version` field name collides but
+  the consumer pipeline does not.
+- `tests/unit/cache/dataframe/*.py` — `schema_version="1.0.0"` (string-typed)
+  is the DataFrame schema version, **disjoint** from the integer-typed
+  envelope `schema_version`.
+- `test_freshness*` test consumers updated to pin `== 2` (verified in diff).
+- No external consumer (e.g., dashboard config, CloudWatch query, downstream
+  service) found within the repo with a hard pin on `schema_version == 1`.
+
+**No false hard-pin collision.** Schema-version bump contained internally.
+
+### Risk 6 — Empty-section completion path same-warm heal. **PASS.**
+
+Order of operations in `build_progressive_async` traced at file:line:
+1. `progressive.py:632` — `sections = await self._list_sections()` (warm-entry name source)
+2. `:652-654` — `section_names_map` built
+3. `:657-658` — `_check_resume_and_probe(... section_names=section_names_map)` → calls `_probe_freshness` → **re-seed pass runs BEFORE any fetch**
+4. `:662-666` — `_ensure_manifest(...)` (creates manifest if missing; threads `section_names` for new manifests only)
+5. Later: incomplete sections fetched via `_fetch_and_persist_section` (`:945-955` empty branch threads `name=section_name`)
+
+For prod state (all sections COMPLETE in manifest, all names null), step 3's
+re-seed pass populates names via `names_map`. The empty-section fetch path
+(step 5) is not exercised because `sections_to_fetch` is empty for an all-COMPLETE
+manifest. **Same-warm heal confirmed via the probe-path re-seed (step 3), not the
+fetch-path completion.** Risk-6 PASS.
+
+## §D — Full test suite re-run
+
+```
+$ uv run pytest tests/unit/ -q --no-header
+12831 passed, 3 skipped, 481 warnings in 283.03s (0:04:43)
+```
+
+**12,831 passed / 0 failed / 3 skipped.** The principal-engineer's green-claim
+is empirically verified. No flake observed in a single full run; the new test
+file (23 tests) runs in 0.22s — no timing dependence. T11–T16 anti-theater
+mutations (above) confirmed each test fails LOUDLY on a deliberately-unfixed
+checkout. **No coverage theater in T11–T16.**
+
+## §E — Diff scope discipline
+
+Files changed in this 6-commit branch (vs origin/main):
+
+```
+.ledge/decisions/ADR-006-freshness-equals-verification-recency.md  +514
+.ledge/reviews/QA-freshness-verification-recency-gate.md          +1108
+.ledge/specs/freshness-verification-recency.tdd.md                 +720
+src/autom8_asana/dataframes/builders/freshness.py                  +92
+src/autom8_asana/dataframes/builders/progressive.py               +190
+src/autom8_asana/dataframes/section_persistence.py                 +49
+src/autom8_asana/metrics/__main__.py                               +72
+src/autom8_asana/metrics/freshness.py                             +319
+tests/unit/dataframes/builders/test_paced_fetch.py                  +8
+tests/unit/dataframes/test_freshness.py                            +37
+tests/unit/dataframes/test_freshness_verification_recency.py      +966 (NEW)
+tests/unit/metrics/test_freshness.py                               +54
+tests/unit/metrics/test_freshness_adversarial.py                   +68
+tests/unit/metrics/test_freshness_s3.py                             +5
+tests/unit/services/test_g2_recv_frame_quality.py                   +8
+```
+
+All changes scoped to: TDD-named production files (5 src files), the new test
+file, and back-compat updates to four pre-existing test files whose mocks
+needed the new `name=` kwarg signature. **Pre-existing test files touched** were
+audited — diffs are mock-signature back-compat only (no unrelated refactors,
+no incidental edits). `test_g2_recv_frame_quality.py:+8` is a mock signature
+update unrelated to the g2-recv work on the parent branch. **No scope creep.**
+
+## §F — Hidden cache-interaction analysis
+
+Inspected all `SectionInfo` references in src/. Results:
+- `SectionInfo` consumed only by `section_persistence.py` (definer),
+  `metrics/freshness.py:88,623,668` (verification reader), and
+  `metrics/__main__.py:849` (CLI integration comment).
+- **No Redis / in-memory dataframe cache / multi-tier cache consumes
+  `SectionInfo` directly.** The `cache/models/freshness_stamp.py`
+  `FreshnessStamp.last_verified_at` is a **separately-named field on a
+  separate model** in a separate subsystem (verified in the rev-1 gate);
+  cognitive-load collision only, no data-flow collision.
+- Pydantic `extra="ignore"` policy (default for v2; no `extra="forbid"` set)
+  means old code reading new manifests gracefully drops the unknown
+  `last_verified_at`/`name` fields — already verified in rev-1 gate Target 5.
+
+**Latent finding D-pre-existing (NOT introduced by this change, NOT blocking):**
+`section_persistence.py:516` has `manifest.sections[section_gid] = SectionInfo(status=status)` —
+the `else` branch in `update_manifest_section_async` that handles statuses other
+than COMPLETE/FAILED/IN_PROGRESS. This wipes `name` AND `last_verified_at` if
+hit. Only reachable status: `PENDING`. `grep -rn 'update_manifest_section_async.*PENDING' src/` returns nothing — **no caller passes PENDING through this method in production.** Dead code, but worth tagging as a follow-up
+(carry-forward should be applied uniformly).
+
+## §G — NEW defects surfaced at this gate
+
+### D10 — MEDIUM-LOW — Verification-CLI broad-catch observability asymmetry.
+Detailed in §C Risk 4. The metrics-CLI `__main__.py:854-877` degrade emits
+`print(... file=sys.stderr)` rather than structured `logger.error(...)`. The
+warm-path counterpart uses `logger.error`. Recovery: one-line edit to add a
+structured log. **Not blocking** (fallback correct; observability gap not
+correctness gap). PR-comment-level follow-up.
+
+### D11 — MEDIUM — Delta-apply path bypasses name-threading.
+**Source:** `freshness.py:500` and `:589` — `_apply_section_delta` and
+`_persist_section`-style writes in the prober call
+`self._persistence.write_section_async(...)` **WITHOUT** the `name=` keyword.
+The TDD §2.2.1 edit 3 spec mandated threading `name` through every
+`write_section_async` callsite that completes a section, but the
+prober's delta-apply path (a SECOND caller distinct from
+`progressive.py:1325`) is not threaded.
+
+**Trace of the live-mitigated path:**
+1. Prod state: manifest has `name=null` on all sections.
+2. `apply_deltas_async` calls `_apply_section_delta` → `write_section_async`
+   without `name`.
+3. `write_section_async` → `update_manifest_section_async(... name=None)` → `mark_section_complete(... name=None)`.
+4. `mark_section_complete` carry-forward: `name = (None if not supplied) else prior.name` = `None` (prior was already null).
+5. **However:** the stamp block in `_probe_freshness` (runs AFTER `apply_deltas_async`) re-seeds from `names_map` if the section is in the warm-entry section list.
+
+**Net effect on the happy path:** D11 is silently repaired by the subsequent
+re-seed pass. **Latent failure case:** if a manifest contains a section GID
+that is NOT returned by `_list_sections()` (e.g., section deleted in Asana
+mid-warm, race with section rename, stale orphan GID), the delta-apply path
+will wipe its name and the re-seed cannot fix it. That section becomes a
+**permanent ERROR-tier `section_name_contract_violation`** because
+`any_stamped=True` (the section was stamp-eligible per delta success) AND its
+name is null.
+
+**Severity: MEDIUM** (latent, not active under happy path; activates under a
+plausible race condition). **Recommend:** thread `section_name` into
+`_apply_section_delta` and forward `name=` through both `write_section_async`
+calls (`freshness.py:500,589`). Symmetric with the
+`_fetch_and_persist_section` change at `progressive.py:1325`. **Build-carried
+condition for the merge** — must be addressed before SHIP (post-merge if the
+fleet stays small enough to manually catch the alarm, but should not ship
+unpatched).
+
+### D12 — LOW — CLI-integration coverage gap.
+No end-to-end test exercises `__main__.py:854-877`'s BROAD-CATCH path. The
+`compute_verification_age` and `read_manifest_sync` unit tests are present,
+but the CLI integration (including the stderr `print` and `--strict` re-route)
+is untested. **Coverage gap, not a defect.** Recommend a
+`test_cli_verification_path_degrades_to_mutation` integration test
+covering: classifier missing → CLI prints stderr warning + exits 0;
+verification stale → `--strict` exits 1; verification unavailable AND mutation
+stale → `--strict` exits 1 (the fallback path). Build-carried recommend, not
+blocking.
+
+## §H — Self-referential evidence discipline
+
+- **§A (TDD faithfulness): STRONG-within-gate** — direct file:line inspection
+  at this gate's authoring time. Externally verifiable by re-reading the named
+  source files. Not self-attestation; verifies the architect's claims against
+  the implementing engineer's output.
+- **§B (anti-theater mutations): STRONG-within-gate** — empirical
+  mutate-and-rerun is deterministic, reproducible, and recorded with the
+  exact assertion-failure text the test produced. The mutations were applied,
+  observed to bite, then reverted (final `diff` against backups returned clean).
+- **§C Risk 1 (fleet probe): STRONG-within-gate** — deterministic
+  re-runnable probe of 11 prod manifests at authoring time, 10 with ≥2 sections.
+- **§C Risks 3-6 + §D-G: MODERATE** per `self-ref-evidence-grade-rule`;
+  single-reviewer, single-pass; source-grounded with file:line anchors but
+  no cross-rite corroboration. STRONG-track requires the post-deploy prod
+  re-probe (per QA-gate-3 carry conditions below).
+- **D10/D11/D12 dispositions: MODERATE** — single-pass identification;
+  D11 has a plausible-but-not-empirically-fired-yet failure mode (race
+  condition during section delete/rename); D10/D12 are observability/
+  coverage gaps with no broken-behavior. Each would be STRONG with N≥3
+  prod incident corroboration.
+
+## §I — GO / NO-GO for merge
+
+**CONDITIONAL-GO for merge.**
+
+The implementation faithfully discharges every TDD rev-3 design item; T11–T16
+anti-theater mutations confirm each guard genuinely bites; full unit suite is
+green (12,831 / 0 / 3); diff scope is bounded; no hidden cache interactions;
+performance impact is bounded (1 GET + 1 conditional PUT per warm). The
+build is mergeable.
+
+**MERGE CONDITIONS (must be satisfied at merge time or as PR-comment
+build-carry items):**
+
+1. **[MERGE-GATE — D11]** Thread `section_name` into the prober's delta-apply
+   path (`freshness.py:_apply_section_delta` and the `write_section_async`
+   call sites at `:500,:589`). Add a unit test covering: a manifest with
+   `name=null` on a section, an Asana-orphaned GID (not in
+   `_list_sections()`), a successful delta-apply on it — assert the
+   post-apply name is NOT permanently wiped to a state that fires ERROR-tier
+   `section_name_contract_violation`. Either fix or document explicitly as a
+   post-merge tracked follow-up with a defer-watch trigger keyed on the
+   ERROR-tier metric.
+
+2. **[SRE-GATE]** Brief SRE that the CloudWatch alarm for
+   `section_name_contract_violation` MUST filter on `reseed_window=false`
+   (or log-LEVEL=ERROR only), NOT on the event name alone. Fleet probe
+   confirms 10 simultaneous WARN-tier emissions on first deploy across the
+   11-project fleet (10 projects with ≥2 sections); silent on the next warm
+   cycle once `_list_sections()` re-seeds. The deploy is benign if and only
+   if the alarm filter is correct.
+
+3. **[POST-MERGE-PROBE — STRONG-upgrade condition]** Re-probe a prod manifest
+   AFTER one full warm post-merge and confirm:
+   - `name_present == total` on at least one of the 11 projects (re-seed
+     fired on the live fleet).
+   - `last_verified_at` populated on the stamp-eligible subset.
+   - `verification_age` computes from `min(last_verified_at)` and does NOT
+     silently degrade to `mutation_age`.
+   - No `section_name_contract_violation` at ERROR-tier in CloudWatch for
+     ≥1 hour post-warm-completion.
+
+4. **[FOLLOW-UP — D10, LOW]** Convert
+   `metrics/__main__.py:871-874` `print(... file=sys.stderr)` to
+   `logger.error("verification_age_compute_failed", extra={...})` so the
+   CLI degrade is alarmable on the standard structured-log channel. Not
+   blocking; PR-comment-level.
+
+5. **[FOLLOW-UP — D12, LOW]** Add a `test_cli_verification_path_degrades_to_mutation`
+   integration test covering the `__main__.py` broad-catch + `--strict`
+   fallback. Coverage gap, not blocking.
+
+**Watch-list for PR comment (the principal-engineer flagged 6 + 3 new):**
+
+- (R1) Re-seed window WARN cardinality: 10 projects × per-warm-cycle = 10
+  WARNs/cycle until re-seed completes (likely 1-2 cycles). Confirmed
+  non-pageable in code; SRE alarm wiring is the live gate.
+- (R3) `_save_manifest_async` cross-class private call: flagged as latent
+  fragility, no contract test, pre-existing pattern in the codebase.
+- (R4) `compute_verification_age` broad-catch observability: stderr `print`
+  not `logger.error` — D10 LOW.
+- (R5) `schema_version 1→2`: no false hard-pin found; consumer tests
+  updated.
+- (R6) Empty-section completion: same-warm heal confirmed via probe-path
+  re-seed; fetch-path empty branch threads `name` correctly.
+- (D10 NEW) Verification-CLI observability asymmetry. LOW.
+- (D11 NEW) Delta-apply path bypasses name-threading. MEDIUM — race window
+  exists for section-rename/delete scenarios. MERGE-GATE.
+- (D12 NEW) CLI-integration coverage gap. LOW.
+
+**Acid test re-run:** *"If this goes to production and fails in a way I
+didn't test, would I be surprised?"*
+
+With merge conditions 1+2 met: **No surprise.** Without condition 2 (SRE
+alarm filter), the deploy fires 10 simultaneous WARN-tier alarms — annoying
+but recoverable. Without condition 1 (D11 thread-fix), a section-delete /
+rename race in Asana during a delta-apply window could create a permanent
+ERROR-tier alarm on the affected project that requires manual manifest
+re-write or section re-fetch. That IS a surprise — bounded, observable, but
+unhandled. **D11 is therefore a merge-gate; the others are SRE-briefing /
+PR-comment-level.**
+
+## §J — Documentation / Cross-rite Handoff Impact
+
+- **Documentation impact:** CARRIED — user-facing `--json` envelope schema
+  v2; `--strict` semantics now alarm on `verification_age` (mutation degrade
+  only when verification unavailable); add a CHANGELOG entry naming the
+  envelope evolution. Update the metrics CLI docs to name the two-signal
+  exposure and the `available: false` degrade-to-mutation contract.
+- **Security handoff:** NOT required (impact: low — additive manifest field,
+  no auth/PII/crypto/external-integration surface; re-confirmed against the
+  final change set: no new endpoints, no credential handling, no PII).
+- **SRE handoff:** REQUIRED (carried from rev-3 gate). MUST cover:
+  - The re-seed window expected behavior (10/11 projects fire WARN
+    `reseed_window=true` on first deploy; clears on first post-deploy
+    warm per project).
+  - Alarm filter requirement: `reseed_window=false` OR log-LEVEL=ERROR only.
+  - Two new alarmable metrics: `section_name_contract_violation`
+    (ERROR-tier), `section_last_verified_stamp_failed`.
+  - Verification-CLI fallback path (mutation_age stays the only signal if
+    verification compute fails; D10 stderr-print observability gap).
+- **No further rite handoff required** — this is the final QA gate before
+  merge; post-merge is SRE-owned for the live re-probe (condition 3).
+
+## §K — Verdict
+
+**CONDITIONAL-GO for merge.**
+
+- All TDD rev-3 design items source-verified at file:line.
+- T11–T16 anti-theater empirically bite (mutate-and-rerun confirmed each
+  guard fires on a deliberately-unfixed checkout).
+- 12,831 / 0 / 3 full unit suite green; new test file fast, no flake.
+- Diff scope bounded; no hidden cache interactions; bounded I/O impact.
+- 3 NEW defects surfaced (D10 LOW, D11 MEDIUM, D12 LOW) — D11 is the only
+  merge-gate.
+- 6 engineer-flagged risks dispositioned: 5 PASS, 1 FLAG (latent fragility,
+  pre-existing pattern).
+- Live fleet probe quantifies the re-seed-window WARN cardinality at 10
+  projects (out of 11); confirmed non-pageable in code.
+- Self-ref ceiling: MODERATE; STRONG-upgrade discharge at the post-merge
+  prod re-probe per condition 3.
+
+**The build is mergeable subject to**: (1) D11 thread-fix in a follow-up
+commit OR explicit defer-watch entry naming the section-rename/delete race;
+(2) SRE briefing on the alarm-filter requirement; (3) post-merge prod
+re-probe per condition 3. The other items (D10, D12) are PR-comment-level
+follow-ups, not merge gates.
+
+*QA-gate-2 (post-build) authored by qa-adversary, 2026-05-27. Evidence:
+direct file:line source inspection at this gate's authoring time
+(`section_persistence.py:181-215,212-213`; `progressive.py:454-457,464,
+482-515,632-666,945-955,1325`; `freshness.py:81-104,102,255-270,298-364,
+500,589`; `metrics/freshness.py:466-559,567-602,623-668`;
+`metrics/__main__.py:854-878,903-911,945-969`); empirical
+mutate-and-rerun bite-verification for T11/T13-negative/T14/T15/T16/T16-
+single-write (6 mutations applied, each test failed with the expected
+assertion-error text, all mutations reverted with clean diff against
+`/tmp/*.bak`); fresh prod S3 fleet re-probe (11 projects, 10 with
+≥2 sections, all `name=null`+`last_verified_at=null`); full unit
+suite re-run (`uv run pytest tests/unit/`: 12,831 / 0 / 3 in 283s).
+MODERATE evidence grade per self-ref-evidence-grade-rule; STRONG-track
+discharges at the post-merge prod re-probe per condition 3.*
