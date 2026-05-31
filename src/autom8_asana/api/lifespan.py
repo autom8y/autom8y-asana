@@ -173,6 +173,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Stores instance on app.state.dataframe_cache per ADR-0067.
     _initialize_dataframe_cache(app)
 
+    # Initialize BuildCoordinator for cross-key concurrency control on the
+    # request-time build-on-miss path (receiver-bulk-fanout-reliability
+    # Stage-1 Surface A, ADR-ARCH-001).
+    # MUST be inside lifespan: BuildCoordinator constructs an asyncio.Semaphore
+    # in __post_init__, which requires a running event loop. Module-import-
+    # time instantiation raises RuntimeError("no running event loop").
+    # Defaults: max_concurrent_builds=4 (Phase-3 Knob 1, conservative for
+    # single-worker uvicorn); default_timeout_seconds=55.0 (Phase-3 Knob 2,
+    # fits under AWS ALB default idle_timeout of 60s with 5s teardown margin).
+    from autom8_asana.cache.dataframe.factory import initialize_build_coordinator
+
+    initialize_build_coordinator()
+
     # Register schema providers with SDK for cache compatibility checks
     # Per SDK Phase 1: Bridges satellite SchemaRegistry to SDK registry
     _register_schema_providers()

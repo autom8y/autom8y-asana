@@ -796,6 +796,15 @@ class UniversalResolutionStrategy:
                         project_gid, self.entity_type
                     )
                     cached_df: pl.DataFrame | None = entry.dataframe
+                    # Stage-1 Surface 5 (receiver-bulk-fanout-reliability):
+                    # record cache hit on the body-parameterized hot path
+                    # (drives cache_miss_rate alert A1 — MISS-RATE-SPIKE).
+                    try:
+                        from autom8_asana.api.metrics import record_cache_lookup
+
+                        record_cache_lookup(self.entity_type, hit=True)
+                    except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
+                        pass
                     return cached_df
         except CACHE_TRANSIENT_ERRORS as e:
             logger.warning(
@@ -815,6 +824,16 @@ class UniversalResolutionStrategy:
 
         descriptor = get_registry().get(self.entity_type)
         if descriptor is not None and descriptor.body_parameterized:
+            # Stage-1 Surface 5 (receiver-bulk-fanout-reliability):
+            # record cache miss on the body-parameterized hot path. Drives
+            # cache_miss_rate alert A1; the 503 emitted downstream by
+            # _build_on_miss is the direct symptom this metric explains.
+            try:
+                from autom8_asana.api.metrics import record_cache_lookup
+
+                record_cache_lookup(self.entity_type, hit=False)
+            except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
+                pass
             return await self._build_on_miss(project_gid, client)
 
         return None
@@ -826,58 +845,65 @@ class UniversalResolutionStrategy:
     ) -> pl.DataFrame | None:
         """Background-build path for body-parameterized cold-cache misses.
 
-        Option B — background build to completion + retryable 503 (G2-RECV
-        frame-quality convergence fix, Sprint 2).
+        Per receiver-bulk-fanout-reliability Stage-1 Surface A
+        (ADR-ARCH-001): the per-key dedup that previously lived in the
+        module-level ``_background_builds`` set is now delegated to
+        ``BuildCoordinator``. The coordinator provides TWO concurrency layers
+        composably:
 
-        Problem (diagnosed): the old inline path wrapped the full
-        ``ProgressiveProjectBuilder`` build in ``asyncio.wait_for`` with
-        ``dataframe_build_timeout_seconds`` (25 s). For a real fleet project
-        the full progressive build exceeds 25 s → the coroutine is *cancelled*
-        before all sections complete → the manifest is never all-COMPLETE →
-        ``_derive_honest_contract_complete`` (engine.py:477) correctly returns
-        False → the consumer HC-2 gate refuses.
+        * **Layer 1 — same-key coalescing**: ``BuildCoordinator._in_flight``
+          dict maps ``(project_gid, entity_type) -> asyncio.Future``. First
+          arrival for the key starts the build; subsequent arrivals coalesce
+          on the same Future (no double-build). Replaces the
+          ``_background_builds`` set's per-key dedup role.
+        * **Layer 2 — cross-key cap**: ``BuildCoordinator._build_semaphore``
+          (asyncio.Semaphore, default ``max_concurrent_builds=4``). Limits
+          simultaneous builds across ALL keys to bound event-loop pressure
+          and prevent the bulk-fan-out thundering-herd (R1) that left this
+          receiver at 33% on the section arm under live load.
 
-        Fix: launch the build as a fire-and-forget background task (no
-        request-bound cancellation) via the cache's registered SWR build callback
-        (``_swr_build_callback`` in ``factory.py``).  The callback mints its own
-        bot PAT + ``AsanaClient`` + workspace so it survives request teardown and
-        runs ``ProgressiveProjectBuilder.build_progressive_async(resume=True)`` to
-        completion, then ``cache.put_async``es the full frame.  The caller gets an
-        immediate retryable 503; a subsequent request hits the warm cache and the
-        now all-COMPLETE manifest.
-
-        Dedup (no thundering-herd / double-build):
-        Module-level ``_background_builds`` set keyed on
-        ``(project_gid, entity_type)`` prevents a second background task from
-        being spawned while the first is still running.  Concurrent cold requests
-        for the same GID both return the retryable 503 immediately; only one
-        background build runs.  The set entry is cleared in the task's
-        ``done_callback`` (success OR failure) so the next cold request after a
-        failed build can retry.
+        The caller's request handler always receives the same retryable 503
+        (``CACHE_BUILD_IN_PROGRESS``) — the existing public contract is
+        preserved. The actual build runs in a background task that calls
+        ``coordinator.build_or_wait_async`` (which performs the semaphore
+        acquire + dedup + invocation of the registered SWR build callback
+        ``_swr_build_callback`` from ``factory.py``).
 
         Fallback (no cache configured):
-        When the DataFrameCache provider is None there is nowhere to put the
-        background result and no SWR callback is registered.  Fall back to the
-        original inline-with-timeout guarded build so the no-cache code path
-        is unchanged.
+            When the DataFrameCache provider is None there is nowhere to put
+            the background result and no SWR callback is registered. Fall
+            back to the original inline-with-timeout guarded build so the
+            no-cache code path is unchanged.
+
+        Fallback (no BuildCoordinator):
+            If the lifespan failed to initialize the coordinator (or this is
+            a non-FastAPI context like Lambda), fall back to the legacy
+            module-level ``_background_builds`` dedup path. This keeps the
+            no-coordinator path functional but degraded (no cross-key cap).
+            Production paths inside the API process always have the
+            coordinator initialized.
 
         Args:
             project_gid: Body-supplied project GID to build.
-            client: Request-scoped AsanaClient (NOT passed to the background task).
+            client: Request-scoped AsanaClient (NOT passed to the background
+                task — the SWR callback mints its own bot-PAT-backed client).
 
         Returns:
-            Never returns a DataFrame — always raises ``ApiDataFrameBuildError``.
-            The return type annotation is kept as ``pl.DataFrame | None`` so the
-            call-sites in ``_get_dataframe`` remain unchanged.
+            Never returns a DataFrame — always raises
+            ``ApiDataFrameBuildError``. The return type annotation is kept
+            as ``pl.DataFrame | None`` so the call-sites in ``_get_dataframe``
+            remain unchanged.
 
         Raises:
-            ApiDataFrameBuildError: ``CACHE_BUILD_IN_PROGRESS`` (retryable 503)
-                when a background build was launched or is already running.
-                Includes ``retry_after_seconds`` so the caller knows when to retry.
+            ApiDataFrameBuildError: ``CACHE_BUILD_IN_PROGRESS`` (retryable
+                503) when a background build was launched or is already
+                running. Includes ``retry_after_seconds=30`` (harmonized
+                with ``cache/dataframe/decorator.py`` per Surface F').
         """
         from autom8_asana.api.exception_types import ApiDataFrameBuildError
         from autom8_asana.cache.dataframe.factory import (
             _swr_build_callback,
+            get_build_coordinator,
             get_dataframe_cache_provider,
         )
 
@@ -892,40 +918,120 @@ class UniversalResolutionStrategy:
                 project_gid, client, settings.cache.dataframe_build_timeout_seconds
             )
 
-        # Module-level in-flight set for dedup.  If a background build for this
-        # (gid, entity_type) pair is already running, return retryable 503
-        # immediately without launching a second build.
+        coordinator = get_build_coordinator()
         key = (project_gid, self.entity_type)
-        if key not in _background_builds:
-            # First cold request for this pair: add to in-flight set and spawn
-            # the background task.  The done-callback removes the key so a
-            # subsequent request after a failed build can trigger a fresh attempt.
-            _background_builds.add(key)
 
-            def _done(task: asyncio.Task[None]) -> None:
-                _background_builds.discard(key)
-                _background_tasks.discard(task)
-                exc = task.exception() if not task.cancelled() else None
-                if exc is not None:
-                    logger.warning(
-                        "background_build_failed",
-                        extra={
-                            "project_gid": project_gid,
-                            "entity_type": self.entity_type,
-                            "error": str(exc),
-                        },
+        if coordinator is not None:
+            # Stage-1 Surface A: cross-key semaphore + per-key dedup via
+            # BuildCoordinator. Caller still receives an immediate 503; the
+            # coordinator-governed background task performs the build with
+            # both concurrency layers enforced.
+            if not coordinator.is_building(key):
+                # Wrap the SWR callback to satisfy BuildCoordinator's
+                # build_fn signature: () -> Awaitable[(df, watermark)].
+                # The callback writes the frame into the cache itself (matches
+                # the legacy fire-and-forget contract). We return a sentinel
+                # tuple so BuildCoordinator's stats accounting stays accurate.
+                from datetime import UTC, datetime as _dt
+
+                async def _coordinated_build() -> tuple[Any, _dt]:
+                    await _swr_build_callback(cache, project_gid, self.entity_type)
+                    # Callback already persisted to cache; return a sentinel
+                    # marker so BuildCoordinator marks the outcome BUILT.
+                    # Future coalesced waiters in build_or_wait_async receive
+                    # this sentinel but DO NOT consume it — request-path
+                    # callers always get 503 from this _build_on_miss.
+                    return (None, _dt.now(UTC))
+
+                async def _run_coordinated_build() -> None:
+                    # Stage-1 Surface 5: emit semaphore-utilization gauge
+                    # before/after the call. Uses BuildCoordinator's _in_flight
+                    # dict size as the in-flight proxy (1:1 with semaphore slot
+                    # ownership during build path execution). Defensive imports
+                    # to avoid import-cycle risk; metrics module is light.
+                    from autom8_asana.api.metrics import (
+                        record_build_coordinator_utilization,
                     )
 
-            task = asyncio.create_task(
-                _swr_build_callback(cache, project_gid, self.entity_type),
-                name=f"bg-build:{self.entity_type}:{project_gid}",
-            )
-            _background_tasks.add(task)
-            task.add_done_callback(_done)
-            logger.info(
-                "background_build_launched",
-                extra={"project_gid": project_gid, "entity_type": self.entity_type},
-            )
+                    record_build_coordinator_utilization(
+                        len(coordinator._in_flight),
+                        coordinator.max_concurrent_builds,
+                    )
+                    try:
+                        await coordinator.build_or_wait_async(
+                            key=key,
+                            build_fn=_coordinated_build,
+                            caller="build_on_miss",
+                        )
+                    except Exception as exc:  # noqa: BLE001 -- BROAD-CATCH at task boundary: errors logged, no propagation
+                        logger.warning(
+                            "coordinated_background_build_failed",
+                            extra={
+                                "project_gid": project_gid,
+                                "entity_type": self.entity_type,
+                                "error": str(exc),
+                            },
+                        )
+                    finally:
+                        record_build_coordinator_utilization(
+                            len(coordinator._in_flight),
+                            coordinator.max_concurrent_builds,
+                        )
+
+                # Hold a strong reference to the asyncio.Task so the event
+                # loop's WEAK-reference behavior cannot GC the task mid-flight
+                # (CPython asyncio footgun). Discarded in the done-callback.
+                task = asyncio.create_task(
+                    _run_coordinated_build(),
+                    name=f"bg-build:{self.entity_type}:{project_gid}",
+                )
+                _background_tasks.add(task)
+                task.add_done_callback(lambda t: _background_tasks.discard(t))
+
+                logger.info(
+                    "background_build_launched",
+                    extra={
+                        "project_gid": project_gid,
+                        "entity_type": self.entity_type,
+                        "coordinator": "build_coordinator",
+                    },
+                )
+        else:
+            # Fallback: no BuildCoordinator → use legacy per-key dedup set.
+            # Single-worker semantics only (no cross-key cap). Production
+            # API process always initializes the coordinator in lifespan;
+            # this branch covers Lambda + test contexts.
+            if key not in _background_builds:
+                _background_builds.add(key)
+
+                def _done(task: asyncio.Task[None]) -> None:
+                    _background_builds.discard(key)
+                    _background_tasks.discard(task)
+                    exc = task.exception() if not task.cancelled() else None
+                    if exc is not None:
+                        logger.warning(
+                            "background_build_failed",
+                            extra={
+                                "project_gid": project_gid,
+                                "entity_type": self.entity_type,
+                                "error": str(exc),
+                            },
+                        )
+
+                task = asyncio.create_task(
+                    _swr_build_callback(cache, project_gid, self.entity_type),
+                    name=f"bg-build:{self.entity_type}:{project_gid}",
+                )
+                _background_tasks.add(task)
+                task.add_done_callback(_done)
+                logger.info(
+                    "background_build_launched",
+                    extra={
+                        "project_gid": project_gid,
+                        "entity_type": self.entity_type,
+                        "coordinator": "legacy_dedup_set",
+                    },
+                )
 
         raise ApiDataFrameBuildError(
             "CACHE_BUILD_IN_PROGRESS",

@@ -593,12 +593,21 @@ async def api_dataframe_build_error_handler(
 
     Replaces bare HTTPException(503) sites in the dataframe_cache decorator.
 
+    Per receiver-bulk-fanout-reliability Stage-1 (Surface F): the 503 response
+    now carries the HTTP ``Retry-After`` header (in addition to the body-level
+    ``error.details.retry_after_seconds`` field — both are emitted, additive).
+    Mirrors the 429 ``rate_limit_error_handler`` pattern above for consumer
+    HTTP-stack-level retry calibration. Body-level field is retained for
+    legacy consumers that parse the envelope.
+
     Args:
         request: FastAPI request object.
         exc: ApiDataFrameBuildError from cache infrastructure.
 
     Returns:
-        503 JSONResponse with canonical error envelope and retry guidance.
+        503 JSONResponse with canonical error envelope, retry-guidance body
+        details, and (when ``exc.details["retry_after_seconds"]`` is set) the
+        HTTP ``Retry-After`` header.
     """
     request_id = getattr(request.state, "request_id", "unknown")
     logger.warning(
@@ -608,6 +617,17 @@ async def api_dataframe_build_error_handler(
             "error_code": exc.code,
         },
     )
+
+    # F (Stage-1): emit HTTP Retry-After header when the exception carries
+    # retry_after_seconds. Source-of-truth is exc.details; body field remains
+    # for backward compatibility with consumers that parse the envelope.
+    headers: dict[str, str] | None = None
+    retry_after_seconds = (
+        exc.details.get("retry_after_seconds") if exc.details else None
+    )
+    if retry_after_seconds is not None:
+        headers = {"Retry-After": str(retry_after_seconds)}
+
     return JSONResponse(
         status_code=exc.status_code,
         content=_build_error_response(
@@ -616,6 +636,7 @@ async def api_dataframe_build_error_handler(
             message=exc.message,
             details=exc.details,
         ),
+        headers=headers,
     )
 
 
@@ -701,6 +722,54 @@ async def fleet_error_handler(
     )
 
 
+async def rate_limit_exceeded_namespace_handler(
+    request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Wrap SlowAPI's default 429 handler to record per-namespace 429 counts.
+
+    Per receiver-bulk-fanout-reliability Stage-1 Surface 5: the existing
+    SlowAPI default handler (registered upstream by autom8y_api_middleware)
+    emits a single undifferentiated 429 metric. This wrapper preserves the
+    upstream response shape EXACTLY and adds a side-effect metric emission
+    split by rate-limit key namespace (``sa:`` / ``pat:`` / ``ip:`` / other).
+    Drives Alert A3 (SA-BUCKET-429).
+
+    Args:
+        request: FastAPI request object.
+        exc: ``slowapi.errors.RateLimitExceeded`` instance (typed as Exception
+            here to avoid import-time dependency on slowapi.errors at module load).
+
+    Returns:
+        429 JSONResponse from SlowAPI's default handler, unchanged.
+    """
+    # Compute the namespace BEFORE delegating, so a failure in the upstream
+    # handler still allows the metric to be recorded.
+    namespace = "other"
+    try:
+        from .rate_limit import _get_rate_limit_key
+
+        key = _get_rate_limit_key(request)
+        # Key format: "{ns}:{detail}"; take the prefix before the colon.
+        if ":" in key:
+            namespace = key.split(":", 1)[0]
+    except Exception:  # noqa: BLE001 -- never let metric extraction shadow the upstream 429
+        namespace = "other"
+
+    try:
+        from .metrics import record_rate_limit_429
+
+        record_rate_limit_429(namespace)
+    except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
+        pass
+
+    # Delegate to SlowAPI's default handler. Lazy import keeps slowapi
+    # off the module-load critical path.
+    from slowapi import _rate_limit_exceeded_handler
+
+    return _rate_limit_exceeded_handler(request, exc)  # type: ignore[return-value]
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all exception handlers with the FastAPI app.
 
@@ -733,6 +802,18 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     # Core HTTPException (prevent redundant 'detail' wrapping)
     app.exception_handler(HTTPException)(http_exception_handler)
+
+    # receiver-bulk-fanout-reliability Stage-1 Surface 5: wrap SlowAPI's
+    # default 429 handler to emit per-namespace 429 metric (Alert A3).
+    # Registered AFTER autom8y_api_middleware registers the SlowAPI default
+    # handler — FastAPI's later-registration wins for the same exception type.
+    try:
+        from slowapi.errors import RateLimitExceeded
+
+        app.exception_handler(RateLimitExceeded)(rate_limit_exceeded_namespace_handler)
+    except ImportError:
+        # slowapi not installed in this test/lambda context — skip silently.
+        pass
 
     # Catch-all must be last
     app.exception_handler(Exception)(generic_error_handler)

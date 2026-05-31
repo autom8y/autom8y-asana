@@ -470,6 +470,19 @@ async def query_rows(
     )
 
     # 3. Execute query
+    #
+    # receiver-bulk-fanout-reliability Stage-1 Surface 5: instrument the
+    # receiver-side mirror SLI per arm. Body-parameterized entities
+    # (project, section) are the bulk-fan-out hot path; the mirror SLI
+    # is success_count / (success_count + 5xx_count), tracked per arm.
+    # 4xx are NOT counted (client error, not receiver health).
+    #
+    # Records ``success_for_metric`` based on the outcome of execute_rows:
+    # success on 2xx return, server_error on 5xx-class raise (503 build errors,
+    # cache-not-warm 503, generic exceptions). The receiver_query_success_rate
+    # gauge derived from these counters drives Alert A8 (MIRROR-SLI-DEGRADATION)
+    # and the deploy gate (>=99% sustained 10min on both arms).
+    success_for_metric = True
     query_service = EntityQueryService()
     engine = QueryEngine(provider=query_service, data_client=data_service_client)
     try:
@@ -483,6 +496,7 @@ async def query_rows(
                 entity_project_registry=entity_service.project_registry,
             )
     except QueryEngineError as e:
+        success_for_metric = False
         _raise_query_error(request_id, e)
     except ApiDataFrameBuildError:
         # ADR-G2RECV-002: request-time build-on-miss for body-parameterized entities
@@ -491,8 +505,10 @@ async def query_rows(
         # retry_after; the registered api_dataframe_build_error_handler renders the
         # canonical envelope. Re-raise so it reaches that handler rather than being
         # swallowed here. NEVER a 500, NEVER a silent empty-200.
+        success_for_metric = False
         raise
     except CacheNotWarmError as e:
+        success_for_metric = False
         raise_api_error(
             request_id,
             503,
@@ -500,6 +516,17 @@ async def query_rows(
             str(e),
             details={"retry_after_seconds": 30},
         )
+    finally:
+        # Only emit for body-parameterized arms — the receiver mirror SLI
+        # is specifically the bulk-fan-out hot path metric. Offer-domain
+        # entities have a separate readiness model and are excluded.
+        if ctx.project_gid is None:  # body_parameterized when registry GID is None
+            try:
+                from autom8_asana.api.metrics import record_receiver_query_outcome
+
+                record_receiver_query_outcome(entity_type, success=success_for_metric)
+            except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
+                pass
 
     # 4. Log query completion
     logger.info(

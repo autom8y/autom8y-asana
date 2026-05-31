@@ -8,17 +8,28 @@ Uses ProgressiveTier to read/write DataFrames from the same location
 as SectionPersistence (ProgressiveProjectBuilder), eliminating the
 dual-location bug where S3Tier and SectionPersistence used different paths.
 
+Per receiver-bulk-fanout-reliability Stage-1 (Surface A, ADR-ARCH-001):
+Also provides accessors for the BuildCoordinator singleton — same module-
+level accessor pattern as ``get_dataframe_cache_provider()``. The
+``BuildCoordinator``'s ``asyncio.Semaphore`` requires a running event loop,
+so instantiation MUST happen inside FastAPI's lifespan (after the event
+loop is up), not at module-import time.
+
 Usage:
     >>> from autom8_asana.cache.dataframe.factory import (
     ...     initialize_dataframe_cache,
     ...     get_dataframe_cache,
+    ...     initialize_build_coordinator,
+    ...     get_build_coordinator,
     ... )
     >>>
-    >>> # Initialize during app startup
+    >>> # Initialize during app startup (inside FastAPI lifespan)
     >>> initialize_dataframe_cache()
+    >>> initialize_build_coordinator()
     >>>
-    >>> # Get cache instance (returns None if not initialized)
+    >>> # Get instances (return None if not initialized)
     >>> cache = get_dataframe_cache()
+    >>> coordinator = get_build_coordinator()
 """
 
 from __future__ import annotations
@@ -28,6 +39,7 @@ from typing import TYPE_CHECKING
 from autom8y_log import get_logger
 
 if TYPE_CHECKING:
+    from autom8_asana.cache.dataframe.build_coordinator import BuildCoordinator
     from autom8_asana.cache.integration.dataframe_cache import DataFrameCache
 
 logger = get_logger(__name__)
@@ -35,6 +47,12 @@ logger = get_logger(__name__)
 # Module-level singleton for Lambda and non-FastAPI contexts.
 # FastAPI routes use app.state.dataframe_cache via get_dataframe_cache() dependency.
 _dataframe_cache: DataFrameCache | None = None
+
+# Module-level BuildCoordinator singleton (Surface A).
+# MUST be initialized inside an event-loop context (FastAPI lifespan) because
+# ``BuildCoordinator.__post_init__`` creates an ``asyncio.Semaphore`` that
+# requires a running loop. Tests inject directly via ``set_build_coordinator``.
+_build_coordinator: BuildCoordinator | None = None
 
 
 async def _swr_build_callback(
@@ -296,7 +314,109 @@ def reset_dataframe_cache() -> None:
     logger.debug("dataframe_cache_reset")
 
 
+# ---------------------------------------------------------------------------
+# BuildCoordinator singleton accessors (Surface A — Stage-1)
+# ---------------------------------------------------------------------------
+#
+# Per receiver-bulk-fanout-reliability ADR-ARCH-001: the coordinator MUST be
+# instantiated inside an event-loop context (FastAPI lifespan). Mirrors the
+# established ``initialize_dataframe_cache`` / ``get_dataframe_cache_provider``
+# pattern above so universal_strategy._build_on_miss can access the singleton
+# via a module-level call WITHOUT DI threading through resolution strategies.
+
+
+def initialize_build_coordinator(
+    max_concurrent_builds: int | None = None,
+    default_timeout_seconds: float | None = None,
+) -> BuildCoordinator:
+    """Initialize the BuildCoordinator singleton.
+
+    Called once from FastAPI lifespan AFTER the event loop is running.
+    Idempotent: subsequent calls return the existing instance without
+    re-instantiation (the semaphore would otherwise be replaced mid-flight,
+    losing in-flight build state).
+
+    Per Phase-3 Knob 1 + Knob 2 derivations:
+    - ``max_concurrent_builds = 4`` (retained default — safe for single
+      uvicorn worker with conservative container memory).
+    - ``default_timeout_seconds = 55.0`` (must fit < ALB idle_timeout default
+      of 60s with 5s connection-teardown margin; UV-P-1 will refine).
+
+    Args:
+        max_concurrent_builds: Cross-key concurrency cap. Default 4 from
+            ``BuildCoordinator``'s own default.
+        default_timeout_seconds: Per-call wait timeout. Default 55.0s
+            (capacity-spec Phase-3 Knob 2).
+
+    Returns:
+        The BuildCoordinator singleton (newly-created or pre-existing).
+    """
+    global _build_coordinator
+
+    if _build_coordinator is not None:
+        logger.debug("build_coordinator_already_initialized")
+        return _build_coordinator
+
+    from autom8_asana.cache.dataframe.build_coordinator import BuildCoordinator
+
+    # Use provided overrides or fall back to BuildCoordinator defaults.
+    # Per Phase-3 Knob 2: 55s is the deploy-time conservative default that
+    # fits under the AWS ALB idle_timeout default of 60s (UV-P-1).
+    coordinator_kwargs: dict[str, float | int] = {}
+    if max_concurrent_builds is not None:
+        coordinator_kwargs["max_concurrent_builds"] = max_concurrent_builds
+    coordinator_kwargs["default_timeout_seconds"] = (
+        default_timeout_seconds if default_timeout_seconds is not None else 55.0
+    )
+
+    coordinator = BuildCoordinator(**coordinator_kwargs)  # type: ignore[arg-type]
+    _build_coordinator = coordinator
+
+    logger.info(
+        "build_coordinator_initialized",
+        extra={
+            "max_concurrent_builds": coordinator.max_concurrent_builds,
+            "default_timeout_seconds": coordinator.default_timeout_seconds,
+        },
+    )
+
+    return coordinator
+
+
+def get_build_coordinator() -> BuildCoordinator | None:
+    """Get the BuildCoordinator singleton for build-on-miss coordination.
+
+    Returns:
+        BuildCoordinator instance if initialized, else None. Callers that
+        find None MUST fall through to a safe path (e.g., the legacy
+        per-key dedup set) rather than raising — the coordinator is an
+        optimization, not a hard dependency.
+    """
+    return _build_coordinator
+
+
+def set_build_coordinator(coordinator: BuildCoordinator | None) -> None:
+    """Set or clear the BuildCoordinator singleton (for testing).
+
+    Tests inject a BuildCoordinator with controlled semaphore size + timeout
+    via this setter, mirroring ``set_dataframe_cache``.
+
+    Args:
+        coordinator: BuildCoordinator to install, or None to clear.
+    """
+    global _build_coordinator
+    _build_coordinator = coordinator
+
+
+def reset_build_coordinator() -> None:
+    """Reset the BuildCoordinator singleton (for testing)."""
+    global _build_coordinator
+    _build_coordinator = None
+    logger.debug("build_coordinator_reset")
+
+
 # Self-register for SystemContext.reset_all()
 from autom8_asana.core.system_context import register_reset  # noqa: E402
 
 register_reset(reset_dataframe_cache)
+register_reset(reset_build_coordinator)
