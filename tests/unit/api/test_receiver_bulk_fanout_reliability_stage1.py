@@ -9,6 +9,19 @@ Covers the 5 surfaces wired in this initiative:
 * Surface 5 — Stage-1 metrics emission (cache_lookup, semaphore_utilization,
   rate_limit_429 by namespace, receiver_query_outcome)
 
+Plus qa-adversary in-sprint correction tests (2026-05-31):
+
+* FG-1: SA-identity decoding uses production-realistic JWT claim shape
+  (``service_account_id``, not the non-existent ``service_name`` claim).
+  JWT fabrication mirrors the autom8y-auth ``ServiceTokenPayload`` TypedDict
+  at ``autom8y/sdks/python/autom8y-auth/src/autom8y_auth/claims.py:80-98``
+  AND the issuance payload at
+  ``autom8y/services/auth/autom8y_auth_server/services/token_service.py:700-771``.
+* FG-6: BuildCoordinator exception handling broadened from
+  ``CACHE_TRANSIENT_ERRORS`` to ``Exception`` so non-transient errors
+  (ValueError, KeyError) resolve the Future and update stats instead of
+  leaving coalesced waiters to time out at 55s.
+
 Design references:
 - HANDOFF-thermia-to-10x-dev-receiver-bulk-fanout-reliability-2026-05-31 §IMPL-1
 - .sos/wip/thermia/cache-architecture.md §A,§E,§F/F'
@@ -22,6 +35,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import uuid
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -38,7 +52,7 @@ def _make_jwt(payload: dict[str, object]) -> str:
 
     The rate-limit key function only DECODES the payload (it does not verify
     signature/audience/expiry — that happens later in the route auth
-    dependency). Tests fabricate the payload to control the service_name claim.
+    dependency). Tests fabricate the payload to control identity claims.
     """
     header = base64.urlsafe_b64encode(
         json.dumps({"alg": "RS256", "typ": "JWT"}).encode()
@@ -48,6 +62,70 @@ def _make_jwt(payload: dict[str, object]) -> str:
     ).rstrip(b"=").decode()
     signature = "ZmFrZS1zaWctZm9yLXVuaXQtdGVzdA"  # base64url, no padding
     return f"{header}.{body}.{signature}"
+
+
+def _make_sa_service_token_payload(
+    *,
+    yaml_id: str | None = "asana-dataframe-resolver",
+    client_id: str = "asana-dataframe-resolver-client",
+    business_id: str | None = None,
+    scopes: list[str] | None = None,
+    permissions: list[str] | None = None,
+) -> dict[str, object]:
+    """Construct a production-realistic ServiceTokenPayload dict.
+
+    Mirrors the EXACT claim shape emitted by autom8y-auth's
+    ``_finalise_business_issuance`` (token_service.py:737-796) and
+    ``_finalise_exempt_issuance`` (token_service.py:680-734) per the
+    ``ServiceTokenPayload`` TypedDict at
+    ``autom8y/sdks/python/autom8y-auth/src/autom8y_auth/claims.py:80-98``.
+
+    Key invariant being tested (FG-1 fix): ``service_account_id`` is the
+    JWT claim carrying the SA identity (sa.yaml_id), NOT ``service_name`` —
+    which was the originally-shipped (broken) read. ``service_name`` is a
+    Python ``@property`` on ServiceClaims that returns self.sub (UUID); it
+    is not a JWT claim and never appears in the encoded payload.
+
+    Args:
+        yaml_id: Value for the ``service_account_id`` claim. Defaults to
+            ``"asana-dataframe-resolver"`` (the receiver SA's yaml_id).
+            Pass ``None`` to simulate a db_fallback row.
+        client_id: Value for the ``client_id`` claim. SA-token-distinct,
+            non-PII identifier from the SA registry.
+        business_id: Optional business UUID. Omitted (key absent) when None
+            on exempt-path tokens; populated on business-scoped tokens.
+        scopes: List of RFC 6749 scopes; defaults to
+            ``["admin:internal"]``.
+        permissions: List of permission strings; defaults to
+            ``["data:read", "data:write"]``.
+
+    Returns:
+        Dict matching ServiceTokenPayload shape suitable for ``_make_jwt``.
+    """
+    scopes = scopes if scopes is not None else ["admin:internal"]
+    permissions = permissions if permissions is not None else [
+        "data:read",
+        "data:write",
+    ]
+    payload: dict[str, object] = {
+        "sub": str(uuid.uuid4()),  # sa.id UUID — opaque, not used for routing
+        "iss": "https://auth.api.autom8y.io",
+        "aud": "https://api.autom8y.io",
+        "exp": 9999999999,
+        "iat": 1700000000,
+        "jti": str(uuid.uuid4()),
+        "client_id": client_id,
+        # FG-1: canonical SA identity carrier — sa.yaml_id from the
+        # autom8y SA registry; this is THE claim the rate limiter reads.
+        "service_account_id": yaml_id,
+        "scope": " ".join(scopes),
+        "scopes": scopes,
+        "permissions": permissions,
+        "bypass_scope_enforcement": business_id is None,
+    }
+    if business_id is not None:
+        payload["business_id"] = business_id
+    return payload
 
 
 def _make_request_with_auth(token: str | None = None) -> MagicMock:
@@ -188,20 +266,54 @@ class TestSurfaceERateLimitSAExemption:
     Acceptance: 'E': integration test confirms bearer token matching SA pattern
     routes to sa: namespace bucket; per-namespace rate-limit metric labels
     emit correctly.
+
+    qa-adversary FG-1 fix (2026-05-31): all tests use the production-realistic
+    ``ServiceTokenPayload`` claim shape via ``_make_sa_service_token_payload``.
+    The originally-shipped tests used a synthesized ``{"service_name": ...}``
+    payload that does NOT exist in production tokens — they passed against the
+    broken implementation precisely because both used the wrong claim name.
     """
 
     def test_sa_jwt_routes_to_sa_namespace(self) -> None:
-        """A JWT carrying service_name=asana-dataframe-resolver → sa: namespace."""
+        """A production-shape SA JWT (service_account_id claim) → sa: namespace.
+
+        Constructs a ServiceTokenPayload-shaped dict matching
+        autom8y-auth claims.py:80-98 AND token_service.py:700-771 emission.
+        The canonical SA identity carrier is ``service_account_id``
+        (= sa.yaml_id), NOT ``service_name``.
+        """
         from autom8_asana.api.rate_limit import (
             SA_RATE_LIMIT_NAMESPACE,
             _get_rate_limit_key,
         )
 
-        sa_jwt = _make_jwt({
-            "sub": "service-account",
-            "service_name": "asana-dataframe-resolver",
-            "iss": "auth.api.autom8y.io",
-        })
+        sa_jwt = _make_jwt(
+            _make_sa_service_token_payload(yaml_id="asana-dataframe-resolver")
+        )
+        request = _make_request_with_auth(sa_jwt)
+
+        key = _get_rate_limit_key(request)
+
+        assert key == SA_RATE_LIMIT_NAMESPACE
+
+    def test_sa_jwt_business_scoped_routes_to_sa_namespace(self) -> None:
+        """Business-scoped SA token (with business_id claim) → sa: namespace.
+
+        Tokens issued via ``_finalise_business_issuance`` carry an additional
+        business_id claim. The rate-limit bucket selection MUST be insensitive
+        to the business_id — what matters is the service_account_id identity.
+        """
+        from autom8_asana.api.rate_limit import (
+            SA_RATE_LIMIT_NAMESPACE,
+            _get_rate_limit_key,
+        )
+
+        sa_jwt = _make_jwt(
+            _make_sa_service_token_payload(
+                yaml_id="asana-dataframe-resolver",
+                business_id=str(uuid.uuid4()),
+            )
+        )
         request = _make_request_with_auth(sa_jwt)
 
         key = _get_rate_limit_key(request)
@@ -209,20 +321,18 @@ class TestSurfaceERateLimitSAExemption:
         assert key == SA_RATE_LIMIT_NAMESPACE
 
     def test_non_sa_jwt_routes_to_pat_namespace(self) -> None:
-        """A JWT carrying a different service_name → pat: namespace (fallback).
+        """An SA JWT for a DIFFERENT yaml_id → pat: namespace (fallthrough).
 
         The rate-limit key function only special-cases the
-        ``asana-dataframe-resolver`` SA. All other JWTs (and PATs) fall
-        through to the existing pat:{prefix} key — preserving the existing
-        contract for non-SA callers.
+        ``asana-dataframe-resolver`` SA. Other SAs (with different
+        service_account_id values) fall through to pat:{prefix} —
+        preserving the existing contract for non-resolver callers.
         """
         from autom8_asana.api.rate_limit import _get_rate_limit_key
 
-        other_jwt = _make_jwt({
-            "sub": "service-account",
-            "service_name": "some-other-service",
-            "iss": "auth.api.autom8y.io",
-        })
+        other_jwt = _make_jwt(
+            _make_sa_service_token_payload(yaml_id="some-other-sa")
+        )
         request = _make_request_with_auth(other_jwt)
 
         key = _get_rate_limit_key(request)
@@ -271,8 +381,10 @@ class TestSurfaceERateLimitSAExemption:
         """SA_NAMESPACE_LIMIT exposes the high-ceiling string for route decoration.
 
         Body-parameterized query routes (project/section rows) decorate with
-        ``@limiter.limit(SA_NAMESPACE_LIMIT, key_func=...)`` to get the 600/min
-        SA bucket. The constant is the route-altitude mechanism for surface E.
+        ``@limiter.limit(SA_NAMESPACE_LIMIT, key_func=_get_rate_limit_key,
+                          override_defaults=True)`` to get the 600/min
+        SA bucket on the body-parameterized hot path. The constant is the
+        route-altitude mechanism for surface E.
         """
         from autom8_asana.api.rate_limit import SA_NAMESPACE_LIMIT, SA_RATE_LIMIT_RPM
 
@@ -293,18 +405,29 @@ class TestSurfaceERateLimitSAExemption:
         # Default per api/config.py:56-60
         assert result == "100/minute"
 
-    def test_is_sa_token_recognizes_sa_jwt(self) -> None:
-        """_is_sa_token returns True for the resolver SA JWT."""
+    def test_is_sa_token_recognizes_production_shape_sa_jwt(self) -> None:
+        """_is_sa_token returns True for production-shape resolver SA JWT.
+
+        FG-1 anti-regression: the test JWT carries the REAL
+        ``service_account_id`` claim (per autom8y-auth claims.py:80-98),
+        NOT the synthesized ``service_name`` key that the originally-shipped
+        broken implementation also looked for. This test would FAIL against
+        the broken implementation.
+        """
         from autom8_asana.api.rate_limit import _is_sa_token
 
-        sa_jwt = _make_jwt({"service_name": "asana-dataframe-resolver"})
+        sa_jwt = _make_jwt(
+            _make_sa_service_token_payload(yaml_id="asana-dataframe-resolver")
+        )
         assert _is_sa_token(f"Bearer {sa_jwt}") is True
 
     def test_is_sa_token_rejects_non_sa_jwt(self) -> None:
-        """_is_sa_token returns False for JWTs with other service_name claims."""
+        """_is_sa_token returns False for JWTs with other service_account_id."""
         from autom8_asana.api.rate_limit import _is_sa_token
 
-        other_jwt = _make_jwt({"service_name": "some-other-service"})
+        other_jwt = _make_jwt(
+            _make_sa_service_token_payload(yaml_id="some-other-service")
+        )
         assert _is_sa_token(f"Bearer {other_jwt}") is False
 
     def test_is_sa_token_rejects_pat(self) -> None:
@@ -319,6 +442,87 @@ class TestSurfaceERateLimitSAExemption:
 
         assert _is_sa_token("") is False
         assert _is_sa_token("Bearer ") is False
+
+    # ------------------------------------------------------------------
+    # FG-1 explicit regression tests — REQUIRED by qa-adversary
+    # ------------------------------------------------------------------
+
+    def test_fg1_legacy_service_name_only_payload_does_not_route_to_sa(self) -> None:
+        """A token carrying ONLY a (non-emitted) service_name key → pat: namespace.
+
+        FG-1 regression: the broken sprint-1 implementation read
+        ``payload.get("service_name")`` — which would have matched a token
+        constructed with that key. This test verifies that AFTER the fix,
+        such a token (which production never emits) does NOT route to sa:
+        because the canonical ``service_account_id`` claim is absent.
+
+        This is the test that would have CAUGHT the original bug in CI.
+        """
+        from autom8_asana.api.rate_limit import _get_rate_limit_key
+
+        # Synthesize a "wrong-shape" token that ONLY carries the legacy
+        # mis-named key — what the broken implementation would have matched.
+        wrong_shape_jwt = _make_jwt({
+            "sub": "service-account-uuid",
+            "service_name": "asana-dataframe-resolver",  # NOT a real JWT claim
+            "iss": "auth.api.autom8y.io",
+        })
+        request = _make_request_with_auth(wrong_shape_jwt)
+
+        key = _get_rate_limit_key(request)
+
+        # The fixed implementation looks for service_account_id ONLY.
+        # service_name is not a JWT claim — token MUST fall through to pat:.
+        assert key != "sa:asana-dataframe-resolver"
+        assert key.startswith("pat:")
+
+    def test_fg1_db_fallback_token_with_null_service_account_id_falls_through(
+        self,
+    ) -> None:
+        """Tokens for db_fallback SA rows carry service_account_id=null.
+
+        Per token_service.py:754-758 docstring: "For db_fallback rows (yaml_id
+        IS NULL), service_account_id is None. Downstream consumers that rely
+        on the claim MUST treat None as a classifier — 'satellite is not in
+        the YAML registry yet' — rather than as a validation failure."
+
+        Our receiver SA is registered in the YAML, so this case should NEVER
+        fire for asana-dataframe-resolver in production. But the bucket
+        selector MUST handle it gracefully (fall through to pat:, not crash).
+        """
+        from autom8_asana.api.rate_limit import _get_rate_limit_key
+
+        # yaml_id=None simulates a db_fallback issuance.
+        db_fallback_jwt = _make_jwt(
+            _make_sa_service_token_payload(yaml_id=None)
+        )
+        request = _make_request_with_auth(db_fallback_jwt)
+
+        key = _get_rate_limit_key(request)
+
+        # Null service_account_id → not the resolver → pat: fallthrough.
+        assert key != "sa:asana-dataframe-resolver"
+        assert key.startswith("pat:")
+
+    def test_fg1_jwt_with_no_identity_claims_at_all_falls_through(self) -> None:
+        """A JWT with only standard claims (sub/iss/exp) → pat: namespace.
+
+        Defensive: a malformed token missing all SA identity claims must not
+        crash or accidentally route to sa: (e.g., on a None comparison bug).
+        """
+        from autom8_asana.api.rate_limit import _get_rate_limit_key
+
+        no_identity_jwt = _make_jwt({
+            "sub": str(uuid.uuid4()),
+            "iss": "https://auth.api.autom8y.io",
+            "exp": 9999999999,
+        })
+        request = _make_request_with_auth(no_identity_jwt)
+
+        key = _get_rate_limit_key(request)
+
+        assert key != "sa:asana-dataframe-resolver"
+        assert key.startswith("pat:")
 
 
 # ===========================================================================
@@ -639,11 +843,12 @@ class TestSurface5RateLimit429NamespaceHandler:
         from autom8_asana.api.errors import rate_limit_exceeded_namespace_handler
         from autom8_asana.api.metrics import RATE_LIMIT_429_BY_NAMESPACE
 
-        # Build an app + request with the SA JWT.
-        sa_jwt = _make_jwt({
-            "sub": "service-account",
-            "service_name": "asana-dataframe-resolver",
-        })
+        # Build an app + request with a production-shape SA JWT.
+        # FG-1 fix: use service_account_id (the real claim), not the
+        # synthesized service_name key that the broken sprint-1 read.
+        sa_jwt = _make_jwt(
+            _make_sa_service_token_payload(yaml_id="asana-dataframe-resolver")
+        )
 
         # SlowAPI's default handler inspects request.app.state.limiter and
         # request.state.view_rate_limit. Provide minimal stubs that let
@@ -672,3 +877,192 @@ class TestSurface5RateLimit429NamespaceHandler:
         assert after == before + 1
         # SlowAPI's default response shape preserved (429 JSON).
         assert response.status_code == 429
+
+
+# ===========================================================================
+# FG-6 — BuildCoordinator broad-exception handling (qa-adversary correction)
+# ===========================================================================
+
+
+class TestFG6BuildCoordinatorBroadExceptionHandling:
+    """FG-6 — BuildCoordinator catches Exception, not just CACHE_TRANSIENT_ERRORS.
+
+    The original implementation at build_coordinator.py:347 caught only
+    ``CACHE_TRANSIENT_ERRORS`` — meaning a non-transient exception in build_fn
+    (e.g., ValueError from a malformed schema; KeyError from a missing field;
+    AssertionError from a precondition violation; type-system bugs that surface
+    as TypeError) would:
+
+    1. Leave the in-flight future UNRESOLVED (Future leak).
+    2. Skip the ``builds_failed`` stats increment (lost signal).
+    3. Cause coalesced waiters to time out at default_timeout_seconds=55s
+       instead of failing fast.
+    4. Propagate to the wrapper's broader ``except Exception`` at
+       universal_strategy.py:966 — which logs but does not resolve the Future.
+
+    The fix broadens the catch to ``except Exception`` so EVERY build_fn
+    failure resolves the Future (allowing waiters to fail fast), increments
+    the failure counter (preserving signal), and is logged with the
+    error type for diagnostics.
+    """
+
+    async def test_non_transient_exception_resolves_future_fast(self) -> None:
+        """A ValueError in build_fn → Future resolves; waiters fail in <1s.
+
+        Without the fix: waiters would time out at default_timeout_seconds.
+        With the fix: waiters see the FAILED BuildResult immediately.
+        """
+        from autom8_asana.cache.dataframe.build_coordinator import (
+            BuildCoordinator,
+            BuildOutcome,
+        )
+
+        async def failing_build() -> tuple[None, datetime]:
+            # Non-transient: ValueError is NOT in CACHE_TRANSIENT_ERRORS.
+            raise ValueError("schema-shape-mismatch")
+
+        coord = BuildCoordinator(
+            max_concurrent_builds=4,
+            # Set timeout HIGH so a leaked Future would not be masked by an
+            # incidental waiter timeout — the assertion is on fast resolution.
+            default_timeout_seconds=10.0,
+        )
+
+        key = ("proj-fg6-A", "project")
+        start = asyncio.get_event_loop().time()
+
+        # 3 concurrent same-key cold misses: 1 builds (and fails), 2 coalesce.
+        results = await asyncio.gather(
+            *[
+                coord.build_or_wait_async(key, failing_build, caller=f"w{i}")
+                for i in range(3)
+            ]
+        )
+
+        elapsed = asyncio.get_event_loop().time() - start
+
+        # All 3 must see FAILED outcome — coalesced waiters share the result.
+        assert all(r.outcome == BuildOutcome.FAILED for r in results), (
+            f"Expected all FAILED; got {[r.outcome for r in results]}"
+        )
+        # All 3 carry the original exception so the wrapper can log type.
+        assert all(isinstance(r.error, ValueError) for r in results)
+        # Stats accounting must increment builds_failed (was the load-bearing
+        # signal lost in the original implementation for non-transient errors).
+        assert coord._stats["builds_failed"] >= 1
+        # Fast-fail invariant: well under the 10s timeout — Future resolved
+        # synchronously when build_fn raised.
+        assert elapsed < 2.0, (
+            f"Coalesced waiters took {elapsed:.2f}s — Future leak suspected "
+            f"(expected <2s; would-be-timeout was 10s)"
+        )
+
+    async def test_assertion_error_resolves_future_fast(self) -> None:
+        """An AssertionError in build_fn also resolves the Future (not just ValueError).
+
+        Demonstrates the broadening is genuinely broad — covers
+        BaseException subclasses that are not 'errors' in the colloquial
+        sense (AssertionError, RuntimeError) as well.
+        """
+        from autom8_asana.cache.dataframe.build_coordinator import (
+            BuildCoordinator,
+            BuildOutcome,
+        )
+
+        async def assert_failing_build() -> tuple[None, datetime]:
+            assert False, "precondition-violation"  # noqa: B011, PT015
+
+        coord = BuildCoordinator(
+            max_concurrent_builds=4,
+            default_timeout_seconds=10.0,
+        )
+
+        key = ("proj-fg6-B", "project")
+        start = asyncio.get_event_loop().time()
+
+        result = await coord.build_or_wait_async(
+            key, assert_failing_build, caller="solo"
+        )
+
+        elapsed = asyncio.get_event_loop().time() - start
+
+        assert result.outcome == BuildOutcome.FAILED
+        assert isinstance(result.error, AssertionError)
+        assert elapsed < 2.0, f"AssertionError did not fail-fast: {elapsed:.2f}s"
+
+    async def test_transient_exception_still_resolves_future(self) -> None:
+        """Existing CACHE_TRANSIENT_ERRORS behavior is preserved (anti-regression).
+
+        The broadening MUST NOT regress the transient-error path — those
+        previously worked and must continue to resolve the Future identically.
+        """
+        from autom8_asana.cache.dataframe.build_coordinator import (
+            BuildCoordinator,
+            BuildOutcome,
+        )
+        from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
+
+        # Pick the first concrete error class from the transient tuple.
+        # CACHE_TRANSIENT_ERRORS is a tuple; use isinstance() to confirm.
+        assert isinstance(CACHE_TRANSIENT_ERRORS, tuple)
+        assert len(CACHE_TRANSIENT_ERRORS) >= 1
+        TransientError = CACHE_TRANSIENT_ERRORS[0]
+
+        async def transient_failing_build() -> tuple[None, datetime]:
+            raise TransientError("simulated-transient-failure")
+
+        coord = BuildCoordinator(
+            max_concurrent_builds=4,
+            default_timeout_seconds=10.0,
+        )
+
+        result = await coord.build_or_wait_async(
+            ("proj-fg6-C", "project"), transient_failing_build, caller="solo"
+        )
+
+        assert result.outcome == BuildOutcome.FAILED
+        assert isinstance(result.error, TransientError)
+        assert coord._stats["builds_failed"] >= 1
+
+    async def test_in_flight_dict_cleared_on_non_transient_failure(self) -> None:
+        """After a non-transient failure, _in_flight has no leaked entry.
+
+        A subsequent build attempt on the SAME key must be able to acquire
+        (it must not find a stale entry from the failed-and-leaked prior
+        build). This is the "future leak" pathology in concrete terms.
+        """
+        from autom8_asana.cache.dataframe.build_coordinator import BuildCoordinator
+
+        attempt = 0
+
+        async def maybe_failing_build() -> tuple[None, datetime]:
+            nonlocal attempt
+            attempt += 1
+            if attempt == 1:
+                raise ValueError("first-call-fails")
+            return (None, datetime.now(UTC))
+
+        coord = BuildCoordinator(
+            max_concurrent_builds=4,
+            default_timeout_seconds=10.0,
+        )
+
+        key = ("proj-fg6-D", "project")
+
+        # First call fails with ValueError (non-transient).
+        first = await coord.build_or_wait_async(
+            key, maybe_failing_build, caller="first"
+        )
+        assert first.outcome.value == "failed"
+
+        # _in_flight MUST be cleared — no leaked entry for this key.
+        assert key not in coord._in_flight, (
+            "_in_flight leaked an entry after non-transient build failure; "
+            "subsequent same-key callers would coalesce onto a dead future"
+        )
+
+        # Second call succeeds — proves a fresh build can proceed.
+        second = await coord.build_or_wait_async(
+            key, maybe_failing_build, caller="second"
+        )
+        assert second.outcome.value == "built"

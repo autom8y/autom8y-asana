@@ -20,7 +20,7 @@ import time
 from typing import Annotated, Any, Never
 
 from autom8y_log import get_logger
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -33,6 +33,11 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
 from autom8_asana.api.errors import raise_api_error, raise_service_error
 from autom8_asana.api.exception_types import ApiDataFrameBuildError
 from autom8_asana.api.models import SuccessResponse, build_success_response
+from autom8_asana.api.rate_limit import (
+    SA_NAMESPACE_LIMIT,
+    _get_rate_limit_key,
+    limiter,
+)
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.client import AsanaClient
@@ -406,7 +411,13 @@ async def list_query_sections(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
     },
 )
+@limiter.limit(
+    SA_NAMESPACE_LIMIT,
+    key_func=_get_rate_limit_key,
+    override_defaults=True,
+)
 async def query_rows(
+    request: Request,
     entity_type: str,
     request_body: RowsRequest,
     request_id: RequestId,
@@ -425,6 +436,17 @@ async def query_rows(
     still runs via ``validate_entity_type`` to confirm the entity is registered;
     only the GID lookup is overridden.  This enables arbitrary Asana fleet GIDs
     without static EntityProjectRegistry pre-registration.
+
+    Rate-limit isolation (receiver-bulk-fanout-reliability Stage-1, qa-adversary
+    FG-2 fix 2026-05-31):
+    The ``@limiter.limit(SA_NAMESPACE_LIMIT, ...)`` decoration with
+    ``override_defaults=True`` raises the ceiling to 600/min FOR THIS ROUTE
+    ONLY (Phase-3 Knob 5: SA bulk-pass peak = 100 rpm baseline x 3 headroom
+    x 2 burst). The ``request: Request`` parameter is REQUIRED by SlowAPI's
+    ``_dynamic_route_limits`` path (slowapi/extension.py L586-L595 invokes
+    ``with_request(request)`` to materialize per-key limits). Non-SA callers
+    fall through ``_get_rate_limit_key`` to the pat:/ip: namespace and remain
+    subject to the global 100/min default.
     """
     # 1. Entity validation via EntityServiceDep
     # validate_entity_type checks schema registration + descriptor existence;

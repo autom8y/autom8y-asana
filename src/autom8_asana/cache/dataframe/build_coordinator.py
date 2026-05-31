@@ -344,8 +344,9 @@ class BuildCoordinator:
 
             return result
 
-        except CACHE_TRANSIENT_ERRORS as exc:
+        except Exception as exc:  # noqa: BLE001 -- BROAD-CATCH at build_fn boundary: any unhandled exception in build_fn MUST resolve the coalesced future, increment failure stats, and surface to waiters; narrow CACHE_TRANSIENT_ERRORS would leave non-transient errors (ValueError, KeyError, AssertionError) un-resolved — coalesced waiters time out at 55s and the operator loses both signal and the future is leaked. qa-adversary FG-6 fix, 2026-05-31.
             duration_ms = (time.perf_counter() - start) * 1000
+            is_transient = isinstance(exc, CACHE_TRANSIENT_ERRORS)
             result = BuildResult(
                 outcome=BuildOutcome.FAILED,
                 build_duration_ms=duration_ms,
@@ -369,6 +370,8 @@ class BuildCoordinator:
                     "build_duration_ms": round(duration_ms, 1),
                     "caller": caller,
                     "error": str(exc),
+                    "error_type": type(exc).__name__,
+                    "is_transient": is_transient,
                 },
             )
 
