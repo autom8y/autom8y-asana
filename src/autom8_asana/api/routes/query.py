@@ -438,15 +438,27 @@ async def query_rows(
     without static EntityProjectRegistry pre-registration.
 
     Rate-limit isolation (receiver-bulk-fanout-reliability Stage-1, qa-adversary
-    FG-2 fix 2026-05-31):
+    FG-2 fix 2026-05-31 + FG-7 disclosure correction 2026-05-31):
     The ``@limiter.limit(SA_NAMESPACE_LIMIT, ...)`` decoration with
     ``override_defaults=True`` raises the ceiling to 600/min FOR THIS ROUTE
     ONLY (Phase-3 Knob 5: SA bulk-pass peak = 100 rpm baseline x 3 headroom
     x 2 burst). The ``request: Request`` parameter is REQUIRED by SlowAPI's
     ``_dynamic_route_limits`` path (slowapi/extension.py L586-L595 invokes
-    ``with_request(request)`` to materialize per-key limits). Non-SA callers
-    fall through ``_get_rate_limit_key`` to the pat:/ip: namespace and remain
-    subject to the global 100/min default.
+    ``with_request(request)`` to materialize per-key limits).
+
+    POSTURE DISCLOSURE (FG-7): per SlowAPI ``__check_request_limit``
+    (slowapi/extension.py L617-628), ``override_defaults=True`` EXCLUDES the
+    global 100/min default from this route's limits chain entirely — so ALL
+    callers (sa:/pat:/ip:) on ``query_rows`` get a 600/min PER-KEY bucket via
+    their respective namespace key from ``_get_rate_limit_key``. Non-SA
+    callers (PAT/IP) on this route are NO LONGER subject to the 100/min
+    global default; they get 600/min per-key on this route only. The global
+    100/min remains active on all other routes. Mitigation context: this is
+    an s2s_router route (require_service_claims rejects unauthenticated
+    callers, making the IP fallback effectively dead); the per-key bucket
+    bounds the 6x ceiling raise. Per-namespace differentiation (sa:=600,
+    pat:/ip:=100 on this route) is deferred to Sprint-2 if posture review
+    deems it required.
     """
     # 1. Entity validation via EntityServiceDep
     # validate_entity_type checks schema registration + descriptor existence;
