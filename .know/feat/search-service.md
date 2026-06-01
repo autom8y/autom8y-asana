@@ -91,6 +91,6 @@ The injected `_df_integration` is structurally present but functionally dormant.
 
 1. OR combinator unimplemented despite model declaration.
 2. `DataFrameCacheIntegration` role in search is hollow -- no activation code path.
-3. No test files observed for `search/`.
+3. ~~No test files observed for `search/`.~~ Stale — corrected 2026-06-01: `tests/unit/search/test_service.py` exists (516 LOC, 35+ methods); the search service is unit-tested.
 4. `set_project_dataframe()` usage sites not traced -- unclear which callers pre-populate.
 5. Sync wrappers use `asyncio.run()` directly (not `@async_method` convention).
