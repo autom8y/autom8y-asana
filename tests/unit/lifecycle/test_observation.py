@@ -5,7 +5,6 @@ Test IDs: UT-OBS-001 through UT-OBS-006 from the ADR QA checklist.
 
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -232,16 +231,16 @@ class TestEntityStageTimeline:
 class TestStageTransitionEmitter:
     """Test StageTransitionEmitter fire-and-forget behavior."""
 
-    def test_emit_calls_store_append(self) -> None:
+    async def test_emit_calls_store_append(self) -> None:
         """UT-OBS-005: emitter calls store.append on successful emit."""
         store = MagicMock()
         emitter = StageTransitionEmitter(store=store)
         record = _make_record()
 
-        asyncio.run(emitter.emit(record))
+        await emitter.emit(record)
         store.append.assert_called_once_with(record)
 
-    def test_emit_swallows_store_exception(self) -> None:
+    async def test_emit_swallows_store_exception(self) -> None:
         """UT-OBS-005: emitter does not propagate store exceptions."""
         store = MagicMock()
         store.append.side_effect = OSError("disk full")
@@ -249,5 +248,5 @@ class TestStageTransitionEmitter:
         record = _make_record()
 
         # Should not raise
-        asyncio.run(emitter.emit(record))
+        await emitter.emit(record)
         store.append.assert_called_once()
