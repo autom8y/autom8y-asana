@@ -386,7 +386,7 @@ class TestSurfaceERateLimitSAExemption:
         """
         from autom8_asana.api.rate_limit import SA_NAMESPACE_LIMIT, SA_RATE_LIMIT_RPM
 
-        assert SA_NAMESPACE_LIMIT == f"{SA_RATE_LIMIT_RPM}/minute"
+        assert f"{SA_RATE_LIMIT_RPM}/minute" == SA_NAMESPACE_LIMIT
         assert SA_NAMESPACE_LIMIT == "600/minute"
 
     def test_default_rate_limit_string_returns_configured_ceiling(self) -> None:

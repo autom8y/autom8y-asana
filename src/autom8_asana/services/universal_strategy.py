@@ -932,7 +932,8 @@ class UniversalResolutionStrategy:
                 # The callback writes the frame into the cache itself (matches
                 # the legacy fire-and-forget contract). We return a sentinel
                 # tuple so BuildCoordinator's stats accounting stays accurate.
-                from datetime import UTC, datetime as _dt
+                from datetime import UTC
+                from datetime import datetime as _dt
 
                 async def _coordinated_build() -> tuple[Any, _dt]:
                     await _swr_build_callback(cache, project_gid, self.entity_type)
