@@ -159,7 +159,36 @@
     intermittently NOT recorded in the InMemorySpanExporter under -n auto on the CI
     runner (assert 0 == 1). They are worker_isolated-quarantined (single-process)
     as targeted containment while the root mechanism is pinned.
-  status: DEFERRED-needs-CI-reproduction
+  status: RESOLVED-root-fixed
+  resolved_at: 2026-06-01
+  resolved_by: sre M2 root-fix (sre-m2-otel-context-leak-span-sampling-fix-2026-06-01)
+  resolution: >
+    Root cause PINNED via instrumented -n auto reproduction + a deterministic
+    2-file serial repro. It was NOT an OTel sampling/context issue and NOT the
+    fixture's set_tracer_provider. The polluter is tests/unit/lambda_handlers/
+    test_import_safety.py: it does sys.modules.pop("autom8_asana.services.
+    universal_strategy") + importlib.import_module(...) to assert import-safety,
+    but never restored the canonical module object. The re-import replaced TWO
+    references -- sys.modules[_MODULE] AND the parent package attribute
+    autom8_asana.services.universal_strategy. Other test files bind
+    UniversalResolutionStrategy at COLLECTION time to the original object; under
+    xdist, whenever test_import_safety co-tenants a worker before a span/log
+    test, that test's fixture (`import ... as _strategy_module`, which resolves
+    via the PARENT ATTRIBUTE, not sys.modules) rebinds _tracer/patches logger on
+    the throwaway re-import object while resolve() (collection-time class) reads
+    the original -> spans/logs never reach the test's exporter/mock -> empty ->
+    assert 0 == 1 (span tests) and call_count==0 (TestNullSlotLogging).
+    Fix: test_import_safety restores BOTH sys.modules[_MODULE] and the parent
+    package attribute in a finally block. Verified: deterministic 2-file repro
+    goes 5-failed -> 7-passed; full -n auto x10 back-out gate green (was ~80%/run
+    failing pre-fix). worker_isolated marks removed (4 tests re-enter the sharded
+    gate: test_index_build_failure, test_lookup_failure, test_parent_child_relationship,
+    and test_null_slot_increments_count_and_adds_event — the 4th was quarantined
+    during the B7 async-migration session [PR #80] and shares this exact root cause
+    per the call_count==0 failure mode above); test.yml isolated-job carve-out for
+    this file removed. The worker_isolated CI job itself is PRESERVED for the
+    separately-rooted test_workflow_handler.py quarantine (asyncio.run-in-handler
+    SIGKILL, NOT this sys.modules flake).
   blocker: >
     not reproducible locally (5 strategies exhausted: 2-file x20, broad-unit x10,
     integration-inclusive x12, pytest-split 4-group, forced-order -- all green on 12

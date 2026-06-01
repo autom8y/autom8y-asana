@@ -7,7 +7,6 @@ Validates the service functions that replaced model convenience methods:
 
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
@@ -275,7 +274,7 @@ class TestBuildForProject:
         sample_dataframe: pl.DataFrame,
         mocker: MockerFixture,
     ) -> None:
-        """asyncio.run(build_for_project()) matches async call result."""
+        """await build_for_project() produces the expected DataFrame result."""
         _patch_builder_and_persistence(mocker, sample_dataframe)
 
         df = await build_for_project(project_with_tasks, task_type="Unit", client=mock_client)

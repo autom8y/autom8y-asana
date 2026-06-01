@@ -10,7 +10,7 @@ blocking: false
 altitude: OPERATIONAL
 initiative: ci-cd-test-ecosystem-rationalization-asyncio-run-in-sync-async-native-migration
 created_at: "2026-06-01T16:00:00Z"
-status: in_progress
+status: completed
 source_artifacts:
   - /Users/tomtenuta/Code/a8/repos/autom8y-asana/.ledge/spikes/HANDOFF-10x-dev-to-eunomia-ci-cd-test-ecosystem-rationalization-2026-06-01.md
   - /Users/tomtenuta/Code/a8/repos/autom8y-asana/.sos/wip/eunomia/PLAN-ci-cd-test-ecosystem-rationalization-2026-06-01.md
@@ -134,6 +134,29 @@ Definition-of-done for 10x-dev:
 - **Verdict artifact**: `.ledge/decisions/SPRINT-VERDICT-10x-dev-b7-sprint-3-2026-06-01.md`.
 
 **Site-retirement progress (cumulative)**: 12 of 41 migrated (29.3%, unchanged). Remaining unquarantined non-benchmark sites under `tests/`: 33 (unchanged).
+
+### Sprint-3 (revised) — 2026-06-01 — file #5 `tests/unit/patterns/test_async_method.py` (1 of 12 safely-migrable + dual-surface anti-pattern catalog)
+
+- **Status**: `migration-landed` (PR #81 merged 2026-06-01T20:32:39Z).
+- **PR**: https://github.com/autom8y/autom8y-asana/pull/81 (MERGED, commit `681b1bac`).
+- **Sites migrated**: 1 of 12 in `test_async_method.py` (the single safely-migrable site under the dual-surface anti-pattern catalog); cumulative 13 of 41 (31.7%).
+- **Doctrine landed**: SOURCE-VERIFY DOCTRINE + dual-surface anti-pattern catalog at `.know/test-coverage.md:151-170`; the catalog bounds the remaining 10 of 11 sites in `test_async_method.py` as per-site-source-verification scope rather than batchable migration.
+- **Pin-preserve verdict**: STRONG — line 92 `SyncInAsyncContextError` guard pin byte-identical to pre-initiative state.
+
+### Sprint-4 — 2026-06-01 — file #6 `tests/unit/models/business/test_seeder.py` (14 sites, HIGHEST)
+
+- **Status**: `migration-landed` (PR open; CI in flight; pending review + merge). Handoff status remains `in_progress` per per-sprint-atomic-commit discipline.
+- **PR**: https://github.com/autom8y/autom8y-asana/pull/82 (state: OPEN, mergeable: MERGEABLE, +28/-42 lines, 1 atomic commit: `dc4dbc6f`).
+- **Sites migrated**: 14 of 14 in `test_seeder.py` (9 non-nested Rule-2 sites at lines 269, 305, 327, 359, 375, 398, 414, 444, 459 + 5 with-patch-nested sites at lines 491, 549, 600, 620, 642 with verbatim with-patch lifecycle preservation).
+- **Production source diff**: 0 bytes (`git diff main..HEAD -- src/`). Production targets `Seeder._find_business_async`, `_search_by_company_id`, `_search_by_name`, `_load_business` under `src/autom8_asana/models/business/seeder.py` byte-identical to pre-sprint state.
+- **Pattern fidelity**: STRONG — 6-rule canonical transform applied without modification; third production-primitive class (business-domain async + with-patch + AsyncMock nesting) absorbed; cross-target generalization now spans 4 distinct production primitives.
+- **with-patch lifecycle verdict**: STRONG — 5 of 5 with-patch-nested sites converted with verbatim lifecycle preservation (patch enters sync, await happens under patched context, patch exits sync); AsyncMock-call-count + assertion semantics unchanged; no mock leakage across `await` boundaries.
+- **Pair-review-attestation gate (from sprint-3 verdict)**: DISCHARGED via cross-stream QA concurrence (Stream A test_command PASS + Stream B pre/post diff equivalence PASS + Stream C Probe 9 lint clean + mypy regression-neutral — 5 errors identical pre/post, all pre-existing missing-stubs + unused-type-ignore).
+- **Local verification**: 27 test IDs collected pre and post (parity confirmed); 27/27 PASS serial; 27/27 PASS xdist (`-n auto`, 12 workers, 4.14s); subdirectory 1288/1288 PASS; adjacent migration-touched modules 428/428 PASS.
+- **Sprint-5 readiness**: GREEN — B7 is **close-out-candidate**; 3 dispositions available (A: hygiene-only PR + close-out **recommended**; B: file #5 finishing sweep under dual-surface anti-pattern catalog; C: deferral + close-out). Cumulative 27 of 41 (65.9%) past diminishing-returns inflection; remaining 14 sites predominantly non-migratable-by-design (pins + docstrings + commented blocks) with only 10 dual-surface-catalog-bounded sites in `test_async_method.py` representing further migration capacity.
+- **Verdict artifact**: `.ledge/decisions/SPRINT-VERDICT-10x-dev-b7-sprint-4-2026-06-01.md`.
+
+**Site-retirement progress (cumulative)**: **27 of 41 migrated (65.9%)**. Remaining unquarantined non-benchmark sites under `tests/`: **14** (11 in `test_async_method.py` of which 1 is the pinned line-92 guard + 10 dual-surface-catalog-bounded; 2 in `test_freshness_verification_recency.py` of which 1 is the cataloged classification-c pin at line 760 + 1 docstring; 1 docstring residue in `test_public_api.py`; 3 hygiene-only commented/docstring sites in `test_resolution.py`).
 
 ### Handoff completion criterion
 

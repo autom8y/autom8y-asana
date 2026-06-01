@@ -141,11 +141,13 @@ Canonical mechanical transform for `def test_X(self) -> None: asyncio.run(coro)`
 
 First landed at `tests/unit/lifecycle/test_observation.py:235` and `tests/unit/lifecycle/test_observation.py:244` (TestStageTransitionEmitter); production target `src/autom8_asana/lifecycle/observation.py:160` (`async def emit`) is unchanged. Exit-gate evidence: test ID parity (18 collected pre/post), `git diff main..HEAD -- src/` = 0 bytes, ruff/mypy clean.
 
-Intentional `asyncio.run` pins (DO NOT MIGRATE — they exercise specific guard behavior or sit in docstrings):
+Intentional `asyncio.run` pins (DO NOT MIGRATE — they exercise specific guard behavior or sit in docstrings/comments):
 
-- `tests/unit/dataframes/test_freshness_verification_recency.py:736-760`
+- `tests/unit/dataframes/test_freshness_verification_recency.py:736-760` (sync-context guard semantic test)
 - `tests/unit/patterns/test_async_method.py:92` (`test_sync_in_async_context_raises` — deliberately invokes sync API inside a running loop)
-- `tests/unit/dataframes/test_public_api.py:278` (docstring reference only)
+- `tests/unit/dataframes/test_public_api.py:278` (docstring reference only — describes async wrapper behavior)
+- `tests/unit/models/business/test_resolution.py:777,786` (docstring references in `TestBatchResolutionSyncWrappers` — text-only descriptions of `asyncio.run` usage in production sync wrappers)
+- `tests/unit/models/business/test_resolution.py:780-782` (inline `# Note:` comment explaining why the sync wrapper cannot be exercised inside an event loop)
 
 #### Dual-surface anti-pattern (DO-NOT-MIGRATE class)
 
