@@ -15,6 +15,7 @@ import pytest
 from autom8_asana.lambda_handlers.cache_invalidate import (
     InvalidateResponse,
     _invalidate_cache_async,
+    handler,
     handler_async,
 )
 
@@ -250,3 +251,139 @@ class TestHandlerAsyncInvalidateProject:
 
         assert result["statusCode"] == 200
         assert result["body"]["projects_invalidated"] == 0
+
+
+class TestHandlerInstrumentation:
+    """LAMBDA-OBS-001: span-emission and behavior-preservation for the
+    ``@instrument_lambda``-wrapped synchronous ``handler`` entry point.
+
+    The decorator WRAPS the handler: it must emit one span-per-invocation
+    named after the wrapped function while leaving the handler's return
+    contract and control flow observably unchanged. These tests assert both
+    properties.
+
+    Hermetic OTel seam (per TDD): install a test TracerProvider via
+    ``trace.set_tracer_provider`` and no-op ``init_telemetry`` at its binding
+    site inside the decorator module, so the decorator's first-invocation
+    init does not overwrite the test provider. The decorator then resolves
+    ``trace.get_tracer(...)`` against the installed provider and spans flow
+    to the InMemorySpanExporter.
+    """
+
+    @pytest.fixture
+    def otel_exporter(self) -> Generator[InMemorySpanExporter, None, None]:
+        """Install an in-memory-backed TracerProvider for span capture.
+
+        Patches ``autom8y_telemetry.aws.lambda_instrument.init_telemetry`` to a
+        no-op so the decorator's lazy first-invocation init does not clobber
+        the provider installed here.
+        """
+        from opentelemetry import trace
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+        from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+            InMemorySpanExporter,
+        )
+
+        exporter = InMemorySpanExporter()
+        provider = TracerProvider()
+        provider.add_span_processor(SimpleSpanProcessor(exporter))
+        trace.set_tracer_provider(provider)
+
+        with patch(
+            "autom8y_telemetry.aws.lambda_instrument.init_telemetry",
+        ):
+            yield exporter
+
+        exporter.clear()
+
+    @staticmethod
+    def _make_context(request_id: str = "req-obs-001") -> MagicMock:
+        """Construct a Lambda context double exposing the standard attributes."""
+        ctx = MagicMock()
+        ctx.function_name = "cache-invalidate"
+        ctx.aws_request_id = request_id
+        ctx.invoked_function_arn = "arn:aws:lambda:us-east-1:000000000000:function:cache-invalidate"
+        return ctx
+
+    def test_handler_emits_span_per_invocation(
+        self,
+        otel_exporter: InMemorySpanExporter,
+    ) -> None:
+        """A single invocation emits exactly one span named ``handler``."""
+        from autom8y_telemetry.testing import find_span
+
+        success_response = InvalidateResponse(
+            success=True,
+            message="ok",
+            invocation_id="req-obs-001",
+        )
+
+        with patch(
+            "autom8_asana.lambda_handlers.cache_invalidate._invalidate_cache_async",
+            new=AsyncMock(return_value=success_response),
+        ):
+            result = handler(
+                {"clear_tasks": True},
+                self._make_context(),
+            )
+
+        # Behavior-preservation: return contract is unchanged.
+        assert result["statusCode"] == 200
+        assert result["body"]["success"] is True
+
+        spans = otel_exporter.get_finished_spans()
+        span = find_span(spans, "handler")
+        assert span is not None, "Expected span 'handler' not found"
+        attrs = dict(span.attributes or {})
+        assert attrs["aws.lambda.function_name"] == "cache-invalidate"
+        assert attrs["aws.lambda.request_id"] == "req-obs-001"
+        assert attrs["faas.trigger"] == "other"
+
+    def test_handler_span_status_ok_on_success(
+        self,
+        otel_exporter: InMemorySpanExporter,
+    ) -> None:
+        """Successful invocation sets span status OK (StatusCode.OK)."""
+        from autom8y_telemetry.testing import find_span
+        from opentelemetry.trace import StatusCode
+
+        with patch(
+            "autom8_asana.lambda_handlers.cache_invalidate._invalidate_cache_async",
+            new=AsyncMock(
+                return_value=InvalidateResponse(success=True, message="ok"),
+            ),
+        ):
+            handler({"clear_tasks": True}, self._make_context())
+
+        span = find_span(otel_exporter.get_finished_spans(), "handler")
+        assert span is not None
+        assert span.status.status_code == StatusCode.OK
+
+    def test_handler_return_contract_preserved_on_failure(
+        self,
+        otel_exporter: InMemorySpanExporter,
+    ) -> None:
+        """The handler's own broad-catch still yields a 500 envelope (no re-raise).
+
+        Behavior-preservation: ``handler`` catches exceptions from the async
+        invalidation internally and returns a 500 envelope. The decorator must
+        NOT convert this into a raised exception — the wrapped function returns
+        normally, so the span status is OK even though the *business* result is
+        a failure envelope. This asserts the decorator did not alter control
+        flow.
+        """
+        with patch(
+            "autom8_asana.lambda_handlers.cache_invalidate._invalidate_cache_async",
+            new=AsyncMock(side_effect=RuntimeError("redis unreachable")),
+        ):
+            result = handler({"clear_tasks": True}, self._make_context())
+
+        assert result["statusCode"] == 500
+        assert result["body"]["success"] is False
+        assert "redis unreachable" in result["body"]["message"]
+
+    def test_handler_unwrapped_is_callable(self) -> None:
+        """functools.wraps preserves the wrapped function's identity metadata."""
+        assert handler.__name__ == "handler"
+        assert callable(handler)

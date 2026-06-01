@@ -39,6 +39,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from autom8y_log import get_logger
+from autom8y_telemetry.aws import instrument_lambda
 
 from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 
@@ -274,6 +275,7 @@ async def _invalidate_cache_async(
         )
 
 
+@instrument_lambda
 def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Lambda handler for cache invalidation.
 
