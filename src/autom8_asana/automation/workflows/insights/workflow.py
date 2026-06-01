@@ -118,6 +118,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         asana_client: Any,  # AsanaClient (TYPE_CHECKING avoids circular)
         data_client: DataServiceClient,
         attachments_client: AttachmentsClient,
+        preview_dir: pathlib.Path | str | None = None,
     ) -> None:
         super().__init__(asana_client, data_client, attachments_client)
         # Narrow type for mypy: base class stores DataSource | None,
@@ -130,6 +131,14 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         self._offer_to_business: dict[str, str | None] = {}
         # Actual cache hit counter (per F-13: replaces derived formula)
         self._cache_hits: int = 0
+        # Dry-run preview output directory. Injectable so concurrent dry-runs
+        # (and xdist-parallel tests) target distinct, non-colliding directories
+        # instead of one shared cwd-relative path whose deterministic filename
+        # (insights_export_{business}_{date}.html) races write_text/read under
+        # -n auto. Defaults to cwd-relative .wip for the operator-local preview.
+        self._preview_dir: pathlib.Path = (
+            pathlib.Path(preview_dir) if preview_dir is not None else pathlib.Path(".wip")
+        )
 
     @property
     def workflow_id(self) -> str:  # type: ignore[override]  # read-only property overrides base attribute
@@ -552,8 +561,8 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                 )
             else:
                 # Write full HTML to local preview file for validation
-                preview_dir = pathlib.Path(".wip")
-                preview_dir.mkdir(exist_ok=True)
+                preview_dir = self._preview_dir
+                preview_dir.mkdir(parents=True, exist_ok=True)
                 local_path = preview_dir / filename
                 local_path.write_text(report_content, encoding="utf-8")
                 preview_path = str(local_path)
