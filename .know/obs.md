@@ -416,7 +416,7 @@ No Grafana dashboards, CloudWatch dashboards, or other dashboard definitions fou
 |---|---|---|---|---|
 | OBS-EXPORTS-001 | `api/routes/exports.py`, `api/routes/_exports_helpers.py` | P2 | 2026-06-15 (38 days) | OPEN — unaddressed in SHA 8980bcd7 |
 | H-006 | `src/autom8_asana/automation/workflows/bridge_base.py:191-195` | P3 | Unknown | OPEN — `trace_computation` not available in 0.6.1; inline TODO persists at SHA 8980bcd7 |
-| LAMBDA-OBS-001 | 10 of 13 Lambda handlers (no `autom8y_telemetry` span instrumentation) | P3 | None declared | OPEN — CloudWatch only |
+| LAMBDA-OBS-001 | Lambda entry-point handlers (OTel span instrumentation) | P3 | None declared | RESOLVED-in-repo 2026-06-02 (PR #86) — denominator corrected: prior "10 of 13" counted 7 non-entry-point service modules; real scope = 6 of 6 entry-point handlers instrumented (cache_warmer direct, workflow_handler factory, conversation_audit/insights_export/payment_reconciliation transitive via `create_workflow_handler`, cache_invalidate added PR #86). See `.ledge/decisions/SRE-VERDICT-lambda-obs-001-2026-06-01.md` |
 | LOG-TRACE-LAMBDA | Lambda handlers: `add_otel_trace_ids` not wired | P3 | None declared | OPEN |
 | SAMPLING-UNDOC | No `OTEL_TRACES_SAMPLER` env var configured | P3 | None declared | OPEN |
 | SLO-API-SURFACE | Zero ECS/API SLOs defined | P2 | None declared | OPEN |
