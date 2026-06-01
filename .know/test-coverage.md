@@ -128,6 +128,45 @@ Packages with no integration or validation tests: `auth`, `core`, `models`, `met
 - Async tests: `async def test_*` used broadly
 - Class-based pattern used for grouping related contract assertions and behavior-preservation clusters
 
+#### Async-native migration pattern (B7 Sprint-1, 2026-06-01)
+
+Canonical mechanical transform for `def test_X(self) -> None: asyncio.run(coro)` sites whose production target is `async def`:
+
+1. `def test_X(self, ...) -> None:` -> `async def test_X(self, ...) -> None:`
+2. `asyncio.run(<expr>)` -> `await <expr>`
+3. `with pytest.raises(...): asyncio.run(coro)` -> `with pytest.raises(...): await coro`
+4. Drop orphaned `import asyncio` to satisfy ruff F401.
+5. Do NOT add `@pytest.mark.asyncio` — auto-mode (`pyproject.toml:99`) is the standard.
+6. Production source MUST remain untouched; any `src/` diff signals scope drift.
+
+First landed at `tests/unit/lifecycle/test_observation.py:235` and `tests/unit/lifecycle/test_observation.py:244` (TestStageTransitionEmitter); production target `src/autom8_asana/lifecycle/observation.py:160` (`async def emit`) is unchanged. Exit-gate evidence: test ID parity (18 collected pre/post), `git diff main..HEAD -- src/` = 0 bytes, ruff/mypy clean.
+
+Intentional `asyncio.run` pins (DO NOT MIGRATE — they exercise specific guard behavior or sit in docstrings/comments):
+
+- `tests/unit/dataframes/test_freshness_verification_recency.py:736-760` (sync-context guard semantic test)
+- `tests/unit/patterns/test_async_method.py:92` (`test_sync_in_async_context_raises` — deliberately invokes sync API inside a running loop)
+- `tests/unit/dataframes/test_public_api.py:278` (docstring reference only — describes async wrapper behavior)
+- `tests/unit/models/business/test_resolution.py:777,786` (docstring references in `TestBatchResolutionSyncWrappers` — text-only descriptions of `asyncio.run` usage in production sync wrappers)
+- `tests/unit/models/business/test_resolution.py:780-782` (inline `# Note:` comment explaining why the sync wrapper cannot be exercised inside an event loop)
+
+#### Dual-surface anti-pattern (DO-NOT-MIGRATE class)
+
+When a test method exercises BOTH the sync wrapper AND the async variant of an `@async_method`-decorated function within the same body, the canonical 6-rule transform is mechanically inapplicable. The sync wrapper raises `SyncInAsyncContextError` (production guard at `src/autom8_asana/patterns/async_method.py:132-137`) when invoked from a running event loop. Migrating `def test_X` → `async def test_X` puts the entire body in a running loop, so any sync-wrapper call would trigger the guard and invert the test's semantic intent.
+
+**Detection heuristic**: grep the body of each `def test_X` for both `*_async(` (async variant) AND a corresponding sync invocation. If both present, the site is DO-NOT-MIGRATE.
+
+Known dual-surface pins (10 sites in `tests/unit/patterns/test_async_method.py`):
+
+- `test_with_kwargs:141` + sync call at L145
+- `test_with_multiple_args:159` + sync call at L162
+- `test_void_return:180` + sync call at L184
+- `test_exception_propagation:203` + sync call at L207
+- `test_stacked_with_mock_error_handler:272` + sync call at L280
+- `test_client_pattern_simulation:346,355,360` + sync calls at L351,L363
+- `test_inheritance_works:383,387` + sync calls at L384,L388
+
+See `.sos/wip/10x-dev/B7-INVENTORY-FILE-5-REVISED-2026-06-01.md` for the full per-site SVR-grade audit. Sprint-3 originally HALTED on this defect; the revised inventory landed alongside the single safely-migrable site (`test_async_behavior_correct:58`).
+
 ### Markers
 
 | Marker | Count | Meaning |
