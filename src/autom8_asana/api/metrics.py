@@ -244,6 +244,134 @@ def record_receiver_query_outcome(entity_type: str, success: bool) -> None:
     RECEIVER_QUERY_OUTCOME.labels(entity_type=entity_type, outcome=outcome).inc()
 
 
+# --- OBS-EXPORTS-001 exports-route metrics (SRE OB2 sprint) ---
+# Per .know/obs.md OBS-EXPORTS-001 symptom list. These emit from the
+# ``export_handler`` request span seam (api/routes/exports.py), reusing the OB2
+# span locals (row_count_pre_dedup, row_count_post_dedup, identity_suppressed_count,
+# default_section_applied, date_filter_expr, entity_type, format) plus an additive
+# time.perf_counter() duration read. Emission is ADDITIVE — no pipeline step,
+# helper, or engine surface is altered. SLO targets + burn-rate alert rules live
+# in the autom8y MONOREPO Terraform (asana has 0 .tf) and are OUT of scope here.
+#
+# Boolean labels are stringified "true"/"false" per Prometheus convention (low
+# cardinality; date_filter_applied / section_default_applied are bool seam reads).
+
+# Latency SLI substrate — per-request handler duration, labeled by entity_type
+# and format. Histogram so server-side p50/p95/p99 are derivable (averages are
+# never valid for latency monitoring). Buckets span sub-second hot path through
+# the multi-project / large-export tail.
+EXPORTS_REQUEST_DURATION = Histogram(
+    "autom8y_asana_exports_request_duration_seconds",
+    "End-to-end export_handler duration (entity validation through serialization)",
+    labelnames=["entity_type", "format"],
+    buckets=(0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0),
+)
+
+# Predicate-split traffic + outcome shape. One increment per successful export,
+# labeled by whether the date-op split produced a filter and whether the
+# ACTIVE-default section was injected. Drives the "what shape of request are we
+# serving?" panel without recomputing anything (labels are the existing seam
+# locals already written as span attributes).
+EXPORTS_PREDICATE_SPLIT_OUTCOME = Counter(
+    "autom8y_asana_exports_predicate_split_outcome_total",
+    "Successful exports split by date-filter-applied and section-default-applied",
+    labelnames=["entity_type", "date_filter_applied", "section_default_applied"],
+)
+
+# Identity-suppression volume. Counter incremented by the per-request suppressed
+# row count (identity_suppressed_count) so operators can see how many rows the
+# null-key suppression removed across the fleet, per entity arm.
+EXPORTS_IDENTITY_ROWS_SUPPRESSED = Counter(
+    "autom8y_asana_exports_identity_rows_suppressed_total",
+    "Rows removed by null-identity suppression (include_incomplete_identity=False)",
+    labelnames=["entity_type"],
+)
+
+# Pre/post-dedup row distribution. Two observe() calls per request labeled
+# stage=pre_dedup / stage=post_dedup — the OBS-EXPORTS-001 symptom-list pre/post
+# rows histogram. Bucket boundaries span single-row through large multi-project
+# account-grain exports.
+EXPORTS_ROWS = Histogram(
+    "autom8y_asana_exports_rows",
+    "Export row counts observed pre- and post-dedup (stage label distinguishes)",
+    labelnames=["entity_type", "stage"],
+    buckets=(1, 10, 50, 100, 500, 1000, 5000, 10000, 50000),
+)
+
+# NOTE — exports_format_negotiation_fallback_total is DROPPED per the approved
+# contract (in_scope=false). No format-fallback seam exists: ``_format_dataframe_response``
+# branches deterministically on the Pydantic-validated Literal["json","csv","parquet"]
+# selector, and export_handler passes accept=None so the content-negotiation branch
+# is never reached. served_format always equals requested_format; emitting it would
+# fabricate a vanity metric with no real source seam (vanity-metrics anti-pattern).
+
+
+def record_exports_request_duration(
+    entity_type: str,
+    export_format: str,
+    duration_seconds: float,
+) -> None:
+    """Observe one export_handler request duration.
+
+    Args:
+        entity_type: ``request_body.entity_type``.
+        export_format: ``request_body.format`` (json | csv | parquet).
+        duration_seconds: ``time.perf_counter()`` delta across the handler body.
+    """
+    EXPORTS_REQUEST_DURATION.labels(
+        entity_type=entity_type,
+        format=export_format,
+    ).observe(duration_seconds)
+
+
+def record_exports_predicate_split(
+    entity_type: str,
+    *,
+    date_filter_applied: bool,
+    section_default_applied: bool,
+) -> None:
+    """Record a successful export's predicate-split outcome shape.
+
+    Bool labels are stringified lowercase ("true"/"false") per Prometheus
+    convention. Values are the existing handler-space seam locals (already
+    written as OB2 span attributes); nothing is recomputed.
+    """
+    EXPORTS_PREDICATE_SPLIT_OUTCOME.labels(
+        entity_type=entity_type,
+        date_filter_applied=str(date_filter_applied).lower(),
+        section_default_applied=str(section_default_applied).lower(),
+    ).inc()
+
+
+def record_exports_identity_rows_suppressed(
+    entity_type: str,
+    suppressed_count: int,
+) -> None:
+    """Increment the identity-suppressed-rows counter by ``suppressed_count``.
+
+    Args:
+        entity_type: ``request_body.entity_type``.
+        suppressed_count: ``identity_suppressed_count`` (height_pre - height_post
+            of the unchanged ``filter_incomplete_identity`` call). A zero count
+            is a no-op increment.
+    """
+    EXPORTS_IDENTITY_ROWS_SUPPRESSED.labels(entity_type=entity_type).inc(suppressed_count)
+
+
+def record_exports_rows(
+    entity_type: str,
+    row_count_pre_dedup: int,
+    row_count_post_dedup: int,
+) -> None:
+    """Observe pre- and post-dedup row counts for one export.
+
+    Emits two observations labeled ``stage=pre_dedup`` / ``stage=post_dedup`` from
+    the existing OB2 span locals (``row_count_pre_dedup`` / ``row_count_post_dedup``).
+    """
+    EXPORTS_ROWS.labels(entity_type=entity_type, stage="pre_dedup").observe(row_count_pre_dedup)
+    EXPORTS_ROWS.labels(entity_type=entity_type, stage="post_dedup").observe(row_count_post_dedup)
+
+
 # --- Concrete MetricsEmitter Implementation ---
 # Satisfies protocols.metrics.MetricsEmitter via structural typing.
 
