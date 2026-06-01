@@ -128,6 +128,25 @@ Packages with no integration or validation tests: `auth`, `core`, `models`, `met
 - Async tests: `async def test_*` used broadly
 - Class-based pattern used for grouping related contract assertions and behavior-preservation clusters
 
+#### Async-native migration pattern (B7 Sprint-1, 2026-06-01)
+
+Canonical mechanical transform for `def test_X(self) -> None: asyncio.run(coro)` sites whose production target is `async def`:
+
+1. `def test_X(self, ...) -> None:` -> `async def test_X(self, ...) -> None:`
+2. `asyncio.run(<expr>)` -> `await <expr>`
+3. `with pytest.raises(...): asyncio.run(coro)` -> `with pytest.raises(...): await coro`
+4. Drop orphaned `import asyncio` to satisfy ruff F401.
+5. Do NOT add `@pytest.mark.asyncio` — auto-mode (`pyproject.toml:99`) is the standard.
+6. Production source MUST remain untouched; any `src/` diff signals scope drift.
+
+First landed at `tests/unit/lifecycle/test_observation.py:235` and `tests/unit/lifecycle/test_observation.py:244` (TestStageTransitionEmitter); production target `src/autom8_asana/lifecycle/observation.py:160` (`async def emit`) is unchanged. Exit-gate evidence: test ID parity (18 collected pre/post), `git diff main..HEAD -- src/` = 0 bytes, ruff/mypy clean.
+
+Intentional `asyncio.run` pins (DO NOT MIGRATE — they exercise specific guard behavior or sit in docstrings):
+
+- `tests/unit/dataframes/test_freshness_verification_recency.py:736-760`
+- `tests/unit/patterns/test_async_method.py:92` (`test_sync_in_async_context_raises` — deliberately invokes sync API inside a running loop)
+- `tests/unit/dataframes/test_public_api.py:278` (docstring reference only)
+
 ### Markers
 
 | Marker | Count | Meaning |
