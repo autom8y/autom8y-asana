@@ -37,6 +37,7 @@ strategy ``_get_dataframe`` surface and applies post-load transformations
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Any, Literal
 
 from autom8y_log import get_logger
@@ -51,6 +52,12 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
     RequestId,
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.metrics import (
+    record_exports_identity_rows_suppressed,
+    record_exports_predicate_split,
+    record_exports_request_duration,
+    record_exports_rows,
+)
 from autom8_asana.api.models import ExportsSuccessResponse
 from autom8_asana.api.routes._exports_helpers import (
     InvalidSectionError,
@@ -347,6 +354,11 @@ async def export_handler(
         record_exception=False,
         set_status_on_exception=False,
     ) as span:
+        # OBS-EXPORTS-001 metric seam: additive request-duration start. Captured
+        # at handler entry; the delta is observed at the single success exit
+        # (immediately before _format_dataframe_response). Error paths
+        # (raise_api_error, FROZEN) exit before that point and are not timed.
+        _t0 = time.perf_counter()
         # 1. Entity validation
         try:
             entity_service.validate_entity_type(request_body.entity_type)  # type: ignore[attr-defined]
@@ -532,6 +544,24 @@ async def export_handler(
         span.set_attribute("section_default_applied", default_section_applied)
         span.set_attribute("identity_suppressed_count", identity_suppressed_count)
 
+        # OBS-EXPORTS-001 metric emission — ADDITIVE. Each value is a read of an
+        # existing OB2 span local (the same values written as span attributes
+        # just above); nothing is recomputed and no pipeline step is altered.
+        record_exports_predicate_split(
+            request_body.entity_type,
+            date_filter_applied=date_filter_expr is not None,
+            section_default_applied=default_section_applied,
+        )
+        record_exports_identity_rows_suppressed(
+            request_body.entity_type,
+            identity_suppressed_count,
+        )
+        record_exports_rows(
+            request_body.entity_type,
+            row_count_pre_dedup,
+            row_count_post_dedup,
+        )
+
         logger.info(
             "exports_handler_complete",
             extra={
@@ -544,6 +574,14 @@ async def export_handler(
                 "predicate_join_semantics": predicate_join_semantics,
                 "include_incomplete_identity": request_body.options.include_incomplete_identity,
             },
+        )
+
+        # OBS-EXPORTS-001 metric emission — additive request duration. perf_counter
+        # delta across the handler body, observed at the single success exit.
+        record_exports_request_duration(
+            request_body.entity_type,
+            request_body.format,
+            time.perf_counter() - _t0,
         )
 
         # 11. Format negotiation (eager DataFrame → response, ESC-3 measurement here)
