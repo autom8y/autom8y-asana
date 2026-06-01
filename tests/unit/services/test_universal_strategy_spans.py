@@ -19,7 +19,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
-from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
@@ -45,7 +44,13 @@ def otel_provider():
     exporter = InMemorySpanExporter()
     provider = TracerProvider()
     provider.add_span_processor(SimpleSpanProcessor(exporter))
-    trace.set_tracer_provider(provider)
+    # Do NOT call trace.set_tracer_provider(provider) here: OTel's API
+    # documents this as a once-only operation ("This can only be done once, a
+    # warning will be logged if any further attempt is made"). Multiple test
+    # fixtures calling it race-fail silently, leaving later tests bound to the
+    # first fixture's provider and producing empty exporters. Patching the
+    # module-local _tracer below is sufficient: spans emitted via that tracer
+    # are processed by THIS provider's SpanProcessor (the local exporter).
 
     fresh_tracer = provider.get_tracer("autom8_asana.services.universal_strategy")
     original_tracer = _strategy_module._tracer

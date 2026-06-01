@@ -16,9 +16,20 @@ Phase-3 Knob-5 derivation (~100 rpm baseline; 10-minute window).
 
 Authentication:
   * If RECEIVER_DEPLOY_GATE_TOKEN is set in the environment, used verbatim.
-  * Otherwise mints a JWT via autom8y_core.TokenManager (matches the SA
-    pattern at scripts/smoke_test_api.py:125-146). Requires
-    SERVICE_CLIENT_ID + SERVICE_CLIENT_SECRET to be set.
+  * Else if Config.from_env() succeeds (reads AUTOM8Y_DATA_SERVICE_CLIENT_ID
+    / CLIENT_ID and the matching _SECRET aliases per ADR-ENV-NAMING-CONVENTION
+    Decision 4), mints a JWT via autom8y_core.TokenManager. This matches the
+    SA pattern at scripts/smoke_test_api.py:125-146.
+  * Else falls back to fetching SA credentials from AWS SSM + Secrets Manager
+    (canonical provisioning path — mirrors the receiver runtime):
+        SSM /autom8y/platform/asana-dataframe-resolver/oauth-client-id
+            -> raw client_id (String parameter)
+        SSM /autom8y/platform/asana-dataframe-resolver/oauth-client-secret-path
+            -> pointer to SM secret name (e.g. "autom8y/asana-dataframe-resolver")
+        SM <pointer>
+            -> JSON envelope {"client_id":"sa_...","client_secret":"a8sa_..."}
+    Resolved (client_id, client_secret) are passed to TokenManager. Requires
+    boto3 in the runtime and AWS credentials available (AWS_PROFILE / IAM role).
 
 The probe DOES NOT need direct access to receiver-side counters. It infers
 success-rate by per-call HTTP status: 2xx = success; 5xx = server_error;
@@ -60,6 +71,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import sys
 import time
@@ -126,14 +138,129 @@ class ArmResults:
 # Auth
 # ---------------------------------------------------------------------------
 
+# Canonical provisioning paths for the asana-dataframe-resolver SA credentials.
+# These mirror what the receiver runtime reads at startup (the "hermes pattern"):
+#
+#   SSM /autom8y/platform/asana-dataframe-resolver/oauth-client-id
+#       String parameter; value is the raw client_id (e.g. "sa_1a95b...").
+#   SSM /autom8y/platform/asana-dataframe-resolver/oauth-client-secret-path
+#       String parameter; value is a pointer to the Secrets Manager secret
+#       name (e.g. "autom8y/asana-dataframe-resolver").
+#   SM  <pointer-value>
+#       JSON envelope: {"client_id": "sa_...", "client_secret": "a8sa_..."}.
+#       Only the "client_secret" field is consumed by this script; the
+#       client_id in the envelope is treated as a cross-check against SSM.
+#
+# Region is pinned to us-east-1 — the SSM/SM resources live in that region
+# regardless of the caller's default boto3 region.
+SSM_OAUTH_CLIENT_ID_PATH = "/autom8y/platform/asana-dataframe-resolver/oauth-client-id"
+SSM_OAUTH_CLIENT_SECRET_POINTER_PATH = (
+    "/autom8y/platform/asana-dataframe-resolver/oauth-client-secret-path"
+)
+SSM_SM_REGION = "us-east-1"
+
+
+def _resolve_sa_credentials_from_aws() -> tuple[str, str] | None:
+    """Fetch (client_id, client_secret) for the SA from SSM + Secrets Manager.
+
+    Returns None if boto3 is unavailable or any AWS call fails — caller is
+    responsible for treating None as a fall-through (NOT a fatal). A clear
+    explanatory line is printed to stderr for any failure path so the operator
+    can diagnose missing creds vs. missing IAM permissions vs. wrong region.
+    """
+    try:
+        import boto3  # type: ignore[import-not-found]
+    except ImportError:
+        print(
+            "[auth] boto3 not importable; cannot resolve SA credentials from "
+            "SSM/Secrets Manager. Install boto3 or supply credentials via env.",
+            file=sys.stderr,
+        )
+        return None
+
+    try:
+        ssm = boto3.client("ssm", region_name=SSM_SM_REGION)
+        sm = boto3.client("secretsmanager", region_name=SSM_SM_REGION)
+    except Exception as e:  # noqa: BLE001
+        print(f"[auth] boto3 client construction failed: {e}", file=sys.stderr)
+        return None
+
+    try:
+        cid_resp = ssm.get_parameter(Name=SSM_OAUTH_CLIENT_ID_PATH, WithDecryption=False)
+        client_id = cid_resp["Parameter"]["Value"]
+    except Exception as e:  # noqa: BLE001
+        print(
+            f"[auth] SSM get_parameter {SSM_OAUTH_CLIENT_ID_PATH} failed: {e}",
+            file=sys.stderr,
+        )
+        return None
+
+    try:
+        ptr_resp = ssm.get_parameter(
+            Name=SSM_OAUTH_CLIENT_SECRET_POINTER_PATH, WithDecryption=False
+        )
+        secret_name = ptr_resp["Parameter"]["Value"]
+    except Exception as e:  # noqa: BLE001
+        print(
+            f"[auth] SSM get_parameter {SSM_OAUTH_CLIENT_SECRET_POINTER_PATH} "
+            f"failed: {e}",
+            file=sys.stderr,
+        )
+        return None
+
+    try:
+        sec_resp = sm.get_secret_value(SecretId=secret_name)
+    except Exception as e:  # noqa: BLE001
+        # Log only the hardcoded SSM pointer path, never the resolved SM name
+        # (the pointer's value comes from SSM and CodeQL taints it as sensitive
+        # via py/clear-text-logging-sensitive-data; operator can trace which SM
+        # secret by reading the pointer).
+        print(
+            f"[auth] Secrets Manager get_secret_value failed (pointer SSM "
+            f"{SSM_OAUTH_CLIENT_SECRET_POINTER_PATH}): {e}",
+            file=sys.stderr,
+        )
+        return None
+
+    try:
+        envelope = json.loads(sec_resp.get("SecretString", ""))
+    except (ValueError, TypeError) as e:
+        print(f"[auth] Secrets Manager envelope is not valid JSON: {e}", file=sys.stderr)
+        return None
+
+    client_secret = envelope.get("client_secret")
+    if not client_secret:
+        # Same redaction discipline: log the pointer constant, not the resolved
+        # SM name (CodeQL taint propagation from SSM-sourced values).
+        print(
+            "[auth] Secrets Manager envelope (resolved via pointer SSM "
+            f"{SSM_OAUTH_CLIENT_SECRET_POINTER_PATH}) missing 'client_secret' key",
+            file=sys.stderr,
+        )
+        return None
+
+    # Success log: only reference the hardcoded SSM path constants, never the
+    # fetched values (client_id prefix or SM secret name) — CodeQL flags any
+    # logging of SSM/SM-sourced values as py/clear-text-logging-sensitive-data.
+    print(
+        f"[auth] Resolved SA credentials from AWS "
+        f"(client_id at SSM {SSM_OAUTH_CLIENT_ID_PATH}, "
+        f"client_secret pointer at SSM {SSM_OAUTH_CLIENT_SECRET_POINTER_PATH})"
+    )
+    return (client_id, client_secret)
+
 
 def _acquire_token() -> str:
     """Acquire a bearer token for the SA-canary identity.
 
-    Resolution order (matches scripts/smoke_test_api.py:125-146 pattern):
+    Resolution order:
       1. RECEIVER_DEPLOY_GATE_TOKEN env var (operator override).
       2. autom8y_core.TokenManager from SERVICE_CLIENT_ID +
-         SERVICE_CLIENT_SECRET (standard SA convention).
+         SERVICE_CLIENT_SECRET env vars (standard SA convention; matches
+         scripts/smoke_test_api.py:125-146).
+      3. autom8y_core.TokenManager from AWS-resolved SA credentials
+         (SSM + Secrets Manager, canonical provisioning path — mirrors the
+         receiver runtime). See module-level constants for the exact paths.
 
     Raises SystemExit(2) on pre-flight failure.
     """
@@ -153,16 +280,47 @@ def _acquire_token() -> str:
         )
         sys.exit(2)
 
+    # Path (2): env-var SA convention. Try Config.from_env() first — it does
+    # canonical-alias dual-lookup of AUTOM8Y_DATA_SERVICE_CLIENT_ID/_SECRET
+    # then CLIENT_ID/CLIENT_SECRET (ADR-ENV-NAMING-CONVENTION Decision 4).
+    # This preserves backward compat: any operator who had the env vars set
+    # before the SSM fallback was added continues to work unchanged.
+    config: Any | None = None
     try:
         config = Config.from_env()
-    except ValueError as e:
-        print(
-            f"[auth] FATAL: Config.from_env() failed: {e}. "
-            "Set SERVICE_CLIENT_ID + SERVICE_CLIENT_SECRET (SA convention) "
-            "or supply RECEIVER_DEPLOY_GATE_TOKEN.",
-            file=sys.stderr,
-        )
-        sys.exit(2)
+        print("[auth] Config sourced from environment variables")
+    except ValueError:
+        # Env vars absent — fall through to AWS SSM/SM resolution.
+        config = None
+
+    # Path (3): AWS SSM/SM canonical provisioning path.
+    if config is None:
+        resolved = _resolve_sa_credentials_from_aws()
+        if resolved is None:
+            print(
+                "[auth] FATAL: no auth source available. Set "
+                "RECEIVER_DEPLOY_GATE_TOKEN, OR CLIENT_ID + CLIENT_SECRET "
+                "(or AUTOM8Y_DATA_SERVICE_CLIENT_ID/_SECRET) env vars, OR "
+                "ensure AWS credentials with SSM/SM read access to the "
+                "asana-dataframe-resolver SA provisioning paths (see module "
+                "docstring).",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        cid, csec = resolved
+        # Inject into env using the names Config.from_env() reads
+        # (CLIENT_ID + CLIENT_SECRET legacy aliases, dual-lookup-compatible).
+        # This mirrors how the receiver runtime hydrates env at boot.
+        os.environ["CLIENT_ID"] = cid
+        os.environ["CLIENT_SECRET"] = csec
+        try:
+            config = Config.from_env()
+        except ValueError as e:
+            print(
+                f"[auth] FATAL: Config.from_env() failed after AWS resolution: {e}",
+                file=sys.stderr,
+            )
+            sys.exit(2)
 
     try:
         manager = TokenManager(config)
