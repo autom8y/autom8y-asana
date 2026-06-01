@@ -622,9 +622,7 @@ async def api_dataframe_build_error_handler(
     # retry_after_seconds. Source-of-truth is exc.details; body field remains
     # for backward compatibility with consumers that parse the envelope.
     headers: dict[str, str] | None = None
-    retry_after_seconds = (
-        exc.details.get("retry_after_seconds") if exc.details else None
-    )
+    retry_after_seconds = exc.details.get("retry_after_seconds") if exc.details else None
     if retry_after_seconds is not None:
         headers = {"Retry-After": str(retry_after_seconds)}
 

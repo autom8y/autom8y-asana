@@ -54,12 +54,12 @@ def _make_jwt(payload: dict[str, object]) -> str:
     signature/audience/expiry — that happens later in the route auth
     dependency). Tests fabricate the payload to control identity claims.
     """
-    header = base64.urlsafe_b64encode(
-        json.dumps({"alg": "RS256", "typ": "JWT"}).encode()
-    ).rstrip(b"=").decode()
-    body = base64.urlsafe_b64encode(
-        json.dumps(payload).encode()
-    ).rstrip(b"=").decode()
+    header = (
+        base64.urlsafe_b64encode(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
+        .rstrip(b"=")
+        .decode()
+    )
+    body = base64.urlsafe_b64encode(json.dumps(payload).encode()).rstrip(b"=").decode()
     signature = "ZmFrZS1zaWctZm9yLXVuaXQtdGVzdA"  # base64url, no padding
     return f"{header}.{body}.{signature}"
 
@@ -103,10 +103,14 @@ def _make_sa_service_token_payload(
         Dict matching ServiceTokenPayload shape suitable for ``_make_jwt``.
     """
     scopes = scopes if scopes is not None else ["admin:internal"]
-    permissions = permissions if permissions is not None else [
-        "data:read",
-        "data:write",
-    ]
+    permissions = (
+        permissions
+        if permissions is not None
+        else [
+            "data:read",
+            "data:write",
+        ]
+    )
     payload: dict[str, object] = {
         "sub": str(uuid.uuid4()),  # sa.id UUID — opaque, not used for routing
         "iss": "https://auth.api.autom8y.io",
@@ -131,9 +135,7 @@ def _make_sa_service_token_payload(
 def _make_request_with_auth(token: str | None = None) -> MagicMock:
     """Construct a minimal FastAPI Request stub for the rate-limit key func."""
     req = MagicMock()
-    req.headers = (
-        {"authorization": f"Bearer {token}"} if token else {}
-    )
+    req.headers = {"authorization": f"Bearer {token}"} if token else {}
     # get_remote_address inspects request.client.host
     req.client = SimpleNamespace(host="127.0.0.1")
     req.scope = {"type": "http", "client": ("127.0.0.1", 12345), "headers": []}
@@ -287,9 +289,7 @@ class TestSurfaceERateLimitSAExemption:
             _get_rate_limit_key,
         )
 
-        sa_jwt = _make_jwt(
-            _make_sa_service_token_payload(yaml_id="asana-dataframe-resolver")
-        )
+        sa_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id="asana-dataframe-resolver"))
         request = _make_request_with_auth(sa_jwt)
 
         key = _get_rate_limit_key(request)
@@ -330,9 +330,7 @@ class TestSurfaceERateLimitSAExemption:
         """
         from autom8_asana.api.rate_limit import _get_rate_limit_key
 
-        other_jwt = _make_jwt(
-            _make_sa_service_token_payload(yaml_id="some-other-sa")
-        )
+        other_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id="some-other-sa"))
         request = _make_request_with_auth(other_jwt)
 
         key = _get_rate_limit_key(request)
@@ -416,18 +414,14 @@ class TestSurfaceERateLimitSAExemption:
         """
         from autom8_asana.api.rate_limit import _is_sa_token
 
-        sa_jwt = _make_jwt(
-            _make_sa_service_token_payload(yaml_id="asana-dataframe-resolver")
-        )
+        sa_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id="asana-dataframe-resolver"))
         assert _is_sa_token(f"Bearer {sa_jwt}") is True
 
     def test_is_sa_token_rejects_non_sa_jwt(self) -> None:
         """_is_sa_token returns False for JWTs with other service_account_id."""
         from autom8_asana.api.rate_limit import _is_sa_token
 
-        other_jwt = _make_jwt(
-            _make_sa_service_token_payload(yaml_id="some-other-service")
-        )
+        other_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id="some-other-service"))
         assert _is_sa_token(f"Bearer {other_jwt}") is False
 
     def test_is_sa_token_rejects_pat(self) -> None:
@@ -462,11 +456,13 @@ class TestSurfaceERateLimitSAExemption:
 
         # Synthesize a "wrong-shape" token that ONLY carries the legacy
         # mis-named key — what the broken implementation would have matched.
-        wrong_shape_jwt = _make_jwt({
-            "sub": "service-account-uuid",
-            "service_name": "asana-dataframe-resolver",  # NOT a real JWT claim
-            "iss": "auth.api.autom8y.io",
-        })
+        wrong_shape_jwt = _make_jwt(
+            {
+                "sub": "service-account-uuid",
+                "service_name": "asana-dataframe-resolver",  # NOT a real JWT claim
+                "iss": "auth.api.autom8y.io",
+            }
+        )
         request = _make_request_with_auth(wrong_shape_jwt)
 
         key = _get_rate_limit_key(request)
@@ -493,9 +489,7 @@ class TestSurfaceERateLimitSAExemption:
         from autom8_asana.api.rate_limit import _get_rate_limit_key
 
         # yaml_id=None simulates a db_fallback issuance.
-        db_fallback_jwt = _make_jwt(
-            _make_sa_service_token_payload(yaml_id=None)
-        )
+        db_fallback_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id=None))
         request = _make_request_with_auth(db_fallback_jwt)
 
         key = _get_rate_limit_key(request)
@@ -512,11 +506,13 @@ class TestSurfaceERateLimitSAExemption:
         """
         from autom8_asana.api.rate_limit import _get_rate_limit_key
 
-        no_identity_jwt = _make_jwt({
-            "sub": str(uuid.uuid4()),
-            "iss": "https://auth.api.autom8y.io",
-            "exp": 9999999999,
-        })
+        no_identity_jwt = _make_jwt(
+            {
+                "sub": str(uuid.uuid4()),
+                "iss": "https://auth.api.autom8y.io",
+                "exp": 9999999999,
+            }
+        )
         request = _make_request_with_auth(no_identity_jwt)
 
         key = _get_rate_limit_key(request)
@@ -625,19 +621,14 @@ class TestSurfaceABuildOnMissWiring:
             key = ("proj-A", "project")
             # Fire 5 concurrent build_or_wait_async on the SAME key.
             results = await asyncio.gather(
-                *[
-                    coord.build_or_wait_async(key, fake_build, caller=f"w{i}")
-                    for i in range(5)
-                ]
+                *[coord.build_or_wait_async(key, fake_build, caller=f"w{i}") for i in range(5)]
             )
 
             # Exactly one BUILT, the other 4 COALESCED.
             from autom8_asana.cache.dataframe.build_coordinator import BuildOutcome
 
             built_count = sum(1 for r in results if r.outcome == BuildOutcome.BUILT)
-            coalesced_count = sum(
-                1 for r in results if r.outcome == BuildOutcome.COALESCED
-            )
+            coalesced_count = sum(1 for r in results if r.outcome == BuildOutcome.COALESCED)
             assert built_count == 1, f"Expected 1 BUILT, got {built_count}"
             assert coalesced_count == 4, f"Expected 4 COALESCED, got {coalesced_count}"
             # build_fn invoked exactly once despite 5 callers.
@@ -723,13 +714,9 @@ class TestSurface5StageOneMetrics:
             record_cache_lookup,
         )
 
-        before = CACHE_LOOKUP_OUTCOME.labels(
-            entity_type="project", outcome="hit"
-        )._value.get()
+        before = CACHE_LOOKUP_OUTCOME.labels(entity_type="project", outcome="hit")._value.get()
         record_cache_lookup("project", hit=True)
-        after = CACHE_LOOKUP_OUTCOME.labels(
-            entity_type="project", outcome="hit"
-        )._value.get()
+        after = CACHE_LOOKUP_OUTCOME.labels(entity_type="project", outcome="hit")._value.get()
 
         assert after == before + 1
 
@@ -740,13 +727,9 @@ class TestSurface5StageOneMetrics:
             record_cache_lookup,
         )
 
-        before = CACHE_LOOKUP_OUTCOME.labels(
-            entity_type="section", outcome="miss"
-        )._value.get()
+        before = CACHE_LOOKUP_OUTCOME.labels(entity_type="section", outcome="miss")._value.get()
         record_cache_lookup("section", hit=False)
-        after = CACHE_LOOKUP_OUTCOME.labels(
-            entity_type="section", outcome="miss"
-        )._value.get()
+        after = CACHE_LOOKUP_OUTCOME.labels(entity_type="section", outcome="miss")._value.get()
 
         assert after == before + 1
 
@@ -805,9 +788,7 @@ class TestSurface5StageOneMetrics:
             entity_type="project", outcome="success"
         )._value.get()
         record_receiver_query_outcome("project", success=True)
-        after = RECEIVER_QUERY_OUTCOME.labels(
-            entity_type="project", outcome="success"
-        )._value.get()
+        after = RECEIVER_QUERY_OUTCOME.labels(entity_type="project", outcome="success")._value.get()
 
         assert after == before + 1
 
@@ -846,9 +827,7 @@ class TestSurface5RateLimit429NamespaceHandler:
         # Build an app + request with a production-shape SA JWT.
         # FG-1 fix: use service_account_id (the real claim), not the
         # synthesized service_name key that the broken sprint-1 read.
-        sa_jwt = _make_jwt(
-            _make_sa_service_token_payload(yaml_id="asana-dataframe-resolver")
-        )
+        sa_jwt = _make_jwt(_make_sa_service_token_payload(yaml_id="asana-dataframe-resolver"))
 
         # SlowAPI's default handler inspects request.app.state.limiter and
         # request.state.view_rate_limit. Provide minimal stubs that let
@@ -933,10 +912,7 @@ class TestFG6BuildCoordinatorBroadExceptionHandling:
 
         # 3 concurrent same-key cold misses: 1 builds (and fails), 2 coalesce.
         results = await asyncio.gather(
-            *[
-                coord.build_or_wait_async(key, failing_build, caller=f"w{i}")
-                for i in range(3)
-            ]
+            *[coord.build_or_wait_async(key, failing_build, caller=f"w{i}") for i in range(3)]
         )
 
         elapsed = asyncio.get_event_loop().time() - start
@@ -980,9 +956,7 @@ class TestFG6BuildCoordinatorBroadExceptionHandling:
         key = ("proj-fg6-B", "project")
         start = asyncio.get_event_loop().time()
 
-        result = await coord.build_or_wait_async(
-            key, assert_failing_build, caller="solo"
-        )
+        result = await coord.build_or_wait_async(key, assert_failing_build, caller="solo")
 
         elapsed = asyncio.get_event_loop().time() - start
 
@@ -1050,9 +1024,7 @@ class TestFG6BuildCoordinatorBroadExceptionHandling:
         key = ("proj-fg6-D", "project")
 
         # First call fails with ValueError (non-transient).
-        first = await coord.build_or_wait_async(
-            key, maybe_failing_build, caller="first"
-        )
+        first = await coord.build_or_wait_async(key, maybe_failing_build, caller="first")
         assert first.outcome.value == "failed"
 
         # _in_flight MUST be cleared — no leaked entry for this key.
@@ -1062,7 +1034,5 @@ class TestFG6BuildCoordinatorBroadExceptionHandling:
         )
 
         # Second call succeeds — proves a fresh build can proceed.
-        second = await coord.build_or_wait_async(
-            key, maybe_failing_build, caller="second"
-        )
+        second = await coord.build_or_wait_async(key, maybe_failing_build, caller="second")
         assert second.outcome.value == "built"
