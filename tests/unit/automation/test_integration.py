@@ -36,6 +36,7 @@ from autom8_asana.persistence.models import (
     SaveResult,
 )
 from tests._shared.mocks import MockTask
+from tests.unit.automation.conftest import MockPageIterator
 
 if TYPE_CHECKING:
     from autom8_asana.automation.context import AutomationContext
@@ -107,16 +108,6 @@ class MockSection:
     def __init__(self, gid: str = "section_123", name: str | None = None) -> None:
         self.gid = gid
         self.name = name
-
-
-class MockPageIterator:
-    """Mock PageIterator that returns items via collect()."""
-
-    def __init__(self, items: list[Any]) -> None:
-        self._items = items
-
-    async def collect(self) -> list[Any]:
-        return self._items
 
 
 # --- Test Classes ---

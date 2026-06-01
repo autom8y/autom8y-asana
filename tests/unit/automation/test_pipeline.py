@@ -18,6 +18,7 @@ from autom8_asana.automation.pipeline import PipelineConversionRule
 from autom8_asana.core.creation import generate_entity_name
 from autom8_asana.models.business.process import ProcessSection, ProcessType
 from tests._shared.mocks import MockTask
+from tests.unit.automation.conftest import MockPageIterator
 
 
 class MockProcessType(Enum):
@@ -76,16 +77,6 @@ class MockSection:
     def __init__(self, gid: str = "section_123", name: str | None = None) -> None:
         self.gid = gid
         self.name = name
-
-
-class MockPageIterator:
-    """Mock PageIterator that returns items via collect()."""
-
-    def __init__(self, items: list[Any]) -> None:
-        self._items = items
-
-    async def collect(self) -> list[Any]:
-        return self._items
 
 
 class MockOffer:
