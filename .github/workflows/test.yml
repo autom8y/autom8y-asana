@@ -205,15 +205,18 @@ jobs:
             2>&1 | tail -40
 
   workflow-handler-isolated:
-    name: Workflow Handler (isolated, non-blocking)
-    # QUARANTINE (PR #63): the workflow_handler tests invoke a handler that runs
-    # asyncio.run internally; under CI resource pressure that SIGKILLs a pytest-
-    # xdist worker ("node down"), intermittently failing the sharded gate. They
-    # are excluded from the sharded run (worker_isolated marker) and executed
+    name: Isolated tests (worker_isolated, non-blocking)
+    # QUARANTINE: tests marked `worker_isolated` are xdist-fragile under CI
+    # resource pressure and intermittently fail the sharded gate. Two classes:
+    #  (1) PR #63 — workflow_handler invokes a handler that runs asyncio.run
+    #      internally, SIGKILLing a pytest-xdist worker ("node down");
+    #  (2) 2026-06-01 — universal_strategy error-path span tests whose
+    #      resolve_group span is intermittently not recorded under -n auto
+    #      (see .know/defer-watch.yaml ob-universal-strategy-span-xdist).
+    # All are excluded from the sharded run (worker_isolated marker) and executed
     # here SINGLE-PROCESS (-p no:xdist → no worker to crash) as a non-blocking
-    # signal job. continue-on-error keeps a crash here from gating the merge
-    # while preserving CI coverage of these tests. Remove the quarantine when the
-    # production handler / test harness drops the nested-event-loop pattern.
+    # signal job. continue-on-error keeps a failure here from gating the merge
+    # while preserving CI coverage. Remove a quarantine when its root fix lands.
     continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -253,15 +256,21 @@ jobs:
           uv pip install --system --no-sources '.[dev,api,auth,events]'
           uv pip install --system --no-sources --group dev
 
-      - name: Run workflow_handler tests (single-process, no xdist)
+      - name: Run worker_isolated tests (single-process, no xdist)
         env:
           AUTOM8Y_ENV: test
         run: |
           # -o addopts="" drops the repo-wide --dist=loadgroup (which requires
           # xdist); -p no:xdist runs in the main process so there is no worker
-          # to SIGKILL. A crash here fails this non-blocking job only.
-          python -m pytest tests/unit/lambda_handlers/test_workflow_handler.py \
-            -p no:xdist -o addopts="" -v --no-header
+          # to SIGKILL. List the files that CONTAIN worker_isolated tests and
+          # filter with -m worker_isolated -- collecting all of tests/unit hits
+          # pre-existing collection errors in unrelated modules (reconciliation/
+          # config-root lookup). Add a file here when you quarantine a test in a
+          # new module. A failure here fails this non-blocking job only.
+          python -m pytest \
+            tests/unit/lambda_handlers/test_workflow_handler.py \
+            tests/unit/services/test_universal_strategy_spans.py \
+            -m worker_isolated -p no:xdist -o addopts="" -v --no-header
 
   fleet-schema-governance:
     name: Fleet Schema Governance
