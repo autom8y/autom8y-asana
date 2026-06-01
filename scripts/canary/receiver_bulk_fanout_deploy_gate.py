@@ -71,6 +71,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import sys
 import time
@@ -210,14 +211,16 @@ def _resolve_sa_credentials_from_aws() -> tuple[str, str] | None:
     try:
         sec_resp = sm.get_secret_value(SecretId=secret_name)
     except Exception as e:  # noqa: BLE001
+        # Log only the hardcoded SSM pointer path, never the resolved SM name
+        # (the pointer's value comes from SSM and CodeQL taints it as sensitive
+        # via py/clear-text-logging-sensitive-data; operator can trace which SM
+        # secret by reading the pointer).
         print(
-            f"[auth] Secrets Manager get_secret_value SecretId={secret_name} "
-            f"failed: {e}",
+            f"[auth] Secrets Manager get_secret_value failed (pointer SSM "
+            f"{SSM_OAUTH_CLIENT_SECRET_POINTER_PATH}): {e}",
             file=sys.stderr,
         )
         return None
-
-    import json
 
     try:
         envelope = json.loads(sec_resp.get("SecretString", ""))
@@ -227,17 +230,22 @@ def _resolve_sa_credentials_from_aws() -> tuple[str, str] | None:
 
     client_secret = envelope.get("client_secret")
     if not client_secret:
+        # Same redaction discipline: log the pointer constant, not the resolved
+        # SM name (CodeQL taint propagation from SSM-sourced values).
         print(
-            f"[auth] Secrets Manager envelope at {secret_name} missing "
-            "'client_secret' key",
+            "[auth] Secrets Manager envelope (resolved via pointer SSM "
+            f"{SSM_OAUTH_CLIENT_SECRET_POINTER_PATH}) missing 'client_secret' key",
             file=sys.stderr,
         )
         return None
 
+    # Success log: only reference the hardcoded SSM path constants, never the
+    # fetched values (client_id prefix or SM secret name) — CodeQL flags any
+    # logging of SSM/SM-sourced values as py/clear-text-logging-sensitive-data.
     print(
-        f"[auth] Resolved SA credentials from AWS: "
-        f"client_id={client_id[:8]}... (SSM={SSM_OAUTH_CLIENT_ID_PATH}); "
-        f"client_secret=*** (SM={secret_name})"
+        f"[auth] Resolved SA credentials from AWS "
+        f"(client_id at SSM {SSM_OAUTH_CLIENT_ID_PATH}, "
+        f"client_secret pointer at SSM {SSM_OAUTH_CLIENT_SECRET_POINTER_PATH})"
     )
     return (client_id, client_secret)
 
