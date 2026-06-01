@@ -735,6 +735,10 @@ class TestReadManifestSyncLoopGuard:
 
     def test_no_running_loop_drives_asyncio_run(self) -> None:
         """The sync path: no running loop -> ``asyncio.run`` succeeds."""
+        # class-(c): MUST stay sync. This exercises read_manifest_sync's
+        # own internal asyncio.run() from a no-running-loop context;
+        # making this test async would supply a running loop and invert
+        # the no-loop precondition under test.
         persistence = MagicMock()
         sentinel = object()
 
@@ -749,6 +753,11 @@ class TestReadManifestSyncLoopGuard:
         """The async-context path: ``RuntimeError`` raised explicitly
         with a clear message; NOT silently nested.
         """
+        # class-(c): MUST stay sync. The asyncio.run() below is
+        # load-bearing scaffolding -- it establishes the running-loop
+        # context the guard is asserted against. Converting to async def
+        # would already provide that loop and remove the very transition
+        # (sync -> running-loop) this test exists to cover.
         persistence = MagicMock()
         persistence.get_manifest_async = AsyncMock(return_value=None)
 
