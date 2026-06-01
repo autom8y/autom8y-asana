@@ -119,6 +119,20 @@ COPY --link scripts/entrypoint.sh /app/entrypoint.sh
 # Set ownership and permissions
 RUN chown -R appuser:appuser /app && chmod +x /app/entrypoint.sh
 
+# Resolve CVE-2026-42496 + CVE-2026-8376 (both Debian src:perl, NO upstream fix)
+# at source by purging perl-base. This pure-Python runtime never invokes perl
+# (entrypoint is /bin/sh + uvicorn/awslambdaric; FastAPI + DuckDB + asyncmy, all
+# pure-Python); the vulnerable Archive::Tar.pm ships in perl-modules-5.40 (not
+# installed in slim), not in perl-base, so the flagged code is physically absent.
+# perl-base is Debian Essential, so removal requires --force-remove-essential. Per
+# ADR-SEC-GATE-POLICY, CRITICAL findings MUST be resolved, not exempted (.trivyignore
+# is not a permitted path for CRITICAL). This runtime stage installs no apt packages,
+# so the layer is purge-only (no apt-get install). See ADR-SEC-PERL-BASE-PURGE for the
+# precedent (auth + api-gateway + autom8y-data) and the full remediation record.
+RUN apt-get update \
+    && dpkg --purge --force-remove-essential --force-depends perl-base \
+    && rm -rf /var/lib/apt/lists/*
+
 # Set PATH to use venv (replaces PYTHONPATH approach)
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONDONTWRITEBYTECODE=1 \
