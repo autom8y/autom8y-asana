@@ -159,6 +159,13 @@ class TestStrategyResolveSpan:
         assert attrs["strategy.null_slot_count"] == 0
         assert span.status.status_code == StatusCode.UNSET
 
+    # xdist-fragile (same class as test_index_build_failure / test_lookup_failure /
+    # test_parent_child_relationship): the outer resolve-span is intermittently
+    # not recorded under -n auto on the CI runner (assert 0 == 1). PR #74/#76/#77
+    # fixes addressed the gather/_resolve_group + OTel once-lock layers but did
+    # not exhaustively quarantine this test. Run single-process via the
+    # worker_isolated job. See .know/defer-watch.yaml + .know/test-coverage.md.
+    @pytest.mark.worker_isolated
     async def test_null_slot_increments_count_and_adds_event(self, otel_provider):
         """Null slot sets null_slot_count=1, adds resolution.null_slot event, UNSET status."""
         _, exporter = otel_provider

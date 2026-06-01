@@ -250,9 +250,8 @@ class TestBusinessSeeder:
 
         assert seeder._client is client
 
-    def test_find_business_async_no_match_returns_none(self) -> None:
+    async def test_find_business_async_no_match_returns_none(self) -> None:
         """_find_business_async returns None when no match found."""
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
         client = MagicMock()
@@ -266,7 +265,7 @@ class TestBusinessSeeder:
         data = BusinessData(name="Acme Corp", company_id="ACME-001")
 
         # Run the async method
-        result = asyncio.run(seeder._find_business_async(data))
+        result = await seeder._find_business_async(data)
 
         # Should return None when no match found
         assert result is None
@@ -281,9 +280,8 @@ class TestBusinessDeduplication:
     Per TDD-entity-creation: Two-tier matching strategy.
     """
 
-    def test_search_by_company_id_returns_hit(self) -> None:
+    async def test_search_by_company_id_returns_hit(self) -> None:
         """_search_by_company_id returns SearchHit when match found."""
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
         from autom8_asana.search.models import SearchHit
@@ -302,7 +300,7 @@ class TestBusinessDeduplication:
         seeder = BusinessSeeder(client)
 
         # Run the async method
-        result = asyncio.run(seeder._search_by_company_id("ACME-001"))
+        result = await seeder._search_by_company_id("ACME-001")
 
         assert result is not None
         assert result.gid == "123456789"
@@ -314,9 +312,8 @@ class TestBusinessDeduplication:
         assert call_args[0][1] == {"Company ID": "ACME-001"}
         assert call_args[1]["entity_type"] == "Business"
 
-    def test_search_by_company_id_returns_none_when_not_found(self) -> None:
+    async def test_search_by_company_id_returns_none_when_not_found(self) -> None:
         """_search_by_company_id returns None when no match."""
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
         client = MagicMock()
@@ -324,13 +321,12 @@ class TestBusinessDeduplication:
 
         seeder = BusinessSeeder(client)
 
-        result = asyncio.run(seeder._search_by_company_id("NONEXISTENT"))
+        result = await seeder._search_by_company_id("NONEXISTENT")
 
         assert result is None
 
-    def test_search_by_company_id_handles_multiple_matches(self) -> None:
+    async def test_search_by_company_id_handles_multiple_matches(self) -> None:
         """_search_by_company_id handles ValueError for multiple matches."""
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
         from autom8_asana.search.models import SearchHit, SearchResult
@@ -356,14 +352,13 @@ class TestBusinessDeduplication:
 
         seeder = BusinessSeeder(client)
 
-        result = asyncio.run(seeder._search_by_company_id("DUP-001"))
+        result = await seeder._search_by_company_id("DUP-001")
 
         assert result is not None
         assert result.gid == "123456789"
 
-    def test_search_by_company_id_graceful_degradation(self) -> None:
+    async def test_search_by_company_id_graceful_degradation(self) -> None:
         """_search_by_company_id returns None on unexpected errors."""
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
         client = MagicMock()
@@ -372,13 +367,12 @@ class TestBusinessDeduplication:
         seeder = BusinessSeeder(client)
 
         # Should not raise, returns None
-        result = asyncio.run(seeder._search_by_company_id("ERROR-001"))
+        result = await seeder._search_by_company_id("ERROR-001")
 
         assert result is None
 
-    def test_search_by_name_returns_hit(self) -> None:
+    async def test_search_by_name_returns_hit(self) -> None:
         """_search_by_name returns SearchHit when match found."""
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
         from autom8_asana.search.models import SearchHit
@@ -395,15 +389,14 @@ class TestBusinessDeduplication:
 
         seeder = BusinessSeeder(client)
 
-        result = asyncio.run(seeder._search_by_name("Joe's Pizza"))
+        result = await seeder._search_by_name("Joe's Pizza")
 
         assert result is not None
         assert result.gid == "987654321"
         assert result.name == "Joe's Pizza"
 
-    def test_search_by_name_returns_none_when_not_found(self) -> None:
+    async def test_search_by_name_returns_none_when_not_found(self) -> None:
         """_search_by_name returns None when no match."""
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
         client = MagicMock()
@@ -411,13 +404,12 @@ class TestBusinessDeduplication:
 
         seeder = BusinessSeeder(client)
 
-        result = asyncio.run(seeder._search_by_name("Nonexistent Business"))
+        result = await seeder._search_by_name("Nonexistent Business")
 
         assert result is None
 
-    def test_search_by_name_handles_multiple_matches(self) -> None:
+    async def test_search_by_name_handles_multiple_matches(self) -> None:
         """_search_by_name handles ValueError for multiple matches."""
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
         from autom8_asana.search.models import SearchHit, SearchResult
@@ -441,14 +433,13 @@ class TestBusinessDeduplication:
 
         seeder = BusinessSeeder(client)
 
-        result = asyncio.run(seeder._search_by_name("Common Name Corp"))
+        result = await seeder._search_by_name("Common Name Corp")
 
         assert result is not None
         assert result.gid == "111222333"
 
-    def test_search_by_name_graceful_degradation(self) -> None:
+    async def test_search_by_name_graceful_degradation(self) -> None:
         """_search_by_name returns None on unexpected errors."""
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
         client = MagicMock()
@@ -456,13 +447,12 @@ class TestBusinessDeduplication:
 
         seeder = BusinessSeeder(client)
 
-        result = asyncio.run(seeder._search_by_name("Error Business"))
+        result = await seeder._search_by_name("Error Business")
 
         assert result is None
 
-    def test_find_business_prioritizes_company_id_over_name(self) -> None:
+    async def test_find_business_prioritizes_company_id_over_name(self) -> None:
         """_find_business_async checks company_id first, then name."""
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock, patch
 
         from autom8_asana.search.models import SearchHit
@@ -488,7 +478,7 @@ class TestBusinessDeduplication:
             mock_load.return_value = mock_business
 
             data = BusinessData(name="Some Name", company_id="ACME-001")
-            result = asyncio.run(seeder._find_business_async(data))
+            result = await seeder._find_business_async(data)
 
             assert result is not None
             assert result.gid == "COMPANY_ID_MATCH"
@@ -496,14 +486,13 @@ class TestBusinessDeduplication:
             # Verify _load_business was called with the company_id match GID
             mock_load.assert_called_once_with("COMPANY_ID_MATCH")
 
-    def test_find_business_falls_back_to_composite_match_when_no_company_id_match(
+    async def test_find_business_falls_back_to_composite_match_when_no_company_id_match(
         self,
     ) -> None:
         """_find_business_async falls back to composite matching when company_id not matched.
 
         Per TDD-BusinessSeeder-v2: Tier 2 is now composite matching.
         """
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock, patch
 
         from autom8_asana.search.models import SearchHit, SearchResult
@@ -546,18 +535,17 @@ class TestBusinessDeduplication:
                 company_id="NOTFOUND-001",
                 email="info@joespizza.com",  # Matching email
             )
-            result = asyncio.run(seeder._find_business_async(data))
+            result = await seeder._find_business_async(data)
 
             assert result is not None
             assert result.gid == "COMPOSITE_MATCH"
             mock_load.assert_called_once_with("COMPOSITE_MATCH")
 
-    def test_find_business_uses_composite_match_when_no_company_id(self) -> None:
+    async def test_find_business_uses_composite_match_when_no_company_id(self) -> None:
         """_find_business_async uses composite matching when no company_id provided.
 
         Per TDD-BusinessSeeder-v2: Uses composite matching with corroborating fields.
         """
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock, patch
 
         from autom8_asana.search.models import SearchHit, SearchResult
@@ -597,7 +585,7 @@ class TestBusinessDeduplication:
                 email="info@acme.com",
                 phone="+15551234567",
             )
-            result = asyncio.run(seeder._find_business_async(data))
+            result = await seeder._find_business_async(data)
 
             assert result is not None
             assert result.gid == "COMPOSITE_ONLY_MATCH"
@@ -606,9 +594,8 @@ class TestBusinessDeduplication:
             # find_async is called for candidate retrieval
             client.search.find_async.assert_called_once()
 
-    def test_find_business_returns_none_when_both_searches_fail(self) -> None:
+    async def test_find_business_returns_none_when_both_searches_fail(self) -> None:
         """_find_business_async returns None when both tiers find no match."""
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
         client = MagicMock()
@@ -617,13 +604,12 @@ class TestBusinessDeduplication:
         seeder = BusinessSeeder(client)
 
         data = BusinessData(name="Nonexistent Business", company_id="NOTFOUND-999")
-        result = asyncio.run(seeder._find_business_async(data))
+        result = await seeder._find_business_async(data)
 
         assert result is None
 
-    def test_load_business_calls_from_gid_async(self) -> None:
+    async def test_load_business_calls_from_gid_async(self) -> None:
         """_load_business calls Business.from_gid_async with hydrate=False."""
-        import asyncio
         from unittest.mock import AsyncMock, MagicMock, patch
 
         client = MagicMock()
@@ -639,7 +625,7 @@ class TestBusinessDeduplication:
         ) as mock_from_gid:
             mock_from_gid.return_value = mock_business
 
-            result = asyncio.run(seeder._load_business("123456789"))
+            result = await seeder._load_business("123456789")
 
             # Verify from_gid_async was called with hydrate=False
             mock_from_gid.assert_called_once_with(client, "123456789", hydrate=False)
