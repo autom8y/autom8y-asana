@@ -121,10 +121,11 @@ jobs:
 
       - name: Login to CodeArtifact
         run: |
-          export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
+          CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
             --domain autom8y --domain-owner 696318035277 \
             --query authorizationToken --output text)
-          echo "UV_EXTRA_INDEX_URL=https://aws:${CODEARTIFACT_AUTH_TOKEN}@autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" >> $GITHUB_ENV
+          export CODEARTIFACT_AUTH_TOKEN
+          echo "UV_EXTRA_INDEX_URL=https://aws:${CODEARTIFACT_AUTH_TOKEN}@autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" >> "$GITHUB_ENV"
 
       - name: Install uv
         uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6
@@ -236,10 +237,11 @@ jobs:
 
       - name: Login to CodeArtifact
         run: |
-          export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
+          CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
             --domain autom8y --domain-owner 696318035277 \
             --query authorizationToken --output text)
-          echo "UV_EXTRA_INDEX_URL=https://aws:${CODEARTIFACT_AUTH_TOKEN}@autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" >> $GITHUB_ENV
+          export CODEARTIFACT_AUTH_TOKEN
+          echo "UV_EXTRA_INDEX_URL=https://aws:${CODEARTIFACT_AUTH_TOKEN}@autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" >> "$GITHUB_ENV"
 
       - name: Install uv
         uses: astral-sh/setup-uv@6b9c6063abd6010835644d4c2e1bef4cf5cd0fca # v6
