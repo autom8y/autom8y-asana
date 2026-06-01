@@ -262,12 +262,15 @@ jobs:
         run: |
           # -o addopts="" drops the repo-wide --dist=loadgroup (which requires
           # xdist); -p no:xdist runs in the main process so there is no worker
-          # to SIGKILL. -m worker_isolated selects every quarantined test by
-          # MARKER (workflow_handler + universal_strategy span error-paths),
-          # so new quarantines run here automatically. A failure here fails
-          # this non-blocking job only.
-          python -m pytest tests/unit -m worker_isolated \
-            -p no:xdist -o addopts="" -v --no-header
+          # to SIGKILL. List the files that CONTAIN worker_isolated tests and
+          # filter with -m worker_isolated -- collecting all of tests/unit hits
+          # pre-existing collection errors in unrelated modules (reconciliation/
+          # config-root lookup). Add a file here when you quarantine a test in a
+          # new module. A failure here fails this non-blocking job only.
+          python -m pytest \
+            tests/unit/lambda_handlers/test_workflow_handler.py \
+            tests/unit/services/test_universal_strategy_spans.py \
+            -m worker_isolated -p no:xdist -o addopts="" -v --no-header
 
   fleet-schema-governance:
     name: Fleet Schema Governance
