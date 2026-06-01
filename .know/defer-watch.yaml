@@ -121,3 +121,29 @@
     - .ledge/decisions/ADR-followon-ci-flake-threshold-2026-04-29.md
     - .ledge/reviews/SMELL-followon-ci-2026-04-29.md F3
     - "workflow-run URL: 25109444280/job/73579221418"
+
+- id: ob8-test-modality-marker-discipline
+  filed_at: 2026-06-01
+  filed_by: eunomia orthogonal rationalization (PLAN-orthogonal-ci-cd-test-ecosystem-2026-06-01)
+  parent_initiative: orthogonal-ci-cd-test-ecosystem-rationalization
+  scope: >
+    register + apply @pytest.mark.contract/.validation/.synthetic across the contract (1),
+    validation/persistence (5), and synthetic (1) test modalities; register the 3 markers in
+    pyproject [tool.pytest.ini_options] markers
+  status: DEFERRED-low-value-additive
+  blocker: >
+    purely additive 8-file churn for marginal gain — directory-based selection
+    (pytest tests/contracts|tests/validation|tests/synthetic) already works; deferred per
+    value-per-effort + the mandate's additive-complexity caution
+  watch_trigger: 2026-09-01
+  deadline: 2026-12-01
+  escalation_target: /eunomia (or /hygiene) — fast-follow marker-hygiene PR
+  retry_action: >
+    add `import pytest` + module-level `pytestmark = pytest.mark.<modality>` after each file's
+    import block; register the 3 markers in pyproject markers (do NOT touch the B3 @slow lane);
+    verify with `pytest -m contract|validation|synthetic --collect-only -W error::pytest.PytestUnknownMarkWarning`
+  evidence_anchors:
+    - .sos/wip/eunomia/PLAN-orthogonal-ci-cd-test-ecosystem-2026-06-01.md (P5/OB8)
+    - tests/contracts/test_contract_auth.py
+    - tests/validation/persistence/ (5 files)
+    - tests/synthetic/test_synthetic_coverage.py
