@@ -159,13 +159,6 @@ class TestStrategyResolveSpan:
         assert attrs["strategy.null_slot_count"] == 0
         assert span.status.status_code == StatusCode.UNSET
 
-    # xdist-fragile (same class as test_index_build_failure / test_lookup_failure /
-    # test_parent_child_relationship): the outer resolve-span is intermittently
-    # not recorded under -n auto on the CI runner (assert 0 == 1). PR #74/#76/#77
-    # fixes addressed the gather/_resolve_group + OTel once-lock layers but did
-    # not exhaustively quarantine this test. Run single-process via the
-    # worker_isolated job. See .know/defer-watch.yaml + .know/test-coverage.md.
-    @pytest.mark.worker_isolated
     async def test_null_slot_increments_count_and_adds_event(self, otel_provider):
         """Null slot sets null_slot_count=1, adds resolution.null_slot event, UNSET status."""
         _, exporter = otel_provider
@@ -219,7 +212,6 @@ class TestStrategyResolveSpan:
 class TestStrategyResolveGroupSpan:
     """T-G05: strategy.resolution.resolve_group span."""
 
-    @pytest.mark.worker_isolated
     async def test_parent_child_relationship(self, otel_provider):
         """resolve_group span is a child of the resolve span."""
         _, exporter = otel_provider
@@ -255,11 +247,6 @@ class TestStrategyResolveGroupSpan:
         assert group_span.parent is not None
         assert group_span.parent.span_id == resolve_span.get_span_context().span_id
 
-    # xdist-fragile: the error-path resolve_group span is intermittently not
-    # recorded under -n auto on the CI runner (assert 0 == 1). Run single-process
-    # via the non-blocking isolated job until the root async-span fix lands.
-    # See .know/defer-watch.yaml ob-universal-strategy-span-xdist.
-    @pytest.mark.worker_isolated
     async def test_index_build_failure_sets_error_attributes(self, otel_provider):
         """INDEX_UNAVAILABLE path sets error_code, error.type, StatusCode.ERROR."""
         _, exporter = otel_provider
@@ -305,9 +292,6 @@ class TestStrategyResolveGroupSpan:
         exception_events = [e for e in span.events if e.name == "exception"]
         assert len(exception_events) == 1
 
-    # xdist-fragile (same class as test_index_build_failure above): run
-    # single-process via the isolated job. See .know/defer-watch.yaml.
-    @pytest.mark.worker_isolated
     async def test_lookup_failure_adds_event_and_partial_success(self, otel_provider):
         """Per-criterion lookup failure adds event, lookup_error_count=1, UNSET status."""
         _, exporter = otel_provider
