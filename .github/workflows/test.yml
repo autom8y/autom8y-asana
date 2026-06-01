@@ -207,16 +207,19 @@ jobs:
   workflow-handler-isolated:
     name: Isolated tests (worker_isolated, non-blocking)
     # QUARANTINE: tests marked `worker_isolated` are xdist-fragile under CI
-    # resource pressure and intermittently fail the sharded gate. Two classes:
+    # resource pressure and intermittently fail the sharded gate. One class:
     #  (1) PR #63 — workflow_handler invokes a handler that runs asyncio.run
-    #      internally, SIGKILLing a pytest-xdist worker ("node down");
-    #  (2) 2026-06-01 — universal_strategy error-path span tests whose
-    #      resolve_group span is intermittently not recorded under -n auto
-    #      (see .know/defer-watch.yaml ob-universal-strategy-span-xdist).
-    # All are excluded from the sharded run (worker_isolated marker) and executed
-    # here SINGLE-PROCESS (-p no:xdist → no worker to crash) as a non-blocking
-    # signal job. continue-on-error keeps a failure here from gating the merge
-    # while preserving CI coverage. Remove a quarantine when its root fix lands.
+    #      internally, SIGKILLing a pytest-xdist worker ("node down").
+    # The 2026-06-01 universal_strategy span quarantine was RETIRED once its root
+    # cause was fixed: test_import_safety popped universal_strategy from
+    # sys.modules + re-imported without restoring the parent package attribute,
+    # so co-tenant span tests' `import ... as` rebound a different module object
+    # than their collection-time class used (.know/defer-watch.yaml
+    # ob-universal-strategy-span-xdist). The remaining quarantine is excluded from
+    # the sharded run (worker_isolated marker) and executed here SINGLE-PROCESS
+    # (-p no:xdist → no worker to crash) as a non-blocking signal job.
+    # continue-on-error keeps a failure here from gating the merge while
+    # preserving CI coverage. Remove a quarantine when its root fix lands.
     continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -269,7 +272,6 @@ jobs:
           # new module. A failure here fails this non-blocking job only.
           python -m pytest \
             tests/unit/lambda_handlers/test_workflow_handler.py \
-            tests/unit/services/test_universal_strategy_spans.py \
             -m worker_isolated -p no:xdist -o addopts="" -v --no-header
 
   fleet-schema-governance:
