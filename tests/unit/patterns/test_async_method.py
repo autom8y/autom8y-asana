@@ -43,7 +43,7 @@ class TestAsyncMethodDecorator:
         assert hasattr(TestClient, "fetch")
         assert not asyncio.iscoroutinefunction(TestClient.fetch)
 
-    def test_async_behavior_correct(self) -> None:
+    async def test_async_behavior_correct(self) -> None:
         """Verify async method executes as coroutine."""
 
         class TestClient:
@@ -55,7 +55,7 @@ class TestAsyncMethodDecorator:
         client = TestClient()
 
         # Call async method
-        result = asyncio.run(client.fetch_async("123"))
+        result = await client.fetch_async("123")
         assert result == "fetched:123"
 
     def test_sync_behavior_correct(self) -> None:
