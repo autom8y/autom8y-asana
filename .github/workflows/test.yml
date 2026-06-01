@@ -153,7 +153,7 @@ jobs:
         if: inputs.candidate_wheel_run_id != ''
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: candidate-wheel
+          name: consumer-gate-wheel-${{ inputs.candidate_sdk_name }}-autom8y-asana
           path: /tmp/candidate-wheel
           repository: autom8y/autom8y
           run-id: ${{ inputs.candidate_wheel_run_id }}
