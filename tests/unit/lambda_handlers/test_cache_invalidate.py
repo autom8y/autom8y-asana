@@ -303,9 +303,7 @@ class TestHandlerInstrumentation:
         ctx = MagicMock()
         ctx.function_name = "cache-invalidate"
         ctx.aws_request_id = request_id
-        ctx.invoked_function_arn = (
-            "arn:aws:lambda:us-east-1:000000000000:function:cache-invalidate"
-        )
+        ctx.invoked_function_arn = "arn:aws:lambda:us-east-1:000000000000:function:cache-invalidate"
         return ctx
 
     def test_handler_emits_span_per_invocation(
