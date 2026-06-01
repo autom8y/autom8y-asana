@@ -212,6 +212,7 @@ class TestStrategyResolveSpan:
 class TestStrategyResolveGroupSpan:
     """T-G05: strategy.resolution.resolve_group span."""
 
+    @pytest.mark.worker_isolated
     async def test_parent_child_relationship(self, otel_provider):
         """resolve_group span is a child of the resolve span."""
         _, exporter = otel_provider
