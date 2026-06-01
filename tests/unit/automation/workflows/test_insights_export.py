@@ -9,6 +9,7 @@ asset derivation.
 from __future__ import annotations
 
 import os
+import pathlib
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -152,6 +153,7 @@ def _make_workflow(
     insights_error: Exception | None = None,
     table_errors: dict[str, Exception] | None = None,
     existing_attachments: dict[str, list[MagicMock]] | None = None,
+    preview_dir: pathlib.Path | None = None,
 ) -> tuple[InsightsExportWorkflow, MagicMock, MagicMock, MagicMock]:
     """Build an InsightsExportWorkflow with configured mocks.
 
@@ -221,6 +223,7 @@ def _make_workflow(
         asana_client=mock_asana,
         data_client=mock_data_client,
         attachments_client=mock_attachments,
+        preview_dir=preview_dir,
     )
 
     return workflow, mock_asana, mock_data_client, mock_attachments
@@ -1260,10 +1263,10 @@ class TestDryRun:
     """Tests for dry_run gating in _process_offer."""
 
     @pytest.mark.usefixtures("_force_fallback")
-    async def test_dry_run_skips_upload(self, mock_resolution_context) -> None:
+    async def test_dry_run_skips_upload(self, mock_resolution_context, tmp_path) -> None:
         """_attachments_client.upload_async NOT called in dry_run mode."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
-        wf, _, _, mock_att = _make_workflow(offers=[o1])
+        wf, _, _, mock_att = _make_workflow(offers=[o1], preview_dir=tmp_path)
 
         scope = EntityScope(dry_run=True)
         entities = await wf.enumerate_async(scope)
@@ -1273,13 +1276,14 @@ class TestDryRun:
         mock_att.upload_async.assert_not_called()
 
     @pytest.mark.usefixtures("_force_fallback")
-    async def test_dry_run_skips_delete(self, mock_resolution_context) -> None:
+    async def test_dry_run_skips_delete(self, mock_resolution_context, tmp_path) -> None:
         """_delete_old_attachments NOT called in dry_run mode."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         existing = [_make_attachment("att1", "insights_export_old.md")]
         wf, _, _, mock_att = _make_workflow(
             offers=[o1],
             existing_attachments={"o1": existing},
+            preview_dir=tmp_path,
         )
 
         scope = EntityScope(dry_run=True)
@@ -1290,10 +1294,10 @@ class TestDryRun:
         mock_att.delete_async.assert_not_called()
 
     @pytest.mark.usefixtures("_force_fallback")
-    async def test_dry_run_metadata_flag(self, mock_resolution_context) -> None:
+    async def test_dry_run_metadata_flag(self, mock_resolution_context, tmp_path) -> None:
         """metadata['dry_run'] is True when dry_run=True."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
-        wf, _, _, _ = _make_workflow(offers=[o1])
+        wf, _, _, _ = _make_workflow(offers=[o1], preview_dir=tmp_path)
 
         scope = EntityScope(dry_run=True)
         entities = await wf.enumerate_async(scope)
@@ -1302,10 +1306,10 @@ class TestDryRun:
 
         assert result.metadata.get("dry_run") is True
 
-    async def test_dry_run_writes_preview_files(self, mock_resolution_context) -> None:
-        """Dry-run writes full HTML to .wip/ and reports paths in metadata."""
+    async def test_dry_run_writes_preview_files(self, mock_resolution_context, tmp_path) -> None:
+        """Dry-run writes full HTML to the (injected) preview dir, reports paths in metadata."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
-        wf, _, _, _ = _make_workflow(offers=[o1])
+        wf, _, _, _ = _make_workflow(offers=[o1], preview_dir=tmp_path)
 
         scope = EntityScope(dry_run=True)
         entities = await wf.enumerate_async(scope)
@@ -1316,10 +1320,10 @@ class TestDryRun:
         assert paths is not None
         assert isinstance(paths, dict)
         assert "o1" in paths
-        # Verify the file was actually written
-        import pathlib
-
+        # Verify the file was written under the per-test isolated preview dir
+        # (no shared cwd-relative .wip path → no xdist write/read truncation race).
         preview_file = pathlib.Path(paths["o1"])
+        assert preview_file.parent == tmp_path
         assert preview_file.exists()
         content = preview_file.read_text(encoding="utf-8")
         assert "<!DOCTYPE html>" in content
