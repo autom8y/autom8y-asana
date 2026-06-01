@@ -55,10 +55,10 @@ _background_tasks: set[asyncio.Task[None]] = set()
 _INDEX_BUILD_ERRORS = CACHE_TRANSIENT_ERRORS + (RuntimeError,)
 _DATAFRAME_BUILD_ERRORS = CACHE_TRANSIENT_ERRORS + (RuntimeError, ValueError)
 
-# Cache TTL for shared dynamic index (1 hour)
-# Balances memory vs. rebuild cost for entity resolution indexes
-# Configurable via ASANA_CACHE_TTL_DYNAMIC_INDEX environment variable
-DYNAMIC_INDEX_CACHE_TTL = get_settings().cache.ttl_dynamic_index
+# Cache TTL for shared dynamic index (1 hour) is read lazily at first cache
+# construction (get_shared_index_cache) so importing this module does not
+# trigger settings/env validation at import time (SCAR-CW-001 CP-01).
+# Balances memory vs. rebuild cost; configurable via ASANA_CACHE_TTL_DYNAMIC_INDEX.
 
 # Maximum concurrent index builds during batch resolution.
 # Lower than builder's DEFAULT_MAX_CONCURRENT (25) because index builds
@@ -1245,9 +1245,10 @@ def get_shared_index_cache() -> DynamicIndexCache:
     """
     global _shared_index_cache
     if _shared_index_cache is None:
+        ttl_dynamic_index = get_settings().cache.ttl_dynamic_index
         _shared_index_cache = DynamicIndexCache(
             max_per_entity=5,
-            ttl_seconds=DYNAMIC_INDEX_CACHE_TTL,
+            ttl_seconds=ttl_dynamic_index,
         )
     return _shared_index_cache
 
