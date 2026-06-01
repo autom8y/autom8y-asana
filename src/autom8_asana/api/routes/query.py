@@ -20,7 +20,7 @@ import time
 from typing import Annotated, Any, Never
 
 from autom8y_log import get_logger
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -33,6 +33,11 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
 from autom8_asana.api.errors import raise_api_error, raise_service_error
 from autom8_asana.api.exception_types import ApiDataFrameBuildError
 from autom8_asana.api.models import SuccessResponse, build_success_response
+from autom8_asana.api.rate_limit import (
+    SA_NAMESPACE_LIMIT,
+    _get_rate_limit_key,
+    limiter,
+)
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.client import AsanaClient
@@ -406,7 +411,13 @@ async def list_query_sections(
         "x-fleet-idempotency": {"idempotent": True, "key_source": None},
     },
 )
+@limiter.limit(
+    SA_NAMESPACE_LIMIT,
+    key_func=_get_rate_limit_key,
+    override_defaults=True,
+)
 async def query_rows(
+    request: Request,
     entity_type: str,
     request_body: RowsRequest,
     request_id: RequestId,
@@ -425,6 +436,29 @@ async def query_rows(
     still runs via ``validate_entity_type`` to confirm the entity is registered;
     only the GID lookup is overridden.  This enables arbitrary Asana fleet GIDs
     without static EntityProjectRegistry pre-registration.
+
+    Rate-limit isolation (receiver-bulk-fanout-reliability Stage-1, qa-adversary
+    FG-2 fix 2026-05-31 + FG-7 disclosure correction 2026-05-31):
+    The ``@limiter.limit(SA_NAMESPACE_LIMIT, ...)`` decoration with
+    ``override_defaults=True`` raises the ceiling to 600/min FOR THIS ROUTE
+    ONLY (Phase-3 Knob 5: SA bulk-pass peak = 100 rpm baseline x 3 headroom
+    x 2 burst). The ``request: Request`` parameter is REQUIRED by SlowAPI's
+    ``_dynamic_route_limits`` path (slowapi/extension.py L586-L595 invokes
+    ``with_request(request)`` to materialize per-key limits).
+
+    POSTURE DISCLOSURE (FG-7): per SlowAPI ``__check_request_limit``
+    (slowapi/extension.py L617-628), ``override_defaults=True`` EXCLUDES the
+    global 100/min default from this route's limits chain entirely — so ALL
+    callers (sa:/pat:/ip:) on ``query_rows`` get a 600/min PER-KEY bucket via
+    their respective namespace key from ``_get_rate_limit_key``. Non-SA
+    callers (PAT/IP) on this route are NO LONGER subject to the 100/min
+    global default; they get 600/min per-key on this route only. The global
+    100/min remains active on all other routes. Mitigation context: this is
+    an s2s_router route (require_service_claims rejects unauthenticated
+    callers, making the IP fallback effectively dead); the per-key bucket
+    bounds the 6x ceiling raise. Per-namespace differentiation (sa:=600,
+    pat:/ip:=100 on this route) is deferred to Sprint-2 if posture review
+    deems it required.
     """
     # 1. Entity validation via EntityServiceDep
     # validate_entity_type checks schema registration + descriptor existence;
@@ -470,6 +504,19 @@ async def query_rows(
     )
 
     # 3. Execute query
+    #
+    # receiver-bulk-fanout-reliability Stage-1 Surface 5: instrument the
+    # receiver-side mirror SLI per arm. Body-parameterized entities
+    # (project, section) are the bulk-fan-out hot path; the mirror SLI
+    # is success_count / (success_count + 5xx_count), tracked per arm.
+    # 4xx are NOT counted (client error, not receiver health).
+    #
+    # Records ``success_for_metric`` based on the outcome of execute_rows:
+    # success on 2xx return, server_error on 5xx-class raise (503 build errors,
+    # cache-not-warm 503, generic exceptions). The receiver_query_success_rate
+    # gauge derived from these counters drives Alert A8 (MIRROR-SLI-DEGRADATION)
+    # and the deploy gate (>=99% sustained 10min on both arms).
+    success_for_metric = True
     query_service = EntityQueryService()
     engine = QueryEngine(provider=query_service, data_client=data_service_client)
     try:
@@ -483,6 +530,7 @@ async def query_rows(
                 entity_project_registry=entity_service.project_registry,
             )
     except QueryEngineError as e:
+        success_for_metric = False
         _raise_query_error(request_id, e)
     except ApiDataFrameBuildError:
         # ADR-G2RECV-002: request-time build-on-miss for body-parameterized entities
@@ -491,8 +539,10 @@ async def query_rows(
         # retry_after; the registered api_dataframe_build_error_handler renders the
         # canonical envelope. Re-raise so it reaches that handler rather than being
         # swallowed here. NEVER a 500, NEVER a silent empty-200.
+        success_for_metric = False
         raise
     except CacheNotWarmError as e:
+        success_for_metric = False
         raise_api_error(
             request_id,
             503,
@@ -500,6 +550,17 @@ async def query_rows(
             str(e),
             details={"retry_after_seconds": 30},
         )
+    finally:
+        # Only emit for body-parameterized arms — the receiver mirror SLI
+        # is specifically the bulk-fan-out hot path metric. Offer-domain
+        # entities have a separate readiness model and are excluded.
+        if ctx.project_gid is None:  # body_parameterized when registry GID is None
+            try:
+                from autom8_asana.api.metrics import record_receiver_query_outcome
+
+                record_receiver_query_outcome(entity_type, success=success_for_metric)
+            except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
+                pass
 
     # 4. Log query completion
     logger.info(

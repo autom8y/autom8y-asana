@@ -148,10 +148,18 @@ def dataframe_cache(
                 ApiDataFrameBuildError,  # noqa: E501 -- lazy import avoids circular dependency
             )
 
+            # F' (receiver-bulk-fanout-reliability Stage-1, Phase-3 Knob 3):
+            # harmonize retry_after_seconds to 30s across the cache-build error
+            # surfaces. The decorator's wait-timeout path and the universal
+            # strategy's _build_on_miss path both trigger the same
+            # ProgressiveProjectBuilder build (~25s p99). 5s retry was the bug
+            # — consumer retried into a still-building cache. Calibrated as
+            # p99_build (25s) x 1.2 safety = 30s. Cross-cite:
+            # services/universal_strategy.py:_build_on_miss already at 30s.
             raise ApiDataFrameBuildError(
                 "CACHE_BUILD_IN_PROGRESS",
                 "DataFrame build in progress, retry shortly",
-                retry_after_seconds=5,
+                retry_after_seconds=30,
             )
 
         async def _execute_build_and_cache(
