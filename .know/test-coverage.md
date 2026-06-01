@@ -143,7 +143,7 @@ First landed at `tests/unit/lifecycle/test_observation.py:235` and `tests/unit/l
 
 Intentional `asyncio.run` pins (DO NOT MIGRATE — they exercise specific guard behavior or sit in docstrings):
 
-- `tests/unit/lifecycle/test_freshness_verification_recency.py:736-760`
+- `tests/unit/dataframes/test_freshness_verification_recency.py:736-760`
 - `tests/unit/patterns/test_async_method.py:92` (`test_sync_in_async_context_raises` — deliberately invokes sync API inside a running loop)
 - `tests/unit/dataframes/test_public_api.py:278` (docstring reference only)
 
