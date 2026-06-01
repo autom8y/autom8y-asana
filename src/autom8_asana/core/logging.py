@@ -93,5 +93,19 @@ def configure(
         format=format,  # type: ignore[arg-type]
         intercept_stdlib=intercept_stdlib,
     )
+    # Re-activation guard (SEC: dead-custom-processor defect).
+    # A module-scope ``get_logger(__name__)`` evaluated during import (e.g.
+    # core/concurrency.py and ~20 siblings) calls the SDK's auto-config path,
+    # which sets the SDK-level ``_configured`` flag with the BARE default chain
+    # (no ``additional_processors``). Because that flag is already set by the
+    # time this function runs (app import precedes the ECS lifespan startup and
+    # the Lambda cold-start bootstrap), the SDK ``configure_logging`` below would
+    # otherwise no-op and SILENTLY DISCARD ``additional_processors`` — leaving
+    # the satellite's substring ``_filter_sensitive_data`` redaction dead on
+    # both the ECS and Lambda surfaces (compound keys like ``asana_pat`` would
+    # reach logs unredacted; FR-AUTH-004). ``reset_logging()`` clears the
+    # premature SDK state so the FULL chain (incl. custom processors) applies.
+    # Safe no-op when nothing was pre-configured (``_backend`` is None).
+    reset_logging()
     configure_logging(config, additional_processors=additional_processors)
     _configured = True
