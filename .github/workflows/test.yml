@@ -297,10 +297,12 @@ jobs:
             --json ./src/ > /tmp/governance.json
           exit_code=$?
           set -e
-          echo "## Fleet Schema Governance" >> $GITHUB_STEP_SUMMARY
-          echo '```json' >> $GITHUB_STEP_SUMMARY
-          cat /tmp/governance.json >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Fleet Schema Governance"
+            echo '```json'
+            cat /tmp/governance.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
           if [ $exit_code -ne 0 ]; then
             echo "::error::V1-subclassing hazard detected. See governance output."
             exit 1
