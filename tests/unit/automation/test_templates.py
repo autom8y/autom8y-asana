@@ -5,13 +5,13 @@ Per TDD-AUTOMATION-LAYER Phase 2: Test template discovery with mocked client.
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
 from autom8_asana.automation.templates import TemplateDiscovery
 from tests._shared.mocks import MockTask
+from tests.unit.automation.conftest import MockPageIterator
 
 
 class MockSection:
@@ -20,17 +20,6 @@ class MockSection:
     def __init__(self, gid: str, name: str | None = None) -> None:
         self.gid = gid
         self.name = name
-
-
-class MockPageIterator:
-    """Mock PageIterator that returns items via collect()."""
-
-    def __init__(self, items: list[Any]) -> None:
-        self._items = items
-
-    async def collect(self) -> list[Any]:
-        """Return all items."""
-        return self._items
 
 
 def create_mock_client(
