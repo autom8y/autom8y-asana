@@ -765,7 +765,7 @@ async def rate_limit_exceeded_namespace_handler(
     # off the module-load critical path.
     from slowapi import _rate_limit_exceeded_handler
 
-    return _rate_limit_exceeded_handler(request, exc)  # type: ignore[return-value]
+    return _rate_limit_exceeded_handler(request, exc)  # type: ignore[arg-type,return-value]
 
 
 def register_exception_handlers(app: FastAPI) -> None:
