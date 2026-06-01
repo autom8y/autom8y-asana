@@ -43,7 +43,7 @@ class TestAsyncMethodDecorator:
         assert hasattr(TestClient, "fetch")
         assert not asyncio.iscoroutinefunction(TestClient.fetch)
 
-    def test_async_behavior_correct(self) -> None:
+    async def test_async_behavior_correct(self) -> None:
         """Verify async method executes as coroutine."""
 
         class TestClient:
@@ -55,7 +55,7 @@ class TestAsyncMethodDecorator:
         client = TestClient()
 
         # Call async method
-        result = asyncio.run(client.fetch_async("123"))
+        result = await client.fetch_async("123")
         assert result == "fetched:123"
 
     def test_sync_behavior_correct(self) -> None:
@@ -88,6 +88,10 @@ class TestAsyncMethodDecorator:
             # Calling sync method from async context should raise
             client.fetch("789")
 
+        # class-(c) RETAINED: asyncio.run establishes a running event loop so the
+        # sync .fetch() call inside async_caller detects it and raises
+        # SyncInAsyncContextError. Converting this test to `async def` + `await`
+        # would dismantle the very loop-context the guard is asserted against.
         with pytest.raises(SyncInAsyncContextError) as exc_info:
             asyncio.run(async_caller())
 
@@ -126,7 +130,7 @@ class TestAsyncMethodDecorator:
         assert "Fetch a resource by GID" in TestClient.fetch.__doc__
         assert "fetch_async" in TestClient.fetch.__doc__  # Reference to async
 
-    def test_with_kwargs(self) -> None:
+    async def test_with_kwargs(self) -> None:
         """Verify kwargs are passed correctly."""
 
         class TestClient:
@@ -138,14 +142,16 @@ class TestAsyncMethodDecorator:
         client = TestClient()
 
         # Async with kwargs
-        result = asyncio.run(client.update_async("123", name="Test"))
+        result = await client.update_async("123", name="Test")
         assert result == {"gid": "123", "name": "Test"}
 
-        # Sync with kwargs
-        result = client.update("456", name="Updated")
+        # Sync with kwargs — run off-loop via to_thread; the sync wrapper raises
+        # SyncInAsyncContextError if a running loop is detected (ADR-0002), so the
+        # sync path must be exercised in a worker thread with no running loop.
+        result = await asyncio.to_thread(client.update, "456", name="Updated")
         assert result == {"gid": "456", "name": "Updated"}
 
-    def test_with_multiple_args(self) -> None:
+    async def test_with_multiple_args(self) -> None:
         """Verify multiple positional args work correctly."""
 
         class TestClient:
@@ -156,13 +162,14 @@ class TestAsyncMethodDecorator:
 
         client = TestClient()
 
-        result = asyncio.run(client.move_async("t1", "s1", "p1"))
+        result = await client.move_async("t1", "s1", "p1")
         assert result == "t1:s1:p1"
 
-        result = client.move("t2", "s2", "p2")
+        # Sync path off-loop (ADR-0002 guard raises in a running loop).
+        result = await asyncio.to_thread(client.move, "t2", "s2", "p2")
         assert result == "t2:s2:p2"
 
-    def test_void_return(self) -> None:
+    async def test_void_return(self) -> None:
         """Verify methods with None return work correctly."""
 
         class TestClient:
@@ -177,14 +184,14 @@ class TestAsyncMethodDecorator:
         client = TestClient()
 
         # Async delete
-        asyncio.run(client.delete_async("123"))
+        await client.delete_async("123")
         assert "123" in client.deleted
 
-        # Sync delete
-        client.delete("456")
+        # Sync delete off-loop (ADR-0002 guard raises in a running loop).
+        await asyncio.to_thread(client.delete, "456")
         assert "456" in client.deleted
 
-    def test_exception_propagation(self) -> None:
+    async def test_exception_propagation(self) -> None:
         """Verify exceptions are propagated correctly."""
 
         class CustomError(Exception):
@@ -200,11 +207,11 @@ class TestAsyncMethodDecorator:
 
         # Async exception
         with pytest.raises(CustomError, match="Failed for 123"):
-            asyncio.run(client.failing_async("123"))
+            await client.failing_async("123")
 
-        # Sync exception
+        # Sync exception off-loop (ADR-0002 guard raises in a running loop).
         with pytest.raises(CustomError, match="Failed for 456"):
-            client.failing("456")
+            await asyncio.to_thread(client.failing, "456")
 
     def test_method_name_preserved(self) -> None:
         """Verify method names are correct."""
@@ -237,7 +244,7 @@ class TestAsyncMethodDecorator:
 class TestAsyncMethodWithDecorators:
     """Tests for @async_method stacked with other decorators."""
 
-    def test_stacked_with_mock_error_handler(self) -> None:
+    async def test_stacked_with_mock_error_handler(self) -> None:
         """Verify @async_method works with @error_handler-like decorator."""
 
         call_log: list[str] = []
@@ -269,15 +276,15 @@ class TestAsyncMethodWithDecorators:
         client = TestClient()
 
         # Async call
-        result = asyncio.run(client.fetch_async("123"))
+        result = await client.fetch_async("123")
         assert result == "result:123"
         assert "before:fetch" in call_log
         assert "after:fetch" in call_log
 
         call_log.clear()
 
-        # Sync call
-        result = client.fetch("456")
+        # Sync call off-loop (ADR-0002 guard raises in a running loop).
+        result = await asyncio.to_thread(client.fetch, "456")
         assert result == "result:456"
         assert "before:fetch" in call_log
         assert "after:fetch" in call_log
@@ -310,15 +317,18 @@ class TestAsyncMethodPairClass:
 class TestAsyncMethodIntegration:
     """Integration tests simulating real SDK usage patterns."""
 
-    def test_client_pattern_simulation(self) -> None:
+    async def test_client_pattern_simulation(self) -> None:
         """Simulate the actual SDK client pattern."""
 
         class MockHTTP:
+            def __init__(self) -> None:
+                self.deleted_paths: list[str] = []
+
             async def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
                 return {"gid": "123", "name": "Test Section", "path": path}
 
             async def delete(self, path: str) -> None:
-                pass
+                self.deleted_paths.append(path)
 
         class BaseClient:
             def __init__(self, http: MockHTTP) -> None:
@@ -343,26 +353,31 @@ class TestAsyncMethodIntegration:
         client = SectionsClient(http)
 
         # Test get_async
-        result = asyncio.run(client.get_async("sec1"))
+        result = await client.get_async("sec1")
         assert result["model"] is True
         assert result["gid"] == "123"
 
-        # Test get (sync)
-        result = client.get("sec2")
+        # Test get (sync) off-loop (ADR-0002 guard raises in a running loop).
+        result = await asyncio.to_thread(client.get, "sec2")
         assert result["model"] is True
 
         # Test get with raw=True
-        result = asyncio.run(client.get_async("sec3", raw=True))
+        result = await client.get_async("sec3", raw=True)
         assert "model" not in result
         assert result["gid"] == "123"
 
         # Test delete_async
-        asyncio.run(client.delete_async("sec4"))
+        # Positive observable assertion: the void delete_async must actually
+        # propagate to the underlying HTTP delete. Without this assert the
+        # awaited coroutine would be a vacuous no-op under asyncio_mode=auto.
+        await client.delete_async("sec4")
+        assert "/sections/sec4" in http.deleted_paths
 
-        # Test delete (sync)
-        client.delete("sec5")
+        # Test delete (sync) off-loop (ADR-0002 guard raises in a running loop).
+        await asyncio.to_thread(client.delete, "sec5")
+        assert "/sections/sec5" in http.deleted_paths
 
-    def test_inheritance_works(self) -> None:
+    async def test_inheritance_works(self) -> None:
         """Verify @async_method works with inheritance."""
 
         class BaseClient:
@@ -379,13 +394,13 @@ class TestAsyncMethodIntegration:
 
         client = DerivedClient()
 
-        # Base method
-        assert asyncio.run(client.base_method_async("1")) == "base:1"
-        assert client.base_method("2") == "base:2"
+        # Base method (sync path off-loop per ADR-0002 guard).
+        assert await client.base_method_async("1") == "base:1"
+        assert await asyncio.to_thread(client.base_method, "2") == "base:2"
 
-        # Derived method
-        assert asyncio.run(client.derived_method_async("3")) == "derived:3"
-        assert client.derived_method("4") == "derived:4"
+        # Derived method (sync path off-loop per ADR-0002 guard).
+        assert await client.derived_method_async("3") == "derived:3"
+        assert await asyncio.to_thread(client.derived_method, "4") == "derived:4"
 
     def test_method_override_in_subclass(self) -> None:
         """Verify method can be overridden in subclass."""
