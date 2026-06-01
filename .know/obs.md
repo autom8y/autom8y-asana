@@ -29,7 +29,7 @@ max_incremental_cycles: 3
 
 ## OBS-EXPORTS-001: Exports Route Instrumentation Gap (P2)
 
-**Status**: OPEN | **Severity**: P2 | **Pre-GA Deadline**: 2026-06-15 (38 days remaining as of 2026-05-08)
+**Status**: PARTIAL — request span + 3 structured logs (Required Instrumentation §1-4) landed 2026-06-01 (branch `sre-ob2-exports-observability-2026-06-01`); metric counters/histograms, SLO targets, and alert rules remain. | **Severity**: P2 | **Pre-GA Deadline**: 2026-06-15
 
 ### Anchor
 
@@ -40,7 +40,7 @@ max_incremental_cycles: 3
 
 ### Verification Against SHA 8980bcd7
 
-Commits `8980bcd7..f37802f2` (Sprint-3 hygiene, xdist activation, persistence test budget, autom8y-core lower-bound lift) do not touch `exports.py` or `_exports_helpers.py`. The `autom8y-core>=4.2.0` lower-bound bump (`f6864435`) is a token/config SDK — it carries no observability surface. Grep at HEAD (`8980bcd7`) returns 0 matches for all instrumentation patterns in both files. **OBS-EXPORTS-001 remains open and unaddressed.**
+Commits `8980bcd7..f37802f2` (Sprint-3 hygiene, xdist activation, persistence test budget, autom8y-core lower-bound lift) do not touch `exports.py` or `_exports_helpers.py`. The `autom8y-core>=4.2.0` lower-bound bump (`f6864435`) is a token/config SDK — it carries no observability surface. Grep at HEAD (`8980bcd7`) returned 0 matches for all instrumentation patterns in both files. **UPDATE 2026-06-01:** Required Instrumentation §1-4 (request span + 3 structured logs) are now implemented — one `exports.request` span opened in the shared `export_handler` (mirrors `resolver.py`), carrying the six contracted attributes, plus the three trigger-gated logs. Branch `sre-ob2-exports-observability-2026-06-01`. **Residual (still open):** metric counters/histograms, SLO targets, and alert rules.
 
 ### Symptom
 
@@ -51,7 +51,7 @@ The `/v1/exports` and `/api/v1/exports` routes are LIVE on `main` carrying Phase
 - 0 SLO targets defined
 - 0 alert rules
 
-### Required Instrumentation (SRE handoff desired state — not yet implemented)
+### Required Instrumentation (§1-4 implemented 2026-06-01; metrics/SLO/alerts residual)
 
 1. **Request span** — emit `exports_request_complete` with fields: `entity_type`, `row_count_pre_dedup`, `row_count_post_dedup`, `date_filter_applied`, `section_default_applied`, `identity_suppressed_count`. Anchor: `src/autom8_asana/api/routes/exports.py` handler function.
 2. **`exports_section_default_injected` log** when `apply_active_default_section_predicate` returns `default_applied=True`.

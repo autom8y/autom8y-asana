@@ -40,6 +40,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 from autom8y_log import get_logger
+from autom8y_telemetry import get_tracer
 from fastapi.responses import Response  # noqa: TC002 — pydantic resolves at OpenAPI emit time
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -90,6 +91,7 @@ __all__ = [
 ]
 
 logger = get_logger(__name__)
+_tracer = get_tracer(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -335,167 +337,225 @@ async def export_handler(
     """
     import polars as pl
 
-    # 1. Entity validation
-    try:
-        entity_service.validate_entity_type(request_body.entity_type)  # type: ignore[attr-defined]
-    except UnknownEntityError as e:
-        raise_api_error(
-            request_id,
-            400,
-            "unknown_entity_type",
-            f"Unknown entity_type: {request_body.entity_type!r}",
-            details={"available_entities": getattr(e, "available", None)},
-        )
-
-    # 2. Section vocabulary validation (PRD §9.2)
-    try:
-        validate_section_values(request_body.predicate)
-    except InvalidSectionError as e:
-        raise_api_error(
-            request_id,
-            400,
-            "unknown_section_value",
-            str(e),
-            details={"value": e.value},
-        )
-
-    # 3. ACTIVE-only default section filter when caller omits (TDD §9.3)
-    effective_predicate, default_section_applied = apply_active_default_section_predicate(
-        request_body.predicate
-    )
-
-    # 4. ESC-1 date predicate translation (TDD §15.1)
-    try:
-        date_split = translate_date_predicates(effective_predicate)
-    except ValueError as e:
-        raise_api_error(
-            request_id,
-            400,
-            "malformed_predicate",
-            str(e),
-        )
-    cleaned_predicate = date_split.cleaned_predicate
-    date_filter_expr = date_split.date_filter_expr
-
-    # 5. Compile non-date portion via existing PredicateCompiler (read-only)
-    registry = SchemaRegistry.get_instance()
-    schema = registry.get_schema(_to_pascal_case(request_body.entity_type))
-    compiler = PredicateCompiler()
-    base_filter_expr: pl.Expr | None = None
-    if cleaned_predicate is not None:
+    # OBS-EXPORTS-001: ONE request span wrapping the entire pipeline body. Both
+    # delegating routes (post_export_v1, post_export_api_v1) inherit THIS span
+    # via the shared callable. The span WRAPS the pipeline — every attribute is
+    # a read of an existing local or a result_df.height delta; no pipeline step,
+    # helper, or engine surface is altered. Mirrors resolver.py exemplar.
+    with _tracer.start_as_current_span(
+        "exports.request",
+        record_exception=False,
+        set_status_on_exception=False,
+    ) as span:
+        # 1. Entity validation
         try:
-            base_filter_expr = compiler.compile(cleaned_predicate, schema)
-        except UnknownFieldError as e:
+            entity_service.validate_entity_type(request_body.entity_type)  # type: ignore[attr-defined]
+        except UnknownEntityError as e:
             raise_api_error(
                 request_id,
                 400,
-                "unknown_field",
-                str(e),
-                details={"field": getattr(e, "field", None)},
+                "unknown_entity_type",
+                f"Unknown entity_type: {request_body.entity_type!r}",
+                details={"available_entities": getattr(e, "available", None)},
             )
-        except (InvalidOperatorError, CoercionError) as e:
+
+        # 2. Section vocabulary validation (PRD §9.2)
+        try:
+            validate_section_values(request_body.predicate)
+        except InvalidSectionError as e:
+            raise_api_error(
+                request_id,
+                400,
+                "unknown_section_value",
+                str(e),
+                details={"value": e.value},
+            )
+
+        # 3. ACTIVE-only default section filter when caller omits (TDD §9.3)
+        effective_predicate, default_section_applied = apply_active_default_section_predicate(
+            request_body.predicate
+        )
+        # OBS-EXPORTS-001 structured log: emitted when the ACTIVE-only default
+        # section filter was injected because the caller omitted a section.
+        if default_section_applied:
+            logger.info(
+                "exports_section_default_injected",
+                extra={
+                    "request_id": request_id,
+                    "entity_type": request_body.entity_type,
+                },
+            )
+
+        # 4. ESC-1 date predicate translation (TDD §15.1)
+        try:
+            date_split = translate_date_predicates(effective_predicate)
+        except ValueError as e:
             raise_api_error(
                 request_id,
                 400,
                 "malformed_predicate",
                 str(e),
             )
-
-    # Combine: date_filter AND base_filter (both AND-merged downstream).
-    # NOTE: polars Expr objects do NOT support truthiness (the implicit
-    # ``or`` overload raises TypeError). Use explicit ``is not None`` guards.
-    combined_filter_expr: pl.Expr | None
-    if base_filter_expr is not None and date_filter_expr is not None:
-        combined_filter_expr = base_filter_expr & date_filter_expr
-    elif base_filter_expr is not None:
-        combined_filter_expr = base_filter_expr
-    elif date_filter_expr is not None:
-        combined_filter_expr = date_filter_expr
-    else:
-        combined_filter_expr = None
-
-    # 6. Per-project fetch + filter + concat
-    predicate_join_semantics = _resolve_predicate_join_semantics(request_body.options)
-    frames: list[pl.DataFrame] = []
-    for project_gid in request_body.project_gids:
-        try:
-            df = await _engine_call_with_left_preservation_guard(
-                entity_type=request_body.entity_type,
-                project_gid=str(project_gid),
-                client=client,
-                request_id=request_id,
-                predicate_join_semantics=predicate_join_semantics,
-            )
-        except CacheNotWarmError as e:
-            raise_api_error(
-                request_id,
-                503,
-                "CACHE_NOT_WARMED",
-                str(e),
-                details={
+        cleaned_predicate = date_split.cleaned_predicate
+        date_filter_expr = date_split.date_filter_expr
+        # OBS-EXPORTS-001 structured log: emitted when a date filter expression
+        # was translated (BETWEEN / DATE_GTE / DATE_LTE → Polars filter).
+        if date_filter_expr is not None:
+            logger.info(
+                "exports_date_filter_applied",
+                extra={
+                    "request_id": request_id,
                     "entity_type": request_body.entity_type,
-                    "project_gid": str(project_gid),
-                    "retry_after_seconds": 30,
                 },
             )
-        if combined_filter_expr is not None:
-            df = df.filter(combined_filter_expr)
-        frames.append(df)
 
-    if not frames:
-        # project_gids min_length=1 enforced by Pydantic; defensive only.
-        result_df = pl.DataFrame()
-    elif len(frames) == 1:
-        result_df = frames[0]
-    else:
-        result_df = pl.concat(frames, how="diagonal_relaxed")
+        # 5. Compile non-date portion via existing PredicateCompiler (read-only)
+        registry = SchemaRegistry.get_instance()
+        schema = registry.get_schema(_to_pascal_case(request_body.entity_type))
+        compiler = PredicateCompiler()
+        base_filter_expr: pl.Expr | None = None
+        if cleaned_predicate is not None:
+            try:
+                base_filter_expr = compiler.compile(cleaned_predicate, schema)
+            except UnknownFieldError as e:
+                raise_api_error(
+                    request_id,
+                    400,
+                    "unknown_field",
+                    str(e),
+                    details={"field": getattr(e, "field", None)},
+                )
+            except (InvalidOperatorError, CoercionError) as e:
+                raise_api_error(
+                    request_id,
+                    400,
+                    "malformed_predicate",
+                    str(e),
+                )
 
-    # 7. identity_complete (P1-C-05 source-of-truth)
-    result_df = attach_identity_complete(result_df)
+        # Combine: date_filter AND base_filter (both AND-merged downstream).
+        # NOTE: polars Expr objects do NOT support truthiness (the implicit
+        # ``or`` overload raises TypeError). Use explicit ``is not None`` guards.
+        combined_filter_expr: pl.Expr | None
+        if base_filter_expr is not None and date_filter_expr is not None:
+            combined_filter_expr = base_filter_expr & date_filter_expr
+        elif base_filter_expr is not None:
+            combined_filter_expr = base_filter_expr
+        elif date_filter_expr is not None:
+            combined_filter_expr = date_filter_expr
+        else:
+            combined_filter_expr = None
 
-    # 8. Optional null-key suppression
-    result_df = filter_incomplete_identity(
-        result_df,
-        include=request_body.options.include_incomplete_identity,
-    )
+        # 6. Per-project fetch + filter + concat
+        predicate_join_semantics = _resolve_predicate_join_semantics(request_body.options)
+        frames: list[pl.DataFrame] = []
+        for project_gid in request_body.project_gids:
+            try:
+                df = await _engine_call_with_left_preservation_guard(
+                    entity_type=request_body.entity_type,
+                    project_gid=str(project_gid),
+                    client=client,
+                    request_id=request_id,
+                    predicate_join_semantics=predicate_join_semantics,
+                )
+            except CacheNotWarmError as e:
+                raise_api_error(
+                    request_id,
+                    503,
+                    "CACHE_NOT_WARMED",
+                    str(e),
+                    details={
+                        "entity_type": request_body.entity_type,
+                        "project_gid": str(project_gid),
+                        "retry_after_seconds": 30,
+                    },
+                )
+            if combined_filter_expr is not None:
+                df = df.filter(combined_filter_expr)
+            frames.append(df)
 
-    # 9. Dedupe by configured key
-    result_df = dedupe_by_key(result_df, keys=list(request_body.options.dedupe_key))
+        if not frames:
+            # project_gids min_length=1 enforced by Pydantic; defensive only.
+            result_df = pl.DataFrame()
+        elif len(frames) == 1:
+            result_df = frames[0]
+        else:
+            result_df = pl.concat(frames, how="diagonal_relaxed")
 
-    # 10. Column projection (PRD §5.2 minimum)
-    available_default_cols = [c for c in PHASE_1_DEFAULT_COLUMNS if c in result_df.columns]
-    if (
-        "identity_complete" not in available_default_cols
-        and "identity_complete" in result_df.columns
-    ):
-        available_default_cols.append("identity_complete")
-    if available_default_cols:
-        result_df = result_df.select(available_default_cols)
+        # 7. identity_complete (P1-C-05 source-of-truth)
+        result_df = attach_identity_complete(result_df)
 
-    logger.info(
-        "exports_handler_complete",
-        extra={
-            "request_id": request_id,
-            "entity_type": request_body.entity_type,
-            "project_gid_count": len(request_body.project_gids),
-            "row_count": result_df.height,
-            "format": request_body.format,
-            "default_section_applied": default_section_applied,
-            "predicate_join_semantics": predicate_join_semantics,
-            "include_incomplete_identity": request_body.options.include_incomplete_identity,
-        },
-    )
+        # 8. Optional null-key suppression. OBS-EXPORTS-001: bracket the
+        # unchanged filter_incomplete_identity call with height reads so the
+        # suppressed-row count is computable in handler space (helper untouched).
+        height_pre_identity_filter = result_df.height
+        result_df = filter_incomplete_identity(
+            result_df,
+            include=request_body.options.include_incomplete_identity,
+        )
+        identity_suppressed_count = height_pre_identity_filter - result_df.height
+        # Structured log: emitted when null-identity rows were actually
+        # suppressed (include=False AND a positive delta).
+        if not request_body.options.include_incomplete_identity and identity_suppressed_count > 0:
+            logger.info(
+                "exports_identity_rows_suppressed",
+                extra={
+                    "request_id": request_id,
+                    "entity_type": request_body.entity_type,
+                    "identity_suppressed_count": identity_suppressed_count,
+                },
+            )
 
-    # 11. Format negotiation (eager DataFrame → response, ESC-3 measurement here)
-    return _format_dataframe_response(
-        df=result_df,
-        request_id=request_id,
-        limit=result_df.height,
-        has_more=False,
-        next_offset=None,
-        accept=None,
-        format=request_body.format,
-    )
+        # 9. Dedupe by configured key. OBS-EXPORTS-001: read result_df.height on
+        # both sides of the unchanged dedupe_by_key call for the pre/post-dedup
+        # row-count span attributes (the call and helper are NOT altered).
+        row_count_pre_dedup = result_df.height
+        result_df = dedupe_by_key(result_df, keys=list(request_body.options.dedupe_key))
+        row_count_post_dedup = result_df.height
+
+        # 10. Column projection (PRD §5.2 minimum)
+        available_default_cols = [c for c in PHASE_1_DEFAULT_COLUMNS if c in result_df.columns]
+        if (
+            "identity_complete" not in available_default_cols
+            and "identity_complete" in result_df.columns
+        ):
+            available_default_cols.append("identity_complete")
+        if available_default_cols:
+            result_df = result_df.select(available_default_cols)
+
+        # OBS-EXPORTS-001 request-span attributes — all reads of existing
+        # handler-space locals / result_df.height deltas captured above.
+        span.set_attribute("entity_type", request_body.entity_type)
+        span.set_attribute("row_count_pre_dedup", row_count_pre_dedup)
+        span.set_attribute("row_count_post_dedup", row_count_post_dedup)
+        span.set_attribute("date_filter_applied", date_filter_expr is not None)
+        span.set_attribute("section_default_applied", default_section_applied)
+        span.set_attribute("identity_suppressed_count", identity_suppressed_count)
+
+        logger.info(
+            "exports_handler_complete",
+            extra={
+                "request_id": request_id,
+                "entity_type": request_body.entity_type,
+                "project_gid_count": len(request_body.project_gids),
+                "row_count": result_df.height,
+                "format": request_body.format,
+                "default_section_applied": default_section_applied,
+                "predicate_join_semantics": predicate_join_semantics,
+                "include_incomplete_identity": request_body.options.include_incomplete_identity,
+            },
+        )
+
+        # 11. Format negotiation (eager DataFrame → response, ESC-3 measurement here)
+        return _format_dataframe_response(
+            df=result_df,
+            request_id=request_id,
+            limit=result_df.height,
+            has_more=False,
+            next_offset=None,
+            accept=None,
+            format=request_body.format,
+        )
 
 
 # ---------------------------------------------------------------------------
