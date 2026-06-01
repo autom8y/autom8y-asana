@@ -6,7 +6,6 @@ This file covers the remaining 16 contracts: LO-01 through LO-08, LO-12 through 
 
 from __future__ import annotations
 
-import asyncio
 import time
 from dataclasses import FrozenInstanceError, fields
 from datetime import UTC, datetime, timedelta
@@ -300,13 +299,13 @@ class TestLO05StoreRoundTrip:
 class TestLO06EmitterEmission:
     """LO-06: StageTransitionEmitter calls store.append on emit."""
 
-    def test_emit_calls_store_append(self) -> None:
+    async def test_emit_calls_store_append(self) -> None:
         """LO-06: emit() delegates to store.append."""
         mock_store = MagicMock()
         emitter = StageTransitionEmitter(store=mock_store)
         record = _make_record()
 
-        asyncio.run(emitter.emit(record))
+        await emitter.emit(record)
         mock_store.append.assert_called_once_with(record)
 
 
@@ -318,7 +317,7 @@ class TestLO06EmitterEmission:
 class TestLO07EmitterFailForward:
     """LO-07: Emitter swallows exceptions (fail-forward contract)."""
 
-    def test_store_exception_swallowed(self) -> None:
+    async def test_store_exception_swallowed(self) -> None:
         """LO-07: store.append raises -> emit() does NOT propagate."""
         mock_store = MagicMock()
         mock_store.append.side_effect = OSError("disk full")
@@ -326,17 +325,17 @@ class TestLO07EmitterFailForward:
         record = _make_record()
 
         # Must not raise
-        asyncio.run(emitter.emit(record))
+        await emitter.emit(record)
         mock_store.append.assert_called_once()
 
-    def test_store_runtime_error_swallowed(self) -> None:
+    async def test_store_runtime_error_swallowed(self) -> None:
         """LO-07: RuntimeError from store is also swallowed."""
         mock_store = MagicMock()
         mock_store.append.side_effect = RuntimeError("unexpected failure")
         emitter = StageTransitionEmitter(store=mock_store)
         record = _make_record()
 
-        asyncio.run(emitter.emit(record))
+        await emitter.emit(record)
         mock_store.append.assert_called_once()
 
 
@@ -652,18 +651,18 @@ class TestLO18DryRunMode:
         )
         return dispatcher, mock_dispatch
 
-    def test_dry_run_does_not_dispatch(self) -> None:
+    async def test_dry_run_does_not_dispatch(self) -> None:
         """LO-18: dry_run=True -> dispatch_async NOT called."""
         dispatcher, mock_dispatch = self._make_dispatcher(dry_run=True)
-        result = asyncio.run(dispatcher.handle_event("section_changed", "Process", "gid-dry", {}))
+        result = await dispatcher.handle_event("section_changed", "Process", "gid-dry", {})
         assert result["dispatched"] is False
         assert result["reason"] == "dry_run"
         mock_dispatch.dispatch_async.assert_not_called()
 
-    def test_non_dry_run_does_dispatch(self) -> None:
+    async def test_non_dry_run_does_dispatch(self) -> None:
         """LO-18: dry_run=False -> dispatch_async IS called."""
         dispatcher, mock_dispatch = self._make_dispatcher(dry_run=False)
-        result = asyncio.run(dispatcher.handle_event("section_changed", "Process", "gid-live", {}))
+        result = await dispatcher.handle_event("section_changed", "Process", "gid-live", {})
         assert result["dispatched"] is True
         assert result["reason"] == "live"
         mock_dispatch.dispatch_async.assert_called_once()
@@ -677,7 +676,7 @@ class TestLO18DryRunMode:
 class TestLO19EntityTypeNotInAllowlist:
     """LO-19: Dispatch skipped when entity_type not in allowed_entity_types."""
 
-    def test_offer_not_in_business_only_allowlist(self) -> None:
+    async def test_offer_not_in_business_only_allowlist(self) -> None:
         """LO-19: allowed_entity_types={'Business'} -> Offer dispatch skipped."""
         config = WebhookDispatcherConfig(
             enabled=True,
@@ -695,12 +694,12 @@ class TestLO19EntityTypeNotInAllowlist:
             loop_detector=loop_detector,
         )
 
-        result = asyncio.run(dispatcher.handle_event("section_changed", "Offer", "gid-offer", {}))
+        result = await dispatcher.handle_event("section_changed", "Offer", "gid-offer", {})
         assert result["dispatched"] is False
         assert result["reason"] == "entity_type_not_allowed"
         mock_dispatch.dispatch_async.assert_not_called()
 
-    def test_matching_entity_type_allowed(self) -> None:
+    async def test_matching_entity_type_allowed(self) -> None:
         """LO-19: Matching entity type passes the allowlist check."""
         config = WebhookDispatcherConfig(
             enabled=True,
@@ -718,7 +717,7 @@ class TestLO19EntityTypeNotInAllowlist:
             loop_detector=loop_detector,
         )
 
-        result = asyncio.run(dispatcher.handle_event("section_changed", "Business", "gid-biz", {}))
+        result = await dispatcher.handle_event("section_changed", "Business", "gid-biz", {})
         assert result["dispatched"] is True
         mock_dispatch.dispatch_async.assert_called_once()
 
@@ -731,7 +730,7 @@ class TestLO19EntityTypeNotInAllowlist:
 class TestLO20CompositeScenario:
     """LO-20: Full observation pipeline: create record -> emit -> verify stored."""
 
-    def test_end_to_end_pipeline(self, tmp_path) -> None:
+    async def test_end_to_end_pipeline(self, tmp_path) -> None:
         """LO-20: Real store + real emitter round-trip."""
         store = StageTransitionStore(base_dir=tmp_path)
         emitter = StageTransitionEmitter(store=store)
@@ -754,7 +753,7 @@ class TestLO20CompositeScenario:
         )
 
         # emit uses asyncio.to_thread -> runs store.append in thread
-        asyncio.run(emitter.emit(record))
+        await emitter.emit(record)
 
         # verify stored
         df = store.load("Business")
@@ -769,7 +768,7 @@ class TestLO20CompositeScenario:
         assert "duration_days" in df.columns
         assert row["duration_days"] == pytest.approx(7.0)
 
-    def test_multiple_entity_types_partitioned(self, tmp_path) -> None:
+    async def test_multiple_entity_types_partitioned(self, tmp_path) -> None:
         """LO-20: Records for different entity types go to separate partitions."""
         store = StageTransitionStore(base_dir=tmp_path)
         emitter = StageTransitionEmitter(store=store)
@@ -777,8 +776,8 @@ class TestLO20CompositeScenario:
         r_process = _make_record(entity_gid="gid-p", entity_type="Process")
         r_offer = _make_record(entity_gid="gid-o", entity_type="Offer")
 
-        asyncio.run(emitter.emit(r_process))
-        asyncio.run(emitter.emit(r_offer))
+        await emitter.emit(r_process)
+        await emitter.emit(r_offer)
 
         df_process = store.load("Process")
         df_offer = store.load("Offer")
