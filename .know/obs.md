@@ -107,7 +107,7 @@ W3C Trace Context (`traceparent`) propagation confirmed active via `HTTPXClientI
 
 Confirmed wired: `api/lifespan.py:15` imports `add_otel_trace_ids` from `autom8y_log.processors`; line 77 injects it as a structlog processor at startup. Every module using `autom8y_log.get_logger()` (the mandated logger per `pyproject.toml:295-302` import-guard rules) inherits OTel trace ID injection.
 
-**Gap — Lambda mode**: Lambda handlers emit CloudWatch metrics but do not wire `add_otel_trace_ids` — log-trace correlation only fires in ECS mode.
+**Gap — Lambda mode (RESOLVED-in-repo 2026-06-02, PR #88)**: previously Lambda handlers emitted CloudWatch metrics but did not wire `add_otel_trace_ids`, so log-trace correlation fired in ECS mode only. Now `lambda_handlers/logging_config.py:configure_lambda_logging()` runs at cold-start (package import, before handler imports) and wires `add_otel_trace_ids` + substring sensitive-data redaction into the Lambda log chain, mirroring ECS `api/lifespan.py:77`. See LOG-TRACE-LAMBDA registry row.
 
 **Gap — namespace bridging**: HTTP request IDs (`X-Request-ID`, UUID hex 16 chars) and SDK correlation IDs (`sdk-{ts}-{rand}`, 18 chars) coexist without bridging.
 
@@ -297,7 +297,7 @@ Platform-level Prometheus metrics (`autom8y_http_*`) provided by `instrument_app
 
 `autom8y_log.processors.add_otel_trace_ids` injected at startup in `api/lifespan.py:77`. Injects `trace_id` and `span_id` fields into every log record when executing inside an active OTel span.
 
-**Gap — Lambda mode**: Lambda handlers use `autom8y_log.get_logger()` but the startup path does not call `configure(additional_processors=[add_otel_trace_ids])`. Log-trace correlation is ECS-mode only.
+**Gap — Lambda mode (RESOLVED-in-repo 2026-06-02, PR #88)**: previously Lambda handlers used `autom8y_log.get_logger()` but the startup path did not call `configure(additional_processors=[add_otel_trace_ids])`, so log-trace correlation was ECS-mode only. Now `lambda_handlers/logging_config.py:configure_lambda_logging()` calls `core.logging.configure(additional_processors=[add_otel_trace_ids, _filter_sensitive_data_substring])` at cold-start. The substring-redaction `_SENSITIVE_FIELDS` set is byte-identical to the satellite `api/middleware/core.py:32` `SENSITIVE_FIELDS` (anti-drift test: `test_substring_filter_matches_satellite_semantics`). Idempotence is triple-guarded (`logging_config._configured`, `core.logging._configured`, `autom8y_log` SDK global). Import-ordering invariant verified safe as committed: guard installs before the first module-scope `get_logger(__name__)` offender on the import path (`cache_invalidate.py:46`, imported at `__init__.py:26+`).
 
 ### Sensitive Data Filtering
 
@@ -417,7 +417,7 @@ No Grafana dashboards, CloudWatch dashboards, or other dashboard definitions fou
 | OBS-EXPORTS-001 | `api/routes/exports.py`, `api/routes/_exports_helpers.py` | P2 | 2026-06-15 (38 days) | OPEN — unaddressed in SHA 8980bcd7 |
 | H-006 | `src/autom8_asana/automation/workflows/bridge_base.py:191-195` | P3 | Unknown | OPEN — `trace_computation` not available in 0.6.1; inline TODO persists at SHA 8980bcd7 |
 | LAMBDA-OBS-001 | Lambda entry-point handlers (OTel span instrumentation) | P3 | None declared | RESOLVED-in-repo 2026-06-02 (PR #86) — denominator corrected: prior "10 of 13" counted 7 non-entry-point service modules; real scope = 6 of 6 entry-point handlers instrumented (cache_warmer direct, workflow_handler factory, conversation_audit/insights_export/payment_reconciliation transitive via `create_workflow_handler`, cache_invalidate added PR #86). See `.ledge/decisions/SRE-VERDICT-lambda-obs-001-2026-06-01.md` |
-| LOG-TRACE-LAMBDA | Lambda handlers: `add_otel_trace_ids` not wired | P3 | None declared | OPEN |
+| LOG-TRACE-LAMBDA | Lambda handlers: `add_otel_trace_ids` not wired | P3 | None declared | RESOLVED-in-repo 2026-06-02 (PR #88) — cold-start `configure_lambda_logging()` in new `lambda_handlers/logging_config.py` wires `add_otel_trace_ids` + substring sensitive-data redaction into the Lambda log chain at package import, before the handler-import surface (`__init__.py:26+`); mirrors ECS `api/lifespan.py:77`. Span<->log correlation proven non-vacuously (ids equal active SpanContext). Residual (DEFER): span-fidelity (richer span-attribute propagation) bundled-deferred; correlation completeness still bounded by SAMPLING-UNDOC. See `.ledge/decisions/SRE-VERDICT-log-trace-lambda-2026-06-02.md` |
 | SAMPLING-UNDOC | No `OTEL_TRACES_SAMPLER` env var configured | P3 | None declared | OPEN |
 | SLO-API-SURFACE | Zero ECS/API SLOs defined | P2 | None declared | OPEN |
 | CRED-TOPOLOGY-MATRIX | No credential-topology-matrix instance | P2 | None declared | OPEN — schema exists, no instance |
@@ -481,5 +481,6 @@ change_from_prior:
   obs_exports_001: "still OPEN — zero instrumentation hits at HEAD; deadline countdown updated to 38 days"
   h006: "still OPEN — bridge_base.py:191-195 TODO persists"
   autom8y_core_bump: "autom8y-core>=4.2.0 lower-bound lift (f6864435) carries no observability surface; no grade impact"
-  overall: "no change — F(45.25%) maintained"
+  log_trace_lambda: "RESOLVED-in-repo 2026-06-02 (PR #88) — cold-start configure_lambda_logging() wires add_otel_trace_ids + substring redaction into the Lambda log chain; span<->log correlation proven; span-fidelity DEFER; residual bounded by SAMPLING-UNDOC"
+  overall: "no change — F(45.25%) maintained (LOG-TRACE-LAMBDA was P3; resolution does not move the weighted instrumentation_depth score materially while OTLP-ENDPOINT-OPACITY/SLO-API-SURFACE/CRED-TOPOLOGY-MATRIX remain OPEN)"
 ```
