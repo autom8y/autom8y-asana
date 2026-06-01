@@ -23,6 +23,7 @@ from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.policies.hierarchy import HierarchyIndex
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
 from autom8_asana.settings import reset_settings
+from tests._shared.factories import make_task_dict as _make_task
 
 if TYPE_CHECKING:
     from autom8_asana.cache.models.entry import EntryType
@@ -30,17 +31,6 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _make_task(
-    gid: str,
-    parent_gid: str | None = None,
-    modified_at: str = "2025-12-23T10:00:00.000Z",
-) -> dict:
-    task: dict = {"gid": gid, "name": f"Task {gid}", "modified_at": modified_at}
-    if parent_gid:
-        task["parent"] = {"gid": parent_gid}
-    return task
 
 
 def _make_parent_response(gid: str) -> MagicMock:

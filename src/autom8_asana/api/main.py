@@ -296,6 +296,34 @@ _TAG_DESCRIPTIONS: dict[str, str] = {
 }
 
 
+def _assert_fleet_query_mount_order(app: FastAPI) -> None:
+    """Assert fleet /v1/query/entities is registered before the legacy wildcard.
+
+    Read-only invariant over the built app's routes. Raises RuntimeError if the
+    mount order regresses so that POST /v1/query/entities would be shadowed by
+    the legacy POST /v1/query/{entity_type} wildcard (which treats "entities" as
+    a path parameter and 422s the fleet body). No-op when either route is absent,
+    so a legitimate router change cannot break startup here.
+    See .know/design-constraints.md TENSION-009.
+    """
+    fleet_idx: int | None = None
+    wildcard_idx: int | None = None
+    for i, route in enumerate(app.router.routes):
+        path = getattr(route, "path", None)
+        if path == "/v1/query/entities" and fleet_idx is None:
+            fleet_idx = i
+        elif path == "/v1/query/{entity_type}" and wildcard_idx is None:
+            wildcard_idx = i
+    if fleet_idx is not None and wildcard_idx is not None and fleet_idx > wildcard_idx:
+        raise RuntimeError(
+            "Router mount-order regression: fleet POST /v1/query/entities "
+            f"(index {fleet_idx}) is registered after the legacy "
+            "/v1/query/{entity_type} wildcard "
+            f"(index {wildcard_idx}); POST /v1/query/entities would be shadowed "
+            "(422). See TENSION-009."
+        )
+
+
 def create_app() -> FastAPI:
     """Create and configure FastAPI application.
 
@@ -467,6 +495,12 @@ def create_app() -> FastAPI:
         )
     except ImportError:
         pass
+
+    # Mount-order invariant guard (read-only): assert the fleet
+    # POST /v1/query/entities route precedes the legacy
+    # POST /v1/query/{entity_type} wildcard, or /v1/query/entities is shadowed
+    # (422). Locks the RouterMount ordering above. See TENSION-009.
+    _assert_fleet_query_mount_order(app)
 
     # --- Exception Handlers ---
     register_exception_handlers(app)

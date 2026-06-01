@@ -5,6 +5,9 @@ on:
     - cron: '0 6 * * 1'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   trufflehog:
     uses: autom8y/autom8y-workflows/.github/workflows/security-trufflehog.yml@44b771e516a49a0d964782e4bbd0f0e39b2f97a1

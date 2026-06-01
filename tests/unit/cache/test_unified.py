@@ -15,6 +15,7 @@ from autom8_asana.batch.models import BatchResult
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
+from tests._shared.factories import make_task_dict as make_task
 
 
 @pytest.fixture
@@ -37,23 +38,6 @@ def store(mock_cache_provider: MagicMock, mock_batch_client: MagicMock) -> Unifi
         batch_client=mock_batch_client,
         freshness_mode=FreshnessIntent.EVENTUAL,
     )
-
-
-def make_task(
-    gid: str,
-    name: str = "Test Task",
-    parent_gid: str | None = None,
-    modified_at: str = "2025-12-23T10:00:00.000Z",
-) -> dict:
-    """Create a test task dict."""
-    task = {
-        "gid": gid,
-        "name": name,
-        "modified_at": modified_at,
-    }
-    if parent_gid:
-        task["parent"] = {"gid": parent_gid}
-    return task
 
 
 def make_entry(
