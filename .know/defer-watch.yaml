@@ -147,3 +147,37 @@
     - tests/contracts/test_contract_auth.py
     - tests/validation/persistence/ (5 files)
     - tests/synthetic/test_synthetic_coverage.py
+
+- id: ob-universal-strategy-span-xdist
+  filed_at: 2026-06-01
+  filed_by: sre flaky-test root-fix sprint (fix-flaky-universal-strategy-xdist-2026-06-01)
+  parent_initiative: ci-reliability-xdist-flake
+  scope: >
+    root-fix the xdist-concurrency flake in the test_universal_strategy_spans.py
+    error-path tests (test_index_build_failure_sets_error_attributes,
+    test_lookup_failure_adds_event_and_partial_success): the resolve_group span is
+    intermittently NOT recorded in the InMemorySpanExporter under -n auto on the CI
+    runner (assert 0 == 1). They are worker_isolated-quarantined (single-process)
+    as targeted containment while the root mechanism is pinned.
+  status: DEFERRED-needs-CI-reproduction
+  blocker: >
+    not reproducible locally (5 strategies exhausted: 2-file x20, broad-unit x10,
+    integration-inclusive x12, pytest-split 4-group, forced-order -- all green on 12
+    cores). otel_provider fixture rebinds the module _tracer (looks isolated), so the
+    span-not-recorded cause needs CI-resource-pressure reproduction. Containment
+    (single-process) verified stable.
+  watch_trigger: 2026-09-01
+  deadline: 2026-12-01
+  escalation_target: /sre observability-engineer (or /eunomia test-cartographer)
+  retry_action: >
+    reproduce in CI by looping these tests under -n auto with shard co-tenants +
+    instrumentation capturing tracer-provider identity and exporter span-count on
+    failure; pin the mechanism (likely SimpleSpanProcessor / global-provider under
+    concurrency), make otel_provider fully concurrency-robust, then remove the marks.
+  back_out_criterion: >
+    root fix lands AND the tests pass 50x under -n auto in CI -> remove the
+    @pytest.mark.worker_isolated marks (they re-enter the sharded gate).
+  evidence_anchors:
+    - tests/unit/services/test_universal_strategy_spans.py (worker_isolated marks)
+    - .github/workflows/test.yml (isolated job, -m worker_isolated)
+    - CI runs PR#72 shard 2/4 + PR#75 shard 1/4 (assert 0 == 1)

@@ -56,19 +56,17 @@ class TestNullSlotLogging:
         mock_validation.normalized_criterion = {"office_phone": "+15551234567"}
         mock_validation.errors = []
 
-        # Mock gather_with_limit to be a no-op -- this leaves results[0] = None
-        async def noop_gather(coros: list, max_concurrent: int) -> None:
-            pass
-
+        # Patch _resolve_group to a no-op so the result slot stays None (the
+        # null-slot path). Robust target: the strategy's own method. Patching
+        # the function-local-imported gather_with_limit was xdist-fragile — the
+        # real gather intermittently ran and filled the slot (assert 0 == N).
+        # The real gather still runs here, awaiting the no-op coroutine.
         with (
             patch(
                 "autom8_asana.services.resolver.validate_criterion_for_entity",
                 return_value=mock_validation,
             ),
-            patch(
-                "autom8_asana.dataframes.builders.base.gather_with_limit",
-                side_effect=noop_gather,
-            ),
+            patch.object(strategy, "_resolve_group", AsyncMock()),
             patch("autom8_asana.services.universal_strategy.logger") as mock_logger,
         ):
             results = await strategy.resolve(
@@ -107,18 +105,14 @@ class TestNullSlotLogging:
         mock_validation.normalized_criterion = {"offer_id": "OID001"}
         mock_validation.errors = []
 
-        async def noop_gather(coros: list, max_concurrent: int) -> None:
-            pass
-
+        # Patch _resolve_group to a no-op so every result slot stays None (see
+        # the robust-target rationale in test_null_slot_logs_* above).
         with (
             patch(
                 "autom8_asana.services.resolver.validate_criterion_for_entity",
                 return_value=mock_validation,
             ),
-            patch(
-                "autom8_asana.dataframes.builders.base.gather_with_limit",
-                side_effect=noop_gather,
-            ),
+            patch.object(strategy, "_resolve_group", AsyncMock()),
             patch("autom8_asana.services.universal_strategy.logger") as mock_logger,
         ):
             results = await strategy.resolve(
