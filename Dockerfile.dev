@@ -7,8 +7,14 @@ FROM python:3.12-slim
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+# Resolve CVE-2026-42496 + CVE-2026-8376 (Debian src:perl, NO upstream fix) by
+# purging perl-base. This pure-Python dev image never invokes perl. perl-base is
+# Debian Essential, so removal requires --force-remove-essential. Folded into the
+# existing apt layer (this image installs curl+gcc). See ADR-SEC-PERL-BASE-PURGE
+# for the precedent (auth + api-gateway + autom8y-data) and remediation record.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl gcc && \
+    dpkg --purge --force-remove-essential --force-depends perl-base && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
