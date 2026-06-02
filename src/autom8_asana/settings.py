@@ -42,6 +42,7 @@ Environment Variables:
     ASANA_RUNTIME_SECTION_FRESHNESS_PROBE: Enable section freshness probing (default: 1)
     API_HOST: Host for ECS uvicorn server (default: 0.0.0.0)
     API_PORT: Port for ECS uvicorn server (default: 8000)
+    BUILD_DRAIN_TIMEOUT_SECONDS: SIGTERM drain window for in-flight background builds (default: 25.0)
     ASANA_PACING_PAGES_PER_PAUSE: Pages fetched before pausing (default: 25)
     ASANA_PACING_DELAY_SECONDS: Seconds to sleep between page batches (default: 2.0)
     ASANA_PACING_CHECKPOINT_EVERY_N_PAGES: Pages between checkpoint writes (default: 50)
@@ -714,6 +715,29 @@ class RuntimeSettings(Autom8yBaseSettings):
             "API_PORT",  # kept bare (infra convention)
         ),
         description="Bind port for ECS uvicorn server",
+    )
+
+    # --- SIGTERM graceful drain (TD-004, thermia cache-architecture ADR-002) ---
+    # On ECS task replacement, uvicorn receives SIGTERM and the lifespan context
+    # exits. Without a drain, in-flight fire-and-forget background builds
+    # (universal_strategy._background_tasks) are orphaned (RECV-BULK-002). The
+    # lifespan shutdown path waits up to this many seconds for those tasks to
+    # finish/checkpoint before tearing down the client pool.
+    #
+    # SAFETY INVARIANT (ADR-002 / Q5 RESOLVED): this MUST be <= the ECS
+    # `deregistration_delay` (default 300s, >=30s). A drain longer than the
+    # deregistration delay would let ECS SIGKILL the task mid-drain, defeating
+    # the drain and re-orphaning builds. The 25s default leaves headroom within
+    # the 30s SIGTERM->SIGKILL window. deregistration_delay is an infra (TF)
+    # config and is NOT enforced in code here; see lifespan.py drain comment.
+    build_drain_timeout_seconds: float = Field(
+        default=25.0,
+        validation_alias=AliasChoices(
+            "BUILD_DRAIN_TIMEOUT_SECONDS",  # ADR-002 canonical name
+            "ASANA_RUNTIME_BUILD_DRAIN_TIMEOUT_SECONDS",
+        ),
+        description="Max seconds the lifespan shutdown drains in-flight background builds before client-pool teardown (TD-004)",
+        ge=0.0,
     )
 
 

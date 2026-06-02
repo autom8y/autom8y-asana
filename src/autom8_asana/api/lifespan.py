@@ -31,6 +31,56 @@ from .startup import (
 logger = get_logger(__name__)
 
 
+async def _drain_background_builds(
+    tasks: set[asyncio.Task[None]],
+    drain_timeout: float,
+) -> None:
+    """Bounded-wait for in-flight background builds at SIGTERM shutdown (TD-004).
+
+    Per thermia cache-architecture ADR-002: ECS task replacement sends SIGTERM,
+    the lifespan context exits, and the fire-and-forget builds in
+    ``universal_strategy._background_tasks`` would otherwise be orphaned mid-flight
+    (RECV-BULK-002). This waits up to ``drain_timeout`` seconds for the *not-yet-done*
+    tasks to finish/checkpoint. Tasks still pending after the window are left as-is
+    (same orphaning as the pre-TD-004 behavior — never worse).
+
+    SAFETY INVARIANT (ADR-002, Q5 RESOLVED): callers MUST ensure
+    ``drain_timeout`` <= the ECS ``deregistration_delay`` (default 300s, >=30s). A
+    drain LONGER than the deregistration delay would let ECS SIGKILL the task
+    mid-drain — re-orphaning builds and defeating this drain. ``deregistration_delay``
+    is an infra/TF config (autom8y repo), not enforced in code here.
+
+    A ``drain_timeout`` of 0 (or no pending tasks) is a no-op: shutdown proceeds
+    immediately.
+
+    Args:
+        tasks: The background-build task set (``_background_tasks``).
+        drain_timeout: Max seconds to wait. Values <= 0 skip the drain.
+    """
+    if drain_timeout <= 0:
+        return
+    pending = {t for t in tasks if not t.done()}
+    if not pending:
+        return
+
+    logger.info(
+        "build_drain_starting",
+        extra={"task_count": len(pending), "drain_timeout_seconds": drain_timeout},
+    )
+    done, still_pending = await asyncio.wait(pending, timeout=drain_timeout)
+    if still_pending:
+        logger.warning(
+            "build_drain_incomplete",
+            extra={
+                "drained": len(done),
+                "still_pending": len(still_pending),
+                "drain_timeout_seconds": drain_timeout,
+            },
+        )
+    else:
+        logger.info("build_drain_complete", extra={"drained": len(done)})
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application lifecycle.
@@ -296,6 +346,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # data, no startup-time story cache warming, no readiness gates.
 
     yield
+
+    # SIGTERM graceful drain (TD-004, thermia cache-architecture ADR-002).
+    # Drain in-flight fire-and-forget background builds BEFORE tearing down the
+    # client pool below, so an in-flight build that needs an httpx client (via
+    # app.state.client_pool) can still complete during the drain window. See
+    # _drain_background_builds for the full ADR-002 safety invariant.
+    from autom8_asana.services.universal_strategy import _background_tasks
+
+    await _drain_background_builds(
+        _background_tasks,
+        settings.runtime.build_drain_timeout_seconds,
+    )
 
     # Cancel background cache warming if still running
     if hasattr(app.state, "cache_warming_task"):
