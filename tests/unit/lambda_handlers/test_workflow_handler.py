@@ -743,6 +743,8 @@ class TestBridgeEventEmission:
         """When autom8y-events is not installed, emission is silently skipped."""
         import sys
 
+        from autom8y_telemetry.testing import restore_module
+
         mock_asana = MagicMock(spec=AsanaClient)
         mock_asana_class.return_value = mock_asana
 
@@ -755,10 +757,14 @@ class TestBridgeEventEmission:
         factory = MagicMock(return_value=wf)
         config = _make_config(workflow_factory=factory)
 
-        # Simulate autom8y_events not being installed by hiding it
-        original = sys.modules.get("autom8y_events")
-        sys.modules["autom8y_events"] = None  # type: ignore[assignment]
-        try:
+        # Simulate autom8y_events not being installed by hiding it. autom8y_events
+        # is a top-level module (no dotted parent), so restore_module operates in
+        # its Case C: it snapshots and restores ONLY sys.modules["autom8y_events"]
+        # (no parent-attr rebind), which is exactly the restore-or-pop semantics
+        # this hide+restore needs. Setting the entry to None inside the block is
+        # the deliberate test action that forces the ImportError path.
+        with restore_module("autom8y_events"):
+            sys.modules["autom8y_events"] = None  # type: ignore[assignment]
             handler = create_workflow_handler(config)
             result = handler({}, MagicMock())
 
@@ -766,11 +772,6 @@ class TestBridgeEventEmission:
             assert result["statusCode"] == 200
             body = json.loads(result["body"])
             assert body["status"] == "completed"
-        finally:
-            if original is not None:
-                sys.modules["autom8y_events"] = original
-            else:
-                sys.modules.pop("autom8y_events", None)
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     @patch("autom8_asana.client.AsanaClient")
