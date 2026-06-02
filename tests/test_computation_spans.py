@@ -365,6 +365,12 @@ class TestProgressiveProjectBuilderBuildProgressiveAsync:
         builder._check_resume_and_probe = AsyncMock(return_value=fake_resume_result)
         builder._ensure_manifest = AsyncMock()
         builder._merge_section_dataframes = AsyncMock(return_value=pl.DataFrame())
+        # ADR-1 (honest-empty-200): an empty merged frame now takes the
+        # honest-empty persist path, which writes the zero-row frame via
+        # _persistence.write_final_artifacts_async. The spec'd mock must provide
+        # _persistence (not an __init__-set attr on the spec) for that path.
+        builder._persistence = MagicMock()
+        builder._persistence.write_final_artifacts_async = AsyncMock(return_value=True)
 
         bound = ProgressiveProjectBuilder.build_progressive_async.__get__(
             builder, ProgressiveProjectBuilder
