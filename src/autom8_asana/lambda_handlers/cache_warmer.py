@@ -74,17 +74,18 @@ DMS_NAMESPACE = "Autom8y/AsanaCacheWarmer"
 
 # ADR-3 §3.2(b)/(c): per-link key-budget chunking. The bulk warm loop processes
 # at most this many keys per Lambda invocation, then proactively checkpoints the
-# tail and self-invokes for the remainder. This makes the self-invoke
-# continuation the EXPECTED path (not the OOM/timeout exception): each link holds
-# only ~BULK_KEY_BUDGET frames' worth of peak memory, so a single heavy GID (DNA
-# ~30k rows) cannot accumulate enough resident frames to OOM the 1024 MB link
-# before the clean-timeout branch is reached. You cannot reliably run a finalizer
-# after a signal:killed OOM in Lambda, so we PREVENT the OOM by bounding the
-# per-link key count rather than trying to recover from it. The default (16) is
-# sized so a chunk of the heaviest tier completes well under 900 s AND under the
-# memory ceiling; it is env-overridable for tuning alongside the warmer Lambda
-# MemorySize TF lever (autom8y terraform; coordinate, do not collide with the ECS
-# cpu=1024 work). 0/negative disables chunking (process the whole set in one link).
+# tail and self-invokes for the remainder. What this DOES bound: per-link
+# WALL-CLOCK — each link stays well under the hard 900 s Lambda timeout, making
+# the self-invoke continuation the EXPECTED path (a signal:killed OOM cannot run
+# a finalizer, so a timeout-bounded link avoids the timeout-strand class).
+# What this does NOT bound (qa Finding 2): single-heavy-GID resident MEMORY.
+# Frames are released per key (the per-key `df` is dropped after put_async), so
+# peak resident memory is ~ONE frame regardless of budget — chunking does NOT
+# protect against a single heavy GID (e.g. DNA ~30k rows) OOM-killing the link.
+# Single-GID OOM-resilience comes from the warmer Lambda MemorySize (TF lever,
+# autom8y terraform — raised to 2048; coordinate, do not collide with the ECS
+# cpu=1024 work), NOT from chunking. The default (16) is sized so a chunk
+# completes well under 900 s; env-overridable. 0/negative disables chunking.
 _DEFAULT_BULK_KEY_BUDGET = 16
 
 
