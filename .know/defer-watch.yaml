@@ -159,9 +159,24 @@
     intermittently NOT recorded in the InMemorySpanExporter under -n auto on the CI
     runner (assert 0 == 1). They are worker_isolated-quarantined (single-process)
     as targeted containment while the root mechanism is pinned.
-  status: RESOLVED-root-fixed
+  status: RESOLVED-collapsed-onto-sdk-primitive
   resolved_at: 2026-06-01
   resolved_by: sre M2 root-fix (sre-m2-otel-context-leak-span-sampling-fix-2026-06-01)
+  collapsed_at: 2026-06-02
+  collapsed_by: 10x-dev W1 telemetry-0.7.0-xdist-collapse (feat/telemetry-0.7.0-xdist-collapse)
+  collapsed_onto: >
+    autom8y-telemetry 0.7.0 restore_module(name) primitive
+    (autom8y_telemetry.testing.restore_module / isolation.py). The bespoke
+    finally-block in test_import_safety.py that snapshotted sys.modules[_MODULE]
+    and the parent package attribute, then restored both, IS NOW the SDK
+    primitive: the primitive's module docstring names asana #83 as its origin
+    case, and W1 collapses the origin case back onto the generalization. The SDK
+    version is strictly safer -- it snapshots the parent attribute's PRIOR value
+    via a private sentinel (Case A/B/C totalized) rather than assuming
+    parent.attr == original. The advisory autom8y_events hide+restore in
+    test_workflow_handler.py was also collapsed (restore_module Case C,
+    top-level module, no parent-attr rebind). Floor bumped to
+    autom8y-telemetry[aws,fastapi,otlp]>=0.7.0 (pyproject.toml line 28).
   resolution: >
     Root cause PINNED via instrumented -n auto reproduction + a deterministic
     2-file serial repro. It was NOT an OTel sampling/context issue and NOT the
