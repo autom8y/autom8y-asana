@@ -76,7 +76,7 @@ jobs:
       candidate_sdk_version: ${{ inputs.candidate_sdk_version }}
       candidate_wheel_run_id: ${{ inputs.candidate_wheel_run_id }}
       dispatch_correlation_id: ${{ inputs.dispatch_correlation_id }}
-      autom8y_workflows_sha: c88caabd8d9bba883e6a42628bdc2bba6d30512b
+      autom8y_workflows_sha: 646b8f83312f4c85b6e547ead3dba883d1b16ef1
     secrets: inherit
 
   fuzz:
