@@ -167,10 +167,17 @@ class TestDataFrameCache:
         assert stats["unit"]["circuit_breaks"] == 1
 
     async def test_get_expired_entry_served_as_lkg(self) -> None:
-        """Get serves entries beyond SWR grace window as LKG."""
+        """Get serves entries beyond SWR grace window but within the LKG ceiling.
+
+        PDR-001 (TD-006): the default LKG_MAX_STALENESS_MULTIPLIER is now 10.0,
+        so unit (TTL=900s) has a 9000s ceiling. 4000s is expired beyond the 2700s
+        SWR grace window yet within the ceiling — the LKG-serve path. (The prior
+        24h-old fixture now trips the ceiling; that behavior is covered by
+        TestMaxStalenessEnforcement.)
+        """
         memory = MemoryTier(max_entries=100)
-        # unit TTL=900s, grace=2700s. 24 hours old = far beyond grace, but LKG.
-        old_entry = make_entry(created_hours_ago=24)
+        # unit TTL=900s, grace=2700s, ceiling=10x*900=9000s. 4000s old = LKG-servable.
+        old_entry = make_entry(created_seconds_ago=4000)
         memory.put("unit:proj-1", old_entry)
 
         cache = make_cache(memory_tier=memory)
@@ -852,7 +859,14 @@ class TestMaxStalenessEnforcement:
     """Tests for LKG_MAX_STALENESS_MULTIPLIER enforcement."""
 
     async def test_max_staleness_zero_serves_unlimited(self) -> None:
-        """With LKG_MAX_STALENESS_MULTIPLIER=0.0 (default), very old entry is served."""
+        """With LKG_MAX_STALENESS_MULTIPLIER=0.0, the ceiling is DISABLED.
+
+        0.0 is the escape hatch: the `if LKG_MAX_STALENESS_MULTIPLIER > 0:` guard
+        at dataframe_cache.py:531 is never entered, so an arbitrarily old entry is
+        served as LKG (unbounded). Per TD-006 the *default* is now 10.0 (bounded);
+        this test pins the disabled-ceiling behavior explicitly rather than relying
+        on it being the default.
+        """
         memory = MemoryTier(max_entries=100)
         # unit TTL = 900s. Entry is 24 hours old (86400s) = 96x TTL
         entry = make_entry(entity_type="unit", created_hours_ago=24)
@@ -860,8 +874,9 @@ class TestMaxStalenessEnforcement:
 
         cache = make_cache(memory_tier=memory)
 
-        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
-            result = await cache.get_async("proj-1", "unit")
+        with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 0.0):
+            with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
+                result = await cache.get_async("proj-1", "unit")
 
         assert result is entry
 
@@ -942,6 +957,84 @@ class TestMaxStalenessEnforcement:
         # Both should still be served (staleness cap only applies to STALE/LKG entries)
         assert fresh_result is fresh_entry
         assert swr_result is swr_entry
+
+
+class TestLKGHonestyDefaultTD006:
+    """TD-006 (PDR-001): the LKG staleness ceiling default is 10.0, not 0.0.
+
+    0.0 DISABLED the ceiling (serving unbounded-stale entries as 2xx, flattering
+    the success rate). 10.0 ACTIVATES the guard at dataframe_cache.py:531-546:
+    a frame older than ceiling trips to None -> _build_on_miss -> 503+Retry-After
+    (honest backpressure) instead of being served stale. These tests assert the
+    new default's behavior end-to-end at the cache layer (the 503 emission itself
+    lives in universal_strategy.py and is out of scope for the cache unit).
+    """
+
+    async def test_default_multiplier_is_ten(self) -> None:
+        """The shipped default is 10.0 (the honesty fix), not the old 0.0."""
+        import autom8_asana.config as config
+
+        assert config.LKG_MAX_STALENESS_MULTIPLIER == 10.0
+
+    async def test_default_activates_guard_branch(self) -> None:
+        """With the default 10.0, the `if multiplier > 0` ceiling branch is entered.
+
+        offer TTL=180s -> ceiling = 10 * 180 = 1800s. A 1500s-old offer entry is
+        past grace (540s) but within the 1800s ceiling, so it serves as LKG — proof
+        the guard branch ran and ALLOWED a within-ceiling frame (vs the disabled
+        branch, which would serve it for an unrelated reason).
+        """
+        memory = MemoryTier(max_entries=100)
+        # offer TTL=180s, grace=540s, ceiling(default 10x)=1800s. 1500s = within.
+        entry = make_entry(entity_type="offer", created_seconds_ago=1500)
+        memory.put("offer:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory)
+
+        # No multiplier patch — exercise the SHIPPED default explicitly.
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
+            result = await cache.get_async("proj-1", "offer")
+
+        assert result is entry
+        assert cache.get_stats()["offer"]["lkg_serves"] == 1
+
+    async def test_default_trips_ceiling_past_offer_window(self) -> None:
+        """A frame past the default offer ceiling (1800s) trips to None (503-path).
+
+        2000s > 1800s ceiling: the guard returns None, the entry is evicted from
+        memory, and NO LKG serve is recorded. Returning None is what drives
+        _build_on_miss -> 503+Retry-After upstream — the honest backpressure that
+        replaces the flattered stale-2xx.
+        """
+        memory = MemoryTier(max_entries=100)
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
+        # offer TTL=180s, default ceiling=1800s. 2000s old = past ceiling.
+        entry = make_entry(entity_type="offer", created_seconds_ago=2000)
+        memory.put("offer:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
+
+        # No multiplier patch — exercise the SHIPPED default.
+        result = await cache.get_async("proj-1", "offer")
+
+        assert result is None  # ceiling-trip -> None -> upstream 503+Retry-After
+        assert memory.get("offer:proj-1") is None  # evicted (not served stale)
+        assert cache.get_stats()["offer"]["lkg_serves"] == 0  # NOT flattered as 2xx
+
+    async def test_fresh_within_ceiling_still_serves_under_default(self) -> None:
+        """A within-ceiling frame still serves under the default (no over-blocking)."""
+        memory = MemoryTier(max_entries=100)
+        # offer TTL=180s, grace=540s. 300s old = past TTL, within grace -> SWR serve.
+        entry = make_entry(entity_type="offer", created_seconds_ago=300)
+        memory.put("offer:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory)
+
+        with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
+            result = await cache.get_async("proj-1", "offer")
+
+        assert result is entry  # honest fix does not over-block servable frames
 
 
 class TestSchemaIsValid:
