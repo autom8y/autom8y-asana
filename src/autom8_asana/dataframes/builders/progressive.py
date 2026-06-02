@@ -36,6 +36,7 @@ from autom8_asana.dataframes.builders.fields import (
     safe_dataframe_construct,
 )
 from autom8_asana.dataframes.builders.hierarchy_warmer import HierarchyWarmer
+from autom8_asana.dataframes.concurrency import run_cpu_bound
 from autom8_asana.dataframes.section_persistence import (
     SectionManifest,
     SectionPersistence,
@@ -587,7 +588,16 @@ class ProgressiveProjectBuilder:
         merged_df = await self._persistence.merge_sections_to_dataframe_async(self._project_gid)
 
         if merged_df is None and self._section_dfs:
-            merged_df = pl.concat(list(self._section_dfs.values()), how="diagonal_relaxed")
+            # TD-001 (PDR-002 §4.3): in-memory fallback merge. Offload the CPU-bound
+            # concat off the event loop via the shared CPU-thread gate (same path as
+            # the dominant merge) so the fallback cannot starve the loop either.
+            # Explicit pl.DataFrame annotation: run_cpu_bound's generic return type is
+            # otherwise context-inferred to merged_df's `DataFrame | None`, which then
+            # fails to narrow for the len() below. Mirrors section_persistence.py:740.
+            merged: pl.DataFrame = await run_cpu_bound(
+                pl.concat, list(self._section_dfs.values()), how="diagonal_relaxed"
+            )
+            merged_df = merged
             logger.warning(
                 "progressive_build_s3_fallback",
                 extra={
@@ -1282,7 +1292,12 @@ class ProgressiveProjectBuilder:
                 task_dicts = [self._task_to_dict(task) for task in remaining_tasks]
                 rows = await self._extract_rows(task_dicts)
                 delta_df = safe_dataframe_construct(rows, self._schema)
-                section_df = pl.concat([self._checkpoint_df, delta_df], how="diagonal_relaxed")
+                # TD-001 (PDR-002 §4.3): per-section checkpoint concat. Offload via the
+                # shared CPU-thread gate; at peak there are up to 32 of these in flight
+                # (4 builds x 8 sections), so gating is what bounds event-loop pressure.
+                section_df = await run_cpu_bound(
+                    pl.concat, [self._checkpoint_df, delta_df], how="diagonal_relaxed"
+                )
             else:
                 # Branch (b): all tasks were already checkpointed
                 section_df = self._checkpoint_df
@@ -1369,7 +1384,11 @@ class ProgressiveProjectBuilder:
 
             # Concatenate with previous checkpoint if it exists
             if self._checkpoint_df is not None:
-                checkpoint_df = pl.concat([self._checkpoint_df, delta_df], how="diagonal_relaxed")
+                # TD-001 (PDR-002 §4.3): checkpoint-write concat. Offload via the shared
+                # CPU-thread gate, consistent with the other Polars merge paths.
+                checkpoint_df = await run_cpu_bound(
+                    pl.concat, [self._checkpoint_df, delta_df], how="diagonal_relaxed"
+                )
             else:
                 checkpoint_df = delta_df
 

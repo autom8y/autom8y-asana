@@ -67,6 +67,14 @@ async def gather_with_limit(
 
     async def bounded_coro(coro: Coroutine[Any, Any, T]) -> T:
         async with semaphore:
+            # TD-001 (cache-architecture ADR-001 Path 4, Option B): cooperative yield.
+            # _extract_row_async is predominantly pure-Python dict-walking (GIL-bound),
+            # so to_thread would not parallelize it; the only goal here is to unblock
+            # the event loop. A sleep(0) before each extraction lets the loop service
+            # ALB health-check probes / async I/O between chunks during bulk fan-out,
+            # bounding worst-case stall. Lowest-blast-radius fix; escalation to
+            # to_thread/process-pool is deferred pending the re-gate.
+            await asyncio.sleep(0)
             return await coro
 
     return await asyncio.gather(*[bounded_coro(c) for c in coros])

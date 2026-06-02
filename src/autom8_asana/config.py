@@ -97,9 +97,22 @@ SWR_GRACE_MULTIPLIER: float = 3.0
 
 # Last-Known-Good (LKG) configuration:
 # Controls how long expired entries can be served as LKG fallback.
-# 0.0 = unlimited (serve forever if schema/watermark valid)
-# >0.0 = serve for up to LKG_MAX_STALENESS_MULTIPLIER * entity_TTL seconds
-LKG_MAX_STALENESS_MULTIPLIER: float = 0.0
+# 0.0 = ceiling DISABLED — serve forever if schema/watermark valid (the guard at
+#       dataframe_cache.py:531 `if LKG_MAX_STALENESS_MULTIPLIER > 0:` is never
+#       entered, so unbounded-stale entries are returned as 2xx).
+# >0.0 = bound: serve for up to LKG_MAX_STALENESS_MULTIPLIER * entity_TTL seconds,
+#        then trip to None -> _build_on_miss -> 503+Retry-After (backpressure).
+#
+# PDR-001 (thermia capacity-specification §3): the default is 10.0, NOT 0.0.
+# A multiplier of 0.0 flatters the success rate by serving unbounded-stale data
+# as 2xx; 10.0 bounds it (offer TTL=180s -> 1800s/30min ceiling; covers the
+# warmer cycle while keeping stale offer data operationally meaningful).
+# HONESTY NOTE: enabling the ceiling LOWERS the apparent success rate — honest
+# 503s replace flattered 2xx once a frame ages past the ceiling. OPS MUST run a
+# full warmer cycle BEFORE deploying this change so the warmer has covered the
+# key set before backpressure can fire (deploy-order is an ops-runbook concern,
+# cache-architecture.md §3.1; not a code gate here).
+LKG_MAX_STALENESS_MULTIPLIER: float = 10.0
 
 # FACADE: Delegates to EntityRegistry. Preserves existing import path.
 # See: src/autom8_asana/core/entity_registry.py for the single source of truth.

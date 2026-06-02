@@ -378,6 +378,266 @@ class TestHandlerAsync:
 
 
 # ============================================================================
+# TD-005: Bulk Pre-Materialization
+# ============================================================================
+
+
+class TestKeyTokenCodec:
+    """Tests for the (project_gid, entity_type) checkpoint-token codec."""
+
+    def test_round_trip(self) -> None:
+        from autom8_asana.lambda_handlers.cache_warmer import (
+            _decode_key_token,
+            _encode_key_token,
+        )
+
+        token = _encode_key_token("1200653012566782", "section")
+        assert token == "1200653012566782:section"
+        assert _decode_key_token(token) == ("1200653012566782", "section")
+
+
+class TestPrematerializeBulkSet:
+    """Tests for _prematerialize_bulk_set_async (TD-005)."""
+
+    @pytest.fixture
+    def mock_cache(self) -> MagicMock:
+        cache = MagicMock()
+        cache.put_async = AsyncMock()
+        return cache
+
+    def _patches(self, mock_cache: MagicMock) -> list:
+        """Common patch set: cache, bot PAT, workspace, AsanaClient."""
+        client_cm = MagicMock()
+        client_cm.__aenter__ = AsyncMock(return_value=MagicMock())
+        client_cm.__aexit__ = AsyncMock(return_value=False)
+        return [
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.initialize_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch("autom8_asana.auth.bot_pat.get_bot_pat", return_value="pat"),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer.resolve_secret_from_env",
+                return_value="ws-123",
+            ),
+            patch(
+                "autom8_asana.AsanaClient",
+                return_value=client_cm,
+            ),
+        ]
+
+    async def test_full_coverage_warms_all_46_keys(self, mock_cache: MagicMock) -> None:
+        """A clean run warms every enumerated key and reports rate 1.0."""
+        from autom8_asana.lambda_handlers.cache_warmer import (
+            _prematerialize_bulk_set_async,
+        )
+
+        async def fake_warm_key(
+            self: object, project_gid: str, entity_type: str, client: object
+        ) -> object:
+            from autom8_asana.cache.dataframe.warmer import WarmResult, WarmStatus
+
+            return WarmStatus(
+                entity_type=entity_type,
+                result=WarmResult.SUCCESS,
+                project_gid=project_gid,
+                row_count=10,
+            )
+
+        checkpoint_mgr = MagicMock()
+        checkpoint_mgr.load_async = AsyncMock(return_value=None)
+        checkpoint_mgr.save_async = AsyncMock()
+        checkpoint_mgr.clear_async = AsyncMock(return_value=True)
+
+        with contextlib.ExitStack() as stack:
+            for p in self._patches(mock_cache):
+                stack.enter_context(p)
+            stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
+                    return_value=checkpoint_mgr,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "autom8_asana.cache.dataframe.warmer.CacheWarmer.warm_key_async",
+                    new=fake_warm_key,
+                )
+            )
+            emit_cov = stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer.emit_warmer_coverage_rate",
+                    return_value=1.0,
+                )
+            )
+            response = await _prematerialize_bulk_set_async(context=None)
+
+        assert response.success is True
+        assert "warmer_coverage_rate=1.0000" in response.message
+        assert len(response.entity_results) == 46
+        # Coverage emitted with completed==total==46.
+        emit_cov.assert_called_once_with(46, 46)
+        checkpoint_mgr.clear_async.assert_awaited_once()
+
+    async def test_partial_coverage_reports_gap(self, mock_cache: MagicMock) -> None:
+        """A failing arm yields success=False and coverage < 1.0."""
+        from autom8_asana.lambda_handlers.cache_warmer import (
+            _prematerialize_bulk_set_async,
+        )
+
+        async def fake_warm_key(
+            self: object, project_gid: str, entity_type: str, client: object
+        ) -> object:
+            from autom8_asana.cache.dataframe.warmer import WarmResult, WarmStatus
+
+            if entity_type == "section":
+                return WarmStatus(
+                    entity_type=entity_type,
+                    result=WarmResult.FAILURE,
+                    project_gid=project_gid,
+                    error="boom",
+                )
+            return WarmStatus(
+                entity_type=entity_type,
+                result=WarmResult.SUCCESS,
+                project_gid=project_gid,
+                row_count=5,
+            )
+
+        checkpoint_mgr = MagicMock()
+        checkpoint_mgr.load_async = AsyncMock(return_value=None)
+        checkpoint_mgr.save_async = AsyncMock()
+        checkpoint_mgr.clear_async = AsyncMock(return_value=True)
+
+        with contextlib.ExitStack() as stack:
+            for p in self._patches(mock_cache):
+                stack.enter_context(p)
+            stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
+                    return_value=checkpoint_mgr,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "autom8_asana.cache.dataframe.warmer.CacheWarmer.warm_key_async",
+                    new=fake_warm_key,
+                )
+            )
+            emit_cov = stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer.emit_warmer_coverage_rate",
+                    return_value=0.5,
+                )
+            )
+            response = await _prematerialize_bulk_set_async(context=None)
+
+        assert response.success is False
+        # 23 project arms warmed, 23 section arms failed -> 23/46 completed.
+        emit_cov.assert_called_once_with(23, 46)
+
+    async def test_timeout_self_invokes_with_bulk_flag(self, mock_cache: MagicMock) -> None:
+        """On timeout, the continuation carries prematerialize_bulk_set=True."""
+        from autom8_asana.lambda_handlers.cache_warmer import (
+            _prematerialize_bulk_set_async,
+        )
+
+        # Context that always signals timeout -> exits on the first key.
+        context = MockLambdaContext(remaining_time_ms=0)
+
+        checkpoint_mgr = MagicMock()
+        checkpoint_mgr.load_async = AsyncMock(return_value=None)
+        checkpoint_mgr.save_async = AsyncMock()
+        checkpoint_mgr.clear_async = AsyncMock(return_value=True)
+
+        with contextlib.ExitStack() as stack:
+            for p in self._patches(mock_cache):
+                stack.enter_context(p)
+            stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
+                    return_value=checkpoint_mgr,
+                )
+            )
+            self_invoke = stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer._self_invoke_continuation",
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer.emit_warmer_coverage_rate",
+                    return_value=0.0,
+                )
+            )
+            response = await _prematerialize_bulk_set_async(context=context)
+
+        assert response.success is False
+        assert "self-continuing" in response.message
+        # Self-invoke called with the bulk flag so the next invocation re-enters
+        # the bulk branch (not the offer-domain warm).
+        self_invoke.assert_called_once()
+        assert self_invoke.call_args.kwargs["prematerialize_bulk_set"] is True
+        checkpoint_mgr.save_async.assert_awaited()
+
+    async def test_no_cache_returns_failure(self) -> None:
+        """No cache -> failure response, no enumeration attempted."""
+        from autom8_asana.lambda_handlers.cache_warmer import (
+            _prematerialize_bulk_set_async,
+        )
+
+        with (
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=None,
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.initialize_dataframe_cache",
+                return_value=None,
+            ),
+        ):
+            response = await _prematerialize_bulk_set_async(context=None)
+
+        assert response.success is False
+        assert "Failed to initialize DataFrameCache" in response.message
+
+
+class TestHandlerBulkRouting:
+    """The prematerialize_bulk_set flag routes to the bulk branch."""
+
+    async def test_handler_async_routes_to_bulk(self) -> None:
+        mock_response = WarmResponse(success=True, message="ok")
+        with patch(
+            "autom8_asana.lambda_handlers.cache_warmer._prematerialize_bulk_set_async",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_bulk:
+            result = await handler_async({"prematerialize_bulk_set": True})
+
+        assert result["statusCode"] == 200
+        mock_bulk.assert_called_once_with(
+            resume_from_checkpoint=True,
+            context=None,
+        )
+
+    def test_handler_routes_to_bulk(self) -> None:
+        mock_response = WarmResponse(success=True, message="ok")
+        with patch(
+            "autom8_asana.lambda_handlers.cache_warmer._prematerialize_bulk_set_async",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_bulk:
+            result = handler({"prematerialize_bulk_set": True}, None)
+
+        assert result["statusCode"] == 200
+        mock_bulk.assert_called_once()
+
+
+# ============================================================================
 # Tests for Timeout Detection (per TDD-lambda-cache-warmer Section 3.2)
 # ============================================================================
 

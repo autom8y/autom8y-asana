@@ -51,6 +51,8 @@ from typing import TYPE_CHECKING, Any
 from autom8y_log import get_logger
 from pydantic import BaseModel, Field
 
+from autom8_asana.dataframes.concurrency import run_cpu_bound
+
 if TYPE_CHECKING:
     import polars as pl
 
@@ -730,8 +732,14 @@ class SectionPersistence:
 
         try:
             # Use how="diagonal_relaxed" to handle type mismatches between sections
-            # (e.g., Null vs String when one section has empty values for a column)
-            merged: pl.DataFrame = self._polars_module.concat(section_dfs, how="diagonal_relaxed")
+            # (e.g., Null vs String when one section has empty values for a column).
+            # TD-001 (PDR-002 §4.3): this is the DOMINANT CPU-bound merge. Offload it
+            # off the event loop via the shared CPU-thread gate so concurrent bulk
+            # builds cannot starve ALB health-check probes / async I/O. Polars (Rust)
+            # releases the GIL during concat, so to_thread genuinely parallelizes.
+            merged: pl.DataFrame = await run_cpu_bound(
+                self._polars_module.concat, section_dfs, how="diagonal_relaxed"
+            )
 
             logger.info(
                 "sections_merged",

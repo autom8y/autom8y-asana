@@ -182,3 +182,38 @@ def all_entity_project_gids() -> list[str]:
     """
     pipeline_gids = set(all_pipeline_project_gids())
     return [gid for gid in _REGISTRY.values() if gid not in pipeline_gids]
+
+
+# Body-parameterized entity arms the scheduled consumer `refresh_project_frames`
+# bulk run hits per registered project. These are the only width-driving keys
+# the receiver serves cold (warmable=False, body_parameterized=True per
+# entity_registry.py:884-940). Warming them ahead of the consumer batch is
+# what moves the burst off the receiver's ALB path (TD-005).
+BULK_PREMATERIALIZATION_ARMS: tuple[str, ...] = ("project", "section")
+
+
+def bulk_prematerialization_keys(
+    arms: tuple[str, ...] = BULK_PREMATERIALIZATION_ARMS,
+) -> list[tuple[str, str]]:
+    """Enumerate the (project_gid, entity_type) keys to pre-materialize (TD-005).
+
+    Produces the full code-grounded warm set for the scheduled consumer bulk
+    run: every registered project GID crossed with each body-parameterized arm.
+    With the 23-GID registry and the two-arm default, this enumerates
+    23 x 2 = 46 keys -- the canonical scope. (Some docs cite "104/208"; that
+    figure is unverified prose, not the registry's actual enumeration.)
+
+    The order is deterministic: GIDs in registry-declaration order, arms in the
+    given order. Determinism matters because the handler's checkpoint/self-invoke
+    machinery resumes a partially-processed list by set-difference, so a stable
+    ordering keeps "completed" vs "pending" coherent across self-invokes.
+
+    Args:
+        arms: Body-parameterized entity types to enumerate per GID. Defaults to
+            ``("project", "section")`` -- the arms the consumer bulk run hits.
+
+    Returns:
+        List of ``(project_gid, entity_type)`` tuples, length ``len(GIDs) * len(arms)``.
+    """
+    gids = list(_REGISTRY.values())
+    return [(gid, arm) for gid in gids for arm in arms]

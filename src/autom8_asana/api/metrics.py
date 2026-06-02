@@ -244,6 +244,205 @@ def record_receiver_query_outcome(entity_type: str, success: bool) -> None:
     RECEIVER_QUERY_OUTCOME.labels(entity_type=entity_type, outcome=outcome).inc()
 
 
+# --- TD-007 honest observability instrumentation (observability-plan §2) ---
+# Receiver-EMITTED signals only: the leading indicators the receiver process can
+# observe about the CPU-on-event-loop starvation failure that TD-001 fixes.
+# External CloudWatch/ALB signals (alb_unhealthy_host_count, ecs_task_replacement_count,
+# elb_502_rate) are the re-gate stream's to correlate — NOT emitted here. All
+# emission is in-memory and cheap; the event-loop-lag monitor samples on a slow
+# (5s) timer off the request hot path, and per-request paths only do counter/
+# histogram increments. See dataframes/concurrency.py for the semaphore gate.
+
+# §1.2 — Event-loop lag. The LEADING indicator of CPU-on-loop starvation: when a
+# Polars merge runs on the loop thread, the loop cannot service its own timer, so
+# the measured sleep overshoot (actual - intended) spikes. Histogram so p50/p99
+# are derivable (the design asks for p50/p99). Seconds (not ms) per Prometheus
+# base-unit convention; the design's `event_loop_lag_ms` is the same signal.
+EVENT_LOOP_LAG_SECONDS = Histogram(
+    "autom8y_asana_event_loop_lag_seconds",
+    "Asyncio event-loop scheduling lag (measured sleep overshoot); leading "
+    "indicator of CPU-on-loop starvation (TD-001 failure mode)",
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+)
+
+# §1.2 — CPU-thread offload semaphore occupancy. in_use = slots held; waiting =
+# coroutines blocked on acquire (saturation depth); max = configured cap. Three
+# gauges so a dashboard can show "offload gate saturation" directly. Sourced from
+# the single shared gate in dataframes/concurrency.py:run_cpu_bound.
+CPU_THREAD_SEMAPHORE_IN_USE = Gauge(
+    "autom8y_asana_cpu_thread_semaphore_in_use",
+    "CPU-bound offload semaphore slots currently held (in-flight to_thread merges)",
+)
+CPU_THREAD_SEMAPHORE_WAITING = Gauge(
+    "autom8y_asana_cpu_thread_semaphore_waiting",
+    "Coroutines currently blocked waiting to acquire the CPU-thread offload gate",
+)
+CPU_THREAD_SEMAPHORE_MAX = Gauge(
+    "autom8y_asana_cpu_thread_semaphore_max",
+    "Configured CPU-thread offload semaphore capacity (cpu_thread_concurrency)",
+)
+
+# §1.3 — LKG serving honesty. serving_stale_total makes the LKG-flattering of the
+# success rate VISIBLE (the design's PROHIBITION: success_rate must not be read
+# without this co-available). lkg_serve_age is the age of the stale frame served.
+SERVING_STALE_TOTAL = Counter(
+    "autom8y_asana_serving_stale_total",
+    "LKG (stale-but-within-ceiling) frames served as 2xx, per entity type. "
+    "Co-required for honest reading of the success rate (observability-plan §2 PROHIBITION)",
+    labelnames=["entity_type"],
+)
+LKG_SERVE_AGE_SECONDS = Histogram(
+    "autom8y_asana_lkg_serve_age_seconds",
+    "Age (seconds) of the LKG frame served on the stale-serve path",
+    labelnames=["entity_type"],
+    buckets=(60, 180, 300, 600, 900, 1800, 3000, 7200, 36000),
+)
+
+
+def record_event_loop_lag(lag_seconds: float) -> None:
+    """Observe one event-loop lag sample (TD-007, observability-plan §1.2).
+
+    Emitted by the EventLoopLagMonitor on its slow sample timer — NOT on any
+    request hot path. ``lag_seconds`` is the measured overshoot of a known sleep
+    interval (actual_elapsed - intended); negative jitter is clamped to 0.
+    """
+    EVENT_LOOP_LAG_SECONDS.observe(max(0.0, lag_seconds))
+
+
+def record_cpu_thread_semaphore(in_use: int, waiting: int, max_slots: int) -> None:
+    """Update the CPU-thread offload semaphore gauges (TD-007, §1.2).
+
+    Called from the concurrency gate on each acquire/release. Pure gauge sets;
+    no allocation, no I/O — safe on the offload path.
+
+    Args:
+        in_use: Slots currently held (in-flight CPU-bound to_thread submissions).
+        waiting: Coroutines blocked on acquire (offload-gate saturation depth).
+        max_slots: Configured capacity (cpu_thread_concurrency).
+    """
+    CPU_THREAD_SEMAPHORE_IN_USE.set(in_use)
+    CPU_THREAD_SEMAPHORE_WAITING.set(waiting)
+    CPU_THREAD_SEMAPHORE_MAX.set(max_slots)
+
+
+def record_serving_stale(entity_type: str, age_seconds: float) -> None:
+    """Record one LKG (stale-within-ceiling) 2xx serve (TD-007, §1.3).
+
+    Emitted from the dataframe_cache LKG path (dataframe_cache.py:531-554) so the
+    flattering of the success rate by stale 2xx is observable. Pairs the count
+    with the served frame's age.
+
+    Args:
+        entity_type: Entity type of the stale frame (e.g., "offer", "project").
+        age_seconds: Age of the served LKG frame at serve time.
+    """
+    SERVING_STALE_TOTAL.labels(entity_type=entity_type).inc()
+    LKG_SERVE_AGE_SECONDS.labels(entity_type=entity_type).observe(max(0.0, age_seconds))
+
+
+def receiver_query_success_rate(entity_type: str | None = None) -> float | None:
+    """Compute the receiver-emitted honest success rate (TD-007, §2.1).
+
+    success_rate = 2xx / (2xx + 5xx), from the receiver-side RECEIVER_QUERY_OUTCOME
+    counters (NOT ALB-inferred). With ``entity_type`` None, returns the COMBINED
+    rate across arms; otherwise the per-arm rate ("project" | "section").
+
+    PROHIBITION (observability-plan §2): this rate MUST NOT be read as an SLO
+    without ``serving_stale_total`` co-available — a rate computed while stale
+    frames are served as 2xx is flattered. Callers/dashboards reading this MUST
+    also surface ``SERVING_STALE_TOTAL``; ``success_rate_with_stale_context``
+    enforces that co-availability programmatically.
+
+    Returns:
+        The success rate in [0.0, 1.0], or None when no requests have been
+        recorded (denominator 0 — avoid reporting a fabricated 100%).
+    """
+    success = 0.0
+    server_error = 0.0
+    for metric in RECEIVER_QUERY_OUTCOME.collect():
+        for sample in metric.samples:
+            if not sample.name.endswith("_total"):
+                continue
+            if entity_type is not None and sample.labels.get("entity_type") != entity_type:
+                continue
+            if sample.labels.get("outcome") == "success":
+                success += sample.value
+            elif sample.labels.get("outcome") == "server_error":
+                server_error += sample.value
+    denom = success + server_error
+    if denom == 0:
+        return None
+    return success / denom
+
+
+def _serving_stale_total_value() -> float:
+    """Sum SERVING_STALE_TOTAL across entity types (co-availability probe)."""
+    total = 0.0
+    for metric in SERVING_STALE_TOTAL.collect():
+        for sample in metric.samples:
+            if sample.name.endswith("_total"):
+                total += sample.value
+    return total
+
+
+def success_rate_with_stale_context(
+    entity_type: str | None = None,
+) -> tuple[float | None, float]:
+    """Return (success_rate, serving_stale_total) as ONE inseparable reading.
+
+    Enforces the observability-plan §2 PROHIBITION structurally: the honest
+    success rate is NEVER returned without its co-required stale context, so a
+    caller cannot read a flattered rate in isolation. Dashboards/gates MUST use
+    this accessor (not bare ``receiver_query_success_rate``) when reporting the SLO.
+
+    Returns:
+        ``(success_rate, serving_stale_total)`` where success_rate is None on a
+        zero denominator. The second element is the fleet-wide stale-serve count
+        that contextualizes how flattered the rate may be.
+    """
+    return receiver_query_success_rate(entity_type), _serving_stale_total_value()
+
+
+# §2.2 — CPU_STARVATION_REPLACEMENT correlation precondition (receiver-observable
+# subset). The design classifies a 5xx cluster as CPU_STARVATION_REPLACEMENT when
+# four signals correlate; two are RECEIVER-observable (event-loop lag spike + CPU
+# semaphore saturation) and two are EXTERNAL (alb_unhealthy_host_count,
+# ecs_task_replacement_count) which the re-gate stream correlates from CloudWatch.
+# This helper evaluates the RECEIVER-side precondition: when it fires, the receiver
+# has contributed the two leading signals; the re-gate confirms the external two.
+EVENT_LOOP_LAG_STARVATION_THRESHOLD_SECONDS = 0.5  # §2.2: >500ms lag spike
+
+
+def cpu_starvation_precondition(
+    event_loop_lag_seconds: float,
+    cpu_thread_semaphore_waiting: int,
+) -> bool:
+    """Evaluate the receiver-side CPU_STARVATION_REPLACEMENT precondition (§2.2).
+
+    Fires when BOTH receiver-observable leading signals are present:
+      1. event-loop lag exceeded the 500ms starvation threshold, AND
+      2. the CPU-thread offload gate had waiters (semaphore saturated).
+
+    A True return is the receiver's contribution to the four-signal correlation;
+    the re-gate stream confirms the two external signals (alb_unhealthy_host_count
+    rising + ecs_task_replacement_count increment) from CloudWatch before
+    declaring a confirmed CPU_STARVATION_REPLACEMENT event. This function does NOT
+    self-declare the full classification (the two external signals are out of the
+    receiver's observability).
+
+    Args:
+        event_loop_lag_seconds: Observed event-loop lag in the window.
+        cpu_thread_semaphore_waiting: Observed offload-gate waiter count in the window.
+
+    Returns:
+        True when both receiver-side preconditions hold.
+    """
+    return (
+        event_loop_lag_seconds > EVENT_LOOP_LAG_STARVATION_THRESHOLD_SECONDS
+        and cpu_thread_semaphore_waiting > 0
+    )
+
+
 # --- OBS-EXPORTS-001 exports-route metrics (SRE OB2 sprint) ---
 # Per .know/obs.md OBS-EXPORTS-001 symptom list. These emit from the
 # ``export_handler`` request span seam (api/routes/exports.py), reusing the OB2

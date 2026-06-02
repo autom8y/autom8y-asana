@@ -362,3 +362,60 @@ class TestParityWithWorkflows:
         )
 
         assert set(DEFAULT_PIPELINE_PROJECTS) == set(all_pipeline_project_gids())
+
+
+# =============================================================================
+# TD-005: Bulk Pre-Materialization Key Enumeration
+# =============================================================================
+
+
+class TestBulkPrematerializationKeys:
+    """Verify the TD-005 (project_gid, entity_type) bulk warm enumeration."""
+
+    def test_default_arms_are_project_and_section(self) -> None:
+        """The default arms are exactly the body-parameterized consumer arms."""
+        from autom8_asana.core.project_registry import BULK_PREMATERIALIZATION_ARMS
+
+        assert BULK_PREMATERIALIZATION_ARMS == ("project", "section")
+
+    def test_enumerates_gids_times_arms(self) -> None:
+        """Key count is len(all GIDs) x len(arms) -- the 46-key canonical scope."""
+        from autom8_asana.core.project_registry import (
+            all_project_gids,
+            bulk_prematerialization_keys,
+        )
+
+        keys = bulk_prematerialization_keys()
+        gid_count = len(all_project_gids())
+        # 23 GIDs x 2 arms = 46 (code-grounded, NOT the 104/208 UV-P prose).
+        assert len(keys) == gid_count * 2
+        assert len(keys) == 46
+
+    def test_each_gid_paired_with_each_arm(self) -> None:
+        """Every registered GID appears once per arm."""
+        from autom8_asana.core.project_registry import (
+            all_project_gids,
+            bulk_prematerialization_keys,
+        )
+
+        keys = bulk_prematerialization_keys()
+        for gid in all_project_gids():
+            assert (gid, "project") in keys
+            assert (gid, "section") in keys
+
+    def test_deterministic_order(self) -> None:
+        """Enumeration order is stable across calls (checkpoint resume needs it)."""
+        from autom8_asana.core.project_registry import bulk_prematerialization_keys
+
+        assert bulk_prematerialization_keys() == bulk_prematerialization_keys()
+
+    def test_custom_arms_subset(self) -> None:
+        """A single-arm enumeration yields one key per GID."""
+        from autom8_asana.core.project_registry import (
+            all_project_gids,
+            bulk_prematerialization_keys,
+        )
+
+        keys = bulk_prematerialization_keys(arms=("project",))
+        assert len(keys) == len(all_project_gids())
+        assert all(et == "project" for _gid, et in keys)

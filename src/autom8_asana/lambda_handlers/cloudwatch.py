@@ -47,7 +47,6 @@ def emit_metric(
     from autom8_asana.settings import get_settings
 
     obs = get_settings().observability
-    client = _get_cloudwatch_client()
     ns = namespace or obs.cloudwatch_namespace
 
     metric_dimensions = [
@@ -58,6 +57,14 @@ def emit_metric(
             metric_dimensions.append({"Name": dim_name, "Value": dim_value})
 
     try:
+        # Client creation is inside the guard: boto3.client("cloudwatch") raises
+        # NoRegionError ("You must specify a region.") at CREATION time when no
+        # region is resolvable (e.g. a unit-test env with AWS_REGION unset). This
+        # must degrade gracefully like any other emit failure — observability must
+        # never fail the handler (TD-005: a coverage-rate emit cannot abort a warm
+        # cycle; in prod the Lambda runtime always sets AWS_REGION so this is the
+        # test-env / transient-error safety net the docstring already promises).
+        client = _get_cloudwatch_client()
         client.put_metric_data(
             Namespace=ns,
             MetricData=[
@@ -76,3 +83,28 @@ def emit_metric(
             "metric_emit_error",
             extra={"metric": metric_name, "error": str(e)},
         )
+
+
+def emit_warmer_coverage_rate(keys_completed: int, total_enumerated: int) -> float:
+    """Emit the warmer coverage rate (TD-005, ties to TD-007 honesty theme).
+
+    ``warmer_coverage_rate = keys_completed / total_enumerated`` makes the
+    pre-materialization coverage observable: a value < 1.0 means some of the
+    enumerated bulk keys were NOT warmed before the consumer batch, so the
+    receiver will cold-build (and 503) those keys. Like TD-007's honest
+    success rate, a zero denominator returns 0.0 rather than a fabricated
+    100% -- "nothing enumerated" is not "fully covered".
+
+    Emitted as a CloudWatch ``Percent`` metric (0-100) so it is dashboardable
+    alongside the warmer's other ``emit_metric`` signals.
+
+    Args:
+        keys_completed: Count of ``(project_gid, entity_type)`` keys warmed.
+        total_enumerated: Total keys the warm cycle set out to cover.
+
+    Returns:
+        The coverage rate in [0.0, 1.0] (0.0 when ``total_enumerated == 0``).
+    """
+    rate = (keys_completed / total_enumerated) if total_enumerated > 0 else 0.0
+    emit_metric("WarmerCoverageRate", rate * 100.0, unit="Percent")
+    return rate

@@ -107,3 +107,51 @@ class TestSelfInvokeContinuation:
 
         call_kwargs = mock_lambda.invoke.call_args[1]
         assert call_kwargs["FunctionName"] == custom_arn
+
+    @patch("boto3.client")
+    @patch("autom8_asana.lambda_handlers.timeout.emit_metric")
+    def test_bulk_flag_payload_routes_to_bulk_branch(
+        self, mock_metric: MagicMock, mock_boto3_client: MagicMock
+    ) -> None:
+        """TD-005: prematerialize_bulk_set=True payloads omit entity_types and set the flag."""
+        import json
+
+        mock_lambda = MagicMock()
+        mock_boto3_client.return_value = mock_lambda
+
+        context = MagicMock()
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123:function:warmer"
+
+        _self_invoke_continuation(
+            context,
+            ["1:project", "1:section"],
+            "inv-003",
+            prematerialize_bulk_set=True,
+        )
+
+        payload = json.loads(mock_lambda.invoke.call_args[1]["Payload"])
+        # Bulk path routes via the flag; the checkpoint (not the payload) carries
+        # the pending key tokens, so entity_types is intentionally absent.
+        assert payload["prematerialize_bulk_set"] is True
+        assert payload["resume_from_checkpoint"] is True
+        assert "entity_types" not in payload
+
+    @patch("boto3.client")
+    @patch("autom8_asana.lambda_handlers.timeout.emit_metric")
+    def test_default_payload_unchanged_entity_types(
+        self, mock_metric: MagicMock, mock_boto3_client: MagicMock
+    ) -> None:
+        """Legacy default: entity_types present, no bulk flag (backward compatible)."""
+        import json
+
+        mock_lambda = MagicMock()
+        mock_boto3_client.return_value = mock_lambda
+
+        context = MagicMock()
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123:function:warmer"
+
+        _self_invoke_continuation(context, ["contact", "offer"], "inv-004")
+
+        payload = json.loads(mock_lambda.invoke.call_args[1]["Payload"])
+        assert payload["entity_types"] == ["contact", "offer"]
+        assert "prematerialize_bulk_set" not in payload
