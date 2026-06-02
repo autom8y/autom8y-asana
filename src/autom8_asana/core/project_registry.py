@@ -185,11 +185,110 @@ def all_entity_project_gids() -> list[str]:
 
 
 # Body-parameterized entity arms the scheduled consumer `refresh_project_frames`
-# bulk run hits per registered project. These are the only width-driving keys
-# the receiver serves cold (warmable=False, body_parameterized=True per
-# entity_registry.py:884-940). Warming them ahead of the consumer batch is
-# what moves the burst off the receiver's ALB path (TD-005).
+# bulk run hits per registered project. The receiver serves these cold
+# (warmable=False, body_parameterized=True per entity_registry.py:884-940), so
+# warming them ahead of the consumer batch moves the burst off the receiver's
+# ALB path (TD-005).
 BULK_PREMATERIALIZATION_ARMS: tuple[str, ...] = ("project", "section")
+
+# =============================================================================
+# Consumer Warm Set (ADR-3, WS-2 §3.1) -- DERIVED FROM THE CONSUMER, NOT FROM
+# THE DOMAIN REGISTRY ABOVE.
+# =============================================================================
+#
+# The scheduled consumer `refresh_project_frames._gather_project_classes()`
+# (autom8/apis/asana_api/objects/project/refresh_frames.py:10-18) enumerates
+# EVERY `Project` subclass in `apis.asana_api.objects.project.models` and calls
+# `proj.get_df(sections="ALL")` on each. That is the receiver's true cold-burst
+# width. As of 2026-06-02 the consumer yields 34 distinct GID-bearing subclasses
+# (the two abstract bases `ProcessProject`/`IsolatedPlayProject` carry no GID and
+# are excluded -- they raise on bare instantiation and the consumer swallows it).
+#
+# The 23-entry `_REGISTRY` above is the receiver's DOMAIN model (resolution +
+# PRIMARY_PROJECT_GID parity) and is a strict SUBSET of the consumer's 34
+# (set-diff verified == the 11 GIDs in tiers 2/3 below, with 0 receiver-only
+# GIDs). It is the WRONG denominator for warming: it omits 11 consumer-queried
+# GIDs that the receiver then 503s cold under bulk fan-out (CF-3). The prior
+# docstring claimed the 23 keys were "the only width-driving keys the receiver
+# serves cold" -- FALSE against consumer source (the consumer hits 34, not 23).
+#
+# This warm set MUST equal the consumer subclass set (set-diff == 0); the re-gate
+# acceptance (VG-004 static-superset-of-live) verifies it against a LIVE
+# `refresh_frames` enumeration. It is kept SEPARATE from `_REGISTRY` so adding a
+# warm target does NOT widen domain resolution (`get_project_gid`,
+# `all_entity_project_gids`, parity) -- a pure-additive warm-path change with no
+# resolution-behavior change for the existing 23 (ADR-3 §3.1 one-way-door note).
+#
+# ORDER IS HEAVIEST-FIRST (CF-2 fix, ADR-3 §3.2(a)). The warmer processes this
+# list head-to-tail and, on a partial cycle, checkpoints the *tail*; declaration
+# order previously warmed the heavy pipeline/holder GIDs LAST and amputated them
+# FIRST. Heaviest-first means a partial warm leaves the EXPENSIVE-to-cold GIDs
+# warmed and defers only the cheap tail to the self-invoke continuation. The
+# tiers are a documented build-cost heuristic (no persisted row-count metadatum
+# exists in the registry); refine the ordering if telemetry contradicts it.
+_CONSUMER_WARM_SET_TIER_1_HEAVY: tuple[str, ...] = (
+    "1167650840134033",  # BackendClientSuccessDna (DNA holder ~30k rows -- heaviest, OOM driver)
+    "1200944186565610",  # Sales pipeline
+    "1201753128450029",  # Outreach pipeline
+    "1201319387632570",  # Onboarding pipeline
+    "1201476141989746",  # Implementation pipeline
+    "1201346565918814",  # Retention pipeline
+    "1200653012566782",  # Businesses (root hierarchy)
+    "1201081073731555",  # BusinessUnits
+    "1143843662099250",  # BusinessOffers
+    "1200775689604552",  # Contacts
+)
+_CONSUMER_WARM_SET_TIER_2_MID: tuple[str, ...] = (
+    "1201265144487549",  # Reactivation pipeline
+    "1201265144487557",  # Expansion pipeline
+    "1201684018234520",  # AccountError pipeline
+    "1201532776033312",  # Consultation pipeline (registry-absent: +1 of 11)
+    "1209247943184017",  # PracticeOfTheWeek pipeline (registry-absent: +2 of 11)
+    "1209247943184021",  # ActivationConsultation pipeline
+    "1206176773330155",  # VideographerSourcing pipeline (registry-absent: +3 of 11)
+    "1204433992667196",  # Units (holder)
+    "1210679066066870",  # OfferHolders
+    "1201500116978260",  # ContactHolder
+    "1203992664400125",  # AssetEditHolder
+    "1202204184560785",  # PaidContent
+    "1200836133305610",  # Locations
+    "1201614578074026",  # Hours
+    "1203404998225231",  # Reconciliations
+    "1207984018149338",  # VideographyServices
+    "1201627461398630",  # Commission (registry-absent: +4 of 11; build-gap GID, 1480 rows -- ADR-2)
+)
+_CONSUMER_WARM_SET_TIER_3_LIGHT: tuple[str, ...] = (
+    "1208231632857419",  # OptimizationNotifications (registry-absent: +5 of 11)
+    "1205526136594283",  # QuestionOnPerformance (registry-absent: +6 of 11; isolated play)
+    "1207507299545000",  # BackendOnboardABusiness (registry-absent: +7 of 11; isolated play)
+    "1209442849265632",  # CalendarIntegrations (registry-absent: +8 of 11; isolated play)
+    "1209442727608287",  # AccessProcessing (registry-absent: +9 of 11)
+    "1206330409791366",  # PauseABusinessUnit (registry-absent: +10 of 11; interrupted build / honest-empty -- ADR-2)
+    "1208848470341588",  # CustomerHealth (registry-absent: +11 of 11; honest-empty -- ADR-1)
+)
+
+# The authoritative warm set: heaviest-first, consumer-derived, set-diff(consumer)==0.
+CONSUMER_WARM_SET_GIDS: tuple[str, ...] = (
+    _CONSUMER_WARM_SET_TIER_1_HEAVY
+    + _CONSUMER_WARM_SET_TIER_2_MID
+    + _CONSUMER_WARM_SET_TIER_3_LIGHT
+)
+
+
+def consumer_warm_set_gids() -> tuple[str, ...]:
+    """Return the consumer-derived warm-set GIDs in heaviest-first order (ADR-3).
+
+    This is the receiver's true cold-burst width: the GID of every ``Project``
+    subclass the scheduled consumer ``refresh_project_frames`` queries. It is a
+    SUPERSET of the 23-entry domain ``_REGISTRY`` (the 11 extra GIDs are
+    consumer-queried projects the receiver does not model as named domain
+    projects but still must warm). Order is heaviest-first so a partial warm
+    cycle defers only the cheap tail (CF-2).
+
+    Returns:
+        Tuple of project GID strings, heaviest-first.
+    """
+    return CONSUMER_WARM_SET_GIDS
 
 
 def bulk_prematerialization_keys(
@@ -197,16 +296,25 @@ def bulk_prematerialization_keys(
 ) -> list[tuple[str, str]]:
     """Enumerate the (project_gid, entity_type) keys to pre-materialize (TD-005).
 
-    Produces the full code-grounded warm set for the scheduled consumer bulk
-    run: every registered project GID crossed with each body-parameterized arm.
-    With the 23-GID registry and the two-arm default, this enumerates
-    23 x 2 = 46 keys -- the canonical scope. (Some docs cite "104/208"; that
-    figure is unverified prose, not the registry's actual enumeration.)
+    Produces the full consumer-derived warm set for the scheduled consumer bulk
+    run: every GID the consumer ``refresh_project_frames`` queries
+    (:func:`consumer_warm_set_gids`, 34 GIDs as of 2026-06-02) crossed with each
+    body-parameterized arm. With the two-arm default this enumerates
+    34 x 2 = 68 keys.
 
-    The order is deterministic: GIDs in registry-declaration order, arms in the
+    The set is the CONSUMER's subclass set, NOT the 23-entry domain ``_REGISTRY``
+    (ADR-3 §3.1, CF-3): the registry is a strict subset and omits 11
+    consumer-queried GIDs that the receiver would otherwise 503 cold under bulk
+    fan-out. Reconciliation keeps the warm denominator consumer-aligned by
+    construction.
+
+    Order is deterministic AND heaviest-first: GIDs in
+    :func:`consumer_warm_set_gids` order (descending build-cost), arms in the
     given order. Determinism matters because the handler's checkpoint/self-invoke
     machinery resumes a partially-processed list by set-difference, so a stable
-    ordering keeps "completed" vs "pending" coherent across self-invokes.
+    ordering keeps "completed" vs "pending" coherent across self-invokes; the
+    heaviest-first ordering means a partial warm leaves the expensive GIDs warmed
+    and defers only the cheap tail (CF-2 fix, ADR-3 §3.2(a)).
 
     Args:
         arms: Body-parameterized entity types to enumerate per GID. Defaults to
@@ -215,5 +323,5 @@ def bulk_prematerialization_keys(
     Returns:
         List of ``(project_gid, entity_type)`` tuples, length ``len(GIDs) * len(arms)``.
     """
-    gids = list(_REGISTRY.values())
+    gids = consumer_warm_set_gids()
     return [(gid, arm) for gid in gids for arm in arms]
