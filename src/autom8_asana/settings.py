@@ -265,6 +265,24 @@ class CacheSettings(Autom8yBaseSettings):
         gt=0.0,
     )
 
+    # --- CPU-bound offload concurrency (TD-001, PDR-002 §4.3) ---
+    # Caps concurrent asyncio.to_thread submissions for CPU-bound Polars work
+    # (pl.concat merge/checkpoint paths) so they cannot starve the shared default
+    # ThreadPoolExecutor that S3 persistence I/O also uses (storage.py:457,525).
+    # Sizing = max_concurrent_builds (build_coordinator.py:131). The semaphore is
+    # load-bearing: offload WITHOUT it re-creates the thread-pool/S3 starvation
+    # documented in capacity-specification PDR-002. See dataframes/concurrency.py.
+    cpu_thread_concurrency: int = Field(
+        default=4,
+        validation_alias=AliasChoices(
+            "CPU_THREAD_CONCURRENCY",
+            "ASANA_CACHE_CPU_THREAD_CONCURRENCY",
+        ),
+        description="Max concurrent CPU-bound to_thread submissions for Polars merge/checkpoint offload (TD-001)",
+        ge=1,
+        le=20,
+    )
+
     @field_validator("provider", mode="before")
     @classmethod
     def normalize_provider(cls, v: str | None) -> str | None:
