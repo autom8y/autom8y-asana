@@ -178,3 +178,35 @@ class TestCloudwatchClientLazyInit:
                 mock_boto3.assert_called_once_with("cloudwatch")
         finally:
             mod._cloudwatch_client = original
+
+
+class TestEmitWarmerCoverageRate:
+    """Tests for emit_warmer_coverage_rate (TD-005 / TD-007 honesty theme)."""
+
+    def test_full_coverage(self) -> None:
+        from autom8_asana.lambda_handlers.cloudwatch import emit_warmer_coverage_rate
+
+        with patch("autom8_asana.lambda_handlers.cloudwatch.emit_metric") as mock_emit:
+            rate = emit_warmer_coverage_rate(46, 46)
+
+        assert rate == 1.0
+        mock_emit.assert_called_once_with("WarmerCoverageRate", 100.0, unit="Percent")
+
+    def test_partial_coverage(self) -> None:
+        from autom8_asana.lambda_handlers.cloudwatch import emit_warmer_coverage_rate
+
+        with patch("autom8_asana.lambda_handlers.cloudwatch.emit_metric") as mock_emit:
+            rate = emit_warmer_coverage_rate(23, 46)
+
+        assert rate == 0.5
+        mock_emit.assert_called_once_with("WarmerCoverageRate", 50.0, unit="Percent")
+
+    def test_zero_denominator_is_honest_zero_not_fabricated_full(self) -> None:
+        """Zero enumerated keys reports 0.0, never a fabricated 100% (TD-007 theme)."""
+        from autom8_asana.lambda_handlers.cloudwatch import emit_warmer_coverage_rate
+
+        with patch("autom8_asana.lambda_handlers.cloudwatch.emit_metric") as mock_emit:
+            rate = emit_warmer_coverage_rate(0, 0)
+
+        assert rate == 0.0
+        mock_emit.assert_called_once_with("WarmerCoverageRate", 0.0, unit="Percent")

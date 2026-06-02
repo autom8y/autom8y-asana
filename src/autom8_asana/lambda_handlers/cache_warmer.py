@@ -44,7 +44,10 @@ from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_log import get_logger
 from autom8y_telemetry.aws import emit_success_timestamp, instrument_lambda
 
-from autom8_asana.lambda_handlers.cloudwatch import emit_metric
+from autom8_asana.lambda_handlers.cloudwatch import (
+    emit_metric,
+    emit_warmer_coverage_rate,
+)
 from autom8_asana.lambda_handlers.pipeline_stage_aggregator import (
     _aggregate_pipeline_stages,
 )
@@ -178,6 +181,254 @@ async def _run_vertical_backfill(
                 "invocation_id": invocation_id,
             },
         )
+
+
+def _encode_key_token(project_gid: str, entity_type: str) -> str:
+    """Encode a (project_gid, entity_type) key as a checkpoint-list token.
+
+    The handler's existing CheckpointManager + _self_invoke_continuation
+    machinery carries a flat ``list[str]`` (the entity-type processing list).
+    To reuse that machinery unchanged for the 46-key bulk set, each key is
+    encoded as ``"{project_gid}:{entity_type}"``. GIDs are numeric and entity
+    types are lowercase identifiers (no colon), so split on the FIRST ":" is
+    unambiguous.
+    """
+    return f"{project_gid}:{entity_type}"
+
+
+def _decode_key_token(token: str) -> tuple[str, str]:
+    """Inverse of :func:`_encode_key_token` -> ``(project_gid, entity_type)``."""
+    project_gid, entity_type = token.split(":", 1)
+    return project_gid, entity_type
+
+
+async def _prematerialize_bulk_set_async(
+    resume_from_checkpoint: bool = True,
+    context: Any = None,
+) -> WarmResponse:
+    """Pre-materialize the body-parameterized bulk key set ahead of the consumer (TD-005).
+
+    The scheduled consumer ``refresh_project_frames`` batch is the only
+    width-driving load: it queries every registered project for the
+    body-parameterized arms (project + section), which the receiver serves
+    COLD (``warmable=False``) and would otherwise build on-miss -- a 503 storm
+    under bulk fan-out. This warms that exact key set
+    (``project_registry.bulk_prematerialization_keys`` = 23 GIDs x 2 arms =
+    46 keys) into S3 + memory AHEAD of the consumer run, so the receiver sees
+    fresh hits for the whole batch.
+
+    This LEVERAGES (does NOT reimplement) the existing checkpoint/self-invoke
+    continuation: the same ``CheckpointManager``, ``_should_exit_early``, and
+    ``_self_invoke_continuation`` primitives the entity-type warm loop uses.
+    Each (gid, entity_type) key is encoded as a checkpoint-list token so the
+    string-typed checkpoint list is reused verbatim. At 46 keys (<=~162 s high
+    estimate per capacity-specification §5) a single 900 s invocation completes
+    the cycle; the resume path exists for correctness, not because it is
+    expected to trigger.
+
+    DEPLOY-ORDER (ops-runbook concern, not a code gate): a full warm cycle must
+    precede the TD-006 honest-LKG (LKG_MAX_STALENESS_MULTIPLIER=10.0) deploy.
+    With the 46 keys warm, the receiver serves fresh hits and never crosses the
+    LKG staleness boundary, so restoring the honest backpressure does not
+    produce a 503 spike. Warming first is what makes the honest-LKG value safe.
+
+    Args:
+        resume_from_checkpoint: If True, resume pending keys from the last
+            checkpoint (shares the warmer CheckpointManager).
+        context: Lambda context for timeout detection and correlation.
+
+    Returns:
+        WarmResponse whose ``message`` carries the coverage rate and whose
+        ``entity_results`` carries per-key WarmStatus dicts.
+    """
+    from autom8_asana import AsanaClient
+    from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+    from autom8_asana.cache.dataframe.factory import (
+        get_dataframe_cache,
+        initialize_dataframe_cache,
+    )
+    from autom8_asana.cache.dataframe.warmer import CacheWarmer, WarmResult
+    from autom8_asana.core.project_registry import bulk_prematerialization_keys
+    from autom8_asana.lambda_handlers.checkpoint import CheckpointManager
+
+    start_time = time.monotonic()
+    invocation_id = getattr(context, "aws_request_id", None) or str(uuid.uuid4())
+
+    cache = get_dataframe_cache()
+    if cache is None:
+        cache = initialize_dataframe_cache()
+    if cache is None:
+        return WarmResponse(
+            success=False,
+            message="Failed to initialize DataFrameCache. Check S3 configuration.",
+            duration_ms=(time.monotonic() - start_time) * 1000,
+            invocation_id=invocation_id,
+        )
+
+    # Full enumerable set (deterministic order) and its token form.
+    all_keys = bulk_prematerialization_keys()
+    total_enumerated = len(all_keys)
+    all_tokens = [_encode_key_token(gid, et) for gid, et in all_keys]
+
+    checkpoint_mgr = CheckpointManager(bucket=get_settings().s3.bucket)
+
+    completed_tokens: list[str] = []
+    entity_results: list[dict[str, Any]] = []
+    processing_tokens = all_tokens
+
+    if resume_from_checkpoint:
+        checkpoint = await checkpoint_mgr.load_async()
+        if checkpoint:
+            completed_tokens = checkpoint.completed_entities
+            entity_results = checkpoint.entity_results
+            processing_tokens = checkpoint.pending_entities
+            logger.info(
+                "prematerialize_resuming_from_checkpoint",
+                extra={
+                    "prior_invocation": checkpoint.invocation_id,
+                    "completed": len(completed_tokens),
+                    "pending": len(processing_tokens),
+                    "invocation_id": invocation_id,
+                },
+            )
+            emit_metric("CheckpointResumed", 1)
+
+    try:
+        bot_pat = get_bot_pat()
+    except BotPATError as e:
+        return WarmResponse(
+            success=False,
+            message=f"Failed to get bot PAT: {e}",
+            duration_ms=(time.monotonic() - start_time) * 1000,
+            invocation_id=invocation_id,
+        )
+
+    try:
+        workspace_gid = resolve_secret_from_env("ASANA_WORKSPACE_GID")
+    except ValueError:
+        workspace_gid = None
+    if not workspace_gid:
+        return WarmResponse(
+            success=False,
+            message="ASANA_WORKSPACE_GID environment variable not set",
+            duration_ms=(time.monotonic() - start_time) * 1000,
+            invocation_id=invocation_id,
+        )
+
+    # strict=False: a single key failure must not abort the bulk cycle; the
+    # coverage rate reports the partial result honestly (TD-007 theme).
+    warmer = CacheWarmer(cache=cache, priority=[], strict=False)
+
+    def _finish(success: bool, message_prefix: str) -> WarmResponse:
+        rate = emit_warmer_coverage_rate(len(completed_tokens), total_enumerated)
+        return WarmResponse(
+            success=success,
+            message=(
+                f"{message_prefix}: warmer_coverage_rate="
+                f"{rate:.4f} ({len(completed_tokens)}/{total_enumerated} keys)"
+            ),
+            entity_results=entity_results,
+            total_rows=sum(r.get("row_count", 0) for r in entity_results),
+            duration_ms=(time.monotonic() - start_time) * 1000,
+            invocation_id=invocation_id,
+        )
+
+    try:
+        async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
+            for token in processing_tokens:
+                if _should_exit_early(context):
+                    pending = [t for t in all_tokens if t not in completed_tokens]
+                    await checkpoint_mgr.save_async(
+                        invocation_id=invocation_id,
+                        completed_entities=completed_tokens,
+                        pending_entities=pending,
+                        entity_results=entity_results,
+                    )
+                    emit_metric("CheckpointSaved", 1)
+                    # Reuse the existing self-invoke continuation; the bulk flag
+                    # routes the next invocation back into this branch and the
+                    # shared checkpoint restores the pending key tokens.
+                    _self_invoke_continuation(
+                        context,
+                        pending,
+                        invocation_id,
+                        prematerialize_bulk_set=True,
+                    )
+                    logger.warning(
+                        "prematerialize_exiting_early_timeout",
+                        extra={
+                            "completed": len(completed_tokens),
+                            "pending": len(pending),
+                            "invocation_id": invocation_id,
+                        },
+                    )
+                    return _finish(
+                        success=False,
+                        message_prefix="Partial completion, self-continuing",
+                    )
+
+                project_gid, entity_type = _decode_key_token(token)
+                status = await warmer.warm_key_async(
+                    project_gid=project_gid,
+                    entity_type=entity_type,
+                    client=client,
+                )
+                entity_results.append(status.to_dict())
+
+                if status.result == WarmResult.SUCCESS:
+                    completed_tokens.append(token)
+                    emit_metric("WarmSuccess", 1, dimensions={"entity_type": entity_type})
+                    emit_metric(
+                        "RowsWarmed",
+                        status.row_count,
+                        dimensions={"entity_type": entity_type},
+                    )
+                else:
+                    emit_metric("WarmFailure", 1, dimensions={"entity_type": entity_type})
+                    logger.warning(
+                        "prematerialize_key_failure",
+                        extra={
+                            "project_gid": project_gid,
+                            "entity_type": entity_type,
+                            "error": status.error,
+                            "invocation_id": invocation_id,
+                        },
+                    )
+
+                pending = [t for t in all_tokens if t not in completed_tokens]
+                if pending:
+                    await checkpoint_mgr.save_async(
+                        invocation_id=invocation_id,
+                        completed_entities=completed_tokens,
+                        pending_entities=pending,
+                        entity_results=entity_results,
+                    )
+                    emit_metric("CheckpointSaved", 1)
+
+        # Full cycle finished within this invocation.
+        await checkpoint_mgr.clear_async()
+        all_covered = len(completed_tokens) == total_enumerated
+        return _finish(
+            success=all_covered,
+            message_prefix=(
+                "Bulk pre-materialization complete"
+                if all_covered
+                else "Bulk pre-materialization finished with gaps"
+            ),
+        )
+
+    except (
+        Exception  # noqa: BLE001
+    ) as e:  # BROAD-CATCH: boundary -- async function top-level catch, returns error response
+        logger.error(
+            "prematerialize_handler_error",
+            extra={
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "invocation_id": invocation_id,
+            },
+        )
+        return _finish(success=False, message_prefix=f"Bulk pre-materialization failed: {e}")
 
 
 @dataclass
@@ -753,6 +1004,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 Defaults to True.
             - resume_from_checkpoint (bool): If True, resume from last checkpoint
                 if available. Defaults to True.
+            - prematerialize_bulk_set (bool): TD-005. If True, run the
+                body-parameterized bulk pre-materialization (project/section x all
+                registered GIDs) instead of the offer-domain warm. Default False.
         context: Lambda context with get_remaining_time_in_millis() and aws_request_id.
 
     Returns:
@@ -811,17 +1065,29 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     entity_types = event.get("entity_types")
     strict = event.get("strict", True)
     resume_from_checkpoint = event.get("resume_from_checkpoint", True)
+    # TD-005: opt-in body-parameterized bulk pre-materialization (project/section
+    # x all registered GIDs). Default off so the scheduled offer-domain warm path
+    # is untouched; the bulk pre-warm runs on its own EventBridge schedule.
+    prematerialize_bulk_set = event.get("prematerialize_bulk_set", False)
 
     # Run async warming with context for timeout detection
     try:
-        response = asyncio.run(
-            _warm_cache_async(
-                entity_types=entity_types,
-                strict=strict,
-                resume_from_checkpoint=resume_from_checkpoint,
-                context=context,
+        if prematerialize_bulk_set:
+            response = asyncio.run(
+                _prematerialize_bulk_set_async(
+                    resume_from_checkpoint=resume_from_checkpoint,
+                    context=context,
+                )
             )
-        )
+        else:
+            response = asyncio.run(
+                _warm_cache_async(
+                    entity_types=entity_types,
+                    strict=strict,
+                    resume_from_checkpoint=resume_from_checkpoint,
+                    context=context,
+                )
+            )
     except (
         Exception  # noqa: BLE001
     ) as e:  # BROAD-CATCH: boundary -- Lambda handler top-level catch
@@ -888,13 +1154,20 @@ async def handler_async(
     entity_types = event.get("entity_types")
     strict = event.get("strict", True)
     resume_from_checkpoint = event.get("resume_from_checkpoint", True)
+    prematerialize_bulk_set = event.get("prematerialize_bulk_set", False)
 
-    response = await _warm_cache_async(
-        entity_types=entity_types,
-        strict=strict,
-        resume_from_checkpoint=resume_from_checkpoint,
-        context=context,
-    )
+    if prematerialize_bulk_set:
+        response = await _prematerialize_bulk_set_async(
+            resume_from_checkpoint=resume_from_checkpoint,
+            context=context,
+        )
+    else:
+        response = await _warm_cache_async(
+            entity_types=entity_types,
+            strict=strict,
+            resume_from_checkpoint=resume_from_checkpoint,
+            context=context,
+        )
 
     status_code = 200 if response.success else 500
 

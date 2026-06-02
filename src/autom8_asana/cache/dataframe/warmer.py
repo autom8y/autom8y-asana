@@ -289,6 +289,66 @@ class CacheWarmer:
 
         return results
 
+    async def warm_key_async(
+        self,
+        project_gid: str,
+        entity_type: str,
+        client: AsanaClient,
+    ) -> WarmStatus:
+        """Warm a single ``(project_gid, entity_type)`` key (TD-005).
+
+        Pre-materialization entry point for body-parameterized entities
+        (project/section) whose GID arrives per-request and is therefore NOT
+        resolvable via a single registry ``get_project_gid(entity_type)``
+        lookup. The bulk consumer run hits the same key for many distinct
+        GIDs, so the warm set must be driven by an explicit GID enumeration
+        (``project_registry.bulk_prematerialization_keys``) rather than by a
+        one-GID-per-entity-type provider.
+
+        This reuses :meth:`_warm_entity_type_async` -- the SAME build path the
+        single-project warm uses -- so the cached frame is byte-shape-identical
+        to the receiver's cold-build output (both call
+        ``ProgressiveProjectBuilder.build_progressive_async`` and write via
+        ``cache.put_async`` under the same ``(project_gid, entity_type)`` key).
+        No frozen-contract change: the written frame is what the receiver reads.
+
+        Args:
+            project_gid: Explicit project GID to warm (body-supplied at query time).
+            entity_type: Entity type arm (e.g. "project", "section").
+            client: AsanaClient for building.
+
+        Returns:
+            WarmStatus for the key, with ``duration_ms`` populated.
+        """
+        start = time.monotonic()
+        self._stats["warm_attempts"] += 1
+
+        try:
+            status = await self._warm_entity_type_async(
+                entity_type=entity_type,
+                project_gid=project_gid,
+                client=client,
+            )
+            status.duration_ms = (time.monotonic() - start) * 1000
+
+            if status.result == WarmResult.SUCCESS:
+                self._stats["warm_successes"] += 1
+                self._stats["total_rows_warmed"] += status.row_count
+            else:
+                self._stats["warm_failures"] += 1
+
+            return status
+
+        except CACHE_TRANSIENT_ERRORS as e:
+            self._stats["warm_failures"] += 1
+            return WarmStatus(
+                entity_type=entity_type,
+                result=WarmResult.FAILURE,
+                project_gid=project_gid,
+                duration_ms=(time.monotonic() - start) * 1000,
+                error=str(e),
+            )
+
     async def _warm_entity_type_async(
         self,
         entity_type: str,

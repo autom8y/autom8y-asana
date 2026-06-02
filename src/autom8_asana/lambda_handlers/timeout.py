@@ -58,12 +58,26 @@ def _self_invoke_continuation(
     context: Any,
     pending_entities: list[str],
     parent_invocation_id: str,
+    *,
+    prematerialize_bulk_set: bool = False,
 ) -> None:
     """Self-invoke Lambda with remaining entities for continuation.
 
     Uses context.invoked_function_arn to get own ARN.
     Fires asynchronously (InvocationType=Event) so current invocation
     can return cleanly.
+
+    Args:
+        context: Lambda context exposing ``invoked_function_arn``.
+        pending_entities: Remaining work items (entity types, or TD-005
+            ``"{gid}:{entity_type}"`` key tokens for the bulk path).
+        parent_invocation_id: Correlation id of the invocation self-continuing.
+        prematerialize_bulk_set: TD-005. When True, the continuation payload
+            carries the ``prematerialize_bulk_set`` flag so the next invocation
+            re-enters the bulk pre-materialization branch (not the offer-domain
+            warm). Defaults False to preserve the legacy entity-type behavior.
+            Either way the next invocation resumes pending work from the shared
+            checkpoint via ``resume_from_checkpoint=True``.
     """
     if not pending_entities:
         return
@@ -80,11 +94,16 @@ def _self_invoke_continuation(
 
     import boto3
 
-    payload = {
-        "entity_types": pending_entities,
+    payload: dict[str, Any] = {
         "strict": False,
         "resume_from_checkpoint": True,
     }
+    if prematerialize_bulk_set:
+        # Bulk path: the checkpoint carries the pending key tokens; the flag
+        # routes the continuation back into _prematerialize_bulk_set_async.
+        payload["prematerialize_bulk_set"] = True
+    else:
+        payload["entity_types"] = pending_entities
     try:
         client = boto3.client("lambda")
         client.invoke(

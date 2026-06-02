@@ -516,3 +516,97 @@ class TestCacheWarmer:
         assert stats["warm_successes"] == 1
         assert stats["warm_failures"] == 1
         assert stats["total_rows_warmed"] == 3
+
+
+class TestWarmKeyAsync:
+    """Tests for CacheWarmer.warm_key_async (TD-005 explicit-GID warming)."""
+
+    @pytest.fixture
+    def mock_cache(self) -> MagicMock:
+        cache = MagicMock()
+        cache.put_async = AsyncMock()
+        return cache
+
+    @pytest.fixture
+    def mock_client(self) -> MagicMock:
+        return MagicMock()
+
+    @pytest.fixture
+    def sample_dataframe(self) -> pl.DataFrame:
+        return pl.DataFrame({"gid": ["1", "2"], "name": ["A", "B"]})
+
+    async def test_warm_key_success_uses_explicit_gid(
+        self,
+        mock_cache: MagicMock,
+        mock_client: MagicMock,
+        sample_dataframe: pl.DataFrame,
+    ) -> None:
+        """An arbitrary per-request GID is warmed via the shared build path."""
+        warmer = CacheWarmer(cache=mock_cache, priority=[], strict=False)
+
+        mock_strategy = MagicMock()
+        mock_strategy._build_dataframe = AsyncMock(
+            return_value=(sample_dataframe, datetime.now(UTC))
+        )
+
+        with patch.object(warmer, "_get_strategy_instance", return_value=mock_strategy):
+            status = await warmer.warm_key_async(
+                project_gid="9999",
+                entity_type="section",
+                client=mock_client,
+            )
+
+        assert status.result == WarmResult.SUCCESS
+        assert status.project_gid == "9999"
+        assert status.entity_type == "section"
+        assert status.row_count == 2
+        assert status.duration_ms >= 0.0
+        # Same cache key shape as the receiver reads: (project_gid, entity_type).
+        _args, kwargs = mock_cache.put_async.call_args
+        assert kwargs["project_gid"] == "9999"
+        assert kwargs["entity_type"] == "section"
+
+    async def test_warm_key_failure_non_strict_returns_status(
+        self,
+        mock_cache: MagicMock,
+        mock_client: MagicMock,
+    ) -> None:
+        """A transient build error yields a FAILURE status, not a raise."""
+        warmer = CacheWarmer(cache=mock_cache, priority=[], strict=False)
+
+        mock_strategy = MagicMock()
+        mock_strategy._build_dataframe = AsyncMock(side_effect=ConnectionError("boom"))
+
+        with patch.object(warmer, "_get_strategy_instance", return_value=mock_strategy):
+            status = await warmer.warm_key_async(
+                project_gid="1234",
+                entity_type="project",
+                client=mock_client,
+            )
+
+        assert status.result == WarmResult.FAILURE
+        assert status.project_gid == "1234"
+        assert "boom" in (status.error or "")
+
+    async def test_warm_key_updates_stats(
+        self,
+        mock_cache: MagicMock,
+        mock_client: MagicMock,
+        sample_dataframe: pl.DataFrame,
+    ) -> None:
+        """Each warmed key increments warm_attempts and success stats."""
+        warmer = CacheWarmer(cache=mock_cache, priority=[], strict=False)
+
+        mock_strategy = MagicMock()
+        mock_strategy._build_dataframe = AsyncMock(
+            return_value=(sample_dataframe, datetime.now(UTC))
+        )
+
+        with patch.object(warmer, "_get_strategy_instance", return_value=mock_strategy):
+            await warmer.warm_key_async("1", "project", mock_client)
+            await warmer.warm_key_async("2", "section", mock_client)
+
+        stats = warmer.get_stats()
+        assert stats["warm_attempts"] == 2
+        assert stats["warm_successes"] == 2
+        assert stats["total_rows_warmed"] == 4
