@@ -549,6 +549,132 @@ class TestAcG2R64OfferDomainUnchanged:
 
 
 # ---------------------------------------------------------------------------
+# ADR-1 edit 2: honest-empty-on-miss — a cold miss whose manifest is
+# honest-complete serves an empty frame (honest-empty-200), NOT a 503.
+# ---------------------------------------------------------------------------
+
+
+def _persistence_ctx_with_manifest(manifest: SectionManifest | None) -> MagicMock:
+    """Build a SectionPersistence mock usable as `async with` returning a manifest."""
+    persistence = MagicMock()
+    persistence.__aenter__ = AsyncMock(return_value=persistence)
+    persistence.__aexit__ = AsyncMock(return_value=False)
+    persistence.get_manifest_async = AsyncMock(return_value=manifest)
+    return persistence
+
+
+class TestAdr1HonestEmptyOnMiss:
+    """ADR-1 edit 2: cold-miss + honest-complete manifest → empty frame, not 503."""
+
+    async def test_honest_complete_miss_serves_empty_frame_not_503(self) -> None:
+        """A body-parameterized cold miss whose manifest is honest-complete
+        returns an empty schema'd frame and does NOT enter _build_on_miss."""
+        strategy = get_universal_strategy("project")  # body_parameterized=True
+        client = MagicMock()
+        fake_cache = _FakeCacheForBgTests()
+        _background_builds.clear()
+
+        manifest = SectionManifest(
+            project_gid=_PROJECT_GID,
+            entity_type="project",
+            total_sections=1,
+            completed_sections=1,
+            schema_version="1.0.0",
+            sections={"sec_1": SectionInfo(status=SectionStatus.COMPLETE, rows=0)},
+        )
+        schema = MagicMock()
+        schema.to_polars_schema.return_value = {"gid": pl.Utf8, "name": pl.Utf8}
+
+        with (
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
+                return_value=fake_cache,
+            ),
+            patch(
+                "autom8_asana.dataframes.section_persistence.create_section_persistence",
+                return_value=_persistence_ctx_with_manifest(manifest),
+            ),
+            patch.object(strategy, "_get_entity_schema", return_value=schema),
+            patch.object(
+                UniversalResolutionStrategy, "_build_on_miss", new_callable=AsyncMock
+            ) as mock_build_on_miss,
+        ):
+            result = await strategy._get_dataframe(_PROJECT_GID, client)
+
+        assert result is not None, "honest-complete miss must serve an empty frame, not None"
+        assert len(result) == 0, "the served honest-empty frame must have zero rows"
+        mock_build_on_miss.assert_not_awaited()
+
+    async def test_incomplete_manifest_miss_still_builds_on_miss(self) -> None:
+        """A miss whose manifest is NOT honest-complete (a FAILED section) must
+        STILL go through _build_on_miss (503) — never falsely serve empty."""
+        strategy = get_universal_strategy("project")
+        client = MagicMock()
+        fake_cache = _FakeCacheForBgTests()
+        _background_builds.clear()
+
+        manifest = SectionManifest(
+            project_gid=_PROJECT_GID,
+            entity_type="project",
+            total_sections=2,
+            completed_sections=1,
+            schema_version="1.0.0",
+            sections={
+                "sec_1": SectionInfo(status=SectionStatus.COMPLETE, rows=0),
+                "sec_2": SectionInfo(status=SectionStatus.FAILED, error="boom"),
+            },
+        )
+        schema = MagicMock()
+        schema.to_polars_schema.return_value = {"gid": pl.Utf8, "name": pl.Utf8}
+
+        with (
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
+                return_value=fake_cache,
+            ),
+            patch(
+                "autom8_asana.dataframes.section_persistence.create_section_persistence",
+                return_value=_persistence_ctx_with_manifest(manifest),
+            ),
+            patch.object(strategy, "_get_entity_schema", return_value=schema),
+            patch.object(
+                UniversalResolutionStrategy, "_build_on_miss", new_callable=AsyncMock
+            ) as mock_build_on_miss,
+        ):
+            await strategy._get_dataframe(_PROJECT_GID, client)
+
+        mock_build_on_miss.assert_awaited_once()
+
+    async def test_no_manifest_miss_still_builds_on_miss(self) -> None:
+        """A miss with NO manifest (never built) must build-on-miss, not serve empty."""
+        strategy = get_universal_strategy("project")
+        client = MagicMock()
+        fake_cache = _FakeCacheForBgTests()
+        _background_builds.clear()
+
+        schema = MagicMock()
+        schema.to_polars_schema.return_value = {"gid": pl.Utf8, "name": pl.Utf8}
+
+        with (
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
+                return_value=fake_cache,
+            ),
+            patch(
+                "autom8_asana.dataframes.section_persistence.create_section_persistence",
+                return_value=_persistence_ctx_with_manifest(None),
+            ),
+            patch.object(strategy, "_get_entity_schema", return_value=schema),
+            patch.object(
+                UniversalResolutionStrategy, "_build_on_miss", new_callable=AsyncMock
+            ) as mock_build_on_miss,
+        ):
+            await strategy._get_dataframe(_PROJECT_GID, client)
+
+        mock_build_on_miss.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
 # Background task lifecycle: key cleared on failure
 # ---------------------------------------------------------------------------
 

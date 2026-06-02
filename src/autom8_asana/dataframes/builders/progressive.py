@@ -41,6 +41,7 @@ from autom8_asana.dataframes.section_persistence import (
     SectionManifest,
     SectionPersistence,
     SectionStatus,
+    is_honest_complete,
 )
 from autom8_asana.models.business.activity import get_classifier
 from autom8_asana.settings import get_settings
@@ -650,11 +651,33 @@ class ProgressiveProjectBuilder:
                 "progressive_build_no_sections",
                 extra={"project_gid": self._project_gid},
             )
+            # ADR-1 edit 1 (cold-empty branch): a project with NO sections is
+            # vacuously honest-complete. Persist the zero-row, schema'd frame so
+            # the receiver loads an empty frame (not None) and serves
+            # honest-empty-200 instead of a perpetual CACHE_BUILD_IN_PROGRESS 503.
+            # Mirrors the Step-6 honest-empty persist below.
+            empty_df = pl.DataFrame(schema=self._schema.to_polars_schema())
+            no_sections_watermark = datetime.now(UTC)
+            await self._persistence.write_final_artifacts_async(
+                self._project_gid,
+                empty_df,
+                no_sections_watermark,
+                index_data=self._build_index_data(empty_df),
+                entity_type=self._entity_type,
+            )
+            logger.info(
+                "progressive_build_persisted_honest_empty",
+                extra={
+                    "project_gid": self._project_gid,
+                    "entity_type": self._entity_type,
+                    "total_sections": 0,
+                },
+            )
             return BuildResult(
                 status=BuildStatus.SUCCESS,
                 sections=(),
-                dataframe=pl.DataFrame(schema=self._schema.to_polars_schema()),
-                watermark=datetime.now(UTC),
+                dataframe=empty_df,
+                watermark=no_sections_watermark,
                 project_gid=self._project_gid,
                 entity_type=self._entity_type,
                 total_time_ms=(time.perf_counter() - start_time) * 1000,
@@ -769,7 +792,23 @@ class ProgressiveProjectBuilder:
             )
 
         # Step 6: Write final artifacts
-        if total_rows > 0:
+        # ADR-1 edit 1 (honest-empty-200): persist the final artifact when the
+        # build produced rows OR when it is HONEST-COMPLETE-but-empty (all known
+        # sections COMPLETE, total_rows == 0). Previously the `total_rows > 0`
+        # gate skipped the write for genuinely-empty projects, so no
+        # `dataframe.parquet` was ever persisted -> the receiver loaded None ->
+        # cold-miss -> perpetual CACHE_BUILD_IN_PROGRESS 503 that never cleared
+        # (the rebuild re-yields total_rows == 0). Persisting the zero-row,
+        # schema'd frame makes the empty project a first-class cached artifact:
+        # load_dataframe returns an empty frame (not None), the 503 trap is never
+        # entered, and the freshness prober (gated on is_complete) re-stamps it.
+        # The cascade-validation (Step 5.5) and hierarchy-warm (Step 5.25) gates
+        # above STAY `total_rows > 0` -- an empty frame has nothing to validate
+        # or warm; only this FINAL-ARTIFACT write is un-gated for honest-empty.
+        honest_complete_empty = total_rows == 0 and (
+            self._manifest is None or is_honest_complete(self._manifest)
+        )
+        if total_rows > 0 or honest_complete_empty:
             index_data = self._build_index_data(merged_df)
 
             await self._persistence.write_final_artifacts_async(
@@ -779,6 +818,15 @@ class ProgressiveProjectBuilder:
                 index_data=index_data,
                 entity_type=self._entity_type,
             )
+            if honest_complete_empty:
+                logger.info(
+                    "progressive_build_persisted_honest_empty",
+                    extra={
+                        "project_gid": self._project_gid,
+                        "entity_type": self._entity_type,
+                        "total_sections": len(section_results),
+                    },
+                )
 
         total_time = (time.perf_counter() - start_time) * 1000
 

@@ -260,6 +260,96 @@ class TestProjectRowsSmoke:
         meta = response.json()["data"]["meta"]
         assert meta["honest_contract_complete"] is True
 
+    def test_adr1_honest_empty_project_returns_200_empty_not_503(self, client) -> None:
+        """ADR-1: a genuinely-empty project returns 200 + empty data + meta.honest_empty=true.
+
+        An honest-complete manifest (no FAILED sections) with a zero-row frame is
+        served as an attested honest-empty-200 — NOT a stuck
+        CACHE_BUILD_IN_PROGRESS 503. This is the CustomerHealth-class outcome.
+        """
+        # Empty frame matching the project schema (zero rows).
+        empty_df = _make_project_dataframe().clear()
+
+        with (
+            patch(
+                "autom8_asana.api.routes.internal.validate_service_token",
+                _mock_jwt_validation(),
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
+            patch("autom8_asana.client.AsanaClient") as mock_client_class,
+            patch(
+                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy._get_dataframe",
+                new_callable=AsyncMock,
+                return_value=empty_df,
+            ),
+            patch(
+                "autom8_asana.query.engine.QueryEngine._derive_honest_contract_complete",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            mock_asana = MagicMock()
+            mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
+            mock_asana.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_asana
+
+            response = client.post(
+                "/v1/query/project/rows",
+                headers={"Authorization": f"Bearer {JWT_TOKEN}"},
+                json={},
+            )
+
+        assert response.status_code == 200, "honest-empty project must be 200, not 503"
+        body = response.json()["data"]
+        assert body["data"] == [], "honest-empty project must return empty rows"
+        meta = body["meta"]
+        assert meta["honest_empty"] is True, "meta.honest_empty must attest the empty-200"
+        assert meta["honest_contract_complete"] is True
+        assert meta["total_count"] == 0
+
+    def test_adr1_non_empty_project_is_not_honest_empty(self, client) -> None:
+        """ADR-1 non-regression: a non-empty honest-complete project is NOT honest_empty."""
+        mock_df = _make_project_dataframe()
+
+        with (
+            patch(
+                "autom8_asana.api.routes.internal.validate_service_token",
+                _mock_jwt_validation(),
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
+            patch("autom8_asana.client.AsanaClient") as mock_client_class,
+            patch(
+                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy._get_dataframe",
+                new_callable=AsyncMock,
+                return_value=mock_df,
+            ),
+            patch(
+                "autom8_asana.query.engine.QueryEngine._derive_honest_contract_complete",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            mock_asana = MagicMock()
+            mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
+            mock_asana.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_asana
+
+            response = client.post(
+                "/v1/query/project/rows",
+                headers={"Authorization": f"Bearer {JWT_TOKEN}"},
+                json={},
+            )
+
+        assert response.status_code == 200
+        meta = response.json()["data"]["meta"]
+        assert meta["honest_empty"] is False, "a non-empty project must not be flagged honest_empty"
+
 
 class TestSectionRowsSmoke:
     """AC-2: POST /v1/query/section/rows → 200 + non-empty rows."""

@@ -834,9 +834,82 @@ class UniversalResolutionStrategy:
                 record_cache_lookup(self.entity_type, hit=False)
             except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
                 pass
+
+            # ADR-1 edit 2 (honest-empty-200, transient-window fallback): a cache
+            # miss whose manifest is HONEST-COMPLETE (all sections COMPLETE, no
+            # FAILED) is a legitimately-EMPTY project, NOT a build-in-progress.
+            # Return an empty schema'd frame so the serve boundary renders
+            # honest-empty-200 (meta.honest_empty=true) instead of entering
+            # _build_on_miss and 503ing forever. This closes the transient window
+            # (manifest complete but frame not yet persisted) and the legacy state
+            # of the frameless honest-empty GIDs that predate ADR-1 edit 1. Once
+            # edit 1's persist has run, the normal cache-hit path serves these and
+            # this fallback is not reached.
+            honest_empty_df = await self._honest_empty_frame_if_complete(project_gid)
+            if honest_empty_df is not None:
+                logger.info(
+                    "serving_honest_empty_on_miss",
+                    extra={
+                        "project_gid": project_gid,
+                        "entity_type": self.entity_type,
+                    },
+                )
+                return honest_empty_df
+
             return await self._build_on_miss(project_gid, client)
 
         return None
+
+    async def _honest_empty_frame_if_complete(
+        self,
+        project_gid: str,
+    ) -> pl.DataFrame | None:
+        """Return an empty schema'd frame iff the manifest is honest-complete (ADR-1).
+
+        Reads the live SectionManifest from the same storage backend as the
+        writer (DEF-005 discipline) and delegates the completeness decision to
+        ``is_honest_complete``. Returns:
+
+        * an empty, schema-typed ``pl.DataFrame`` when the manifest exists and is
+          honest-complete (no FAILED sections) — the absent merged frame is a
+          legitimately-empty project, serve honest-empty-200;
+        * ``None`` when there is no manifest, the manifest is NOT honest-complete
+          (still building / failed), the schema is unavailable, or any read error
+          occurs — fall through to the build-on-miss 503 (never shortcut-stamp an
+          empty frame for a project that has not honestly completed).
+        """
+        try:
+            import polars as pl
+
+            from autom8_asana.dataframes.section_persistence import (
+                SectionManifest,
+                create_section_persistence,
+                is_honest_complete,
+            )
+
+            schema = self._get_entity_schema()
+            if schema is None:
+                return None
+
+            persistence = create_section_persistence()
+            async with persistence:
+                manifest = await persistence.get_manifest_async(project_gid)
+            if not isinstance(manifest, SectionManifest):
+                return None
+            if not is_honest_complete(manifest):
+                return None
+
+            return pl.DataFrame(schema=schema.to_polars_schema())
+        except Exception:  # noqa: BLE001 -- defensive: a read error must 503 (build-on-miss), never falsely serve empty
+            logger.warning(
+                "honest_empty_probe_failed",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": self.entity_type,
+                },
+                exc_info=True,
+            )
+            return None
 
     async def _build_on_miss(
         self,

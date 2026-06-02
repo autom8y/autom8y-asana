@@ -411,6 +411,36 @@ class TestResponseModelFreshness:
         assert restored.data_age_seconds == 60.0
         assert restored.staleness_ratio == 0.07
 
+    def test_rows_meta_honest_empty_defaults_false(self) -> None:
+        """ADR-1: honest_empty is additive and defaults to False."""
+        meta = RowsMeta(
+            total_count=10,
+            returned_count=5,
+            limit=100,
+            offset=0,
+            entity_type="unit",
+            project_gid="proj-1",
+            query_ms=1.5,
+        )
+        assert meta.honest_empty is False
+
+    def test_rows_meta_honest_empty_round_trips(self) -> None:
+        """ADR-1: honest_empty=True survives a model serialization round-trip."""
+        meta = RowsMeta(
+            total_count=0,
+            returned_count=0,
+            limit=100,
+            offset=0,
+            entity_type="project",
+            project_gid="proj-empty",
+            query_ms=0.5,
+            honest_contract_complete=True,
+            honest_empty=True,
+        )
+        restored = RowsMeta.model_validate(meta.model_dump())
+        assert restored.honest_empty is True
+        assert restored.honest_contract_complete is True
+
     def test_aggregate_meta_freshness_fields_optional(self) -> None:
         """AggregateMeta with no freshness fields is valid (defaults to None)."""
         meta = AggregateMeta(

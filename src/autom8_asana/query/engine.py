@@ -244,6 +244,14 @@ class QueryEngine:
         # DEF-005 scar: manifest read must use same storage backend as writer.
         honest_contract_complete = await self._derive_honest_contract_complete(project_gid)
 
+        # ADR-1 (honest-empty-200): a genuinely-empty project is one that is
+        # honest-complete (no FAILED sections) yet yielded zero rows. Attesting
+        # it via meta.honest_empty=True lets the consumer distinguish a
+        # legitimately-empty 200 from a still-building 503 — and preserves the
+        # endpoint's "NEVER a silent empty-200" invariant (this empty-200 is
+        # attested, not silent). Note total_count is the pre-pagination row count.
+        honest_empty = honest_contract_complete and total_count == 0
+
         return RowsResponse(
             data=data,
             meta=RowsMeta(
@@ -255,6 +263,7 @@ class QueryEngine:
                 project_gid=project_gid,
                 query_ms=round(elapsed_ms, 2),
                 honest_contract_complete=honest_contract_complete,
+                honest_empty=honest_empty,
                 **join_meta,  # type: ignore[arg-type]
                 **freshness_meta,  # type: ignore[arg-type]
             ),

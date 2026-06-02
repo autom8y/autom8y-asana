@@ -406,6 +406,25 @@ class RowsMeta(BaseModel):
         ),
         examples=[True],
     )
+    # ADR-1 (honest-empty-200): additive attestation that a genuinely-empty
+    # project was served as a 200 with empty data (NOT a stuck
+    # CACHE_BUILD_IN_PROGRESS 503). True iff the manifest is honest-complete AND
+    # the query yielded zero rows. Distinguishes a legitimately-empty project
+    # (honest_empty=True, attested) from a still-building/failed one
+    # (honest_contract_complete=False -> 503). The query endpoint's
+    # "NEVER a silent empty-200" invariant is preserved: this empty-200 is
+    # ATTESTED, not silent. Consumer-additive — the bridge reads meta by key and
+    # ignores unknowns (verified: bridge_response_to_df does not strict-reject
+    # extra meta keys, and skips the honest-contract stamp on empty frames).
+    honest_empty: bool = Field(
+        default=False,
+        description=(
+            "True iff the project is honest-complete (no FAILED sections) AND the query "
+            "returned zero rows — a legitimately-empty project served as an attested "
+            "honest-empty-200, not a stuck build-in-progress 503. False otherwise."
+        ),
+        examples=[False],
+    )
 
 
 class RowsResponse(BaseModel):
