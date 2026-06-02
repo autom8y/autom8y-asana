@@ -604,12 +604,22 @@ class DataFrameCache:
         dataframe: pl.DataFrame,
         watermark: datetime,
         build_result: Any = None,
-    ) -> None:
+    ) -> bool:
         """Store DataFrame in both tiers.
 
         Write order:
         1. S3 tier (source of truth)
         2. Memory tier (hot cache)
+
+        Returns ``False`` (VG-001 durability contract) when the progressive
+        (S3) tier reports a non-durable write -- e.g. ``S3DataFrameStorage``
+        swallowed a transport error and returned ``False``. In that case the
+        memory tier is NOT promoted and the circuit breaker is NOT closed: a
+        non-durable write must not present as a hot-cache hit nor reset the
+        breaker, and the warm path maps the ``False`` to ``WarmResult.FAILURE``
+        so SUCCESS always implies durable persistence. Request-path callers
+        ignore the return (fire-and-forget) and therefore degrade -- not crash
+        -- on a swallowed write error.
 
         Args:
             project_gid: Asana project GID.
@@ -617,6 +627,9 @@ class DataFrameCache:
             dataframe: Polars DataFrame to cache.
             watermark: Freshness watermark (based on max modified_at).
             build_result: Optional BuildResult for quality metadata (C2).
+
+        Returns:
+            True if the durable (S3) write landed; False if it was non-durable.
         """
         cache_key = self._build_key(project_gid, entity_type)
 
@@ -653,8 +666,22 @@ class DataFrameCache:
             build_quality=build_quality,
         )
 
-        # Write to progressive tier first (source of truth)
-        await self.progressive_tier.put_async(cache_key, entry)
+        # Write to progressive tier first (source of truth). The boolean is
+        # load-bearing (VG-001): a swallowed S3 transport error surfaces here
+        # as False. Do NOT promote to the memory tier or close the breaker on a
+        # non-durable write -- that would attest persistence that did not occur.
+        durable = await self.progressive_tier.put_async(cache_key, entry)
+        if not durable:
+            logger.error(
+                "dataframe_cache_put_non_durable",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "row_count": entry.row_count,
+                    "reason": "progressive_tier_write_not_durable",
+                },
+            )
+            return False
 
         # Then memory tier
         self.memory_tier.put(cache_key, entry)
@@ -676,6 +703,8 @@ class DataFrameCache:
                 "build_status": build_quality.status if build_quality else None,
             },
         )
+
+        return True
 
     def invalidate(
         self,

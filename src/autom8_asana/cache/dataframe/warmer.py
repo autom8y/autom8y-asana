@@ -410,13 +410,33 @@ class CacheWarmer:
                     error="DataFrame build returned None",
                 )
 
-            # Store in cache
-            await self.cache.put_async(
+            # Store in cache. The boolean is load-bearing (VG-001): a False
+            # means the durable (S3) write was non-durable (swallowed transport
+            # error). A non-durable write must NOT present as a warm SUCCESS --
+            # otherwise it inflates the coverage numerator and lets
+            # checkpoint-cleared attest an unpersisted key.
+            durable = await self.cache.put_async(
                 project_gid=project_gid,
                 entity_type=entity_type,
                 dataframe=df,
                 watermark=watermark,
             )
+            if not durable:
+                logger.error(
+                    "cache_warm_non_durable_write",
+                    extra={
+                        "entity_type": entity_type,
+                        "project_gid": project_gid,
+                        "row_count": len(df),
+                        "reason": "durable_write_not_durable",
+                    },
+                )
+                return WarmStatus(
+                    entity_type=entity_type,
+                    result=WarmResult.FAILURE,
+                    project_gid=project_gid,
+                    error="durable write reported non-durable (S3 write failed)",
+                )
 
             row_count = len(df)
 
