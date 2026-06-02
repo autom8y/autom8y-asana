@@ -461,6 +461,48 @@ class TestCacheWarmer:
         assert results[0].result == WarmResult.FAILURE
         assert "DataFrame build returned None" in results[0].error
 
+    async def test_warm_entity_non_durable_write_is_failure(
+        self,
+        mock_cache: MagicMock,
+        mock_client: MagicMock,
+        sample_dataframe: pl.DataFrame,
+    ) -> None:
+        """VG-001 regression: a non-durable durable-write must NOT be SUCCESS.
+
+        ``DataFrameCache.put_async`` returns ``False`` when the underlying S3
+        write error was swallowed by ``S3DataFrameStorage.save_dataframe``
+        (storage returns ``False``, propagated through
+        ``write_final_artifacts_async`` and ``progressive_tier.put_async``).
+        The warm path MUST map that ``False`` to ``WarmResult.FAILURE`` so that
+        coverage numerator / checkpoint-cleared never attest an unpersisted key.
+
+        Without the propagation fix this test FAILS: ``put_async`` returns
+        ``None`` (ignored) and the warm result is SUCCESS even though the key
+        never durably landed.
+        """
+        warmer = CacheWarmer(cache=mock_cache, priority=["unit"], strict=False)
+
+        # Build succeeds (frame in hand) but the durable write reports non-durable.
+        mock_cache.put_async = AsyncMock(return_value=False)
+        mock_strategy = MagicMock()
+        mock_strategy._build_dataframe = AsyncMock(
+            return_value=(sample_dataframe, datetime.now(UTC))
+        )
+
+        with patch.object(
+            warmer,
+            "_get_strategy_instance",
+            return_value=mock_strategy,
+        ):
+            status = await warmer._warm_entity_type_async(
+                entity_type="unit",
+                project_gid="project-123",
+                client=mock_client,
+            )
+
+        assert status.result == WarmResult.FAILURE
+        assert status.result != WarmResult.SUCCESS
+
     def test_stats_reset(self, mock_cache: MagicMock) -> None:
         """Reset statistics to zero."""
         warmer = CacheWarmer(cache=mock_cache)
