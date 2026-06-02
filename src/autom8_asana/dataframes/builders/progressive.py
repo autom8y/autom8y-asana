@@ -591,9 +591,13 @@ class ProgressiveProjectBuilder:
             # TD-001 (PDR-002 §4.3): in-memory fallback merge. Offload the CPU-bound
             # concat off the event loop via the shared CPU-thread gate (same path as
             # the dominant merge) so the fallback cannot starve the loop either.
-            merged_df = await run_cpu_bound(
+            # Explicit pl.DataFrame annotation: run_cpu_bound's generic return type is
+            # otherwise context-inferred to merged_df's `DataFrame | None`, which then
+            # fails to narrow for the len() below. Mirrors section_persistence.py:740.
+            merged: pl.DataFrame = await run_cpu_bound(
                 pl.concat, list(self._section_dfs.values()), how="diagonal_relaxed"
             )
+            merged_df = merged
             logger.warning(
                 "progressive_build_s3_fallback",
                 extra={
