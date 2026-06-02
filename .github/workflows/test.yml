@@ -42,7 +42,7 @@ jobs:
       id-token: write
       contents: read
     # Pinned to SHA cbc3c58e (autom8y-workflows PR #18: pin spectral-rulesets 1.22.2 — 1.22.3 crashed Spectral fleet-wide; includes PR #17 test_maxprocesses). Update when autom8y-workflows changes.
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@cbc3c58e56f3e0adeaf57101c0400d8f5d7845ed
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@646b8f83312f4c85b6e547ead3dba883d1b16ef1
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
