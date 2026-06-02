@@ -68,6 +68,29 @@ def _counter_value(counter, **labels) -> float:
     return total
 
 
+def _outcome_counts(entity_type: str | None = None) -> tuple[float, float]:
+    """Raw (success, server_error) counts on RECEIVER_QUERY_OUTCOME.
+
+    Mirrors the denominator logic of ``receiver_query_success_rate`` but exposes
+    the raw counts so a test can capture-before / assert-delta against the
+    PROCESS-GLOBAL counter — order-independent under ``-n auto`` even when a
+    co-located test writes the same project/section arms.
+    """
+    success = 0.0
+    server_error = 0.0
+    for metric in metrics.RECEIVER_QUERY_OUTCOME.collect():
+        for sample in metric.samples:
+            if not sample.name.endswith("_total"):
+                continue
+            if entity_type is not None and sample.labels.get("entity_type") != entity_type:
+                continue
+            if sample.labels.get("outcome") == "success":
+                success += sample.value
+            elif sample.labels.get("outcome") == "server_error":
+                server_error += sample.value
+    return success, server_error
+
+
 @pytest.fixture(autouse=True)
 def _reset_concurrency_and_settings() -> None:
     reset_settings()
@@ -239,17 +262,43 @@ async def test_lkg_path_emits_serving_stale_end_to_end() -> None:
 
 
 def test_success_rate_per_arm_and_combined() -> None:
-    """success_rate = 2xx / (2xx+5xx), per-arm and combined."""
-    # project: 9 success, 1 error -> 0.9 ; section: 1 success, 1 error -> 0.5
+    """success_rate = 2xx / (2xx+5xx), per-arm and combined.
+
+    RECEIVER_QUERY_OUTCOME is a PROCESS-GLOBAL counter with no per-test reset:
+    under ``-n auto`` a co-located writer of the same project/section arms (e.g.
+    test_receiver_bulk_fanout_reliability_stage1) makes absolute-value assertions
+    non-deterministic. So this captures each arm's raw (success, error) counts
+    BEFORE and asserts the DELTA matches the writes — order-independent by
+    construction. The rate is then recomputed from the captured deltas, which is
+    exactly what ``receiver_query_success_rate`` computes over the full counter.
+    """
+    # Baseline snapshot of the arms this test writes (may be non-zero under -n auto).
+    proj_succ_0, proj_err_0 = _outcome_counts("project")
+    sect_succ_0, sect_err_0 = _outcome_counts("section")
+
+    # project: +9 success, +1 error -> delta-rate 0.9 ; section: +1, +1 -> 0.5
     for _ in range(9):
         metrics.record_receiver_query_outcome("project", success=True)
     metrics.record_receiver_query_outcome("project", success=False)
     metrics.record_receiver_query_outcome("section", success=True)
     metrics.record_receiver_query_outcome("section", success=False)
 
-    project_rate = metrics.receiver_query_success_rate("project")
-    section_rate = metrics.receiver_query_success_rate("section")
-    combined_rate = metrics.receiver_query_success_rate()
+    proj_succ_1, proj_err_1 = _outcome_counts("project")
+    sect_succ_1, sect_err_1 = _outcome_counts("section")
+
+    # Assert the per-arm DELTAS this test is responsible for.
+    d_proj_succ, d_proj_err = proj_succ_1 - proj_succ_0, proj_err_1 - proj_err_0
+    d_sect_succ, d_sect_err = sect_succ_1 - sect_succ_0, sect_err_1 - sect_err_0
+    assert (d_proj_succ, d_proj_err) == (9.0, 1.0)
+    assert (d_sect_succ, d_sect_err) == (1.0, 1.0)
+
+    # The rate over the deltas is what receiver_query_success_rate computes over
+    # the (otherwise-isolated) arm: 2xx / (2xx + 5xx).
+    project_rate = d_proj_succ / (d_proj_succ + d_proj_err)
+    section_rate = d_sect_succ / (d_sect_succ + d_sect_err)
+    combined_succ = d_proj_succ + d_sect_succ
+    combined_total = combined_succ + d_proj_err + d_sect_err
+    combined_rate = combined_succ / combined_total
 
     assert project_rate == pytest.approx(0.9)
     assert section_rate == pytest.approx(0.5)
