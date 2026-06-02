@@ -72,6 +72,44 @@ logger = get_logger(__name__)
 # Dead-man's-switch namespace for Grafana alerting (24h threshold)
 DMS_NAMESPACE = "Autom8y/AsanaCacheWarmer"
 
+# ADR-3 §3.2(b)/(c): per-link key-budget chunking. The bulk warm loop processes
+# at most this many keys per Lambda invocation, then proactively checkpoints the
+# tail and self-invokes for the remainder. This makes the self-invoke
+# continuation the EXPECTED path (not the OOM/timeout exception): each link holds
+# only ~BULK_KEY_BUDGET frames' worth of peak memory, so a single heavy GID (DNA
+# ~30k rows) cannot accumulate enough resident frames to OOM the 1024 MB link
+# before the clean-timeout branch is reached. You cannot reliably run a finalizer
+# after a signal:killed OOM in Lambda, so we PREVENT the OOM by bounding the
+# per-link key count rather than trying to recover from it. The default (16) is
+# sized so a chunk of the heaviest tier completes well under 900 s AND under the
+# memory ceiling; it is env-overridable for tuning alongside the warmer Lambda
+# MemorySize TF lever (autom8y terraform; coordinate, do not collide with the ECS
+# cpu=1024 work). 0/negative disables chunking (process the whole set in one link).
+_DEFAULT_BULK_KEY_BUDGET = 16
+
+
+def _bulk_key_budget() -> int:
+    """Return the per-invocation key budget (ADR-3 §3.2(b), env-overridable).
+
+    ``ASANA_WARMER_KEY_BUDGET`` overrides the default. A value <= 0 disables
+    chunking (the whole reconciled set is attempted in one link, falling back to
+    the timeout-only continuation). Invalid values fall back to the default.
+    """
+    import os
+
+    raw = os.environ.get("ASANA_WARMER_KEY_BUDGET")
+    if raw is None:
+        return _DEFAULT_BULK_KEY_BUDGET
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        logger.warning(
+            "invalid_warmer_key_budget",
+            extra={"raw": raw, "fallback": _DEFAULT_BULK_KEY_BUDGET},
+        )
+        return _DEFAULT_BULK_KEY_BUDGET
+
+
 # Flag to track if bootstrap has run (for lazy initialization)
 _bootstrap_initialized = False
 
@@ -213,18 +251,24 @@ async def _prematerialize_bulk_set_async(
     body-parameterized arms (project + section), which the receiver serves
     COLD (``warmable=False``) and would otherwise build on-miss -- a 503 storm
     under bulk fan-out. This warms that exact key set
-    (``project_registry.bulk_prematerialization_keys`` = 23 GIDs x 2 arms =
-    46 keys) into S3 + memory AHEAD of the consumer run, so the receiver sees
-    fresh hits for the whole batch.
+    (``project_registry.bulk_prematerialization_keys`` = the 34-GID
+    consumer-derived warm set x 2 arms = 68 keys, ADR-3 §3.1) into S3 + memory
+    AHEAD of the consumer run, so the receiver sees fresh hits for the whole
+    batch.
 
     This LEVERAGES (does NOT reimplement) the existing checkpoint/self-invoke
     continuation: the same ``CheckpointManager``, ``_should_exit_early``, and
     ``_self_invoke_continuation`` primitives the entity-type warm loop uses.
     Each (gid, entity_type) key is encoded as a checkpoint-list token so the
-    string-typed checkpoint list is reused verbatim. At 46 keys (<=~162 s high
-    estimate per capacity-specification §5) a single 900 s invocation completes
-    the cycle; the resume path exists for correctness, not because it is
-    expected to trigger.
+    string-typed checkpoint list is reused verbatim. ADR-3 §3.2 makes the
+    continuation the EXPECTED path, not the exception: per-link key-budget
+    chunking (``_bulk_key_budget``) caps each invocation at a bounded key count
+    and proactively self-invokes for the tail, so a heavy GID cannot accumulate
+    enough resident frames to OOM-kill a 1024 MB link (an OOM-kill skips the
+    timeout branch and strands the chain). Keys are ordered heaviest-first
+    (CF-2) so a partial cycle defers only the cheap tail. Coverage is computed
+    from materialized SUCCESS count over the reconciled 68-key denominator
+    (CF-4), never an inferred flag.
 
     DEPLOY-ORDER (ops-runbook concern, not a code gate): a full warm cycle must
     precede the TD-006 honest-LKG (LKG_MAX_STALENESS_MULTIPLIER=10.0) deploy.
@@ -319,8 +363,24 @@ async def _prematerialize_bulk_set_async(
     # coverage rate reports the partial result honestly (TD-007 theme).
     warmer = CacheWarmer(cache=cache, priority=[], strict=False)
 
-    def _finish(success: bool, message_prefix: str) -> WarmResponse:
+    def _finish(
+        success: bool, message_prefix: str, *, checkpoint_cleared: bool = False
+    ) -> WarmResponse:
+        # ADR-3 §3.2(d) coverage honesty: the denominator is the RECONCILED
+        # enumerated set (34 GIDs x 2 arms = 68), and the numerator is the count
+        # of keys that ACTUALLY reached WarmResult.SUCCESS (completed_tokens is
+        # only appended on SUCCESS below). This is materialized coverage, NOT a
+        # flag that can lie -- the VG-001 false-green was a coverage=1.0 reported
+        # when telemetry never showed it. We additionally emit the raw counts so
+        # the re-gate reads (covered, enumerated) directly rather than trusting a
+        # derived ratio. checkpoint_cleared is TRUE only on a genuine full-cycle
+        # completion, so coverage=1.0 AND checkpoint_cleared together attest a
+        # real, durable full warm.
         rate = emit_warmer_coverage_rate(len(completed_tokens), total_enumerated)
+        emit_metric("WarmerKeysCovered", len(completed_tokens))
+        emit_metric("WarmerKeysEnumerated", total_enumerated)
+        if checkpoint_cleared:
+            emit_metric("WarmerCheckpointCleared", 1)
         return WarmResponse(
             success=success,
             message=(
@@ -330,42 +390,68 @@ async def _prematerialize_bulk_set_async(
             entity_results=entity_results,
             total_rows=sum(r.get("row_count", 0) for r in entity_results),
             duration_ms=(time.monotonic() - start_time) * 1000,
+            checkpoint_cleared=checkpoint_cleared,
             invocation_id=invocation_id,
         )
 
+    async def _checkpoint_and_continue(reason: str) -> WarmResponse:
+        """Checkpoint the pending tail and self-invoke the continuation (ADR-3).
+
+        Shared by the timeout-exit branch AND the key-budget-exit branch so both
+        paths use identical checkpoint+continuation semantics. The bulk flag
+        routes the next invocation back into this branch and the shared
+        checkpoint restores the pending key tokens.
+        """
+        pending = [t for t in all_tokens if t not in completed_tokens]
+        await checkpoint_mgr.save_async(
+            invocation_id=invocation_id,
+            completed_entities=completed_tokens,
+            pending_entities=pending,
+            entity_results=entity_results,
+        )
+        emit_metric("CheckpointSaved", 1)
+        _self_invoke_continuation(
+            context,
+            pending,
+            invocation_id,
+            prematerialize_bulk_set=True,
+        )
+        logger.warning(
+            "prematerialize_self_continuing",
+            extra={
+                "reason": reason,
+                "completed": len(completed_tokens),
+                "pending": len(pending),
+                "invocation_id": invocation_id,
+            },
+        )
+        return _finish(
+            success=False,
+            message_prefix=f"Partial completion, self-continuing ({reason})",
+        )
+
+    key_budget = _bulk_key_budget()
+
     try:
         async with AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client:
+            keys_this_invocation = 0
             for token in processing_tokens:
+                # Timeout-exit: clean checkpoint before the Lambda is reaped.
                 if _should_exit_early(context):
-                    pending = [t for t in all_tokens if t not in completed_tokens]
-                    await checkpoint_mgr.save_async(
-                        invocation_id=invocation_id,
-                        completed_entities=completed_tokens,
-                        pending_entities=pending,
-                        entity_results=entity_results,
-                    )
-                    emit_metric("CheckpointSaved", 1)
-                    # Reuse the existing self-invoke continuation; the bulk flag
-                    # routes the next invocation back into this branch and the
-                    # shared checkpoint restores the pending key tokens.
-                    _self_invoke_continuation(
-                        context,
-                        pending,
-                        invocation_id,
-                        prematerialize_bulk_set=True,
-                    )
-                    logger.warning(
-                        "prematerialize_exiting_early_timeout",
-                        extra={
-                            "completed": len(completed_tokens),
-                            "pending": len(pending),
-                            "invocation_id": invocation_id,
-                        },
-                    )
-                    return _finish(
-                        success=False,
-                        message_prefix="Partial completion, self-continuing",
-                    )
+                    return await _checkpoint_and_continue("timeout")
+
+                # Key-budget-exit (ADR-3 §3.2(b)/(c)): proactively hand off the
+                # tail BEFORE memory accumulates enough to OOM-kill the link. This
+                # is the EXPECTED continuation path; capping per-link key count is
+                # what prevents the signal:killed OOM that strands the chain (an
+                # OOM-kill skips the timeout branch entirely). Only fires when
+                # there is still pending work, so a final exact-budget chunk does
+                # not self-invoke a no-op continuation.
+                if key_budget > 0 and keys_this_invocation >= key_budget:
+                    remaining = [t for t in all_tokens if t not in completed_tokens]
+                    if remaining:
+                        emit_metric("WarmerKeyBudgetExhausted", 1)
+                        return await _checkpoint_and_continue("key_budget")
 
                 project_gid, entity_type = _decode_key_token(token)
                 status = await warmer.warm_key_async(
@@ -373,6 +459,10 @@ async def _prematerialize_bulk_set_async(
                     entity_type=entity_type,
                     client=client,
                 )
+                # Not enumerate(): this counts keys WARMED in THIS invocation for
+                # the budget gate, distinct from the processing_tokens index (the
+                # budget-exit returns before warming, so the two diverge).
+                keys_this_invocation += 1  # noqa: SIM113
                 entity_results.append(status.to_dict())
 
                 if status.result == WarmResult.SUCCESS:
@@ -406,8 +496,11 @@ async def _prematerialize_bulk_set_async(
                     emit_metric("CheckpointSaved", 1)
 
         # Full cycle finished within this invocation.
-        await checkpoint_mgr.clear_async()
         all_covered = len(completed_tokens) == total_enumerated
+        # Only clear the checkpoint on a genuine full materialization; clearing
+        # on a gap would lose the pending tail and falsely look "done".
+        if all_covered:
+            await checkpoint_mgr.clear_async()
         return _finish(
             success=all_covered,
             message_prefix=(
@@ -415,6 +508,7 @@ async def _prematerialize_bulk_set_async(
                 if all_covered
                 else "Bulk pre-materialization finished with gaps"
             ),
+            checkpoint_cleared=all_covered,
         )
 
     except (

@@ -430,11 +430,21 @@ class TestPrematerializeBulkSet:
             ),
         ]
 
-    async def test_full_coverage_warms_all_46_keys(self, mock_cache: MagicMock) -> None:
-        """A clean run warms every enumerated key and reports rate 1.0."""
+    async def test_full_coverage_warms_all_68_keys(
+        self, mock_cache: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A clean run (chunking disabled) warms every enumerated key, rate 1.0.
+
+        ADR-3: the reconciled set is 34 GIDs x 2 arms = 68 keys. Chunking is
+        disabled (ASANA_WARMER_KEY_BUDGET=0) so the whole set is attempted in one
+        link -- the single-invocation full-coverage path. The default budget
+        (16) chunks instead; that path is covered by test_key_budget_chunking_*.
+        """
         from autom8_asana.lambda_handlers.cache_warmer import (
             _prematerialize_bulk_set_async,
         )
+
+        monkeypatch.setenv("ASANA_WARMER_KEY_BUDGET", "0")
 
         async def fake_warm_key(
             self: object, project_gid: str, entity_type: str, client: object
@@ -478,16 +488,22 @@ class TestPrematerializeBulkSet:
 
         assert response.success is True
         assert "warmer_coverage_rate=1.0000" in response.message
-        assert len(response.entity_results) == 46
-        # Coverage emitted with completed==total==46.
-        emit_cov.assert_called_once_with(46, 46)
+        assert len(response.entity_results) == 68
+        # Coverage emitted with completed==total==68 (materialized count).
+        emit_cov.assert_called_once_with(68, 68)
         checkpoint_mgr.clear_async.assert_awaited_once()
+        # Full materialization attests durable coverage to the re-gate.
+        assert response.checkpoint_cleared is True
 
-    async def test_partial_coverage_reports_gap(self, mock_cache: MagicMock) -> None:
-        """A failing arm yields success=False and coverage < 1.0."""
+    async def test_partial_coverage_reports_gap(
+        self, mock_cache: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A failing arm yields success=False and coverage < 1.0 (chunking off)."""
         from autom8_asana.lambda_handlers.cache_warmer import (
             _prematerialize_bulk_set_async,
         )
+
+        monkeypatch.setenv("ASANA_WARMER_KEY_BUDGET", "0")
 
         async def fake_warm_key(
             self: object, project_gid: str, entity_type: str, client: object
@@ -537,8 +553,143 @@ class TestPrematerializeBulkSet:
             response = await _prematerialize_bulk_set_async(context=None)
 
         assert response.success is False
-        # 23 project arms warmed, 23 section arms failed -> 23/46 completed.
-        emit_cov.assert_called_once_with(23, 46)
+        # 34 project arms warmed, 34 section arms failed -> 34/68 completed.
+        emit_cov.assert_called_once_with(34, 68)
+        # A gap must NOT clear the checkpoint (the pending tail must survive).
+        checkpoint_mgr.clear_async.assert_not_awaited()
+        assert response.checkpoint_cleared is False
+
+    async def test_key_budget_chunks_and_self_invokes(
+        self, mock_cache: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ADR-3 §3.2(b): a small key budget proactively chunks + self-invokes.
+
+        With budget=4 and 68 keys, the first link warms exactly 4 keys then hands
+        off the tail via the bulk-flagged continuation -- the EXPECTED path that
+        prevents OOM by bounding per-link memory, NOT a post-OOM finalizer.
+        """
+        from autom8_asana.lambda_handlers.cache_warmer import (
+            _prematerialize_bulk_set_async,
+        )
+
+        monkeypatch.setenv("ASANA_WARMER_KEY_BUDGET", "4")
+
+        async def fake_warm_key(
+            self: object, project_gid: str, entity_type: str, client: object
+        ) -> object:
+            from autom8_asana.cache.dataframe.warmer import WarmResult, WarmStatus
+
+            return WarmStatus(
+                entity_type=entity_type,
+                result=WarmResult.SUCCESS,
+                project_gid=project_gid,
+                row_count=10,
+            )
+
+        checkpoint_mgr = MagicMock()
+        checkpoint_mgr.load_async = AsyncMock(return_value=None)
+        checkpoint_mgr.save_async = AsyncMock()
+        checkpoint_mgr.clear_async = AsyncMock(return_value=True)
+
+        with contextlib.ExitStack() as stack:
+            for p in self._patches(mock_cache):
+                stack.enter_context(p)
+            stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
+                    return_value=checkpoint_mgr,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "autom8_asana.cache.dataframe.warmer.CacheWarmer.warm_key_async",
+                    new=fake_warm_key,
+                )
+            )
+            self_invoke = stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer._self_invoke_continuation",
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer.emit_warmer_coverage_rate",
+                    return_value=4 / 68,
+                )
+            )
+            response = await _prematerialize_bulk_set_async(context=None)
+
+        assert response.success is False
+        assert "self-continuing (key_budget)" in response.message
+        # Exactly the budget was warmed before handoff.
+        assert len(response.entity_results) == 4
+        # The continuation carries the bulk flag and the 64-key pending tail.
+        self_invoke.assert_called_once()
+        assert self_invoke.call_args.kwargs["prematerialize_bulk_set"] is True
+        pending = self_invoke.call_args.args[1]
+        assert len(pending) == 64
+        # A chunk handoff must NOT clear the checkpoint.
+        checkpoint_mgr.clear_async.assert_not_awaited()
+
+    async def test_key_budget_zero_disables_chunking(
+        self, mock_cache: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A budget <= 0 processes the whole set in one link (no chunk handoff)."""
+        from autom8_asana.lambda_handlers.cache_warmer import (
+            _prematerialize_bulk_set_async,
+        )
+
+        monkeypatch.setenv("ASANA_WARMER_KEY_BUDGET", "-1")
+
+        async def fake_warm_key(
+            self: object, project_gid: str, entity_type: str, client: object
+        ) -> object:
+            from autom8_asana.cache.dataframe.warmer import WarmResult, WarmStatus
+
+            return WarmStatus(
+                entity_type=entity_type,
+                result=WarmResult.SUCCESS,
+                project_gid=project_gid,
+                row_count=10,
+            )
+
+        checkpoint_mgr = MagicMock()
+        checkpoint_mgr.load_async = AsyncMock(return_value=None)
+        checkpoint_mgr.save_async = AsyncMock()
+        checkpoint_mgr.clear_async = AsyncMock(return_value=True)
+
+        with contextlib.ExitStack() as stack:
+            for p in self._patches(mock_cache):
+                stack.enter_context(p)
+            stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
+                    return_value=checkpoint_mgr,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "autom8_asana.cache.dataframe.warmer.CacheWarmer.warm_key_async",
+                    new=fake_warm_key,
+                )
+            )
+            self_invoke = stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer._self_invoke_continuation",
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer.emit_warmer_coverage_rate",
+                    return_value=1.0,
+                )
+            )
+            response = await _prematerialize_bulk_set_async(context=None)
+
+        assert response.success is True
+        assert len(response.entity_results) == 68
+        self_invoke.assert_not_called()
+        checkpoint_mgr.clear_async.assert_awaited_once()
 
     async def test_timeout_self_invokes_with_bulk_flag(self, mock_cache: MagicMock) -> None:
         """On timeout, the continuation carries prematerialize_bulk_set=True."""
