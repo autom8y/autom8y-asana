@@ -132,6 +132,14 @@ class QueryEngine:
             client,
         )
 
+        # 4.5. Capture the PRE-FILTER row count -- the project frame's true row
+        # count before any where / classification / section narrowing. This is
+        # what honest_empty must gate on (ADR-1): "the project's frame is
+        # genuinely empty", NOT "this query matched nothing". The post-filter
+        # total_count (step 8) conflates the two -- a zero-matching where on a
+        # 1480-row project would otherwise be mis-attested as honest_empty.
+        prefilter_row_count = len(df)
+
         # 5. Get schema for validation
         registry = SchemaRegistry.get_instance()
         schema = registry.get_schema(_to_pascal_case(entity_type))
@@ -245,12 +253,15 @@ class QueryEngine:
         honest_contract_complete = await self._derive_honest_contract_complete(project_gid)
 
         # ADR-1 (honest-empty-200): a genuinely-empty project is one that is
-        # honest-complete (no FAILED sections) yet yielded zero rows. Attesting
-        # it via meta.honest_empty=True lets the consumer distinguish a
+        # honest-complete (no FAILED sections) yet whose FRAME holds zero rows.
+        # Attesting it via meta.honest_empty=True lets the consumer distinguish a
         # legitimately-empty 200 from a still-building 503 — and preserves the
         # endpoint's "NEVER a silent empty-200" invariant (this empty-200 is
-        # attested, not silent). Note total_count is the pre-pagination row count.
-        honest_empty = honest_contract_complete and total_count == 0
+        # attested, not silent). Gate on prefilter_row_count (the project frame's
+        # true row count, captured pre-where/section narrowing at step 4.5), NOT
+        # the post-filter total_count — else a zero-matching `where` on a populated
+        # project (e.g. 1480 rows) would be mis-attested honest_empty (qa Finding 3).
+        honest_empty = honest_contract_complete and prefilter_row_count == 0
 
         return RowsResponse(
             data=data,

@@ -350,6 +350,109 @@ class TestProjectRowsSmoke:
         meta = response.json()["data"]["meta"]
         assert meta["honest_empty"] is False, "a non-empty project must not be flagged honest_empty"
 
+    def test_adr1_honest_empty_gates_on_prefilter_count_not_zero_match(self, client) -> None:
+        """ADR-1 (qa Finding 3): honest_empty gates on the project frame's PRE-FILTER
+        row count, NOT the post-filter total_count.
+
+        A populated, honest-complete project queried with a zero-MATCHING `where`
+        yields total_count==0 (the filter excluded every row) but the frame itself
+        is non-empty. honest_empty MUST be False: the project is NOT empty, the
+        query simply matched nothing. This test FAILS against the old total_count
+        based derivation (which would mis-attest honest_empty=True) and passes with
+        the prefilter_row_count fix.
+        """
+        # Populated frame (2 rows: verticals dental/medical) — NOT empty.
+        mock_df = _make_project_dataframe()
+
+        with (
+            patch(
+                "autom8_asana.api.routes.internal.validate_service_token",
+                _mock_jwt_validation(),
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
+            patch("autom8_asana.client.AsanaClient") as mock_client_class,
+            patch(
+                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy._get_dataframe",
+                new_callable=AsyncMock,
+                return_value=mock_df,
+            ),
+            patch(
+                "autom8_asana.query.engine.QueryEngine._derive_honest_contract_complete",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            mock_asana = MagicMock()
+            mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
+            mock_asana.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_asana
+
+            response = client.post(
+                "/v1/query/project/rows",
+                headers={"Authorization": f"Bearer {JWT_TOKEN}"},
+                # Zero-matching predicate: no row has this vertical.
+                json={"where": {"field": "vertical", "op": "eq", "value": "no-such-vertical"}},
+            )
+
+        assert response.status_code == 200
+        meta = response.json()["data"]["meta"]
+        assert meta["total_count"] == 0, "the zero-matching where must exclude every row"
+        assert meta["honest_empty"] is False, (
+            "a populated project with a zero-matching where is NOT honest_empty — "
+            "the frame is non-empty, the query merely matched nothing (Finding 3)"
+        )
+
+    def test_adr1_genuinely_empty_frame_is_honest_empty(self, client) -> None:
+        """ADR-1 (qa Finding 3 companion): a genuinely-empty honest-complete frame
+        queried with a (vacuously) matching `where` is still honest_empty=True.
+
+        Confirms the prefilter_row_count gate does not over-correct: an empty frame
+        is honest_empty regardless of the predicate, because prefilter_row_count==0.
+        """
+        empty_df = _make_project_dataframe().clear()
+
+        with (
+            patch(
+                "autom8_asana.api.routes.internal.validate_service_token",
+                _mock_jwt_validation(),
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
+            patch("autom8_asana.client.AsanaClient") as mock_client_class,
+            patch(
+                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy._get_dataframe",
+                new_callable=AsyncMock,
+                return_value=empty_df,
+            ),
+            patch(
+                "autom8_asana.query.engine.QueryEngine._derive_honest_contract_complete",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+        ):
+            mock_asana = MagicMock()
+            mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
+            mock_asana.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_asana
+
+            response = client.post(
+                "/v1/query/project/rows",
+                headers={"Authorization": f"Bearer {JWT_TOKEN}"},
+                json={"where": {"field": "vertical", "op": "eq", "value": "dental"}},
+            )
+
+        assert response.status_code == 200
+        meta = response.json()["data"]["meta"]
+        assert meta["total_count"] == 0
+        assert meta["honest_empty"] is True, (
+            "a genuinely-empty frame is honest_empty even with a predicate present"
+        )
+
 
 class TestSectionRowsSmoke:
     """AC-2: POST /v1/query/section/rows → 200 + non-empty rows."""
