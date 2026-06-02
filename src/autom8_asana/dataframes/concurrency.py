@@ -46,6 +46,43 @@ T = TypeVar("T")
 _cpu_thread_semaphore: asyncio.Semaphore | None = None
 _configured_concurrency: int | None = None
 
+# TD-007 (observability-plan §1.2): live occupancy of the offload gate, tracked
+# in-process so api/metrics can expose in_use / waiting / max without the
+# dataframes layer importing the api layer at module scope (avoids a cycle).
+# These are plain ints mutated only on the event loop (run_cpu_bound is async and
+# single-loop), so no lock is needed.
+_in_use: int = 0
+_waiting: int = 0
+
+
+def get_semaphore_occupancy() -> tuple[int, int, int]:
+    """Return (in_use, waiting, max) for the CPU-thread offload gate (TD-007).
+
+    Exposed for the metrics layer and adversarial tests. ``max`` is the configured
+    ``cpu_thread_concurrency``; when the semaphore has not been constructed yet,
+    max falls back to the resolved configuration.
+    """
+    max_slots = (
+        _configured_concurrency if _configured_concurrency is not None else _resolve_concurrency()
+    )
+    return _in_use, _waiting, max_slots
+
+
+def _emit_semaphore_occupancy() -> None:
+    """Push current occupancy to the metrics gauges (fire-and-forget).
+
+    Lazy import keeps the dataframes layer decoupled from api/metrics. Emission
+    is a few gauge ``.set()`` calls — cheap; any failure is swallowed so metrics
+    never break the offload path.
+    """
+    try:
+        from autom8_asana.api.metrics import record_cpu_thread_semaphore
+
+        in_use, waiting, max_slots = get_semaphore_occupancy()
+        record_cpu_thread_semaphore(in_use, waiting, max_slots)
+    except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
+        pass
+
 
 def _resolve_concurrency() -> int:
     """Resolve the configured CPU-thread concurrency (PDR-002 §4.3 sizing)."""
@@ -75,9 +112,11 @@ def reset_cpu_thread_semaphore() -> None:
     ``get_cpu_thread_semaphore`` call. Used by tests that exercise different
     concurrency limits; never call from production code paths.
     """
-    global _cpu_thread_semaphore, _configured_concurrency
+    global _cpu_thread_semaphore, _configured_concurrency, _in_use, _waiting
     _cpu_thread_semaphore = None
     _configured_concurrency = None
+    _in_use = 0
+    _waiting = 0
 
 
 async def run_cpu_bound(
@@ -109,6 +148,28 @@ async def run_cpu_bound(
     Returns:
         The return value of ``func``.
     """
+    global _in_use, _waiting
     semaphore = get_cpu_thread_semaphore()
-    async with semaphore:
-        return await asyncio.to_thread(func, *args, **kwargs)
+    # Count this coroutine as a waiter until the gate admits it (TD-007 §1.2:
+    # waiting > 0 == offload-gate saturation). The acquire yields to the loop
+    # while blocked, so health-check probes stay serviceable (unchanged).
+    _waiting += 1
+    _emit_semaphore_occupancy()
+    admitted = False
+    try:
+        async with semaphore:
+            # Admitted: transition waiter -> in-use exactly once.
+            _waiting -= 1
+            _in_use += 1
+            admitted = True
+            _emit_semaphore_occupancy()
+            return await asyncio.to_thread(func, *args, **kwargs)
+    finally:
+        # Decrement whichever counter this coroutine currently holds. If the
+        # acquire was cancelled before admission, we still hold the waiter slot;
+        # otherwise we held (and now release) an in-use slot.
+        if admitted:
+            _in_use -= 1
+        else:
+            _waiting -= 1
+        _emit_semaphore_occupancy()

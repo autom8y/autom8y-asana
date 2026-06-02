@@ -340,6 +340,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         extra={"task_name": "cache_warming"},
     )
 
+    # Start the event-loop lag monitor (TD-007, observability-plan §1.2).
+    # Cheap: one slow background timer feeding event_loop_lag_seconds — the
+    # leading indicator of the CPU-on-loop starvation TD-001 fixes. No per-request
+    # cost. Stored on app.state so it is cancelled cleanly at shutdown.
+    from autom8_asana.api.event_loop_monitor import EventLoopLagMonitor
+
+    event_loop_lag_monitor = EventLoopLagMonitor()
+    event_loop_lag_monitor.start()
+    app.state.event_loop_lag_monitor = event_loop_lag_monitor
+
     # Per TDD-SECTION-TIMELINE-REMEDIATION: Section timeline warm-up pipeline
     # REMOVED. Timeline data is now computed on first request and served from
     # derived cache on subsequent requests. No app.state keys for timeline
@@ -352,12 +362,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # client pool below, so an in-flight build that needs an httpx client (via
     # app.state.client_pool) can still complete during the drain window. See
     # _drain_background_builds for the full ADR-002 safety invariant.
+    #
+    # NOTE: `settings` above is api/config.ApiSettings (ASANA_API_* surface) which
+    # does NOT carry the drain knob. The drain timeout lives on the SDK
+    # RuntimeSettings (autom8_asana.settings), so read it from there explicitly.
     from autom8_asana.services.universal_strategy import _background_tasks
+    from autom8_asana.settings import get_settings as get_sdk_settings
 
     await _drain_background_builds(
         _background_tasks,
-        settings.runtime.build_drain_timeout_seconds,
+        get_sdk_settings().runtime.build_drain_timeout_seconds,
     )
+
+    # Stop the event-loop lag monitor (TD-007).
+    if hasattr(app.state, "event_loop_lag_monitor"):
+        try:
+            await app.state.event_loop_lag_monitor.stop()
+        except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
+            logger.warning("event_loop_lag_monitor_stop_error", extra={"error": str(e)})
 
     # Cancel background cache warming if still running
     if hasattr(app.state, "cache_warming_task"):

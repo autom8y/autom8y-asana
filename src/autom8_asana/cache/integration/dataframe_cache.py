@@ -550,6 +550,16 @@ class DataFrameCache:
             if self.metrics_emitter:
                 self.metrics_emitter.record_cache_op(entity_type, tier, "hit")
             self._stats[entity_type]["lkg_serves"] += 1
+            # TD-007 (observability-plan §1.3): make the LKG-flattering of the
+            # success rate VISIBLE — serving_stale_total + lkg_serve_age. Lazy
+            # import keeps the cache layer decoupled from api/metrics; emission is
+            # fire-and-forget so it never affects the serve path.
+            try:
+                from autom8_asana.api.metrics import record_serving_stale
+
+                record_serving_stale(entity_type, float(age))
+            except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
+                pass
             logger.warning(
                 f"dataframe_cache_{tier}_lkg_serve",
                 extra={
