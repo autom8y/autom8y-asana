@@ -885,18 +885,19 @@ class TestS7CauseDisaggregation:
             record_query_fallback_cause,
         )
 
+        # Unique per-test arm: the (entity_type, cause) timeseries is PRIVATE to
+        # this test, so the production query route (which records to the real
+        # "project"/"section" arms) and other tests cannot contaminate the delta
+        # under full-suite xdist. The Counter accepts arbitrary label values.
+        arm = "test_s7_each_cause_increments_dimension"
         for cause in (
             S7_CAUSE_CADENCE_503,
             S7_CAUSE_CAPACITY_502,
             S7_CAUSE_HONEST_REFUSAL,
         ):
-            before = RECEIVER_QUERY_FALLBACK_CAUSE.labels(
-                entity_type="section", cause=cause
-            )._value.get()
-            record_query_fallback_cause("section", cause)
-            after = RECEIVER_QUERY_FALLBACK_CAUSE.labels(
-                entity_type="section", cause=cause
-            )._value.get()
+            before = RECEIVER_QUERY_FALLBACK_CAUSE.labels(entity_type=arm, cause=cause)._value.get()
+            record_query_fallback_cause(arm, cause)
+            after = RECEIVER_QUERY_FALLBACK_CAUSE.labels(entity_type=arm, cause=cause)._value.get()
             assert after == before + 1, f"cause {cause} did not increment its own dimension"
 
     def test_cause_counts_accessor_separates_honest_refusal_from_real_data(self) -> None:
@@ -913,7 +914,14 @@ class TestS7CauseDisaggregation:
             record_query_fallback_cause,
         )
 
-        arm = "project"
+        # Unique per-test arm so the before/after delta on this process-global
+        # Counter is PRIVATE to this test. With the real "project" arm, the
+        # production query route (query.py records record_query_fallback_cause on
+        # the body-parameterized path) and any other test recording to "project"
+        # on the same xdist worker corrupt the exact-delta assertions below — the
+        # cross-shard contamination that turned origin/main RED. The Counter
+        # accepts arbitrary label values, so a unique arm is a valid timeseries.
+        arm = "test_s7_cause_counts_honest_vs_data"
         before = receiver_fallback_cause_counts(arm)
         record_query_fallback_cause(arm, S7_OUTCOME_DATA_2XX)
         record_query_fallback_cause(arm, S7_CAUSE_HONEST_REFUSAL)
