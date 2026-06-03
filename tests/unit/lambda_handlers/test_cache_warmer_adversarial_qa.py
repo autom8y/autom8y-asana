@@ -108,25 +108,28 @@ def test_coverage_rate_partial_is_reported_honestly() -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_bulk_keys_are_driven_by_static_registry_not_live_discovery() -> None:
-    """TD-005 warms the STATIC registry GID set, independent of live discovery.
+def test_bulk_keys_are_driven_by_consumer_warm_set_not_live_discovery() -> None:
+    """TD-005 / ADR-3: warms the CONSUMER-derived warm set, independent of live discovery.
 
-    This pins the coupling the re-gate stream must own: the warm set is the
-    23 static registry GIDs, NOT the GIDs the running receiver resolves from live
-    workspace discovery (EntityProjectRegistry). If the live receiver serves a
-    project GID that is NOT in this static set, that key is NEVER pre-warmed and
-    will cold-build (503) under bulk fan-out — regardless of warmer_coverage_rate
-    reporting 100% over the static set. This is a real-data correspondence check
-    the unit layer cannot make; flagged here so it is not assumed away.
+    ADR-3 §3.1 (CF-3) corrected the prior coupling: the warm set is no longer the
+    23 static DOMAIN-registry GIDs (which omitted 11 consumer-queried GIDs that
+    then cold-503'd under bulk fan-out) but the 34-GID consumer subclass set. The
+    static-vs-live correspondence the re-gate stream owns (VG-004) is now:
+    ``consumer_warm_set_gids()`` must be a SUPERSET of the live
+    ``refresh_frames`` enumeration. The domain ``_REGISTRY`` remains a strict
+    SUBSET of the warm set (no resolution-behavior change for the 23).
     """
     from autom8_asana.core.project_registry import (
         _REGISTRY,
         bulk_prematerialization_keys,
+        consumer_warm_set_gids,
     )
 
     warmed_gids = {gid for gid, _ in bulk_prematerialization_keys()}
-    assert warmed_gids == set(_REGISTRY.values()), (
-        "bulk warm set must equal the static registry GID set"
+    assert warmed_gids == set(consumer_warm_set_gids()), (
+        "bulk warm set must equal the consumer-derived warm set (ADR-3)"
     )
-    # Coverage is measured against the static enumeration only — make that explicit.
-    assert len(warmed_gids) == 23
+    # Reconciled coverage is measured against the 34-GID consumer set.
+    assert len(warmed_gids) == 34
+    # Pure-additive: the 23 domain GIDs stay a strict subset of the warm set.
+    assert set(_REGISTRY.values()) < warmed_gids

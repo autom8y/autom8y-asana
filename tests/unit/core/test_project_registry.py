@@ -369,6 +369,118 @@ class TestParityWithWorkflows:
 # =============================================================================
 
 
+# =============================================================================
+# ADR-3 WS-2: Consumer Warm Set (34 GIDs) -- set-diff regression
+# =============================================================================
+
+# The authoritative consumer-derived warm set: the GID of every ``Project``
+# subclass that the consumer ``refresh_project_frames._gather_project_classes()``
+# enumerates (autom8/apis/asana_api/objects/project/models/__init__.py, minus
+# the two abstract GID-less bases ProcessProject/IsolatedPlayProject). This is
+# the SOURCE-OF-TRUTH the receiver warm set MUST equal (set-diff == 0). Drift in
+# either direction (consumer adds a Project subclass, or the receiver warm set
+# desyncs) is caught by ``test_warm_set_setdiff_consumer_is_empty`` below.
+#
+# If the consumer adds/removes a Project subclass, this fixture is updated in
+# the SAME commit and the regression test re-confirms set-diff == 0. The live
+# re-gate (VG-004) verifies the static set is a superset of the live enumeration.
+CONSUMER_REFRESH_FRAMES_GIDS: frozenset[str] = frozenset(
+    {
+        "1205526136594283",  # QuestionOnPerformance
+        "1143843662099250",  # BusinessOffers
+        "1201627461398630",  # Commission
+        "1200775689604552",  # Contacts
+        "1202204184560785",  # PaidContent
+        "1201684018234520",  # AccountError
+        "1167650840134033",  # BackendClientSuccessDna
+        "1207507299545000",  # BackendOnboardABusiness
+        "1201081073731555",  # BusinessUnits
+        "1200653012566782",  # Businesses
+        "1201532776033312",  # Consultation
+        "1201476141989746",  # Implementation
+        "1210679066066870",  # OfferHolders
+        "1206330409791366",  # PauseABusinessUnit
+        "1201346565918814",  # Retention
+        "1201500116978260",  # ContactHolder
+        "1203992664400125",  # AssetEditHolder
+        "1207984018149338",  # VideographyServices
+        "1206176773330155",  # VideographerSourcing
+        "1208231632857419",  # OptimizationNotifications
+        "1200944186565610",  # Sales
+        "1201319387632570",  # Onboarding
+        "1201753128450029",  # Outreach
+        "1201265144487557",  # Expansion
+        "1201614578074026",  # Hours
+        "1200836133305610",  # Locations
+        "1204433992667196",  # Units
+        "1203404998225231",  # Reconciliations
+        "1208848470341588",  # CustomerHealth
+        "1209247943184017",  # PracticeOfTheWeek
+        "1209247943184021",  # ActivationConsultation
+        "1209442849265632",  # CalendarIntegrations
+        "1209442727608287",  # AccessProcessing
+        "1201265144487549",  # Reactivation
+    }
+)
+
+
+class TestConsumerWarmSet:
+    """ADR-3 §3.1: the warm set MUST equal the consumer's 34-GID subclass set."""
+
+    def test_consumer_fixture_has_34_distinct_gids(self) -> None:
+        """The consumer enumerates exactly 34 distinct GID-bearing subclasses."""
+        assert len(CONSUMER_REFRESH_FRAMES_GIDS) == 34
+
+    def test_warm_set_has_34_distinct_gids(self) -> None:
+        """The receiver warm set is exactly 34 distinct GIDs (no dupes)."""
+        from autom8_asana.core.project_registry import consumer_warm_set_gids
+
+        gids = consumer_warm_set_gids()
+        assert len(gids) == 34
+        assert len(set(gids)) == 34, "warm set has duplicate GIDs"
+
+    def test_warm_set_setdiff_consumer_is_empty(self) -> None:
+        """ADR-3 acceptance: set-diff(warm-set, consumer) == 0 in BOTH directions.
+
+        This is the load-bearing reconciliation assertion (CF-3). A non-empty
+        diff means either the receiver omits a consumer-queried GID (cold-503
+        under bulk fan-out) or warms a GID the consumer never queries (waste +
+        false denominator).
+        """
+        from autom8_asana.core.project_registry import consumer_warm_set_gids
+
+        warm = set(consumer_warm_set_gids())
+        consumer = set(CONSUMER_REFRESH_FRAMES_GIDS)
+        missing_from_warm = consumer - warm
+        extra_in_warm = warm - consumer
+        assert not missing_from_warm, f"consumer GIDs not warmed: {sorted(missing_from_warm)}"
+        assert not extra_in_warm, f"warm GIDs the consumer never queries: {sorted(extra_in_warm)}"
+
+    def test_domain_registry_is_strict_subset_of_warm_set(self) -> None:
+        """The 23 domain-registry GIDs are a strict subset of the 34 warm GIDs.
+
+        Confirms the reconcile is PURE-ADDITIVE: every existing domain GID is
+        still warmed, and exactly 11 consumer-only GIDs are added (ADR-3 §3.1
+        one-way-door note: no receiver-only GID, no resolution-behavior change).
+        """
+        from autom8_asana.core.project_registry import (
+            all_project_gids,
+            consumer_warm_set_gids,
+        )
+
+        domain = all_project_gids()
+        warm = set(consumer_warm_set_gids())
+        assert domain <= warm, f"domain GIDs dropped from warm set: {sorted(domain - warm)}"
+        assert len(warm - domain) == 11, "expected exactly 11 consumer-only warm GIDs"
+
+    def test_warm_set_gids_are_numeric_strings(self) -> None:
+        """Every warm GID is a non-empty all-digit Asana GID string."""
+        from autom8_asana.core.project_registry import consumer_warm_set_gids
+
+        for gid in consumer_warm_set_gids():
+            assert isinstance(gid, str) and gid.isdigit(), f"bad GID {gid!r}"
+
+
 class TestBulkPrematerializationKeys:
     """Verify the TD-005 (project_gid, entity_type) bulk warm enumeration."""
 
@@ -379,29 +491,38 @@ class TestBulkPrematerializationKeys:
         assert BULK_PREMATERIALIZATION_ARMS == ("project", "section")
 
     def test_enumerates_gids_times_arms(self) -> None:
-        """Key count is len(all GIDs) x len(arms) -- the 46-key canonical scope."""
+        """Key count is len(warm GIDs) x len(arms) -- the 68-key reconciled scope."""
         from autom8_asana.core.project_registry import (
-            all_project_gids,
             bulk_prematerialization_keys,
+            consumer_warm_set_gids,
         )
 
         keys = bulk_prematerialization_keys()
-        gid_count = len(all_project_gids())
-        # 23 GIDs x 2 arms = 46 (code-grounded, NOT the 104/208 UV-P prose).
+        gid_count = len(consumer_warm_set_gids())
+        # 34 consumer GIDs x 2 arms = 68 (reconciled, ADR-3 §3.1).
         assert len(keys) == gid_count * 2
-        assert len(keys) == 46
+        assert len(keys) == 68
 
     def test_each_gid_paired_with_each_arm(self) -> None:
-        """Every registered GID appears once per arm."""
+        """Every warm-set GID appears once per arm."""
         from autom8_asana.core.project_registry import (
-            all_project_gids,
             bulk_prematerialization_keys,
+            consumer_warm_set_gids,
         )
 
         keys = bulk_prematerialization_keys()
-        for gid in all_project_gids():
+        for gid in consumer_warm_set_gids():
             assert (gid, "project") in keys
             assert (gid, "section") in keys
+
+    def test_heaviest_first_ordering(self) -> None:
+        """CF-2 fix: the DNA holder (heaviest GID) is warmed FIRST, not last."""
+        from autom8_asana.core.project_registry import bulk_prematerialization_keys
+
+        keys = bulk_prematerialization_keys()
+        first_gid = keys[0][0]
+        # BackendClientSuccessDna ~30k rows -- the OOM driver, must lead.
+        assert first_gid == "1167650840134033"
 
     def test_deterministic_order(self) -> None:
         """Enumeration order is stable across calls (checkpoint resume needs it)."""
@@ -410,12 +531,12 @@ class TestBulkPrematerializationKeys:
         assert bulk_prematerialization_keys() == bulk_prematerialization_keys()
 
     def test_custom_arms_subset(self) -> None:
-        """A single-arm enumeration yields one key per GID."""
+        """A single-arm enumeration yields one key per warm GID."""
         from autom8_asana.core.project_registry import (
-            all_project_gids,
             bulk_prematerialization_keys,
+            consumer_warm_set_gids,
         )
 
         keys = bulk_prematerialization_keys(arms=("project",))
-        assert len(keys) == len(all_project_gids())
+        assert len(keys) == len(consumer_warm_set_gids())
         assert all(et == "project" for _gid, et in keys)

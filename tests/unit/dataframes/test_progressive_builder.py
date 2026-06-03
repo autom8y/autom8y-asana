@@ -192,7 +192,12 @@ class TestProgressiveBuild:
     """Tests for progressive build process."""
 
     async def test_build_no_sections(self) -> None:
-        """Build with no sections returns empty result."""
+        """Build with no sections returns empty result AND persists it (ADR-1).
+
+        A project with no sections is vacuously honest-complete; the zero-row
+        schema'd frame is persisted so the receiver loads an empty frame (not
+        None) and serves honest-empty-200 instead of a perpetual 503.
+        """
         from autom8_asana.dataframes.builders.build_result import BuildStatus
 
         mock_client = MagicMock()
@@ -200,7 +205,9 @@ class TestProgressiveBuild:
             return_value=[]
         )
         mock_schema = MagicMock()
+        mock_schema.to_polars_schema.return_value = {"gid": pl.Utf8, "name": pl.Utf8}
         mock_persistence = MagicMock(spec=SectionPersistence)
+        mock_persistence.write_final_artifacts_async = AsyncMock(return_value=True)
 
         builder = ProgressiveProjectBuilder(
             client=mock_client,
@@ -221,6 +228,67 @@ class TestProgressiveBuild:
         assert result.total_rows == 0
         assert result.sections_succeeded == 0
         assert result.sections_resumed == 0
+        # ADR-1 edit 1: the empty frame IS persisted (no longer skipped).
+        mock_persistence.write_final_artifacts_async.assert_awaited_once()
+        persisted_df = mock_persistence.write_final_artifacts_async.await_args.args[1]
+        assert len(persisted_df) == 0
+
+    async def test_build_honest_complete_empty_persists_zero_row_frame(self) -> None:
+        """ADR-1 edit 1: an all-sections-complete, zero-row project persists a frame.
+
+        CustomerHealth-class: sections exist and are all COMPLETE, but total_rows
+        is 0 (genuinely empty Asana project). The merged frame is empty; the
+        Step-6 write must still fire (honest-complete-empty) so the receiver never
+        503s this project forever.
+        """
+        from autom8_asana.dataframes.builders.build_result import BuildStatus
+
+        mock_client = MagicMock()
+        mock_section = MagicMock()
+        mock_section.gid = "sec_1"
+        mock_section.name = "Empty Section"
+        mock_client.sections.list_for_project_async.return_value.collect = AsyncMock(
+            return_value=[mock_section]
+        )
+
+        mock_schema = MagicMock()
+        mock_schema.version = "1.0.0"
+        mock_schema.to_polars_schema.return_value = {"gid": pl.Utf8, "name": pl.Utf8}
+
+        # Manifest: 1/1 section COMPLETE, zero rows -> honest-complete-empty.
+        manifest = SectionManifest(
+            project_gid="proj_empty",
+            entity_type="offer",
+            total_sections=1,
+            completed_sections=1,
+            schema_version="1.0.0",
+            sections={"sec_1": SectionInfo(status=SectionStatus.COMPLETE, rows=0)},
+        )
+        mock_persistence = MagicMock(spec=SectionPersistence)
+        mock_persistence.get_manifest_async = AsyncMock(return_value=manifest)
+        # Merge yields an empty (zero-row) frame.
+        mock_persistence.merge_sections_to_dataframe_async = AsyncMock(
+            return_value=pl.DataFrame(schema={"gid": pl.Utf8, "name": pl.Utf8})
+        )
+        mock_persistence.write_final_artifacts_async = AsyncMock(return_value=True)
+
+        builder = ProgressiveProjectBuilder(
+            client=mock_client,
+            project_gid="proj_empty",
+            entity_type="offer",
+            schema=mock_schema,
+            persistence=mock_persistence,
+        )
+        builder._ensure_dataframe_view = AsyncMock()
+
+        result = await builder.build_progressive_async()
+
+        assert result.status == BuildStatus.SUCCESS
+        assert result.total_rows == 0
+        # The honest-complete-empty frame IS persisted (ADR-1 edit 1).
+        mock_persistence.write_final_artifacts_async.assert_awaited_once()
+        persisted_df = mock_persistence.write_final_artifacts_async.await_args.args[1]
+        assert len(persisted_df) == 0
 
     async def test_build_with_resume(self) -> None:
         """Build resumes from existing manifest."""
