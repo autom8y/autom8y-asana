@@ -584,6 +584,20 @@ class TestSurfaceABuildCoordinatorAccessors:
 
         assert first is second
 
+    async def test_initialize_honors_max_concurrent_builds_override(self) -> None:
+        """PQ-1: the settings lever flows through to the semaphore size.
+
+        Proves the parameterization path used by api/lifespan.py
+        (settings.cache.dataframe_max_concurrent_builds -> initialize_build_coordinator).
+        The production DEFAULT stays frozen at 4; this asserts the override is
+        honored when supplied so the lever is genuinely config-driven, not inert.
+        """
+        from autom8_asana.cache.dataframe.factory import initialize_build_coordinator
+
+        coord = initialize_build_coordinator(max_concurrent_builds=8)
+
+        assert coord.max_concurrent_builds == 8
+
 
 class TestSurfaceABuildOnMissWiring:
     """Surface A — _build_on_miss invokes BuildCoordinator semantics.
