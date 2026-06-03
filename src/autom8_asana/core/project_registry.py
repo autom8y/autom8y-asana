@@ -325,3 +325,63 @@ def bulk_prematerialization_keys(
     """
     gids = consumer_warm_set_gids()
     return [(gid, arm) for gid in gids for arm in arms]
+
+
+# =============================================================================
+# Fast-Lane Heavy GIDs (SRE cadence refinement)
+# =============================================================================
+#
+# The 30-min bulk sweep is INSUFFICIENT for the two heaviest GIDs: because each
+# GID's inter-warm interval is the FULL sweep duration (~40.7 min, not the 30-min
+# tick), BusinessUnits (UNIT_PROJECT) rides ~46.0 min between warms against a
+# 50-min LKG ceiling (only 8% headroom). A dedicated 15-min FAST lane warms ONLY
+# these two GIDs, decoupled from the full sweep, so their inter-warm interval is
+# the 15-min tick + one BU build (~5.5 min) ~= 20.5 min << 50-min ceiling.
+#
+# These are referenced via the EXISTING entity-project constants (not re-literal'd)
+# so the fast lane can never drift from the canonical GID source of truth:
+#   DNA_HOLDER_PROJECT = "1167650840134033"  (heaviest, OOM driver, :46)
+#   UNIT_PROJECT       = "1201081073731555"  (BusinessUnits, :24)
+#
+# The bulk sweep is the BACKSTOP: every fast-lane GID MUST also be a member of
+# the full sweep (`_CONSUMER_WARM_SET_TIER_1_HEAVY`), so if the fast lane stalls
+# the 30-min sweep still warms these GIDs. The module-load assertion below makes
+# that invariant structural: a fast-lane GID that is not in the sweep fails import.
+FAST_LANE_HEAVY_GIDS: tuple[str, ...] = (DNA_HOLDER_PROJECT, UNIT_PROJECT)
+
+# Structural backstop invariant: the fast lane is a SUBSET of the full sweep, so
+# the bulk sweep always covers these GIDs even if the fast lane is disabled or
+# stalled. Asserted at module load so a divergence is caught at import, not in prod.
+assert set(FAST_LANE_HEAVY_GIDS) <= set(_CONSUMER_WARM_SET_TIER_1_HEAVY), (
+    "FAST_LANE_HEAVY_GIDS must be a subset of _CONSUMER_WARM_SET_TIER_1_HEAVY "
+    "so the 30-min bulk sweep remains the backstop for every fast-lane GID; "
+    f"orphans: {set(FAST_LANE_HEAVY_GIDS) - set(_CONSUMER_WARM_SET_TIER_1_HEAVY)}"
+)
+
+
+def fast_lane_prematerialization_keys(
+    arms: tuple[str, ...] = BULK_PREMATERIALIZATION_ARMS,
+) -> list[tuple[str, str]]:
+    """Enumerate the fast-lane (project_gid, entity_type) keys (SRE fast lane).
+
+    The fast lane warms ONLY the two heaviest GIDs (:data:`FAST_LANE_HEAVY_GIDS`)
+    crossed with each body-parameterized arm. With the two-arm default this
+    enumerates 2 GIDs x 2 arms = 4 keys -- the fast lane's own coverage
+    denominator. This is the SAME key shape as :func:`bulk_prematerialization_keys`
+    (both produce ``(gid, arm)`` tuples consumed by the identical checkpoint/
+    self-invoke machinery), differing ONLY in the GID source: the fast lane is the
+    heavy subset, the bulk sweep is the full consumer-derived set.
+
+    Order is deterministic AND heaviest-first (DNA holder before BusinessUnits),
+    matching the bulk-sweep ordering contract so a partial fast-cycle defers only
+    the cheaper tail.
+
+    Args:
+        arms: Body-parameterized entity types to enumerate per GID. Defaults to
+            ``("project", "section")`` -- the arms the consumer bulk run hits.
+
+    Returns:
+        List of ``(project_gid, entity_type)`` tuples, length
+        ``len(FAST_LANE_HEAVY_GIDS) * len(arms)`` (4 with the two-arm default).
+    """
+    return [(gid, arm) for gid in FAST_LANE_HEAVY_GIDS for arm in arms]

@@ -155,3 +155,59 @@ class TestSelfInvokeContinuation:
         payload = json.loads(mock_lambda.invoke.call_args[1]["Payload"])
         assert payload["entity_types"] == ["contact", "offer"]
         assert "prematerialize_bulk_set" not in payload
+
+    @patch("boto3.client")
+    @patch("autom8_asana.lambda_handlers.timeout.emit_metric")
+    def test_fast_flag_payload_routes_to_fast_branch(
+        self, mock_metric: MagicMock, mock_boto3_client: MagicMock
+    ) -> None:
+        """SRE fast lane: prematerialize_fast_set=True payloads set the fast flag,
+        omit entity_types, and do NOT set the bulk flag (disjoint lanes)."""
+        import json
+
+        mock_lambda = MagicMock()
+        mock_boto3_client.return_value = mock_lambda
+
+        context = MagicMock()
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123:function:warmer-fast"
+
+        _self_invoke_continuation(
+            context,
+            ["1167650840134033:project", "1201081073731555:section"],
+            "inv-005",
+            prematerialize_fast_set=True,
+        )
+
+        payload = json.loads(mock_lambda.invoke.call_args[1]["Payload"])
+        assert payload["prematerialize_fast_set"] is True
+        assert payload["resume_from_checkpoint"] is True
+        assert "entity_types" not in payload
+        # Fast and bulk are mutually exclusive: a fast continuation never carries
+        # the bulk flag, so it cannot resume into the 68-key bulk denominator.
+        assert "prematerialize_bulk_set" not in payload
+
+    @patch("boto3.client")
+    @patch("autom8_asana.lambda_handlers.timeout.emit_metric")
+    def test_fast_flag_takes_precedence_when_both_set(
+        self, mock_metric: MagicMock, mock_boto3_client: MagicMock
+    ) -> None:
+        """If both flags are passed, fast wins and bulk is omitted (lane isolation)."""
+        import json
+
+        mock_lambda = MagicMock()
+        mock_boto3_client.return_value = mock_lambda
+
+        context = MagicMock()
+        context.invoked_function_arn = "arn:aws:lambda:us-east-1:123:function:warmer-fast"
+
+        _self_invoke_continuation(
+            context,
+            ["1167650840134033:project"],
+            "inv-006",
+            prematerialize_bulk_set=True,
+            prematerialize_fast_set=True,
+        )
+
+        payload = json.loads(mock_lambda.invoke.call_args[1]["Payload"])
+        assert payload["prematerialize_fast_set"] is True
+        assert "prematerialize_bulk_set" not in payload

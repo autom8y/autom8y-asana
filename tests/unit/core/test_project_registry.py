@@ -540,3 +540,111 @@ class TestBulkPrematerializationKeys:
         keys = bulk_prematerialization_keys(arms=("project",))
         assert len(keys) == len(consumer_warm_set_gids())
         assert all(et == "project" for _gid, et in keys)
+
+
+class TestFastLanePrematerializationKeys:
+    """Verify the SRE fast-lane heavy-subset (project_gid, entity_type) enumeration."""
+
+    def test_fast_lane_gids_are_the_two_heaviest(self) -> None:
+        """FAST_LANE_HEAVY_GIDS references the existing constants, not literals."""
+        from autom8_asana.core.project_registry import (
+            DNA_HOLDER_PROJECT,
+            FAST_LANE_HEAVY_GIDS,
+            UNIT_PROJECT,
+        )
+
+        # Identity (is), not just equality: the constants are the source of truth.
+        assert FAST_LANE_HEAVY_GIDS == (DNA_HOLDER_PROJECT, UNIT_PROJECT)
+        assert FAST_LANE_HEAVY_GIDS[0] is DNA_HOLDER_PROJECT
+        assert FAST_LANE_HEAVY_GIDS[1] is UNIT_PROJECT
+
+    def test_enumerates_four_keys(self) -> None:
+        """2 heavy GIDs x 2 arms = 4 keys -- the fast lane's own denominator."""
+        from autom8_asana.core.project_registry import (
+            FAST_LANE_HEAVY_GIDS,
+            fast_lane_prematerialization_keys,
+        )
+
+        keys = fast_lane_prematerialization_keys()
+        assert len(keys) == len(FAST_LANE_HEAVY_GIDS) * 2
+        assert len(keys) == 4
+
+    def test_each_heavy_gid_paired_with_each_arm(self) -> None:
+        """Every fast-lane GID appears once per body-parameterized arm."""
+        from autom8_asana.core.project_registry import (
+            FAST_LANE_HEAVY_GIDS,
+            fast_lane_prematerialization_keys,
+        )
+
+        keys = fast_lane_prematerialization_keys()
+        for gid in FAST_LANE_HEAVY_GIDS:
+            assert (gid, "project") in keys
+            assert (gid, "section") in keys
+
+    def test_exact_four_key_membership(self) -> None:
+        """The 4 keys are exactly the DNA-holder and BusinessUnits x both arms."""
+        from autom8_asana.core.project_registry import (
+            fast_lane_prematerialization_keys,
+        )
+
+        keys = set(fast_lane_prematerialization_keys())
+        assert keys == {
+            ("1167650840134033", "project"),  # DNA holder (heaviest)
+            ("1167650840134033", "section"),
+            ("1201081073731555", "project"),  # BusinessUnits
+            ("1201081073731555", "section"),
+        }
+
+    def test_heaviest_first_ordering(self) -> None:
+        """DNA holder (heaviest GID) leads, matching the bulk-sweep contract."""
+        from autom8_asana.core.project_registry import (
+            fast_lane_prematerialization_keys,
+        )
+
+        keys = fast_lane_prematerialization_keys()
+        assert keys[0][0] == "1167650840134033"
+
+    def test_deterministic_order(self) -> None:
+        """Enumeration order is stable across calls (checkpoint resume needs it)."""
+        from autom8_asana.core.project_registry import (
+            fast_lane_prematerialization_keys,
+        )
+
+        assert fast_lane_prematerialization_keys() == fast_lane_prematerialization_keys()
+
+    def test_custom_arms_subset(self) -> None:
+        """A single-arm enumeration yields one key per fast-lane GID."""
+        from autom8_asana.core.project_registry import (
+            FAST_LANE_HEAVY_GIDS,
+            fast_lane_prematerialization_keys,
+        )
+
+        keys = fast_lane_prematerialization_keys(arms=("project",))
+        assert len(keys) == len(FAST_LANE_HEAVY_GIDS)
+        assert all(et == "project" for _gid, et in keys)
+
+    def test_fast_lane_is_subset_of_bulk_sweep(self) -> None:
+        """BACKSTOP invariant: every fast key is also a bulk-sweep key.
+
+        This is the runtime mirror of the module-load parity assertion: the
+        30-min bulk sweep must remain the backstop for every fast-lane GID, so
+        the fast key set is a strict subset of the full sweep key set.
+        """
+        from autom8_asana.core.project_registry import (
+            bulk_prematerialization_keys,
+            fast_lane_prematerialization_keys,
+        )
+
+        fast = set(fast_lane_prematerialization_keys())
+        bulk = set(bulk_prematerialization_keys())
+        assert fast <= bulk
+        assert fast  # non-empty
+
+    def test_parity_assertion_holds_fast_gids_in_tier1_heavy(self) -> None:
+        """The module-load parity invariant: fast GIDs subset TIER_1_HEAVY sweep."""
+        from autom8_asana.core.project_registry import (
+            _CONSUMER_WARM_SET_TIER_1_HEAVY,
+            FAST_LANE_HEAVY_GIDS,
+        )
+
+        assert set(FAST_LANE_HEAVY_GIDS) <= set(_CONSUMER_WARM_SET_TIER_1_HEAVY)
