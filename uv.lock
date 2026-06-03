@@ -247,7 +247,7 @@ requires-dist = [
     { name = "autom8y-http", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=0.6.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-log", specifier = ">=0.5.6", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "autom8y-log", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=0.5.6", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
-    { name = "autom8y-telemetry", extras = ["aws", "fastapi", "otlp"], specifier = ">=0.7.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
+    { name = "autom8y-telemetry", extras = ["aws", "fastapi", "otlp"], specifier = ">=0.8.0", index = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" },
     { name = "awslambdaric", marker = "extra == 'lambda'", specifier = ">=2.2.0" },
     { name = "boto3", specifier = ">=1.42.19" },
     { name = "boto3-stubs", extras = ["secretsmanager"], marker = "extra == 'dev'", specifier = ">=1.34.0" },
@@ -539,7 +539,7 @@ dev = [
 
 [[package]]
 name = "autom8y-telemetry"
-version = "0.7.0"
+version = "0.8.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-config" },
@@ -548,9 +548,9 @@ dependencies = [
     { name = "opentelemetry-sdk" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-telemetry/0.7.0/autom8y_telemetry-0.7.0.tar.gz", hash = "sha256:74b7e1d0fbd191a9149a19ad47dacb2fb14516ff4580591db0572e2905b8abc8" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-telemetry/0.8.0/autom8y_telemetry-0.8.0.tar.gz", hash = "sha256:acdbdb860b13c97bbe772241dfd7f3724e2921bd0ec380a20e878c5f8dca817c" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-telemetry/0.7.0/autom8y_telemetry-0.7.0-py3-none-any.whl", hash = "sha256:baa70ffd5882f33869eefe3b22ac144cd225ed41b38912e101a273c93e4b9d8c" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-telemetry/0.8.0/autom8y_telemetry-0.8.0-py3-none-any.whl", hash = "sha256:257511e12697332560e61adca640a058c2b40092284c40a597e039fc187e9634" },
 ]
 
 [package.optional-dependencies]
