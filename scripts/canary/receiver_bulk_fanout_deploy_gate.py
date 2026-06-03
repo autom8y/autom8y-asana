@@ -9,10 +9,31 @@ criteria are met:
   * receiver_query_success_rate_project    >= 0.99 (sustained over the window)
   * receiver_query_success_rate_section    >= 0.99 (sustained over the window)
   * rate_limit_429_rate_sa                 == 0    (no SA-namespace 429s)
+  * project content-binding                == 0 violations (S7-GATE-FIDELITY)
 
 The probe pattern matches CR-3 consumer behavior: bulk fan-out at the
 receiver, not steady-state interactive traffic. Default load mirrors the
 Phase-3 Knob-5 derivation (~100 rpm baseline; 10-minute window).
+
+S7-GATE-FIDELITY content-binding (Project arm only):
+  The success-rate criteria above are HTTP-2xx *body-blind* — they mirror the
+  receiver SLI (api/metrics.py:241/346), which counts a 2xx as a success
+  regardless of body. A 2xx carrying an empty/wrong frame is therefore a
+  *liveness-masquerade*: green on status, useless on content. To defeat it,
+  the PROJECT arm additionally asserts the Contract-B column contract on every
+  2xx body — office_phone + vertical + gid, the load-bearing OfferHolders
+  MultiIndex-join columns (mirrors the consumer's own attestation set,
+  autom8/apis/asana_api/satellite/getdf_signals.py:77 _CONTRACT_COLUMNS).
+  A Project 2xx whose frame is empty-without-attestation, malformed, or missing
+  a contract column FAILS the gate even though the success-rate reads green.
+  A genuinely-empty honest-complete project (zero rows + meta.honest_empty=True)
+  is an ATTESTED valid result, NOT a violation.
+
+  The SECTION arm is column-contract-EXEMPT (assert_column_contract=False;
+  getdf_signals.py:233-241): section frames legitimately carry no
+  office_phone/vertical. It carries NO content criterion here — it is cleared
+  on the disaggregated honest-EMF/cause signal + the PQ-5 section_gid
+  guard-or-seed decision (OQ-3), NOT on column content.
 
 Authentication:
   * If RECEIVER_DEPLOY_GATE_TOKEN is set in the environment, used verbatim.
@@ -36,7 +57,10 @@ success-rate by per-call HTTP status: 2xx = success; 5xx = server_error;
 429 on the SA arm = SA-namespace rate-limit signal. 4xx-non-429 (e.g., 422
 validation, 404 not-found) are CLIENT errors per the receiver mirror SLI
 definition (api/routes/query.py:478-484); they are reported separately and
-do not count against the success rate.
+do not count against the success rate. On the PROJECT arm it ADDITIONALLY
+inspects the 2xx response BODY (the double-envelope RowsResponse,
+models.py:430) to assert the column contract — this is the content-binding
+that the status-only inference cannot see.
 
 Usage:
   .venv/bin/python scripts/canary/receiver_bulk_fanout_deploy_gate.py \
@@ -53,7 +77,7 @@ Usage:
       --target-rpm 30
 
 Exit codes:
-  0 = deploy-gate PASS (all three criteria met)
+  0 = deploy-gate PASS (all criteria met)
   1 = deploy-gate FAIL (any criterion missed)
   2 = pre-flight error (missing config, can't acquire token, etc.)
 
@@ -86,6 +110,27 @@ DEFAULT_BASE_URL = "https://asana.api.autom8y.io"
 DEFAULT_DURATION_MINUTES = 10
 DEFAULT_TARGET_RPM = 100
 DEFAULT_SUCCESS_RATE_THRESHOLD = 0.99
+# Page limit on the content-bound (Project) arm so a real frame is returned to
+# inspect — a slightly wider page than 1 makes a partial/wrong frame visible
+# while staying cheap. The Section arm stays at limit=1 (content-EXEMPT).
+DEFAULT_CONTENT_LIMIT = 5
+
+# S7-GATE-FIDELITY Project-arm column contract.
+#
+# The load-bearing Contract-B columns the downstream OfferHolders MultiIndex
+# join requires (office_phone + vertical), plus the universal row-identity
+# invariant (gid). This MIRRORS the consumer's own authoritative attestation
+# set, the tuple named _CONTRACT_COLUMNS at
+# autom8/apis/asana_api/satellite/getdf_signals.py:77 — consumed by
+# offer_holders/main.py:56 (the [office_phone, vertical] subselect) and
+# business_offers/main.py:386-391 active_offer_phone_vertical_pairs.
+#
+# SCOPE: PROJECT frames ONLY. SECTION frames are EXEMPT — they are guaranteed
+# `gid` (receiver invariant) but legitimately carry NO office_phone/vertical
+# (higher-level business-resolution enrichment). The consumer skips this
+# contract on the section arm via assert_column_contract=False
+# (getdf_signals.py:233-241); the canary's Section arm does the same.
+PROJECT_CONTRACT_COLUMNS = ("office_phone", "vertical", "gid")
 
 
 # ---------------------------------------------------------------------------
@@ -104,6 +149,25 @@ class ArmResults:
     client_errors: int = 0  # 4xx-non-429
     rate_limited: int = 0  # 429
     durations_ms: list[float] = field(default_factory=list)
+    # S7-GATE-FIDELITY content-binding (Project arm ONLY).
+    #
+    # A 2xx whose body carries an empty/wrong frame is a *liveness-masquerade*:
+    # it reads green on the HTTP status code while delivering no usable contract
+    # content. The deploy-gate's success_rate is HTTP-2xx body-blind by design
+    # (it mirrors the receiver SLI, api/metrics.py:241/346), so on its own it
+    # CANNOT distinguish a real frame from an empty/wrong one. These counters
+    # split the 2xx population on the Project arm so a content-blind success
+    # cannot mask a wrong frame.
+    #
+    # ONLY populated when assert_column_contract=True (the Project arm). The
+    # Section arm is column-contract-EXEMPT (assert_column_contract=False; see
+    # _CONTRACT_COLUMNS rationale and getdf_signals.py:233-241) and leaves these
+    # at 0 — it is cleared on the disaggregated honest-EMF/cause signal + the
+    # PQ-5 section_gid guard-or-seed decision, NOT on column content.
+    content_ok: int = 0  # 2xx with the office_phone/vertical/gid contract satisfied
+    content_honest_empty: int = 0  # 2xx, zero rows, attested meta.honest_empty=True
+    content_violations: int = 0  # 2xx that FAILED the column contract (the trap)
+    content_violation_reasons: Counter[str] = field(default_factory=Counter)
 
     @property
     def success_rate(self) -> float:
@@ -132,6 +196,72 @@ class ArmResults:
         s = sorted(self.durations_ms)
         idx = max(0, int(len(s) * 0.99) - 1)
         return s[idx]
+
+
+# ---------------------------------------------------------------------------
+# Content binding (S7-GATE-FIDELITY) — Project arm column contract
+# ---------------------------------------------------------------------------
+
+
+def _classify_project_content(body: dict[str, Any] | None) -> tuple[str, str]:
+    """Classify a Project-arm 2xx body against the Contract-B column contract.
+
+    Defeats the HTTP-2xx body-blind liveness-masquerade: a 2xx whose frame is
+    empty/wrong must NOT count as a healthy content delivery. Returns one of:
+
+      ("ok", "")                 — at least one row, every row carries
+                                   office_phone + vertical + gid keys.
+      ("honest_empty", "")       — zero rows AND meta.honest_empty is True: a
+                                   legitimately-empty honest-complete project,
+                                   an ATTESTED valid result (NOT a violation).
+      ("violation", <reason>)    — the trap. Any of:
+                                     * unparseable / wrong envelope shape
+                                     * zero rows WITHOUT meta.honest_empty
+                                       (silent/blind empty — the masquerade)
+                                     * one or more rows MISSING a contract column
+
+    The envelope is the canonical double-envelope (RowsResponse, models.py:430):
+        body["data"]["data"] -> rows (list[dict]); body["data"]["meta"] -> meta.
+
+    This MIRRORS the consumer's authoritative attestation
+    (getdf_signals.py:77 _CONTRACT_COLUMNS) so the canary asserts exactly the
+    contract the consumer's MultiIndex join depends on. PROJECT arm only.
+    """
+    if not isinstance(body, dict):
+        return ("violation", "non_json_or_missing_body")
+
+    inner = body.get("data")
+    if not isinstance(inner, dict):
+        return ("violation", "missing_data_envelope")
+
+    rows = inner.get("data")
+    meta = inner.get("meta")
+    if not isinstance(rows, list) or not isinstance(meta, dict):
+        return ("violation", "malformed_rows_or_meta")
+
+    if len(rows) == 0:
+        # An empty frame is ONLY legitimate when ATTESTED honest-empty
+        # (engine.py:264; meta.honest_empty, models.py:419-427). An empty 2xx
+        # without that attestation IS the liveness-masquerade — fail it.
+        if meta.get("honest_empty") is True:
+            return ("honest_empty", "")
+        return ("violation", "empty_frame_without_honest_empty")
+
+    # Non-empty: every row must carry the full Project column contract. A single
+    # row missing office_phone/vertical/gid breaks the downstream join, so any
+    # missing column on any row is a content violation.
+    missing: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            return ("violation", "row_not_object")
+        for col in PROJECT_CONTRACT_COLUMNS:
+            if col not in row:
+                missing.add(col)
+    if missing:
+        cols = ",".join(sorted(missing))
+        return ("violation", f"missing_columns[{cols}]")
+
+    return ("ok", "")
 
 
 # ---------------------------------------------------------------------------
@@ -202,8 +332,7 @@ def _resolve_sa_credentials_from_aws() -> tuple[str, str] | None:
         secret_name = ptr_resp["Parameter"]["Value"]
     except Exception as e:  # noqa: BLE001
         print(
-            f"[auth] SSM get_parameter {SSM_OAUTH_CLIENT_SECRET_POINTER_PATH} "
-            f"failed: {e}",
+            f"[auth] SSM get_parameter {SSM_OAUTH_CLIENT_SECRET_POINTER_PATH} failed: {e}",
             file=sys.stderr,
         )
         return None
@@ -344,15 +473,28 @@ async def _one_call(
     arm: str,
     project_gid: str,
     token: str,
-) -> tuple[int, float]:
-    """Issue one POST /v1/query/{arm}/rows call. Returns (status_code, ms)."""
+    *,
+    limit: int,
+    parse_body: bool,
+) -> tuple[int, float, dict[str, Any] | None]:
+    """Issue one POST /v1/query/{arm}/rows call.
+
+    Returns (status_code, elapsed_ms, parsed_body). ``parsed_body`` is the
+    decoded JSON envelope when ``parse_body`` is True and the response is a 2xx
+    with a JSON body; otherwise None. Content-binding (Project arm) needs the
+    body to assert the column contract; the Section arm passes parse_body=False.
+    """
     url = f"{base_url.rstrip('/')}/v1/query/{arm}/rows"
-    # Minimal valid body for body-parameterized entities: project_gid + small limit.
-    # 'section' arm requires a section identifier; we pass the project_gid in
-    # both places — the receiver treats project as the parameterizing entity.
+    # Body for body-parameterized entities: project_gid + limit. ``limit`` is
+    # raised above 1 on the content-bound (Project) arm so a real frame is
+    # actually returned to inspect — a limit=1 read can still surface the
+    # contract, but a slightly wider page makes a partial/wrong frame visible.
+    # 'section' arm requires a section identifier; we pass project_gid as the
+    # parameterizing entity — section_gid is deliberately absent (the PQ-5
+    # degenerate-unfiltered case), and the Section arm is content-EXEMPT here.
     body: dict[str, Any] = {
         "project_gid": project_gid,
-        "limit": 1,
+        "limit": limit,
     }
     headers = {
         "Authorization": f"Bearer {token}",
@@ -367,9 +509,19 @@ async def _one_call(
         # for the mirror SLI — the receiver did not respond).
         elapsed_ms = (time.perf_counter() - start) * 1000
         print(f"[probe] {arm} network error: {e}", file=sys.stderr)
-        return (599, elapsed_ms)
+        return (599, elapsed_ms, None)
     elapsed_ms = (time.perf_counter() - start) * 1000
-    return (status, elapsed_ms)
+
+    parsed: dict[str, Any] | None = None
+    if parse_body and 200 <= status < 300:
+        try:
+            decoded = resp.json()
+            parsed = decoded if isinstance(decoded, dict) else {"_non_dict": decoded}
+        except (ValueError, json.JSONDecodeError):
+            # A 2xx that is not decodable JSON is itself a content violation;
+            # signal it with a sentinel the classifier rejects.
+            parsed = None
+    return (status, elapsed_ms, parsed)
 
 
 async def _run_arm(
@@ -380,24 +532,54 @@ async def _run_arm(
     token: str,
     target_rpm: int,
     duration_seconds: int,
+    *,
+    assert_column_contract: bool,
+    content_limit: int,
 ) -> ArmResults:
     """Run sustained load against one arm for the configured duration.
 
     Issues `target_rpm` requests-per-minute as a steady drip — i.e., one
     request every (60 / target_rpm) seconds. NOT a burst-then-quiet pattern;
     this matches the consumer's actual fan-out shape (regular outbound calls).
+
+    ``assert_column_contract`` (Project arm True; Section arm False): when True,
+    every 2xx body is classified against the Contract-B column contract
+    (office_phone/vertical/gid) and the per-class counters are incremented. A
+    content VIOLATION (empty/wrong frame on a 2xx) is recorded but does NOT alter
+    the HTTP-derived success_rate — it surfaces independently in the gate so the
+    liveness-masquerade is defeated without conflating the two failure modes.
     """
     results = ArmResults(arm=arm)
     interval_s = 60.0 / max(target_rpm, 1)
     end_time = time.monotonic() + duration_seconds
+    # Only request a wider page (to inspect content) and parse the body on the
+    # content-bound arm; the Section arm keeps the cheap limit=1, body-blind.
+    per_call_limit = content_limit if assert_column_contract else 1
 
     while time.monotonic() < end_time:
         loop_start = time.monotonic()
-        status, ms = await _one_call(client, base_url, arm, project_gid, token)
+        status, ms, body = await _one_call(
+            client,
+            base_url,
+            arm,
+            project_gid,
+            token,
+            limit=per_call_limit,
+            parse_body=assert_column_contract,
+        )
         results.total_calls += 1
         results.durations_ms.append(ms)
         if 200 <= status < 300:
             results.successes += 1
+            if assert_column_contract:
+                cls, reason = _classify_project_content(body)
+                if cls == "ok":
+                    results.content_ok += 1
+                elif cls == "honest_empty":
+                    results.content_honest_empty += 1
+                else:  # violation
+                    results.content_violations += 1
+                    results.content_violation_reasons[reason] += 1
         elif status == 429:
             results.rate_limited += 1
         elif 400 <= status < 500:
@@ -417,7 +599,7 @@ async def _run_arm(
 # ---------------------------------------------------------------------------
 
 
-def _print_arm_report(r: ArmResults) -> None:
+def _print_arm_report(r: ArmResults, *, content_bound: bool) -> None:
     print(f"  arm={r.arm}")
     print(f"    total_calls         = {r.total_calls}")
     print(f"    successes (2xx)     = {r.successes}")
@@ -427,6 +609,20 @@ def _print_arm_report(r: ArmResults) -> None:
     print(f"    success_rate        = {r.success_rate:.4f}")
     print(f"    p50_ms              = {r.p50_ms:.1f}")
     print(f"    p99_ms              = {r.p99_ms:.1f}")
+    if content_bound:
+        # S7-GATE-FIDELITY: split the 2xx population so a content-blind success
+        # cannot mask a wrong frame. Column contract: office_phone/vertical/gid.
+        print(f"    content_ok          = {r.content_ok}")
+        print(f"    content_honest_empty= {r.content_honest_empty}")
+        print(f"    content_violations  = {r.content_violations}")
+        if r.content_violation_reasons:
+            for reason, count in sorted(r.content_violation_reasons.items()):
+                print(f"      - {reason}: {count}")
+    else:
+        # Section arm is column-contract-EXEMPT (assert_column_contract=False):
+        # cleared on the disaggregated honest-EMF/cause signal + the PQ-5
+        # section_gid guard-or-seed decision, NOT on column content.
+        print("    content_binding     = EXEMPT (section column-contract-exempt; see PQ-5/OQ-3)")
 
 
 def _evaluate_gate(
@@ -434,18 +630,30 @@ def _evaluate_gate(
     section: ArmResults,
     success_threshold: float,
 ) -> tuple[bool, list[str]]:
-    """Evaluate the three deploy-gate criteria. Returns (pass, reasons)."""
+    """Evaluate the deploy-gate criteria. Returns (pass, reasons).
+
+    Criteria:
+      1. project success_rate    >= threshold (HTTP-derived mirror SLI)
+      2. section success_rate    >= threshold (HTTP-derived mirror SLI)
+      3. rate_limit_429_rate_sa  == 0
+      4. project CONTENT-BINDING: zero Project-arm content violations
+         (S7-GATE-FIDELITY). This is the additive criterion that defeats the
+         HTTP-2xx body-blind liveness-masquerade — a Project 2xx carrying an
+         empty/wrong frame (no office_phone/vertical/gid, or an unattested
+         empty) FAILS the gate even though criterion 1 reads green on it.
+         The SECTION arm is column-contract-EXEMPT (no content criterion); it
+         is cleared on the disaggregated honest-EMF/cause signal + the PQ-5
+         section_gid guard-or-seed decision, NOT on column content.
+    """
     failures: list[str] = []
 
     if project.success_rate < success_threshold:
         failures.append(
-            f"project success_rate={project.success_rate:.4f} < "
-            f"{success_threshold:.2f} threshold"
+            f"project success_rate={project.success_rate:.4f} < {success_threshold:.2f} threshold"
         )
     if section.success_rate < success_threshold:
         failures.append(
-            f"section success_rate={section.success_rate:.4f} < "
-            f"{success_threshold:.2f} threshold"
+            f"section success_rate={section.success_rate:.4f} < {success_threshold:.2f} threshold"
         )
 
     total_sa_429 = project.rate_limited + section.rate_limited
@@ -454,6 +662,19 @@ def _evaluate_gate(
             f"SA-namespace 429 count={total_sa_429} > 0 "
             f"(project={project.rate_limited}, section={section.rate_limited}); "
             f"rate_limit_429_rate_sa must equal 0"
+        )
+
+    # Criterion 4 — Project-arm content-binding (S7-GATE-FIDELITY).
+    # Any 2xx that failed the Contract-B column contract is the masquerade.
+    # honest_empty 2xx are NOT violations (attested valid-empty results).
+    if project.content_violations > 0:
+        reasons = ", ".join(
+            f"{r}={c}" for r, c in sorted(project.content_violation_reasons.items())
+        )
+        failures.append(
+            f"project content_violations={project.content_violations} > 0 "
+            f"(2xx with empty/wrong frame — liveness-masquerade; required cols "
+            f"{'/'.join(PROJECT_CONTRACT_COLUMNS)}); breakdown: {reasons or 'n/a'}"
         )
 
     return (len(failures) == 0, failures)
@@ -476,6 +697,8 @@ async def _main_async(args: argparse.Namespace) -> int:
 
     async with httpx.AsyncClient(http2=False) as client:
         # Run both arms concurrently — matches the consumer's fan-out shape.
+        # PROJECT arm: content-bound (assert the office_phone/vertical/gid
+        # Contract-B columns). SECTION arm: column-contract-EXEMPT.
         project_task = asyncio.create_task(
             _run_arm(
                 client,
@@ -485,6 +708,8 @@ async def _main_async(args: argparse.Namespace) -> int:
                 token,
                 args.target_rpm,
                 duration_seconds,
+                assert_column_contract=True,
+                content_limit=args.content_limit,
             )
         )
         section_task = asyncio.create_task(
@@ -496,19 +721,17 @@ async def _main_async(args: argparse.Namespace) -> int:
                 token,
                 args.target_rpm,
                 duration_seconds,
+                assert_column_contract=False,
+                content_limit=args.content_limit,
             )
         )
-        project_result, section_result = await asyncio.gather(
-            project_task, section_task
-        )
+        project_result, section_result = await asyncio.gather(project_task, section_task)
 
     print("\n=== Results ===")
-    _print_arm_report(project_result)
-    _print_arm_report(section_result)
+    _print_arm_report(project_result, content_bound=True)
+    _print_arm_report(section_result, content_bound=False)
 
-    passed, failures = _evaluate_gate(
-        project_result, section_result, args.success_threshold
-    )
+    passed, failures = _evaluate_gate(project_result, section_result, args.success_threshold)
 
     print("\n=== Deploy-gate decision ===")
     if passed:
@@ -517,6 +740,13 @@ async def _main_async(args: argparse.Namespace) -> int:
         print(f"    receiver_query_success_rate_project >= {args.success_threshold:.2f}")
         print(f"    receiver_query_success_rate_section >= {args.success_threshold:.2f}")
         print("    rate_limit_429_rate_sa == 0")
+        print(
+            "    project content-binding: 0 violations "
+            f"(cols {'/'.join(PROJECT_CONTRACT_COLUMNS)}; "
+            f"content_ok={project_result.content_ok}, "
+            f"honest_empty={project_result.content_honest_empty})"
+        )
+        print("    section content-binding: EXEMPT (PQ-5/OQ-3; honest-EMF + guard/seed)")
         return 0
     else:
         print("  STATUS: FAIL")
@@ -526,9 +756,7 @@ async def _main_async(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Receiver bulk-fanout deploy-gate canary probe."
-    )
+    parser = argparse.ArgumentParser(description="Receiver bulk-fanout deploy-gate canary probe.")
     parser.add_argument(
         "--base-url",
         default=DEFAULT_BASE_URL,
@@ -563,6 +791,17 @@ def main() -> None:
             "matches observability-plan.md deploy gate)"
         ),
     )
+    parser.add_argument(
+        "--content-limit",
+        type=int,
+        default=DEFAULT_CONTENT_LIMIT,
+        help=(
+            f"Page limit used on the content-bound (Project) arm so a real frame is "
+            f"returned to assert the {'/'.join(PROJECT_CONTRACT_COLUMNS)} column "
+            f"contract (default: {DEFAULT_CONTENT_LIMIT}). The Section arm is "
+            "content-EXEMPT and always uses limit=1."
+        ),
+    )
     args = parser.parse_args()
 
     try:
@@ -574,7 +813,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # Counter imported for potential future per-status-code histograms;
-    # keep the import to signal intent for follow-up enrichment.
-    _ = Counter
     main()
