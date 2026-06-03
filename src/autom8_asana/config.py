@@ -122,16 +122,47 @@ LKG_MAX_STALENESS_MULTIPLIER: float = 10.0
 # freshness contract. Map key = entity_type (lowercased); value = max age in
 # seconds a STALE/LKG entry may be served before hard-reject -> 503+Retry-After.
 #
-# MECHANISM ONLY — ships INERT. The default is an EMPTY mapping = NO per-entity
-# override anywhere, so today's multiplier-derived ceiling applies unchanged for
-# every entity (zero behavior change at deploy). It is DELIBERATELY uncalibrated:
-# the real per-entity freshness tolerance is UNKNOWN and must be elicited as a
-# data contract from the consumer/monolith owners (OQ-2, handoff_back item E of
-# HANDOFF-autom8-to-asana-sre-cr3-producer-work-queue-ingest-2026-06-03). Do NOT
-# populate this with internal best-guess tiers (e.g. 4h/60m/15m/24h) — an
-# uncalibrated bound is an arbitrary internal default masquerading as a consumer
-# contract. Calibration + ADR ratification is a separate, OQ-2-gated change.
-FRESHNESS_CONTRACT_MAX_AGE_SECONDS: dict[str, float] = {}
+# CALIBRATED to the ratified OQ-2 contract (2026-06-03). OQ-2 returned the
+# per-entity freshness tolerance directly from the consumer/monolith owners'
+# source of truth: autom8/config/thresholds/caching.py (repo autom8y/autom8).
+# Values below are the consumer's own declared refresh cadences, transcribed to
+# seconds and keyed on the receiver entity_type (the key this map is `.get()`-ed
+# on at dataframe_cache.py STALE branch). NOT internal best-guesses — each value
+# carries a consumer-source receipt:
+#
+#   "project" = 86400  (24h)  <- PROJECT_DF_REFRESH_HOURS=24    caching.py:33
+#   "section" =   576  (0.16h) <- SECTION_DF_REFRESH_HOURS=0.16 caching.py:39
+#
+# NOTE on the section value: caching.py:39 source is 0.16h = 576s exactly; the
+# inline comment there glosses it as "~10 minutes". We transcribe the SOURCE
+# value (576s), not the gloss (600s). If the consumer intends a round 600s, that
+# is a contract-amendment for them to make at caching.py — we do not round here.
+#
+# DELIBERATELY keyed on ONLY the two entity_types this knob can actually affect.
+# The knob keys on entry.entity_type (dataframe_cache.py STALE branch); the only
+# entity_types served through that serve-stale path are the receiver dataframe
+# entities in entity_registry.py — "project" and "section". The other OQ-2 tiers
+# (BASE_FACTORY/analytics + RECONCILIATION/backfill = 24h, caching.py:15/:28;
+# VERTICAL_SUMMARY = 720h, caching.py:22) are CONSUMER-SIDE (autom8 monolith)
+# refresh cadences with NO corresponding entity_type in this receiver's cache
+# keyspace. Adding "analytics"/"backfill"/"vertical_summary" keys here would be
+# DEAD KEYS (.get() never matches) — an arbitrary internal mapping masquerading
+# as a contract, the exact anti-pattern this knob's prior comment forbade. They
+# are intentionally OMITTED, not forgotten.
+#
+# LOAD-BEARING TENSION (dual-edge ceiling — see ADR-serve-stale-within-bound
+# §Consequences): this knob is a max_age CEILING. The pre-calibration section
+# ceiling was LKG_MAX_STALENESS_MULTIPLIER(10.0) x ttl(300s) = 3000s = 50min.
+# Setting "section" = 576s TIGHTENS that 5.2x -> section frames hard-reject +
+# rebuild far sooner -> MORE build pressure on the POST /v1/query/section/rows
+# 502 hotspot. Conversely "project" = 86400s LOOSENS project from 50min -> 24h
+# -> project reads ride serve-stale/LKG and almost never rebuild -> project 502
+# pressure collapses. So THIS KNOB ALONE makes the section 502 WORSE unless
+# paired with a <=10-min section-tight warm lane (L4 design input).
+FRESHNESS_CONTRACT_MAX_AGE_SECONDS: dict[str, float] = {
+    "project": 86400.0,  # PROJECT_DF_REFRESH_HOURS=24  -> caching.py:33 (24h)
+    "section": 576.0,  # SECTION_DF_REFRESH_HOURS=0.16 -> caching.py:39 (0.16h=576s)
+}
 
 # FACADE: Delegates to EntityRegistry. Preserves existing import path.
 # See: src/autom8_asana/core/entity_registry.py for the single source of truth.

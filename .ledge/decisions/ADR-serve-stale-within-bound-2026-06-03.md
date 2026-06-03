@@ -1,14 +1,15 @@
 ---
 type: decision
-status: draft   # canonical lifecycle status; semantic state = AUTHORED-NOT-RATIFIED (ratification_state below)
-ratification_state: authored-not-ratified
+status: accepted   # canonical lifecycle status; semantic state = RATIFIED (ratification_state below)
+ratification_state: ratified
+ratified_date: 2026-06-03
 id: ADR-serve-stale-within-bound
 date: 2026-06-03
 author: platform-engineer + observability-engineer (sre)
 initiative: cr3-fleet-data-plane-foundation-cutover
 consumer_visible: true
 review_required_before_impl: false   # the mechanism is additive + inert; RATIFICATION (calibrating the bound) is OQ-2-gated
-ratification_gate: OQ-2 (elicited per-entity freshness contract from monolith owners)
+ratification_gate: OQ-2 (elicited per-entity freshness contract from monolith owners) — DISCHARGED 2026-06-03 (see §OQ-2 ratification checklist; contract source autom8/config/thresholds/caching.py)
 supersedes: none
 related:
   - ADR-honest-empty-200-serving-2026-06-02
@@ -22,23 +23,44 @@ evidence_grade: moderate   # self-referential (sre rite authored the impl + this
 
 ## Status
 
-**AUTHORED — NOT RATIFIED.** This ADR documents and proposes to *ratify* a freshness
-paradigm that is **already implemented** in the receiver read path (see Context, V6). The
-two code mechanisms it introduces (`meta.stale_served` attestation + a
-`FRESHNESS_CONTRACT_MAX_AGE_SECONDS` per-entity ceiling override) ship **additive and inert**
-— the override defaults to *no override*, preserving today's behavior exactly.
+**RATIFIED 2026-06-03.** This ADR documents a freshness paradigm **already implemented** in
+the receiver read path (see Context, V6), and as of this ratification the
+`FRESHNESS_CONTRACT_MAX_AGE_SECONDS` knob is **CALIBRATED to the OQ-2 contract** (no longer
+inert). The `meta.stale_served` attestation remains an additive boolean.
 
-**Ratification is gated on OQ-2**: the per-entity freshness contract elicited from the
-monolith/consumer owners. Until that contract is returned (handoff_back item E,
-`HANDOFF-autom8-to-asana-sre-cr3-producer-work-queue-ingest-2026-06-03.md` §6), the bound
-**MUST NOT be calibrated** and this ADR **MUST NOT be marked `accepted`**. An uncalibrated
-bound is an arbitrary internal default masquerading as a consumer contract — exactly the
-anti-pattern the ratified LICENSE forbids ("never relax the consumer = *meet the real need*";
-the 50-min LKG default is a correctable internal policy, **not** a consumer contract).
+**OQ-2 is DISCHARGED.** The per-entity freshness contract was returned by the consumer/monolith
+owners. It was verified at SOURCE — not from handoff framing — in the consumer repo
+`autom8y/autom8` at `config/thresholds/caching.py`:
+
+| OQ-2 entity tier | Consumer source constant | Source line | Value (h) | Seconds | Keyed here? |
+|---|---|---|---|---|---|
+| PROJECT | `PROJECT_DF_REFRESH_HOURS = 24` | `caching.py:33` | 24 | **86400** | YES — `"project"` |
+| SECTION | `SECTION_DF_REFRESH_HOURS = 0.16` | `caching.py:39` | 0.16 | **576** | YES — `"section"` |
+| ANALYTICS (base-factory) | `BASE_FACTORY_REFRESH_HOURS = 24` | `caching.py:15` | 24 | 86400 | NO — no receiver entity_type |
+| BACKFILL (reconciliation) | `RECONCILIATION_REFRESH_HOURS = 24` | `caching.py:28` | 24 | 86400 | NO — no receiver entity_type |
+| VERTICAL-SUMMARY | `VERTICAL_SUMMARY_REFRESH_HOURS = 720` | `caching.py:22` | 720 | 2592000 | NO — no receiver entity_type |
+
+**Why only PROJECT and SECTION are keyed.** The knob is `.get()`-ed on `entry.entity_type` in
+the STALE branch of `dataframe_cache.py`. The only entity_types served through that serve-stale
+path are the receiver dataframe entities registered in `entity_registry.py` — `"project"` and
+`"section"`. The other three OQ-2 tiers are **consumer-side (autom8 monolith) refresh cadences
+with NO corresponding entity_type in this receiver's cache keyspace**. Keying them here would
+produce **dead keys** — an arbitrary internal mapping masquerading as a contract, the precise
+anti-pattern this ADR's "What this ADR does NOT do" section forbade. They are intentionally
+OMITTED from the calibrated map (see config.py knob comment for the full receipt trail).
+
+**Section value transcription note.** `caching.py:39` source is `0.16` hours = **576 s exactly**;
+the inline comment there glosses it as "~10 minutes". We transcribe the SOURCE value (576 s),
+NOT the gloss (600 s). A round 600 s, if intended, is a consumer-side contract amendment at
+`caching.py` — the receiver does not round.
 
 Evidence grade: **MODERATE** (self-referential — the sre rite authored both the underlying
 implementation and this ADR; per the self-ref MODERATE ceiling, no PASS/compliance conclusion
-here rises above MODERATE absent rite-disjoint corroboration).
+here rises above MODERATE absent rite-disjoint corroboration). **EXCEPTION**: the two calibrated
+values (`"project"`=86400, `"section"`=576) are **STRONG** — they are consumer-corroborated,
+read directly from the consumer's own `caching.py` source of truth (rite-disjoint: the consumer
+monolith owns those constants, not the sre rite). The *paradigm ratification* is MODERATE; the
+*calibration values* are STRONG by consumer corroboration.
 
 ## Context
 
@@ -167,19 +189,63 @@ different locus (do-nothing / calibrate-early / global-relax / API-layer-derive)
   `S7-GATE-FIDELITY` GetDfFallback-cause disaggregation (stale-serve vs honest-refusal vs
   capacity-502 read as distinct causes).
 
+### LOAD-BEARING TENSION — the calibration is a DUAL-EDGE ceiling (L4 sizing input)
+
+The knob is a **max_age CEILING**, so calibrating it moves the hard-reject threshold per entity
+in OPPOSITE directions, and the section edge makes the 502 hotspot WORSE in isolation:
+
+- **Pre-calibration ceiling (both entities):** `LKG_MAX_STALENESS_MULTIPLIER (10.0) × ttl (300 s)
+  = 3000 s = 50 min`. Both `project` and `section` carry `default_ttl_seconds = 300`
+  (`entity_registry.py`), so both rode the same 50-min ceiling before this change.
+
+- **`section` = 576 s TIGHTENS the ceiling 5.2×** (3000 → 576). Section frames now hard-reject and
+  rebuild far sooner than before → **MORE over-ceiling cache-miss builds** → **MORE build pressure
+  on the 4-slot semaphore** → the `POST /v1/query/section/rows` **502 hotspot gets WORSE**, not
+  better. This is the direct, intended consequence of meeting the consumer's *real* 10-minute
+  section freshness need — but it is a cost on the 502 axis.
+
+- **`project` = 86400 s LOOSENS the ceiling 28.8×** (3000 → 86400 = 24 h). Project reads now ride
+  serve-stale / LKG and almost never trip the hard-reject → **project over-ceiling rebuilds
+  collapse toward zero** → project's contribution to 502 pressure largely disappears.
+
+**Net for L4:** this knob ALONE does NOT relieve the section 502 — it INTENSIFIES it (tighter
+section ceiling = more section rebuilds). The section 502 relief MUST come from a **≤10-min
+section-tight warm lane** that keeps section frames warm *below* the 576 s ceiling so reads find
+a fresh-or-within-bound entry instead of forcing an over-ceiling rebuild. **This ADR's section
+value (576 s) is the hard sizing target L4 must design the section warm lane against**: the warm
+cadence must be tight enough that a section entry's age stays under 576 s at read time across the
+two heaviest GIDs. A dedicated fast lane for the two heaviest GIDs already exists in code
+(`fast_lane_prematerialization_keys`, `core/project_registry.py:362`; `FAST_LANE_HEAVY_GIDS` =
+DNA-holder + BusinessUnits, `:350`) — but its **invocation cadence is an EventBridge/IaC schedule
+in the infra repo, not a source constant in this repo**, so its actual period is NOT verified here.
+[UV-P: the existing heavy-GID fast lane runs on a ~15-min (≈900 s) cadence | METHOD: deferred-to-IaC-inspection (autom8y infra-TF EventBridge rule) | REASON: schedule is IaC-resident, not a src constant; not inspected this reversible pass]. **IF** that cadence is ≈900 s, it EXCEEDS the 576 s
+section ceiling and is therefore NOT tight enough for the calibrated section contract — making
+fast-lane re-sizing an explicit L4 input. The project edge needs no warm lane (24 h ceiling makes
+project rebuilds rare by construction).
+
 ## Reversibility
 
-Fully two-way door at the code layer this sprint: `meta.stale_served` is an additive boolean
-(revertible); `FRESHNESS_CONTRACT_MAX_AGE_SECONDS` ships as a no-op empty mapping (removing it
-restores the multiplier-only ceiling). **No value is committed.** Ratification (calibrating the
-bound to OQ-2) is the only one-way-door step, and it is deliberately deferred behind the OQ-2
-gate. This is a REVERSIBLE-ONLY sprint deliverable: PR opened, ADR authored, **not** ratified,
-**not** deployed-with-a-calibrated-bound.
+Still a two-way door at the **code** layer: the calibrated `FRESHNESS_CONTRACT_MAX_AGE_SECONDS`
+mapping is a source edit (revertible by restoring the empty mapping — that restores the
+multiplier-only 50-min ceiling for both entities). This calibration PR is **REVERSIBLE-ONLY**:
+PR opened, ADR ratified-in-doc, code calibrated — but **nothing landed**: NOT merged, NOT
+deployed, NO terraform apply, NO config value pushed to a running env. The behavioral effect
+(tighter section ceiling / looser project ceiling) only takes hold at deploy of the merged
+calibration — which is a separate, human/IC-gated land step. Until then this is doc + source
+diff on an unmerged branch.
 
-## OQ-2 ratification checklist (deferred — do not complete this sprint)
+## OQ-2 ratification checklist (DISCHARGED 2026-06-03 except deploy-gated items)
 
-- [ ] OQ-2 returned: per-entity freshness tolerance from monolith/consumer owners (handoff_back E).
-- [ ] `FRESHNESS_CONTRACT_MAX_AGE_SECONDS` calibrated to the elicited per-entity contract.
-- [ ] Consumer bridge confirmed to accept the additive `meta.stale_served` key.
-- [ ] Dual-lever effect re-measured: post-calibration over-ceiling build rate ↓ (PQ-1 relief).
-- [ ] ADR status flipped `authored-not-ratified` → `accepted`; the bound recorded as a contract.
+- [x] OQ-2 returned: per-entity freshness tolerance from monolith/consumer owners (handoff_back E).
+      Source-verified in consumer repo `autom8y/autom8` at `config/thresholds/caching.py` (see Status table).
+- [x] `FRESHNESS_CONTRACT_MAX_AGE_SECONDS` calibrated to the elicited per-entity contract:
+      `"project"`=86400 (caching.py:33), `"section"`=576 (caching.py:39). Other 3 tiers intentionally
+      omitted (no receiver entity_type — dead-key avoidance).
+- [ ] Consumer bridge confirmed to accept the additive `meta.stale_served` key. **STILL OWED** —
+      cross-repo consumer-side check; not discharged by this calibration pass.
+- [ ] Dual-lever effect re-measured: post-calibration over-ceiling build rate change (PQ-1).
+      **DEPLOY-GATED** — measurable only after the calibration is merged + deployed; this pass lands nothing.
+      WARNING per §Consequences: section edge is expected to INCREASE section over-ceiling builds until the
+      L4 section-tight warm lane is sized to keep section age < 576 s.
+- [x] ADR status flipped `authored-not-ratified` → `ratified` (frontmatter `status: accepted`);
+      the bound recorded as a consumer contract with per-value caching.py receipts.

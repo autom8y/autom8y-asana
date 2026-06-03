@@ -962,16 +962,30 @@ class TestMaxStalenessEnforcement:
 class TestFreshnessContractOverride:
     """ADR-serve-stale-within-bound: FRESHNESS_CONTRACT_MAX_AGE_SECONDS per-entity ceiling.
 
-    The knob ships INERT (empty mapping) -> the multiplier-derived ceiling applies
-    unchanged. A calibrated per-entity value OVERRIDES the multiplier ceiling for
-    that entity (it expresses the consumer's real freshness tolerance, OQ-2).
+    RATIFIED (OQ-2, 2026-06-03): the knob is now CALIBRATED to the consumer contract
+    transcribed from autom8/config/thresholds/caching.py. A calibrated per-entity value
+    OVERRIDES the multiplier ceiling for that entity (it expresses the consumer's real
+    freshness tolerance, OQ-2). Only entity_types that flow through the receiver
+    serve-stale path ("project", "section") are keyed; consumer-side-only tiers are
+    intentionally omitted (dead-key avoidance).
     """
 
-    async def test_default_knob_is_empty_inert(self) -> None:
-        """The shipped default is an empty mapping (no override anywhere)."""
+    async def test_calibrated_knob_matches_oq2_contract(self) -> None:
+        """The ratified default is the OQ-2 contract: project=86400s, section=576s.
+
+        Values transcribed at source from the consumer monolith
+        (autom8/config/thresholds/caching.py): PROJECT_DF_REFRESH_HOURS=24 (24h=86400s,
+        caching.py:33) and SECTION_DF_REFRESH_HOURS=0.16 (0.16h=576s, caching.py:39).
+        Only these two receiver entity_types are keyed; the other OQ-2 tiers
+        (analytics/backfill/vertical-summary) have no receiver entity_type and are
+        intentionally NOT present (keying them would be dead keys).
+        """
         import autom8_asana.config as config
 
-        assert config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS == {}
+        assert config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS == {
+            "project": 86400.0,
+            "section": 576.0,
+        }
 
     async def test_contract_override_rejects_below_multiplier_ceiling(self) -> None:
         """A TIGHTER per-entity contract rejects an entry the multiplier would serve.
