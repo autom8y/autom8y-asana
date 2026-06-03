@@ -453,6 +453,7 @@ class DataFrameCache:
         from autom8_asana.config import (
             DEFAULT_ENTITY_TTLS,
             DEFAULT_TTL,
+            FRESHNESS_CONTRACT_MAX_AGE_SECONDS,
             LKG_MAX_STALENESS_MULTIPLIER,
         )
 
@@ -528,22 +529,39 @@ class DataFrameCache:
             entity_ttl = DEFAULT_ENTITY_TTLS.get(entry.entity_type, DEFAULT_TTL)
             age = info.data_age_seconds
 
-            if LKG_MAX_STALENESS_MULTIPLIER > 0:
+            # ADR-serve-stale-within-bound (2026-06-03): a per-entity calibrated
+            # freshness contract (FRESHNESS_CONTRACT_MAX_AGE_SECONDS) OVERRIDES the
+            # multiplier-derived ceiling for that entity. Ships INERT (empty map) ->
+            # contract_max_age is None for every entity -> behavior is unchanged and
+            # the existing LKG_MAX_STALENESS_MULTIPLIER ceiling applies as before.
+            # When a contract value IS present it is the authoritative ceiling for
+            # that entity (it expresses the consumer's real tolerance per OQ-2),
+            # taking precedence over the internal multiplier default.
+            contract_max_age = FRESHNESS_CONTRACT_MAX_AGE_SECONDS.get(entry.entity_type)
+
+            max_age: float | None = None
+            ceiling_source = "multiplier"
+            if contract_max_age is not None:
+                max_age = contract_max_age
+                ceiling_source = "freshness_contract"
+            elif LKG_MAX_STALENESS_MULTIPLIER > 0:
                 max_age = LKG_MAX_STALENESS_MULTIPLIER * entity_ttl
-                if age > max_age:
-                    logger.warning(
-                        f"dataframe_cache_{tier}_lkg_max_staleness_exceeded",
-                        extra={
-                            "project_gid": project_gid,
-                            "entity_type": entity_type,
-                            "age_seconds": age,
-                            "max_age_seconds": round(max_age, 1),
-                            "staleness_ratio": info.staleness_ratio,
-                        },
-                    )
-                    if tier == "memory":
-                        self.memory_tier.remove(cache_key)
-                    return None
+
+            if max_age is not None and age > max_age:
+                logger.warning(
+                    f"dataframe_cache_{tier}_lkg_max_staleness_exceeded",
+                    extra={
+                        "project_gid": project_gid,
+                        "entity_type": entity_type,
+                        "age_seconds": age,
+                        "max_age_seconds": round(max_age, 1),
+                        "staleness_ratio": info.staleness_ratio,
+                        "ceiling_source": ceiling_source,
+                    },
+                )
+                if tier == "memory":
+                    self.memory_tier.remove(cache_key)
+                return None
 
             # LKG: Serve expired entry with warning, trigger refresh
             self._stats[entity_type][f"{tier}_hits"] += 1

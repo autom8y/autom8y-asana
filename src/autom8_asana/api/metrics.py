@@ -106,6 +106,80 @@ RECEIVER_QUERY_OUTCOME = Counter(
     labelnames=["entity_type", "outcome"],  # outcome: success | server_error
 )
 
+# --- S7-GATE-FIDELITY: 3-cause fallback disaggregation ---
+# Per HANDOFF-autom8-to-asana-sre-cr3-producer-work-queue-ingest §4.1 and
+# cr3-verified-findings §SYNTHESIS item 4 (the "S7 false-green guard").
+#
+# The consumer's single ``GetDfFallback`` EMF signal collapses THREE distinct
+# causes into one counter; a Stage-B (fallback-deletion) decision read off a
+# collapsed total is dangerous because the three causes have different
+# remediations and different consequences:
+#
+#   * cadence_503   — CACHE_BUILD_IN_PROGRESS: a coalesced request waited for an
+#                     in-flight build past ``CACHE_BUILD_WAIT_TIMEOUT`` (a warmth /
+#                     cadence gap — the frame is being built; fixed by warming).
+#   * capacity_502  — DATAFRAME_BUILD_{FAILED,ERROR,TIMEOUT,UNAVAILABLE}: the
+#                     request-time build itself failed/timed-out — the
+#                     build-semaphore-starvation path that escalates to an ALB 502
+#                     (fixed by build headroom + CPU/mem, NOT warming).
+#   * honest_refusal — an attested honest-empty 200 (``meta.honest_empty``): a
+#                     genuinely-empty honest-complete project served as an empty
+#                     2xx by contract — NOT a failure, but it MUST be distinguished
+#                     from a real-data 2xx so a liveness-masquerade (empty 2xx
+#                     counted as a healthy serve) cannot read green at the gate.
+#
+# This is the receiver-side disaggregation. It is ADDITIVE to (does not replace)
+# RECEIVER_QUERY_OUTCOME, which remains the deploy-gate SLI denominator. The S7
+# verdict reads CAUSE from this counter instead of inferring it from a collapsed
+# success/server_error split.
+RECEIVER_QUERY_FALLBACK_CAUSE = Counter(
+    "autom8y_asana_receiver_query_fallback_cause_total",
+    "Receiver-side query outcomes disaggregated by S7 cause: the three causes "
+    "the consumer GetDfFallback collapses into one signal (cadence_503 / "
+    "capacity_502 / honest_refusal). Lets the S7 fallback-retirement verdict "
+    "read CAUSE, not a collapsed total.",
+    labelnames=["entity_type", "cause"],  # cause: cadence_503 | capacity_502 | honest_refusal
+)
+
+# The three named S7 causes. Authoritative source for callers/dashboards/gate so
+# the label vocabulary cannot drift. ``data_2xx`` is the fourth, non-fallback
+# outcome (a real-data success) — tracked so honest_refusal can be read AGAINST
+# the real-data serve count (the liveness-masquerade defeat: empty 2xx must be
+# separable from real-data 2xx).
+S7_CAUSE_CADENCE_503 = "cadence_503"
+S7_CAUSE_CAPACITY_502 = "capacity_502"
+S7_CAUSE_HONEST_REFUSAL = "honest_refusal"
+S7_OUTCOME_DATA_2XX = "data_2xx"
+S7_FALLBACK_CAUSES = (
+    S7_CAUSE_CADENCE_503,
+    S7_CAUSE_CAPACITY_502,
+    S7_CAUSE_HONEST_REFUSAL,
+)
+
+# Map a 503 ``ApiDataFrameBuildError.code`` to its S7 cause. CACHE_BUILD_IN_PROGRESS
+# is the cadence/warmth gap; every other build-error code is the capacity path that
+# escalates to an ALB 502. Centralized here so the query route does not hardcode the
+# string set and the two cannot drift apart.
+_BUILD_CODE_TO_S7_CAUSE = {
+    "CACHE_BUILD_IN_PROGRESS": S7_CAUSE_CADENCE_503,
+    "DATAFRAME_BUILD_FAILED": S7_CAUSE_CAPACITY_502,
+    "DATAFRAME_BUILD_ERROR": S7_CAUSE_CAPACITY_502,
+    "DATAFRAME_BUILD_TIMEOUT": S7_CAUSE_CAPACITY_502,
+    "DATAFRAME_BUILD_UNAVAILABLE": S7_CAUSE_CAPACITY_502,
+}
+
+
+def s7_cause_for_build_code(code: str) -> str:
+    """Resolve the S7 cause for an ``ApiDataFrameBuildError`` code.
+
+    ``CACHE_BUILD_IN_PROGRESS`` is the cadence/warmth gap (cadence_503); every
+    other build-error code (FAILED / ERROR / TIMEOUT / UNAVAILABLE) is the
+    capacity-starvation path (capacity_502). An unknown code defaults to
+    capacity_502 — a build error we cannot classify is treated as the more
+    consequential (Stage-B-blocking) capacity cause, never silently as cadence.
+    """
+    return _BUILD_CODE_TO_S7_CAUSE.get(code, S7_CAUSE_CAPACITY_502)
+
 
 # --- Helper Recording Functions ---
 # Fire-and-forget with no error propagation.
@@ -242,6 +316,66 @@ def record_receiver_query_outcome(entity_type: str, success: bool) -> None:
     """
     outcome = "success" if success else "server_error"
     RECEIVER_QUERY_OUTCOME.labels(entity_type=entity_type, outcome=outcome).inc()
+
+
+def record_query_fallback_cause(entity_type: str, cause: str) -> None:
+    """Record one disaggregated S7 fallback cause (S7-GATE-FIDELITY).
+
+    The receiver-side companion to ``record_receiver_query_outcome``: it splits
+    the outcome by the THREE causes the consumer ``GetDfFallback`` collapses into
+    one counter, so the S7 fallback-retirement verdict can read CAUSE.
+
+    Both recorders are called on the same request: the binary
+    ``RECEIVER_QUERY_OUTCOME`` (the deploy-gate SLI denominator) AND this
+    per-cause counter. ``honest_refusal`` is a 2xx (it does NOT decrement the SLI
+    success count); ``cadence_503`` and ``capacity_502`` are 5xx (they ARE the
+    server_error split). ``data_2xx`` marks a real-data success so honest_refusal
+    can be read against it (the liveness-masquerade defeat).
+
+    Args:
+        entity_type: Body-parameterized arm ("project" | "section").
+        cause: One of ``S7_CAUSE_CADENCE_503`` / ``S7_CAUSE_CAPACITY_502`` /
+            ``S7_CAUSE_HONEST_REFUSAL`` / ``S7_OUTCOME_DATA_2XX``. An unrecognized
+            value is accepted as-is (low cardinality; the caller derives it from a
+            closed set) so the recorder never raises on the fire-and-forget path.
+    """
+    RECEIVER_QUERY_FALLBACK_CAUSE.labels(entity_type=entity_type, cause=cause).inc()
+
+
+def receiver_fallback_cause_counts(
+    entity_type: str | None = None,
+) -> dict[str, float]:
+    """Return the disaggregated S7 cause counts (the verdict-reads-cause accessor).
+
+    The S7 fallback-retirement verdict reads this instead of inferring cause from
+    the collapsed success/server_error split. Returns a dict keyed by cause
+    (cadence_503 / capacity_502 / honest_refusal / data_2xx), each defaulting to
+    0.0 so a verdict never trips on a missing key.
+
+    Args:
+        entity_type: When given, restrict to one arm ("project" | "section");
+            None aggregates across arms.
+
+    Returns:
+        ``{cause: count}`` for every known cause, including data_2xx, with absent
+        causes reported as 0.0.
+    """
+    counts: dict[str, float] = {
+        S7_CAUSE_CADENCE_503: 0.0,
+        S7_CAUSE_CAPACITY_502: 0.0,
+        S7_CAUSE_HONEST_REFUSAL: 0.0,
+        S7_OUTCOME_DATA_2XX: 0.0,
+    }
+    for metric in RECEIVER_QUERY_FALLBACK_CAUSE.collect():
+        for sample in metric.samples:
+            if not sample.name.endswith("_total"):
+                continue
+            if entity_type is not None and sample.labels.get("entity_type") != entity_type:
+                continue
+            cause = sample.labels.get("cause", "")
+            if cause in counts:
+                counts[cause] += sample.value
+    return counts
 
 
 # --- TD-007 honest observability instrumentation (observability-plan §2) ---
