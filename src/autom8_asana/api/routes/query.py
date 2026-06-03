@@ -32,6 +32,13 @@ from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves 
 )
 from autom8_asana.api.errors import raise_api_error, raise_service_error
 from autom8_asana.api.exception_types import ApiDataFrameBuildError
+from autom8_asana.api.metrics import (
+    S7_CAUSE_CADENCE_503,
+    S7_CAUSE_CAPACITY_502,
+    S7_CAUSE_HONEST_REFUSAL,
+    S7_OUTCOME_DATA_2XX,
+    s7_cause_for_build_code,
+)
 from autom8_asana.api.models import SuccessResponse, build_success_response
 from autom8_asana.api.rate_limit import (
     SA_NAMESPACE_LIMIT,
@@ -516,7 +523,13 @@ async def query_rows(
     # cache-not-warm 503, generic exceptions). The receiver_query_success_rate
     # gauge derived from these counters drives Alert A8 (MIRROR-SLI-DEGRADATION)
     # and the deploy gate (>=99% sustained 10min on both arms).
+    # S7-GATE-FIDELITY: alongside the binary success/server_error SLI, classify
+    # this request into ONE of the three S7 causes the consumer GetDfFallback
+    # collapses (cadence_503 / capacity_502 / honest_refusal) plus data_2xx for a
+    # real-data serve. ``fallback_cause`` is set in each branch and emitted in the
+    # finally so the S7 verdict reads CAUSE, not a collapsed total.
     success_for_metric = True
+    fallback_cause: str | None = None
     query_service = EntityQueryService()
     engine = QueryEngine(provider=query_service, data_client=data_service_client)
     try:
@@ -531,8 +544,11 @@ async def query_rows(
             )
     except QueryEngineError as e:
         success_for_metric = False
+        # A query-engine 5xx is a server-side serve failure, not a build-in-progress
+        # warmth gap — classify it on the capacity side so it cannot mask as cadence.
+        fallback_cause = S7_CAUSE_CAPACITY_502
         _raise_query_error(request_id, e)
-    except ApiDataFrameBuildError:
+    except ApiDataFrameBuildError as e:
         # ADR-G2RECV-002: request-time build-on-miss for body-parameterized entities
         # raises a typed 503 (DATAFRAME_BUILD_FAILED / _ERROR / _TIMEOUT, or
         # CACHE_BUILD_IN_PROGRESS). The error already carries status 503 +
@@ -540,9 +556,16 @@ async def query_rows(
         # canonical envelope. Re-raise so it reaches that handler rather than being
         # swallowed here. NEVER a 500, NEVER a silent empty-200.
         success_for_metric = False
+        # S7 split: CACHE_BUILD_IN_PROGRESS is the cadence/warmth gap (cadence_503);
+        # every other build-error code is the build-semaphore-starvation path that
+        # escalates to an ALB 502 (capacity_502). Derived from the error's .code.
+        fallback_cause = s7_cause_for_build_code(e.code)
         raise
     except CacheNotWarmError as e:
         success_for_metric = False
+        # Cache-not-warmed is a readiness/warmth gap (the frame is not yet built),
+        # not a build-capacity failure — same cause family as CACHE_BUILD_IN_PROGRESS.
+        fallback_cause = S7_CAUSE_CADENCE_503
         raise_api_error(
             request_id,
             503,
@@ -550,15 +573,29 @@ async def query_rows(
             str(e),
             details={"retry_after_seconds": 30},
         )
+    else:
+        # 2xx path: distinguish an attested honest-empty serve (honest_refusal) from
+        # a real-data serve (data_2xx). This is the liveness-masquerade defeat — an
+        # empty 2xx is NOT counted as a healthy real-data serve at the S7 gate.
+        fallback_cause = (
+            S7_CAUSE_HONEST_REFUSAL
+            if getattr(result.meta, "honest_empty", False)
+            else S7_OUTCOME_DATA_2XX
+        )
     finally:
         # Only emit for body-parameterized arms — the receiver mirror SLI
         # is specifically the bulk-fan-out hot path metric. Offer-domain
         # entities have a separate readiness model and are excluded.
         if ctx.project_gid is None:  # body_parameterized when registry GID is None
             try:
-                from autom8_asana.api.metrics import record_receiver_query_outcome
+                from autom8_asana.api.metrics import (
+                    record_query_fallback_cause,
+                    record_receiver_query_outcome,
+                )
 
                 record_receiver_query_outcome(entity_type, success=success_for_metric)
+                if fallback_cause is not None:
+                    record_query_fallback_cause(entity_type, fallback_cause)
             except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
                 pass
 

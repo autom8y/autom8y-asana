@@ -824,6 +824,148 @@ class TestSurface5StageOneMetrics:
         assert after == before + 1
 
 
+class TestS7CauseDisaggregation:
+    """S7-GATE-FIDELITY — the 3-cause GetDfFallback disaggregation.
+
+    Per HANDOFF-autom8-to-asana-sre-cr3-producer-work-queue-ingest §4.1: the
+    receiver must split the single collapsed counter into cadence_503 /
+    capacity_502 / honest_refusal so the S7 verdict reads CAUSE, defeating a
+    false-green Stage-B decision. data_2xx is the fourth (real-data) outcome.
+    """
+
+    def test_cause_constants_are_the_three_named_signals(self) -> None:
+        """The 3 named S7 causes are exactly cadence_503/capacity_502/honest_refusal."""
+        from autom8_asana.api.metrics import (
+            S7_CAUSE_CADENCE_503,
+            S7_CAUSE_CAPACITY_502,
+            S7_CAUSE_HONEST_REFUSAL,
+            S7_FALLBACK_CAUSES,
+        )
+
+        assert S7_CAUSE_CADENCE_503 == "cadence_503"
+        assert S7_CAUSE_CAPACITY_502 == "capacity_502"
+        assert S7_CAUSE_HONEST_REFUSAL == "honest_refusal"
+        assert S7_FALLBACK_CAUSES == (
+            "cadence_503",
+            "capacity_502",
+            "honest_refusal",
+        )
+
+    def test_build_code_in_progress_maps_to_cadence(self) -> None:
+        """CACHE_BUILD_IN_PROGRESS is the warmth/cadence gap (cadence_503)."""
+        from autom8_asana.api.metrics import (
+            S7_CAUSE_CADENCE_503,
+            s7_cause_for_build_code,
+        )
+
+        assert s7_cause_for_build_code("CACHE_BUILD_IN_PROGRESS") == S7_CAUSE_CADENCE_503
+
+    def test_build_code_failures_map_to_capacity(self) -> None:
+        """Every non-in-progress build-error code is the capacity-starvation path."""
+        from autom8_asana.api.metrics import (
+            S7_CAUSE_CAPACITY_502,
+            s7_cause_for_build_code,
+        )
+
+        for code in (
+            "DATAFRAME_BUILD_FAILED",
+            "DATAFRAME_BUILD_ERROR",
+            "DATAFRAME_BUILD_TIMEOUT",
+            "DATAFRAME_BUILD_UNAVAILABLE",
+        ):
+            assert s7_cause_for_build_code(code) == S7_CAUSE_CAPACITY_502
+
+    def test_unknown_build_code_defaults_to_capacity_not_cadence(self) -> None:
+        """An unclassifiable build error is the consequential capacity cause, never cadence.
+
+        Defaulting an unknown code to cadence would let a real build failure read
+        as a transient warmth gap and false-green the S7 gate — so the default
+        MUST be the Stage-B-blocking capacity_502.
+        """
+        from autom8_asana.api.metrics import (
+            S7_CAUSE_CAPACITY_502,
+            s7_cause_for_build_code,
+        )
+
+        assert s7_cause_for_build_code("SOME_UNKNOWN_FUTURE_CODE") == S7_CAUSE_CAPACITY_502
+
+    def test_record_each_cause_increments_its_own_dimension(self) -> None:
+        """Each cause increments only its own (entity_type, cause) counter."""
+        from autom8_asana.api.metrics import (
+            RECEIVER_QUERY_FALLBACK_CAUSE,
+            S7_CAUSE_CADENCE_503,
+            S7_CAUSE_CAPACITY_502,
+            S7_CAUSE_HONEST_REFUSAL,
+            record_query_fallback_cause,
+        )
+
+        # Unique per-test arm: the (entity_type, cause) timeseries is PRIVATE to
+        # this test, so the production query route (which records to the real
+        # "project"/"section" arms) and other tests cannot contaminate the delta
+        # under full-suite xdist. The Counter accepts arbitrary label values.
+        arm = "test_s7_each_cause_increments_dimension"
+        for cause in (
+            S7_CAUSE_CADENCE_503,
+            S7_CAUSE_CAPACITY_502,
+            S7_CAUSE_HONEST_REFUSAL,
+        ):
+            before = RECEIVER_QUERY_FALLBACK_CAUSE.labels(entity_type=arm, cause=cause)._value.get()
+            record_query_fallback_cause(arm, cause)
+            after = RECEIVER_QUERY_FALLBACK_CAUSE.labels(entity_type=arm, cause=cause)._value.get()
+            assert after == before + 1, f"cause {cause} did not increment its own dimension"
+
+    def test_cause_counts_accessor_separates_honest_refusal_from_real_data(self) -> None:
+        """receiver_fallback_cause_counts reads honest_refusal AGAINST data_2xx.
+
+        This is the liveness-masquerade defeat: an empty (honest_refusal) 2xx is a
+        DISTINCT count from a real-data (data_2xx) 2xx, so a verdict cannot read an
+        empty-frame serve as a healthy real-data serve.
+        """
+        from autom8_asana.api.metrics import (
+            S7_CAUSE_HONEST_REFUSAL,
+            S7_OUTCOME_DATA_2XX,
+            receiver_fallback_cause_counts,
+            record_query_fallback_cause,
+        )
+
+        # Unique per-test arm so the before/after delta on this process-global
+        # Counter is PRIVATE to this test. With the real "project" arm, the
+        # production query route (query.py records record_query_fallback_cause on
+        # the body-parameterized path) and any other test recording to "project"
+        # on the same xdist worker corrupt the exact-delta assertions below — the
+        # cross-shard contamination that turned origin/main RED. The Counter
+        # accepts arbitrary label values, so a unique arm is a valid timeseries.
+        arm = "test_s7_cause_counts_honest_vs_data"
+        before = receiver_fallback_cause_counts(arm)
+        record_query_fallback_cause(arm, S7_OUTCOME_DATA_2XX)
+        record_query_fallback_cause(arm, S7_CAUSE_HONEST_REFUSAL)
+        record_query_fallback_cause(arm, S7_CAUSE_HONEST_REFUSAL)
+        after = receiver_fallback_cause_counts(arm)
+
+        assert after[S7_OUTCOME_DATA_2XX] == before[S7_OUTCOME_DATA_2XX] + 1
+        assert after[S7_CAUSE_HONEST_REFUSAL] == before[S7_CAUSE_HONEST_REFUSAL] + 2
+        # The two outcomes are separable — honest_refusal did NOT inflate data_2xx.
+        assert after[S7_OUTCOME_DATA_2XX] != after[S7_CAUSE_HONEST_REFUSAL]
+
+    def test_cause_counts_accessor_defaults_absent_causes_to_zero(self) -> None:
+        """A verdict never KeyErrors on a cause that has not fired in an arm."""
+        from autom8_asana.api.metrics import (
+            S7_CAUSE_CADENCE_503,
+            S7_CAUSE_CAPACITY_502,
+            S7_CAUSE_HONEST_REFUSAL,
+            S7_OUTCOME_DATA_2XX,
+            receiver_fallback_cause_counts,
+        )
+
+        counts = receiver_fallback_cause_counts("an_arm_with_no_traffic_xyz")
+        assert counts == {
+            S7_CAUSE_CADENCE_503: 0.0,
+            S7_CAUSE_CAPACITY_502: 0.0,
+            S7_CAUSE_HONEST_REFUSAL: 0.0,
+            S7_OUTCOME_DATA_2XX: 0.0,
+        }
+
+
 class TestSurface5RateLimit429NamespaceHandler:
     """Surface 5 — 429 wrapper handler extracts namespace from rate-limit key."""
 
