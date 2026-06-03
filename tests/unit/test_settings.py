@@ -106,6 +106,41 @@ class TestCacheSettings:
             settings = CacheSettings()
             assert settings.provider is None
 
+    def test_max_concurrent_builds_default_frozen_at_4(self) -> None:
+        """PQ-1: the build-concurrency lever stays FROZEN at 4 by default."""
+        from autom8_asana.settings import CacheSettings
+
+        with patch.dict(os.environ, {}, clear=True):
+            settings = CacheSettings()
+
+        assert settings.dataframe_max_concurrent_builds == 4
+
+    def test_max_concurrent_builds_env_overridable(self) -> None:
+        """PQ-1: the lever is now config-overridable (not hardcoded)."""
+        from autom8_asana.settings import CacheSettings
+
+        with patch.dict(
+            os.environ,
+            {"ASANA_DF_MAX_CONCURRENT_BUILDS": "8"},
+            clear=True,
+        ):
+            settings = CacheSettings()
+
+        assert settings.dataframe_max_concurrent_builds == 8
+
+    def test_max_concurrent_builds_legacy_alias(self) -> None:
+        """PQ-1: the verbose ASANA_CACHE_* alias also overrides the lever."""
+        from autom8_asana.settings import CacheSettings
+
+        with patch.dict(
+            os.environ,
+            {"ASANA_CACHE_DATAFRAME_MAX_CONCURRENT_BUILDS": "6"},
+            clear=True,
+        ):
+            settings = CacheSettings()
+
+        assert settings.dataframe_max_concurrent_builds == 6
+
 
 class TestRedisSettings:
     """Tests for RedisSettings configuration."""

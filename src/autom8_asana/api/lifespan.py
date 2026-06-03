@@ -232,9 +232,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Defaults: max_concurrent_builds=4 (Phase-3 Knob 1, conservative for
     # single-worker uvicorn); default_timeout_seconds=55.0 (Phase-3 Knob 2,
     # fits under AWS ALB default idle_timeout of 60s with 5s teardown margin).
+    # PQ-1: max_concurrent_builds is now the settings lever
+    # cache.dataframe_max_concurrent_builds (env ASANA_DF_MAX_CONCURRENT_BUILDS),
+    # FROZEN at 4 this sprint. DO NOT raise the override without a prior CPU/mem
+    # task bump (~4 x 2GB headroom vs current 2GB) — the lever is inert and
+    # dangerous without it (see settings.CacheSettings.dataframe_max_concurrent_builds).
     from autom8_asana.cache.dataframe.factory import initialize_build_coordinator
+    from autom8_asana.settings import get_settings as get_app_settings
 
-    initialize_build_coordinator()
+    cache_settings = get_app_settings().cache
+    initialize_build_coordinator(
+        max_concurrent_builds=cache_settings.dataframe_max_concurrent_builds,
+    )
 
     # Register schema providers with SDK for cache compatibility checks
     # Per SDK Phase 1: Bridges satellite SchemaRegistry to SDK registry
