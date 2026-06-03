@@ -60,6 +60,7 @@ def _self_invoke_continuation(
     parent_invocation_id: str,
     *,
     prematerialize_bulk_set: bool = False,
+    prematerialize_section_set: bool = False,
 ) -> None:
     """Self-invoke Lambda with remaining entities for continuation.
 
@@ -70,7 +71,7 @@ def _self_invoke_continuation(
     Args:
         context: Lambda context exposing ``invoked_function_arn``.
         pending_entities: Remaining work items (entity types, or TD-005
-            ``"{gid}:{entity_type}"`` key tokens for the bulk path).
+            ``"{gid}:{entity_type}"`` key tokens for the bulk/section paths).
         parent_invocation_id: Correlation id of the invocation self-continuing.
         prematerialize_bulk_set: TD-005. When True, the continuation payload
             carries the ``prematerialize_bulk_set`` flag so the next invocation
@@ -78,6 +79,12 @@ def _self_invoke_continuation(
             warm). Defaults False to preserve the legacy entity-type behavior.
             Either way the next invocation resumes pending work from the shared
             checkpoint via ``resume_from_checkpoint=True``.
+        prematerialize_section_set: ADR §B section lane. When True, the
+            continuation payload carries the ``prematerialize_section_set`` flag
+            so the next invocation re-enters the section-only warm lane (34 keys,
+            disjoint checkpoint prefix). Mutually exclusive with
+            ``prematerialize_bulk_set``; section flag takes precedence if both
+            are accidentally set.
     """
     if not pending_entities:
         return
@@ -98,7 +105,11 @@ def _self_invoke_continuation(
         "strict": False,
         "resume_from_checkpoint": True,
     }
-    if prematerialize_bulk_set:
+    if prematerialize_section_set:
+        # Section lane: checkpoint carries pending key tokens; flag routes
+        # the continuation back into the section-only branch.
+        payload["prematerialize_section_set"] = True
+    elif prematerialize_bulk_set:
         # Bulk path: the checkpoint carries the pending key tokens; the flag
         # routes the continuation back into _prematerialize_bulk_set_async.
         payload["prematerialize_bulk_set"] = True

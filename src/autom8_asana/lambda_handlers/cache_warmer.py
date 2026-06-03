@@ -38,7 +38,10 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_log import get_logger
@@ -244,6 +247,9 @@ def _decode_key_token(token: str) -> tuple[str, str]:
 async def _prematerialize_bulk_set_async(
     resume_from_checkpoint: bool = True,
     context: Any = None,
+    *,
+    key_source: Callable[[], list[tuple[str, str]]] | None = None,
+    section_lane: bool = False,
 ) -> WarmResponse:
     """Pre-materialize the body-parameterized bulk key set ahead of the consumer (TD-005).
 
@@ -277,10 +283,30 @@ async def _prematerialize_bulk_set_async(
     LKG staleness boundary, so restoring the honest backpressure does not
     produce a 503 spike. Warming first is what makes the honest-LKG value safe.
 
+    This same coroutine drives BOTH the bulk sweep AND the SRE section lane --
+    the only difference is the ``key_source`` (which keys to warm) and the
+    ``section_lane`` flag (which lane the self-invoke continuation re-enters).
+    The section lane reuses the IDENTICAL checkpoint/self-invoke/coverage
+    machinery verbatim; lane isolation is achieved entirely at the edges: a
+    disjoint ``CACHE_WARMER_CHECKPOINT_PREFIX`` (set per-Lambda in TF, #96)
+    gives each lane its own ``latest.json`` so the two never contend, and the
+    section key source yields a 34-key denominator so coverage and
+    ``WarmerCheckpointCleared`` are emitted over the section lane's own count.
+
     Args:
         resume_from_checkpoint: If True, resume pending keys from the last
-            checkpoint (shares the warmer CheckpointManager).
+            checkpoint (shares the warmer CheckpointManager; the prefix is
+            lane-disjoint via env so the resume targets the correct lane).
         context: Lambda context for timeout detection and correlation.
+        key_source: Zero-arg callable returning the ``(gid, entity_type)`` keys
+            to warm. Defaults to ``bulk_prematerialization_keys`` (68 keys). The
+            section lane passes ``section_only_prematerialization_keys`` (34 keys).
+            The key SHAPE is identical; only the denominator differs.
+        section_lane: When True, the self-invoke continuation carries the
+            ``prematerialize_section_set`` flag so the resumed invocation
+            re-enters the SECTION branch (over its own checkpoint + 34-key
+            denominator), not the bulk branch. Defaults False (bulk behavior
+            unchanged).
 
     Returns:
         WarmResponse whose ``message`` carries the coverage rate and whose
@@ -296,6 +322,10 @@ async def _prematerialize_bulk_set_async(
     from autom8_asana.core.project_registry import bulk_prematerialization_keys
     from autom8_asana.lambda_handlers.checkpoint import CheckpointManager
 
+    # Default to the full bulk sweep; the section lane injects the section source.
+    if key_source is None:
+        key_source = bulk_prematerialization_keys
+
     start_time = time.monotonic()
     invocation_id = getattr(context, "aws_request_id", None) or str(uuid.uuid4())
 
@@ -310,8 +340,10 @@ async def _prematerialize_bulk_set_async(
             invocation_id=invocation_id,
         )
 
-    # Full enumerable set (deterministic order) and its token form.
-    all_keys = bulk_prematerialization_keys()
+    # Full enumerable set (deterministic order) and its token form. The source is
+    # the bulk sweep (68 keys) by default, or the section-lane source (34 keys);
+    # total_enumerated is this lane's own coverage denominator.
+    all_keys = key_source()
     total_enumerated = len(all_keys)
     all_tokens = [_encode_key_token(gid, et) for gid, et in all_keys]
 
@@ -399,9 +431,9 @@ async def _prematerialize_bulk_set_async(
         """Checkpoint the pending tail and self-invoke the continuation (ADR-3).
 
         Shared by the timeout-exit branch AND the key-budget-exit branch so both
-        paths use identical checkpoint+continuation semantics. The bulk flag
-        routes the next invocation back into this branch and the shared
-        checkpoint restores the pending key tokens.
+        paths use identical checkpoint+continuation semantics. The lane flag
+        routes the next invocation back into the correct branch (bulk or section)
+        and the shared checkpoint restores the pending key tokens.
         """
         pending = [t for t in all_tokens if t not in completed_tokens]
         await checkpoint_mgr.save_async(
@@ -415,7 +447,8 @@ async def _prematerialize_bulk_set_async(
             context,
             pending,
             invocation_id,
-            prematerialize_bulk_set=True,
+            prematerialize_bulk_set=not section_lane,
+            prematerialize_section_set=section_lane,
         )
         logger.warning(
             "prematerialize_self_continuing",
@@ -1102,6 +1135,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             - prematerialize_bulk_set (bool): TD-005. If True, run the
                 body-parameterized bulk pre-materialization (project/section x all
                 registered GIDs) instead of the offer-domain warm. Default False.
+            - prematerialize_section_set (bool): ADR §B section lane. If True,
+                run the section-arm-only warm lane (34 section keys, ≤10-min
+                cadence, disjoint checkpoint prefix). Same machinery as the bulk
+                path; differs only in the key source and checkpoint namespace.
+                Takes precedence over prematerialize_bulk_set if both are set.
+                Default False.
         context: Lambda context with get_remaining_time_in_millis() and aws_request_id.
 
     Returns:
@@ -1164,10 +1203,29 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # x all registered GIDs). Default off so the scheduled offer-domain warm path
     # is untouched; the bulk pre-warm runs on its own EventBridge schedule.
     prematerialize_bulk_set = event.get("prematerialize_bulk_set", False)
+    # ADR §B section lane: opt-in section-arm-only warm lane over all 34 GIDs
+    # at ≤10-min cadence, decoupled from the 30-min bulk sweep. Same coroutine +
+    # machinery as the bulk path; differs only in the key source (34-key section
+    # subset) and a disjoint checkpoint prefix (set in TF). Runs on its own
+    # EventBridge schedule. Takes precedence over prematerialize_bulk_set.
+    prematerialize_section_set = event.get("prematerialize_section_set", False)
 
     # Run async warming with context for timeout detection
     try:
-        if prematerialize_bulk_set:
+        if prematerialize_section_set:
+            from autom8_asana.core.project_registry import (
+                section_only_prematerialization_keys,
+            )
+
+            response = asyncio.run(
+                _prematerialize_bulk_set_async(
+                    resume_from_checkpoint=resume_from_checkpoint,
+                    context=context,
+                    key_source=section_only_prematerialization_keys,
+                    section_lane=True,
+                )
+            )
+        elif prematerialize_bulk_set:
             response = asyncio.run(
                 _prematerialize_bulk_set_async(
                     resume_from_checkpoint=resume_from_checkpoint,
@@ -1250,8 +1308,20 @@ async def handler_async(
     strict = event.get("strict", True)
     resume_from_checkpoint = event.get("resume_from_checkpoint", True)
     prematerialize_bulk_set = event.get("prematerialize_bulk_set", False)
+    prematerialize_section_set = event.get("prematerialize_section_set", False)
 
-    if prematerialize_bulk_set:
+    if prematerialize_section_set:
+        from autom8_asana.core.project_registry import (
+            section_only_prematerialization_keys,
+        )
+
+        response = await _prematerialize_bulk_set_async(
+            resume_from_checkpoint=resume_from_checkpoint,
+            context=context,
+            key_source=section_only_prematerialization_keys,
+            section_lane=True,
+        )
+    elif prematerialize_bulk_set:
         response = await _prematerialize_bulk_set_async(
             resume_from_checkpoint=resume_from_checkpoint,
             context=context,
