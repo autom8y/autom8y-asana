@@ -23,6 +23,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import polars as pl
 import pytest
 
+from autom8_asana.metrics.resolve import SectionIndex
 from autom8_asana.services.resolver import EntityProjectRegistry
 
 # Synthetic GIDs for project and section (S-06 shortcut).
@@ -30,6 +31,16 @@ _PROJECT_GID = "9990000000000001"
 _SECTION_GID = "9990000000000002"
 
 JWT_TOKEN = "header.payload.signature"
+
+# Section name supplied in test requests.  Must match the "section" column
+# values in _make_section_dataframe() ("ACTIVE") so that the PQ-5 guard and
+# the engine's _resolve_section step both succeed without hitting real storage.
+_SECTION_NAME = "ACTIVE"
+
+
+def _make_section_index() -> SectionIndex:
+    """Return a SectionIndex that resolves _SECTION_NAME (case-insensitive)."""
+    return SectionIndex(_name_to_gid={_SECTION_NAME.lower(): "fake-section-gid"})
 
 
 def _mock_jwt_validation(service_name: str = "autom8_data") -> AsyncMock:
@@ -458,83 +469,11 @@ class TestSectionRowsSmoke:
     """AC-2: POST /v1/query/section/rows → 200 + non-empty rows."""
 
     def test_ac2_section_rows_200_non_empty(self, client) -> None:
-        """AC-2: section/rows returns 200 with at least one row."""
-        mock_df = _make_section_dataframe()
+        """AC-2: section/rows returns 200 with at least one row.
 
-        with (
-            patch(
-                "autom8_asana.api.routes.internal.validate_service_token",
-                _mock_jwt_validation(),
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch("autom8_asana.client.AsanaClient") as mock_client_class,
-            patch(
-                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy._get_dataframe",
-                new_callable=AsyncMock,
-                return_value=mock_df,
-            ),
-        ):
-            mock_asana = MagicMock()
-            mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
-            mock_asana.__aexit__ = AsyncMock(return_value=None)
-            mock_client_class.return_value = mock_asana
-
-            response = client.post(
-                "/v1/query/section/rows",
-                headers={"Authorization": f"Bearer {JWT_TOKEN}"},
-                json={},
-            )
-
-        assert response.status_code == 200, (
-            f"Expected 200, got {response.status_code}: {response.text}"
-        )
-        body = response.json()["data"]
-        assert len(body["data"]) > 0, "Expected non-empty rows for section/rows"
-
-    def test_ac2_section_rows_meta_shape(self, client) -> None:
-        """AC-2 (meta): section/rows meta includes total_count and entity_type."""
-        mock_df = _make_section_dataframe()
-
-        with (
-            patch(
-                "autom8_asana.api.routes.internal.validate_service_token",
-                _mock_jwt_validation(),
-            ),
-            patch(
-                "autom8_asana.auth.bot_pat.get_bot_pat",
-                return_value="test_bot_pat",
-            ),
-            patch("autom8_asana.client.AsanaClient") as mock_client_class,
-            patch(
-                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy._get_dataframe",
-                new_callable=AsyncMock,
-                return_value=mock_df,
-            ),
-        ):
-            mock_asana = MagicMock()
-            mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
-            mock_asana.__aexit__ = AsyncMock(return_value=None)
-            mock_client_class.return_value = mock_asana
-
-            response = client.post(
-                "/v1/query/section/rows",
-                headers={"Authorization": f"Bearer {JWT_TOKEN}"},
-                json={},
-            )
-
-        assert response.status_code == 200
-        meta = response.json()["data"]["meta"]
-        assert meta["entity_type"] == "section"
-        assert meta["total_count"] == 2
-        assert meta["project_gid"] == _SECTION_GID
-
-    def test_ac3_section_rows_honest_contract_complete_present(self, client) -> None:
-        """AC-3: honest_contract_complete present in section/rows meta.
-
-        Same derivation path as project — False with no manifest (safe default).
+        PQ-5 guard requires `section` in the request body for section-entity
+        queries. Supply _SECTION_NAME and mock resolve_section_index so the
+        test does not hit real S3 storage.
         """
         mock_df = _make_section_dataframe()
 
@@ -553,6 +492,11 @@ class TestSectionRowsSmoke:
                 new_callable=AsyncMock,
                 return_value=mock_df,
             ),
+            patch(
+                "autom8_asana.api.routes.query.resolve_section_index",
+                new_callable=AsyncMock,
+                return_value=_make_section_index(),
+            ),
         ):
             mock_asana = MagicMock()
             mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
@@ -562,18 +506,20 @@ class TestSectionRowsSmoke:
             response = client.post(
                 "/v1/query/section/rows",
                 headers={"Authorization": f"Bearer {JWT_TOKEN}"},
-                json={},
+                json={"section": _SECTION_NAME},
             )
 
-        assert response.status_code == 200
-        meta = response.json()["data"]["meta"]
-        assert "honest_contract_complete" in meta, (
-            "meta missing honest_contract_complete for section/rows"
+        assert response.status_code == 200, (
+            f"Expected 200, got {response.status_code}: {response.text}"
         )
-        assert isinstance(meta["honest_contract_complete"], bool)
+        body = response.json()["data"]
+        assert len(body["data"]) > 0, "Expected non-empty rows for section/rows"
 
-    def test_ac2_section_rows_gid_always_in_records(self, client) -> None:
-        """AC-2 (content): Every row in section/rows response includes gid field."""
+    def test_ac2_section_rows_meta_shape(self, client) -> None:
+        """AC-2 (meta): section/rows meta includes total_count and entity_type.
+
+        PQ-5 guard requires `section` in the request body.
+        """
         mock_df = _make_section_dataframe()
 
         with (
@@ -591,6 +537,11 @@ class TestSectionRowsSmoke:
                 new_callable=AsyncMock,
                 return_value=mock_df,
             ),
+            patch(
+                "autom8_asana.api.routes.query.resolve_section_index",
+                new_callable=AsyncMock,
+                return_value=_make_section_index(),
+            ),
         ):
             mock_asana = MagicMock()
             mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
@@ -600,7 +551,99 @@ class TestSectionRowsSmoke:
             response = client.post(
                 "/v1/query/section/rows",
                 headers={"Authorization": f"Bearer {JWT_TOKEN}"},
-                json={"select": ["name", "vertical"]},
+                json={"section": _SECTION_NAME},
+            )
+
+        assert response.status_code == 200
+        meta = response.json()["data"]["meta"]
+        assert meta["entity_type"] == "section"
+        assert meta["total_count"] == 2
+        assert meta["project_gid"] == _SECTION_GID
+
+    def test_ac3_section_rows_honest_contract_complete_present(self, client) -> None:
+        """AC-3: honest_contract_complete present in section/rows meta.
+
+        Same derivation path as project — False with no manifest (safe default).
+        PQ-5 guard requires `section` in the request body.
+        """
+        mock_df = _make_section_dataframe()
+
+        with (
+            patch(
+                "autom8_asana.api.routes.internal.validate_service_token",
+                _mock_jwt_validation(),
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
+            patch("autom8_asana.client.AsanaClient") as mock_client_class,
+            patch(
+                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy._get_dataframe",
+                new_callable=AsyncMock,
+                return_value=mock_df,
+            ),
+            patch(
+                "autom8_asana.api.routes.query.resolve_section_index",
+                new_callable=AsyncMock,
+                return_value=_make_section_index(),
+            ),
+        ):
+            mock_asana = MagicMock()
+            mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
+            mock_asana.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_asana
+
+            response = client.post(
+                "/v1/query/section/rows",
+                headers={"Authorization": f"Bearer {JWT_TOKEN}"},
+                json={"section": _SECTION_NAME},
+            )
+
+        assert response.status_code == 200
+        meta = response.json()["data"]["meta"]
+        assert "honest_contract_complete" in meta, (
+            "meta missing honest_contract_complete for section/rows"
+        )
+        assert isinstance(meta["honest_contract_complete"], bool)
+
+    def test_ac2_section_rows_gid_always_in_records(self, client) -> None:
+        """AC-2 (content): Every row in section/rows response includes gid field.
+
+        PQ-5 guard requires `section` in the request body.
+        """
+        mock_df = _make_section_dataframe()
+
+        with (
+            patch(
+                "autom8_asana.api.routes.internal.validate_service_token",
+                _mock_jwt_validation(),
+            ),
+            patch(
+                "autom8_asana.auth.bot_pat.get_bot_pat",
+                return_value="test_bot_pat",
+            ),
+            patch("autom8_asana.client.AsanaClient") as mock_client_class,
+            patch(
+                "autom8_asana.services.universal_strategy.UniversalResolutionStrategy._get_dataframe",
+                new_callable=AsyncMock,
+                return_value=mock_df,
+            ),
+            patch(
+                "autom8_asana.api.routes.query.resolve_section_index",
+                new_callable=AsyncMock,
+                return_value=_make_section_index(),
+            ),
+        ):
+            mock_asana = MagicMock()
+            mock_asana.__aenter__ = AsyncMock(return_value=mock_asana)
+            mock_asana.__aexit__ = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_asana
+
+            response = client.post(
+                "/v1/query/section/rows",
+                headers={"Authorization": f"Bearer {JWT_TOKEN}"},
+                json={"section": _SECTION_NAME, "select": ["name", "vertical"]},
             )
 
         assert response.status_code == 200
