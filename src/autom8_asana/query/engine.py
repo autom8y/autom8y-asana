@@ -496,14 +496,30 @@ class QueryEngine:
         return section
 
     def _get_freshness_meta(self) -> dict[str, object]:
-        """Read freshness info from the DataFrameProvider."""
+        """Read freshness info from the DataFrameProvider.
+
+        ADR-serve-stale-within-bound (2026-06-03): also derives ``stale_served``
+        — True iff this read was served from a cache entry past its TTL
+        (APPROACHING_STALE/SWR or STALE/LKG), i.e. NOT a fresh serve. Derived at
+        this single serve-path source from ``FreshnessInfo.freshness`` rather than
+        re-derived downstream from ``staleness_ratio`` (which would risk drift if
+        the state thresholds change). When no freshness side-channel exists the
+        returned dict is empty and ``stale_served`` defaults to False on the model.
+        """
         freshness_info = self.provider.last_freshness_info
         if freshness_info is None:
             return {}
+        # Fresh serves report freshness == FreshnessState.FRESH.value ("fresh", the
+        # literal the serve path writes at dataframe_cache.py); any other served
+        # state ("approaching_stale", "stale", offline LKG, …) is a
+        # stale-within-bound serve. Compared as a string to keep this hot read path
+        # decoupled from the cache enum, matching the field's opaque-string contract.
+        stale_served = freshness_info.freshness != "fresh"
         return {
             "freshness": freshness_info.freshness,
             "data_age_seconds": freshness_info.data_age_seconds,
             "staleness_ratio": freshness_info.staleness_ratio,
+            "stale_served": stale_served,
         }
 
     async def _derive_honest_contract_complete(self, project_gid: str) -> bool:

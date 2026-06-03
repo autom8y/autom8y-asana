@@ -69,8 +69,38 @@ from autom8_asana.settings import get_settings
 
 logger = get_logger(__name__)
 
-# Dead-man's-switch namespace for Grafana alerting (24h threshold)
-DMS_NAMESPACE = "Autom8y/AsanaCacheWarmer"
+# Dead-man's-switch (LastSuccessTimestamp) namespace for Grafana alerting.
+#
+# C2 fix: the warmer's IAM grant scopes cloudwatch:PutMetricData to the
+# env-driven namespace (StringEquals "cloudwatch:namespace" =
+# autom8y/cache-warmer-bulk for the bulk Lambda; autom8y/asana/main.tf:1096).
+# The previous literal "Autom8y/AsanaCacheWarmer" was OUTSIDE that grant, so the
+# LastSuccessTimestamp PutMetricData was silently denied/dropped while the alarm
+# (autom8y/asana/main.tf, cache_warmer_bulk_cadence_dms) watches the granted
+# namespace. WarmerCheckpointCleared already emits over the granted namespace
+# because emit_metric() defaults to settings.observability.cloudwatch_namespace
+# (the ASANA_CW_NAMESPACE env, cloudwatch.py:50). Resolve the DMS namespace the
+# same way so LastSuccessTimestamp lands in the GRANTED namespace too.
+#
+# The fallback literal is the granted bulk namespace (NOT the old denied one),
+# so an unset env in a non-Lambda context still targets an in-grant namespace.
+_DMS_NAMESPACE_FALLBACK = "autom8y/cache-warmer-bulk"
+
+
+def _dms_namespace() -> str:
+    """Return the granted CloudWatch namespace for the DMS timestamp.
+
+    Mirrors how ``emit_metric`` resolves ``WarmerCheckpointCleared`` so the
+    dead-man's-switch ``LastSuccessTimestamp`` is emitted into the IAM-granted
+    namespace (``ASANA_CW_NAMESPACE``), not a hardcoded literal the grant denies.
+    """
+    try:
+        return get_settings().observability.cloudwatch_namespace
+    except (
+        Exception  # noqa: BLE001
+    ):  # BROAD-CATCH: metrics -- namespace resolution must never fail the handler
+        return _DMS_NAMESPACE_FALLBACK
+
 
 # ADR-3 §3.2(b)/(c): per-link key-budget chunking. The bulk warm loop processes
 # at most this many keys per Lambda invocation, then proactively checkpoints the
@@ -1202,8 +1232,10 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     # Dead-man's-switch: record successful completion timestamp.
     # A Grafana alert fires when this metric is absent or stale >24h.
+    # C2: emit into the IAM-granted namespace (ASANA_CW_NAMESPACE) so the
+    # LastSuccessTimestamp PutMetricData is not silently denied/dropped.
     if response.success:
-        emit_success_timestamp(DMS_NAMESPACE)
+        emit_success_timestamp(_dms_namespace())
 
     # Return Lambda response format
     status_code = 200 if response.success else 500
