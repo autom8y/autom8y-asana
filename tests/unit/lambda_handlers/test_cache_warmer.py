@@ -890,9 +890,7 @@ class TestPrematerializeFastSet:
         # checkpoint_cleared True over the 4-key denominator (WarmerCheckpointCleared).
         assert response.checkpoint_cleared is True
 
-    async def test_timeout_self_invokes_with_fast_flag(
-        self, mock_cache: MagicMock
-    ) -> None:
+    async def test_timeout_self_invokes_with_fast_flag(self, mock_cache: MagicMock) -> None:
         """On timeout, the fast-lane continuation carries prematerialize_fast_set=True
         and NOT prematerialize_bulk_set -- it must re-enter the fast branch."""
         from autom8_asana.core.project_registry import (
@@ -984,10 +982,7 @@ class TestHandlerFastRouting:
         assert result["statusCode"] == 200
         mock_fast.assert_called_once()
         assert mock_fast.call_args.kwargs["fast_lane"] is True
-        assert (
-            mock_fast.call_args.kwargs["key_source"]
-            is fast_lane_prematerialization_keys
-        )
+        assert mock_fast.call_args.kwargs["key_source"] is fast_lane_prematerialization_keys
 
     def test_fast_flag_takes_precedence_over_bulk(self) -> None:
         """If both flags are set, fast wins (mutually-exclusive lanes; fast first)."""
