@@ -338,6 +338,65 @@ class TestCheckpointManager:
         )
         assert mgr._checkpoint_key() == "custom/path/latest.json"
 
+    def test_prefix_from_env(self) -> None:
+        """CACHE_WARMER_CHECKPOINT_PREFIX env overrides the default prefix.
+
+        This is the bulk-warmer isolation lever: a second warmer Lambda sets
+        this var so its checkpoint object is disjoint from the offer warmer's.
+        """
+        with patch.dict(
+            "os.environ",
+            {
+                "ASANA_CACHE_S3_BUCKET": "env-bucket",
+                "CACHE_WARMER_CHECKPOINT_PREFIX": "cache-warmer/checkpoints/bulk/",
+            },
+        ):
+            mgr = CheckpointManager()
+            assert mgr.prefix == "cache-warmer/checkpoints/bulk/"
+            assert mgr._checkpoint_key() == "cache-warmer/checkpoints/bulk/latest.json"
+
+    def test_prefix_from_env_normalizes_trailing_slash(self) -> None:
+        """A prefix env value without a trailing slash is normalized to have one."""
+        with patch.dict(
+            "os.environ",
+            {
+                "ASANA_CACHE_S3_BUCKET": "env-bucket",
+                "CACHE_WARMER_CHECKPOINT_PREFIX": "cache-warmer/checkpoints/bulk",
+            },
+        ):
+            mgr = CheckpointManager()
+            assert mgr.prefix == "cache-warmer/checkpoints/bulk/"
+
+    def test_blank_prefix_env_falls_back_to_default(self) -> None:
+        """A blank/whitespace prefix env cannot collapse the key to bucket root."""
+        with patch.dict(
+            "os.environ",
+            {
+                "ASANA_CACHE_S3_BUCKET": "env-bucket",
+                "CACHE_WARMER_CHECKPOINT_PREFIX": "   ",
+            },
+        ):
+            mgr = CheckpointManager()
+            assert mgr.prefix == DEFAULT_PREFIX
+
+    def test_offer_and_bulk_prefixes_are_disjoint(self) -> None:
+        """Offer (env unset) and bulk (env set) warmers resolve disjoint keys.
+
+        Regression guard: two independently scheduled warmer functions, each
+        reserved_concurrent_executions=1, must never contend on one latest.json.
+        """
+        with patch.dict("os.environ", {"ASANA_CACHE_S3_BUCKET": "env-bucket"}):
+            offer = CheckpointManager()
+        with patch.dict(
+            "os.environ",
+            {
+                "ASANA_CACHE_S3_BUCKET": "env-bucket",
+                "CACHE_WARMER_CHECKPOINT_PREFIX": "cache-warmer/checkpoints/bulk/",
+            },
+        ):
+            bulk = CheckpointManager()
+        assert offer._checkpoint_key() != bulk._checkpoint_key()
+
     async def test_save_and_load_roundtrip(
         self,
         manager: CheckpointManager,
