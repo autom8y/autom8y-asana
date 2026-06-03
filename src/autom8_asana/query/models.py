@@ -246,6 +246,20 @@ class AggregateMeta(BaseModel):
         default=None,
         description="Ratio of data age to configured TTL (1.0 = at TTL boundary).",
     )
+    # ADR-serve-stale-within-bound (2026-06-03): mirror of RowsMeta.stale_served.
+    # AggregateMeta is extra="forbid" and shares the engine._get_freshness_meta
+    # side-channel (spread at engine.py execute_aggregate), so it must carry the
+    # same additive field to accept the boolean.
+    stale_served: bool = Field(
+        default=False,
+        description=(
+            "True iff this read was served from a cache entry past its TTL "
+            "(APPROACHING_STALE+SWR or STALE+LKG), i.e. served stale-within-bound "
+            "rather than fresh. False for fresh serves or when no freshness "
+            "side-channel is available."
+        ),
+        examples=[False],
+    )
 
 
 class AggregateResponse(BaseModel):
@@ -391,6 +405,24 @@ class RowsMeta(BaseModel):
     staleness_ratio: float | None = Field(
         default=None,
         description="Ratio of data age to configured TTL (1.0 = at TTL boundary).",
+    )
+    # ADR-serve-stale-within-bound (2026-06-03): additive boolean attestation of
+    # whether THIS read was served past TTL (APPROACHING_STALE/SWR or STALE/LKG),
+    # i.e. NOT a fresh serve. Companion to the freshness/staleness_ratio fields:
+    # a single unambiguous "was this read served stale?" signal the consumer (and
+    # the S7 GetDfFallback-cause disaggregation) can read without re-parsing the
+    # `freshness` enum string. Derived at the serve-path source (engine
+    # _get_freshness_meta) from FreshnessInfo.freshness — never fabricated.
+    # Default False: a fresh serve, or no freshness side-channel, is NOT stale.
+    stale_served: bool = Field(
+        default=False,
+        description=(
+            "True iff this read was served from a cache entry past its TTL "
+            "(APPROACHING_STALE+SWR or STALE+LKG), i.e. served stale-within-bound "
+            "rather than fresh. False for fresh serves or when no freshness "
+            "side-channel is available."
+        ),
+        examples=[False],
     )
     # Sprint 1 — asana-clean-break-leaf T1.5 (PG-01 mandatory).
     # Option G binding: envelope-canonical receipt shape per PR #271 FW-AUTOM8Y_ENV-CANONICAL.

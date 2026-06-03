@@ -56,6 +56,8 @@ __all__ = [
     "DEFAULT_ENTITY_TTLS",
     "DEFAULT_TTL",
     "SWR_GRACE_MULTIPLIER",
+    "LKG_MAX_STALENESS_MULTIPLIER",
+    "FRESHNESS_CONTRACT_MAX_AGE_SECONDS",
     # Platform primitive configs (for new code)
     "PlatformRateLimiterConfig",
     "PlatformRetryConfig",
@@ -113,6 +115,23 @@ SWR_GRACE_MULTIPLIER: float = 3.0
 # key set before backpressure can fire (deploy-order is an ops-runbook concern,
 # cache-architecture.md §3.1; not a code gate here).
 LKG_MAX_STALENESS_MULTIPLIER: float = 10.0
+
+# ADR-serve-stale-within-bound (2026-06-03): per-entity ABSOLUTE max-age ceiling
+# (seconds) that OVERRIDES the multiplier-derived ceiling
+# (LKG_MAX_STALENESS_MULTIPLIER * entity_ttl) for entities that have a calibrated
+# freshness contract. Map key = entity_type (lowercased); value = max age in
+# seconds a STALE/LKG entry may be served before hard-reject -> 503+Retry-After.
+#
+# MECHANISM ONLY — ships INERT. The default is an EMPTY mapping = NO per-entity
+# override anywhere, so today's multiplier-derived ceiling applies unchanged for
+# every entity (zero behavior change at deploy). It is DELIBERATELY uncalibrated:
+# the real per-entity freshness tolerance is UNKNOWN and must be elicited as a
+# data contract from the consumer/monolith owners (OQ-2, handoff_back item E of
+# HANDOFF-autom8-to-asana-sre-cr3-producer-work-queue-ingest-2026-06-03). Do NOT
+# populate this with internal best-guess tiers (e.g. 4h/60m/15m/24h) — an
+# uncalibrated bound is an arbitrary internal default masquerading as a consumer
+# contract. Calibration + ADR ratification is a separate, OQ-2-gated change.
+FRESHNESS_CONTRACT_MAX_AGE_SECONDS: dict[str, float] = {}
 
 # FACADE: Delegates to EntityRegistry. Preserves existing import path.
 # See: src/autom8_asana/core/entity_registry.py for the single source of truth.
