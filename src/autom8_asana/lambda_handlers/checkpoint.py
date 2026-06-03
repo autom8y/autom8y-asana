@@ -15,6 +15,7 @@ Environment Variables:
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -30,12 +31,33 @@ logger = get_logger(__name__)
 DEFAULT_PREFIX = "cache-warmer/checkpoints/"
 DEFAULT_STALENESS_HOURS = 1.0
 
+# Env var that overrides the checkpoint S3 prefix. Lets independently-scheduled
+# warmer Lambda functions (e.g. the offer-domain warmer and the bulk pre-warmer)
+# own DISJOINT checkpoint objects so concurrent runs never read/write the same
+# latest.json. Single-writer safety per checkpoint object is enforced by each
+# function's reserved_concurrent_executions=1 ONLY when the prefix is distinct.
+CHECKPOINT_PREFIX_ENV = "CACHE_WARMER_CHECKPOINT_PREFIX"
+
 
 def _default_bucket() -> str:
     """Resolve S3 bucket from S3Settings (canonical per ADR-0002)."""
     from autom8_asana.settings import get_settings
 
     return get_settings().s3.bucket
+
+
+def _default_prefix() -> str:
+    """Resolve checkpoint prefix from env, falling back to the shared default.
+
+    A blank/whitespace-only env value falls back to ``DEFAULT_PREFIX`` so a
+    misconfigured empty var cannot collapse the key to the bucket root. A
+    non-empty value is normalized to a single trailing slash so callers may
+    pass either ``"a/b"`` or ``"a/b/"``.
+    """
+    raw = os.environ.get(CHECKPOINT_PREFIX_ENV, "").strip()
+    if not raw:
+        return DEFAULT_PREFIX
+    return raw if raw.endswith("/") else f"{raw}/"
 
 
 @dataclass
@@ -135,12 +157,19 @@ class CheckpointManager:
     Only one checkpoint exists at a time (latest state).
 
     Thread Safety:
-        Single writer is enforced by Lambda reserved_concurrent_executions=1.
-        No race conditions expected in normal operation.
+        Single writer per checkpoint object is enforced by each warmer
+        Lambda's reserved_concurrent_executions=1. When MULTIPLE independently
+        scheduled warmer functions exist (offer-domain + bulk pre-warm), each
+        MUST use a DISJOINT prefix (via CACHE_WARMER_CHECKPOINT_PREFIX) so they
+        never contend on the same latest.json. With distinct prefixes the
+        single-writer invariant holds per object; with a shared prefix two
+        functions could write concurrently and corrupt the checkpoint.
 
     Attributes:
         bucket: S3 bucket name for checkpoint storage.
-        prefix: S3 key prefix (default: "cache-warmer/checkpoints/").
+        prefix: S3 key prefix. Defaults to CACHE_WARMER_CHECKPOINT_PREFIX env
+            value if set (normalized to a trailing slash), else
+            "cache-warmer/checkpoints/".
         s3_client: Injected S3 client (for testing). Created lazily if None.
         staleness_hours: Hours after which checkpoint is considered stale.
 
@@ -158,7 +187,7 @@ class CheckpointManager:
     """
 
     bucket: str = field(default_factory=_default_bucket)
-    prefix: str = DEFAULT_PREFIX
+    prefix: str = field(default_factory=_default_prefix)
     s3_client: S3Client | None = None
     staleness_hours: float = DEFAULT_STALENESS_HOURS
 
