@@ -424,6 +424,50 @@ class TestResponseModelFreshness:
         )
         assert meta.honest_empty is False
 
+    def test_rows_meta_stale_served_defaults_false(self) -> None:
+        """ADR-serve-stale-within-bound: stale_served is additive and defaults False."""
+        meta = RowsMeta(
+            total_count=10,
+            returned_count=5,
+            limit=100,
+            offset=0,
+            entity_type="unit",
+            project_gid="proj-1",
+            query_ms=1.5,
+        )
+        assert meta.stale_served is False
+
+    def test_rows_meta_stale_served_round_trips(self) -> None:
+        """ADR-serve-stale-within-bound: stale_served=True survives serialization."""
+        meta = RowsMeta(
+            total_count=10,
+            returned_count=5,
+            limit=100,
+            offset=0,
+            entity_type="offer",
+            project_gid="proj-stale",
+            query_ms=1.5,
+            freshness="stale",
+            data_age_seconds=9000.0,
+            staleness_ratio=10.0,
+            stale_served=True,
+        )
+        restored = RowsMeta.model_validate(meta.model_dump())
+        assert restored.stale_served is True
+        assert restored.freshness == "stale"
+
+    def test_aggregate_meta_stale_served_defaults_false(self) -> None:
+        """ADR-serve-stale-within-bound: AggregateMeta mirrors the additive field."""
+        meta = AggregateMeta(
+            group_count=2,
+            aggregation_count=1,
+            group_by=["vertical"],
+            entity_type="offer",
+            project_gid="proj-1",
+            query_ms=1.5,
+        )
+        assert meta.stale_served is False
+
     def test_rows_meta_honest_empty_round_trips(self) -> None:
         """ADR-1: honest_empty=True survives a model serialization round-trip."""
         meta = RowsMeta(
