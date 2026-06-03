@@ -788,6 +788,220 @@ class TestHandlerBulkRouting:
         mock_bulk.assert_called_once()
 
 
+class TestPrematerializeFastSet:
+    """Tests for the SRE fast lane: _prematerialize_bulk_set_async over the 4-key
+    fast source. Mirrors TestPrematerializeBulkSet but with the heavy subset."""
+
+    @pytest.fixture
+    def mock_cache(self) -> MagicMock:
+        cache = MagicMock()
+        cache.put_async = AsyncMock()
+        return cache
+
+    def _patches(self, mock_cache: MagicMock) -> list:
+        """Common patch set: cache, bot PAT, workspace, AsanaClient."""
+        client_cm = MagicMock()
+        client_cm.__aenter__ = AsyncMock(return_value=MagicMock())
+        client_cm.__aexit__ = AsyncMock(return_value=False)
+        return [
+            patch(
+                "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch(
+                "autom8_asana.cache.dataframe.factory.initialize_dataframe_cache",
+                return_value=mock_cache,
+            ),
+            patch("autom8_asana.auth.bot_pat.get_bot_pat", return_value="pat"),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer.resolve_secret_from_env",
+                return_value="ws-123",
+            ),
+            patch(
+                "autom8_asana.AsanaClient",
+                return_value=client_cm,
+            ),
+        ]
+
+    async def test_full_coverage_warms_all_4_keys(
+        self, mock_cache: MagicMock, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A clean fast-lane run warms exactly the 4 heavy keys over its own
+        denominator -- WarmerCheckpointCleared/coverage are emitted as (4, 4)."""
+        from autom8_asana.core.project_registry import (
+            fast_lane_prematerialization_keys,
+        )
+        from autom8_asana.lambda_handlers.cache_warmer import (
+            _prematerialize_bulk_set_async,
+        )
+
+        monkeypatch.setenv("ASANA_WARMER_KEY_BUDGET", "0")
+
+        async def fake_warm_key(
+            self: object, project_gid: str, entity_type: str, client: object
+        ) -> object:
+            from autom8_asana.cache.dataframe.warmer import WarmResult, WarmStatus
+
+            return WarmStatus(
+                entity_type=entity_type,
+                result=WarmResult.SUCCESS,
+                project_gid=project_gid,
+                row_count=10,
+            )
+
+        checkpoint_mgr = MagicMock()
+        checkpoint_mgr.load_async = AsyncMock(return_value=None)
+        checkpoint_mgr.save_async = AsyncMock()
+        checkpoint_mgr.clear_async = AsyncMock(return_value=True)
+
+        with contextlib.ExitStack() as stack:
+            for p in self._patches(mock_cache):
+                stack.enter_context(p)
+            stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
+                    return_value=checkpoint_mgr,
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "autom8_asana.cache.dataframe.warmer.CacheWarmer.warm_key_async",
+                    new=fake_warm_key,
+                )
+            )
+            emit_cov = stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer.emit_warmer_coverage_rate",
+                    return_value=1.0,
+                )
+            )
+            response = await _prematerialize_bulk_set_async(
+                context=None,
+                key_source=fast_lane_prematerialization_keys,
+                fast_lane=True,
+            )
+
+        assert response.success is True
+        assert "warmer_coverage_rate=1.0000" in response.message
+        # The fast lane's denominator is 4, NOT the 68-key bulk sweep.
+        assert len(response.entity_results) == 4
+        emit_cov.assert_called_once_with(4, 4)
+        checkpoint_mgr.clear_async.assert_awaited_once()
+        # checkpoint_cleared True over the 4-key denominator (WarmerCheckpointCleared).
+        assert response.checkpoint_cleared is True
+
+    async def test_timeout_self_invokes_with_fast_flag(self, mock_cache: MagicMock) -> None:
+        """On timeout, the fast-lane continuation carries prematerialize_fast_set=True
+        and NOT prematerialize_bulk_set -- it must re-enter the fast branch."""
+        from autom8_asana.core.project_registry import (
+            fast_lane_prematerialization_keys,
+        )
+        from autom8_asana.lambda_handlers.cache_warmer import (
+            _prematerialize_bulk_set_async,
+        )
+
+        context = MockLambdaContext(remaining_time_ms=0)
+
+        checkpoint_mgr = MagicMock()
+        checkpoint_mgr.load_async = AsyncMock(return_value=None)
+        checkpoint_mgr.save_async = AsyncMock()
+        checkpoint_mgr.clear_async = AsyncMock(return_value=True)
+
+        with contextlib.ExitStack() as stack:
+            for p in self._patches(mock_cache):
+                stack.enter_context(p)
+            stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.checkpoint.CheckpointManager",
+                    return_value=checkpoint_mgr,
+                )
+            )
+            self_invoke = stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer._self_invoke_continuation",
+                )
+            )
+            stack.enter_context(
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer.emit_warmer_coverage_rate",
+                    return_value=0.0,
+                )
+            )
+            response = await _prematerialize_bulk_set_async(
+                context=context,
+                key_source=fast_lane_prematerialization_keys,
+                fast_lane=True,
+            )
+
+        assert response.success is False
+        assert "self-continuing" in response.message
+        self_invoke.assert_called_once()
+        # Lane isolation: fast continuation routes to the fast branch, never bulk.
+        assert self_invoke.call_args.kwargs["prematerialize_fast_set"] is True
+        assert self_invoke.call_args.kwargs["prematerialize_bulk_set"] is False
+        checkpoint_mgr.save_async.assert_awaited()
+
+
+class TestHandlerFastRouting:
+    """The prematerialize_fast_set flag routes to the fast lane with the 4-key source."""
+
+    async def test_handler_async_routes_to_fast(self) -> None:
+        from autom8_asana.core.project_registry import (
+            fast_lane_prematerialization_keys,
+        )
+
+        mock_response = WarmResponse(success=True, message="ok")
+        with patch(
+            "autom8_asana.lambda_handlers.cache_warmer._prematerialize_bulk_set_async",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_fast:
+            result = await handler_async({"prematerialize_fast_set": True})
+
+        assert result["statusCode"] == 200
+        mock_fast.assert_called_once_with(
+            resume_from_checkpoint=True,
+            context=None,
+            key_source=fast_lane_prematerialization_keys,
+            fast_lane=True,
+        )
+
+    def test_handler_routes_to_fast(self) -> None:
+        from autom8_asana.core.project_registry import (
+            fast_lane_prematerialization_keys,
+        )
+
+        mock_response = WarmResponse(success=True, message="ok")
+        with patch(
+            "autom8_asana.lambda_handlers.cache_warmer._prematerialize_bulk_set_async",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_fast:
+            result = handler({"prematerialize_fast_set": True}, None)
+
+        assert result["statusCode"] == 200
+        mock_fast.assert_called_once()
+        assert mock_fast.call_args.kwargs["fast_lane"] is True
+        assert mock_fast.call_args.kwargs["key_source"] is fast_lane_prematerialization_keys
+
+    def test_fast_flag_takes_precedence_over_bulk(self) -> None:
+        """If both flags are set, fast wins (mutually-exclusive lanes; fast first)."""
+        mock_response = WarmResponse(success=True, message="ok")
+        with patch(
+            "autom8_asana.lambda_handlers.cache_warmer._prematerialize_bulk_set_async",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ) as mock_pre:
+            result = handler(
+                {"prematerialize_fast_set": True, "prematerialize_bulk_set": True},
+                None,
+            )
+
+        assert result["statusCode"] == 200
+        # Fast branch is evaluated first; it injects the fast source.
+        assert mock_pre.call_args.kwargs.get("fast_lane") is True
+
+
 # ============================================================================
 # Tests for Timeout Detection (per TDD-lambda-cache-warmer Section 3.2)
 # ============================================================================
