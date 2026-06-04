@@ -41,15 +41,20 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    # Pinned to SHA cbc3c58e (autom8y-workflows PR #18: pin spectral-rulesets 1.22.2 — 1.22.3 crashed Spectral fleet-wide; includes PR #17 test_maxprocesses). Update when autom8y-workflows changes.
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@646b8f83312f4c85b6e547ead3dba883d1b16ef1
+    # Pinned to SHA ee5b0d13 (autom8y-workflows PR #22: aggregate-coverage gate
+    # for sharded callers [CHANGE-005a]; opts in via coverage_threshold_aggregate
+    # below to enforce real 80% threshold on the combined shard data).
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@ee5b0d1322e0b445ea51b371ef3018690a150843
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
       # coverage_threshold disabled: per-shard coverage is meaningless with
       # test_splits > 1 (each shard only covers ~25% of the package).
-      # Aggregate coverage should be validated in a separate post-merge job.
+      # Aggregate enforcement via coverage_threshold_aggregate below.
       coverage_threshold: 0
+      # Aggregate coverage gate: combines all shard .coverage files and enforces
+      # --fail-under=80 on the merged number (the real pyproject fail_under target).
+      coverage_threshold_aggregate: 80
       test_timeout: 40
       test_parallel: true
       # Cap xdist workers: -n auto (4 on the runner) under push-mode coverage
@@ -76,7 +81,7 @@ jobs:
       candidate_sdk_version: ${{ inputs.candidate_sdk_version }}
       candidate_wheel_run_id: ${{ inputs.candidate_wheel_run_id }}
       dispatch_correlation_id: ${{ inputs.dispatch_correlation_id }}
-      autom8y_workflows_sha: 646b8f83312f4c85b6e547ead3dba883d1b16ef1
+      autom8y_workflows_sha: ee5b0d1322e0b445ea51b371ef3018690a150843
     secrets: inherit
 
   fuzz:
