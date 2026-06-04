@@ -45,6 +45,7 @@ from autom8y_api_middleware import (
 )
 from autom8y_auth import DEFAULT_EXCLUDE_PATHS
 from autom8y_log import get_logger
+from autom8y_telemetry import InstrumentationConfig, instrument_app
 from fastapi import FastAPI
 from starlette.middleware import Middleware
 
@@ -848,6 +849,21 @@ def create_app() -> FastAPI:
         return spec
 
     app.openapi = custom_openapi  # type: ignore[method-assign]
+
+    # --- OTel instrumentation (Sprint-A0 hop-1) ---
+    # instrument_app adds MetricsMiddleware (outermost of all layers, since the
+    # last add_middleware call is the outermost runtime wrapper) and mounts the
+    # /metrics endpoint. Placed after SecurityHeadersMiddleware (line 526, the
+    # final app.add_middleware call) so MetricsMiddleware wraps every request,
+    # including those rejected by inner middleware.
+    #
+    # The EXPLICIT service_name="asana" is load-bearing: without it the
+    # autom8y_http_request_duration_seconds metric labels default to the
+    # implicit 'autom8y-service', which makes the per-service SLI unselectable.
+    # Mirrors the api-gateway precedent (gateway/app.py:307). The route_class
+    # label (autom8y-telemetry>=0.8.0) lets denominator-scoped SLIs separate
+    # business traffic from probes.
+    instrument_app(app, InstrumentationConfig(service_name="asana"))
 
     return app
 
