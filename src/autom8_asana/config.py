@@ -131,12 +131,67 @@ LKG_MAX_STALENESS_MULTIPLIER: float = 10.0
 # carries a consumer-source receipt:
 #
 #   "project" = 86400  (24h)  <- PROJECT_DF_REFRESH_HOURS=24    caching.py:33
-#   "section" =   576  (0.16h) <- SECTION_DF_REFRESH_HOURS=0.16 caching.py:39
+#   "section" =  3000  (50min) <- RECALIBRATED 2026-06-04 (see SECTION RECALIBRATION)
 #
-# NOTE on the section value: caching.py:39 source is 0.16h = 576s exactly; the
-# inline comment there glosses it as "~10 minutes". We transcribe the SOURCE
-# value (576s), not the gloss (600s). If the consumer intends a round 600s, that
-# is a contract-amendment for them to make at caching.py — we do not round here.
+# NOTE on the project value: caching.py:33 source is PROJECT_DF_REFRESH_HOURS=24
+# = 86400s. Unchanged by this recalibration.
+#
+# SECTION RECALIBRATION (2026-06-04, T1 knob re-think — GATED on CQ-RETURN-3):
+# The section value was 576s (SECTION_DF_REFRESH_HOURS=0.16 -> caching.py:39), the
+# transcribed OQ-2 contract. That value was correct ONLY while it was PAIRED with
+# the §B ≤10-min SECTION warm lane that kept steady-state section reads younger
+# than 576s so they never reached the build path (ADR-section-10min-x-502-headroom
+# §B goal). That lane has been DEPLOYED, EXECUTED, found INFEASIBLE, and PAUSED:
+# the §B lane hit ~896 Asana rate_limit_429 on the resolver token and reached only
+# 5 of 34 GIDs in ~12 min (full-coverage projection ~80 min ≈ 8× over the 576s
+# contract). Root cause = the upstream Asana API rate limit, NOT receiver compute;
+# raising the lane's reserved_concurrency WORSENS it (more parallel links -> more
+# concurrent 429s on the same token bucket). The lane is PAUSED
+# (reserved_concurrency=0 + EventBridge rule autom8-asana-cache-warmer-section-
+# schedule DISABLED) and stays paused. See
+# HANDOFF-asana-sre-to-autom8-cr3-return-3-2026-06-04.md §2.
+#
+# CONSEQUENCE of the old 576s with the lane paused: section=576 is a max_age
+# CEILING that is TIGHTER (5.2×) than the multiplier-derived ceiling
+# (LKG_MAX_STALENESS_MULTIPLIER(10.0) × DEFAULT_TTL(300) = 3000s = 50min — both
+# section and project carry default_ttl_seconds=300 at entity_registry.py:897/:935,
+# so neither appears in DEFAULT_ENTITY_TTLS' !=300 filter and both fall back to
+# DEFAULT_TTL in the STALE branch at dataframe_cache.py:529). So with the lane
+# paused, every section read older than 576s HARD-REJECTS -> cache-miss -> build
+# -> 502/503 path (gate: dataframe_cache.py:550-564). The §D re-scope (V6 serve-
+# stale-section) puts SECTION on the SAME serve-stale/LKG relief path as PROJECT,
+# absorbing builds in the 2048/8192 headroom — which requires LOOSENING the bound.
+#
+# BOUND OPTIONS considered (each is a freshness-vs-build-pressure trade-off):
+#   (i)  3000  (50min)  — align to the LKG multiplier ceiling exactly; section
+#                          rides LKG like the multiplier intends -> MAX relief,
+#                          section joins project on serve-stale. RECOMMENDED.
+#   (ii) 2760  (~46min) — the bulk warmer's empirically-achievable heaviest-GID
+#                          inter-warm cadence (ADR-section-10min-x-502-headroom
+#                          §B.1: ~46-min inter-warm for the heaviest GID on the
+#                          30-min bulk tick). Ties the contract to the demonstrated
+#                          warm cadence rather than the internal ceiling.
+#   (iii) drop the key   — section falls back to the multiplier ceiling (3000s) by
+#                          the .get() default, identical RUNTIME effect to (i) but
+#                          STOPS declaring a section freshness "contract" (honest:
+#                          there is no consumer-ratified section contract once 576
+#                          is abandoned). Cleanest if section has no real contract.
+#
+# RECOMMENDED DEFAULT = (i) 3000.0. Rationale: it is the cleanest "section joins
+# project on LKG-serve", it is exactly the multiplier ceiling (so the override is
+# a no-op relative to the multiplier — maximal relief with zero surprise), and it
+# is a concrete declared value (vs (iii) which silently relies on the .get()
+# default). (iii) is the honest runner-up if the consumer says 576s was never
+# load-bearing. (ii) is the choice if the consumer wants the contract pinned to
+# the achievable warm cadence rather than the internal ceiling.
+#
+# GATE: this VALUE is GATED on the consumer's answer to CQ-RETURN-3 ("is 576s
+# SECTION freshness load-bearing for offer-join correctness, or is serve-stale-
+# section at ~30–50min acceptable?"). PR is AUTHORED-NOT-MERGED; the section
+# value below is the RECOMMENDED DEFAULT pending (a) the CQ-RETURN-3 answer and
+# (b) a deliberate land gate. If the consumer chooses (b) WAIT-for-CDC, the
+# section arm stays HELD and this value is moot until the CDC R&D lands. DO NOT
+# merge/deploy this value without the consumer answer + an explicit land gate.
 #
 # DELIBERATELY keyed on ONLY the two entity_types this knob can actually affect.
 # The knob keys on entry.entity_type (dataframe_cache.py STALE branch); the only
@@ -151,17 +206,21 @@ LKG_MAX_STALENESS_MULTIPLIER: float = 10.0
 # are intentionally OMITTED, not forgotten.
 #
 # LOAD-BEARING TENSION (dual-edge ceiling — see ADR-serve-stale-within-bound
-# §Consequences): this knob is a max_age CEILING. The pre-calibration section
-# ceiling was LKG_MAX_STALENESS_MULTIPLIER(10.0) x ttl(300s) = 3000s = 50min.
-# Setting "section" = 576s TIGHTENS that 5.2x -> section frames hard-reject +
-# rebuild far sooner -> MORE build pressure on the POST /v1/query/section/rows
-# 502 hotspot. Conversely "project" = 86400s LOOSENS project from 50min -> 24h
-# -> project reads ride serve-stale/LKG and almost never rebuild -> project 502
-# pressure collapses. So THIS KNOB ALONE makes the section 502 WORSE unless
-# paired with a <=10-min section-tight warm lane (L4 design input).
+# §Consequences): this knob is a max_age CEILING. Each entry is a CEILING above
+# which a stale frame hard-rejects -> build path. A TIGHTER value = fresher data
+# but MORE build/502 pressure; a LOOSER value = more serve-stale relief but staler
+# data. "project" = 86400s (24h) LOOSENS project well past the 3000s multiplier
+# ceiling -> project reads ride serve-stale/LKG and almost never rebuild. With the
+# §B section warm lane PAUSED (see SECTION RECALIBRATION above), "section" is
+# loosened from 576s to the 3000s LKG ceiling so section reads ALSO ride serve-
+# stale/LKG (the §D V6 serve-stale-section paradigm) instead of hard-rejecting
+# onto the POST /v1/query/section/rows 502 hotspot. The prior 576s value only made
+# sense paired with the ≤10-min warm lane, which proved Asana-429-infeasible.
 FRESHNESS_CONTRACT_MAX_AGE_SECONDS: dict[str, float] = {
     "project": 86400.0,  # PROJECT_DF_REFRESH_HOURS=24  -> caching.py:33 (24h)
-    "section": 576.0,  # SECTION_DF_REFRESH_HOURS=0.16 -> caching.py:39 (0.16h=576s)
+    # section: RECALIBRATED 576 -> 3000 (50min LKG ceiling). GATED on CQ-RETURN-3
+    # + a deliberate land gate. See SECTION RECALIBRATION comment above.
+    "section": 3000.0,
 }
 
 # FACADE: Delegates to EntityRegistry. Preserves existing import path.
