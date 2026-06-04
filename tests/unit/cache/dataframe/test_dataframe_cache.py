@@ -970,12 +970,22 @@ class TestFreshnessContractOverride:
     intentionally omitted (dead-key avoidance).
     """
 
-    async def test_calibrated_knob_matches_oq2_contract(self) -> None:
-        """The ratified default is the OQ-2 contract: project=86400s, section=576s.
+    async def test_calibrated_knob_matches_recalibrated_contract(self) -> None:
+        """project=86400s (OQ-2); section=3000s (RECALIBRATED 2026-06-04).
 
-        Values transcribed at source from the consumer monolith
-        (autom8/config/thresholds/caching.py): PROJECT_DF_REFRESH_HOURS=24 (24h=86400s,
-        caching.py:33) and SECTION_DF_REFRESH_HOURS=0.16 (0.16h=576s, caching.py:39).
+        project is the OQ-2 contract transcribed at source from the consumer
+        monolith (autom8/config/thresholds/caching.py): PROJECT_DF_REFRESH_HOURS=24
+        (24h=86400s, caching.py:33). UNCHANGED.
+
+        section was RECALIBRATED from 576s -> 3000s (the 50-min LKG multiplier
+        ceiling: LKG_MAX_STALENESS_MULTIPLIER=10.0 × DEFAULT_TTL=300). The original
+        576s OQ-2 value (SECTION_DF_REFRESH_HOURS=0.16, caching.py:39) only held
+        while paired with the §B ≤10-min section warm lane, which proved
+        Asana-429-infeasible and is now PAUSED. With the lane paused, 576s forces
+        section reads onto the build/502 path; 3000s puts section on the §D V6
+        serve-stale/LKG relief path alongside project. RECOMMENDED-DEFAULT value;
+        GATED on CQ-RETURN-3 (see config.py SECTION RECALIBRATION comment).
+
         Only these two receiver entity_types are keyed; the other OQ-2 tiers
         (analytics/backfill/vertical-summary) have no receiver entity_type and are
         intentionally NOT present (keying them would be dead keys).
@@ -984,7 +994,7 @@ class TestFreshnessContractOverride:
 
         assert config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS == {
             "project": 86400.0,
-            "section": 576.0,
+            "section": 3000.0,
         }
 
     async def test_contract_override_rejects_below_multiplier_ceiling(self) -> None:
