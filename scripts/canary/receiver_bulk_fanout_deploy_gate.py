@@ -351,19 +351,29 @@ def _resolve_sa_credentials_from_aws() -> tuple[str, str] | None:
         )
         return None
 
+    # Accept BOTH the canonical bare-string secret (the reconciler-governed
+    # service-api-keys/{name} store — the convergence target, "α") AND the
+    # legacy JSON envelope {client_id, client_secret}. The bare form is the
+    # single secret the D5 reconciler converges (sa_reconciler.py): pointing
+    # the consumer at it means zero ungoverned copies. The envelope branch is
+    # retained for backward-compatibility during the transition.
+    raw_secret_string = sec_resp.get("SecretString", "")
     try:
-        envelope = json.loads(sec_resp.get("SecretString", ""))
-    except (ValueError, TypeError) as e:
-        print(f"[auth] Secrets Manager envelope is not valid JSON: {e}", file=sys.stderr)
-        return None
-
-    client_secret = envelope.get("client_secret")
+        parsed = json.loads(raw_secret_string)
+    except (ValueError, TypeError):
+        parsed = None
+    if isinstance(parsed, dict):
+        client_secret = parsed.get("client_secret")
+    else:
+        # Bare-string canonical secret: the whole SecretString IS the secret.
+        client_secret = raw_secret_string or None
     if not client_secret:
         # Same redaction discipline: log the pointer constant, not the resolved
         # SM name (CodeQL taint propagation from SSM-sourced values).
         print(
-            "[auth] Secrets Manager envelope (resolved via pointer SSM "
-            f"{SSM_OAUTH_CLIENT_SECRET_POINTER_PATH}) missing 'client_secret' key",
+            "[auth] Secrets Manager secret (resolved via pointer SSM "
+            f"{SSM_OAUTH_CLIENT_SECRET_POINTER_PATH}) yielded no client_secret "
+            "(neither a JSON envelope with 'client_secret' nor a non-empty bare string)",
             file=sys.stderr,
         )
         return None
