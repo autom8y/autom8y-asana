@@ -20,8 +20,12 @@ PROJECT_EXTRA_COLUMNS: list[ColumnDef] = [
         name="status",
         dtype="Utf8",
         nullable=True,
-        source=None,  # Derived from custom fields; S-07: minimal extraction
-        description="Project status label",
+        # FM-2 (ADR-SEAM1 Decision 5B): was source=None -> dispatched to a
+        # nonexistent ``_extract_status`` -> 100% null. Source from the existing
+        # "Status" Asana custom field via the working ``cf:`` path (no new
+        # extractor classes). See section.py for the full rationale.
+        source="cf:Status",
+        description="Project status label (Asana 'Status' custom field)",
     ),
     ColumnDef(
         name="office_phone",
@@ -46,5 +50,5 @@ PROJECT_SCHEMA = DataFrameSchema(
         *BASE_COLUMNS,
         *[c for c in PROJECT_EXTRA_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
-    version="1.0.0",
+    version="1.1.0",  # FM-2: status now sourced from cf:Status (was source=None -> 100% null)
 )

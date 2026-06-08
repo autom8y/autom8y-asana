@@ -360,25 +360,20 @@ class SectionPersistence:
         """
         return self._storage.is_available and self._polars_module is not None
 
-    def _make_manifest_key(self, project_gid: str) -> str:
-        """Generate S3 key for manifest."""
+    def _make_manifest_key(self, project_gid: str, entity_type: str | None = None) -> str:
+        """Generate S3 key for manifest.
+
+        SEAM-1 (ADR-SEAM1 Decision 3a): the manifest is the ONE key built in
+        SectionPersistence (df/section/watermark/index keys were duplicates of
+        the storage layer's builders and have been DELETED -- all that I/O now
+        routes through ``self._storage``, which owns the single key-identity
+        substrate). The manifest moves under the entity segment when entity_type
+        is supplied so two entity views of the same project no longer share a
+        manifest.
+        """
+        if entity_type:
+            return f"{self._prefix}{project_gid}/{entity_type}/manifest.json"
         return f"{self._prefix}{project_gid}/manifest.json"
-
-    def _make_section_key(self, project_gid: str, section_gid: str) -> str:
-        """Generate S3 key for section parquet."""
-        return f"{self._prefix}{project_gid}/sections/{section_gid}.parquet"
-
-    def _make_dataframe_key(self, project_gid: str) -> str:
-        """Generate S3 key for final merged DataFrame."""
-        return f"{self._prefix}{project_gid}/dataframe.parquet"
-
-    def _make_watermark_key(self, project_gid: str) -> str:
-        """Generate S3 key for watermark."""
-        return f"{self._prefix}{project_gid}/watermark.json"
-
-    def _make_index_key(self, project_gid: str) -> str:
-        """Generate S3 key for GID lookup index."""
-        return f"{self._prefix}{project_gid}/gid_lookup_index.json"
 
     # ========== Manifest Operations ==========
 
@@ -412,7 +407,7 @@ class SectionPersistence:
         )
 
         await self._save_manifest_async(manifest)
-        self._manifest_cache[project_gid] = manifest
+        self._manifest_cache[self._cache_key(project_gid, entity_type)] = manifest
 
         logger.info(
             "section_manifest_created",
@@ -425,38 +420,70 @@ class SectionPersistence:
 
         return manifest
 
-    async def get_manifest_async(self, project_gid: str) -> SectionManifest | None:
+    @staticmethod
+    def _cache_key(project_gid: str, entity_type: str | None) -> str:
+        """In-memory manifest-cache key.
+
+        SEAM-1: keyed on ``(entity_type, project_gid)`` so two entity views of
+        the same project do not collide in the process-local cache (the same
+        cross-entity collision the S3 key fix closes, but at the cache tier).
+        """
+        return f"{entity_type or ''}:{project_gid}"
+
+    async def get_manifest_async(
+        self, project_gid: str, entity_type: str | None = None
+    ) -> SectionManifest | None:
         """Get manifest for a project.
 
         Returns cached manifest if available, otherwise reads from S3
         and populates the cache.
 
+        SEAM-1 dual-read: when ``entity_type`` is supplied, read the v2
+        entity-keyed manifest first; on miss fall back to the legacy
+        entity-agnostic manifest key.
+
         Args:
             project_gid: Asana project GID.
+            entity_type: Optional entity type (SEAM-1 dual-read).
 
         Returns:
             SectionManifest if exists, None otherwise.
         """
-        if project_gid in self._manifest_cache:
-            return self._manifest_cache[project_gid]
+        cache_key = self._cache_key(project_gid, entity_type)
+        if cache_key in self._manifest_cache:
+            return self._manifest_cache[cache_key]
 
-        key = self._make_manifest_key(project_gid)
+        raw_bytes: bytes | None = None
+        if entity_type:
+            raw_bytes = await self._storage.load_json(
+                self._make_manifest_key(project_gid, entity_type)
+            )
+            if raw_bytes is None:
+                # Legacy fallback (Decision 2B).
+                raw_bytes = await self._storage.load_json(
+                    self._make_manifest_key(project_gid, None)
+                )
+        else:
+            raw_bytes = await self._storage.load_json(self._make_manifest_key(project_gid, None))
 
-        raw_bytes = await self._storage.load_json(key)
         if raw_bytes is None:
             return None
         try:
             data = json.loads(raw_bytes.decode("utf-8"))
             manifest = SectionManifest.model_validate(data)
-            self._manifest_cache[project_gid] = manifest
+            self._manifest_cache[cache_key] = manifest
             return manifest
         except Exception as e:  # BROAD-CATCH: vendor-polymorphic  # noqa: BLE001
             logger.error("manifest_parse_failed", project_gid=project_gid, error=str(e))
             return None
 
     async def _save_manifest_async(self, manifest: SectionManifest) -> bool:
-        """Save manifest to S3."""
-        key = self._make_manifest_key(manifest.project_gid)
+        """Save manifest to S3.
+
+        SEAM-1: WRITES go to the v2 entity-keyed manifest (the manifest carries
+        its own ``entity_type``, so the key is derivable from the object).
+        """
+        key = self._make_manifest_key(manifest.project_gid, manifest.entity_type)
         data = manifest.model_dump_json(indent=2).encode("utf-8")
 
         success = await self._storage.save_json(key, data)
@@ -478,6 +505,7 @@ class SectionPersistence:
         watermark: datetime | None = None,
         gid_hash: str | None = None,
         name: str | None = None,
+        entity_type: str | None = None,
     ) -> SectionManifest | None:
         """Update a section's status in the manifest.
 
@@ -501,7 +529,7 @@ class SectionPersistence:
         lock = self._get_manifest_lock(project_gid)
 
         async with lock:
-            manifest = await self.get_manifest_async(project_gid)
+            manifest = await self.get_manifest_async(project_gid, entity_type)
             if manifest is None:
                 logger.warning("manifest_not_found", project_gid=project_gid)
                 return None
@@ -517,7 +545,7 @@ class SectionPersistence:
             else:
                 manifest.sections[section_gid] = SectionInfo(status=status)
 
-            self._manifest_cache[project_gid] = manifest
+            self._manifest_cache[self._cache_key(project_gid, manifest.entity_type)] = manifest
             await self._save_manifest_async(manifest)
 
         logger.info(
@@ -533,16 +561,19 @@ class SectionPersistence:
 
         return manifest
 
-    async def get_incomplete_sections(self, project_gid: str) -> list[str]:
+    async def get_incomplete_sections(
+        self, project_gid: str, entity_type: str | None = None
+    ) -> list[str]:
         """Get list of incomplete section GIDs for resume capability.
 
         Args:
             project_gid: Asana project GID.
+            entity_type: Optional entity type (SEAM-1 manifest dual-read).
 
         Returns:
             List of section GIDs that need to be fetched.
         """
-        manifest = await self.get_manifest_async(project_gid)
+        manifest = await self.get_manifest_async(project_gid, entity_type)
         if manifest is None:
             return []
         return manifest.get_incomplete_section_gids()
@@ -558,6 +589,7 @@ class SectionPersistence:
         watermark: datetime | None = None,
         gid_hash: str | None = None,
         name: str | None = None,
+        entity_type: str | None = None,
     ) -> bool:
         """Write a section DataFrame to S3.
 
@@ -588,6 +620,7 @@ class SectionPersistence:
                 "section-gid": section_gid,
                 "row-count": str(len(df)),
             },
+            entity_type=entity_type,
         )
 
         if success:
@@ -607,6 +640,7 @@ class SectionPersistence:
                 watermark=watermark,
                 gid_hash=gid_hash,
                 name=name,
+                entity_type=entity_type,
             )
         else:
             logger.error(
@@ -621,6 +655,7 @@ class SectionPersistence:
                 section_gid,
                 SectionStatus.FAILED,
                 error="storage_write_failed",
+                entity_type=entity_type,
             )
         return success
 
@@ -628,12 +663,14 @@ class SectionPersistence:
         self,
         project_gid: str,
         section_gid: str,
+        entity_type: str | None = None,
     ) -> pl.DataFrame | None:
         """Read a section DataFrame from S3.
 
         Args:
             project_gid: Asana project GID.
             section_gid: Section GID.
+            entity_type: Optional entity type (SEAM-1 dual-read).
 
         Returns:
             Polars DataFrame if found, None otherwise.
@@ -642,11 +679,12 @@ class SectionPersistence:
             logger.warning("polars not available, cannot read section")
             return None
 
-        return await self._storage.load_section(project_gid, section_gid)
+        return await self._storage.load_section(project_gid, section_gid, entity_type)
 
     async def read_all_sections_async(
         self,
         project_gid: str,
+        entity_type: str | None = None,
     ) -> list[pl.DataFrame]:
         """Read all complete section DataFrames for a project in parallel.
 
@@ -661,9 +699,14 @@ class SectionPersistence:
         """
         from autom8_asana.core.concurrency import gather_with_semaphore
 
-        manifest = await self.get_manifest_async(project_gid)
+        manifest = await self.get_manifest_async(project_gid, entity_type)
         if manifest is None:
             return []
+
+        # Use the manifest's own entity_type for section reads so the section
+        # parquet keys match the manifest's layout (v2 vs legacy), even if the
+        # caller omitted entity_type and we resolved the manifest via fallback.
+        resolved_entity_type = manifest.entity_type or entity_type
 
         complete_sections = manifest.get_complete_section_gids()
         if not complete_sections:
@@ -671,7 +714,7 @@ class SectionPersistence:
 
         results = await gather_with_semaphore(
             (
-                self.read_section_async(project_gid, section_gid)
+                self.read_section_async(project_gid, section_gid, resolved_entity_type)
                 for section_gid in complete_sections
             ),
             concurrency=5,
@@ -709,6 +752,7 @@ class SectionPersistence:
     async def merge_sections_to_dataframe_async(
         self,
         project_gid: str,
+        entity_type: str | None = None,
     ) -> pl.DataFrame | None:
         """Merge all complete sections into a single DataFrame.
 
@@ -717,6 +761,8 @@ class SectionPersistence:
 
         Args:
             project_gid: Asana project GID.
+            entity_type: Optional entity type (SEAM-1: reads the v2 section
+                parquets that belong to this entity view of the project).
 
         Returns:
             Merged DataFrame, or None if no sections or error.
@@ -725,7 +771,7 @@ class SectionPersistence:
             logger.warning("polars not available, cannot merge sections")
             return None
 
-        section_dfs = await self.read_all_sections_async(project_gid)
+        section_dfs = await self.read_all_sections_async(project_gid, entity_type)
         if not section_dfs:
             logger.warning("no_sections_to_merge", project_gid=project_gid)
             return None
@@ -793,7 +839,9 @@ class SectionPersistence:
 
         idx_ok = True
         if index_data is not None:
-            idx_ok = await self._storage.save_index(project_gid, index_data)
+            idx_ok = await self._storage.save_index(
+                project_gid, index_data, entity_type=entity_type
+            )
 
         success = df_ok and idx_ok
         if success:
@@ -828,6 +876,7 @@ class SectionPersistence:
         *,
         pages_fetched: int,
         rows_fetched: int,
+        entity_type: str | None = None,
     ) -> bool:
         """Write a mid-fetch checkpoint parquet to S3 without marking complete.
 
@@ -860,11 +909,12 @@ class SectionPersistence:
                 "checkpoint": "true",
                 "pages-fetched": str(pages_fetched),
             },
+            entity_type=entity_type,
         )
 
         if success:
             await self.update_checkpoint_metadata_async(
-                project_gid, section_gid, pages_fetched, rows_fetched
+                project_gid, section_gid, pages_fetched, rows_fetched, entity_type=entity_type
             )
         else:
             logger.warning(
@@ -882,6 +932,7 @@ class SectionPersistence:
         section_gid: str,
         pages_fetched: int,
         rows_fetched: int,
+        entity_type: str | None = None,
     ) -> None:
         """Update manifest SectionInfo with checkpoint progress.
 
@@ -896,7 +947,7 @@ class SectionPersistence:
         """
         lock = self._get_manifest_lock(project_gid)
         async with lock:
-            manifest = await self.get_manifest_async(project_gid)
+            manifest = await self.get_manifest_async(project_gid, entity_type)
             if manifest is None:
                 return
 
@@ -908,12 +959,14 @@ class SectionPersistence:
             section_info.rows_fetched = rows_fetched
             section_info.chunks_checkpointed += 1
 
-            self._manifest_cache[project_gid] = manifest
+            self._manifest_cache[self._cache_key(project_gid, manifest.entity_type)] = manifest
             await self._save_manifest_async(manifest)
 
     # ========== Cleanup Operations ==========
 
-    async def delete_section_files_async(self, project_gid: str) -> bool:
+    async def delete_section_files_async(
+        self, project_gid: str, entity_type: str | None = None
+    ) -> bool:
         """Delete all section files for a project.
 
         Optionally called after final merge if section files are no longer needed.
@@ -921,17 +974,21 @@ class SectionPersistence:
 
         Args:
             project_gid: Asana project GID.
+            entity_type: Optional entity type (SEAM-1: deletes the v2 sections).
 
         Returns:
             True if all deletions succeeded or no sections to delete.
         """
-        manifest = await self.get_manifest_async(project_gid)
+        manifest = await self.get_manifest_async(project_gid, entity_type)
         if manifest is None:
             return True
 
+        resolved_entity_type = manifest.entity_type or entity_type
         success = True
         for section_gid in manifest.sections:
-            if not await self._storage.delete_section(project_gid, section_gid):
+            if not await self._storage.delete_section(
+                project_gid, section_gid, resolved_entity_type
+            ):
                 success = False
 
         logger.info(
@@ -945,17 +1002,18 @@ class SectionPersistence:
 
         return success
 
-    async def delete_manifest_async(self, project_gid: str) -> bool:
+    async def delete_manifest_async(self, project_gid: str, entity_type: str | None = None) -> bool:
         """Delete manifest for a project.
 
         Args:
             project_gid: Asana project GID.
+            entity_type: Optional entity type (SEAM-1: deletes the v2 manifest).
 
         Returns:
             True if deleted or didn't exist.
         """
-        self._manifest_cache.pop(project_gid, None)
-        key = self._make_manifest_key(project_gid)
+        self._manifest_cache.pop(self._cache_key(project_gid, entity_type), None)
+        key = self._make_manifest_key(project_gid, entity_type)
         return await self._storage.delete_object(key)
 
 

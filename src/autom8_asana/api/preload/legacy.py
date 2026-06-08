@@ -172,14 +172,16 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                 from autom8_asana.services.universal_strategy import DEFAULT_KEY_COLUMNS
 
                 key_cols = DEFAULT_KEY_COLUMNS.get(entity_type, ["gid"])
-                index_data = await persistence.load_index(project_gid)
+                # SEAM-1: thread entity_type (in scope as the loop variable) so
+                # preload reads the v2 entity-keyed artifacts (legacy fallback).
+                index_data = await persistence.load_index(project_gid, entity_type)
                 if index_data is None:
                     index: GidLookupIndex | None = None
                 elif isinstance(index_data, GidLookupIndex):
                     index = index_data
                 else:
                     index = GidLookupIndex.deserialize(index_data)
-                df, persisted_watermark = await persistence.load_dataframe(project_gid)
+                df, persisted_watermark = await persistence.load_dataframe(project_gid, entity_type)
                 watermark = watermark_repo.get_watermark(project_gid)
 
                 # Use persisted watermark if in-memory is missing
@@ -202,8 +204,8 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                     )
                     try:
                         index = GidLookupIndex.from_dataframe(df, key_columns=key_cols)
-                        # Persist the recovered index for next startup
-                        await persistence.save_index(project_gid, index.serialize())
+                        # Persist the recovered index for next startup (SEAM-1: v2 key)
+                        await persistence.save_index(project_gid, index.serialize(), entity_type)
                         logger.info(
                             "dataframe_preload_index_recovered",
                             extra={
@@ -280,8 +282,10 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                         # For full rebuild fallback (was_incremental=False),
                         # builder already persisted via _persist_dataframe_async.
                         if was_incremental:
-                            await persistence.save_dataframe(project_gid, updated_df, new_watermark)
-                        await persistence.save_index(project_gid, index.serialize())
+                            await persistence.save_dataframe(
+                                project_gid, updated_df, new_watermark, entity_type=entity_type
+                            )
+                        await persistence.save_index(project_gid, index.serialize(), entity_type)
                         watermark_repo.set_watermark(project_gid, new_watermark)
 
                     # Store in DataFrameCache singleton for @dataframe_cache decorator
@@ -333,8 +337,10 @@ async def _preload_dataframe_cache(app: FastAPI) -> None:
                         try:
                             new_index = GidLookupIndex.from_dataframe(new_df, key_columns=key_cols)
 
-                            # Persist new index (DataFrame saved by builder)
-                            await persistence.save_index(project_gid, new_index.serialize())
+                            # Persist new index (DataFrame saved by builder); SEAM-1: v2 key
+                            await persistence.save_index(
+                                project_gid, new_index.serialize(), entity_type
+                            )
                             watermark_repo.set_watermark(project_gid, new_watermark)
 
                             # Store in DataFrameCache singleton for @dataframe_cache decorator

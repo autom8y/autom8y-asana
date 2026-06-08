@@ -20,8 +20,15 @@ SECTION_EXTRA_COLUMNS: list[ColumnDef] = [
         name="status",
         dtype="Utf8",
         nullable=True,
-        source=None,  # Derived from custom fields; S-07: minimal extraction
-        description="Section status label",
+        # FM-2 (ADR-SEAM1 Decision 5B): was source=None, which dispatched to a
+        # nonexistent ``_extract_status`` on the generic SchemaExtractor and
+        # returned None (100% null). The status IS an Asana custom field
+        # ("Status" is used throughout the codebase -- see lifecycle creation +
+        # resolver tests). Sourcing it via the already-working ``cf:`` path
+        # (extractors/base.py cf: branch) populates it with ZERO new extractor
+        # classes, matching the cf:Cost / cf:Offer ID pattern in offer.py.
+        source="cf:Status",
+        description="Section status label (Asana 'Status' custom field)",
     ),
     ColumnDef(
         name="office_phone",
@@ -46,5 +53,5 @@ SECTION_SCHEMA = DataFrameSchema(
         *BASE_COLUMNS,
         *[c for c in SECTION_EXTRA_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
-    version="1.0.0",
+    version="1.1.0",  # FM-2: status now sourced from cf:Status (was source=None -> 100% null)
 )
