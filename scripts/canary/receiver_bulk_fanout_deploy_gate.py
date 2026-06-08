@@ -95,11 +95,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import json
 import os
 import sys
 import time
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -351,19 +353,29 @@ def _resolve_sa_credentials_from_aws() -> tuple[str, str] | None:
         )
         return None
 
+    # Accept BOTH the canonical bare-string secret (the reconciler-governed
+    # service-api-keys/{name} store — the convergence target, "α") AND the
+    # legacy JSON envelope {client_id, client_secret}. The bare form is the
+    # single secret the D5 reconciler converges (sa_reconciler.py): pointing
+    # the consumer at it means zero ungoverned copies. The envelope branch is
+    # retained for backward-compatibility during the transition.
+    raw_secret_string = sec_resp.get("SecretString", "")
     try:
-        envelope = json.loads(sec_resp.get("SecretString", ""))
-    except (ValueError, TypeError) as e:
-        print(f"[auth] Secrets Manager envelope is not valid JSON: {e}", file=sys.stderr)
-        return None
-
-    client_secret = envelope.get("client_secret")
+        parsed = json.loads(raw_secret_string)
+    except (ValueError, TypeError):
+        parsed = None
+    if isinstance(parsed, dict):
+        client_secret = parsed.get("client_secret")
+    else:
+        # Bare-string canonical secret: the whole SecretString IS the secret.
+        client_secret = raw_secret_string or None
     if not client_secret:
         # Same redaction discipline: log the pointer constant, not the resolved
         # SM name (CodeQL taint propagation from SSM-sourced values).
         print(
-            "[auth] Secrets Manager envelope (resolved via pointer SSM "
-            f"{SSM_OAUTH_CLIENT_SECRET_POINTER_PATH}) missing 'client_secret' key",
+            "[auth] Secrets Manager secret (resolved via pointer SSM "
+            f"{SSM_OAUTH_CLIENT_SECRET_POINTER_PATH}) yielded no client_secret "
+            "(neither a JSON envelope with 'client_secret' nor a non-empty bare string)",
             file=sys.stderr,
         )
         return None
@@ -379,11 +391,72 @@ def _resolve_sa_credentials_from_aws() -> tuple[str, str] | None:
     return (client_id, client_secret)
 
 
-def _acquire_token() -> str:
-    """Acquire a bearer token for the SA-canary identity.
+# A SA JWT's TTL is short relative to a full probe window (observed 2026-06-08:
+# ~4-5 min vs the 10-min default run). A once-minted token goes stale mid-run
+# and EVERY subsequent call 401s — a contaminated gate reading that the
+# 4xx-excluding success_rate silently masks. The provider below re-mints
+# proactively, _TOKEN_REFRESH_SKEW_S before the decoded JWT `exp`, so a window
+# of any length stays authenticated.
+_TOKEN_REFRESH_SKEW_S = 60
+_ASSUMED_TTL_S = 240  # fallback re-mint cadence when `exp` is unparseable
 
-    Resolution order:
-      1. RECEIVER_DEPLOY_GATE_TOKEN env var (operator override).
+
+def _jwt_exp(token: str) -> float | None:
+    """Return the JWT ``exp`` (epoch seconds) WITHOUT verifying the signature.
+
+    Used solely to schedule proactive re-minting; the token itself is never
+    logged. Returns None for an opaque/unparseable token (the caller then falls
+    back to _ASSUMED_TTL_S). This READS the claim, it does not TRUST it — no
+    signature check, no authorization decision is made here.
+    """
+    try:
+        parts = token.split(".")
+        if len(parts) < 2:
+            return None
+        payload_b64 = parts[1] + "=" * (-len(parts[1]) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64))
+        exp = payload.get("exp")
+        return float(exp) if exp is not None else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+class _TokenProvider:
+    """Supplies a currently-valid bearer token, re-minting before expiry.
+
+    ``get()`` is synchronous and contains no ``await``, so it is atomic across
+    the two concurrent arm coroutines (asyncio single-loop): the first arm to
+    cross the refresh threshold re-mints (a brief blocking call), and the other
+    observes the fresh token on its next ``get()``. A static provider
+    (operator-supplied env token) never re-mints — the operator owns its
+    lifetime.
+    """
+
+    def __init__(self, mint: Callable[[], str], *, static: bool = False) -> None:
+        self._mint = mint
+        self._static = static
+        self._token: str | None = None
+        self._exp_epoch: float = 0.0
+
+    def get(self) -> str:
+        if self._static:
+            if self._token is None:
+                self._token = self._mint()
+            return self._token
+        now = time.time()
+        if self._token is None or now >= self._exp_epoch - _TOKEN_REFRESH_SKEW_S:
+            self._token = self._mint()
+            exp = _jwt_exp(self._token)
+            self._exp_epoch = exp if exp is not None else now + _ASSUMED_TTL_S
+        return self._token
+
+
+def _make_token_provider() -> _TokenProvider:
+    """Build a self-refreshing bearer-token provider for the SA-canary identity.
+
+    Resolution order (unchanged):
+      1. RECEIVER_DEPLOY_GATE_TOKEN env var (operator override; STATIC — no
+         refresh, the operator owns its lifetime).
       2. autom8y_core.TokenManager from SERVICE_CLIENT_ID +
          SERVICE_CLIENT_SECRET env vars (standard SA convention; matches
          scripts/smoke_test_api.py:125-146).
@@ -391,12 +464,14 @@ def _acquire_token() -> str:
          (SSM + Secrets Manager, canonical provisioning path — mirrors the
          receiver runtime). See module-level constants for the exact paths.
 
-    Raises SystemExit(2) on pre-flight failure.
+    Paths (2)/(3) return a REFRESHING provider that re-mints via a fresh
+    TokenManager before the JWT expires. Raises SystemExit(2) on pre-flight
+    failure (surfaced immediately by minting once up front).
     """
     env_token = os.environ.get("RECEIVER_DEPLOY_GATE_TOKEN")
     if env_token:
-        print(f"[auth] Using RECEIVER_DEPLOY_GATE_TOKEN (len={len(env_token)})")
-        return env_token
+        print(f"[auth] Using RECEIVER_DEPLOY_GATE_TOKEN (len={len(env_token)}); static (no refresh)")
+        return _TokenProvider(lambda: env_token, static=True)
 
     try:
         from autom8y_core import Config, TokenManager  # type: ignore[import-not-found]
@@ -451,15 +526,29 @@ def _acquire_token() -> str:
             )
             sys.exit(2)
 
-    try:
-        manager = TokenManager(config)
-        token = manager.get_token()
-        manager.close()
-        print(f"[auth] JWT acquired via TokenManager (len={len(token)})")
-        return token
-    except Exception as e:  # noqa: BLE001
-        print(f"[auth] FATAL: JWT exchange failed: {e}", file=sys.stderr)
-        sys.exit(2)
+    def _mint() -> str:
+        # A fresh TokenManager per mint keeps this robust regardless of whether
+        # TokenManager.get_token() caches: at ~once-per-TTL cadence the cost is
+        # negligible, and the auth endpoint is never hammered per-call.
+        try:
+            manager = TokenManager(config)
+            token = manager.get_token()
+            manager.close()
+            return token
+        except Exception as e:  # noqa: BLE001
+            print(f"[auth] FATAL: JWT exchange failed: {e}", file=sys.stderr)
+            sys.exit(2)
+
+    provider = _TokenProvider(_mint)
+    # Mint once up front so a pre-flight auth failure exits(2) BEFORE load starts.
+    first = provider.get()
+    exp = _jwt_exp(first)
+    ttl_note = f"exp in ~{int(exp - time.time())}s" if exp is not None else f"assumed {_ASSUMED_TTL_S}s"
+    print(
+        f"[auth] JWT acquired via TokenManager (len={len(first)}); "
+        f"auto-refresh armed (skew={_TOKEN_REFRESH_SKEW_S}s, {ttl_note})"
+    )
+    return provider
 
 
 # ---------------------------------------------------------------------------
@@ -472,7 +561,7 @@ async def _one_call(
     base_url: str,
     arm: str,
     project_gid: str,
-    token: str,
+    token_provider: _TokenProvider,
     *,
     limit: int,
     parse_body: bool,
@@ -497,7 +586,7 @@ async def _one_call(
         "limit": limit,
     }
     headers = {
-        "Authorization": f"Bearer {token}",
+        "Authorization": f"Bearer {token_provider.get()}",
         "Content-Type": "application/json",
     }
     start = time.perf_counter()
@@ -529,7 +618,7 @@ async def _run_arm(
     base_url: str,
     arm: str,
     project_gid: str,
-    token: str,
+    token_provider: _TokenProvider,
     target_rpm: int,
     duration_seconds: int,
     *,
@@ -563,7 +652,7 @@ async def _run_arm(
             base_url,
             arm,
             project_gid,
-            token,
+            token_provider,
             limit=per_call_limit,
             parse_body=assert_column_contract,
         )
@@ -686,7 +775,7 @@ def _evaluate_gate(
 
 
 async def _main_async(args: argparse.Namespace) -> int:
-    token = _acquire_token()
+    token_provider = _make_token_provider()
     duration_seconds = int(args.duration_minutes * 60)
 
     print(
@@ -705,7 +794,7 @@ async def _main_async(args: argparse.Namespace) -> int:
                 args.base_url,
                 "project",
                 args.project_gid,
-                token,
+                token_provider,
                 args.target_rpm,
                 duration_seconds,
                 assert_column_contract=True,
@@ -718,7 +807,7 @@ async def _main_async(args: argparse.Namespace) -> int:
                 args.base_url,
                 "section",
                 args.project_gid,
-                token,
+                token_provider,
                 args.target_rpm,
                 duration_seconds,
                 assert_column_contract=False,

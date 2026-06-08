@@ -18,8 +18,11 @@ gate.
 
 from __future__ import annotations
 
+import base64
 import importlib.util
+import json
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -201,6 +204,75 @@ def test_gate_passes_with_attested_honest_empty_project_content():
     passed, failures = canary._evaluate_gate(project, section, 0.99)
     assert passed is True
     assert failures == []
+
+
+# --- Token provider: self-refresh defense (the 2026-06-08 stale-token fix) -----
+#
+# The probe runs longer than the SA JWT TTL (~4-5 min observed vs the 10-min
+# default window). The original code minted ONE token and reused it; past TTL
+# every call 401'd and the 4xx-excluding success_rate masked it as a green gate.
+# These tests pin the exp-aware refresh so that regression cannot return silently.
+
+
+def _fake_jwt(exp: float | None) -> str:
+    """A syntactically-valid JWT (header.payload.sig) carrying an optional exp.
+
+    Signature is a placeholder — _jwt_exp READS the claim, it does not verify.
+    """
+    header = base64.urlsafe_b64encode(json.dumps({"alg": "none"}).encode()).rstrip(b"=").decode()
+    payload_obj: dict[str, Any] = {} if exp is None else {"exp": exp}
+    payload = base64.urlsafe_b64encode(json.dumps(payload_obj).encode()).rstrip(b"=").decode()
+    return f"{header}.{payload}.sig"
+
+
+def test_jwt_exp_decodes_exp():
+    assert canary._jwt_exp(_fake_jwt(1_900_000_000)) == 1_900_000_000.0
+
+
+def test_jwt_exp_opaque_or_no_exp_returns_none():
+    assert canary._jwt_exp("not-a-jwt") is None
+    assert canary._jwt_exp(_fake_jwt(None)) is None
+
+
+def test_token_provider_static_never_remints():
+    calls = {"n": 0}
+
+    def mint() -> str:
+        calls["n"] += 1
+        return "operator-supplied-token"
+
+    p = canary._TokenProvider(mint, static=True)
+    assert p.get() == "operator-supplied-token"
+    assert p.get() == "operator-supplied-token"
+    assert calls["n"] == 1  # minted once; a static (env) token is never refreshed
+
+
+def test_token_provider_caches_until_near_expiry():
+    calls = {"n": 0}
+
+    def mint() -> str:
+        calls["n"] += 1
+        return _fake_jwt(time.time() + 3600)  # 1h out — far beyond the skew
+
+    p = canary._TokenProvider(mint)
+    p.get()
+    p.get()
+    p.get()
+    assert calls["n"] == 1  # valid token is reused, not re-minted every call
+
+
+def test_token_provider_refreshes_before_expiry():
+    calls = {"n": 0}
+
+    def mint() -> str:
+        calls["n"] += 1
+        # exp sits INSIDE the refresh-skew window, so every get() must re-mint.
+        return _fake_jwt(time.time() + canary._TOKEN_REFRESH_SKEW_S - 1)
+
+    p = canary._TokenProvider(mint)
+    p.get()
+    p.get()
+    assert calls["n"] == 2  # stale-token defense: re-minted before reuse
 
 
 def test_section_arm_has_no_content_criterion():
