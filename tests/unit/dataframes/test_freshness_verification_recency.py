@@ -305,7 +305,11 @@ class _FakePersistence:
         self.save_count = 0
         self.save_should_raise = False
 
-    async def get_manifest_async(self, project_gid: str) -> SectionManifest:
+    async def get_manifest_async(
+        self, project_gid: str, entity_type: str | None = None
+    ) -> SectionManifest:
+        # SEAM-1: the builder now threads entity_type; accept it (the fake
+        # ignores it -- it holds a single shared manifest reference).
         return self.manifest
 
     async def _save_manifest_async(self, manifest: SectionManifest) -> bool:
@@ -741,13 +745,19 @@ class TestReadManifestSyncLoopGuard:
         # the no-loop precondition under test.
         persistence = MagicMock()
         sentinel = object()
+        seen: dict[str, Any] = {}
 
-        async def _coro(project_gid: str) -> Any:
+        async def _coro(project_gid: str, entity_type: str | None = None) -> Any:
+            # SEAM-1 F-1d: read_manifest_sync now forwards entity_type; the stub
+            # must accept it and record it so the threading is asserted, not just
+            # tolerated.
+            seen["entity_type"] = entity_type
             return sentinel
 
         persistence.get_manifest_async = _coro
-        out = read_manifest_sync(persistence, "proj_1")
+        out = read_manifest_sync(persistence, "proj_1", entity_type="offer")
         assert out is sentinel
+        assert seen["entity_type"] == "offer"  # F-1d: entity_type threaded through
 
     def test_running_loop_raises_loudly(self) -> None:
         """The async-context path: ``RuntimeError`` raised explicitly

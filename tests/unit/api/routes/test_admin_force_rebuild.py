@@ -80,6 +80,21 @@ class TestForceRebuildDeletesS3Data:
         assert "proj-unit" in manifest_calls
         assert "proj-contact" in manifest_calls
 
+        # SEAM-1 (D-1a): entity_type MUST be threaded into BOTH deletes as the
+        # second positional arg, else the v2 entity-keyed frame is orphaned and
+        # the force-rebuild silently no-ops. (project_gid, entity_type) pairs:
+        manifest_pairs = {
+            (c.args[0], c.args[1]) for c in mock_persistence.delete_manifest_async.call_args_list
+        }
+        section_pairs = {
+            (c.args[0], c.args[1])
+            for c in mock_persistence.delete_section_files_async.call_args_list
+        }
+        assert ("proj-unit", "unit") in manifest_pairs
+        assert ("proj-contact", "contact") in manifest_pairs
+        assert ("proj-unit", "unit") in section_pairs
+        assert ("proj-contact", "contact") in section_pairs
+
     async def test_force_rebuild_invalidates_memory_cache(
         self, mock_registry, mock_persistence, mock_dataframe_cache
     ) -> None:
@@ -267,3 +282,12 @@ class TestForceRebuildDeletesMergedArtifacts:
         delete_calls = [c.args[0] for c in mock_persistence.storage.delete_dataframe.call_args_list]
         assert "proj-unit" in delete_calls
         assert "proj-contact" in delete_calls
+
+        # SEAM-1 (D-1a): entity_type MUST be threaded into delete_dataframe so
+        # the v2 merged artifact (dataframes/{gid}/{entity_type}/dataframe.parquet)
+        # is purged -- an entity-agnostic delete would orphan it.
+        delete_pairs = {
+            (c.args[0], c.args[1]) for c in mock_persistence.storage.delete_dataframe.call_args_list
+        }
+        assert ("proj-unit", "unit") in delete_pairs
+        assert ("proj-contact", "contact") in delete_pairs

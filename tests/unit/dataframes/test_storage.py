@@ -203,6 +203,9 @@ class TestDataFrameStorageProtocol:
             async def list_projects(self, *a: Any, **kw: Any) -> list[str]:
                 return []
 
+            async def purge_project_all_entities(self, *a: Any, **kw: Any) -> int:
+                return 0
+
         assert isinstance(FakeStorage(), DataFrameStorage)
 
 

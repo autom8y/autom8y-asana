@@ -162,7 +162,9 @@ class TestProgressiveTierGet:
         assert result.entity_type == "unit"
         assert result.row_count == 2
         assert result.schema_version == "1.0.0"
-        storage.load_dataframe_with_metadata.assert_called_once_with("proj-123")
+        # SEAM-1: entity_type parsed from the cache key ("unit:proj-123") is now
+        # threaded into the storage read (the historical discard point).
+        storage.load_dataframe_with_metadata.assert_called_once_with("proj-123", "unit")
         # load_json should NOT be called -- schema_version comes from metadata
         storage.load_json.assert_not_called()
 
@@ -297,7 +299,7 @@ class TestProgressiveTierGet:
         assert result is not None
         assert result.project_gid == "proj-123"
         assert result.schema_version == "2.0.0"
-        storage.load_dataframe.assert_called_once_with("proj-123")
+        storage.load_dataframe.assert_called_once_with("proj-123", "unit")
 
     async def test_get_async_invalid_key_returns_none(self) -> None:
         """Get returns None for invalid key format."""
@@ -432,7 +434,7 @@ class TestProgressiveTierDelete:
         result = await tier.delete_async("unit:proj-123")
 
         assert result is True
-        storage.delete_dataframe.assert_called_once_with("proj-123")
+        storage.delete_dataframe.assert_called_once_with("proj-123", "unit")
 
     async def test_delete_async_returns_false_on_failure(self) -> None:
         """Delete returns False if storage deletion fails."""
