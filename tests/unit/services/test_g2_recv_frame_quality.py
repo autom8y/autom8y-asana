@@ -198,8 +198,11 @@ def _make_mock_persistence_writing() -> MagicMock:
         error: str | None = None,
         watermark: datetime | None = None,
         gid_hash: str | None = None,
+        name: str | None = None,
+        entity_type: str | None = None,
     ) -> SectionManifest:
-        manifest = _ensure_manifest(project_gid, "project")
+        # SEAM-1: the builder now threads entity_type; accept it.
+        manifest = _ensure_manifest(project_gid, entity_type or "project")
         manifest.sections[section_gid] = SectionInfo(
             status=SectionStatus(status) if isinstance(status, str) else status,
             rows=rows,
@@ -220,14 +223,15 @@ def _make_mock_persistence_writing() -> MagicMock:
         watermark: datetime | None = None,
         gid_hash: str | None = None,
         name: str | None = None,
+        entity_type: str | None = None,
     ) -> bool:
         """Per ADR-006 §Decision-7 / TDD §2.2.1 edit 3, ``write_section_async``
         gained an optional ``name`` keyword to re-seed the manifest entry's
-        ``SectionInfo.name`` on completion. This mock accepts it to stay
-        signature-compatible; it does not need to record the name to
-        satisfy the test's COMPLETE/honest-complete assertions.
+        ``SectionInfo.name`` on completion. SEAM-1 (ADR-SEAM1) adds an
+        ``entity_type`` keyword threaded by the builder; this mock accepts both
+        to stay signature-compatible.
         """
-        manifest = _ensure_manifest(project_gid, "project")
+        manifest = _ensure_manifest(project_gid, entity_type or "project")
         manifest.sections[section_gid] = SectionInfo(
             status=SectionStatus.COMPLETE,
             rows=len(df),

@@ -959,6 +959,143 @@ class TestMaxStalenessEnforcement:
         assert swr_result is swr_entry
 
 
+class TestFreshnessContractOverride:
+    """ADR-serve-stale-within-bound: FRESHNESS_CONTRACT_MAX_AGE_SECONDS per-entity ceiling.
+
+    RATIFIED (OQ-2, 2026-06-03): the knob is now CALIBRATED to the consumer contract
+    transcribed from autom8/config/thresholds/caching.py. A calibrated per-entity value
+    OVERRIDES the multiplier ceiling for that entity (it expresses the consumer's real
+    freshness tolerance, OQ-2). Only entity_types that flow through the receiver
+    serve-stale path ("project", "section") are keyed; consumer-side-only tiers are
+    intentionally omitted (dead-key avoidance).
+    """
+
+    async def test_calibrated_knob_matches_recalibrated_contract(self) -> None:
+        """project=86400s (OQ-2); section=3000s (RECALIBRATED 2026-06-04).
+
+        project is the OQ-2 contract transcribed at source from the consumer
+        monolith (autom8/config/thresholds/caching.py): PROJECT_DF_REFRESH_HOURS=24
+        (24h=86400s, caching.py:33). UNCHANGED.
+
+        section was RECALIBRATED from 576s -> 3000s (the 50-min LKG multiplier
+        ceiling: LKG_MAX_STALENESS_MULTIPLIER=10.0 × DEFAULT_TTL=300). The original
+        576s OQ-2 value (SECTION_DF_REFRESH_HOURS=0.16, caching.py:39) only held
+        while paired with the §B ≤10-min section warm lane, which proved
+        Asana-429-infeasible and is now PAUSED. With the lane paused, 576s forces
+        section reads onto the build/502 path; 3000s puts section on the §D V6
+        serve-stale/LKG relief path alongside project. RECOMMENDED-DEFAULT value;
+        GATED on CQ-RETURN-3 (see config.py SECTION RECALIBRATION comment).
+
+        Only these two receiver entity_types are keyed; the other OQ-2 tiers
+        (analytics/backfill/vertical-summary) have no receiver entity_type and are
+        intentionally NOT present (keying them would be dead keys).
+        """
+        import autom8_asana.config as config
+
+        assert config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS == {
+            "project": 86400.0,
+            "section": 3000.0,
+        }
+
+    async def test_contract_override_rejects_below_multiplier_ceiling(self) -> None:
+        """A TIGHTER per-entity contract rejects an entry the multiplier would serve.
+
+        unit TTL=900s; multiplier=10.0 -> multiplier ceiling=9000s. Entry is 7200s
+        old (8x TTL) -> the multiplier alone WOULD serve it (see
+        TestMaxStalenessEnforcement.test_max_staleness_within_limit_served). A 3600s
+        contract ceiling rejects it -> None (hard-reject -> 503 path).
+        """
+        memory = MemoryTier(max_entries=100)
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
+        entry = make_entry(entity_type="unit", created_seconds_ago=7200)
+        memory.put("unit:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
+
+        with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 10.0):
+            with patch(
+                "autom8_asana.config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS",
+                {"unit": 3600.0},
+            ):
+                result = await cache.get_async("proj-1", "unit")
+
+        assert result is None
+        assert memory.get("unit:proj-1") is None  # evicted on hard-reject
+
+    async def test_contract_override_serves_above_multiplier_ceiling(self) -> None:
+        """A LOOSER per-entity contract serves an entry the multiplier would reject.
+
+        unit TTL=900s; multiplier=5.0 -> multiplier ceiling=4500s. Entry is 5400s
+        old (6x TTL) -> the multiplier alone WOULD reject it (see
+        TestMaxStalenessEnforcement.test_max_staleness_exceeded_rejected). A 9000s
+        contract ceiling serves it as LKG (the dual lever: looser bound = serve).
+        """
+        memory = MemoryTier(max_entries=100)
+        entry = make_entry(entity_type="unit", created_seconds_ago=5400)
+        memory.put("unit:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory)
+
+        with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 5.0):
+            with patch(
+                "autom8_asana.config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS",
+                {"unit": 9000.0},
+            ):
+                with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
+                    result = await cache.get_async("proj-1", "unit")
+
+        assert result is entry
+        stats = cache.get_stats()
+        assert stats["unit"]["lkg_serves"] == 1
+
+    async def test_contract_override_applies_only_to_named_entity(self) -> None:
+        """An entity ABSENT from the contract map falls back to the multiplier ceiling.
+
+        Contract names only 'offer'; the 'unit' entry uses the multiplier ceiling
+        (multiplier=10.0 -> 9000s) and is served at 7200s old.
+        """
+        memory = MemoryTier(max_entries=100)
+        entry = make_entry(entity_type="unit", created_seconds_ago=7200)
+        memory.put("unit:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory)
+
+        with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 10.0):
+            with patch(
+                "autom8_asana.config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS",
+                {"offer": 60.0},  # unrelated entity
+            ):
+                with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
+                    result = await cache.get_async("proj-1", "unit")
+
+        assert result is entry  # multiplier ceiling, not the offer contract
+
+    async def test_contract_override_active_even_when_multiplier_disabled(self) -> None:
+        """A per-entity contract bounds an entity even when the multiplier is 0.0 (disabled).
+
+        multiplier=0.0 alone serves unbounded-stale (see
+        TestMaxStalenessEnforcement.test_max_staleness_zero_serves_unlimited). A
+        contract ceiling of 1800s rejects a 7200s-old entry regardless.
+        """
+        memory = MemoryTier(max_entries=100)
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
+        entry = make_entry(entity_type="unit", created_seconds_ago=7200)
+        memory.put("unit:proj-1", entry)
+
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
+
+        with patch("autom8_asana.config.LKG_MAX_STALENESS_MULTIPLIER", 0.0):
+            with patch(
+                "autom8_asana.config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS",
+                {"unit": 1800.0},
+            ):
+                result = await cache.get_async("proj-1", "unit")
+
+        assert result is None
+
+
 class TestLKGHonestyDefaultTD006:
     """TD-006 (PDR-001): the LKG staleness ceiling default is 10.0, not 0.0.
 

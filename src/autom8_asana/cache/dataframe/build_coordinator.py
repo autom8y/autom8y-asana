@@ -128,6 +128,18 @@ class BuildCoordinator:
     """
 
     default_timeout_seconds: float = 60.0
+    # PQ-1 headroom lever. This dataclass default stays FROZEN at 4 this sprint;
+    # the value is now CONFIG-OVERRIDABLE (not hardcoded) via the settings field
+    # cache.dataframe_max_concurrent_builds (env ASANA_DF_MAX_CONCURRENT_BUILDS),
+    # wired in api/lifespan.py -> initialize_build_coordinator(max_concurrent_builds=...).
+    #
+    # CPU/mem bump SCOPED-NOT-APPLIED: each concurrent inline build holds ~one
+    # Polars frame resident; the heaviest GID is ~2GB. Raising this above 4 means
+    # up to 4 x ~2GB ~= 8GB worst-case, FAR exceeding the current ECS task
+    # (cpu=1024 / mem=2048, ~768MB usable after the 256-unit ADOT sidecar;
+    # autom8y .../asana/main.tf:144-159). The lever is INERT and DANGEROUS to
+    # raise without first verifying a CPU/mem task bump. Final sizing is OQ-1-gated
+    # (real concurrent fan-out width unconfirmed) and intentionally NOT applied here.
     max_concurrent_builds: int = 4
 
     # Internal state -- not exposed via init

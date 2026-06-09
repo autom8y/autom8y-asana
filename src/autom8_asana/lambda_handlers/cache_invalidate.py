@@ -188,6 +188,17 @@ async def _invalidate_cache_async(
         # Per TDD-CASCADE-FAILURE-FIXES-001 Fix 1: Targeted project manifest
         # invalidation. Deletes section parquets and manifest for a specific
         # project, triggering full rebuild on next warm-up cycle.
+        #
+        # SEAM-1 (D-1b, ADR-SEAM1): this Lambda does NOT have entity_type in
+        # scope, so an entity-keyed delete is impossible here. Under SEAM-1
+        # writes land at dataframes/{gid}/{entity_type}/...; an entity-agnostic
+        # delete (the pre-fix behavior) purged only the LEGACY keys and orphaned
+        # the live v2 frame -- so the rebuild silently no-op'd (operator
+        # stale-serve footgun). Use the scan-all substrate purge which lists the
+        # WHOLE project prefix and deletes every layout: legacy keys AND every
+        # v2 {entity_type}/ segment (manifest, watermark, index, dataframe,
+        # sections). The legacy manifest/section deletes are retained below as a
+        # back-compat belt-and-suspenders.
         if invalidate_project:
             from autom8_asana.dataframes.section_persistence import (
                 create_section_persistence,
@@ -195,7 +206,15 @@ async def _invalidate_cache_async(
 
             persistence = create_section_persistence()
 
-            # Delete section files first, then manifest
+            # Scan-all purge: every entity segment (v2) + legacy keys under
+            # dataframes/{gid}/ (the single SEAM-1 substrate point).
+            objects_purged = await persistence.storage.purge_project_all_entities(
+                invalidate_project
+            )
+
+            # Back-compat: also issue the legacy entity-agnostic deletes so a
+            # project whose only artifacts predate the scan-all helper is still
+            # purged even if list permissions are constrained.
             await persistence.delete_section_files_async(invalidate_project)
             await persistence.delete_manifest_async(invalidate_project)
             projects_invalidated = 1
@@ -204,6 +223,7 @@ async def _invalidate_cache_async(
                 "project_manifest_invalidated",
                 extra={
                     "project_gid": invalidate_project,
+                    "objects_purged": objects_purged,
                     "invocation_id": invocation_id,
                 },
             )

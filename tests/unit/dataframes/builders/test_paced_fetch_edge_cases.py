@@ -379,8 +379,9 @@ class TestTaskToDictExceptionMidLoop:
         # which is AFTER the pacing loop, in the final conversion step.
         # The outer try/except catches it and marks section FAILED.
         assert result is False
+        # SEAM-1: the FAILED update threads self._entity_type ("contact").
         builder._persistence.update_manifest_section_async.assert_any_call(
-            "proj_123", "sec_1", SectionStatus.FAILED, error="Bad task data"
+            "proj_123", "sec_1", SectionStatus.FAILED, error="Bad task data", entity_type="contact"
         )
 
 

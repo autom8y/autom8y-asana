@@ -12,6 +12,11 @@ FastAPI service observability.
 
 from __future__ import annotations
 
+import json
+import os
+import sys
+import time
+
 from prometheus_client import Counter, Gauge, Histogram
 
 # --- DataFrame Cache Metrics ---
@@ -105,6 +110,80 @@ RECEIVER_QUERY_OUTCOME = Counter(
     "Receiver-side query outcomes for body-parameterized arms (project, section)",
     labelnames=["entity_type", "outcome"],  # outcome: success | server_error
 )
+
+# --- S7-GATE-FIDELITY: 3-cause fallback disaggregation ---
+# Per HANDOFF-autom8-to-asana-sre-cr3-producer-work-queue-ingest §4.1 and
+# cr3-verified-findings §SYNTHESIS item 4 (the "S7 false-green guard").
+#
+# The consumer's single ``GetDfFallback`` EMF signal collapses THREE distinct
+# causes into one counter; a Stage-B (fallback-deletion) decision read off a
+# collapsed total is dangerous because the three causes have different
+# remediations and different consequences:
+#
+#   * cadence_503   — CACHE_BUILD_IN_PROGRESS: a coalesced request waited for an
+#                     in-flight build past ``CACHE_BUILD_WAIT_TIMEOUT`` (a warmth /
+#                     cadence gap — the frame is being built; fixed by warming).
+#   * capacity_502  — DATAFRAME_BUILD_{FAILED,ERROR,TIMEOUT,UNAVAILABLE}: the
+#                     request-time build itself failed/timed-out — the
+#                     build-semaphore-starvation path that escalates to an ALB 502
+#                     (fixed by build headroom + CPU/mem, NOT warming).
+#   * honest_refusal — an attested honest-empty 200 (``meta.honest_empty``): a
+#                     genuinely-empty honest-complete project served as an empty
+#                     2xx by contract — NOT a failure, but it MUST be distinguished
+#                     from a real-data 2xx so a liveness-masquerade (empty 2xx
+#                     counted as a healthy serve) cannot read green at the gate.
+#
+# This is the receiver-side disaggregation. It is ADDITIVE to (does not replace)
+# RECEIVER_QUERY_OUTCOME, which remains the deploy-gate SLI denominator. The S7
+# verdict reads CAUSE from this counter instead of inferring it from a collapsed
+# success/server_error split.
+RECEIVER_QUERY_FALLBACK_CAUSE = Counter(
+    "autom8y_asana_receiver_query_fallback_cause_total",
+    "Receiver-side query outcomes disaggregated by S7 cause: the three causes "
+    "the consumer GetDfFallback collapses into one signal (cadence_503 / "
+    "capacity_502 / honest_refusal). Lets the S7 fallback-retirement verdict "
+    "read CAUSE, not a collapsed total.",
+    labelnames=["entity_type", "cause"],  # cause: cadence_503 | capacity_502 | honest_refusal
+)
+
+# The three named S7 causes. Authoritative source for callers/dashboards/gate so
+# the label vocabulary cannot drift. ``data_2xx`` is the fourth, non-fallback
+# outcome (a real-data success) — tracked so honest_refusal can be read AGAINST
+# the real-data serve count (the liveness-masquerade defeat: empty 2xx must be
+# separable from real-data 2xx).
+S7_CAUSE_CADENCE_503 = "cadence_503"
+S7_CAUSE_CAPACITY_502 = "capacity_502"
+S7_CAUSE_HONEST_REFUSAL = "honest_refusal"
+S7_OUTCOME_DATA_2XX = "data_2xx"
+S7_FALLBACK_CAUSES = (
+    S7_CAUSE_CADENCE_503,
+    S7_CAUSE_CAPACITY_502,
+    S7_CAUSE_HONEST_REFUSAL,
+)
+
+# Map a 503 ``ApiDataFrameBuildError.code`` to its S7 cause. CACHE_BUILD_IN_PROGRESS
+# is the cadence/warmth gap; every other build-error code is the capacity path that
+# escalates to an ALB 502. Centralized here so the query route does not hardcode the
+# string set and the two cannot drift apart.
+_BUILD_CODE_TO_S7_CAUSE = {
+    "CACHE_BUILD_IN_PROGRESS": S7_CAUSE_CADENCE_503,
+    "DATAFRAME_BUILD_FAILED": S7_CAUSE_CAPACITY_502,
+    "DATAFRAME_BUILD_ERROR": S7_CAUSE_CAPACITY_502,
+    "DATAFRAME_BUILD_TIMEOUT": S7_CAUSE_CAPACITY_502,
+    "DATAFRAME_BUILD_UNAVAILABLE": S7_CAUSE_CAPACITY_502,
+}
+
+
+def s7_cause_for_build_code(code: str) -> str:
+    """Resolve the S7 cause for an ``ApiDataFrameBuildError`` code.
+
+    ``CACHE_BUILD_IN_PROGRESS`` is the cadence/warmth gap (cadence_503); every
+    other build-error code (FAILED / ERROR / TIMEOUT / UNAVAILABLE) is the
+    capacity-starvation path (capacity_502). An unknown code defaults to
+    capacity_502 — a build error we cannot classify is treated as the more
+    consequential (Stage-B-blocking) capacity cause, never silently as cadence.
+    """
+    return _BUILD_CODE_TO_S7_CAUSE.get(code, S7_CAUSE_CAPACITY_502)
 
 
 # --- Helper Recording Functions ---
@@ -242,6 +321,189 @@ def record_receiver_query_outcome(entity_type: str, success: bool) -> None:
     """
     outcome = "success" if success else "server_error"
     RECEIVER_QUERY_OUTCOME.labels(entity_type=entity_type, outcome=outcome).inc()
+
+
+# --- CR-3 GATE-2 P2-a: receiver self-measurement EMF export (additive) ---
+# Per TDD-cr3-gate2-receiver-self-measurement-export-2026-06-08.md (Option A).
+#
+# The process-local RECEIVER_QUERY_OUTCOME counter cannot self-prove the deploy
+# gate's 10-min >=99% claim: it resets on every ECS task replacement, is not
+# fleet-aggregated, and has no durable sink (TDD §"Why the process-local counter
+# cannot self-prove"). This emitter writes one Embedded Metric Format (EMF) JSON
+# line to stdout per request so a (cross-repo-configured) CloudWatch Logs + EMF
+# extraction pipeline produces a durable, deploy-surviving, fleet-aggregated time
+# series the gate can query AFTER the soak window.
+#
+# Emission is ADDITIVE — it mirrors the OBS-EXPORTS-001 precedent verbatim
+# (this module, "Emission is ADDITIVE — no pipeline step, helper, or engine
+# surface is altered"): record_receiver_query_outcome and the counter
+# definitions are untouched; this is a new emitter at the existing seam.
+#
+# Hot-path safety (the decisive constraint, this module's line-7 invariant):
+# the body is a single json.dumps + sys.stdout.write to stdout — no synchronous
+# network I/O — and is wrapped in a broad try/except so a serialization error can never
+# block or raise on the request path (fire-and-forget, "never raises on the
+# fire-and-forget path").
+#
+# Ship-dark: gated behind RECEIVER_SLI_EMF_ENABLED (default off) so it can land
+# before cross-repo handoff #1 (log driver = awslogs + EMF extraction) is
+# confirmed, preventing stdout-volume surprise before the sink exists.
+
+# Published cross-repo metric contract (TDD §"Data Model"; renaming is a
+# breaking change to the monorepo alarm/gate consumer — ADR-RECEIVER-SLI-METRIC-CONTRACT).
+RECEIVER_SLI_EMF_NAMESPACE = "Autom8y/AsanaReceiverSLI"
+RECEIVER_SLI_EMF_FLAG_ENV = "RECEIVER_SLI_EMF_ENABLED"
+
+
+def _receiver_sli_emf_enabled() -> bool:
+    """Return True when the EMF emitter is flag-enabled (ship-dark default off).
+
+    Read at call time (not import time) so the flag can be flipped per-task
+    without a code change once cross-repo handoff #1 is confirmed. Accepts the
+    usual truthy spellings; anything else (including unset) is off.
+    """
+    return os.environ.get(RECEIVER_SLI_EMF_FLAG_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def emit_receiver_sli_emf(
+    entity_type: str,
+    success: bool,
+    serving_stale_total: float,
+) -> None:
+    """Emit one receiver-SLI EMF line to stdout (additive, fire-and-forget).
+
+    Writes a single Embedded Metric Format JSON document carrying the per-arm
+    outcome CONSTITUENTS (success / server_error increments) AND the co-required
+    ``ServingStaleTotal`` in the SAME document. The success rate is intentionally
+    NOT emitted: it is derived downstream as
+    ``Sum(Success)/(Sum(Success)+Sum(ServerError))`` so there is no temporal or
+    structural seam at which a flattered rate can be read without the stale
+    context (TDD §"Honoring the co-read PROHIBITION"; mirrors
+    ``success_rate_with_stale_context`` at the export boundary).
+
+    No-ops unless ``RECEIVER_SLI_EMF_ENABLED`` is set (ship-dark default).
+
+    Fire-and-forget: any failure (serialization, stdout) is swallowed and
+    best-effort logged at debug; this function NEVER raises and NEVER blocks the
+    request hot path (this module's line-7 in-memory/no-synchronous-I/O contract).
+
+    Args:
+        entity_type: Body-parameterized arm ("project" | "section") — the EMF
+            ``arm`` dimension.
+        success: True on 2xx; False on 5xx. Maps to exactly one of the two
+            outcome constituents (success XOR server_error == 1).
+        serving_stale_total: Fleet-wide LKG-serve count co-emitted in the same
+            document. Sourced by the caller via ``_serving_stale_total_value()``
+            (the same path ``success_rate_with_stale_context`` uses) so the
+            co-read is structurally inseparable.
+    """
+    if not _receiver_sli_emf_enabled():
+        return
+    try:
+        success_count = 1 if success else 0
+        server_error_count = 0 if success else 1
+        document = {
+            "_aws": {
+                "Timestamp": int(time.time() * 1000),
+                "CloudWatchMetrics": [
+                    {
+                        "Namespace": RECEIVER_SLI_EMF_NAMESPACE,
+                        "Dimensions": [["arm"]],
+                        "Metrics": [
+                            {"Name": "ReceiverQueryOutcomeSuccess", "Unit": "Count"},
+                            {"Name": "ReceiverQueryOutcomeServerError", "Unit": "Count"},
+                            # CO-READ ENFORCEMENT: ServingStaleTotal is emitted in
+                            # the SAME document as the outcome constituents so the
+                            # success rate can never be read without stale context.
+                            {"Name": "ServingStaleTotal", "Unit": "Count"},
+                        ],
+                    }
+                ],
+            },
+            "arm": entity_type,
+            "ReceiverQueryOutcomeSuccess": success_count,
+            "ReceiverQueryOutcomeServerError": server_error_count,
+            "ServingStaleTotal": serving_stale_total,
+        }
+        # One newline-terminated JSON line to stdout (NOT print(): keeps the
+        # T201 lint surface clean and matches the EMF "one document per line"
+        # log-driver contract). stdout already carries structured logs; the EMF
+        # line joins the same stream under the existing log-sink trust boundary.
+        sys.stdout.write(json.dumps(document) + "\n")
+    except Exception:  # noqa: BLE001 -- fire-and-forget: emit must never raise/block the hot path
+        # Best-effort debug only, acquired lazily (NOT module-scope) to avoid the
+        # premature SDK auto-config footgun guarded by core.logging.reset_logging.
+        try:
+            from autom8_asana.core.logging import get_logger
+
+            get_logger(__name__).debug("receiver_sli_emf_emit_failed", exc_info=True)
+        except Exception:  # noqa: BLE001 -- logging must never resurrect the swallowed error
+            pass
+
+
+def record_query_fallback_cause(entity_type: str, cause: str) -> None:
+    """Record one disaggregated S7 fallback cause (S7-GATE-FIDELITY).
+
+    The receiver-side companion to ``record_receiver_query_outcome``: it splits
+    the outcome by the THREE causes the consumer ``GetDfFallback`` collapses into
+    one counter, so the S7 fallback-retirement verdict can read CAUSE.
+
+    Both recorders are called on the same request: the binary
+    ``RECEIVER_QUERY_OUTCOME`` (the deploy-gate SLI denominator) AND this
+    per-cause counter. ``honest_refusal`` is a 2xx (it does NOT decrement the SLI
+    success count); ``cadence_503`` and ``capacity_502`` are 5xx (they ARE the
+    server_error split). ``data_2xx`` marks a real-data success so honest_refusal
+    can be read against it (the liveness-masquerade defeat).
+
+    Args:
+        entity_type: Body-parameterized arm ("project" | "section").
+        cause: One of ``S7_CAUSE_CADENCE_503`` / ``S7_CAUSE_CAPACITY_502`` /
+            ``S7_CAUSE_HONEST_REFUSAL`` / ``S7_OUTCOME_DATA_2XX``. An unrecognized
+            value is accepted as-is (low cardinality; the caller derives it from a
+            closed set) so the recorder never raises on the fire-and-forget path.
+    """
+    RECEIVER_QUERY_FALLBACK_CAUSE.labels(entity_type=entity_type, cause=cause).inc()
+
+
+def receiver_fallback_cause_counts(
+    entity_type: str | None = None,
+) -> dict[str, float]:
+    """Return the disaggregated S7 cause counts (the verdict-reads-cause accessor).
+
+    The S7 fallback-retirement verdict reads this instead of inferring cause from
+    the collapsed success/server_error split. Returns a dict keyed by cause
+    (cadence_503 / capacity_502 / honest_refusal / data_2xx), each defaulting to
+    0.0 so a verdict never trips on a missing key.
+
+    Args:
+        entity_type: When given, restrict to one arm ("project" | "section");
+            None aggregates across arms.
+
+    Returns:
+        ``{cause: count}`` for every known cause, including data_2xx, with absent
+        causes reported as 0.0.
+    """
+    counts: dict[str, float] = {
+        S7_CAUSE_CADENCE_503: 0.0,
+        S7_CAUSE_CAPACITY_502: 0.0,
+        S7_CAUSE_HONEST_REFUSAL: 0.0,
+        S7_OUTCOME_DATA_2XX: 0.0,
+    }
+    for metric in RECEIVER_QUERY_FALLBACK_CAUSE.collect():
+        for sample in metric.samples:
+            if not sample.name.endswith("_total"):
+                continue
+            if entity_type is not None and sample.labels.get("entity_type") != entity_type:
+                continue
+            cause = sample.labels.get("cause", "")
+            if cause in counts:
+                counts[cause] += sample.value
+    return counts
 
 
 # --- TD-007 honest observability instrumentation (observability-plan §2) ---

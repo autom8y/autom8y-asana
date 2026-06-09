@@ -893,7 +893,12 @@ class UniversalResolutionStrategy:
 
             persistence = create_section_persistence()
             async with persistence:
-                manifest = await persistence.get_manifest_async(project_gid)
+                # SEAM-1 NFR-2: thread entity_type so the honest-empty probe
+                # reads the v2 entity-keyed manifest (legacy-only on None
+                # contradicts the post-cutover 0-readers-on-old-path gate).
+                manifest = await persistence.get_manifest_async(
+                    project_gid, entity_type=self.entity_type
+                )
             if not isinstance(manifest, SectionManifest):
                 return None
             if not is_honest_complete(manifest):

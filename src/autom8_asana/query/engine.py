@@ -250,7 +250,9 @@ class QueryEngine:
         # at query time and delegates to is_honest_complete() at
         # section_persistence.py (canonical derivation site).
         # DEF-005 scar: manifest read must use same storage backend as writer.
-        honest_contract_complete = await self._derive_honest_contract_complete(project_gid)
+        honest_contract_complete = await self._derive_honest_contract_complete(
+            project_gid, entity_type=entity_type
+        )
 
         # ADR-1 (honest-empty-200): a genuinely-empty project is one that is
         # honest-complete (no FAILED sections) yet whose FRAME holds zero rows.
@@ -496,17 +498,35 @@ class QueryEngine:
         return section
 
     def _get_freshness_meta(self) -> dict[str, object]:
-        """Read freshness info from the DataFrameProvider."""
+        """Read freshness info from the DataFrameProvider.
+
+        ADR-serve-stale-within-bound (2026-06-03): also derives ``stale_served``
+        — True iff this read was served from a cache entry past its TTL
+        (APPROACHING_STALE/SWR or STALE/LKG), i.e. NOT a fresh serve. Derived at
+        this single serve-path source from ``FreshnessInfo.freshness`` rather than
+        re-derived downstream from ``staleness_ratio`` (which would risk drift if
+        the state thresholds change). When no freshness side-channel exists the
+        returned dict is empty and ``stale_served`` defaults to False on the model.
+        """
         freshness_info = self.provider.last_freshness_info
         if freshness_info is None:
             return {}
+        # Fresh serves report freshness == FreshnessState.FRESH.value ("fresh", the
+        # literal the serve path writes at dataframe_cache.py); any other served
+        # state ("approaching_stale", "stale", offline LKG, …) is a
+        # stale-within-bound serve. Compared as a string to keep this hot read path
+        # decoupled from the cache enum, matching the field's opaque-string contract.
+        stale_served = freshness_info.freshness != "fresh"
         return {
             "freshness": freshness_info.freshness,
             "data_age_seconds": freshness_info.data_age_seconds,
             "staleness_ratio": freshness_info.staleness_ratio,
+            "stale_served": stale_served,
         }
 
-    async def _derive_honest_contract_complete(self, project_gid: str) -> bool:
+    async def _derive_honest_contract_complete(
+        self, project_gid: str, entity_type: str | None = None
+    ) -> bool:
         """Derive honest_contract_complete from SectionPersistence manifest.
 
         Sprint 1 — asana-clean-break-leaf T1.5.
@@ -517,6 +537,15 @@ class QueryEngine:
 
         DEF-005 guard: uses the provider's storage reference (same backend
         as the writer) to avoid cache-split regression.
+
+        SEAM-1 NFR-2: ``entity_type`` is threaded from the query context so
+        the honest-contract probe reads the v2 entity-keyed manifest. A
+        ``None`` read would consult the legacy entity-agnostic manifest only,
+        contradicting the post-cutover 0-readers-on-old-path gate.
+
+        Args:
+            project_gid: Asana project GID.
+            entity_type: Entity type from the query context (SEAM-1 dual-read).
 
         Returns:
             True iff all manifest sections are COMPLETE with no FAILED sections.
@@ -539,7 +568,9 @@ class QueryEngine:
                 is_honest_complete,
             )
 
-            manifest = await section_persistence.get_manifest_async(project_gid)
+            manifest = await section_persistence.get_manifest_async(
+                project_gid, entity_type=entity_type
+            )
             if not isinstance(manifest, SectionManifest):
                 logger.debug(
                     "honest_contract_no_manifest",

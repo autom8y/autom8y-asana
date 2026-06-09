@@ -110,21 +110,29 @@ class OfflineDataFrameProvider:
             ValueError: If no S3 bucket is configured.
             FileNotFoundError: If no parquets exist for the project.
         """
-        if project_gid in self._cache:
-            return self._cache[project_gid]
+        # SEAM-1: key the in-process cache on (entity_type, project_gid). The
+        # provider previously cached on project_gid alone, so a join that loaded
+        # the same project for two different entity views returned whichever was
+        # cached first -- the cross-entity collision at the cache tier. Keying on
+        # both closes it (mirrors the S3 key fix).
+        cache_key = f"{entity_type}:{project_gid}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
 
         from autom8_asana.dataframes.offline import load_project_dataframe_with_meta
 
-        # Sync call in async wrapper -- acceptable for single-threaded CLI
+        # Sync call in async wrapper -- acceptable for single-threaded CLI.
+        # SEAM-1: thread entity_type so the v2 prefix is read (legacy fallback).
         start = time.monotonic()
         df, last_modified = load_project_dataframe_with_meta(
             project_gid,
             bucket=self._bucket,
             region=self._region,
+            entity_type=entity_type,
         )
         elapsed = time.monotonic() - start
 
-        self._cache[project_gid] = df
+        self._cache[cache_key] = df
         self._last_freshness = _build_offline_freshness(elapsed, last_modified)
         return df
 

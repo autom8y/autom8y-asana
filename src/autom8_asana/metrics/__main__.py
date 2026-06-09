@@ -455,11 +455,16 @@ def _execute_force_warm(
                     FreshnessReport as _FR,
                 )
 
-                prefix = f"dataframes/{project_gid}/sections/"
+                # SEAM-1 F-2 closure: v2-first resolve (entity-segmented) with
+                # legacy fallback so the post-warm recheck observes the SAME
+                # parquet location the force-warm just rebuilt. metric_entity_type
+                # is the force-warm metric scope (None when force-warm runs with
+                # no metric name -> legacy prefix, matching the prior behavior).
                 try:
-                    recheck = _FR.from_s3_listing(
+                    recheck = _FR.from_s3_resolved(
                         bucket=bucket,
-                        prefix=prefix,
+                        project_gid=project_gid,
+                        entity_type=metric_entity_type,
                         threshold_seconds=threshold_seconds,
                     )
                 except _FE as fe:
@@ -533,6 +538,18 @@ def main() -> None:
     parser.add_argument(
         "--project-gid",
         help="Override project GID (default: resolved from metric entity type)",
+    )
+    parser.add_argument(
+        "--entity-type",
+        dest="entity_type",
+        default=None,
+        help=(
+            "SEAM-1 entity type for the offline read (ADR-SEAM1). When given, "
+            "reads the collision-free v2 prefix dataframes/{gid}/{entity_type}/ "
+            "(legacy fallback on miss) -- pass 'offer' for the clean re-derived "
+            "active-offer count. When omitted, scans ALL layouts for the project "
+            "(legacy + every v2 entity segment), preserving prior behavior."
+        ),
     )
     # ----- Freshness signal flags (PRD verify-active-mrr-provenance, ADR-001) -----
     parser.add_argument(
@@ -744,8 +761,13 @@ def main() -> None:
     # and re-emit the raw representation for unknown codes.
     import botocore.exceptions as _botocore_exceptions
 
+    # SEAM-1: prefer the explicit --entity-type; otherwise default to the
+    # metric's own scope entity_type so a metric scoped to 'offer' reads the
+    # collision-free v2 prefix. Pass entity_type=None only when the metric has
+    # no scope entity_type (scan-all preserves the prior behavior).
+    read_entity_type = args.entity_type or metric.scope.entity_type
     try:
-        df = load_project_dataframe(project_gid)
+        df = load_project_dataframe(project_gid, entity_type=read_entity_type)
     except (ValueError, FileNotFoundError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)
@@ -816,9 +838,15 @@ def main() -> None:
 
     # ----- Freshness signal (PRD verify-active-mrr-provenance, ADR-001) -----
     bucket = os.environ.get("ASANA_CACHE_S3_BUCKET")
-    prefix = f"dataframes/{project_gid}/sections/"
 
-    # Build the FreshnessReport. Map FreshnessError to AC-4.x stderr lines.
+    # SEAM-1 F-2 closure: resolve the section prefix v2-first (entity-segmented)
+    # with legacy fallback, threading the SAME read_entity_type used for the
+    # denominator load at :765. Constructing a bare dataframes/{gid}/sections/
+    # prefix here would read the legacy entity-agnostic layout -- post-cutover
+    # the v2 parquets live at dataframes/{gid}/{entity_type}/sections/, so the
+    # bare prefix would observe parquet_count==0 (false empty-prefix exit) or a
+    # stale legacy reading. from_s3_resolved keeps the freshness signal pinned
+    # to the same parquet location the metric's denominator was computed from.
     try:
         # bucket may be None here only if the upstream load_project_dataframe
         # was satisfied through some other path (parameter override). The
@@ -827,12 +855,13 @@ def main() -> None:
             raise FreshnessError(
                 FreshnessError.KIND_UNKNOWN,
                 "<unset>",
-                prefix,
+                f"dataframes/{project_gid}/sections/",
                 ValueError("ASANA_CACHE_S3_BUCKET unset at freshness probe time"),
             )
-        report = FreshnessReport.from_s3_listing(
+        report = FreshnessReport.from_s3_resolved(
             bucket=bucket,
-            prefix=prefix,
+            project_gid=project_gid,
+            entity_type=read_entity_type,
             threshold_seconds=threshold_seconds,
         )
     except FreshnessError as fe:
@@ -861,7 +890,13 @@ def main() -> None:
         )
 
         _persistence = create_section_persistence()
-        _manifest = read_manifest_sync(_persistence, project_gid)
+        # SEAM-1 NFR-2: thread the metric-scope entity_type so the
+        # verification-age manifest read targets the v2 entity-keyed manifest
+        # (a None read would consult legacy-only, contradicting the
+        # post-cutover 0-readers-on-old-path gate).
+        _manifest = read_manifest_sync(
+            _persistence, project_gid, entity_type=metric.scope.entity_type
+        )
         verification = compute_verification_age(
             manifest=_manifest,
             entity_type=metric.scope.entity_type,

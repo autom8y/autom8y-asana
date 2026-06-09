@@ -132,7 +132,9 @@ async def resolve_section(
         persistence = create_section_persistence()
         if persistence.is_available:
             async with persistence:
-                index = await SectionIndex.from_manifest_async(persistence, project_gid)
+                index = await SectionIndex.from_manifest_async(
+                    persistence, project_gid, entity_type=entity_type
+                )
                 if index.resolve(section_name) is not None:
                     return section_name
     except S3_TRANSPORT_ERRORS:
@@ -181,7 +183,9 @@ async def resolve_section_index(
     from autom8_asana.metrics.resolve import SectionIndex
 
     persistence = create_section_persistence()
-    section_index = await SectionIndex.from_manifest_async(persistence, project_gid)
+    section_index = await SectionIndex.from_manifest_async(
+        persistence, project_gid, entity_type=entity_type
+    )
     if section_index.resolve(section_name) is None:
         section_index = SectionIndex.from_enum_fallback(entity_type)
     return section_index

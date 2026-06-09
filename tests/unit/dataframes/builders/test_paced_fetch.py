@@ -304,22 +304,14 @@ class TestEmptySectionNoPacing:
         # test passes ``None`` as the section arg to
         # ``_fetch_and_persist_section`` -- so the re-seed channel forwards
         # name=None and the carry-forward semantic kicks in elsewhere).
-        builder._persistence.update_manifest_section_async.assert_any_call(
-            "proj_123",
-            "sec_1",
-            SectionStatus.COMPLETE,
-            rows=0,
-            gid_hash=pytest.approx(
-                builder._persistence.update_manifest_section_async.call_args_list[-1][1].get(
-                    "gid_hash",
-                    builder._persistence.update_manifest_section_async.call_args_list[-1][0][-1]
-                    if len(builder._persistence.update_manifest_section_async.call_args_list[-1][0])
-                    > 3
-                    else None,
-                ),
-            ),
-            name=None,
-        )
+        # The last call is the COMPLETE-empty completion. Assert its salient
+        # fields plus the SEAM-1 entity_type threading (the builder forwards
+        # self._entity_type="contact").
+        last_call = builder._persistence.update_manifest_section_async.call_args_list[-1]
+        assert last_call.args == ("proj_123", "sec_1", SectionStatus.COMPLETE)
+        assert last_call.kwargs["rows"] == 0
+        assert last_call.kwargs["name"] is None
+        assert last_call.kwargs["entity_type"] == "contact"
 
 
 class TestExactly100TasksPacingHarmless:

@@ -16,6 +16,7 @@ import pytest
 
 from autom8_asana.lambda_handlers.cache_warmer import (
     WarmResponse,
+    _dms_namespace,
     _warm_cache_async,
     handler,
     handler_async,
@@ -315,6 +316,92 @@ class TestHandler:
 
         assert result["statusCode"] == 500
         assert "Handler exception" in result["body"]["message"]
+
+
+class TestDmsNamespace:
+    """C2: the DMS LastSuccessTimestamp must emit into the IAM-granted namespace.
+
+    The warmer IAM grant scopes cloudwatch:PutMetricData via StringEquals on
+    cloudwatch:namespace = the env-driven ASANA_CW_NAMESPACE (e.g.
+    autom8y/cache-warmer-bulk). The previous hardcoded literal
+    "Autom8y/AsanaCacheWarmer" was outside that grant, so the PutMetricData was
+    silently denied and the dead-man's-switch alarm could never see a datapoint.
+    """
+
+    def test_resolves_to_granted_env_namespace(self) -> None:
+        """_dms_namespace() returns settings.observability.cloudwatch_namespace."""
+        fake_settings = MagicMock()
+        fake_settings.observability.cloudwatch_namespace = "autom8y/cache-warmer-bulk"
+        with patch(
+            "autom8_asana.lambda_handlers.cache_warmer.get_settings",
+            return_value=fake_settings,
+        ):
+            assert _dms_namespace() == "autom8y/cache-warmer-bulk"
+
+    def test_falls_back_to_in_grant_namespace_on_error(self) -> None:
+        """Settings failure falls back to a GRANTED namespace, not the denied literal."""
+        with patch(
+            "autom8_asana.lambda_handlers.cache_warmer.get_settings",
+            side_effect=RuntimeError("settings unavailable"),
+        ):
+            ns = _dms_namespace()
+        assert ns == "autom8y/cache-warmer-bulk"
+        # Regression guard: never re-emit into the denied namespace.
+        assert ns != "Autom8y/AsanaCacheWarmer"
+
+    def test_handler_emits_timestamp_into_granted_namespace(
+        self,
+        mock_warm_response: WarmResponse,
+    ) -> None:
+        """On success the handler emits LastSuccessTimestamp into the granted ns."""
+        fake_settings = MagicMock()
+        fake_settings.observability.cloudwatch_namespace = "autom8y/cache-warmer-bulk"
+        with (
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._warm_cache_async",
+                new_callable=AsyncMock,
+                return_value=mock_warm_response,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer.get_settings",
+                return_value=fake_settings,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer.emit_success_timestamp",
+            ) as mock_emit,
+        ):
+            result = handler({}, None)
+
+        assert result["statusCode"] == 200
+        mock_emit.assert_called_once_with("autom8y/cache-warmer-bulk")
+
+    def test_handler_does_not_emit_timestamp_on_failure(self) -> None:
+        """No DMS timestamp is emitted when the warm cycle fails."""
+        failure_response = WarmResponse(success=False, message="failed")
+        with (
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer._warm_cache_async",
+                new_callable=AsyncMock,
+                return_value=failure_response,
+            ),
+            patch(
+                "autom8_asana.lambda_handlers.cache_warmer.emit_success_timestamp",
+            ) as mock_emit,
+        ):
+            handler({}, None)
+
+        mock_emit.assert_not_called()
+
+    @pytest.fixture
+    def mock_warm_response(self) -> WarmResponse:
+        """A successful warm response for handler success-path tests."""
+        return WarmResponse(
+            success=True,
+            message="Cache warm complete",
+            entity_results=[],
+            total_rows=100,
+            duration_ms=500.0,
+        )
 
 
 class TestHandlerAsync:

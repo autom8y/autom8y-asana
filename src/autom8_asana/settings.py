@@ -284,6 +284,38 @@ class CacheSettings(Autom8yBaseSettings):
         le=20,
     )
 
+    # --- PQ-1 build-concurrency headroom lever (PREP — value FROZEN at 4) ---
+    # Cross-key BuildCoordinator semaphore size (build_coordinator.py:131). This
+    # field PARAMETERIZES the previously-hardcoded cap so it is config-overridable
+    # WITHOUT a code change, but the default stays FROZEN at 4 this sprint.
+    #
+    # !!! CPU/mem bump SCOPED-NOT-APPLIED — the lever is INERT and DANGEROUS to
+    # raise without first sizing the task !!!
+    # Each concurrent inline build materializes ~one Polars frame in resident
+    # memory; the heaviest GID is ~2GB. At the FROZEN value of 4, a worst-case
+    # 4 simultaneous heavy builds need ~4 x 2GB = ~8GB of headroom, which FAR
+    # exceeds the current ECS task sizing (cpu=1024 / mem=2048 -> ~768 MB usable
+    # after the 256-unit ADOT sidecar reservation; autom8y .../asana/main.tf
+    # :144-159). RAISING this value above 4 therefore REQUIRES a prior, verified
+    # CPU/mem task bump (target: mem >= 4 x per-build-frame headroom). The final
+    # sizing is OQ-1-gated (the real concurrent fan-out width is unconfirmed —
+    # HANDOFF §5 OQ-1 / handoff_back item D) and is intentionally NOT applied in
+    # this sprint. Do not raise the override until the task is resized first.
+    dataframe_max_concurrent_builds: int = Field(
+        default=4,
+        validation_alias=AliasChoices(
+            "ASANA_DF_MAX_CONCURRENT_BUILDS",
+            "ASANA_CACHE_DATAFRAME_MAX_CONCURRENT_BUILDS",
+        ),
+        description=(
+            "Cross-key BuildCoordinator semaphore size (build_coordinator.py:131). "
+            "FROZEN at 4 this sprint; raising it REQUIRES a prior CPU/mem task bump "
+            "(~4 x 2GB headroom, currently 2GB) and is OQ-1-gated."
+        ),
+        ge=1,
+        le=32,
+    )
+
     @field_validator("provider", mode="before")
     @classmethod
     def normalize_provider(cls, v: str | None) -> str | None:

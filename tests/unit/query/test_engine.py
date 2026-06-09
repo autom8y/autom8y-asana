@@ -1803,3 +1803,104 @@ class TestQueryEngineWithMockProvider:
         assert result.meta.freshness == "fresh"
         assert result.meta.data_age_seconds == 10.0
         assert result.meta.staleness_ratio == 0.1
+        # ADR-serve-stale-within-bound: a fresh serve is NOT stale_served.
+        assert result.meta.stale_served is False
+
+    async def test_mock_provider_stale_served_true_on_stale(
+        self,
+        mock_client: AsyncMock,
+        test_schema: DataFrameSchema,
+        sample_df: pl.DataFrame,
+    ) -> None:
+        """ADR-serve-stale-within-bound: a non-fresh serve sets meta.stale_served=True."""
+        from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
+
+        freshness = FreshnessInfo(
+            freshness="stale",
+            data_age_seconds=9000.0,
+            staleness_ratio=10.0,
+        )
+        mock_provider = AsyncMock()
+        mock_provider.get_dataframe = AsyncMock(return_value=sample_df)
+        mock_provider.last_freshness_info = freshness
+
+        engine = QueryEngine(provider=mock_provider)
+
+        request = RowsRequest.model_validate({})
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_registry_cls:
+            mock_registry = MagicMock()
+            mock_registry.get_schema.return_value = test_schema
+            mock_registry_cls.get_instance.return_value = mock_registry
+
+            result = await engine.execute_rows(
+                entity_type="offer",
+                project_gid="proj-123",
+                client=mock_client,
+                request=request,
+            )
+
+        assert result.meta.freshness == "stale"
+        assert result.meta.stale_served is True
+
+    async def test_mock_provider_stale_served_true_on_approaching_stale(
+        self,
+        mock_client: AsyncMock,
+        test_schema: DataFrameSchema,
+        sample_df: pl.DataFrame,
+    ) -> None:
+        """ADR-serve-stale-within-bound: an APPROACHING_STALE+SWR serve is stale_served."""
+        from autom8_asana.cache.integration.dataframe_cache import FreshnessInfo
+
+        freshness = FreshnessInfo(
+            freshness="approaching_stale",
+            data_age_seconds=1200.0,
+            staleness_ratio=1.5,
+        )
+        mock_provider = AsyncMock()
+        mock_provider.get_dataframe = AsyncMock(return_value=sample_df)
+        mock_provider.last_freshness_info = freshness
+
+        engine = QueryEngine(provider=mock_provider)
+
+        request = RowsRequest.model_validate({})
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_registry_cls:
+            mock_registry = MagicMock()
+            mock_registry.get_schema.return_value = test_schema
+            mock_registry_cls.get_instance.return_value = mock_registry
+
+            result = await engine.execute_rows(
+                entity_type="offer",
+                project_gid="proj-123",
+                client=mock_client,
+                request=request,
+            )
+
+        assert result.meta.stale_served is True
+
+    async def test_mock_provider_stale_served_false_when_no_freshness(
+        self,
+        mock_client: AsyncMock,
+        test_schema: DataFrameSchema,
+        sample_df: pl.DataFrame,
+    ) -> None:
+        """ADR-serve-stale-within-bound: no freshness side-channel -> stale_served defaults False."""
+        mock_provider = AsyncMock()
+        mock_provider.get_dataframe = AsyncMock(return_value=sample_df)
+        mock_provider.last_freshness_info = None
+
+        engine = QueryEngine(provider=mock_provider)
+
+        request = RowsRequest.model_validate({})
+        with patch("autom8_asana.query.engine.SchemaRegistry") as mock_registry_cls:
+            mock_registry = MagicMock()
+            mock_registry.get_schema.return_value = test_schema
+            mock_registry_cls.get_instance.return_value = mock_registry
+
+            result = await engine.execute_rows(
+                entity_type="offer",
+                project_gid="proj-123",
+                client=mock_client,
+                request=request,
+            )
+
+        assert result.meta.stale_served is False

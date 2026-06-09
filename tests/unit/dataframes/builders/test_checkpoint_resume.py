@@ -140,8 +140,12 @@ class TestResumeFromCheckpoint:
             result = await builder._fetch_and_persist_section("sec_1", None, 0, 1)
 
         assert result is True
-        # read_section_async should have been called to read the checkpoint
-        builder._persistence.read_section_async.assert_called_once_with("proj_123", "sec_1")
+        # read_section_async should have been called to read the checkpoint.
+        # SEAM-1: the builder threads self._entity_type ("contact") so the
+        # checkpoint is read from the v2 entity-keyed section.
+        builder._persistence.read_section_async.assert_called_once_with(
+            "proj_123", "sec_1", "contact"
+        )
 
 
 class TestResumeMissingCheckpoint:

@@ -325,3 +325,78 @@ def bulk_prematerialization_keys(
     """
     gids = consumer_warm_set_gids()
     return [(gid, arm) for gid in gids for arm in arms]
+
+
+# =============================================================================
+# Section-Only Warm Lane (ADR §B — ≤10-min SECTION freshness lane)
+# =============================================================================
+#
+# The SECTION entity_type carries a freshness contract of 576s (~10 min, i.e.
+# SECTION_DF_REFRESH_HOURS=0.16 × 3600 per caching.py:39). The bulk warmer's
+# 30-min tick yields an inter-warm interval of ~46 min for the heaviest GID —
+# far beyond the 576s contract. Neither the bulk sweep nor the held fast lane
+# (#97, 2-GID only at 15-min) meets the 576s/600s contract for all 34 GIDs.
+#
+# A dedicated SECTION-arm-only lane over the full 34-GID warm set, running at
+# ≤10-min cadence, is the only design that satisfies the contract across the
+# full width (ADR §B.2). The key shape is identical to bulk_prematerialization_keys
+# but arm-restricted to ("section",): 34 GIDs × 1 arm = 34 keys.
+#
+# The same generic _prematerialize_bulk_set_async coroutine drives the section
+# lane via a third key_source injection (no new build/merge/coverage code
+# required). Lane isolation is achieved at the edges: a disjoint
+# CACHE_WARMER_CHECKPOINT_PREFIX (set per-Lambda in TF, following #96) gives
+# the section lane its own latest.json, plus a dedicated reserved_concurrency
+# pool (ADR §B.3.a) disjoint from the bulk warmer's ReservedConcurrentExecutions=1.
+#
+# Backstop invariant: every section-lane key is a subset of the bulk sweep's
+# section arm. The bulk 30-min sweep remains the backstop: if the section lane
+# stalls, every section key is still covered by the bulk sweep.
+
+
+def section_only_prematerialization_keys() -> list[tuple[str, str]]:
+    """Enumerate the section-arm-only (project_gid, "section") keys (ADR §B lane).
+
+    Produces the full consumer-derived warm set restricted to the ``"section"``
+    arm: every GID in :func:`consumer_warm_set_gids` (34 GIDs as of 2026-06-02)
+    paired with ``"section"`` — 34 keys total. This is the section lane's own
+    coverage denominator (distinct from the bulk 68-key and fast 4-key
+    denominators).
+
+    Key shape is identical to :func:`bulk_prematerialization_keys` (both yield
+    ``(gid, entity_type)`` tuples), so the identical
+    ``_prematerialize_bulk_set_async`` coroutine drives the section lane without
+    modification — only the ``key_source`` callable and the
+    ``prematerialize_section_set`` event flag differ.
+
+    Order is heaviest-first (matching :func:`consumer_warm_set_gids` declaration
+    order), so a partial section sweep under checkpoint/self-invoke defers only
+    the cheap-tail GIDs while the expensive ones are already warm.
+
+    Backstop invariant: every (gid, "section") key produced here is also a
+    member of the full bulk sweep's section arm — confirmed at call time by
+    module-load assertion so a GID drift is caught at import, not in prod.
+
+    Returns:
+        List of ``(project_gid, "section")`` tuples, length
+        ``len(consumer_warm_set_gids())`` (34 with the current warm set).
+    """
+    return [(gid, "section") for gid in consumer_warm_set_gids()]
+
+
+# Structural backstop invariant: the section lane keys are a strict subset of
+# the bulk sweep's section arm, so the 30-min bulk sweep remains the backstop
+# for every section key even if the section lane is disabled or stalled.
+# Asserted at module load so a divergence between the warm set and the bulk
+# sweep is caught at import (mirroring the fast-lane guard pattern).
+_SECTION_LANE_KEYS_AT_LOAD: frozenset[tuple[str, str]] = frozenset(
+    section_only_prematerialization_keys()
+)
+_BULK_SECTION_KEYS_AT_LOAD: frozenset[tuple[str, str]] = frozenset(
+    bulk_prematerialization_keys(arms=("section",))
+)
+assert _SECTION_LANE_KEYS_AT_LOAD <= _BULK_SECTION_KEYS_AT_LOAD, (
+    "section_only_prematerialization_keys produced keys not in bulk section arm — "
+    "consumer_warm_set_gids and bulk_prematerialization_keys have diverged; "
+    f"orphaned section keys: {sorted(_SECTION_LANE_KEYS_AT_LOAD - _BULK_SECTION_KEYS_AT_LOAD)}"
+)
