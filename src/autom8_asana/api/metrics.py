@@ -12,6 +12,11 @@ FastAPI service observability.
 
 from __future__ import annotations
 
+import json
+import os
+import sys
+import time
+
 from prometheus_client import Counter, Gauge, Histogram
 
 # --- DataFrame Cache Metrics ---
@@ -316,6 +321,129 @@ def record_receiver_query_outcome(entity_type: str, success: bool) -> None:
     """
     outcome = "success" if success else "server_error"
     RECEIVER_QUERY_OUTCOME.labels(entity_type=entity_type, outcome=outcome).inc()
+
+
+# --- CR-3 GATE-2 P2-a: receiver self-measurement EMF export (additive) ---
+# Per TDD-cr3-gate2-receiver-self-measurement-export-2026-06-08.md (Option A).
+#
+# The process-local RECEIVER_QUERY_OUTCOME counter cannot self-prove the deploy
+# gate's 10-min >=99% claim: it resets on every ECS task replacement, is not
+# fleet-aggregated, and has no durable sink (TDD §"Why the process-local counter
+# cannot self-prove"). This emitter writes one Embedded Metric Format (EMF) JSON
+# line to stdout per request so a (cross-repo-configured) CloudWatch Logs + EMF
+# extraction pipeline produces a durable, deploy-surviving, fleet-aggregated time
+# series the gate can query AFTER the soak window.
+#
+# Emission is ADDITIVE — it mirrors the OBS-EXPORTS-001 precedent verbatim
+# (this module, "Emission is ADDITIVE — no pipeline step, helper, or engine
+# surface is altered"): record_receiver_query_outcome and the counter
+# definitions are untouched; this is a new emitter at the existing seam.
+#
+# Hot-path safety (the decisive constraint, this module's line-7 invariant):
+# the body is a single json.dumps + sys.stdout.write to stdout — no synchronous
+# network I/O — and is wrapped in a broad try/except so a serialization error can never
+# block or raise on the request path (fire-and-forget, "never raises on the
+# fire-and-forget path").
+#
+# Ship-dark: gated behind RECEIVER_SLI_EMF_ENABLED (default off) so it can land
+# before cross-repo handoff #1 (log driver = awslogs + EMF extraction) is
+# confirmed, preventing stdout-volume surprise before the sink exists.
+
+# Published cross-repo metric contract (TDD §"Data Model"; renaming is a
+# breaking change to the monorepo alarm/gate consumer — ADR-RECEIVER-SLI-METRIC-CONTRACT).
+RECEIVER_SLI_EMF_NAMESPACE = "Autom8y/AsanaReceiverSLI"
+RECEIVER_SLI_EMF_FLAG_ENV = "RECEIVER_SLI_EMF_ENABLED"
+
+
+def _receiver_sli_emf_enabled() -> bool:
+    """Return True when the EMF emitter is flag-enabled (ship-dark default off).
+
+    Read at call time (not import time) so the flag can be flipped per-task
+    without a code change once cross-repo handoff #1 is confirmed. Accepts the
+    usual truthy spellings; anything else (including unset) is off.
+    """
+    return os.environ.get(RECEIVER_SLI_EMF_FLAG_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def emit_receiver_sli_emf(
+    entity_type: str,
+    success: bool,
+    serving_stale_total: float,
+) -> None:
+    """Emit one receiver-SLI EMF line to stdout (additive, fire-and-forget).
+
+    Writes a single Embedded Metric Format JSON document carrying the per-arm
+    outcome CONSTITUENTS (success / server_error increments) AND the co-required
+    ``ServingStaleTotal`` in the SAME document. The success rate is intentionally
+    NOT emitted: it is derived downstream as
+    ``Sum(Success)/(Sum(Success)+Sum(ServerError))`` so there is no temporal or
+    structural seam at which a flattered rate can be read without the stale
+    context (TDD §"Honoring the co-read PROHIBITION"; mirrors
+    ``success_rate_with_stale_context`` at the export boundary).
+
+    No-ops unless ``RECEIVER_SLI_EMF_ENABLED`` is set (ship-dark default).
+
+    Fire-and-forget: any failure (serialization, stdout) is swallowed and
+    best-effort logged at debug; this function NEVER raises and NEVER blocks the
+    request hot path (this module's line-7 in-memory/no-synchronous-I/O contract).
+
+    Args:
+        entity_type: Body-parameterized arm ("project" | "section") — the EMF
+            ``arm`` dimension.
+        success: True on 2xx; False on 5xx. Maps to exactly one of the two
+            outcome constituents (success XOR server_error == 1).
+        serving_stale_total: Fleet-wide LKG-serve count co-emitted in the same
+            document. Sourced by the caller via ``_serving_stale_total_value()``
+            (the same path ``success_rate_with_stale_context`` uses) so the
+            co-read is structurally inseparable.
+    """
+    if not _receiver_sli_emf_enabled():
+        return
+    try:
+        success_count = 1 if success else 0
+        server_error_count = 0 if success else 1
+        document = {
+            "_aws": {
+                "Timestamp": int(time.time() * 1000),
+                "CloudWatchMetrics": [
+                    {
+                        "Namespace": RECEIVER_SLI_EMF_NAMESPACE,
+                        "Dimensions": [["arm"]],
+                        "Metrics": [
+                            {"Name": "ReceiverQueryOutcomeSuccess", "Unit": "Count"},
+                            {"Name": "ReceiverQueryOutcomeServerError", "Unit": "Count"},
+                            # CO-READ ENFORCEMENT: ServingStaleTotal is emitted in
+                            # the SAME document as the outcome constituents so the
+                            # success rate can never be read without stale context.
+                            {"Name": "ServingStaleTotal", "Unit": "Count"},
+                        ],
+                    }
+                ],
+            },
+            "arm": entity_type,
+            "ReceiverQueryOutcomeSuccess": success_count,
+            "ReceiverQueryOutcomeServerError": server_error_count,
+            "ServingStaleTotal": serving_stale_total,
+        }
+        # One newline-terminated JSON line to stdout (NOT print(): keeps the
+        # T201 lint surface clean and matches the EMF "one document per line"
+        # log-driver contract). stdout already carries structured logs; the EMF
+        # line joins the same stream under the existing log-sink trust boundary.
+        sys.stdout.write(json.dumps(document) + "\n")
+    except Exception:  # noqa: BLE001 -- fire-and-forget: emit must never raise/block the hot path
+        # Best-effort debug only, acquired lazily (NOT module-scope) to avoid the
+        # premature SDK auto-config footgun guarded by core.logging.reset_logging.
+        try:
+            from autom8_asana.core.logging import get_logger
+
+            get_logger(__name__).debug("receiver_sli_emf_emit_failed", exc_info=True)
+        except Exception:  # noqa: BLE001 -- logging must never resurrect the swallowed error
+            pass
 
 
 def record_query_fallback_cause(entity_type: str, cause: str) -> None:
