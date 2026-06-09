@@ -242,13 +242,18 @@ def test_live_cell_dtype_parity(entity: str, cell: str) -> None:
 
 
 def test_d3_asset_edit_score_dtype_parity() -> None:
-    """D3: asset_edit.score schema dtype must match _get_number_field (-> Decimal).
+    """D3: asset_edit.score schema dtype matches _get_number_field (-> Decimal).
 
-    G-THEATER: at commit C2 this is RED -- the schema cell is "Float64" while the
-    model's ``score`` getter calls ``_get_number_field`` (Decimal). Commit C1
-    flips the schema dtype to "Decimal" (byte-identical at runtime: both map to
-    pl.Float64 via ColumnDef.get_polars_dtype) and this row goes GREEN. The
-    RED->GREEN transition is the broken-fixture-RED proof obligation.
+    The D3 SSOT-reconcile cell, now GREEN. ``asset_edit.score`` is read via
+    ``_get_number_field`` (Decimal) on the model, so its canonical schema dtype
+    string is "Decimal".
+
+    G-THEATER history: at commit C2 (the test commit, before this cell's schema
+    fix) this assertion was RED -- the schema was "Float64" while the model
+    expects "Decimal". Commit C1 reconciled the schema to "Decimal" (byte-
+    identical at runtime: both map to pl.Float64 via ColumnDef.get_polars_dtype)
+    and this row went GREEN. This permanent guard now fails loudly if the cell
+    ever drifts back.
     """
     column = ASSET_EDIT_SCHEMA.get_column("score")
     assert column is not None, "asset_edit.score missing from schema"
