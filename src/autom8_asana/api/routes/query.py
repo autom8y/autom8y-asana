@@ -589,6 +589,8 @@ async def query_rows(
         if ctx.project_gid is None:  # body_parameterized when registry GID is None
             try:
                 from autom8_asana.api.metrics import (
+                    _serving_stale_total_value,
+                    emit_receiver_sli_emf,
                     record_query_fallback_cause,
                     record_receiver_query_outcome,
                 )
@@ -596,6 +598,14 @@ async def query_rows(
                 record_receiver_query_outcome(entity_type, success=success_for_metric)
                 if fallback_cause is not None:
                     record_query_fallback_cause(entity_type, fallback_cause)
+                # CR-3 GATE-2 P2-a: additive EMF export of the receiver SLI to a
+                # durable backend (ship-dark; co-reads serving_stale_total in the
+                # same document so the rate is never exported bare). Fire-and-forget.
+                emit_receiver_sli_emf(
+                    entity_type,
+                    success=success_for_metric,
+                    serving_stale_total=_serving_stale_total_value(),
+                )
             except Exception:  # noqa: BLE001 -- metrics emission is fire-and-forget
                 pass
 
