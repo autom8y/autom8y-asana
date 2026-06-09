@@ -59,6 +59,14 @@ POPULATION_WARN_THRESHOLD = 0.80
 # responsibility) rather than mutating the frozen schema model.
 _VALUE_COLUMNS_BY_ENTITY: dict[str, tuple[str, ...]] = {
     "offer": ("mrr", "offer_id"),
+    # G-DENOM (FPC Phase-1): ONLY mrr. unit.mrr is the value column the active_mrr
+    # denominator is computed over for the unit-canonical project; a present-but-
+    # null mrr on the active unit subset is the same degraded-warm class the offer
+    # floor catches. weekly_ad_spend and discount are LegitimatelySparse for units
+    # (not every active unit runs ads / carries a discount) -- including them would
+    # manufacture false WARNs, the $8,775/7-row null-fossil anti-precedent. NO
+    # blanket null-fill; this is an observability floor, not a data mutation.
+    "unit": ("mrr",),
 }
 
 # Section names (lowercased) that count as "active" for the population subset.
