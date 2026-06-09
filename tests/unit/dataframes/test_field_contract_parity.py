@@ -156,14 +156,26 @@ _MODEL_BY_ENTITY: dict[str, type] = {
 
 # (entity, cell_name): the number/int-sourced cells whose schema dtype must match
 # the model field-class. mrr/weekly_ad_spend appear on unit (descriptor source)
-# and offer (cascade-sourced from Unit, same NumberField provenance). score is
-# the D3 cell. D1 (unit.discount) and D2 (offer.cost) are HELD -- see the
-# dedicated xfail rows below; they are intentionally NOT in this clean registry.
+# and offer (cascade-sourced from Unit, same NumberField provenance). The three
+# asset_edit cells (offer_id/template_id/videos_paid) are int-sourced @property
+# getters calling ``_get_int_field`` (-> Int64); they round out the architect's
+# ratified parity table (spec ss.C.3, 9 cells) -- earlier registries omitted them,
+# leaving an Int64->Utf8 drift on these cells able to pass silently. score is the
+# D3 cell (its own row below). D1 (unit.discount) and D2 (offer.cost) are HELD --
+# see the dedicated xfail rows below; intentionally NOT in this clean registry.
+#
+# asset_edit.offer_id resolves on the AssetEdit class to a property -> Int64;
+# this is DISTINCT from offer.offer_id (a TextField -> Utf8 on the Offer model).
+# The cross-frame Utf8<->Int64 offer_id asymmetry is HELD on UK-3 and is a join-
+# key coherence concern, NOT in scope for this per-cell intra-frame parity check.
 _PARITY_CELLS: tuple[tuple[str, str], ...] = (
     ("unit", "mrr"),
     ("unit", "weekly_ad_spend"),
     ("offer", "mrr"),
     ("offer", "weekly_ad_spend"),
+    ("asset_edit", "offer_id"),
+    ("asset_edit", "template_id"),
+    ("asset_edit", "videos_paid"),
 )
 
 
