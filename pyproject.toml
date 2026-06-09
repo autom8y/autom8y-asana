@@ -27,7 +27,9 @@ dependencies = [
     # glass-S9: 0.6.0+ required for trace_computation decorator
     # Sprint-A0: 0.8.0+ required for the route_class metric label
     # (instrument_app wiring in api/main.py — denominator-scoped SLI selection)
-    "autom8y-telemetry[aws,fastapi,otlp]>=0.8.0",
+    # FOI S2 WS-B2: 0.10.0+ inherits the autom8y_build_info emitting-floor (#456)
+    # and RemoteWriteConfig (0.9.0) by construction at the instrument_app seam.
+    "autom8y-telemetry[aws,fastapi,otlp]>=0.10.0",
     "boto3>=1.42.19", # S3 for progressive cache warming (asyncio.to_thread)
     "pyyaml>=6.0.0", # YAML config parsing (lifecycle, automation, query/saved)
     "openpyxl>=3.1.0,<4.0", # Excel workbook generation (payment reconciliation bridge)
