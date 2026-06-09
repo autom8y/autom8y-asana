@@ -269,7 +269,7 @@ class ProgressiveProjectBuilder:
                 sections_delta_updated=sections_delta_updated,
             )
 
-        manifest = await self._persistence.get_manifest_async(self._project_gid)
+        manifest = await self._persistence.get_manifest_async(self._project_gid, self._entity_type)
         if manifest is None:
             return _ResumeResult(
                 manifest=manifest,
@@ -289,7 +289,7 @@ class ProgressiveProjectBuilder:
                     "current_version": current_schema_version,
                 },
             )
-            await self._persistence.delete_manifest_async(self._project_gid)
+            await self._persistence.delete_manifest_async(self._project_gid, self._entity_type)
             return _ResumeResult(
                 manifest=None,
                 sections_to_fetch=sections_to_fetch,
@@ -436,7 +436,9 @@ class ProgressiveProjectBuilder:
             }
 
             try:
-                fresh_manifest = await self._persistence.get_manifest_async(self._project_gid)
+                fresh_manifest = await self._persistence.get_manifest_async(
+                    self._project_gid, self._entity_type
+                )
                 if fresh_manifest is not None:
                     now = datetime.now(UTC)
 
@@ -586,7 +588,9 @@ class ProgressiveProjectBuilder:
         Returns:
             Merged DataFrame (may be empty if no sections produced data).
         """
-        merged_df = await self._persistence.merge_sections_to_dataframe_async(self._project_gid)
+        merged_df = await self._persistence.merge_sections_to_dataframe_async(
+            self._project_gid, self._entity_type
+        )
 
         if merged_df is None and self._section_dfs:
             # TD-001 (PDR-002 §4.3): in-memory fallback merge. Offload the CPU-bound
@@ -791,6 +795,37 @@ class ProgressiveProjectBuilder:
                 project_gid=self._project_gid,
             )
 
+        # Step 5.7: Value-population receipt (FM-4, ADR-SEAM1 Decision 4).
+        # WARN-first attestation that the active-classified subset actually
+        # carries non-null economic value columns (mrr/offer_id for offer). A
+        # present-but-null economics frame fires RED here -- the only gate that
+        # covers VALUE columns (the cascade audits cover KEY columns only). NEVER
+        # raises and NEVER changes build status: a degraded-but-present warm must
+        # still serve. Runs on any non-empty frame; entities without value
+        # columns (section/project) are a safe no-op inside the receipt.
+        if total_rows > 0:
+            from autom8_asana.dataframes.builders.post_build_population_receipt import (
+                post_build_population_receipt,
+            )
+
+            try:
+                post_build_population_receipt(
+                    merged_df=merged_df,
+                    schema=self._schema,
+                    entity_type=self._entity_type,
+                    project_gid=self._project_gid,
+                )
+            except Exception as e:  # BROAD-CATCH: receipt is additive  # noqa: BLE001
+                logger.warning(
+                    "population_receipt_failed",
+                    extra={
+                        "project_gid": self._project_gid,
+                        "entity_type": self._entity_type,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    },
+                )
+
         # Step 6: Write final artifacts
         # ADR-1 edit 1 (honest-empty-200): persist the final artifact when the
         # build produced rows OR when it is HONEST-COMPLETE-but-empty (all known
@@ -990,6 +1025,7 @@ class ProgressiveProjectBuilder:
                 self._project_gid,
                 section_gid,
                 SectionStatus.IN_PROGRESS,
+                entity_type=self._entity_type,
             )
 
             # Phase 1: Resume detection
@@ -1016,6 +1052,7 @@ class ProgressiveProjectBuilder:
                     rows=0,
                     gid_hash=compute_gid_hash([]),
                     name=section_name,
+                    entity_type=self._entity_type,
                 )
                 return True
 
@@ -1065,6 +1102,7 @@ class ProgressiveProjectBuilder:
                 section_gid,
                 SectionStatus.FAILED,
                 error=str(e),
+                entity_type=self._entity_type,
             )
 
             return False
@@ -1174,7 +1212,7 @@ class ProgressiveProjectBuilder:
 
         try:
             checkpoint_df = await self._persistence.read_section_async(
-                self._project_gid, section_gid
+                self._project_gid, section_gid, self._entity_type
             )
             if checkpoint_df is not None:
                 logger.info(
@@ -1399,6 +1437,7 @@ class ProgressiveProjectBuilder:
             watermark=watermark,
             gid_hash=gid_hash,
             name=name,
+            entity_type=self._entity_type,
         )
 
     async def _write_checkpoint(
@@ -1450,6 +1489,7 @@ class ProgressiveProjectBuilder:
                 checkpoint_df,
                 pages_fetched=pages_fetched,
                 rows_fetched=len(checkpoint_df),
+                entity_type=self._entity_type,
             )
 
             if success:

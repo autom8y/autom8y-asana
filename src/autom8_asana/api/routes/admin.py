@@ -169,15 +169,22 @@ async def _perform_force_rebuild(
                         },
                     )
 
-            # 2. Delete S3 manifest, section parquets, AND merged artifacts
+            # 2. Delete S3 manifest, section parquets, AND merged artifacts.
+            #
+            # SEAM-1 (D-1a, ADR-SEAM1): entity_type MUST be threaded into every
+            # delete here. Writes go to the v2 entity-keyed path
+            # (dataframes/{gid}/{entity_type}/...), so an entity-AGNOSTIC delete
+            # would purge only legacy keys and orphan the live v2 frame -- the
+            # force-rebuild would then silently no-op (operator stale-serve
+            # footgun). entity_type is in scope from the loop above.
             try:
                 async with persistence:
-                    await persistence.delete_manifest_async(project_gid)
-                    await persistence.delete_section_files_async(project_gid)
+                    await persistence.delete_manifest_async(project_gid, entity_type)
+                    await persistence.delete_section_files_async(project_gid, entity_type)
                     # Per ADR-HOTFIX-002: Also delete merged dataframe.parquet
                     # and watermark.json to prevent ProgressiveTier from
                     # re-hydrating stale data into the memory tier.
-                    await persistence.storage.delete_dataframe(project_gid)
+                    await persistence.storage.delete_dataframe(project_gid, entity_type)
                 logger.info(
                     "cache_refresh_s3_purged",
                     extra={

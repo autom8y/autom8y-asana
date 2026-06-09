@@ -109,13 +109,18 @@ class DataFrameStorage(Protocol):
     async def load_dataframe(
         self,
         project_gid: str,
+        entity_type: str | None = None,
     ) -> tuple[pl.DataFrame | None, datetime | None]:
-        """Load DataFrame and watermark. Returns (None, None) if not found."""
+        """Load DataFrame and watermark. Returns (None, None) if not found.
+
+        SEAM-1: ``entity_type`` selects the v2 entity-keyed path (dual-read).
+        """
         ...
 
     async def load_dataframe_with_metadata(
         self,
         project_gid: str,
+        entity_type: str | None = None,
     ) -> tuple[pl.DataFrame | None, datetime | None, dict[str, Any] | None]:
         """Load DataFrame, watermark, and raw watermark metadata in one pass.
 
@@ -123,21 +128,27 @@ class DataFrameStorage(Protocol):
         Returns (None, None, None) if not found.
         The metadata dict contains all fields from watermark.json including
         schema_version, row_count, columns, etc.
+
+        SEAM-1: ``entity_type`` selects the v2 entity-keyed path (dual-read).
         """
         ...
 
-    async def delete_dataframe(self, project_gid: str) -> bool:
-        """Delete DataFrame, watermark, and index for a project."""
+    async def delete_dataframe(self, project_gid: str, entity_type: str | None = None) -> bool:
+        """Delete DataFrame, watermark, and index for a project (v2 when typed)."""
         ...
 
     # ---- Watermark operations ----
 
-    async def save_watermark(self, project_gid: str, watermark: datetime) -> bool:
+    async def save_watermark(
+        self, project_gid: str, watermark: datetime, entity_type: str | None = None
+    ) -> bool:
         """Persist watermark only (lightweight write-through)."""
         ...
 
-    async def get_watermark(self, project_gid: str) -> datetime | None:
-        """Get watermark without loading DataFrame."""
+    async def get_watermark(
+        self, project_gid: str, entity_type: str | None = None
+    ) -> datetime | None:
+        """Get watermark without loading DataFrame (v2 dual-read when typed)."""
         ...
 
     async def load_all_watermarks(self) -> dict[str, datetime]:
@@ -146,15 +157,19 @@ class DataFrameStorage(Protocol):
 
     # ---- GidLookupIndex operations ----
 
-    async def save_index(self, project_gid: str, index_data: dict[str, Any]) -> bool:
+    async def save_index(
+        self, project_gid: str, index_data: dict[str, Any], entity_type: str | None = None
+    ) -> bool:
         """Persist serialized GidLookupIndex."""
         ...
 
-    async def load_index(self, project_gid: str) -> dict[str, Any] | None:
-        """Load serialized GidLookupIndex."""
+    async def load_index(
+        self, project_gid: str, entity_type: str | None = None
+    ) -> dict[str, Any] | None:
+        """Load serialized GidLookupIndex (v2 dual-read when typed)."""
         ...
 
-    async def delete_index(self, project_gid: str) -> bool:
+    async def delete_index(self, project_gid: str, entity_type: str | None = None) -> bool:
         """Delete GidLookupIndex."""
         ...
 
@@ -167,20 +182,24 @@ class DataFrameStorage(Protocol):
         df: pl.DataFrame,
         *,
         metadata: dict[str, str] | None = None,
+        entity_type: str | None = None,
     ) -> bool:
-        """Persist a section-level parquet file."""
+        """Persist a section-level parquet file (v2 when typed)."""
         ...
 
     async def load_section(
         self,
         project_gid: str,
         section_gid: str,
+        entity_type: str | None = None,
     ) -> pl.DataFrame | None:
-        """Load a section-level parquet file."""
+        """Load a section-level parquet file (v2 dual-read when typed)."""
         ...
 
-    async def delete_section(self, project_gid: str, section_gid: str) -> bool:
-        """Delete a section-level parquet file."""
+    async def delete_section(
+        self, project_gid: str, section_gid: str, entity_type: str | None = None
+    ) -> bool:
+        """Delete a section-level parquet file (v2 when typed)."""
         ...
 
     # ---- Raw object operations (for manifests, etc.) ----
@@ -201,6 +220,22 @@ class DataFrameStorage(Protocol):
 
     async def list_projects(self) -> list[str]:
         """List all project GIDs with persisted data."""
+        ...
+
+    # ---- Bulk purge ----
+
+    async def purge_project_all_entities(self, project_gid: str) -> int:
+        """Delete EVERY object under ``{prefix}{project_gid}/`` (all layouts).
+
+        SEAM-1 scan-all purge (ADR-SEAM1): recursively lists and deletes every
+        object under the project prefix -- the legacy entity-agnostic keys AND
+        every v2 ``{entity_type}/`` segment (manifest, watermark, index,
+        dataframe, sections). Used by callers that do NOT have entity_type in
+        scope (e.g. the project-targeted invalidate Lambda) so a v2 frame can
+        never be orphaned by an entity-agnostic-only delete.
+
+        Returns the number of objects deleted.
+        """
         ...
 
 
@@ -277,12 +312,22 @@ class S3DataFrameStorage:
     Per TDD Section 6: All S3 operations route through RetryOrchestrator.
     Degraded mode uses circuit breaker recovery, not manual timers.
 
-    Key formats are identical to existing implementations (no migration needed):
-        {prefix}{project_gid}/dataframe.parquet
-        {prefix}{project_gid}/watermark.json
-        {prefix}{project_gid}/gid_lookup_index.json
-        {prefix}{project_gid}/manifest.json
-        {prefix}{project_gid}/sections/{section_gid}.parquet
+    Key formats (SEAM-1, ADR-SEAM1):
+        Legacy (entity-agnostic, dual-read fallback target):
+            {prefix}{project_gid}/dataframe.parquet
+            {prefix}{project_gid}/watermark.json
+            {prefix}{project_gid}/gid_lookup_index.json
+            {prefix}{project_gid}/manifest.json
+            {prefix}{project_gid}/sections/{section_gid}.parquet
+        v2 (entity-segmented, write target when entity_type supplied):
+            {prefix}{project_gid}/{entity_type}/dataframe.parquet
+            {prefix}{project_gid}/{entity_type}/watermark.json
+            {prefix}{project_gid}/{entity_type}/gid_lookup_index.json
+            {prefix}{project_gid}/{entity_type}/manifest.json
+            {prefix}{project_gid}/{entity_type}/sections/{section_gid}.parquet
+    Writes go to v2 when entity_type is given; reads try v2 then fall back to
+    legacy (gated by legacy_fallback_enabled). Project GID stays the first
+    segment so list_projects() is unchanged.
 
     Thread Safety:
         A single boto3 S3 client is shared across all to_thread() calls.
@@ -299,6 +344,7 @@ class S3DataFrameStorage:
         enabled: bool = True,
         connect_timeout: int = 10,
         read_timeout: int = 30,
+        legacy_fallback_enabled: bool = True,
     ) -> None:
         """Initialize S3 DataFrame storage.
 
@@ -310,6 +356,11 @@ class S3DataFrameStorage:
             enabled: Master enable/disable switch.
             connect_timeout: boto3 connection timeout in seconds.
             read_timeout: boto3 read timeout in seconds.
+            legacy_fallback_enabled: SEAM-1 dual-read switch (Decision 2B). When
+                True (default), a v2 entity-keyed read that misses falls back to
+                the legacy entity-agnostic key so the pre-migration frame is still
+                served with zero cold window. The operator flips this off after the
+                live S3 migration (copy legacy -> v2) is complete.
         """
         self._location = location
         self._prefix = prefix
@@ -317,6 +368,7 @@ class S3DataFrameStorage:
         self._enabled = enabled
         self._connect_timeout = connect_timeout
         self._read_timeout = read_timeout
+        self._legacy_fallback_enabled = legacy_fallback_enabled
 
         self._client: Any = None
         self._client_lock = threading.Lock()
@@ -330,26 +382,51 @@ class S3DataFrameStorage:
             self._permanently_disabled = True
 
     # ---- Key formatting (consolidated from 3 implementations) ----
+    #
+    # SEAM-1 entity-identity contract (ADR-SEAM1):
+    #   Legacy (entity-agnostic):  {prefix}{project_gid}/...
+    #   v2 (entity-segmented):     {prefix}{project_gid}/{entity_type}/...
+    #
+    # Every key-builder takes ``entity_type: str | None``. When ``None`` it emits
+    # the LEGACY path -- this is the dual-read fallback target (Decision 2B) and
+    # preserves back-compat for callers that have not yet threaded entity_type.
+    # When ``entity_type`` is supplied it emits the v2 (collision-free) path:
+    # two distinct entity views of the SAME project_gid no longer share a key, so
+    # a section warm of project P can never clobber the offer frame of project P.
+    #
+    # The project GID stays the FIRST path segment under Option 1A, so
+    # ``list_projects()`` semantics are unchanged.
 
-    def _df_key(self, project_gid: str) -> str:
-        """Generate S3 key for project DataFrame."""
-        return f"{self._prefix}{project_gid}/dataframe.parquet"
+    def _entity_segment(self, project_gid: str, entity_type: str | None) -> str:
+        """Return the path segment up to (and including) the project/entity dir.
 
-    def _watermark_key(self, project_gid: str) -> str:
-        """Generate S3 key for project watermark."""
-        return f"{self._prefix}{project_gid}/watermark.json"
+        Legacy: ``{prefix}{project_gid}`` ; v2: ``{prefix}{project_gid}/{entity_type}``.
+        """
+        if entity_type:
+            return f"{self._prefix}{project_gid}/{entity_type}"
+        return f"{self._prefix}{project_gid}"
 
-    def _index_key(self, project_gid: str) -> str:
-        """Generate S3 key for project GidLookupIndex."""
-        return f"{self._prefix}{project_gid}/gid_lookup_index.json"
+    def _df_key(self, project_gid: str, entity_type: str | None = None) -> str:
+        """Generate S3 key for project DataFrame (v2 when entity_type given)."""
+        return f"{self._entity_segment(project_gid, entity_type)}/dataframe.parquet"
 
-    def _section_key(self, project_gid: str, section_gid: str) -> str:
-        """Generate S3 key for section parquet."""
-        return f"{self._prefix}{project_gid}/sections/{section_gid}.parquet"
+    def _watermark_key(self, project_gid: str, entity_type: str | None = None) -> str:
+        """Generate S3 key for project watermark (v2 when entity_type given)."""
+        return f"{self._entity_segment(project_gid, entity_type)}/watermark.json"
 
-    def _manifest_key(self, project_gid: str) -> str:
-        """Generate S3 key for project manifest."""
-        return f"{self._prefix}{project_gid}/manifest.json"
+    def _index_key(self, project_gid: str, entity_type: str | None = None) -> str:
+        """Generate S3 key for project GidLookupIndex (v2 when entity_type given)."""
+        return f"{self._entity_segment(project_gid, entity_type)}/gid_lookup_index.json"
+
+    def _section_key(
+        self, project_gid: str, section_gid: str, entity_type: str | None = None
+    ) -> str:
+        """Generate S3 key for section parquet (v2 when entity_type given)."""
+        return f"{self._entity_segment(project_gid, entity_type)}/sections/{section_gid}.parquet"
+
+    def _manifest_key(self, project_gid: str, entity_type: str | None = None) -> str:
+        """Generate S3 key for project manifest (v2 when entity_type given)."""
+        return f"{self._entity_segment(project_gid, entity_type)}/manifest.json"
 
     # ---- Client management ----
 
@@ -676,6 +753,69 @@ class S3DataFrameStorage:
                 )
             return []
 
+    async def _list_all_keys(self, prefix: str) -> list[str]:
+        """Recursively list every object key under a prefix (no delimiter).
+
+        Unlike ``_list_common_prefixes`` (which uses ``Delimiter="/"`` to return
+        only the top-level "directories"), this returns the full flat key list so
+        every nested object under the project prefix -- legacy keys plus every
+        ``{entity_type}/`` segment -- is enumerable for bulk purge.
+
+        Args:
+            prefix: S3 key prefix.
+
+        Returns:
+            List of object key strings, or empty on error.
+        """
+        if self._permanently_disabled:
+            return []
+        if not self._retry.circuit_breaker.allow_request():
+            logger.warning("s3_storage_circuit_open", operation="list_all")
+            return []
+
+        try:
+            client = self._get_client()
+
+            def _do_list() -> list[str]:
+                paginator = client.get_paginator("list_objects_v2")
+                keys: list[str] = []
+                for page in paginator.paginate(
+                    Bucket=self._location.bucket,
+                    Prefix=prefix,
+                ):
+                    for obj in page.get("Contents", []):
+                        key = obj.get("Key")
+                        if key:
+                            keys.append(key)
+                return keys
+
+            return await self._retry.execute_with_retry_async(
+                lambda: asyncio.to_thread(_do_list),
+                operation_name=f"s3_list_all:{prefix}",
+            )
+
+        except CircuitBreakerOpenError:
+            logger.warning("s3_storage_circuit_open", operation="list_all")
+            return []
+        except S3_TRANSPORT_ERRORS as e:
+            wrapped = S3TransportError.from_boto_error(
+                e, operation="list_objects", bucket=self._location.bucket
+            )
+            if not wrapped.transient:
+                logger.error(
+                    "s3_storage_permanent_error",
+                    operation="list_all",
+                    error_code=wrapped.error_code,
+                    error=str(wrapped),
+                )
+            else:
+                logger.error(
+                    "s3_storage_transient_error_exhausted",
+                    operation="list_all",
+                    error=str(wrapped),
+                )
+            return []
+
     # ---- Serialization helpers ----
 
     @staticmethod
@@ -758,9 +898,12 @@ class S3DataFrameStorage:
         # Serialize DataFrame to Parquet
         parquet_bytes = self._serialize_parquet(df)
 
-        # Write DataFrame
+        # Write DataFrame. SEAM-1: WRITES always go to the v2 entity-keyed path
+        # when entity_type is supplied (Decision 2B: write v2 only). When
+        # entity_type is None (untyped caller / back-compat) the legacy key is
+        # used so existing single-tenant projects keep working.
         df_ok = await self._put_object(
-            self._df_key(project_gid),
+            self._df_key(project_gid, entity_type),
             parquet_bytes,
             content_type="application/octet-stream",
             metadata={
@@ -772,10 +915,10 @@ class S3DataFrameStorage:
         if not df_ok:
             return False
 
-        # Write watermark
+        # Write watermark (co-located under the same entity segment as the df)
         wm_bytes = self._serialize_watermark(project_gid, watermark, df, entity_type)
         wm_ok = await self._put_object(
-            self._watermark_key(project_gid),
+            self._watermark_key(project_gid, entity_type),
             wm_bytes,
             content_type="application/json",
         )
@@ -792,14 +935,24 @@ class S3DataFrameStorage:
     async def _load_dataframe_impl(
         self,
         project_gid: str,
+        entity_type: str | None = None,
     ) -> tuple[pl.DataFrame | None, datetime | None, dict[str, Any] | None]:
         """Internal helper: load DataFrame, watermark, and raw watermark metadata.
 
         Reads watermark.json once and deserializes both the datetime and the
         full metadata dict, avoiding a second S3 GET for schema_version.
 
+        SEAM-1 dual-read (Decision 2B): when ``entity_type`` is supplied, read the
+        v2 entity-keyed path first; on a v2 MISS fall back to the legacy
+        entity-agnostic key. This preserves the live offer denominator (which
+        currently lives at the legacy key) with ZERO cold window until the next
+        offer warm writes the v2 key. The fallback is read-only and gated by
+        ``legacy_fallback_enabled`` so the operator can retire it post-migration.
+
         Args:
             project_gid: Asana project GID.
+            entity_type: Optional entity type. When given, v2-first with legacy
+                fallback; when None, legacy-only (back-compat).
 
         Returns:
             Tuple of (DataFrame, watermark, watermark_data_dict) if found,
@@ -809,28 +962,79 @@ class S3DataFrameStorage:
             logger.debug("s3_storage_skip", operation="load_dataframe", project_gid=project_gid)
             return None, None, None
 
-        # Load watermark first (fast existence check)
-        wm_data = await self._get_object(self._watermark_key(project_gid))
+        # Try the v2 entity-keyed path first (only when entity_type is supplied).
+        if entity_type:
+            v2 = await self._load_at_keys(
+                self._watermark_key(project_gid, entity_type),
+                self._df_key(project_gid, entity_type),
+                project_gid=project_gid,
+                entity_type=entity_type,
+                layout="v2",
+            )
+            if v2 is not None:
+                return v2
+            # v2 miss: fall back to the legacy entity-agnostic key (Decision 2B).
+            if not self._legacy_fallback_enabled:
+                return None, None, None
+            legacy = await self._load_at_keys(
+                self._watermark_key(project_gid, None),
+                self._df_key(project_gid, None),
+                project_gid=project_gid,
+                entity_type=entity_type,
+                layout="legacy_fallback",
+            )
+            return legacy if legacy is not None else (None, None, None)
+
+        # No entity_type: legacy-only read (back-compat).
+        result = await self._load_at_keys(
+            self._watermark_key(project_gid, None),
+            self._df_key(project_gid, None),
+            project_gid=project_gid,
+            entity_type=None,
+            layout="legacy",
+        )
+        return result if result is not None else (None, None, None)
+
+    async def _load_at_keys(
+        self,
+        watermark_key: str,
+        df_key: str,
+        *,
+        project_gid: str,
+        entity_type: str | None,
+        layout: str,
+    ) -> tuple[pl.DataFrame, datetime, dict[str, Any]] | None:
+        """Load (df, watermark, wm_dict) from an explicit (watermark, df) key pair.
+
+        Returns None on a clean miss (no watermark) so the caller can fall back
+        to a different layout. An orphan watermark (watermark present, df absent)
+        is also treated as a miss (returns None) so a half-written v2 layout
+        falls back to legacy rather than masking the legacy frame.
+        """
+        wm_data = await self._get_object(watermark_key)
         if wm_data is None:
-            return None, None, None
+            return None
 
         wm_dict = json.loads(wm_data.decode("utf-8"))
         watermark = datetime.fromisoformat(wm_dict["watermark"])
 
-        # Load DataFrame
-        df_data = await self._get_object(self._df_key(project_gid))
+        df_data = await self._get_object(df_key)
         if df_data is None:
             logger.warning(
                 "s3_storage_orphan_watermark",
                 project_gid=project_gid,
+                entity_type=entity_type,
+                layout=layout,
             )
-            return None, None, None
+            return None
 
         df = self._deserialize_parquet(df_data)
 
         logger.info(
             "s3_storage_dataframe_loaded",
             project_gid=project_gid,
+            entity_type=entity_type,
+            layout=layout,
             row_count=len(df),
             watermark=watermark.isoformat(),
         )
@@ -839,24 +1043,30 @@ class S3DataFrameStorage:
     async def load_dataframe(
         self,
         project_gid: str,
+        entity_type: str | None = None,
     ) -> tuple[pl.DataFrame | None, datetime | None]:
         """Load DataFrame and watermark from S3.
 
         Loads watermark first (fast check), then DataFrame.
         Returns (None, None) if not found or on error.
 
+        SEAM-1: pass ``entity_type`` to read the collision-free v2 key (with
+        legacy fallback). Omitting it reads the legacy entity-agnostic key.
+
         Args:
             project_gid: Asana project GID.
+            entity_type: Optional entity type (SEAM-1 dual-read).
 
         Returns:
             Tuple of (DataFrame, watermark) if found, (None, None) otherwise.
         """
-        df, watermark, _metadata = await self._load_dataframe_impl(project_gid)
+        df, watermark, _metadata = await self._load_dataframe_impl(project_gid, entity_type)
         return df, watermark
 
     async def load_dataframe_with_metadata(
         self,
         project_gid: str,
+        entity_type: str | None = None,
     ) -> tuple[pl.DataFrame | None, datetime | None, dict[str, Any] | None]:
         """Load DataFrame, watermark, and raw watermark metadata in one pass.
 
@@ -866,20 +1076,26 @@ class S3DataFrameStorage:
 
         Args:
             project_gid: Asana project GID.
+            entity_type: Optional entity type (SEAM-1 dual-read).
 
         Returns:
             Tuple of (DataFrame, watermark, watermark_data_dict) if found,
             (None, None, None) otherwise.
         """
-        return await self._load_dataframe_impl(project_gid)
+        return await self._load_dataframe_impl(project_gid, entity_type)
 
-    async def delete_dataframe(self, project_gid: str) -> bool:
+    async def delete_dataframe(self, project_gid: str, entity_type: str | None = None) -> bool:
         """Delete DataFrame, watermark, and index for a project.
 
         Idempotent: returns True even if objects do not exist.
 
+        SEAM-1: deletes the v2 entity-keyed artifacts when ``entity_type`` is
+        supplied. Legacy keys are NOT deleted here -- removing legacy data is the
+        OPERATOR migration lever (Decision 2B), not a code-path side effect.
+
         Args:
             project_gid: Asana project GID.
+            entity_type: Optional entity type (SEAM-1).
 
         Returns:
             True if all deletes succeed, False on error.
@@ -888,9 +1104,9 @@ class S3DataFrameStorage:
             return False
 
         keys = [
-            self._df_key(project_gid),
-            self._watermark_key(project_gid),
-            self._index_key(project_gid),
+            self._df_key(project_gid, entity_type),
+            self._watermark_key(project_gid, entity_type),
+            self._index_key(project_gid, entity_type),
         ]
 
         results = [await self._delete_s3_object(key) for key in keys]
@@ -898,12 +1114,15 @@ class S3DataFrameStorage:
 
     # ---- Watermark operations ----
 
-    async def save_watermark(self, project_gid: str, watermark: datetime) -> bool:
+    async def save_watermark(
+        self, project_gid: str, watermark: datetime, entity_type: str | None = None
+    ) -> bool:
         """Persist watermark only (lightweight write-through).
 
         Args:
             project_gid: Asana project GID.
             watermark: Watermark timestamp (must be timezone-aware).
+            entity_type: Optional entity type (SEAM-1: keys the v2 watermark).
 
         Returns:
             True on success, False on failure.
@@ -917,23 +1136,33 @@ class S3DataFrameStorage:
         if self._permanently_disabled:
             return False
 
-        wm_bytes = self._serialize_watermark(project_gid, watermark)
+        wm_bytes = self._serialize_watermark(project_gid, watermark, entity_type=entity_type)
         return await self._put_object(
-            self._watermark_key(project_gid),
+            self._watermark_key(project_gid, entity_type),
             wm_bytes,
             content_type="application/json",
         )
 
-    async def get_watermark(self, project_gid: str) -> datetime | None:
+    async def get_watermark(
+        self, project_gid: str, entity_type: str | None = None
+    ) -> datetime | None:
         """Get watermark without loading DataFrame.
+
+        SEAM-1 dual-read: v2-first with legacy fallback when entity_type is given.
 
         Args:
             project_gid: Asana project GID.
+            entity_type: Optional entity type (SEAM-1 dual-read).
 
         Returns:
             Watermark datetime if found, None otherwise.
         """
-        data = await self._get_object(self._watermark_key(project_gid))
+        if entity_type:
+            data = await self._get_object(self._watermark_key(project_gid, entity_type))
+            if data is None and self._legacy_fallback_enabled:
+                data = await self._get_object(self._watermark_key(project_gid, None))
+        else:
+            data = await self._get_object(self._watermark_key(project_gid, None))
         if data is None:
             return None
         return self._deserialize_watermark(data)
@@ -984,7 +1213,9 @@ class S3DataFrameStorage:
 
     # ---- GidLookupIndex operations ----
 
-    async def save_index(self, project_gid: str, index_data: dict[str, Any]) -> bool:
+    async def save_index(
+        self, project_gid: str, index_data: dict[str, Any], entity_type: str | None = None
+    ) -> bool:
         """Persist serialized GidLookupIndex to S3 as JSON.
 
         Per ADR-B6-004: Accepts dict, not GidLookupIndex. Serialization
@@ -993,6 +1224,7 @@ class S3DataFrameStorage:
         Args:
             project_gid: Asana project GID.
             index_data: Serialized index data from GidLookupIndex.serialize().
+            entity_type: Optional entity type (SEAM-1: keys the v2 index).
 
         Returns:
             True on success, False on failure.
@@ -1002,36 +1234,47 @@ class S3DataFrameStorage:
 
         json_bytes = json.dumps(index_data).encode("utf-8")
         return await self._put_object(
-            self._index_key(project_gid),
+            self._index_key(project_gid, entity_type),
             json_bytes,
             content_type="application/json",
         )
 
-    async def load_index(self, project_gid: str) -> dict[str, Any] | None:
+    async def load_index(
+        self, project_gid: str, entity_type: str | None = None
+    ) -> dict[str, Any] | None:
         """Load serialized GidLookupIndex from S3.
+
+        SEAM-1 dual-read: v2-first with legacy fallback when entity_type is given.
 
         Args:
             project_gid: Asana project GID.
+            entity_type: Optional entity type (SEAM-1 dual-read).
 
         Returns:
             Deserialized index dict if found, None otherwise.
         """
-        data = await self._get_object(self._index_key(project_gid))
+        if entity_type:
+            data = await self._get_object(self._index_key(project_gid, entity_type))
+            if data is None and self._legacy_fallback_enabled:
+                data = await self._get_object(self._index_key(project_gid, None))
+        else:
+            data = await self._get_object(self._index_key(project_gid, None))
         if data is None:
             return None
         result: dict[str, Any] = json.loads(data.decode("utf-8"))
         return result
 
-    async def delete_index(self, project_gid: str) -> bool:
+    async def delete_index(self, project_gid: str, entity_type: str | None = None) -> bool:
         """Delete GidLookupIndex from S3.
 
         Args:
             project_gid: Asana project GID.
+            entity_type: Optional entity type (SEAM-1: deletes the v2 index).
 
         Returns:
             True on success, False on failure.
         """
-        return await self._delete_s3_object(self._index_key(project_gid))
+        return await self._delete_s3_object(self._index_key(project_gid, entity_type))
 
     # ---- Section operations ----
 
@@ -1042,24 +1285,32 @@ class S3DataFrameStorage:
         df: pl.DataFrame,
         *,
         metadata: dict[str, str] | None = None,
+        entity_type: str | None = None,
     ) -> bool:
         """Persist a section-level parquet file.
 
         Does NOT update manifests -- that responsibility stays with
         SectionPersistence.
 
+        SEAM-1: WRITES go to the v2 entity-keyed section path when entity_type is
+        supplied. This is the arm of the defect that is currently LIVE-but-dormant
+        (section warm-lane PAUSED, Trap-4): a section write of project P used to
+        share ``dataframes/P/sections/...`` with every other entity view of P; v2
+        gives each entity its own ``dataframes/P/{entity_type}/sections/...``.
+
         Args:
             project_gid: Asana project GID.
             section_gid: Asana section GID.
             df: Polars DataFrame for the section.
             metadata: Optional S3 object metadata.
+            entity_type: Optional entity type (SEAM-1: keys the v2 section).
 
         Returns:
             True on success, False on failure.
         """
         parquet_bytes = self._serialize_parquet(df)
         return await self._put_object(
-            self._section_key(project_gid, section_gid),
+            self._section_key(project_gid, section_gid, entity_type),
             parquet_bytes,
             content_type="application/octet-stream",
             metadata=metadata,
@@ -1069,32 +1320,46 @@ class S3DataFrameStorage:
         self,
         project_gid: str,
         section_gid: str,
+        entity_type: str | None = None,
     ) -> pl.DataFrame | None:
         """Load a section-level parquet file.
+
+        SEAM-1 dual-read: v2-first with legacy fallback when entity_type is given.
 
         Args:
             project_gid: Asana project GID.
             section_gid: Asana section GID.
+            entity_type: Optional entity type (SEAM-1 dual-read).
 
         Returns:
             Polars DataFrame if found, None otherwise.
         """
-        data = await self._get_object(self._section_key(project_gid, section_gid))
+        if entity_type:
+            data = await self._get_object(self._section_key(project_gid, section_gid, entity_type))
+            if data is None and self._legacy_fallback_enabled:
+                data = await self._get_object(self._section_key(project_gid, section_gid, None))
+        else:
+            data = await self._get_object(self._section_key(project_gid, section_gid, None))
         if data is None:
             return None
         return self._deserialize_parquet(data)
 
-    async def delete_section(self, project_gid: str, section_gid: str) -> bool:
+    async def delete_section(
+        self, project_gid: str, section_gid: str, entity_type: str | None = None
+    ) -> bool:
         """Delete a section-level parquet file.
 
         Args:
             project_gid: Asana project GID.
             section_gid: Asana section GID.
+            entity_type: Optional entity type (SEAM-1: deletes the v2 section).
 
         Returns:
             True on success, False on failure.
         """
-        return await self._delete_s3_object(self._section_key(project_gid, section_gid))
+        return await self._delete_s3_object(
+            self._section_key(project_gid, section_gid, entity_type)
+        )
 
     # ---- Raw object operations (for manifests, etc.) ----
 
@@ -1162,6 +1427,55 @@ class S3DataFrameStorage:
                     project_gids.append(project_gid)
 
         return sorted(project_gids)
+
+    # ---- Bulk purge ----
+
+    async def purge_project_all_entities(self, project_gid: str) -> int:
+        """Delete EVERY object under ``{prefix}{project_gid}/`` (all layouts).
+
+        SEAM-1 scan-all purge (ADR-SEAM1, D-1b): the project-targeted invalidate
+        Lambda does NOT have entity_type in scope, so an entity-keyed delete is
+        impossible there. Under SEAM-1 writes land at
+        ``dataframes/{gid}/{entity_type}/...``; an entity-agnostic delete would
+        purge only the legacy keys and orphan the live v2 frame. This recursively
+        lists the WHOLE project prefix and deletes every object -- legacy keys
+        AND every ``{entity_type}/`` segment (manifest, watermark, index,
+        dataframe, sections) -- so no layout survives the purge.
+
+        Idempotent: returns 0 when nothing is present.
+
+        Args:
+            project_gid: Asana project GID.
+
+        Returns:
+            Count of objects successfully deleted.
+        """
+        if self._permanently_disabled:
+            return 0
+
+        # Trailing slash so a prefix of project "12" does not also match "123".
+        project_prefix = f"{self._prefix}{project_gid}/"
+        keys = await self._list_all_keys(project_prefix)
+        if not keys:
+            logger.info(
+                "s3_storage_purge_project_empty",
+                project_gid=project_gid,
+                prefix=project_prefix,
+            )
+            return 0
+
+        deleted = 0
+        for key in keys:
+            if await self._delete_s3_object(key):
+                deleted += 1
+
+        logger.info(
+            "s3_storage_purge_project_complete",
+            project_gid=project_gid,
+            objects_listed=len(keys),
+            objects_deleted=deleted,
+        )
+        return deleted
 
     # ---- Async context manager ----
 

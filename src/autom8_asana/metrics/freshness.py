@@ -216,6 +216,99 @@ class FreshnessReport:
         return max(age, 0)
 
     @classmethod
+    def from_s3_resolved(
+        cls,
+        bucket: str,
+        project_gid: str,
+        threshold_seconds: int,
+        *,
+        entity_type: str | None = None,
+        s3_client: Any | None = None,
+        now: datetime | None = None,
+    ) -> FreshnessReport:
+        """Build a FreshnessReport using the SEAM-1 v2-aware section-key resolver.
+
+        This is the entity-segmented sibling of ``from_s3_listing``. It does NOT
+        construct a bare ``dataframes/{gid}/sections/`` prefix (the legacy
+        entity-AGNOSTIC layout); it resolves the prefix per ADR-SEAM1 so the
+        freshness signal observes the SAME parquet location that
+        ``dataframes/offline._resolve_section_keys`` reads for the denominator
+        load. Post-cutover, v2 section parquets land at
+        ``dataframes/{gid}/{entity_type}/sections/`` (storage.py
+        ``_section_key`` via ``_entity_segment``); a bare-prefix listing would
+        find zero v2 parquets (``parquet_count == 0`` -> ``sys.exit(1)``) or a
+        stale legacy reading. F-2 closure: this reader is now on the v2 path.
+
+        Resolution semantics (mirrors ``offline._resolve_section_keys``):
+            * ``entity_type`` given: list the v2 prefix
+              ``dataframes/{gid}/{entity_type}/sections/`` FIRST; on a v2 miss
+              (``parquet_count == 0``) fall back to the legacy entity-agnostic
+              prefix ``dataframes/{gid}/sections/`` so dual-read tolerates
+              pre-cutover artifacts. The returned report's ``prefix`` reflects
+              whichever layout actually carried the parquets.
+            * ``entity_type`` None: scan the legacy prefix directly (the
+              pre-SEAM-1 behavior). This preserves the prior signal for callers
+              with no entity scope. The NFR-2 guard's sanctioned-legacy
+              allowlist documents why a None-entity freshness read remains on
+              the legacy prefix (scan-all key enumeration belongs to the offline
+              denominator resolver, not the single-prefix freshness probe).
+
+        All listing, error mapping (FreshnessError), pagination, and the
+        ``parquet_count == 0`` sentinel are delegated to ``from_s3_listing`` so
+        this resolver adds ONLY prefix selection -- the proven IO contract is
+        reused byte-for-byte (and the existing ``from_s3_listing`` test mocks
+        intercept the delegated call unchanged).
+
+        Args:
+            bucket: S3 bucket name.
+            project_gid: Asana project GID (the first path segment under both
+                layouts -- Option 1A keeps GID first, see storage.py).
+            threshold_seconds: Carried into the report and used to derive
+                ``stale``.
+            entity_type: SEAM-1 entity type (e.g. ``"offer"``, ``"unit"``).
+                When given, v2-first with legacy fallback; when None, legacy
+                prefix only (back-compat).
+            s3_client: boto3 S3 client; threaded into both delegated listings.
+            now: Override for ``datetime.now(tz=UTC)``; threaded through.
+
+        Returns:
+            FreshnessReport for the resolved layout. On a v2 miss with a legacy
+            fallback that is ALSO empty, returns the legacy sentinel
+            (``parquet_count == 0``) so the CLI's empty-prefix guard fires the
+            same way it did pre-SEAM-1.
+        """
+        if entity_type:
+            v2_prefix = f"dataframes/{project_gid}/{entity_type}/sections/"
+            v2_report = cls.from_s3_listing(
+                bucket=bucket,
+                prefix=v2_prefix,
+                threshold_seconds=threshold_seconds,
+                s3_client=s3_client,
+                now=now,
+            )
+            if v2_report.parquet_count > 0:
+                return v2_report
+            # v2 miss -> legacy fallback (dual-read tolerance during cutover).
+            legacy_prefix = f"dataframes/{project_gid}/sections/"
+            return cls.from_s3_listing(
+                bucket=bucket,
+                prefix=legacy_prefix,
+                threshold_seconds=threshold_seconds,
+                s3_client=s3_client,
+                now=now,
+            )
+
+        # No entity scope: legacy prefix only (pre-SEAM-1 behavior preserved).
+        legacy_prefix = f"dataframes/{project_gid}/sections/"
+        return cls.from_s3_listing(
+            bucket=bucket,
+            prefix=legacy_prefix,
+            threshold_seconds=threshold_seconds,
+            s3_client=s3_client,
+            now=now,
+        )
+
+    @classmethod
     def from_s3_listing(
         cls,
         bucket: str,
@@ -568,7 +661,7 @@ def format_warning(report: FreshnessReport) -> str:
 # ---------------------------------------------------------------------------
 
 
-def read_manifest_sync(persistence: Any, project_gid: str) -> Any:
+def read_manifest_sync(persistence: Any, project_gid: str, entity_type: str | None = None) -> Any:
     """Synchronously read the section manifest for a project.
 
     Wraps the async ``persistence.get_manifest_async(project_gid)`` in
@@ -580,9 +673,15 @@ def read_manifest_sync(persistence: Any, project_gid: str) -> Any:
     the nested-loop branch is a safety net for any future caller that
     might invoke us from async context.
 
+    SEAM-1 NFR-2: ``entity_type`` is threaded from the caller's metric scope
+    so the verification-age manifest read targets the v2 entity-keyed
+    manifest. A ``None`` read consults the legacy entity-agnostic manifest
+    only, contradicting the post-cutover 0-readers-on-old-path gate.
+
     Args:
         persistence: A ``SectionPersistence`` instance.
         project_gid: Asana project GID.
+        entity_type: Entity type from the metric scope (SEAM-1 dual-read).
 
     Returns:
         The ``SectionManifest`` or ``None`` (forwarded from
@@ -598,7 +697,7 @@ def read_manifest_sync(persistence: Any, project_gid: str) -> Any:
         asyncio.get_running_loop()
     except RuntimeError:
         # No running loop -- safe to drive our own.
-        return asyncio.run(persistence.get_manifest_async(project_gid))
+        return asyncio.run(persistence.get_manifest_async(project_gid, entity_type=entity_type))
     # A loop IS running: asyncio.run would raise. Surface it rather than
     # nest. This path is not expected on the synchronous main() emission
     # path; if a future caller hits it they need to switch to an async

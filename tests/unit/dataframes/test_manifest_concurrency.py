@@ -47,13 +47,15 @@ async def test_concurrent_complete_updates_all_preserved() -> None:
     persistence = _make_persistence()
     section_gids = [f"sec_{i}" for i in range(8)]
 
-    # Create manifest with 8 sections
+    # Create manifest with 8 sections. SEAM-1: entity_type is threaded
+    # consistently through create/update/get (the real builder always passes
+    # self._entity_type), so the manifest cache key is (entity_type, project).
     await persistence.create_manifest_async("proj_1", "offer", section_gids)
 
     # Concurrently mark all 8 as complete
     tasks = [
         persistence.update_manifest_section_async(
-            "proj_1", gid, SectionStatus.COMPLETE, rows=(i + 1) * 10
+            "proj_1", gid, SectionStatus.COMPLETE, rows=(i + 1) * 10, entity_type="offer"
         )
         for i, gid in enumerate(section_gids)
     ]
@@ -63,7 +65,7 @@ async def test_concurrent_complete_updates_all_preserved() -> None:
     assert all(r is not None for r in results)
 
     # Get final manifest state
-    manifest = await persistence.get_manifest_async("proj_1")
+    manifest = await persistence.get_manifest_async("proj_1", "offer")
     assert manifest is not None
 
     # ALL 8 sections must be COMPLETE
@@ -81,8 +83,9 @@ async def test_create_manifest_populates_cache() -> None:
 
     await persistence.create_manifest_async("proj_1", "offer", ["sec_1", "sec_2"])
 
-    assert "proj_1" in persistence._manifest_cache
-    assert persistence._manifest_cache["proj_1"].project_gid == "proj_1"
+    cache_key = persistence._cache_key("proj_1", "offer")
+    assert cache_key in persistence._manifest_cache
+    assert persistence._manifest_cache[cache_key].project_gid == "proj_1"
 
 
 async def test_get_manifest_returns_cached() -> None:
@@ -94,7 +97,7 @@ async def test_get_manifest_returns_cached() -> None:
     # Reset mock to track new calls
     persistence._storage.load_json.reset_mock()
 
-    result = await persistence.get_manifest_async("proj_1")
+    result = await persistence.get_manifest_async("proj_1", "offer")
 
     assert result is not None
     assert result.project_gid == "proj_1"
@@ -115,13 +118,13 @@ async def test_get_manifest_falls_through_to_storage() -> None:
 
     persistence._storage.load_json = AsyncMock(return_value=manifest_json)
 
-    result = await persistence.get_manifest_async("proj_1")
+    result = await persistence.get_manifest_async("proj_1", "offer")
 
     assert result is not None
     assert result.project_gid == "proj_1"
     persistence._storage.load_json.assert_called_once()
-    # Should now be cached
-    assert "proj_1" in persistence._manifest_cache
+    # Should now be cached under the (entity_type, project) key
+    assert persistence._cache_key("proj_1", "offer") in persistence._manifest_cache
 
 
 async def test_delete_manifest_invalidates_cache() -> None:
@@ -129,11 +132,12 @@ async def test_delete_manifest_invalidates_cache() -> None:
     persistence = _make_persistence()
 
     await persistence.create_manifest_async("proj_1", "offer", ["sec_1"])
-    assert "proj_1" in persistence._manifest_cache
+    cache_key = persistence._cache_key("proj_1", "offer")
+    assert cache_key in persistence._manifest_cache
 
-    await persistence.delete_manifest_async("proj_1")
+    await persistence.delete_manifest_async("proj_1", "offer")
 
-    assert "proj_1" not in persistence._manifest_cache
+    assert cache_key not in persistence._manifest_cache
 
 
 async def test_concurrent_mixed_statuses() -> None:
@@ -153,12 +157,14 @@ async def test_concurrent_mixed_statuses() -> None:
     ]
 
     tasks = [
-        persistence.update_manifest_section_async("proj_1", gid, status, rows=rows, error=error)
+        persistence.update_manifest_section_async(
+            "proj_1", gid, status, rows=rows, error=error, entity_type="offer"
+        )
         for gid, status, rows, error in updates
     ]
     await asyncio.gather(*tasks)
 
-    manifest = await persistence.get_manifest_async("proj_1")
+    manifest = await persistence.get_manifest_async("proj_1", "offer")
     assert manifest is not None
 
     assert manifest.sections["sec_0"].status == SectionStatus.COMPLETE
@@ -183,7 +189,9 @@ async def test_storage_write_called_per_update() -> None:
     persistence._storage.save_json.reset_mock()
 
     tasks = [
-        persistence.update_manifest_section_async("proj_1", gid, SectionStatus.COMPLETE, rows=10)
+        persistence.update_manifest_section_async(
+            "proj_1", gid, SectionStatus.COMPLETE, rows=10, entity_type="offer"
+        )
         for gid in section_gids
     ]
     await asyncio.gather(*tasks)

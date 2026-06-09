@@ -438,8 +438,12 @@ class TestSlaProfileFlagParsing:
         captured_kwargs: dict[str, object] = {}
 
         def _fake_from_s3_listing(
-            *, bucket: str, prefix: str, threshold_seconds: int
+            *, bucket: str, prefix: str, threshold_seconds: int, **_kw: object
         ) -> FreshnessReport:
+            # **_kw absorbs the s3_client/now keyword-only params that
+            # FreshnessReport.from_s3_resolved threads through to the delegated
+            # from_s3_listing (SEAM-1 F-2 v2-aware resolver). This fake only
+            # asserts threshold propagation, which is unaffected.
             captured_kwargs["threshold_seconds"] = threshold_seconds
             captured_kwargs["bucket"] = bucket
             return FreshnessReport(
@@ -486,7 +490,10 @@ class TestSlaProfileFlagParsing:
 
         captured_kwargs: dict[str, object] = {}
 
-        def _fake(*, bucket: str, prefix: str, threshold_seconds: int) -> FreshnessReport:
+        def _fake(
+            *, bucket: str, prefix: str, threshold_seconds: int, **_kw: object
+        ) -> FreshnessReport:
+            # **_kw absorbs s3_client/now threaded by from_s3_resolved (F-2).
             captured_kwargs["threshold_seconds"] = threshold_seconds
             return FreshnessReport(
                 oldest_mtime=datetime(2026, 4, 27, 0, 0, tzinfo=UTC),
@@ -537,7 +544,10 @@ class TestSlaProfileFlagParsing:
 
         captured_kwargs: dict[str, object] = {}
 
-        def _fake(*, bucket: str, prefix: str, threshold_seconds: int) -> FreshnessReport:
+        def _fake(
+            *, bucket: str, prefix: str, threshold_seconds: int, **_kw: object
+        ) -> FreshnessReport:
+            # **_kw absorbs s3_client/now threaded by from_s3_resolved (F-2).
             captured_kwargs["threshold_seconds"] = threshold_seconds
             return FreshnessReport(
                 oldest_mtime=datetime(2026, 4, 27, 0, 0, tzinfo=UTC),

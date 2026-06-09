@@ -403,10 +403,12 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                             s3_df: pl.DataFrame | None = None
                             s3_watermark: datetime | None = None
                             if df_storage is not None:
+                                # SEAM-1: entity_type (loop var) selects the v2
+                                # entity-keyed parquet (legacy fallback on miss).
                                 (
                                     s3_df,
                                     s3_watermark,
-                                ) = await df_storage.load_dataframe(project_gid)
+                                ) = await df_storage.load_dataframe(project_gid, entity_type)
                             else:
                                 # No storage available -- cannot load parquet
                                 s3_df = None
@@ -510,8 +512,12 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                             and df_storage is not None
                                             and s3_watermark is not None
                                         ):
+                                            # SEAM-1: self-heal write MUST key v2.
                                             await df_storage.save_dataframe(
-                                                project_gid, s3_df, s3_watermark
+                                                project_gid,
+                                                s3_df,
+                                                s3_watermark,
+                                                entity_type=entity_type,
                                             )
                                             logger.info(
                                                 "progressive_preload_cascade_self_healed",

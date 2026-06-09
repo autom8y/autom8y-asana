@@ -140,10 +140,20 @@ class ProgressiveTier:
             # Use load_dataframe_with_metadata to get schema_version from
             # watermark.json in the same S3 read pass (IMP-06: eliminates
             # a separate load_json call for the same watermark file).
+            #
+            # SEAM-1 (ADR-SEAM1): entity_type is parsed from the cache key above
+            # and MUST be threaded into the storage read. This is the exact
+            # historical discard point -- the entity_type was recovered by
+            # _parse_key and then dropped one line later, so an offer read and a
+            # section read of the same project_gid resolved the SAME entity-
+            # agnostic key. Threading it selects the collision-free v2 key (with
+            # legacy fallback) so the offer denominator is no longer clobbered.
             if hasattr(storage, "load_dataframe_with_metadata"):
-                df, watermark, wm_metadata = await storage.load_dataframe_with_metadata(project_gid)
+                df, watermark, wm_metadata = await storage.load_dataframe_with_metadata(
+                    project_gid, entity_type
+                )
             else:
-                df, watermark = await storage.load_dataframe(project_gid)
+                df, watermark = await storage.load_dataframe(project_gid, entity_type)
                 wm_metadata = None
         except S3_TRANSPORT_ERRORS as e:
             self._stats["read_errors"] += 1
@@ -283,13 +293,15 @@ class ProgressiveTier:
             True if dataframe data exists for project.
         """
         try:
-            _entity_type, project_gid = self._parse_key(key)
+            entity_type, project_gid = self._parse_key(key)
         except ValueError:
             return False
 
         try:
             storage = self.persistence.storage
-            df, _wm = await storage.load_dataframe(project_gid)
+            # SEAM-1: thread entity_type so existence is checked against the v2
+            # key (with legacy fallback), matching the read path in get_async.
+            df, _wm = await storage.load_dataframe(project_gid, entity_type)
             return df is not None
         except S3_TRANSPORT_ERRORS:  # graceful degradation
             return False
@@ -306,7 +318,7 @@ class ProgressiveTier:
             True if deleted or didn't exist.
         """
         try:
-            _entity_type, project_gid = self._parse_key(key)
+            entity_type, project_gid = self._parse_key(key)
         except ValueError as e:
             logger.warning(
                 "progressive_tier_delete_invalid_key",
@@ -316,7 +328,8 @@ class ProgressiveTier:
 
         try:
             storage = self.persistence.storage
-            success = await storage.delete_dataframe(project_gid)
+            # SEAM-1: delete the v2 entity-keyed artifacts for this entity view.
+            success = await storage.delete_dataframe(project_gid, entity_type)
 
             if success:
                 logger.info(

@@ -57,8 +57,12 @@ class TestOfflineDataFrameProviderCaching:
 
             # Same object (cached)
             assert first is second
-            # load_project_dataframe_with_meta called only once
-            mock_load.assert_called_once_with("123", bucket="test-bucket", region="us-east-1")
+            # load_project_dataframe_with_meta called only once. SEAM-1: the
+            # entity_type is now threaded into the offline read so the v2 prefix
+            # is preferred (legacy fallback on miss).
+            mock_load.assert_called_once_with(
+                "123", bucket="test-bucket", region="us-east-1", entity_type="offer"
+            )
 
     async def test_different_project_gids_not_cached(self) -> None:
         """Different project GIDs trigger separate S3 loads."""
