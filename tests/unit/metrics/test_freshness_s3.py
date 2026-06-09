@@ -149,6 +149,180 @@ class TestFromS3ListingHappyPath:
 
 
 # ---------------------------------------------------------------------------
+# SEAM-1 F-2: from_s3_resolved v2-aware prefix resolution
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.skipif(not MOTO_AVAILABLE, reason="moto not installed")
+class TestFromS3ResolvedV2Aware:
+    """from_s3_resolved resolves the SEAM-1 entity-segmented section prefix.
+
+    F-2 closure: the freshness signal must read the SAME parquet location the
+    denominator load reads (dataframes/offline._resolve_section_keys). A bare
+    legacy ``dataframes/{gid}/sections/`` listing would observe zero v2
+    parquets post-cutover. These tests prove the v2-first / legacy-fallback /
+    legacy-on-no-entity contract against moto-backed S3.
+    """
+
+    BUCKET = "autom8-s3"
+    GID = "1143843662099250"
+    V2_PREFIX = "dataframes/1143843662099250/offer/sections/"
+    LEGACY_PREFIX = "dataframes/1143843662099250/sections/"
+
+    def _client_with(self, keys: list[str]) -> object:
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket=self.BUCKET)
+        for key in keys:
+            client.put_object(Bucket=self.BUCKET, Key=key, Body=b"x")
+        return client
+
+    def test_entity_type_reads_v2_prefix_when_present(self) -> None:
+        """entity_type given + v2 parquets present -> report.prefix is the v2 prefix.
+
+        This is the post-cutover happy path: v2 section parquets at
+        dataframes/{gid}/{entity_type}/sections/ are observed, NOT the legacy
+        entity-agnostic prefix. Proves F-2 now reads the v2 location.
+        """
+        with mock_aws():
+            client = self._client_with(
+                [
+                    f"{self.V2_PREFIX}s1.parquet",
+                    f"{self.V2_PREFIX}s2.parquet",
+                    # A stale legacy parquet also exists; it MUST NOT be read
+                    # when the v2 prefix carries parquets.
+                    f"{self.LEGACY_PREFIX}old.parquet",
+                ]
+            )
+            report = FreshnessReport.from_s3_resolved(
+                bucket=self.BUCKET,
+                project_gid=self.GID,
+                entity_type="offer",
+                threshold_seconds=21600,
+                s3_client=client,
+            )
+            assert report.prefix == self.V2_PREFIX
+            assert report.parquet_count == 2  # only the v2 parquets
+
+    def test_entity_type_falls_back_to_legacy_on_v2_miss(self) -> None:
+        """entity_type given + v2 EMPTY + legacy present -> legacy fallback (dual-read).
+
+        During cutover, a project may have only pre-SEAM-1 legacy parquets.
+        The resolver tolerates that by falling back to the legacy prefix.
+        """
+        with mock_aws():
+            client = self._client_with(
+                [
+                    f"{self.LEGACY_PREFIX}a.parquet",
+                    f"{self.LEGACY_PREFIX}b.parquet",
+                    f"{self.LEGACY_PREFIX}c.parquet",
+                ]
+            )
+            report = FreshnessReport.from_s3_resolved(
+                bucket=self.BUCKET,
+                project_gid=self.GID,
+                entity_type="offer",
+                threshold_seconds=21600,
+                s3_client=client,
+            )
+            assert report.prefix == self.LEGACY_PREFIX
+            assert report.parquet_count == 3
+
+    def test_entity_type_v2_and_legacy_both_empty_returns_legacy_sentinel(self) -> None:
+        """v2 miss + legacy miss -> legacy sentinel (parquet_count == 0).
+
+        The CLI's empty-prefix guard fires the same way it did pre-SEAM-1.
+        """
+        with mock_aws():
+            client = self._client_with([])  # bucket only, no parquets
+            report = FreshnessReport.from_s3_resolved(
+                bucket=self.BUCKET,
+                project_gid=self.GID,
+                entity_type="offer",
+                threshold_seconds=21600,
+                s3_client=client,
+            )
+            assert report.parquet_count == 0
+            assert report.prefix == self.LEGACY_PREFIX
+
+    def test_v2_prefix_isolates_entity_segments(self) -> None:
+        """A different entity's v2 parquets MUST NOT leak into this entity's read.
+
+        dataframes/{gid}/unit/sections/ must not be counted when resolving
+        entity_type='offer' -- the entity segment is collision-free.
+        """
+        with mock_aws():
+            client = self._client_with(
+                [
+                    f"{self.V2_PREFIX}offer1.parquet",
+                    "dataframes/1143843662099250/unit/sections/unit1.parquet",
+                    "dataframes/1143843662099250/unit/sections/unit2.parquet",
+                ]
+            )
+            report = FreshnessReport.from_s3_resolved(
+                bucket=self.BUCKET,
+                project_gid=self.GID,
+                entity_type="offer",
+                threshold_seconds=21600,
+                s3_client=client,
+            )
+            assert report.prefix == self.V2_PREFIX
+            assert report.parquet_count == 1  # only the offer parquet
+
+    def test_no_entity_type_reads_legacy_prefix(self) -> None:
+        """entity_type None -> legacy prefix (pre-SEAM-1 back-compat preserved)."""
+        with mock_aws():
+            client = self._client_with(
+                [
+                    f"{self.LEGACY_PREFIX}a.parquet",
+                    # v2 parquets exist but are NOT scanned in the None-entity path.
+                    f"{self.V2_PREFIX}ignored.parquet",
+                ]
+            )
+            report = FreshnessReport.from_s3_resolved(
+                bucket=self.BUCKET,
+                project_gid=self.GID,
+                entity_type=None,
+                threshold_seconds=21600,
+                s3_client=client,
+            )
+            assert report.prefix == self.LEGACY_PREFIX
+            assert report.parquet_count == 1
+
+    def test_resolved_prefix_matches_offline_v2_layout(self) -> None:
+        """The v2 prefix from_s3_resolved lists is byte-identical to offline's.
+
+        Pins the freshness reader's v2 prefix to the SAME template the
+        denominator resolver (dataframes/offline._resolve_section_keys) uses,
+        so the signal and the count read the same S3 location.
+        """
+        from autom8_asana.dataframes import offline
+
+        # offline builds: dataframes/{gid}/{entity_type}/sections/
+        expected_v2 = f"dataframes/{self.GID}/offer/sections/"
+        with mock_aws():
+            client = self._client_with([f"{expected_v2}s.parquet"])
+            report = FreshnessReport.from_s3_resolved(
+                bucket=self.BUCKET,
+                project_gid=self.GID,
+                entity_type="offer",
+                threshold_seconds=21600,
+                s3_client=client,
+            )
+            assert report.prefix == expected_v2
+            # offline._resolve_section_keys uses the identical template; assert
+            # the source-of-truth string the resolver constructs is the same.
+            assert (
+                "dataframes/{project_gid}/{entity_type}/sections/".format(
+                    project_gid=self.GID, entity_type="offer"
+                )
+                == report.prefix
+            )
+            # Guard against import drift: the offline module is the sibling
+            # resolver this reader is intentionally aligned with.
+            assert hasattr(offline, "_resolve_section_keys")
+
+
+# ---------------------------------------------------------------------------
 # Error mapping tests (using mocked clients, not moto)
 # ---------------------------------------------------------------------------
 

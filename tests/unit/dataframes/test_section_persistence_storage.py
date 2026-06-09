@@ -113,9 +113,11 @@ class TestManifestViaStorage:
         assert manifest.total_sections == 2
         storage.save_json.assert_called_once()
 
-        # Verify key format
+        # Verify key format. SEAM-1: the manifest is written to the v2
+        # entity-segmented key so two entity views of the same project no longer
+        # share a manifest (the manifest carries its own entity_type="offer").
         call_key = storage.save_json.call_args[0][0]
-        assert call_key == "dataframes/proj_123/manifest.json"
+        assert call_key == "dataframes/proj_123/offer/manifest.json"
 
     async def test_get_manifest_loads_via_storage(self) -> None:
         """get_manifest_async reads manifest JSON via storage.load_json."""
@@ -172,8 +174,9 @@ class TestSectionWriteViaStorage:
         storage = _make_mock_storage()
         persistence = _make_persistence(storage=storage)
 
-        # Pre-populate manifest in cache so update_manifest doesn't fail
-        persistence._manifest_cache["proj_123"] = SectionManifest(
+        # Pre-populate manifest in cache so update_manifest doesn't fail.
+        # SEAM-1: the cache is now keyed on (entity_type, project_gid).
+        persistence._manifest_cache[persistence._cache_key("proj_123", "offer")] = SectionManifest(
             project_gid="proj_123",
             entity_type="offer",
             total_sections=1,
@@ -181,7 +184,7 @@ class TestSectionWriteViaStorage:
         )
 
         df = _make_df()
-        result = await persistence.write_section_async("proj_123", "sec_1", df)
+        result = await persistence.write_section_async("proj_123", "sec_1", df, entity_type="offer")
 
         assert result is True
         storage.save_section.assert_called_once()
@@ -191,6 +194,8 @@ class TestSectionWriteViaStorage:
         assert call_args[0][1] == "sec_1"
         # Third positional arg is the DataFrame
         assert isinstance(call_args[0][2], pl.DataFrame)
+        # SEAM-1: entity_type is threaded into the section write.
+        assert call_args[1]["entity_type"] == "offer"
 
     async def test_write_section_failure_marks_manifest_failed(self) -> None:
         """When storage.save_section returns False, manifest is marked FAILED."""
@@ -198,7 +203,7 @@ class TestSectionWriteViaStorage:
         storage.save_section = AsyncMock(return_value=False)
 
         persistence = _make_persistence(storage=storage)
-        persistence._manifest_cache["proj_123"] = SectionManifest(
+        persistence._manifest_cache[persistence._cache_key("proj_123", "offer")] = SectionManifest(
             project_gid="proj_123",
             entity_type="offer",
             total_sections=1,
@@ -206,11 +211,11 @@ class TestSectionWriteViaStorage:
         )
 
         df = _make_df()
-        result = await persistence.write_section_async("proj_123", "sec_1", df)
+        result = await persistence.write_section_async("proj_123", "sec_1", df, entity_type="offer")
 
         assert result is False
-        # Manifest should show failed
-        manifest = persistence._manifest_cache["proj_123"]
+        # Manifest should show failed (SEAM-1: cache keyed on entity+project)
+        manifest = persistence._manifest_cache[persistence._cache_key("proj_123", "offer")]
         assert manifest.sections["sec_1"].status == SectionStatus.FAILED
 
 
@@ -232,7 +237,8 @@ class TestSectionReadViaStorage:
         df = await persistence.read_section_async("proj_123", "sec_1")
 
         assert df is expected_df
-        storage.load_section.assert_called_once_with("proj_123", "sec_1")
+        # SEAM-1: read_section_async threads entity_type (None when omitted).
+        storage.load_section.assert_called_once_with("proj_123", "sec_1", None)
 
     async def test_read_section_returns_none_when_not_found(self) -> None:
         """read_section_async returns None when storage returns None."""
@@ -258,8 +264,8 @@ class TestCheckpointViaStorage:
         storage = _make_mock_storage()
         persistence = _make_persistence(storage=storage)
 
-        # Pre-populate manifest
-        persistence._manifest_cache["proj_123"] = SectionManifest(
+        # Pre-populate manifest (SEAM-1: cache keyed on entity+project)
+        persistence._manifest_cache[persistence._cache_key("proj_123", "offer")] = SectionManifest(
             project_gid="proj_123",
             entity_type="offer",
             total_sections=1,
@@ -268,7 +274,7 @@ class TestCheckpointViaStorage:
 
         df = _make_df()
         result = await persistence.write_checkpoint_async(
-            "proj_123", "sec_1", df, pages_fetched=5, rows_fetched=100
+            "proj_123", "sec_1", df, pages_fetched=5, rows_fetched=100, entity_type="offer"
         )
 
         assert result is True
@@ -305,7 +311,8 @@ class TestFinalArtifactsViaStorage:
         storage.save_dataframe.assert_called_once_with(
             "proj_123", df, watermark, entity_type="offer"
         )
-        storage.save_index.assert_called_once_with("proj_123", index_data)
+        # SEAM-1: save_index also keys the v2 entity-segmented path.
+        storage.save_index.assert_called_once_with("proj_123", index_data, entity_type="offer")
 
     async def test_write_final_artifacts_without_index(self) -> None:
         """write_final_artifacts_async works without index data."""

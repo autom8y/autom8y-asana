@@ -33,9 +33,16 @@ class SectionIndex:
         cls,
         persistence: SectionPersistence,
         project_gid: str,
+        entity_type: str | None = None,
     ) -> SectionIndex:
-        """Build an index from section names stored in the S3 manifest."""
-        manifest = await persistence.get_manifest_async(project_gid)
+        """Build an index from section names stored in the S3 manifest.
+
+        SEAM-1 NFR-2: ``entity_type`` is threaded from the caller's metric /
+        query scope so the section-name index reads the v2 entity-keyed
+        manifest. A ``None`` read consults the legacy entity-agnostic manifest
+        only, contradicting the post-cutover 0-readers-on-old-path gate.
+        """
+        manifest = await persistence.get_manifest_async(project_gid, entity_type=entity_type)
         if manifest is None:
             return cls(_name_to_gid={})
         return cls(_name_to_gid=manifest.get_section_name_index())

@@ -602,9 +602,11 @@ class TestFastPathCascadeSelfHeals:
             )
             await _preload_dataframe_cache_progressive(app)
 
-        # S3 self-heal: save_dataframe was called with corrected data
+        # S3 self-heal: save_dataframe was called with corrected data.
+        # SEAM-1: the self-heal write now keys the v2 entity-segmented path by
+        # threading entity_type="unit" (the preload loop variable).
         mock_df_storage.save_dataframe.assert_awaited_once_with(
-            "proj_unit", corrected_df, s3_watermark
+            "proj_unit", corrected_df, s3_watermark, entity_type="unit"
         )
 
         # Corrected DataFrame was cached (not the original)

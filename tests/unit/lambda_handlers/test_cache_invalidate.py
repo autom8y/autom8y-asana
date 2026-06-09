@@ -64,6 +64,9 @@ class TestInvalidateProjectAsync:
         persistence = MagicMock()
         persistence.delete_section_files_async = AsyncMock(return_value=True)
         persistence.delete_manifest_async = AsyncMock(return_value=True)
+        # SEAM-1 (D-1b): the Lambda now scan-all purges every entity segment
+        # via storage.purge_project_all_entities before the legacy deletes.
+        persistence.storage.purge_project_all_entities = AsyncMock(return_value=3)
         return persistence
 
     @pytest.fixture
@@ -222,6 +225,8 @@ class TestHandlerAsyncInvalidateProject:
         mock_persistence = MagicMock()
         mock_persistence.delete_section_files_async = AsyncMock(return_value=True)
         mock_persistence.delete_manifest_async = AsyncMock(return_value=True)
+        # SEAM-1 (D-1b): scan-all purge runs before the legacy deletes.
+        mock_persistence.storage.purge_project_all_entities = AsyncMock(return_value=3)
 
         with patch(
             "autom8_asana.dataframes.section_persistence.create_section_persistence",
