@@ -48,6 +48,7 @@ from autom8_asana.api.rate_limit import (
 from autom8_asana.api.routes._security import s2s_router
 from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
 from autom8_asana.client import AsanaClient
+from autom8_asana.core.types import EntityType
 from autom8_asana.query.engine import QueryEngine
 from autom8_asana.query.errors import (
     AggregateGroupLimitError,
@@ -502,6 +503,33 @@ async def query_rows(
             InvalidParameterError(
                 f"project_gid is required in the request body for body-parameterized "
                 f"entity type: {entity_type}"
+            ),
+        )
+
+    # PQ-5 fail-closed guard: a section-entity request that omits its required
+    # section selector must be REJECTED, not silently degenerated.
+    #
+    # The live section selector consumed by the engine is `request.section`
+    # (the section NAME). `_resolve_section` (engine.py) returns None when
+    # `request.section is None`, and the engine applies the section predicate
+    # ONLY `if section_name_filter is not None` (engine.py "7.5 Apply section
+    # filter"). So a section-entity request carrying project_gid but no
+    # `section` selector skips section narrowing entirely and returns an
+    # UNFILTERED project-wide frame as a 200 — a liveness-masquerade: the
+    # response is "alive" but scopes the wrong rows (the S7-GATE-FIDELITY
+    # false-negative class). `request.section_gid` is INERT on this path
+    # (declared on RowsRequest but never read by the engine / resolve_section_index
+    # post the S3-MAP fix), so supplying only section_gid does NOT scope either.
+    # Fail-closed: require the live `section` selector for the section entity.
+    if entity_type == EntityType.SECTION.value and request_body.section is None:
+        raise_service_error(
+            request_id,
+            InvalidParameterError(
+                "section is required in the request body for a section-entity query: "
+                "a section query without a section selector would silently return the "
+                "unfiltered project-wide frame. Supply the 'section' name selector "
+                "(note: 'section_gid' is not consumed on this path). "
+                "[MISSING_SECTION_SELECTOR]"
             ),
         )
 
