@@ -203,19 +203,21 @@ class CacheProviderFactory:
 
     @staticmethod
     def _create_tiered_provider(config: CacheConfig) -> CacheProvider:
-        """Create tiered cache provider (Redis hot + S3 cold).
+        """Create the tiered cache provider — which maps to Redis.
 
-        Uses existing TieredCacheProvider infrastructure.
-        For Phase 1, tiered maps to Redis (S3 cold tier is Phase 3).
+        The ``tiered`` provider value resolves to a Redis provider: there is no S3
+        cold tier in the cache provider stack (the phantom S3 cold tier was
+        retired). The durable per-task copies at ``asana-cache/tasks/`` are read
+        via the EXPLICIT ``DurableTaskCacheReader``, not promoted through a cache
+        tier — see ``StorageNamespaceContract.TASK_CACHE`` in ``storage_namespace.py``.
 
         Args:
             config: CacheConfig for TTL settings.
 
         Returns:
-            TieredCacheProvider instance (currently Redis-only).
+            A Redis cache provider.
         """
-        # For Phase 1, tiered maps to Redis (S3 cold tier is Phase 3)
-        logger.info("Creating tiered cache provider (Redis-only for Phase 1)")
+        logger.info("Creating tiered cache provider (maps to Redis; no S3 cold tier)")
         return CacheProviderFactory._create_redis_provider(config)
 
     @staticmethod

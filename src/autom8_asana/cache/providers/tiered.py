@@ -1,180 +1,94 @@
-"""Two-tier cache provider coordinating Redis (hot) and S3 (cold) tiers.
+"""Redis-backed cache provider (the historical "tiered" provider, S3 cold tier RETIRED).
 
-Implements the architecture defined in ADR-0026:
-- Write-through: Writes go to both tiers for durability
-- Cache-aside with promotion: Reads check hot first, promote from cold on miss
-- Graceful degradation: S3 failures don't break Redis operations
+Originally specced (ADR-0026) as a two-tier Redis-hot + S3-cold provider. The S3
+cold tier was NEVER wired in production: ``factory.py`` maps the ``tiered``
+provider to Redis ("S3 cold tier is Phase 3"), and the ``ASANA_CACHE_S3_ENABLED``
+env flag that gated the cold path was set NOWHERE (not in Terraform, not in
+``.env/defaults``, not in secretspec). It was the storage-topology census's
+**mask #1 — phantom S3 cold tier**: a config field advertising a read tier wired
+nowhere.
+
+That phantom is now RETIRED. The ``s3_enabled`` flag, the ``ASANA_CACHE_S3_ENABLED``
+env claim, the optional ``cold_tier`` argument, the promotion path, and every
+``if self.s3_enabled`` cold-path gate are gone. ``TieredCacheProvider`` is now an
+honest Redis-only passthrough. The durable per-task copies at
+``asana-cache/tasks/`` are read via the EXPLICIT ``DurableTaskCacheReader`` (a
+WRITE-durable / explicit-read namespace, NOT a cache provider tier) —
+see ``StorageNamespaceContract.TASK_CACHE`` in ``storage_namespace.py``.
+
+The class is retained (not deleted) because ``factory.py`` still selects it as the
+``tiered`` provider value and it implements the full ``CacheProvider`` protocol by
+delegating to the hot tier. Wiring a real S3 read tier in the future is a
+separately-gated decision that must register its namespace in the storage registry
+(it would otherwise fail ``tests/arch/test_namespace_contract.py`` t4).
 
 Example:
-    >>> from autom8_asana.cache.providers.tiered import TieredCacheProvider, TieredConfig
+    >>> from autom8_asana.cache.providers.tiered import TieredCacheProvider
     >>> from autom8_asana.cache.backends.redis import RedisCacheProvider
-    >>> from autom8_asana.cache.backends.s3 import S3CacheProvider
     >>>
-    >>> config = TieredConfig(s3_enabled=True)
-    >>> tiered = TieredCacheProvider(
-    ...     hot_tier=RedisCacheProvider(),
-    ...     cold_tier=S3CacheProvider(),
-    ...     config=config,
-    ... )
+    >>> tiered = TieredCacheProvider(hot_tier=RedisCacheProvider())
     >>> tiered.is_healthy()
     True
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from autom8y_log import get_logger
 
-from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.models.metrics import CacheMetrics
-from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from autom8_asana.cache.models.entry import CacheEntry, EntryType
+    from autom8_asana.cache.models.freshness_unified import FreshnessIntent
     from autom8_asana.protocols.cache import CacheProvider, WarmResult
 
 logger = get_logger(__name__)
 
 
-@dataclass
-class TieredConfig:
-    """Configuration for two-tier cache behavior.
-
-    Attributes:
-        s3_enabled: Feature flag to enable S3 cold tier.
-            When False, TieredCacheProvider behaves as Redis-only.
-            Environment variable: ASANA_CACHE_S3_ENABLED
-        promotion_ttl: TTL in seconds when promoting entries from S3 to Redis.
-            Default is 3600 (1 hour) per ADR-0026.
-        write_through: Whether to write to both tiers on set operations.
-            When True, writes go to both Redis and S3.
-            When False, only Redis receives writes.
-    """
-
-    s3_enabled: bool = False
-    promotion_ttl: int = 3600
-    write_through: bool = True
-
-
 class TieredCacheProvider:
-    """Two-tier cache provider coordinating Redis and S3 backends.
+    """Redis-only cache provider (S3 cold tier retired — see module docstring).
 
-    Implements the CacheProvider protocol by coordinating a hot tier (Redis)
-    and optional cold tier (S3). When S3 is disabled via the feature flag,
-    behaves exactly like the Redis provider alone.
-
-    Read Strategy (cache-aside with promotion):
-        1. Check hot tier (Redis) first
-        2. On hit: return immediately (fast path)
-        3. On miss: check cold tier (S3) if enabled
-        4. On cold hit: promote to hot tier with promotion_ttl, return
-        5. On cold miss: return None (caller fetches from API)
-
-    Write Strategy (write-through):
-        1. Write to hot tier (Redis) - always
-        2. Write to cold tier (S3) if enabled - fire-and-forget
-
-    Graceful Degradation:
-        - S3 failures are logged but don't fail operations
-        - Health check only requires hot tier to be healthy
-        - Read/write operations succeed if Redis works
+    Implements the ``CacheProvider`` protocol by delegating every operation to a
+    single hot tier (Redis). There is no cold tier: the durable task cache is read
+    explicitly via ``DurableTaskCacheReader``, not promoted through this provider.
 
     Thread Safety:
-        Thread safety is delegated to the underlying providers.
-        Both RedisCacheProvider and S3CacheProvider are thread-safe.
+        Delegated to the underlying hot-tier provider (RedisCacheProvider is
+        thread-safe).
 
     Example:
-        >>> config = TieredConfig(s3_enabled=True)
-        >>> provider = TieredCacheProvider(
-        ...     hot_tier=redis_provider,
-        ...     cold_tier=s3_provider,
-        ...     config=config,
-        ... )
+        >>> provider = TieredCacheProvider(hot_tier=redis_provider)
         >>> entry = provider.get_versioned("12345", EntryType.TASK)
     """
 
-    def __init__(
-        self,
-        hot_tier: CacheProvider,
-        cold_tier: CacheProvider | None = None,
-        config: TieredConfig | None = None,
-    ) -> None:
-        """Initialize tiered cache provider.
+    def __init__(self, hot_tier: CacheProvider) -> None:
+        """Initialize the provider over a single hot tier.
 
         Args:
-            hot_tier: Redis cache provider for fast access.
-            cold_tier: S3 cache provider for durability.
-                Can be None if S3 is not configured.
-            config: Tiered cache configuration.
-                Defaults to TieredConfig() with S3 disabled.
+            hot_tier: Redis cache provider for all operations.
         """
         self._hot = hot_tier
-        self._cold = cold_tier
-        self._config = config or TieredConfig()
         self._metrics = CacheMetrics()
 
-    @property
-    def s3_enabled(self) -> bool:
-        """Check if S3 cold tier is enabled.
-
-        Returns True only if both the feature flag is enabled AND
-        a cold tier provider is configured.
-        """
-        return self._config.s3_enabled and self._cold is not None
-
-    # === Original methods (backward compatible) ===
+    # === Simple key-value operations ===
 
     def get(self, key: str) -> dict[str, Any] | None:
-        """Retrieve value from cache (simple key-value).
-
-        Checks hot tier only for simple get operations.
-        Versioned operations should use get_versioned for
-        full two-tier support.
-
-        Args:
-            key: Cache key.
-
-        Returns:
-            Cached dict if found, None if miss.
-        """
+        """Retrieve a value from the hot tier (simple key-value)."""
         return self._hot.get(key)
 
     def set(self, key: str, value: dict[str, Any], ttl: int | None = None) -> None:
-        """Store value in cache (simple key-value).
-
-        Writes to hot tier only for simple set operations.
-        Versioned operations should use set_versioned for
-        write-through support.
-
-        Args:
-            key: Cache key.
-            value: Dict to cache.
-            ttl: Time-to-live in seconds.
-        """
+        """Store a value in the hot tier (simple key-value)."""
         self._hot.set(key, value, ttl)
 
     def delete(self, key: str) -> None:
-        """Remove value from cache.
-
-        Deletes from both tiers to maintain consistency.
-
-        Args:
-            key: Cache key to delete.
-        """
+        """Remove a value from the hot tier."""
         self._hot.delete(key)
-        if self.s3_enabled and self._cold is not None:
-            try:
-                self._cold.delete(key)
-            except CACHE_TRANSIENT_ERRORS as e:
-                logger.warning(
-                    "s3_delete_failed",
-                    extra={"key": key, "error": str(e)},
-                )
 
-    # === Versioned methods with two-tier support ===
+    # === Versioned operations ===
 
     def get_versioned(
         self,
@@ -182,14 +96,7 @@ class TieredCacheProvider:
         entry_type: EntryType,
         freshness: FreshnessIntent | None = None,
     ) -> CacheEntry | None:
-        """Retrieve versioned cache entry with two-tier lookup.
-
-        Implements cache-aside with promotion:
-        1. Check hot tier (Redis)
-        2. On hit: return entry (fast path)
-        3. On miss + S3 enabled: check cold tier
-        4. On cold hit: promote to hot tier with promotion_ttl
-        5. On miss: return None
+        """Retrieve a versioned entry from the hot tier.
 
         Args:
             key: Cache key (task GID).
@@ -197,93 +104,20 @@ class TieredCacheProvider:
             freshness: STRICT validates version, EVENTUAL returns without check.
 
         Returns:
-            CacheEntry if found in either tier, None otherwise.
+            CacheEntry if found in the hot tier, None otherwise.
         """
-        if freshness is None:
-            freshness = FreshnessIntent.EVENTUAL
+        return self._hot.get_versioned(key, entry_type, freshness)
 
-        # Check hot tier first
-        entry = self._hot.get_versioned(key, entry_type, freshness)
-        if entry is not None:
-            return entry
-
-        # S3 disabled - return miss
-        if not self.s3_enabled or self._cold is None:
-            return None
-
-        # Check cold tier
-        try:
-            entry = self._cold.get_versioned(key, entry_type, freshness)
-        except CACHE_TRANSIENT_ERRORS as e:
-            logger.warning(
-                "s3_get_versioned_failed",
-                extra={"key": key, "entry_type": entry_type.value, "error": str(e)},
-            )
-            return None
-
-        if entry is None:
-            return None
-
-        # Promote to hot tier with configured promotion TTL
-        promoted_entry = self._promote_entry(entry)
-        try:
-            self._hot.set_versioned(key, promoted_entry)
-            self._metrics.record_promotion(
-                key=key,
-                entry_type=entry_type.value,
-            )
-        except CACHE_TRANSIENT_ERRORS as e:
-            # Promotion failure shouldn't fail the read
-            logger.warning(
-                "redis_promotion_failed",
-                extra={"key": key, "error": str(e)},
-            )
-
-        return entry
-
-    def set_versioned(
-        self,
-        key: str,
-        entry: CacheEntry,
-    ) -> None:
-        """Store versioned cache entry with write-through.
-
-        Always writes to hot tier. When S3 is enabled and
-        write_through is True, also writes to cold tier.
-
-        S3 write failures are logged but don't fail the operation.
-
-        Args:
-            key: Cache key.
-            entry: CacheEntry with data and metadata.
-        """
-        # Always write to hot tier
+    def set_versioned(self, key: str, entry: CacheEntry) -> None:
+        """Store a versioned entry in the hot tier."""
         self._hot.set_versioned(key, entry)
-
-        # Write-through to cold tier if enabled
-        if self.s3_enabled and self._config.write_through and self._cold is not None:
-            try:
-                self._cold.set_versioned(key, entry)
-            except CACHE_TRANSIENT_ERRORS as e:
-                # S3 write failure - log but don't fail operation
-                logger.warning(
-                    "s3_write_through_failed",
-                    extra={
-                        "key": key,
-                        "entry_type": entry.entry_type.value,
-                        "error": str(e),
-                    },
-                )
 
     def get_batch(
         self,
         keys: list[str],
         entry_type: EntryType,
     ) -> dict[str, CacheEntry | None]:
-        """Retrieve multiple entries with two-tier lookup.
-
-        First checks hot tier for all keys. For keys with misses,
-        checks cold tier if S3 is enabled and promotes hits.
+        """Retrieve multiple entries from the hot tier.
 
         Args:
             keys: List of cache keys.
@@ -294,99 +128,20 @@ class TieredCacheProvider:
         """
         if not keys:
             return {}
+        return self._hot.get_batch(keys, entry_type)
 
-        # Check hot tier first
-        result = self._hot.get_batch(keys, entry_type)
-
-        # If S3 disabled, return hot tier results
-        if not self.s3_enabled or self._cold is None:
-            return result
-
-        # Find keys that missed in hot tier
-        missed_keys = [k for k, v in result.items() if v is None]
-        if not missed_keys:
-            return result
-
-        # Check cold tier for missed keys
-        try:
-            cold_results = self._cold.get_batch(missed_keys, entry_type)
-        except CACHE_TRANSIENT_ERRORS as e:
-            logger.warning(
-                "s3_get_batch_failed",
-                extra={"key_count": len(missed_keys), "error": str(e)},
-            )
-            return result
-
-        # Promote cold hits to hot tier
-        promotions: dict[str, CacheEntry] = {}
-        for key, entry in cold_results.items():
-            if entry is not None:
-                result[key] = entry
-                promoted = self._promote_entry(entry)
-                promotions[key] = promoted
-
-        # Batch promote to hot tier
-        if promotions:
-            try:
-                self._hot.set_batch(promotions)
-                for key in promotions:
-                    self._metrics.record_promotion(
-                        key=key,
-                        entry_type=entry_type.value,
-                    )
-            except CACHE_TRANSIENT_ERRORS as e:
-                logger.warning(
-                    "batch_promotion_to_redis_failed",
-                    extra={"error": str(e)},
-                )
-
-        return result
-
-    def set_batch(
-        self,
-        entries: dict[str, CacheEntry],
-    ) -> None:
-        """Store multiple entries with write-through.
-
-        Always writes to hot tier. When S3 is enabled and
-        write_through is True, also writes to cold tier.
-
-        Args:
-            entries: Dict mapping keys to CacheEntry objects.
-        """
+    def set_batch(self, entries: dict[str, CacheEntry]) -> None:
+        """Store multiple entries in the hot tier."""
         if not entries:
             return
-
-        # Always write to hot tier
         self._hot.set_batch(entries)
-
-        # Write-through to cold tier if enabled
-        if self.s3_enabled and self._config.write_through and self._cold is not None:
-            try:
-                self._cold.set_batch(entries)
-            except CACHE_TRANSIENT_ERRORS as e:
-                logger.warning(
-                    "s3_batch_write_through_failed",
-                    extra={"error": str(e)},
-                )
 
     def warm(
         self,
         gids: list[str],
         entry_types: list[EntryType] | None = None,
     ) -> WarmResult:
-        """Pre-populate cache for specified GIDs.
-
-        Delegates to hot tier warming. Cold tier warming is not
-        supported as S3 is for durability, not warming.
-
-        Args:
-            gids: List of task GIDs to warm.
-            entry_types: Entry types to fetch and cache.
-
-        Returns:
-            WarmResult with success/failure counts.
-        """
+        """Pre-populate the hot tier for the specified GIDs."""
         return self._hot.warm(gids, entry_types)
 
     def check_freshness(
@@ -395,19 +150,7 @@ class TieredCacheProvider:
         entry_type: EntryType,
         current_version: datetime,
     ) -> bool:
-        """Check if cached version matches current version.
-
-        Checks hot tier only. If entry is in cold tier but not
-        hot tier, returns False (stale) to trigger refresh.
-
-        Args:
-            key: Cache key.
-            entry_type: Type of entry.
-            current_version: Known current modified_at timestamp.
-
-        Returns:
-            True if hot tier cache is fresh, False if stale or missing.
-        """
+        """Check if the hot-tier cached version matches the current version."""
         return self._hot.check_freshness(key, entry_type, current_version)
 
     def invalidate(
@@ -415,71 +158,33 @@ class TieredCacheProvider:
         key: str,
         entry_types: list[EntryType] | None = None,
     ) -> None:
-        """Invalidate cache entries from both tiers.
-
-        Always invalidates from hot tier. When S3 is enabled,
-        also invalidates from cold tier.
-
-        Args:
-            key: Cache key (task GID).
-            entry_types: Specific types to invalidate.
-                If None, invalidates all types for the key.
-        """
+        """Invalidate cache entries in the hot tier."""
         self._hot.invalidate(key, entry_types)
 
-        if self.s3_enabled and self._cold is not None:
-            try:
-                self._cold.invalidate(key, entry_types)
-            except CACHE_TRANSIENT_ERRORS as e:
-                logger.warning(
-                    "s3_invalidate_failed",
-                    extra={"key": key, "error": str(e)},
-                )
-
     def is_healthy(self) -> bool:
-        """Check if cache is operational.
-
-        Returns True if hot tier (Redis) is healthy.
-        S3 health is not required - it's for durability, not availability.
-
-        Returns:
-            True if Redis is healthy and responding.
-        """
+        """Return True if the hot tier (Redis) is healthy."""
         return self._hot.is_healthy()
 
     def get_metrics(self) -> CacheMetrics:
-        """Get tiered cache metrics.
-
-        Returns the tiered provider's own metrics which track
-        promotions. For tier-specific metrics, access the
-        individual providers.
-
-        Returns:
-            CacheMetrics instance with promotion statistics.
-        """
+        """Return this provider's own metrics."""
         return self._metrics
 
     def reset_metrics(self) -> None:
-        """Reset tiered cache metrics.
-
-        Resets the tiered provider's metrics. Does not reset
-        individual tier metrics - call those separately if needed.
-        """
+        """Reset this provider's own metrics."""
         self._metrics.reset()
 
     def clear_all_tasks(self) -> dict[str, int]:
-        """Clear all task entries from both tiers.
-
-        Clears task cache from both Redis (hot) and S3 (cold) tiers.
-        Used for cache invalidation when cached data becomes stale
-        or corrupted (e.g., missing required fields like memberships).
+        """Clear all task entries from the hot tier.
 
         Returns:
-            Dict with counts: {"redis": N, "s3": M}
+            Dict with counts: ``{"redis": N, "s3": 0}``. The ``"s3"`` count is
+            retained for back-compat with consumers (e.g. ``cache_invalidate``)
+            but is ALWAYS 0 now that the S3 cold tier is retired — there is no
+            cold tier to clear. It honestly reflects "no S3 cold tier present".
         """
         result = {"redis": 0, "s3": 0}
+        from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 
-        # Clear hot tier (Redis)
         try:
             result["redis"] = self._hot.clear_all_tasks()
         except CACHE_TRANSIENT_ERRORS as e:
@@ -488,77 +193,12 @@ class TieredCacheProvider:
                 extra={"error": str(e)},
             )
 
-        # Clear cold tier (S3) if enabled
-        if self.s3_enabled and self._cold is not None:
-            try:
-                result["s3"] = self._cold.clear_all_tasks()
-            except CACHE_TRANSIENT_ERRORS as e:
-                logger.warning(
-                    "s3_clear_all_tasks_failed",
-                    extra={"error": str(e)},
-                )
-
         logger.info(
             "tiered_clear_all_tasks_complete",
-            extra={
-                "redis_deleted": result["redis"],
-                "s3_deleted": result["s3"],
-            },
+            extra={"redis_deleted": result["redis"], "s3_deleted": result["s3"]},
         )
-
         return result
 
     def get_hot_metrics(self) -> CacheMetrics:
-        """Get hot tier (Redis) metrics.
-
-        Returns:
-            CacheMetrics from the Redis provider.
-        """
+        """Return the hot tier (Redis) metrics."""
         return self._hot.get_metrics()
-
-    def get_cold_metrics(self) -> CacheMetrics | None:
-        """Get cold tier (S3) metrics if available.
-
-        Returns:
-            CacheMetrics from S3 provider, or None if S3 disabled.
-        """
-        if self._cold is not None:
-            return self._cold.get_metrics()
-        return None
-
-    # === Helper methods ===
-
-    def _promote_entry(self, entry: CacheEntry) -> CacheEntry:
-        """Create a new entry with promotion TTL for hot tier.
-
-        Preserves the original freshness stamp but updates its source
-        to PROMOTION to indicate the data came from cold storage.
-        The original last_verified_at is preserved so consumers can
-        determine actual data age.
-
-        Args:
-            entry: Original entry from cold tier.
-
-        Returns:
-            New CacheEntry with promotion_ttl, updated cached_at,
-            and freshness stamp with PROMOTION source.
-        """
-        from autom8_asana.cache.models.freshness_stamp import (
-            FreshnessStamp,
-            VerificationSource,
-        )
-
-        promoted_stamp = None
-        if entry.freshness_stamp is not None:
-            promoted_stamp = FreshnessStamp(
-                last_verified_at=entry.freshness_stamp.last_verified_at,
-                source=VerificationSource.PROMOTION,
-                staleness_hint=entry.freshness_stamp.staleness_hint,
-            )
-
-        return replace(
-            entry,
-            ttl=self._config.promotion_ttl,
-            cached_at=datetime.now(UTC),
-            freshness_stamp=promoted_stamp,
-        )

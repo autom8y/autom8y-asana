@@ -1,0 +1,1 @@
+"""Architecture-level alignment tests."""

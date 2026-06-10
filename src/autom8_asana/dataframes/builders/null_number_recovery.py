@@ -30,12 +30,12 @@ hot copy the docstring above assumed does NOT exist. The hot
 the data is durably present in the S3 per-task copies
 (``asana-cache/tasks/{gid}/task.json`` carries the populated ``number_value``),
 written by the warmer's durable-first path. The hot-store read alone never
-consults that tier -- the application store is a bare Redis provider with no S3
-cold tier wired in, and even a ``TieredCacheProvider`` would gate the cold read
-behind the global ``ASANA_CACHE_S3_ENABLED`` flag (unset on the warmer Lambda and
-ECS). So the cure adds a SECOND, durable-tier read: for the gids that miss the
-hot store, a bounded-concurrency RAW S3 GET of the per-task copies, independent of
-warm-mode and the global flag. Hot hits always win; S3 fills only the hot misses.
+consults that tier -- the application store is a bare Redis provider with NO S3
+cold tier wired in (the phantom S3 cold tier was retired; see
+``StorageNamespaceContract.TASK_CACHE.lifecycle_note``). So the cure adds a SECOND,
+durable-tier read via the blessed ``DurableTaskCacheReader``: for the gids that
+miss the hot store, a bounded-concurrency RAW S3 GET of the per-task copies. Hot
+hits always win; S3 fills only the hot misses.
 
 Why a RAW S3 GET and NOT ``S3CacheProvider`` (the #120 inert-cure correction)
 -----------------------------------------------------------------------------
@@ -103,10 +103,6 @@ scope -- those re-derive from the healed ancestor, not from the task's own CF.
 
 from __future__ import annotations
 
-import gzip
-import json
-import os
-import threading
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -114,10 +110,28 @@ import polars as pl
 from autom8y_log import get_logger
 from opentelemetry import trace as _otel_trace
 
+from autom8_asana.cache.durable_task_cache import (
+    # The clamp bounds are re-exported (aliased to the cure's historical private
+    # names) for back-compat with the cure's existing tests, which read
+    # ``nnr._COLD_CONCURRENCY_MIN/MAX/DEFAULT`` to assert the clamp behavior.
+    COLD_CONCURRENCY_DEFAULT as _COLD_CONCURRENCY_DEFAULT,  # noqa: F401 -- test-surface re-export
+)
+from autom8_asana.cache.durable_task_cache import (
+    COLD_CONCURRENCY_MAX as _COLD_CONCURRENCY_MAX,  # noqa: F401 -- test-surface re-export
+)
+from autom8_asana.cache.durable_task_cache import (
+    COLD_CONCURRENCY_MIN as _COLD_CONCURRENCY_MIN,  # noqa: F401 -- test-surface re-export
+)
+from autom8_asana.cache.durable_task_cache import (
+    get_durable_task_cache_reader,
+    task_cache_key,
+    unwrap_task_data,
+)
 from autom8_asana.cache.models.completeness import CompletenessLevel
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.dataframes.builders.fields import _coerce_value
 from autom8_asana.dataframes.views.cf_utils import get_custom_field_value
+from autom8_asana.storage_namespace import TASK_CACHE
 
 if TYPE_CHECKING:
     from autom8_asana.dataframes.models.schema import DataFrameSchema
@@ -129,35 +143,23 @@ __all__ = [
 
 logger = get_logger(__name__)
 
-# Canonical task-cache key namespace. This is the prefix the warmer's durable-first
-# write path uses for per-task copies: ``asana-cache/tasks/{gid}/task.json``.
+# Canonical task-cache key namespace, DERIVED from the storage namespace registry
+# (``StorageNamespaceContract.TASK_CACHE.prefix``) — the single canonical write
+# point for every autom8-s3 prefix. This subsumes the previously hand-pinned
+# ``"asana-cache"`` literal: the registry is now the SSOT, so the prefix lives in
+# exactly ONE place (``src/autom8_asana/storage_namespace.py``) and a wrong-prefix
+# read is structurally unaddressable (``tests/arch/test_namespace_contract.py`` t3
+# forbids the literal anywhere else in ``src/``).
 #
-# CRITICAL -- WHY THIS IS A PINNED CONSTANT AND NOT ``get_settings().s3.prefix``:
-# the ``ASANA_CACHE_S3_PREFIX`` env var is OVERLOADED in production. It is read by
-# ``S3Settings`` (settings.py, env_prefix ``ASANA_CACHE_S3_``) AND prod terraform
-# sets it to ``asana-cache/project-frames/`` -- the DATAFRAME-STORAGE prefix, NOT
-# the task-cache prefix (verified live: ``autom8y/terraform/services/asana/main.tf``
-# sets ``ASANA_CACHE_S3_PREFIX = "asana-cache/project-frames/"``). The #120 cure read
-# ``{s3.prefix}/tasks/{gid}/task.json`` => ``asana-cache/project-frames/tasks/...``,
-# an EMPTY namespace (verified live: ``aws s3 ls`` returns nothing; warmer log
-# ``null_number_recovery_no_op cold_present_gids:0``). The per-task copies live
-# under the UNADORNED ``asana-cache`` prefix regardless of the env override, so the
-# cure pins it here, decoupled from the polluted setting. Only the PREFIX env is
-# overloaded; the BUCKET env (``ASANA_CACHE_S3_BUCKET``, prod ``autom8-s3``) is NOT,
-# so the bucket is still resolved from ``get_settings().s3.bucket``.
-_DURABLE_TASK_CACHE_PREFIX = "asana-cache"
-
-# Module-cached boto3 S3 client. boto3 low-level clients are thread-safe for method
-# calls (``get_object`` is safe to call concurrently from worker threads), so ONE
-# shared client serves every fan-out read; we never open a per-call client. The lock
-# guards only the lazy first-build (double-checked), never the GET path.
-_S3_CLIENT: Any = None
-_S3_CLIENT_LOCK = threading.Lock()
-# A None client that failed to build is memoized so we do not retry construction on
-# every warm (a missing-credentials / missing-boto3 posture is sticky within a
-# process). ``_S3_CLIENT_BUILD_ATTEMPTED`` distinguishes "not yet built" from "built
-# and failed -> None".
-_S3_CLIENT_BUILD_ATTEMPTED = False
+# WHY THE PREFIX IS NOT ``get_settings().s3.prefix``: the ``ASANA_CACHE_S3_PREFIX``
+# env var is OVERLOADED in production — prod terraform sets it to
+# ``asana-cache/project-frames/`` (the DATAFRAME-STORAGE prefix), so the #120 cure
+# read ``{s3.prefix}/tasks/{gid}/task.json`` => an EMPTY namespace. The per-task
+# copies live under the UNADORNED ``asana-cache`` prefix regardless of the env
+# override; the registry records that as ``TASK_CACHE.prefix``. Only the PREFIX env
+# is overloaded; the BUCKET env (``ASANA_CACHE_S3_BUCKET``) is NOT, so the bucket is
+# still resolved from ``get_settings().s3.bucket`` inside the reader.
+_DURABLE_TASK_CACHE_PREFIX = TASK_CACHE.prefix
 
 # Polars dtype names that the recovery pass treats as numeric. Mirrors
 # TypeCoercer.NUMERIC_DTYPES; kept local so the pass does not depend on the
@@ -166,43 +168,25 @@ _NUMERIC_DTYPES: frozenset[str] = frozenset({"Decimal", "Float64", "Int64", "Int
 
 _CF_PREFIX = "cf:"
 
-# Cold-tier (S3) fan-out concurrency cap. S3 has no batch GET -- each per-task copy
-# is its own object, so reading N gids is N blocking ``client.get_object`` calls. A
-# single worker thread reading N keys serially is linear in N and unbounded -- on
-# the live unit warm N~3021, ~525s of the 900s Lambda budget is already spent,
-# leaving only ~375s of slack, so a sequential cold read would risk the timeout-
-# cliff. We instead fan the per-gid GETs out across worker threads with a Semaphore-
-# bounded in-flight count: latency collapses to roughly ceil(N / cap) * per-GET,
-# while the bound caps the boto3 connection-pool pressure (default urllib3 pool is
-# 10/host; we cap a little above that and let the pool queue the overflow rather
-# than open unbounded sockets). boto3 low-level clients are thread-safe for method
-# calls and we share ONE module-cached client across the fan-out (built once, lazily;
-# the only lock is on first-build, NOT on the GET path), so the fan-out reads the
-# shared client with no race and opens no per-call client.
-_COLD_CONCURRENCY_DEFAULT = 24
-_COLD_CONCURRENCY_MIN = 1
-_COLD_CONCURRENCY_MAX = 64
+# Cold-tier (S3) fan-out concurrency cap. The cap + clamp now live with the blessed
+# ``DurableTaskCacheReader`` (the bounded-concurrency RAW-S3 read is the reader's
+# responsibility); these names are re-exported here for back-compat (the env name
+# ``ASANA_CURE_COLD_CONCURRENCY`` is unchanged) so existing patch-targets and the
+# concurrency contract are stable. The MIN/MAX/DEFAULT are imported above.
 _COLD_CONCURRENCY_ENV = "ASANA_CURE_COLD_CONCURRENCY"
 
 
 def _cold_concurrency() -> int:
-    """Resolve the cold-read fan-out cap, env-overridable and clamped to a sane range.
+    """Resolve the cold-read fan-out cap (delegates to the reader's clamp).
 
     Reads ``ASANA_CURE_COLD_CONCURRENCY`` (an int); a missing/blank/garbage value
-    falls back to the default. The result is clamped to
-    ``[_COLD_CONCURRENCY_MIN, _COLD_CONCURRENCY_MAX]`` so a misconfigured value can
-    neither serialize the read (0/negative) nor exhaust the connection pool /
-    thread pool with an absurd in-flight count.
+    falls back to the default. Clamped to ``[_COLD_CONCURRENCY_MIN,
+    _COLD_CONCURRENCY_MAX]`` so a misconfigured value can neither serialize the read
+    (0/negative) nor exhaust the connection / thread pool.
     """
-    raw = os.environ.get(_COLD_CONCURRENCY_ENV)
-    if raw is None or not raw.strip():
-        value = _COLD_CONCURRENCY_DEFAULT
-    else:
-        try:
-            value = int(raw.strip())
-        except ValueError:
-            value = _COLD_CONCURRENCY_DEFAULT
-    return max(_COLD_CONCURRENCY_MIN, min(_COLD_CONCURRENCY_MAX, value))
+    from autom8_asana.cache import durable_task_cache as _dtc
+
+    return _dtc._cold_concurrency()
 
 
 @dataclass(frozen=True)
@@ -381,11 +365,11 @@ async def _recover_impl(
     # Tier 2 -- DURABLE S3 fill for the gids that MISSED the hot store. On the
     # steady-state receiver warm (resume=True, 0 re-fetches) the hot store is cold
     # for the unit gids, so this is the stratum that actually heals. ONE batched
-    # S3 read of the per-task copies; hot hits always win, S3 fills only the
-    # holes. Independent of warm-mode and the global ASANA_CACHE_S3_ENABLED flag
-    # (it reads the durable backend directly, not the flag-gated cold tier). Any
-    # backend error returns {} -> honest-null residual (never raises here; the
-    # outer wrapper also guards).
+    # S3 read of the per-task copies (via the blessed DurableTaskCacheReader); hot
+    # hits always win, S3 fills only the holes. The reader reads the durable backend
+    # directly (NOT a flag-gated cold tier — the phantom was retired). Any backend
+    # error returns {} -> honest-null residual (never raises here; the outer wrapper
+    # also guards).
     hot_miss_gids = [g for g in null_gids if cached.get(g) is None]
     cold_present_gids = 0
     if hot_miss_gids:
@@ -467,151 +451,95 @@ async def _recover_impl(
     )
 
 
-def _unwrap_task_data(data: Any) -> dict[str, Any] | None:
-    """Return the task dict from a raw S3 payload, unwrapping a ``{"data": ...}``
-    envelope if present.
+# ---------------------------------------------------------------------------
+# Cold-tier durable-read shims.
+#
+# The raw-boto3 read LOGIC is owned by the blessed ``DurableTaskCacheReader``
+# (``autom8_asana.cache.durable_task_cache``) — subsumed, not duplicated. The
+# functions below are thin delegators that preserve this module's read-path API
+# surface (the cure's tests + the live smoke patch ``nnr._get_s3_client`` /
+# ``nnr._read_task_cache_object`` and read ``nnr._S3_CLIENT``). The single
+# ``asyncio.to_thread`` offload site now lives in the reader, so the FROZEN-4
+# concurrency guard's ``_SANCTIONED_IO_TO_THREAD`` allowlist names the reader
+# module, not this one.
+#
+# The module-cached client globals are retained so the existing reset idiom
+# (``nnr._S3_CLIENT = None; nnr._S3_CLIENT_BUILD_ATTEMPTED = False``) keeps working
+# AND stays coupled to the shared reader singleton's client (resetting the cure's
+# globals also resets the reader, so a fresh REAL client is built on next read).
+# ---------------------------------------------------------------------------
 
-    The durable per-task copies at ``asana-cache/tasks/{gid}/task.json`` are RAW
-    Asana task dicts (top-level ``gid``/``custom_fields``/``name``). Some warmer
-    paths persist the API response verbatim, which carries a ``{"data": {...}}``
-    Asana envelope. This mirrors the proven probe's ``raw.get("data", raw)`` unwrap
-    so the downstream ``custom_fields`` lookup sees a top-level task dict either way.
-    """
-    if not isinstance(data, dict):
-        return None
-    inner = data.get("data")
-    if isinstance(inner, dict):
-        return inner
-    return data
+_S3_CLIENT: Any = None
+_S3_CLIENT_BUILD_ATTEMPTED = False
+
+
+# Re-exported for back-compat: tests/live-smoke call these by name on this module.
+_unwrap_task_data = unwrap_task_data
 
 
 def _cold_task_cache_key(gid: str) -> str:
-    """The canonical durable per-task cache key for ``gid``.
+    """The canonical durable per-task cache key for ``gid`` (registry-derived).
 
-    ``asana-cache/tasks/{gid}/task.json`` -- the namespace the warmer's durable-first
-    write path uses, pinned to ``_DURABLE_TASK_CACHE_PREFIX`` (NOT the env-overloaded
-    ``get_settings().s3.prefix``; see the constant's docstring).
+    Delegates to ``DurableTaskCacheReader``'s ``task_cache_key`` so the prefix
+    derives from ``TASK_CACHE.prefix`` (the SSOT) — NOT the env-overloaded
+    ``get_settings().s3.prefix`` (see ``_DURABLE_TASK_CACHE_PREFIX``).
     """
-    return f"{_DURABLE_TASK_CACHE_PREFIX}/tasks/{gid}/task.json"
+    return task_cache_key(gid)
 
 
 def _get_s3_client() -> Any | None:
-    """Return the module-cached boto3 S3 client, building it lazily once.
+    """Return the durable-reader's module-cached boto3 S3 client (built lazily once).
 
-    The bucket/region come from ``get_settings().s3`` (the BUCKET env is NOT
-    overloaded; only the PREFIX is -- see ``_DURABLE_TASK_CACHE_PREFIX``). A build
-    failure (missing boto3, missing credentials, unconfigured bucket) memoizes
-    ``None`` so we do not retry construction on every warm. Never raises.
+    Delegates to the shared ``DurableTaskCacheReader`` singleton so ONE client
+    serves every durable read process-wide. The cure's ``_S3_CLIENT`` /
+    ``_S3_CLIENT_BUILD_ATTEMPTED`` globals are mirrored from the reader so the
+    legacy reset idiom (set both to None/False) still forces a rebuild: when the
+    cure's globals are reset to the not-built sentinel, the reader is reset too.
 
-    Returns the client, or ``None`` when no client can be obtained (the cure then
-    stays a clean no-op rather than spending failing per-key reads).
+    Never raises: a build failure memoizes ``None`` inside the reader.
     """
     global _S3_CLIENT, _S3_CLIENT_BUILD_ATTEMPTED
-    if _S3_CLIENT_BUILD_ATTEMPTED:
-        return _S3_CLIENT
-    with _S3_CLIENT_LOCK:
-        # Double-checked: a sibling thread may have built it while we waited.
-        if _S3_CLIENT_BUILD_ATTEMPTED:
-            return _S3_CLIENT
-        try:
-            import boto3
-
-            from autom8_asana.settings import get_settings
-
-            s3 = get_settings().s3
-            if not s3.bucket:
-                _S3_CLIENT = None
-            else:
-                client_kwargs: dict[str, Any] = {"region_name": s3.region}
-                if s3.endpoint_url:
-                    client_kwargs["endpoint_url"] = s3.endpoint_url
-                _S3_CLIENT = boto3.client("s3", **client_kwargs)
-        except Exception:  # BROAD-CATCH: client build is best-effort  # noqa: BLE001
-            _S3_CLIENT = None
-        _S3_CLIENT_BUILD_ATTEMPTED = True
-        return _S3_CLIENT
+    reader = get_durable_task_cache_reader()
+    # Honor the legacy reset idiom: if a caller cleared the cure's globals to the
+    # not-yet-built sentinel, propagate that reset to the shared reader so the next
+    # read rebuilds a fresh client (the live smoke + unit-test fixtures rely on this).
+    if not _S3_CLIENT_BUILD_ATTEMPTED and _S3_CLIENT is None:
+        reader.reset_client()
+    client = reader.get_client()
+    _S3_CLIENT = client
+    _S3_CLIENT_BUILD_ATTEMPTED = True
+    return client
 
 
 def _read_task_cache_object(client: Any, bucket: str, gid: str) -> dict[str, Any] | None:
-    """Raw S3 GET of one per-task copy. Mirrors the proven probe's ``read_cache_s3``.
+    """Raw S3 GET of one per-task copy (delegates to the reader's ``read_object``).
 
-    GETs ``asana-cache/tasks/{gid}/task.json`` (with a ``.gz`` fallback), gunzips a
-    compressed body, ``json.loads`` it, and unwraps an optional ``{"data": {...}}``
-    Asana envelope. Returns the task dict, or ``None`` on a 404 / NoSuchKey
-    (honest cache-miss) or an undecodable body. Any OTHER per-gid error
-    propagates to the caller (which logs ONE warning and maps the gid to None).
-
-    This is the REAL key construction + REAL json parsing the #120 cure got wrong
-    (it used ``S3CacheProvider.get_versioned``, whose envelope deserialization reads
-    ``data.get("data", {})`` and so surfaces nothing from a raw task dict).
+    Preserves the cure's read-path API surface (the live smoke + unit tests call
+    ``nnr._read_task_cache_object``). The REAL key construction (registry-derived),
+    REAL ``json.loads``, ``.gz`` fallback, and ``{"data": ...}`` unwrap all live in
+    ``DurableTaskCacheReader.read_object`` — subsumed, not duplicated. The #120
+    defect (``S3CacheProvider`` envelope deserialization + polluted prefix) is gone.
     """
-    base = _cold_task_cache_key(gid)
-    last_exc: Exception | None = None
-    for key in (base, base + ".gz"):
-        try:
-            obj = client.get_object(Bucket=bucket, Key=key)
-            body = obj["Body"].read()
-            if key.endswith(".gz"):
-                body = gzip.decompress(body)
-            raw = json.loads(body)
-            return _unwrap_task_data(raw)
-        except Exception as e:  # noqa: BLE001 -- classified just below
-            name = type(e).__name__
-            # NoSuchKey / 404 on the un-suffixed key just means "try the .gz" and,
-            # if that also misses, honest cache-miss (None). A malformed body
-            # (JSON / gzip error) on a key that DID exist is also an honest-null
-            # for that gid -- a corrupt durable copy must not crash the warm.
-            if name in ("NoSuchKey", "404") or "NoSuchKey" in str(e) or "Not Found" in str(e):
-                last_exc = e
-                continue
-            if isinstance(e, ValueError | OSError):  # json.JSONDecodeError, gzip.BadGzipFile
-                return None
-            # An unexpected error (creds, throttle, network) -- surface it so the
-            # caller logs exactly one warning for this gid and maps it to None.
-            raise
-    # Both keys missed (NoSuchKey on each): honest cache-miss.
-    _ = last_exc
-    return None
+    return get_durable_task_cache_reader().read_object(client, bucket, gid)
 
 
 async def _cold_read_durable(gids: list[str], store: Any) -> dict[str, dict[str, Any] | None]:
     """Bounded-concurrency RAW-S3 read of the durable per-task copies for ``gids``.
 
-    Reads ``asana-cache/tasks/{gid}/task.json`` directly via a module-cached boto3
-    client (NOT ``S3CacheProvider`` -- its key format + envelope deserialization are
-    the #120 defect this rebuild corrects). Returns ``{gid: task_dict | None}``. S3
-    has no batch GET, so reading N gids is N blocking ``client.get_object`` calls;
-    reading them with a single worker is linear and unbounded in N (timeout-cliff
-    risk on the live unit warm). We instead fan the per-gid GETs out across worker
-    threads, capping the in-flight count with an ``asyncio.Semaphore`` (see
-    ``_cold_concurrency``). Each GET runs in its own ``asyncio.to_thread`` so no
-    read blocks the receiver event loop.
+    Delegates the bounded fan-out to ``DurableTaskCacheReader.read_batch_with``
+    (the SOLE ``asyncio.to_thread`` offload site), injecting THIS module's
+    ``_read_task_cache_object`` as the per-gid reader so a test that patches
+    ``nnr._read_task_cache_object`` still takes effect, and resolving the client via
+    THIS module's ``_get_s3_client`` so a test that patches ``nnr._get_s3_client``
+    still takes effect. The read LOGIC is subsumed in the reader; only the
+    client/bucket/read-fn wiring lives here.
 
-    The ``store`` argument is retained for signature stability (the cold tier no
-    longer derives from the store; the durable copies are a parallel write path, not
-    a read tier of the Redis-only application store -- see the module docstring).
+    The ``store`` argument is retained for signature stability (the durable copies
+    are a parallel write path, not a read tier of the Redis-only application store).
 
-    Invariants preserved:
-      * **not-N+1 at gid granularity.** EXACTLY one cold GET per distinct hot-miss
-        gid (``len(gids)`` reads total, modulo the ``.gz`` fallback which only fires
-        on a miss of the un-suffixed key) -- no per-row/per-cell amplification. The
-        fan-out parallelizes those reads; it does not multiply them.
-      * **Zero Asana GETs.** S3 is durable CACHE, not Asana; the receiver's Asana
-        GET budget is not charged.
-      * **never-fabricate.** A 404 / NoSuchKey / undecodable body -> ``None`` for
-        that gid (it heals nothing -> honest-null residual).
-      * **additive / never-raises.** A per-gid read error contributes ``None`` for
-        that gid; a total failure returns ``{}`` and the frame is left UNCHANGED.
-        No exception escapes (the outer wrapper also guards).
-      * **idempotent re-warm.** A pure read; re-running yields the same map.
-
-    Thread-safety: boto3 low-level clients are thread-safe for method calls and we
-    share ONE module-cached client across the fan-out (built once, lazily; the lock
-    guards only first-build, NOT the GET path), so concurrent GETs read the shared
-    client with no race and open no per-call client.
+    Invariants preserved (enforced in the reader): not-N+1 at gid granularity, zero
+    Asana GETs, never-fabricate, additive/never-raises, idempotent re-warm.
     """
-    import asyncio
-
     client = _get_s3_client()
     if client is None:
         return {}
@@ -625,34 +553,8 @@ async def _cold_read_durable(gids: list[str], store: Any) -> dict[str, dict[str,
     if not bucket:
         return {}
 
-    cap = _cold_concurrency()
-    sem = asyncio.Semaphore(cap)
-
-    async def _one(gid: str) -> tuple[str, dict[str, Any] | None]:
-        # One raw S3 GET per gid, off the event loop, gated by the semaphore so at
-        # most ``cap`` boto3 GETs are in flight at once. A per-gid failure is
-        # swallowed to None: that gid simply contributes nothing (honest-null).
-        async with sem:
-            try:
-                task_data = await asyncio.to_thread(_read_task_cache_object, client, bucket, gid)
-            except Exception as e:  # BROAD-CATCH: per-gid read is additive  # noqa: BLE001
-                logger.warning(
-                    "null_number_recovery_cold_read_gid_failed",
-                    extra={"gid": gid, "error": str(e), "error_type": type(e).__name__},
-                )
-                return gid, None
-        return gid, task_data
-
-    try:
-        pairs = await asyncio.gather(*[_one(g) for g in gids])
-    except Exception as e:  # BROAD-CATCH: total cold read is additive  # noqa: BLE001
-        logger.warning(
-            "null_number_recovery_cold_read_failed",
-            extra={"gid_count": len(gids), "error": str(e), "error_type": type(e).__name__},
-        )
-        return {}
-
-    return dict(pairs)
+    reader = get_durable_task_cache_reader()
+    return await reader.read_batch_with(client, bucket, gids, _read_task_cache_object)
 
 
 def _emit(

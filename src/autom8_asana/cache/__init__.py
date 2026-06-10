@@ -49,9 +49,9 @@ autom8 Integration (ADR-0025):
     - check_redis_health: Check Redis connection health
     - MigrationResult: Result of migration operation
 
-Two-Tier Caching (ADR-0026):
-    - TieredCacheProvider: Coordinates Redis (hot) and S3 (cold) tiers
-    - TieredConfig: Configuration for two-tier caching behavior
+Tiered Caching (ADR-0026; S3 cold tier RETIRED):
+    - TieredCacheProvider: Redis-only passthrough (the phantom S3 cold tier was
+      retired; the durable task cache is read via DurableTaskCacheReader)
 
 Example:
     >>> from autom8_asana.cache import (
@@ -175,7 +175,7 @@ from autom8_asana.cache.policies.staleness import (
 )
 
 # --- Tier 2: Providers ---
-from autom8_asana.cache.providers.tiered import TieredCacheProvider, TieredConfig
+from autom8_asana.cache.providers.tiered import TieredCacheProvider
 from autom8_asana.cache.providers.unified import UnifiedTaskStore
 
 # IMPORTANT: register_asana_schemas is defined via __getattr__ below to avoid circular import
@@ -256,9 +256,8 @@ __all__ = [
     "check_redis_health",
     "MigrationResult",
     "MissingConfigurationError",
-    # Two-tier caching (ADR-0026)
+    # Tiered caching (ADR-0026; S3 cold tier retired)
     "TieredCacheProvider",
-    "TieredConfig",
     # Lightweight staleness detection (TDD-CACHE-LIGHTWEIGHT-STALENESS)
     "StalenessCheckSettings",
     "LightweightChecker",
