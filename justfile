@@ -80,7 +80,7 @@ fmt:
 fmt-check:
     uv run ruff format . --check
 
-# Lint and auto-fix
+# Lint and auto-fix. Note: does NOT run ruff format — use `just fmt` for that.
 [group('quality')]
 lint:
     uv run ruff check . --fix
