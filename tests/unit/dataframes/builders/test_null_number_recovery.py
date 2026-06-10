@@ -11,16 +11,24 @@ store + real ColumnDef/DataFrameSchema. NOT stubs of the cure. Proves:
     columns are excluded.
   - additive: a store error returns the frame UNCHANGED and never raises.
   - no-op guards: schema/store None, empty frame, no-null-cells => no store call.
+
+Cold-tier (§8/§9): the cold read is stubbed ONLY at the boto3-CLIENT boundary (a
+fake ``get_object(Bucket, Key)``), so it exercises the cure's REAL key construction
+(``asana-cache/tasks/<gid>/task.json``), REAL ``json.loads`` of raw-dict bytes, and
+REAL ``{"data": ...}`` envelope unwrap. A ``CacheEntry``-stub at the provider
+boundary is DELIBERATELY NOT used: that boundary hides the #120 dual defect (wrong
+prefix + ``S3CacheProvider`` envelope deserialization) the rebuild corrects.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import json
 from typing import Any
 
 import polars as pl
+import pytest
 
-from autom8_asana.cache.models.entry import CacheEntry, EntryType
+import autom8_asana.dataframes.builders.null_number_recovery as nnr
 from autom8_asana.dataframes.builders.null_number_recovery import (
     recover_null_number_cells,
 )
@@ -215,88 +223,175 @@ async def test_noop_guards_make_no_store_call():
     assert store.batch_calls == 0
 
 
-# ── 8. cold-tier (S3) recovery — the deliberately-broken fixture (G-THEATER) ──
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║ COLD-TIER (durable S3) — REAL key construction + REAL parsing             ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
 #
-# This is the steady-state-warm reality the cure must heal: the HOT store is COLD
-# (resume=True warm re-fetches 0 tasks), so the tier-1 read misses EVERY null gid.
-# But the durable S3 per-task copies DO carry the number_value. The unmodified
-# cure (tier-1 only) heals 0 here (RED). The fix adds a tier-2 batched S3 read of
-# the per-task copies and heals the active cells (GREEN). Template/cache-miss gids
-# stay null; populated cells are NOT overwritten; the S3 read is a SINGLE batch.
+# These stub ONLY at the boto3-CLIENT boundary. The fake client's
+# get_object(Bucket, Key) ASSERTS the EXACT key the cure built and returns a Body
+# of the REAL raw-dict JSON bytes that live at asana-cache/tasks/<gid>/task.json in
+# production. This exercises the cure's REAL _cold_task_cache_key, REAL json.loads,
+# and REAL _unwrap_task_data envelope handling. A CacheEntry/get_versioned stub is
+# DELIBERATELY NOT used — that boundary masks the #120 prefix + envelope defect.
 
 
-def _entry(gid: str, task_data: dict[str, Any]) -> CacheEntry:
-    """A durable S3 CacheEntry whose .data is the raw per-task copy."""
-    return CacheEntry(
-        key=gid,
-        data=task_data,
-        entry_type=EntryType.TASK,
-        version=datetime(2026, 1, 1, tzinfo=UTC),
-        cached_at=datetime.now(UTC),
-        ttl=604800,  # 7d — mirrors the durable-write TTL
-    )
+class _NoSuchKey(Exception):
+    """Mirrors botocore's NoSuchKey class name (the cure classifies by type name)."""
 
 
-class _S3Backend:
-    """Durable S3 cold-tier stand-in. Mirrors S3CacheProvider.get_versioned:
-    get_versioned(key, EntryType.TASK) -> CacheEntry | None (the per-key API the
-    bounded-concurrency cure fans out across worker threads). Counts each
-    per-gid read (the not-N+1-at-gid-granularity proof for the cold tier: exactly
-    one read per distinct hot-miss gid) and makes ZERO Asana calls (a pure dict
-    lookup over durable copies)."""
+class _Body:
+    """Minimal stand-in for the StreamingBody returned by boto3 get_object."""
 
-    _degraded = False  # the cure skips a degraded backend; this one is healthy
+    def __init__(self, data: bytes):
+        self._data = data
 
-    def __init__(self, entries: dict[str, CacheEntry | None]):
-        self._entries = entries
-        self.read_calls = 0
-        self.read_gids: list[str] = []
-        self.last_entry_type: EntryType | None = None
-
-    def get_versioned(self, key, entry_type, freshness=None):
-        self.read_calls += 1
-        self.read_gids.append(key)
-        self.last_entry_type = entry_type
-        return self._entries.get(key)
+    def read(self) -> bytes:
+        return self._data
 
 
-class _TieredCacheStub:
-    """TieredCacheProvider stand-in exposing a cold tier via ``_cold`` — the
-    same handle the cure resolves first (reuse-configured-infrastructure path)."""
+# A REAL raw-Asana-task-dict shape, as the live object at
+# asana-cache/tasks/1207519540893045/task.json looks (top-level gid/name/
+# custom_fields; the MRR cf is resource_subtype "number" with number_value).
+def _raw_task_object(gid: str, mrr: float | None, was: float | None = None) -> dict[str, Any]:
+    return {
+        "gid": gid,
+        "resource_type": "task",
+        "name": f"Unit {gid}",
+        "resource_subtype": "default_task",
+        "custom_fields": [
+            {
+                "gid": "1100000000000001",
+                "name": "MRR",
+                "resource_subtype": "number",
+                "type": "number",
+                "number_value": mrr,
+                "display_value": None if mrr is None else str(mrr),
+            },
+            {
+                "gid": "1100000000000002",
+                "name": "Weekly Ad Spend",
+                "resource_subtype": "number",
+                "type": "number",
+                "number_value": was,
+                "display_value": None if was is None else str(was),
+            },
+            {
+                "gid": "1100000000000003",
+                "name": "Discount",
+                "resource_subtype": "enum",
+                "type": "enum",
+                "enum_value": {"name": "10%"} if mrr is not None else None,
+                "display_value": "10%" if mrr is not None else None,
+            },
+        ],
+        "memberships": [{"section": {"name": "Active"}}],
+    }
 
-    def __init__(self, cold: _S3Backend):
-        self._cold = cold
+
+class _FakeS3Client:
+    """boto3-CLIENT-boundary stub. get_object(Bucket, Key) asserts the bucket and the
+    EXACT key, and returns the REAL raw-dict JSON bytes for present gids; raises a
+    NoSuchKey-named error otherwise (the cure's 404 classification). Counts each GET
+    (the not-N+1-at-gid proof) and records every key seen (the key-construction proof).
+
+    ``objects`` maps the EXACT S3 key -> the raw task dict (so the test asserts the
+    cure constructed asana-cache/tasks/<gid>/task.json byte-for-byte). ZERO Asana
+    calls — this is a pure dict lookup over durable S3 copies."""
+
+    def __init__(self, bucket: str, objects: dict[str, dict[str, Any]]):
+        self._bucket = bucket
+        self._objects = objects
+        self.get_calls = 0
+        self.keys_seen: list[str] = []
+
+    def get_object(self, *, Bucket: str, Key: str):  # noqa: N803 -- boto3 kwargs
+        self.get_calls += 1
+        self.keys_seen.append(Key)
+        assert Bucket == self._bucket, f"unexpected bucket {Bucket!r}"
+        if Key in self._objects:
+            return {"Body": _Body(json.dumps(self._objects[Key]).encode("utf-8"))}
+        raise _NoSuchKey(f"NoSuchKey: {Key}")
 
 
 class _ColdHotStore:
-    """UnifiedTaskStore stand-in for the broken fixture: the HOT store is COLD
-    (get_batch_async returns all None) but ``store.cache._cold`` is a POPULATED
-    durable S3 tier. ZERO Asana calls on either tier (pure dict lookups)."""
+    """UnifiedTaskStore stand-in: the HOT store is COLD (get_batch_async returns all
+    None — the steady-state resume=True warm reality) so every null gid falls through
+    to the cold tier. ZERO Asana calls (pure dict lookup)."""
 
-    def __init__(self, cold: _S3Backend):
-        self.cache = _TieredCacheStub(cold)
+    def __init__(self):
         self.hot_batch_calls = 0
 
     async def get_batch_async(self, gids, freshness=None, required_level=None):
         self.hot_batch_calls += 1
-        return {g: None for g in gids}  # HOT IS COLD — the steady-state warm reality
+        return {g: None for g in gids}  # HOT IS COLD
 
 
-# Active units carry a populated MRR in S3 (1500.0). g_tmpl is a Template whose
-# S3 copy is genuinely null. g_miss is absent from S3 entirely (cache MISS).
-def _cold_fixture() -> _S3Backend:
-    return _S3Backend(
-        {
-            "g_active1": _entry("g_active1", _task(1500.0, 200.0)),
-            "g_active2": _entry("g_active2", _task(1500.0, 200.0)),
-            "g_tmpl": _entry("g_tmpl", _task(None, None)),
-            "g_miss": None,
-        }
-    )
+@pytest.fixture
+def _reset_s3_client(monkeypatch):
+    """Reset the module-cached boto3 client around each cold-tier test and pin the
+    bucket so no live AWS/boto3 is touched. The fake client is installed per-test."""
+    monkeypatch.setattr(nnr, "_S3_CLIENT", None, raising=False)
+    monkeypatch.setattr(nnr, "_S3_CLIENT_BUILD_ATTEMPTED", False, raising=False)
+    yield
+    monkeypatch.setattr(nnr, "_S3_CLIENT", None, raising=False)
+    monkeypatch.setattr(nnr, "_S3_CLIENT_BUILD_ATTEMPTED", False, raising=False)
 
 
-async def test_cold_tier_heals_when_hot_is_cold_but_s3_populated():
-    """RED on the unmodified (tier-1-only) cure; GREEN after the tier-2 S3 fill."""
+def _install_fake_client(monkeypatch, client: _FakeS3Client, bucket: str) -> None:
+    """Pin the cure's module-cached client to ``client`` and its bucket to ``bucket``
+    via a stubbed settings object — the ONLY stub boundary is the boto3 client."""
+    monkeypatch.setattr(nnr, "_get_s3_client", lambda: client)
+
+    class _S3:
+        pass
+
+    s3 = _S3()
+    s3.bucket = bucket
+    s3.region = "us-east-1"
+    s3.endpoint_url = None
+    s3.prefix = "asana-cache/project-frames/"  # the POLLUTED prefix — must be IGNORED
+
+    class _Settings:
+        pass
+
+    settings = _Settings()
+    settings.s3 = s3
+    monkeypatch.setattr(nnr, "get_settings", _make_get_settings(settings), raising=False)
+    # get_settings is imported INSIDE _cold_read_durable from autom8_asana.settings,
+    # so patch it at the source module too.
+    import autom8_asana.settings as settings_mod
+
+    monkeypatch.setattr(settings_mod, "get_settings", _make_get_settings(settings))
+
+
+def _make_get_settings(settings):
+    def _get_settings():
+        return settings
+
+    return _get_settings
+
+
+# ── 8. cold-tier heals from the durable S3 raw-dict copies (REAL key + parse) ─
+
+
+async def test_cold_tier_heals_from_real_raw_s3_objects(monkeypatch, _reset_s3_client):
+    """RED on the as-merged #120 cure (wrong prefix + S3CacheProvider envelope read);
+    GREEN after the raw-S3-GET rebuild. The fake client asserts the EXACT key the
+    cure built and returns REAL raw-dict bytes — no CacheEntry stub anywhere."""
+    bucket = "autom8-s3"
+    # g_active1/2: present in S3 with populated MRR=1500. g_tmpl: present but null
+    # source (Template). g_miss: absent from S3 (404). g_pop: present (mrr 99) but
+    # already-populated in the frame (4242) — must NOT be overwritten.
+    objects = {
+        "asana-cache/tasks/g_active1/task.json": _raw_task_object("g_active1", 1500.0, 200.0),
+        "asana-cache/tasks/g_active2/task.json": _raw_task_object("g_active2", 1500.0, 200.0),
+        "asana-cache/tasks/g_tmpl/task.json": _raw_task_object("g_tmpl", None, None),
+        "asana-cache/tasks/g_pop/task.json": _raw_task_object("g_pop", 99.0, 777.0),
+        # g_miss intentionally absent -> 404
+    }
+    client = _FakeS3Client(bucket, objects)
+    _install_fake_client(monkeypatch, client, bucket)
+
     frame = _frame(
         [
             _row("g_active1"),
@@ -306,9 +401,7 @@ async def test_cold_tier_heals_when_hot_is_cold_but_s3_populated():
             _row("g_pop", mrr=4242.0),  # already-populated mrr; was null
         ]
     )
-    cold = _cold_fixture()
-    cold._entries["g_pop"] = _entry("g_pop", _task(99.0, 777.0))  # disagrees on mrr
-    store = _ColdHotStore(cold)
+    store = _ColdHotStore()
 
     healed, receipt = await recover_null_number_cells(frame, _schema(), store, "unit", "P")
 
@@ -316,7 +409,7 @@ async def test_cold_tier_heals_when_hot_is_cold_but_s3_populated():
     by_gid = dict(zip(healed["gid"].to_list(), healed["mrr"].to_list(), strict=True))
     assert by_gid["g_active1"] == 1500.0
     assert by_gid["g_active2"] == 1500.0
-    # never-fabricate: Template (S3 null) + cache-MISS (absent from S3) stay null
+    # never-fabricate: Template (S3 null) + cache-MISS (absent from S3 -> 404) stay null
     assert by_gid["g_tmpl"] is None
     assert by_gid["g_miss"] is None
     # never-overwrite: the already-populated mrr is preserved (cache 99.0 must NOT win)
@@ -329,52 +422,115 @@ async def test_cold_tier_heals_when_hot_is_cold_but_s3_populated():
     assert was_by_gid["g_active1"] == 200.0
     assert was_by_gid["g_pop"] == 777.0  # the null was-cell heals even on a populated-mrr row
 
-    # not-N+1 at gid granularity: ONE hot batch + EXACTLY ONE cold read per distinct
-    # hot-miss gid. All 5 rows have a null cell (g_pop's mrr is populated but its
-    # weekly_ad_spend is null, so g_pop enters the null set too), and the hot store
-    # is COLD for all of them => 5 distinct hot-miss gids => 5 cold reads, keyed by
-    # EntryType.TASK. The fan-out parallelizes those reads; it does not multiply them.
+    # KEY-CONSTRUCTION proof: the cure built EXACTLY asana-cache/tasks/<gid>/task.json
+    # for every hot-miss gid (NOT the polluted asana-cache/project-frames/... prefix).
+    # The 4 present gids hit on the un-suffixed key; g_miss 404s and also probes .gz.
+    assert sorted(set(client.keys_seen)) == [
+        "asana-cache/tasks/g_active1/task.json",
+        "asana-cache/tasks/g_active2/task.json",
+        "asana-cache/tasks/g_miss/task.json",
+        "asana-cache/tasks/g_miss/task.json.gz",  # .gz fallback after the 404
+        "asana-cache/tasks/g_pop/task.json",
+        "asana-cache/tasks/g_tmpl/task.json",
+    ]
+    # No key ever used the polluted dataframe-storage prefix.
+    assert all("project-frames" not in k for k in client.keys_seen)
+    # not-N+1 at gid granularity: ONE hot batch + EXACTLY ONE GET per distinct hot-miss
+    # gid for the 4 present gids. g_miss misses the un-suffixed key then tries .gz, so
+    # it accounts for 2 GETs (404 + 404 -> honest cache-miss). 4 present + 2 (g_miss) = 6.
     assert store.hot_batch_calls == 1
-    assert cold.read_calls == 5, (
-        f"cold tier must be ONE read per distinct hot-miss gid (got {cold.read_calls})"
+    assert client.get_calls == 6, (
+        f"one GET per present gid + a .gz fallback only for the 404 (got {client.get_calls})"
     )
-    assert sorted(cold.read_gids) == ["g_active1", "g_active2", "g_miss", "g_pop", "g_tmpl"]
-    assert cold.last_entry_type == EntryType.TASK
 
-    # receipt: cold_present_gids counts hot-miss gids whose durable S3 copy was
-    # PRESENT (a task dict came back), independent of whether its CF was null:
-    # g_active1, g_active2, g_tmpl (present-but-null source), g_pop = 4. g_miss is
-    # absent from S3 (None) so it is NOT counted as present.
+    # receipt: cold_present_gids counts hot-miss gids whose durable S3 copy was PRESENT
+    # (a task dict came back), independent of CF nullity: active1, active2, tmpl, pop = 4.
     assert receipt.attempted is True
     assert receipt.cold_present_gids == 4
-    # cache_miss = null in BOTH tiers: only g_miss (absent from S3). g_tmpl is a
-    # cold HIT with a genuinely-null source, so it is NOT a cache miss.
+    # cache_miss = null in BOTH tiers: only g_miss (404 on S3). g_tmpl is a cold HIT
+    # with a genuinely-null source, so it is NOT a cache miss.
     assert receipt.cache_miss_gids == 1
-    # healed_by_column counts recoverable non-null values found per column (mrr:
+    # healed_by_column counts recoverable non-null values per column (mrr:
     # active1+active2+pop=3, was: active1+active2+pop=3). Distinct from healed_cells
     # (=5): the populated g_pop mrr is found but coalesce-preserved, not flipped.
     assert receipt.healed_by_column == {"mrr": 3, "weekly_ad_spend": 3}
     assert receipt.healed_cells == 5
 
 
-async def test_cold_tier_noop_when_no_cold_backend_resolvable(monkeypatch):
-    """No durable backend resolvable => clean no-op, frame unchanged, never raises.
+# ── 8b. envelope unwrap: {"data": {...}} Asana-wrapped copies parse identically ─
 
-    Forces ``_resolve_cold_backend -> None`` (the unconfigured-bucket / missing-boto3
-    / degraded production posture) so the test is hermetic (no live S3/boto3) and
-    asserts the honest-null contract: the hot read ran (attempted), but with no cold
-    tier nothing heals and nothing is fabricated."""
-    import autom8_asana.dataframes.builders.null_number_recovery as mod
 
-    monkeypatch.setattr(mod, "_resolve_cold_backend", lambda _store: None)
+async def test_cold_tier_unwraps_data_envelope(monkeypatch, _reset_s3_client):
+    """Some durable copies are persisted as the verbatim Asana ``{"data": {...}}``
+    response. The cure's _unwrap_task_data must reach the inner task dict (mirrors the
+    probe's raw.get('data', raw))."""
+    bucket = "autom8-s3"
+    wrapped = {"data": _raw_task_object("g_wrap", 1234.0, 56.0)}
+    objects = {"asana-cache/tasks/g_wrap/task.json": wrapped}
+    client = _FakeS3Client(bucket, objects)
+    _install_fake_client(monkeypatch, client, bucket)
 
-    class _ColdHotNoBackend:
-        async def get_batch_async(self, gids, freshness=None, required_level=None):
-            return {g: None for g in gids}  # hot is cold
-
-    frame = _frame([_row("g1")])
+    frame = _frame([_row("g_wrap")])
     healed, receipt = await recover_null_number_cells(
-        frame, _schema(), _ColdHotNoBackend(), "unit", "P"
+        frame, _schema(), _ColdHotStore(), "unit", "P"
+    )
+
+    assert healed["mrr"].to_list() == [1234.0]
+    assert healed["weekly_ad_spend"].to_list() == [56.0]
+    assert receipt.healed_cells == 2
+    assert client.keys_seen == ["asana-cache/tasks/g_wrap/task.json"]
+
+
+# ── 8c. gzip body: a .json.gz fallback decompresses + parses ────────────────
+
+
+async def test_cold_tier_reads_gzip_fallback(monkeypatch, _reset_s3_client):
+    """When only the .gz key exists, the cure tries the un-suffixed key (404), falls
+    back to .gz, gunzips, and parses — mirroring the probe's two-key probe."""
+    import gzip as _gzip
+
+    bucket = "autom8-s3"
+    raw = _raw_task_object("g_gz", 4321.0, 21.0)
+    gz_bytes = _gzip.compress(json.dumps(raw).encode("utf-8"))
+
+    class _GzClient:
+        def __init__(self):
+            self.get_calls = 0
+            self.keys_seen: list[str] = []
+
+        def get_object(self, *, Bucket, Key):  # noqa: N803
+            self.get_calls += 1
+            self.keys_seen.append(Key)
+            assert Bucket == bucket
+            if Key == "asana-cache/tasks/g_gz/task.json.gz":
+                return {"Body": _Body(gz_bytes)}
+            raise _NoSuchKey(f"NoSuchKey: {Key}")
+
+    client = _GzClient()
+    _install_fake_client(monkeypatch, client, bucket)
+
+    healed, receipt = await recover_null_number_cells(
+        _frame([_row("g_gz")]), _schema(), _ColdHotStore(), "unit", "P"
+    )
+
+    assert healed["mrr"].to_list() == [4321.0]
+    assert healed["weekly_ad_spend"].to_list() == [21.0]
+    assert client.keys_seen == [
+        "asana-cache/tasks/g_gz/task.json",  # 404
+        "asana-cache/tasks/g_gz/task.json.gz",  # hit
+    ]
+
+
+# ── 8d. no client resolvable => clean no-op (honest-null), never raises ─────
+
+
+async def test_cold_tier_noop_when_no_client(monkeypatch, _reset_s3_client):
+    """No boto3 client resolvable (missing creds / boto3 / bucket) => clean no-op:
+    the hot read ran (attempted) but nothing heals and nothing is fabricated."""
+    monkeypatch.setattr(nnr, "_get_s3_client", lambda: None)
+
+    healed, receipt = await recover_null_number_cells(
+        _frame([_row("g1")]), _schema(), _ColdHotStore(), "unit", "P"
     )
     assert healed["mrr"].to_list() == [None]
     assert receipt.attempted is True  # the pass ran (hot read happened), healed 0
@@ -383,89 +539,112 @@ async def test_cold_tier_noop_when_no_cold_backend_resolvable(monkeypatch):
     assert receipt.cache_miss_gids == 1  # g1 missed both tiers -> honest-null
 
 
+# ── 8e. per-gid GET error (creds/throttle) => that gid honest-null, no raise ─
+
+
+async def test_cold_tier_per_gid_error_is_swallowed_to_null(monkeypatch, _reset_s3_client):
+    """A non-404 per-gid error (e.g. AccessDenied / throttle) contributes None for
+    that gid (honest-null) and never raises — the additive contract."""
+    bucket = "autom8-s3"
+
+    class _PartlyBrokenClient:
+        def __init__(self):
+            self.get_calls = 0
+
+        def get_object(self, *, Bucket, Key):  # noqa: N803
+            self.get_calls += 1
+            if "g_ok" in Key:
+                return {"Body": _Body(json.dumps(_raw_task_object("g_ok", 500.0, 50.0)).encode())}
+            raise RuntimeError("AccessDenied: throttled")
+
+    client = _PartlyBrokenClient()
+    _install_fake_client(monkeypatch, client, bucket)
+
+    healed, receipt = await recover_null_number_cells(
+        _frame([_row("g_ok"), _row("g_err")]), _schema(), _ColdHotStore(), "unit", "P"
+    )
+    by_gid = dict(zip(healed["gid"].to_list(), healed["mrr"].to_list(), strict=True))
+    assert by_gid["g_ok"] == 500.0  # the healthy gid heals
+    assert by_gid["g_err"] is None  # the erroring gid -> honest-null
+    assert receipt.healed_cells == 2  # g_ok mrr + was
+    assert receipt.cache_miss_gids == 1  # g_err
+
+
 # ── 9. cold read is CONCURRENT and BOUNDED (the latency-blocker cure) ─────────
 #
 # The qa-adversary NO-GO: a single-worker sequential cold read is linear+unbounded
 # in N (~3021 unit hot-miss gids => ~3021 sequential S3 GETs against a ~375s slack
-# of the 900s Lambda budget). The cure fans the per-gid get_versioned reads out
-# across worker threads, capped by a Semaphore. This test proves the read is BOTH
-# parallel (max-in-flight > 1) AND bounded (max-in-flight <= cap), while every heal
-# still lands at its exact cached value.
+# of the 900s Lambda budget). The cure fans the per-gid GETs out across worker
+# threads, capped by a Semaphore. This test proves the read is BOTH parallel
+# (max-in-flight > 1) AND bounded (max-in-flight <= cap), while every heal still
+# lands at its exact cached value. Stubbed at the boto3-CLIENT boundary.
 
 
-class _ConcurrencyProbeBackend:
-    """Cold-tier stand-in that records the MAX number of get_versioned calls
-    in flight at once. Each call briefly blocks (a real sleep on the worker
-    thread) so concurrent reads genuinely overlap -- the in-flight high-water
-    mark is the parallelism proof. Thread-safe counters (the cure fans the reads
-    across asyncio.to_thread worker threads). ZERO Asana calls (dict lookup)."""
+class _ConcurrencyProbeClient:
+    """boto3-CLIENT-boundary stub that records the MAX number of get_object calls in
+    flight at once. Each call briefly blocks (a real sleep on the worker thread) so
+    concurrent reads genuinely overlap — the in-flight high-water mark is the
+    parallelism proof. Thread-safe counters (the cure fans across to_thread workers).
+    ZERO Asana calls."""
 
-    _degraded = False
-
-    def __init__(self, entries: dict[str, CacheEntry | None]):
+    def __init__(self, bucket: str, objects: dict[str, dict[str, Any]]):
         import threading
 
-        self._entries = entries
+        self._bucket = bucket
+        self._objects = objects
         self._lock = threading.Lock()
         self._in_flight = 0
         self.max_in_flight = 0
-        self.read_calls = 0
+        self.get_calls = 0
 
-    def get_versioned(self, key, entry_type, freshness=None):
+    def get_object(self, *, Bucket, Key):  # noqa: N803
         import time
 
         with self._lock:
             self._in_flight += 1
-            self.read_calls += 1
+            self.get_calls += 1
             if self._in_flight > self.max_in_flight:
                 self.max_in_flight = self._in_flight
         try:
-            # Hold the "connection" briefly so siblings overlap; long enough that
-            # a serial implementation would NEVER show in_flight > 1.
-            time.sleep(0.02)
-            return self._entries.get(key)
+            time.sleep(0.02)  # hold the "connection" so siblings overlap
+            if Key in self._objects:
+                return {"Body": _Body(json.dumps(self._objects[Key]).encode("utf-8"))}
+            raise _NoSuchKey(f"NoSuchKey: {Key}")
         finally:
             with self._lock:
                 self._in_flight -= 1
 
 
-class _ConcurrencyProbeStore:
-    """Hot store is COLD; store.cache._cold is the concurrency-probe backend."""
-
-    def __init__(self, cold: _ConcurrencyProbeBackend):
-        self.cache = _TieredCacheStub(cold)
-
-    async def get_batch_async(self, gids, freshness=None, required_level=None):
-        return {g: None for g in gids}  # HOT IS COLD
-
-
-async def test_cold_read_is_concurrent_and_bounded(monkeypatch):
+async def test_cold_read_is_concurrent_and_bounded(monkeypatch, _reset_s3_client):
     """max-in-flight ∈ (1, cap]: the cold read parallelizes AND respects the cap,
     and every active gid still heals to its EXACT cached value."""
     cap = 8
     monkeypatch.setenv("ASANA_CURE_COLD_CONCURRENCY", str(cap))
 
+    bucket = "autom8-s3"
     n = 40  # well above the cap, so the Semaphore must actually gate
     frame = _frame([_row(f"u{i}") for i in range(n)])  # all mrr+was null
-    # Every gid is an active unit whose S3 copy carries a distinct populated MRR.
-    entries: dict[str, CacheEntry | None] = {
-        f"u{i}": _entry(f"u{i}", _task(float(1000 + i), float(i))) for i in range(n)
+    objects = {
+        f"asana-cache/tasks/u{i}/task.json": _raw_task_object(f"u{i}", float(1000 + i), float(i))
+        for i in range(n)
     }
-    cold = _ConcurrencyProbeBackend(entries)
-    store = _ConcurrencyProbeStore(cold)
+    client = _ConcurrencyProbeClient(bucket, objects)
+    _install_fake_client(monkeypatch, client, bucket)
 
-    healed, receipt = await recover_null_number_cells(frame, _schema(), store, "unit", "P")
+    healed, receipt = await recover_null_number_cells(
+        frame, _schema(), _ColdHotStore(), "unit", "P"
+    )
 
     # PARALLELISM: at least two reads overlapped (a serial reader caps at 1).
-    assert cold.max_in_flight > 1, (
-        f"cold read must be CONCURRENT (max in-flight was {cold.max_in_flight} <= 1)"
+    assert client.max_in_flight > 1, (
+        f"cold read must be CONCURRENT (max in-flight was {client.max_in_flight} <= 1)"
     )
     # BOUND: the Semaphore never let more than `cap` reads run at once.
-    assert cold.max_in_flight <= cap, (
-        f"cold read must be BOUNDED by the cap (max in-flight {cold.max_in_flight} > {cap})"
+    assert client.max_in_flight <= cap, (
+        f"cold read must be BOUNDED by the cap (max in-flight {client.max_in_flight} > {cap})"
     )
-    # not-N+1 at gid granularity: exactly one cold read per distinct hot-miss gid.
-    assert cold.read_calls == n
+    # not-N+1 at gid granularity: exactly one GET per distinct hot-miss gid (all hit).
+    assert client.get_calls == n
 
     # heal-proof (falsifiable EXACT values): every active gid recovered its MRR.
     by_gid = dict(zip(healed["gid"].to_list(), healed["mrr"].to_list(), strict=True))
@@ -479,16 +658,29 @@ async def test_cold_read_is_concurrent_and_bounded(monkeypatch):
 
 async def test_cold_concurrency_env_override_is_clamped(monkeypatch):
     """The env override is clamped to a sane range and shrugs off garbage."""
-    import autom8_asana.dataframes.builders.null_number_recovery as mod
-
     monkeypatch.setenv("ASANA_CURE_COLD_CONCURRENCY", "0")
-    assert mod._cold_concurrency() == mod._COLD_CONCURRENCY_MIN  # 0 -> clamped up
+    assert nnr._cold_concurrency() == nnr._COLD_CONCURRENCY_MIN  # 0 -> clamped up
 
     monkeypatch.setenv("ASANA_CURE_COLD_CONCURRENCY", "100000")
-    assert mod._cold_concurrency() == mod._COLD_CONCURRENCY_MAX  # absurd -> clamped down
+    assert nnr._cold_concurrency() == nnr._COLD_CONCURRENCY_MAX  # absurd -> clamped down
 
     monkeypatch.setenv("ASANA_CURE_COLD_CONCURRENCY", "not-a-number")
-    assert mod._cold_concurrency() == mod._COLD_CONCURRENCY_DEFAULT  # garbage -> default
+    assert nnr._cold_concurrency() == nnr._COLD_CONCURRENCY_DEFAULT  # garbage -> default
 
     monkeypatch.delenv("ASANA_CURE_COLD_CONCURRENCY", raising=False)
-    assert mod._cold_concurrency() == mod._COLD_CONCURRENCY_DEFAULT  # unset -> default
+    assert nnr._cold_concurrency() == nnr._COLD_CONCURRENCY_DEFAULT  # unset -> default
+
+
+# ── KEY-CONSTRUCTION unit: the pinned prefix is DECOUPLED from settings.prefix ─
+
+
+def test_cold_key_uses_pinned_prefix_not_settings_prefix():
+    """The cure pins asana-cache/tasks/<gid>/task.json — NOT get_settings().s3.prefix
+    (which prod overloads to asana-cache/project-frames/). This is the #120 cure's
+    root defect; assert the key construction is decoupled from the polluted setting."""
+    assert nnr._DURABLE_TASK_CACHE_PREFIX == "asana-cache"
+    assert nnr._cold_task_cache_key("1207519540893045") == (
+        "asana-cache/tasks/1207519540893045/task.json"
+    )
+    # explicitly NOT the polluted dataframe-storage prefix
+    assert "project-frames" not in nnr._cold_task_cache_key("1207519540893045")
