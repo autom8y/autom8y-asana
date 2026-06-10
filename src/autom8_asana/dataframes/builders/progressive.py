@@ -795,6 +795,28 @@ class ProgressiveProjectBuilder:
                 project_gid=self._project_gid,
             )
 
+        # Step 5.65: Path-canon recovery of stripped numeric custom-field cells
+        # (FPC Phase-2). Heal null mrr/weekly_ad_spend (and any numeric cf:
+        # column) by re-reading the per-task cache copy the hierarchy warm
+        # already fetched -- CACHE-REUSE ONLY (IMMEDIATE freshness => zero Asana
+        # GETs for cached gids; no live fallback on the receiver warm path).
+        # Runs BEFORE the population receipt so the floor assesses a HEALED frame.
+        # Field-agnostic (G-PROPAGATE: one loop heals every numeric cf: column).
+        # NEVER fabricates (null-cache cell stays honest-null) and NEVER raises
+        # (additive; mirrors the population-receipt posture).
+        if total_rows > 0 and self._store is not None:
+            from autom8_asana.dataframes.builders.null_number_recovery import (
+                recover_null_number_cells,
+            )
+
+            merged_df, _recovery_receipt = await recover_null_number_cells(
+                merged_df=merged_df,
+                schema=self._schema,
+                store=self._store,
+                entity_type=self._entity_type,
+                project_gid=self._project_gid,
+            )
+
         # Step 5.7: Value-population receipt (FM-4, ADR-SEAM1 Decision 4).
         # WARN-first attestation that the active-classified subset actually
         # carries non-null economic value columns (mrr/offer_id for offer). A
