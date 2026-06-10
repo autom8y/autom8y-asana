@@ -12,7 +12,7 @@ Tests validate:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -23,6 +23,7 @@ from autom8_asana.api.main import create_app
 from autom8_asana.auth.bot_pat import clear_bot_pat_cache
 from autom8_asana.auth.dual_mode import AuthMode
 from autom8_asana.auth.jwt_validator import reset_auth_client
+from autom8_asana.cache.integration.dataframe_cache import DataFrameCacheEntry
 from autom8_asana.services.resolver import EntityProjectRegistry
 
 # ---------------------------------------------------------------------------
@@ -59,13 +60,6 @@ def _mock_jwt_validation(service_name: str = "autom8_data") -> AsyncMock:
     mock_claims.service_name = service_name
     mock_claims.scope = "multi-tenant"
     return AsyncMock(return_value=mock_claims)
-
-
-@dataclass
-class _FakeEntry:
-    """Minimal stand-in for DataFrameCacheEntry."""
-
-    dataframe: object
 
 
 def _make_fake_dataframe():
@@ -346,7 +340,14 @@ class TestMatchingQuerySuccess:
         )
 
         fake_df = _make_fake_dataframe()
-        fake_entry = _FakeEntry(dataframe=fake_df)
+        fake_entry = DataFrameCacheEntry(
+            project_gid=BUSINESS_PROJECT_GID,
+            entity_type="business",
+            dataframe=fake_df,
+            watermark=datetime.now(UTC),
+            created_at=datetime.now(UTC),
+            schema_version="1.0.0",
+        )
         mock_cache = MagicMock()
         mock_cache.get_async = AsyncMock(return_value=fake_entry)
 
@@ -570,7 +571,14 @@ class TestMatchingQueryErrors:
         from autom8_asana.auth.dual_mode import AuthMode
 
         fake_df = _make_fake_dataframe()
-        fake_entry = _FakeEntry(dataframe=fake_df)
+        fake_entry = DataFrameCacheEntry(
+            project_gid=BUSINESS_PROJECT_GID,
+            entity_type="business",
+            dataframe=fake_df,
+            watermark=datetime.now(UTC),
+            created_at=datetime.now(UTC),
+            schema_version="1.0.0",
+        )
         mock_cache = MagicMock()
         mock_cache.get_async = AsyncMock(return_value=fake_entry)
 
