@@ -41,13 +41,14 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    # Pinned to SHA 8685fc8 (autom8y-workflows: aggregate-coverage gate for sharded
-    # callers [CHANGE-005a] + its push-mode fix — include-hidden-files on the
-    # .coverage dotfile upload, per-shard download (no collision), checkout+combine
-    # in the aggregate job. The prior pin ee5b0d13 left the gate non-functional
-    # (downloaded 0 shards), silently blocking the deploy gate). Opts in via
+    # Pinned to SHA 93dbbc29 (autom8y-workflows #25: node24 disarm of every action
+    # pin [2026-06-16 time-bomb] + CodeArtifact get-authorization-token retry with
+    # connect/read timeouts [PR #121 flake class]). Inherits the prior 8685fc8
+    # lineage: aggregate-coverage gate for sharded callers [CHANGE-005a] + its
+    # push-mode fix (include-hidden-files on the .coverage dotfile upload, per-shard
+    # download, checkout+combine in the aggregate job). Opts in via
     # coverage_threshold_aggregate below to enforce the real 80% threshold.
-    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@8685fc8086e6f3eb7a5b5d6b0560dd34d4fb9d58
+    uses: autom8y/autom8y-workflows/.github/workflows/satellite-ci-reusable.yml@93dbbc2933affcce3e692ccff8f17d382811264d
     with:
       mypy_targets: 'src/autom8_asana'
       coverage_package: 'autom8_asana'
@@ -84,7 +85,7 @@ jobs:
       candidate_sdk_version: ${{ inputs.candidate_sdk_version }}
       candidate_wheel_run_id: ${{ inputs.candidate_wheel_run_id }}
       dispatch_correlation_id: ${{ inputs.dispatch_correlation_id }}
-      autom8y_workflows_sha: 8685fc8086e6f3eb7a5b5d6b0560dd34d4fb9d58
+      autom8y_workflows_sha: 93dbbc2933affcce3e692ccff8f17d382811264d
     secrets: inherit
 
   fuzz:
