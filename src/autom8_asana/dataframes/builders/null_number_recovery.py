@@ -477,9 +477,7 @@ def _resolve_cold_backend(store: Any) -> Any | None:
     return backend
 
 
-async def _cold_read_durable(
-    gids: list[str], store: Any
-) -> dict[str, dict[str, Any] | None]:
+async def _cold_read_durable(gids: list[str], store: Any) -> dict[str, dict[str, Any] | None]:
     """Bounded-concurrency durable-S3 read of the per-task copies for ``gids``.
 
     Reads ``EntryType.TASK`` entries (key ``{prefix}/tasks/{gid}/task.json``) via
@@ -526,9 +524,7 @@ async def _cold_read_durable(
         # swallowed to None: that gid simply contributes nothing (honest-null).
         async with sem:
             try:
-                entry = await asyncio.to_thread(
-                    backend.get_versioned, gid, EntryType.TASK
-                )
+                entry = await asyncio.to_thread(backend.get_versioned, gid, EntryType.TASK)
             except Exception as e:  # BROAD-CATCH: per-gid read is additive  # noqa: BLE001
                 logger.warning(
                     "null_number_recovery_cold_read_gid_failed",
@@ -568,9 +564,7 @@ def _emit(
     span.set_attribute("computation.null_number_recovery.healed_cells", healed_cells)
     span.set_attribute("computation.null_number_recovery.residual_null_cells", residual_null_cells)
     span.set_attribute("computation.null_number_recovery.cache_miss_gids", cache_miss_gids)
-    span.set_attribute(
-        "computation.null_number_recovery.cold_present_gids", cold_present_gids
-    )
+    span.set_attribute("computation.null_number_recovery.cold_present_gids", cold_present_gids)
 
     extra = {
         "entity_type": entity_type,

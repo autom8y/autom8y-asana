@@ -449,8 +449,7 @@ async def test_cold_read_is_concurrent_and_bounded(monkeypatch):
     frame = _frame([_row(f"u{i}") for i in range(n)])  # all mrr+was null
     # Every gid is an active unit whose S3 copy carries a distinct populated MRR.
     entries: dict[str, CacheEntry | None] = {
-        f"u{i}": _entry(f"u{i}", _task(float(1000 + i), float(i)))
-        for i in range(n)
+        f"u{i}": _entry(f"u{i}", _task(float(1000 + i), float(i))) for i in range(n)
     }
     cold = _ConcurrencyProbeBackend(entries)
     store = _ConcurrencyProbeStore(cold)
