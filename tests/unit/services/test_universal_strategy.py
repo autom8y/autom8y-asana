@@ -7,11 +7,13 @@ per-entity strategies with a single flexible approach.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
 import pytest
 
+from autom8_asana.cache.integration.dataframe_cache import DataFrameCacheEntry
 from autom8_asana.services.dynamic_index import DynamicIndexCache
 from autom8_asana.services.universal_strategy import (
     UniversalResolutionStrategy,
@@ -116,19 +118,40 @@ class TestUniversalResolutionStrategy:
     async def test_resolve_single_criterion(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
-        """Test resolution with a single criterion."""
+        """Test resolution with a single criterion.
+
+        Routed through a real DataFrameCacheEntry (real boundary object with real
+        freshness/schema-version fields) so the cache-read path in _get_dataframe
+        is exercised against the production DataFrameCacheEntry shape rather than
+        bypassed via direct _cached_dataframe injection.
+        """
+        entry = DataFrameCacheEntry(
+            project_gid="test-project",
+            entity_type="unit",
+            dataframe=unit_dataframe,
+            watermark=datetime.now(UTC),
+            created_at=datetime.now(UTC),
+            schema_version="1.5.0",
+        )
+        mock_cache = MagicMock()
+        mock_cache.get_async = AsyncMock(return_value=entry)
+        mock_cache.get_freshness_info = MagicMock(return_value=None)
+
         strategy = UniversalResolutionStrategy(
             entity_type="unit",
             index_cache=index_cache,
         )
-        strategy._cached_dataframe = unit_dataframe
 
-        results = await strategy.resolve(
-            criteria=[{"office_phone": "+11234567890", "vertical": "dental"}],
-            project_gid="test-project",
-            client=MagicMock(),
-            active_only=False,
-        )
+        with patch(
+            "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
+            return_value=mock_cache,
+        ):
+            results = await strategy.resolve(
+                criteria=[{"office_phone": "+11234567890", "vertical": "dental"}],
+                project_gid="test-project",
+                client=MagicMock(),
+                active_only=False,
+            )
 
         assert len(results) == 1
         assert results[0].gid == "unit-1"
@@ -138,23 +161,42 @@ class TestUniversalResolutionStrategy:
     async def test_resolve_multiple_criteria(
         self, unit_dataframe: pl.DataFrame, index_cache: DynamicIndexCache
     ) -> None:
-        """Test resolution with multiple criteria."""
+        """Test resolution with multiple criteria.
+
+        Routed through a real DataFrameCacheEntry so the cache-read path is
+        exercised against the production boundary shape (not direct injection).
+        """
+        entry = DataFrameCacheEntry(
+            project_gid="test-project",
+            entity_type="unit",
+            dataframe=unit_dataframe,
+            watermark=datetime.now(UTC),
+            created_at=datetime.now(UTC),
+            schema_version="1.5.0",
+        )
+        mock_cache = MagicMock()
+        mock_cache.get_async = AsyncMock(return_value=entry)
+        mock_cache.get_freshness_info = MagicMock(return_value=None)
+
         strategy = UniversalResolutionStrategy(
             entity_type="unit",
             index_cache=index_cache,
         )
-        strategy._cached_dataframe = unit_dataframe
 
-        results = await strategy.resolve(
-            criteria=[
-                {"office_phone": "+11234567890", "vertical": "dental"},
-                {"office_phone": "+19876543210", "vertical": "medical"},
-                {"office_phone": "+10000000000", "vertical": "unknown"},
-            ],
-            project_gid="test-project",
-            client=MagicMock(),
-            active_only=False,
-        )
+        with patch(
+            "autom8_asana.cache.dataframe.factory.get_dataframe_cache_provider",
+            return_value=mock_cache,
+        ):
+            results = await strategy.resolve(
+                criteria=[
+                    {"office_phone": "+11234567890", "vertical": "dental"},
+                    {"office_phone": "+19876543210", "vertical": "medical"},
+                    {"office_phone": "+10000000000", "vertical": "unknown"},
+                ],
+                project_gid="test-project",
+                client=MagicMock(),
+                active_only=False,
+            )
 
         assert len(results) == 3
         assert results[0].gid == "unit-1"
