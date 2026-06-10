@@ -359,6 +359,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     event_loop_lag_monitor.start()
     app.state.event_loop_lag_monitor = event_loop_lag_monitor
 
+    # Start the affirmative SLI heartbeat (AMBER-2 emitting-floor fix).
+    # A slow background timer lights a clearly-SYNTHETIC, PROBE-class series on
+    # the platform autom8y_http_request_duration_seconds histogram, materializing
+    # the denominator that EcsServiceDenominatorAbsent{service=asana} counts —
+    # so the dead-man can tell "idle" from "down" even with the warm-lane paused
+    # and no business traffic (the /health + /metrics paths are SDK-excluded and
+    # never light the denominator). Cheap: ~one histogram observe per interval, no
+    # per-request cost. Probe-class ONLY (G-DENOM): never touches the business
+    # economics denominator or the receiver_query_outcome counters. Stored on
+    # app.state so it is cancelled cleanly at shutdown. Default ON; disableable
+    # per-task via ASANA_SLI_HEARTBEAT_DISABLED with no code change.
+    from autom8_asana.api.sli_heartbeat import SliHeartbeat
+
+    sli_heartbeat = SliHeartbeat()
+    sli_heartbeat.start()
+    app.state.sli_heartbeat = sli_heartbeat
+
     # Per TDD-SECTION-TIMELINE-REMEDIATION: Section timeline warm-up pipeline
     # REMOVED. Timeline data is now computed on first request and served from
     # derived cache on subsequent requests. No app.state keys for timeline
@@ -389,6 +406,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await app.state.event_loop_lag_monitor.stop()
         except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
             logger.warning("event_loop_lag_monitor_stop_error", extra={"error": str(e)})
+
+    # Stop the SLI heartbeat (AMBER-2 emitting-floor fix).
+    if hasattr(app.state, "sli_heartbeat"):
+        try:
+            await app.state.sli_heartbeat.stop()
+        except Exception as e:  # BROAD-CATCH: degrade  # noqa: BLE001
+            logger.warning("sli_heartbeat_stop_error", extra={"error": str(e)})
 
     # Cancel background cache warming if still running
     if hasattr(app.state, "cache_warming_task"):
