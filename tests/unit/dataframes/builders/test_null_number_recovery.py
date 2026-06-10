@@ -103,43 +103,88 @@ class _RaisingStore:
         raise RuntimeError("cache backend exploded")
 
 
-# ── 1. not-N+1 (G-THEATER) ──────────────────────────────────────────────────
+# ── 1+2. not-N+1 (G-THEATER) + heal-proof (G-PROVE) — merged parameterized ──
+#
+# CHANGE-004 (eunomia): merged §1 and §2 into one parameterized test.
+# Assertion union preserved across both param cases:
+#   §1 (not_n_plus_1_4rows): batch_calls 1, total_gids_requested 4,
+#       null_count 0 on both cols, healed_cells 8.
+#   §2 (heal_proof_exact_values): mrr 1800.0, weekly_ad_spend 300.0,
+#       attempted True, healed_cells 2, healed_by_column mrr+was each 1.
 
 
-async def test_single_batch_read_never_n_plus_1():
-    frame = _frame([_row(f"g{i}") for i in range(1, 5)])  # 4 rows, mrr+was both null
-    store = _CountingStore(
-        {
-            "g1": _task(450.0, 150.0),
-            "g2": _task(425.0, 125.0),
-            "g3": _task(650.0, 350.0),
-            "g4": _task(600.0, 300.0),
-        }
-    )
+@pytest.mark.parametrize(
+    "frame,cache_dict,expected",
+    [
+        pytest.param(
+            # §1: 4-row frame — proves not-N+1 (exactly ONE batch read, batch bounded
+            # by distinct null-row gids not cells) and full null healing across 4 rows.
+            _frame([_row(f"g{i}") for i in range(1, 5)]),
+            {
+                "g1": _task(450.0, 150.0),
+                "g2": _task(425.0, 125.0),
+                "g3": _task(650.0, 350.0),
+                "g4": _task(600.0, 300.0),
+            },
+            {
+                "batch_calls": 1,
+                "total_gids_requested": 4,
+                "mrr_null_count": 0,
+                "was_null_count": 0,
+                "healed_cells": 8,
+            },
+            id="not_n_plus_1_4rows",
+        ),
+        pytest.param(
+            # §2: 1-row frame — proves EXACT cached values (falsifiable heal-proof).
+            _frame([_row("g1")]),
+            {"g1": _task(1800.0, 300.0)},
+            {
+                "batch_calls": 1,
+                "total_gids_requested": 1,
+                "mrr_exact": [1800.0],
+                "was_exact": [300.0],
+                "attempted": True,
+                "healed_cells": 2,
+                "healed_by_column": {"mrr": 1, "weekly_ad_spend": 1},
+            },
+            id="heal_proof_exact_values",
+        ),
+    ],
+)
+async def test_hot_tier_heal_not_n_plus_1_and_exact_values(frame, cache_dict, expected):
+    """§1+§2 merged: not-N+1 (G-THEATER) + heal-proof (G-PROVE) in one parameterized test.
+
+    Both cases share the _CountingStore infra and assert overlapping hot-path heal
+    behavior. Assertions are case-conditional: §1 checks batch bounds + null_count;
+    §2 checks exact values + receipt fields.
+    """
+    store = _CountingStore(cache_dict)
     healed, receipt = await recover_null_number_cells(frame, _schema(), store, "unit", "P")
 
-    assert store.batch_calls == 1, (
-        f"not-N+1: exactly ONE cache batch read for 4 rows x 2 null cols (got {store.batch_calls})"
+    # Common across both cases: exactly one batch call.
+    assert store.batch_calls == expected["batch_calls"], (
+        f"not-N+1: expected exactly ONE batch call (got {store.batch_calls})"
     )
-    assert store.total_gids_requested == 4, "batch bounded by distinct null-row gids, not cells"
-    assert healed["mrr"].null_count() == 0
-    assert healed["weekly_ad_spend"].null_count() == 0
-    assert receipt.healed_cells == 8
 
+    if "total_gids_requested" in expected:
+        assert store.total_gids_requested == expected["total_gids_requested"], (
+            "batch bounded by distinct null-row gids, not cells"
+        )
 
-# ── 2. heal-proof (G-PROVE, falsifiable exact values) ───────────────────────
+    # §1-specific: null_count assertions (4-row frame, both cols fully healed).
+    if "mrr_null_count" in expected:
+        assert healed["mrr"].null_count() == expected["mrr_null_count"]
+        assert healed["weekly_ad_spend"].null_count() == expected["was_null_count"]
 
+    assert receipt.healed_cells == expected["healed_cells"]
 
-async def test_heal_proof_specific_values_from_cache():
-    frame = _frame([_row("g1")])
-    store = _CountingStore({"g1": _task(1800.0, 300.0)})
-    healed, receipt = await recover_null_number_cells(frame, _schema(), store, "unit", "P")
-
-    assert healed["mrr"].to_list() == [1800.0]
-    assert healed["weekly_ad_spend"].to_list() == [300.0]
-    assert receipt.attempted is True
-    assert receipt.healed_cells == 2
-    assert receipt.healed_by_column == {"mrr": 1, "weekly_ad_spend": 1}
+    # §2-specific: exact-value heal-proof assertions.
+    if "mrr_exact" in expected:
+        assert healed["mrr"].to_list() == expected["mrr_exact"]
+        assert healed["weekly_ad_spend"].to_list() == expected["was_exact"]
+        assert receipt.attempted is expected["attempted"]
+        assert receipt.healed_by_column == expected["healed_by_column"]
 
 
 # ── 3. never-fabricate (null-cache + cache-miss stay null) ──────────────────
