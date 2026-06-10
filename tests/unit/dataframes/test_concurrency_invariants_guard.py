@@ -150,12 +150,14 @@ _SANCTIONED_IO_TO_THREAD: dict[str, str] = {
         "automation event transport boto3 publish — I/O offload"
     ),
     # FPC Phase-2 cure: bounded-concurrency durable S3 per-task cache reads
-    # (boto3 get_object via S3CacheProvider.get_versioned) to backfill null
-    # numeric cf cells from the durable tier — blocking I/O offload, NOT a CPU
-    # merge; semaphore-capped (ASANA_CURE_COLD_CONCURRENCY, default 24); 0 Asana
-    # GETs (null_number_recovery.py:_cold_read_durable).
+    # (RAW boto3 get_object of asana-cache/tasks/<gid>/task.json — NOT
+    # S3CacheProvider, whose prefix + envelope deserialization were the #120 inert
+    # defect) to backfill null numeric cf cells from the durable tier — blocking I/O
+    # offload, NOT a CPU merge; semaphore-capped (ASANA_CURE_COLD_CONCURRENCY,
+    # default 24); 0 Asana GETs (null_number_recovery.py:_cold_read_durable ->
+    # _read_task_cache_object).
     "autom8_asana/dataframes/builders/null_number_recovery.py": (
-        "durable S3 per-task cache read (boto3 get_object) backfilling null "
+        "durable S3 per-task cache read (raw boto3 get_object) backfilling null "
         "numeric cf cells — I/O offload, semaphore-capped, 0 Asana GETs"
     ),
 }
