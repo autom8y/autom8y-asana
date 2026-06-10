@@ -1,0 +1,449 @@
+{
+  "_generated_by": "scripts/gen_namespace_config.py",
+  "_note": "DO NOT EDIT BY HAND. Regenerate via scripts/gen_namespace_config.py. Values are byte-equal to the live TF literals (Phase-alpha is derivation-neutral). tests/arch/test_namespace_gen.py asserts a zero-diff regeneration.",
+  "_source_of_truth": "src/autom8_asana/storage_namespace.py",
+  "env_blocks": {
+    "CHECKPOINTS": {
+      "CACHE_WARMER_CHECKPOINT_PREFIX": "cache-warmer/checkpoints/"
+    },
+    "CHECKPOINTS_BULK": {
+      "CACHE_WARMER_CHECKPOINT_PREFIX": "cache-warmer/checkpoints/bulk/"
+    },
+    "CHECKPOINTS_SECTION_FAST": {
+      "CACHE_WARMER_CHECKPOINT_PREFIX": "cache-warmer/checkpoints/section-fast/"
+    },
+    "PROJECT_FRAMES_FOSSIL": {
+      "ASANA_CACHE_S3_PREFIX": "asana-cache/project-frames/"
+    },
+    "TASK_CACHE": {
+      "ASANA_CACHE_S3_PREFIX": "asana-cache"
+    }
+  },
+  "iam_resources": {
+    "arn:aws:iam::696318035277:role/autom8-asana-cache-warmer-lambda-role": [
+      {
+        "namespace": "CHECKPOINTS",
+        "prefix": "cache-warmer/checkpoints/",
+        "verbs": [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:HeadObject"
+        ]
+      },
+      {
+        "namespace": "CHECKPOINTS_BULK",
+        "prefix": "cache-warmer/checkpoints/bulk/",
+        "verbs": [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:HeadObject"
+        ]
+      },
+      {
+        "namespace": "CHECKPOINTS_SECTION_FAST",
+        "prefix": "cache-warmer/checkpoints/section-fast/",
+        "verbs": [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:HeadObject"
+        ]
+      },
+      {
+        "namespace": "DATAFRAMES_V2",
+        "prefix": "dataframes/",
+        "verbs": [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:HeadObject"
+        ]
+      },
+      {
+        "namespace": "PROJECT_FRAMES_FOSSIL",
+        "prefix": "asana-cache/project-frames/",
+        "verbs": [
+          "s3:GetObject"
+        ]
+      },
+      {
+        "namespace": "TASK_CACHE",
+        "prefix": "asana-cache",
+        "verbs": [
+          "s3:GetObject"
+        ]
+      }
+    ],
+    "arn:aws:iam::696318035277:user/autom8": [
+      {
+        "namespace": "ASANA_CACHE_DATAFRAMES_FOSSIL",
+        "prefix": "asana-cache/dataframes/",
+        "verbs": [
+          "s3:GetObject"
+        ]
+      },
+      {
+        "namespace": "INSIGHTS_FRAMES_FOSSIL",
+        "prefix": "asana-cache/insights-frames/",
+        "verbs": [
+          "s3:GetObject"
+        ]
+      },
+      {
+        "namespace": "NAME_GID_MAPPINGS_FOSSIL",
+        "prefix": "asana-cache/name-gid-mappings/",
+        "verbs": [
+          "s3:GetObject"
+        ]
+      },
+      {
+        "namespace": "TASK_CACHE_LEGACY_FOSSIL",
+        "prefix": "asana-cache/task-cache/",
+        "verbs": [
+          "s3:GetObject"
+        ]
+      },
+      {
+        "namespace": "TASK_DATA_CACHE_V3_FOSSIL",
+        "prefix": "asana-cache/task-data-cache-v3/",
+        "verbs": [
+          "s3:GetObject"
+        ]
+      }
+    ]
+  },
+  "known_drifts": [
+    {
+      "description": "Live warmer-lane roles still grant PUT/DELETE/HEAD on asana-cache/project-frames/* (S3CacheAccess Sid) although the namespace is FOSSIL (write-orphaned, last write 2025-10-02). The registry records the TARGET grant (read-only GET); the live PUT/DELETE is the drift.",
+      "namespace": "PROJECT_FRAMES_FOSSIL",
+      "remediation_pointer": "Phase-beta beta-2 (fossil grant removal); TDD section 5 Phase-beta."
+    }
+  ],
+  "namespace_count": 12,
+  "namespaces": [
+    {
+      "env_default": "asana-cache",
+      "env_vars": [
+        "ASANA_CACHE_S3_PREFIX"
+      ],
+      "iam_grants": [
+        {
+          "principal_arn": "arn:aws:iam::696318035277:role/autom8-asana-cache-warmer-lambda-role",
+          "verbs": [
+            "s3:GetObject"
+          ]
+        }
+      ],
+      "lifecycle": "live",
+      "lifecycle_note": "WRITE-durable / EXPLICIT-read namespace. The blessed read API is DurableTaskCacheReader (raw boto3 get_object of {prefix}/tasks/{gid}/task.json + .gz fallback). There is NO S3 cold cache tier \u2014 the phantom was retired (mask #1). The ECS task role holds full-bucket autom8-s3/* today; narrowing is the Phase-beta beta-3 operator-gated target.",
+      "name": "TASK_CACHE",
+      "prefix": "asana-cache",
+      "reader_apis": [
+        "cache/durable_task_cache.py:DurableTaskCacheReader.read_batch",
+        "dataframes/builders/null_number_recovery.py:_cold_read_durable (delegates to reader)",
+        "settings.py:430",
+        "cache/backends/s3.py:56"
+      ],
+      "semantic_plane": "task-durable-cache",
+      "writer_owner": {
+        "code_anchor": null,
+        "external_name": "UNATTRIBUTED (durable-first writer; Phase-gamma gamma-0 discovery)",
+        "is_attributed": true,
+        "repo": "EXTERNAL"
+      }
+    },
+    {
+      "env_default": "dataframes/",
+      "env_vars": [],
+      "iam_grants": [
+        {
+          "principal_arn": "arn:aws:iam::696318035277:role/autom8-asana-cache-warmer-lambda-role",
+          "verbs": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject",
+            "s3:HeadObject"
+          ]
+        }
+      ],
+      "lifecycle": "live",
+      "lifecycle_note": "the coherent=561 plane; prefix is a constructor default, env-disconnected.",
+      "name": "DATAFRAMES_V2",
+      "prefix": "dataframes/",
+      "reader_apis": [
+        "api/preload/legacy.py:125",
+        "api/preload/progressive.py:291",
+        "dataframes/section_persistence.py:1045",
+        "dataframes/offline.py:49",
+        "scripts/warm_cache.py:78",
+        "metrics/__main__.py:780",
+        "metrics/freshness.py:281"
+      ],
+      "semantic_plane": "dataframe-v2-gid-keyed",
+      "writer_owner": {
+        "code_anchor": "dataframes/storage.py:342",
+        "external_name": null,
+        "is_attributed": true,
+        "repo": "autom8y-asana"
+      }
+    },
+    {
+      "env_default": "cache-warmer/checkpoints/",
+      "env_vars": [
+        "CACHE_WARMER_CHECKPOINT_PREFIX"
+      ],
+      "iam_grants": [
+        {
+          "principal_arn": "arn:aws:iam::696318035277:role/autom8-asana-cache-warmer-lambda-role",
+          "verbs": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject",
+            "s3:HeadObject"
+          ]
+        }
+      ],
+      "lifecycle": "live",
+      "lifecycle_note": "default lane (env unset -> DEFAULT_PREFIX). Parent of the bulk/section lanes.",
+      "name": "CHECKPOINTS",
+      "prefix": "cache-warmer/checkpoints/",
+      "reader_apis": [
+        "lambda_handlers/checkpoint.py:_default_prefix"
+      ],
+      "semantic_plane": "warmer-checkpoint",
+      "writer_owner": {
+        "code_anchor": "lambda_handlers/checkpoint.py:31",
+        "external_name": null,
+        "is_attributed": true,
+        "repo": "autom8y-asana"
+      }
+    },
+    {
+      "env_default": "cache-warmer/checkpoints/bulk/",
+      "env_vars": [
+        "CACHE_WARMER_CHECKPOINT_PREFIX"
+      ],
+      "iam_grants": [
+        {
+          "principal_arn": "arn:aws:iam::696318035277:role/autom8-asana-cache-warmer-lambda-role",
+          "verbs": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject",
+            "s3:HeadObject"
+          ]
+        }
+      ],
+      "lifecycle": "live",
+      "lifecycle_note": "bulk pre-warmer lane; disjoint per #96 so concurrent runs never collide.",
+      "name": "CHECKPOINTS_BULK",
+      "prefix": "cache-warmer/checkpoints/bulk/",
+      "reader_apis": [
+        "lambda_handlers/checkpoint.py:_default_prefix"
+      ],
+      "semantic_plane": "warmer-checkpoint",
+      "writer_owner": {
+        "code_anchor": "lambda_handlers/checkpoint.py:39",
+        "external_name": null,
+        "is_attributed": true,
+        "repo": "autom8y-asana"
+      }
+    },
+    {
+      "env_default": "cache-warmer/checkpoints/section-fast/",
+      "env_vars": [
+        "CACHE_WARMER_CHECKPOINT_PREFIX"
+      ],
+      "iam_grants": [
+        {
+          "principal_arn": "arn:aws:iam::696318035277:role/autom8-asana-cache-warmer-lambda-role",
+          "verbs": [
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:DeleteObject",
+            "s3:HeadObject"
+          ]
+        }
+      ],
+      "lifecycle": "live",
+      "lifecycle_note": "section-fast warmer lane; disjoint per #96.",
+      "name": "CHECKPOINTS_SECTION_FAST",
+      "prefix": "cache-warmer/checkpoints/section-fast/",
+      "reader_apis": [
+        "lambda_handlers/checkpoint.py:_default_prefix"
+      ],
+      "semantic_plane": "warmer-checkpoint",
+      "writer_owner": {
+        "code_anchor": "lambda_handlers/checkpoint.py:39",
+        "external_name": null,
+        "is_attributed": true,
+        "repo": "autom8y-asana"
+      }
+    },
+    {
+      "env_default": "e2e-test-dataframes/",
+      "env_vars": [],
+      "iam_grants": [],
+      "lifecycle": "live",
+      "lifecycle_note": "test-scoped; not a prod namespace, no prod grant.",
+      "name": "E2E_TEST_DATAFRAMES",
+      "prefix": "e2e-test-dataframes/",
+      "reader_apis": [],
+      "semantic_plane": "e2e-test-frames",
+      "writer_owner": {
+        "code_anchor": null,
+        "external_name": "e2e test harness (non-prod)",
+        "is_attributed": true,
+        "repo": "autom8y-asana"
+      }
+    },
+    {
+      "env_default": "asana-cache/project-frames/",
+      "env_vars": [
+        "ASANA_CACHE_S3_PREFIX"
+      ],
+      "iam_grants": [
+        {
+          "principal_arn": "arn:aws:iam::696318035277:role/autom8-asana-cache-warmer-lambda-role",
+          "verbs": [
+            "s3:GetObject"
+          ]
+        }
+      ],
+      "lifecycle": "fossil",
+      "lifecycle_note": "v1 name-keyed schema; 2,243 stranded keys; last write 2025-10-02; no reader in any repo. The env value is the OVERLOADED ASANA_CACHE_S3_PREFIX (mask #2). TARGET grant is read-only; live PUT/DELETE drift is in KNOWN_DRIFTS.",
+      "name": "PROJECT_FRAMES_FOSSIL",
+      "prefix": "asana-cache/project-frames/",
+      "reader_apis": [],
+      "semantic_plane": "dataframe-v1-name-keyed",
+      "writer_owner": {
+        "code_anchor": null,
+        "external_name": "autom8-monolith-v1 (last write 2025-10-02; 8mo stale)",
+        "is_attributed": true,
+        "repo": "EXTERNAL"
+      }
+    },
+    {
+      "env_default": null,
+      "env_vars": [],
+      "iam_grants": [
+        {
+          "principal_arn": "arn:aws:iam::696318035277:user/autom8",
+          "verbs": [
+            "s3:GetObject"
+          ]
+        }
+      ],
+      "lifecycle": "fossil",
+      "lifecycle_note": "legacy pickle format ({prefix}tasks/<gid>/data.pkl); 128,583 keys; no repo writer; written by the autom8 IAM super-user under the full-bucket policy. AP-7: owner-TBD at Phase-gamma. Pickle deserialization surface referred to security cross-rite (TDD section 8).",
+      "name": "TASK_CACHE_LEGACY_FOSSIL",
+      "prefix": "asana-cache/task-cache/",
+      "reader_apis": [],
+      "semantic_plane": "task-cache-legacy-pickle",
+      "writer_owner": {
+        "code_anchor": null,
+        "external_name": "autom8-monolith-legacy-pickle (no repo writer; AP-7 owner TBD at gamma)",
+        "is_attributed": true,
+        "repo": "EXTERNAL"
+      }
+    },
+    {
+      "env_default": null,
+      "env_vars": [],
+      "iam_grants": [
+        {
+          "principal_arn": "arn:aws:iam::696318035277:user/autom8",
+          "verbs": [
+            "s3:GetObject"
+          ]
+        }
+      ],
+      "lifecycle": "fossil",
+      "lifecycle_note": "v3 expensive-attr pickle cache; 342 keys; no repo writer.",
+      "name": "TASK_DATA_CACHE_V3_FOSSIL",
+      "prefix": "asana-cache/task-data-cache-v3/",
+      "reader_apis": [],
+      "semantic_plane": "task-expensive-attrs-v3",
+      "writer_owner": {
+        "code_anchor": null,
+        "external_name": "autom8-monolith (no repo writer)",
+        "is_attributed": true,
+        "repo": "EXTERNAL"
+      }
+    },
+    {
+      "env_default": null,
+      "env_vars": [],
+      "iam_grants": [
+        {
+          "principal_arn": "arn:aws:iam::696318035277:user/autom8",
+          "verbs": [
+            "s3:GetObject"
+          ]
+        }
+      ],
+      "lifecycle": "fossil",
+      "lifecycle_note": "insights-export frames; 13,448 keys; LIVE-written by an external lambda but FOSSIL from this repo's perspective (no repo reader/writer). The exact writer role is uncensused (A1 EXCLUSIONS #2).",
+      "name": "INSIGHTS_FRAMES_FOSSIL",
+      "prefix": "asana-cache/insights-frames/",
+      "reader_apis": [],
+      "semantic_plane": "insights-export-frames",
+      "writer_owner": {
+        "code_anchor": null,
+        "external_name": "autom8-asana-insights-export-lambda (probable; policy uncensused per A1)",
+        "is_attributed": true,
+        "repo": "EXTERNAL"
+      }
+    },
+    {
+      "env_default": null,
+      "env_vars": [],
+      "iam_grants": [
+        {
+          "principal_arn": "arn:aws:iam::696318035277:user/autom8",
+          "verbs": [
+            "s3:GetObject"
+          ]
+        }
+      ],
+      "lifecycle": "fossil",
+      "lifecycle_note": "name<->gid resolution pickles; 6 keys; no repo writer.",
+      "name": "NAME_GID_MAPPINGS_FOSSIL",
+      "prefix": "asana-cache/name-gid-mappings/",
+      "reader_apis": [],
+      "semantic_plane": "name-gid-resolution",
+      "writer_owner": {
+        "code_anchor": null,
+        "external_name": "autom8-monolith (no repo writer)",
+        "is_attributed": true,
+        "repo": "EXTERNAL"
+      }
+    },
+    {
+      "env_default": null,
+      "env_vars": [],
+      "iam_grants": [
+        {
+          "principal_arn": "arn:aws:iam::696318035277:user/autom8",
+          "verbs": [
+            "s3:GetObject"
+          ]
+        }
+      ],
+      "lifecycle": "fossil",
+      "lifecycle_note": "flat entity:gid frames UNDER asana-cache (distinct from the LIVE top-level dataframes/ namespace); 6 keys; low-confidence row (A1 grep-only + layout).",
+      "name": "ASANA_CACHE_DATAFRAMES_FOSSIL",
+      "prefix": "asana-cache/dataframes/",
+      "reader_apis": [],
+      "semantic_plane": "dataframe-flat-entity-gid-legacy",
+      "writer_owner": {
+        "code_anchor": null,
+        "external_name": "autom8-monolith-legacy (no repo writer; distinct from top-level dataframes/)",
+        "is_attributed": true,
+        "repo": "EXTERNAL"
+      }
+    }
+  ]
+}

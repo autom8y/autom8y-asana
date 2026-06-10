@@ -118,43 +118,34 @@ asana:tasks:{gid}:{entry_type}
 
 ### TieredCacheProvider
 
-Multi-level cache with hot (Redis) and cold (S3) tiers.
+Redis-backed cache provider. (Originally specced — ADR-0026 — as a two-tier
+Redis-hot + S3-cold provider; the S3 cold tier was **never wired** in production
+and has been **retired**.)
 
 **Characteristics**:
-- Hot tier: In-memory/Redis (fast, volatile)
-- Cold tier: S3 (slow, persistent, cost-effective)
-- Automatic promotion on cold hits
-- Write-through to both tiers
+- Backed by Redis (the production hot store)
+- No S3 cold tier: the `tiered` provider value maps to Redis
+  (`factory.py::_create_tiered_provider`)
+- The durable per-task copies at `asana-cache/tasks/` are read via the **explicit**
+  `DurableTaskCacheReader`, NOT promoted through a cache tier — see
+  `StorageNamespaceContract.TASK_CACHE` in `storage_namespace.py`
 
-**When to use**:
-- Very large datasets (millions of tasks)
-- Cost optimization (S3 cheaper than Redis)
-- Archival requirements
-- Multi-region deployments
+**Why the S3 cold tier was retired**: it was the storage-topology census's
+*mask #1 — phantom S3 cold tier*. The `TieredConfig.s3_enabled` flag and the
+`ASANA_CACHE_S3_ENABLED` env it claimed were set nowhere; the cold path was dead
+code that looked live. Wiring a real S3 read tier in the future is a
+separately-gated decision that must register its namespace in the storage registry
+(otherwise `tests/arch/test_namespace_contract.py` t4 fails).
 
 **Configuration**:
 ```python
-from autom8_asana.cache.providers.tiered import TieredCacheProvider, TieredConfig
+from autom8_asana.cache.providers.tiered import TieredCacheProvider
 
-config = TieredConfig(
-    s3_enabled=True,
-    promotion_ttl=3600,      # 1 hour when promoting from S3
-    write_through=True,
-)
-
-cache = TieredCacheProvider(
-    hot_tier=redis_provider,
-    cold_tier=s3_provider,
-    config=config,
-)
+cache = TieredCacheProvider(hot_tier=redis_provider)
 ```
 
-**Read strategy** (cache-aside with promotion):
-1. Check hot tier (Redis)
-2. On hit: return immediately
-3. On miss: check cold tier (S3) if enabled
-4. On cold hit: promote to hot tier with promotion_ttl
-5. On miss: return None (caller fetches from API)
+**Read strategy**: delegate to the hot tier (Redis). There is no cold-tier
+promotion path.
 
 ## TTL Strategy
 
