@@ -27,9 +27,12 @@ BYTE-EQUAL to the corresponding live production literal (TF env blocks, Python
 defaults, the cure's pinned prefix). Phase-alpha is derivation-neutral, NOT a
 value-fix. Changing a runtime prefix VALUE is a separately-gated later decision.
 
-Pure-stdlib by construction: this module imports nothing beyond ``dataclasses``
-and ``enum`` so the TF generator (``scripts/gen_namespace_config.py``) can import
-it without pulling the whole application stack.
+This module's OWN imports are pure-stdlib (``dataclasses`` + ``enum``). NOTE
+(qa DEF-1, honest limit): importing it as ``autom8_asana.storage_namespace``
+still executes the parent package ``__init__`` which eagerly pulls the full
+application stack (boto3/pydantic/...). The TF generator therefore needs the
+app environment today; true import-isolation would require a spec_from_file
+load that bypasses ``__init__`` — deferred, not claimed.
 """
 
 from __future__ import annotations
