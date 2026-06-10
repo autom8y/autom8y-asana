@@ -21,23 +21,54 @@ backfills ONLY where the cache carries a genuinely non-null ``number_value``. A
 cell whose cache copy is ALSO null (operator never entered the value, or the task
 was warmed at MINIMAL completeness) stays honest-null -- the pass NEVER fabricates.
 
+The cold-tier (S3) recovery (FPC Phase-2, cache-tier read defect)
+-----------------------------------------------------------------
+On the steady-state receiver warm the hot store is COLD for the unit gids: the
+progressive build is ``resume=True`` and re-fetches 0 tasks, so the just-warmed
+hot copy the docstring above assumed does NOT exist. The hot
+``store.get_batch_async(IMMEDIATE)`` therefore cache-MISSES every null gid. BUT
+the data is durably present in the S3 per-task copies
+(``{prefix}/tasks/{gid}/task.json`` carries the populated ``number_value``),
+written by the warmer's durable-first path. The hot-store read alone never
+consults that tier -- the application store is a bare Redis provider with no S3
+cold tier wired in, and even a ``TieredCacheProvider`` would gate the cold read
+behind the global ``ASANA_CACHE_S3_ENABLED`` flag (unset on the warmer Lambda and
+ECS). So the cure adds a SECOND, durable-tier read: for the gids that miss the
+hot store, a bounded-concurrency S3 read of the per-task copies, independent of
+warm-mode and the global flag. Hot hits always win; S3 fills only the hot misses.
+
+SCAR-TISSUE (D-1, template-null integrity rests on the durable-WRITE path)
+--------------------------------------------------------------------------
+This cure is field-agnostic and G-DENOM: it faithfully heals WHATEVER non-null
+``number_value`` the durable per-task copy carries, and by design does NOT classify
+active vs template tasks. Therefore template-null integrity is NOT enforced here --
+it rests entirely on the durable-WRITE path: the warmer MUST NOT persist a number
+into a template task's ``task.json``. If a template copy is ever written with a
+populated ``number_value``, this cure will dutifully surface it as a healed cell
+(it cannot distinguish "operator-entered value" from "warmer-fabricated value" --
+both are non-null numbers in the durable copy). The write-side invariant is the
+load-bearing guard; the read-side cure is intentionally faithful, not discerning.
+
 Invariants (HARD)
 -----------------
-1. **Cache-reuse only.** The single ``store.get_batch_async`` call uses
-   ``FreshnessIntent.IMMEDIATE``, which returns ``entry.data`` for every
-   cache-present-and-sufficient gid with ZERO freshness round-trips and ZERO
-   Asana GETs. Cache-MISS gids map to ``None`` and are skipped (honest-null).
-   There is NO live fallback on this path -- the single-worker receiver's
-   SlowAPI budget (CR-3) is never charged. (PV-7 measured: warmed corpus =>
-   0 GET delta; an N+1-per-null mutant => row-count GETs, which the regression
-   guard catches RED.)
-2. **IMMEDIATE freshness.** The just-warmed cache copy IS the post-warm
-   truth-of-record; re-validating it would be both wasteful and a network hit.
-3. **Never-fabricate.** A null-cache-AND-null-source cell stays null.
-4. **Additive / never-raises.** Mirrors the population-receipt posture: a
-   degraded-but-present warm must still serve; any failure logs a structured
-   WARN and returns the frame unchanged.
-5. **Warm path untouched.** This is a post-build heal; it does not change
+1. **Cache-reuse only / zero Asana GETs.** The hot ``store.get_batch_async``
+   call uses ``FreshnessIntent.IMMEDIATE`` (``entry.data`` for cache-present gids,
+   ZERO freshness round-trips, ZERO Asana GETs). The cold-tier fill is a single
+   batched S3 read -- S3 is durable cache, NOT Asana, so the single-worker
+   receiver's SlowAPI budget (CR-3) is never charged and the Asana GET count
+   stays 0. (PV-7 measured: warmed corpus => 0 GET delta; an N+1-per-null mutant
+   => row-count GETs, which the regression guard catches RED.)
+2. **IMMEDIATE freshness.** The warmed cache copy (hot or durable-S3) IS the
+   post-warm truth-of-record; re-validating it would be both wasteful and a
+   network hit. The S3 read uses ``FreshnessIntent.EVENTUAL`` (no source
+   round-trip; honors only TTL, which the durable writes set to 7 days).
+3. **not-N+1.** ONE hot batch read + at most ONE cold batch read for the missed
+   gids -- both bounded by distinct null-row gids, never by (rows x columns).
+4. **Never-fabricate.** A null-in-both-tiers-AND-null-source cell stays null.
+5. **Additive / never-raises.** Mirrors the population-receipt posture: a
+   degraded-but-present warm must still serve; any failure (including any S3
+   backend error) logs a structured WARN and returns the frame unchanged.
+6. **Warm path untouched.** This is a post-build heal; it does not change
    ``parallel_fetch`` opt_fields or the merge.
 
 Field-agnosticism (G-PROPAGATE)
@@ -51,6 +82,7 @@ scope -- those re-derive from the healed ancestor, not from the task's own CF.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -59,6 +91,7 @@ from autom8y_log import get_logger
 from opentelemetry import trace as _otel_trace
 
 from autom8_asana.cache.models.completeness import CompletenessLevel
+from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.dataframes.builders.fields import _coerce_value
 from autom8_asana.dataframes.views.cf_utils import get_custom_field_value
@@ -80,6 +113,45 @@ _NUMERIC_DTYPES: frozenset[str] = frozenset({"Decimal", "Float64", "Int64", "Int
 
 _CF_PREFIX = "cf:"
 
+# Cold-tier (S3) fan-out concurrency cap. S3 has no true batch GET
+# (``S3CacheProvider.get_batch`` loops ``get_versioned`` per key, each a blocking
+# ``client.get_object``). A single worker thread reading N keys serially is linear
+# in N and unbounded -- on the live unit warm N~3021, ~525s of the 900s Lambda
+# budget is already spent, leaving only ~375s of slack, so a sequential cold read
+# would risk the timeout-cliff. We instead fan the per-gid reads out across worker
+# threads with a Semaphore-bounded in-flight count: latency collapses to roughly
+# ceil(N / cap) * per-GET, while the bound caps the boto3 connection-pool pressure
+# (default urllib3 pool is 10/host; we cap a little above that and let the pool
+# queue the overflow rather than open unbounded sockets). boto3 low-level clients
+# are thread-safe for method calls and the S3 backend shares ONE already-built
+# client (s3.py:_get_client returns the cached self._client; the only lock is on
+# reconnect, not on the GET path), so the fan-out reads the shared client with no
+# race and opens no per-call client.
+_COLD_CONCURRENCY_DEFAULT = 24
+_COLD_CONCURRENCY_MIN = 1
+_COLD_CONCURRENCY_MAX = 64
+_COLD_CONCURRENCY_ENV = "ASANA_CURE_COLD_CONCURRENCY"
+
+
+def _cold_concurrency() -> int:
+    """Resolve the cold-read fan-out cap, env-overridable and clamped to a sane range.
+
+    Reads ``ASANA_CURE_COLD_CONCURRENCY`` (an int); a missing/blank/garbage value
+    falls back to the default. The result is clamped to
+    ``[_COLD_CONCURRENCY_MIN, _COLD_CONCURRENCY_MAX]`` so a misconfigured value can
+    neither serialize the read (0/negative) nor exhaust the connection pool /
+    thread pool with an absurd in-flight count.
+    """
+    raw = os.environ.get(_COLD_CONCURRENCY_ENV)
+    if raw is None or not raw.strip():
+        value = _COLD_CONCURRENCY_DEFAULT
+    else:
+        try:
+            value = int(raw.strip())
+        except ValueError:
+            value = _COLD_CONCURRENCY_DEFAULT
+    return max(_COLD_CONCURRENCY_MIN, min(_COLD_CONCURRENCY_MAX, value))
+
 
 @dataclass(frozen=True)
 class NumericRecoveryReceipt:
@@ -98,8 +170,16 @@ class NumericRecoveryReceipt:
         residual_null_cells: Null cells remaining after the pass (cache-miss or
             genuinely-null source -- honest-null).
         cache_miss_gids: Number of distinct null-cell gids absent/insufficient in
-            cache (the live-fallback residual stratum, which this pass leaves to
-            an explicit, opt-in, ASANA-PAT-gated step -- never charged here).
+            BOTH the hot store AND the durable S3 tier (the live-fallback residual
+            stratum, which this pass leaves to an explicit, opt-in,
+            ASANA-PAT-gated step -- never charged here).
+        cold_present_gids: Number of distinct null-cell gids that MISSED the hot
+            store but whose durable S3 per-task copy was PRESENT (a task dict came
+            back), counted independently of whether that copy's CF was non-null.
+            This is the steady-state-warm cure stratum (hot is cold, S3 carries the
+            object). NOTE: this counts S3-objects-PRESENT, NOT values-healed -- a
+            present copy with a null source contributes here but heals nothing.
+            ``healed_cells`` remains the true heal count.
     """
 
     entity_type: str
@@ -110,6 +190,7 @@ class NumericRecoveryReceipt:
     residual_null_cells: int
     cache_miss_gids: int
     healed_by_column: dict[str, int] = field(default_factory=dict)
+    cold_present_gids: int = 0
 
 
 def _numeric_cf_columns(schema: DataFrameSchema) -> list[tuple[str, str, str]]:
@@ -234,9 +315,9 @@ async def _recover_impl(
 
     null_gids: list[str] = [g for g in null_rows["gid"].to_list() if g is not None]
 
-    # THE single cache read. IMMEDIATE => entry.data for cache-present-and-
-    # STANDARD-sufficient gids, ZERO Asana GETs. STANDARD is the level that
-    # guarantees custom_fields.number_value is materialized (see
+    # Tier 1 -- THE single HOT cache read. IMMEDIATE => entry.data for
+    # cache-present-and-STANDARD-sufficient gids, ZERO Asana GETs. STANDARD is the
+    # level that guarantees custom_fields.number_value is materialized (see
     # completeness.STANDARD_FIELDS) and is the same level the progressive build
     # itself uses. Cache-MISS / sub-STANDARD gids map to None.
     cached: dict[str, dict[str, Any] | None] = await store.get_batch_async(
@@ -244,6 +325,23 @@ async def _recover_impl(
         freshness=FreshnessIntent.IMMEDIATE,
         required_level=CompletenessLevel.STANDARD,
     )
+
+    # Tier 2 -- DURABLE S3 fill for the gids that MISSED the hot store. On the
+    # steady-state receiver warm (resume=True, 0 re-fetches) the hot store is cold
+    # for the unit gids, so this is the stratum that actually heals. ONE batched
+    # S3 read of the per-task copies; hot hits always win, S3 fills only the
+    # holes. Independent of warm-mode and the global ASANA_CACHE_S3_ENABLED flag
+    # (it reads the durable backend directly, not the flag-gated cold tier). Any
+    # backend error returns {} -> honest-null residual (never raises here; the
+    # outer wrapper also guards).
+    hot_miss_gids = [g for g in null_gids if cached.get(g) is None]
+    cold_present_gids = 0
+    if hot_miss_gids:
+        cold = await _cold_read_durable(hot_miss_gids, store)
+        for gid, task_data in cold.items():
+            if task_data is not None:
+                cached[gid] = task_data
+                cold_present_gids += 1
 
     cache_miss_gids = sum(1 for g in null_gids if cached.get(g) is None)
 
@@ -296,6 +394,7 @@ async def _recover_impl(
             residual_null_cells=null_cells_before,
             cache_miss_gids=cache_miss_gids,
             healed_by_column={},
+            cold_present_gids=cold_present_gids,
         )
 
     healed_df = merged_df.with_columns(replacement_exprs)
@@ -312,7 +411,142 @@ async def _recover_impl(
         residual_null_cells=null_cells_after,
         cache_miss_gids=cache_miss_gids,
         healed_by_column=healed_by_column,
+        cold_present_gids=cold_present_gids,
     )
+
+
+def _unwrap_task_data(data: Any) -> dict[str, Any] | None:
+    """Return the task dict from a cached payload, unwrapping a ``{"data": ...}``
+    envelope if present.
+
+    The durable per-task copies are stored as ``CacheEntry.data`` (the raw task
+    dict); the backend's ``get_versioned``/``get_batch`` already strips the
+    storage envelope on deserialize. Some warmer paths persist the API response
+    verbatim, which carries a ``{"data": {...}}`` Asana envelope. Unwrap it so the
+    downstream ``custom_fields`` lookup sees a top-level task dict either way.
+    """
+    if not isinstance(data, dict):
+        return None
+    inner = data.get("data")
+    if "custom_fields" not in data and isinstance(inner, dict):
+        return inner
+    return data
+
+
+def _resolve_cold_backend(store: Any) -> Any | None:
+    """Resolve a durable S3 cache backend for the cold-tier read.
+
+    Resolution order (prefer reusing configured infrastructure):
+      1. If ``store.cache`` is a ``TieredCacheProvider`` exposing a cold tier
+         (``_cold``), reuse it -- it is the same durable backend the
+         write-through path uses (independent of the s3_enabled READ flag).
+      2. Otherwise lazily construct an ``S3CacheProvider`` from the canonical
+         S3 settings (``get_settings().s3``) -- the SAME bucket/prefix the
+         warmer's durable writes use, so the key namespace matches.
+
+    Returns the backend, or ``None`` when no durable tier can be obtained
+    (unconfigured bucket, missing boto3, degraded). Never raises.
+    """
+    # Reuse an already-wired cold tier if the store exposes one.
+    cache = getattr(store, "cache", None)
+    cold = getattr(cache, "_cold", None)
+    if cold is not None:
+        return cold
+
+    # Lazily build an S3 backend from the canonical settings.
+    try:
+        from autom8_asana.cache.backends.s3 import S3CacheProvider
+        from autom8_asana.settings import get_settings
+
+        s3 = get_settings().s3
+        if not s3.bucket:
+            return None
+        backend = S3CacheProvider(
+            bucket=s3.bucket,
+            prefix=s3.prefix,
+            region=s3.region,
+            endpoint_url=s3.endpoint_url,
+        )
+    except Exception:  # BROAD-CATCH: backend construction is best-effort  # noqa: BLE001
+        return None
+
+    # A backend that could not initialize its client is unusable; skip it so the
+    # cure stays a clean no-op rather than spending failing per-key reads.
+    if getattr(backend, "_degraded", False):
+        return None
+    return backend
+
+
+async def _cold_read_durable(
+    gids: list[str], store: Any
+) -> dict[str, dict[str, Any] | None]:
+    """Bounded-concurrency durable-S3 read of the per-task copies for ``gids``.
+
+    Reads ``EntryType.TASK`` entries (key ``{prefix}/tasks/{gid}/task.json``) via
+    the S3 backend and returns ``{gid: task_dict | None}``. S3 has no true batch
+    GET -- ``S3CacheProvider.get_batch`` loops ``get_versioned`` per key, each a
+    blocking ``client.get_object`` -- so reading N keys with a single worker is
+    linear and unbounded in N (timeout-cliff risk on the live unit warm). We
+    instead fan the per-gid ``get_versioned`` reads out across worker threads,
+    capping the in-flight count with an ``asyncio.Semaphore`` (see
+    ``_cold_concurrency``). Each ``get_versioned`` runs in its own
+    ``asyncio.to_thread`` so no read blocks the receiver event loop.
+
+    Invariants preserved:
+      * **not-N+1 at gid granularity.** EXACTLY one cold ``get_versioned`` per
+        distinct hot-miss gid (``len(gids)`` reads total) -- no per-row/per-cell
+        amplification. The fan-out parallelizes those reads; it does not multiply
+        them.
+      * **Zero Asana GETs.** S3 is durable CACHE, not Asana; the receiver's Asana
+        GET budget is not charged.
+      * **additive / never-raises.** A per-gid read error contributes ``None`` for
+        that gid (it heals nothing -> honest-null residual); a total backend
+        failure returns ``{}`` and the frame is left UNCHANGED. No exception
+        escapes (the outer wrapper also guards).
+      * **idempotent re-warm.** A pure read; re-running yields the same map.
+
+    Thread-safety: boto3 low-level clients are thread-safe for method calls and
+    the S3 backend shares ONE already-built client (``s3.py`` ``_get_client``
+    returns the cached ``self._client``; the only ``Lock`` is on the reconnect
+    path, NOT on the GET path), so concurrent ``get_versioned`` calls read the
+    shared client with no race and open no per-call client.
+    """
+    import asyncio
+
+    backend = _resolve_cold_backend(store)
+    if backend is None:
+        return {}
+
+    cap = _cold_concurrency()
+    sem = asyncio.Semaphore(cap)
+
+    async def _one(gid: str) -> tuple[str, dict[str, Any] | None]:
+        # One get_versioned per gid, off the event loop, gated by the semaphore so
+        # at most ``cap`` boto3 GETs are in flight at once. A per-gid failure is
+        # swallowed to None: that gid simply contributes nothing (honest-null).
+        async with sem:
+            try:
+                entry = await asyncio.to_thread(
+                    backend.get_versioned, gid, EntryType.TASK
+                )
+            except Exception as e:  # BROAD-CATCH: per-gid read is additive  # noqa: BLE001
+                logger.warning(
+                    "null_number_recovery_cold_read_gid_failed",
+                    extra={"gid": gid, "error": str(e), "error_type": type(e).__name__},
+                )
+                return gid, None
+        return gid, (_unwrap_task_data(entry.data) if entry is not None else None)
+
+    try:
+        pairs = await asyncio.gather(*[_one(g) for g in gids])
+    except Exception as e:  # BROAD-CATCH: total cold read is additive  # noqa: BLE001
+        logger.warning(
+            "null_number_recovery_cold_read_failed",
+            extra={"gid_count": len(gids), "error": str(e), "error_type": type(e).__name__},
+        )
+        return {}
+
+    return dict(pairs)
 
 
 def _emit(
@@ -325,6 +559,7 @@ def _emit(
     residual_null_cells: int,
     cache_miss_gids: int,
     healed_by_column: dict[str, int],
+    cold_present_gids: int = 0,
 ) -> NumericRecoveryReceipt:
     """Emit OTel span attributes + a structured log line and build the receipt."""
     span = _otel_trace.get_current_span()
@@ -333,6 +568,9 @@ def _emit(
     span.set_attribute("computation.null_number_recovery.healed_cells", healed_cells)
     span.set_attribute("computation.null_number_recovery.residual_null_cells", residual_null_cells)
     span.set_attribute("computation.null_number_recovery.cache_miss_gids", cache_miss_gids)
+    span.set_attribute(
+        "computation.null_number_recovery.cold_present_gids", cold_present_gids
+    )
 
     extra = {
         "entity_type": entity_type,
@@ -342,6 +580,7 @@ def _emit(
         "healed_cells": healed_cells,
         "residual_null_cells": residual_null_cells,
         "cache_miss_gids": cache_miss_gids,
+        "cold_present_gids": cold_present_gids,
         "healed_by_column": healed_by_column,
     }
 
@@ -360,4 +599,5 @@ def _emit(
         residual_null_cells=residual_null_cells,
         cache_miss_gids=cache_miss_gids,
         healed_by_column=healed_by_column,
+        cold_present_gids=cold_present_gids,
     )
