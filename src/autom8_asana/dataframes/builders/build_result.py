@@ -275,6 +275,15 @@ class BuildQuality:
         sections_failed: Sections that failed.
         failed_section_gids: GIDs of failed sections.
         error_summary: Count of failures by error type.
+        population_degraded: True when the freshly-built frame's active-subset
+            value-column non-null rate fell below ``POPULATION_WARN_THRESHOLD``
+            (the population-floor SSOT verdict). Set from
+            ``PopulationReceipt.below_floor`` at the Step-6 write gate
+            (Cure-Recovery-Path Hardening, FORK-1/FORK-2 shared seam). Defaults
+            False (a two-way-door additive field — a frame without a population
+            receipt, or one that passed the floor, is not degraded).
+        population_min_rate: The observed minimum per-column active-subset non-null
+            rate (forensics / alarm dimension). 1.0 when not assessed.
     """
 
     status: str  # BuildStatus.value
@@ -283,6 +292,8 @@ class BuildQuality:
     sections_failed: int
     failed_section_gids: tuple[str, ...] = ()
     error_summary: dict[str, int] | None = None
+    population_degraded: bool = False
+    population_min_rate: float = 1.0
 
     @classmethod
     def from_build_result(cls, result: BuildResult) -> BuildQuality:
