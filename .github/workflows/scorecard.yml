@@ -18,6 +18,6 @@ jobs:
       issues: read
       pull-requests: read
       checks: read
-    uses: autom8y/autom8y-workflows/.github/workflows/security-scorecard.yml@c77acb0cf9e48b17f08180d54e24086016706856
+    uses: autom8y/autom8y-workflows/.github/workflows/security-scorecard.yml@f5601acbe3905270dfcb9069854c78c0f940ad05
     with:
       publish_results: false
