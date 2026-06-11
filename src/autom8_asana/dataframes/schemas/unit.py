@@ -36,10 +36,19 @@ UNIT_COLUMNS: list[ColumnDef] = [
     ),
     ColumnDef(
         name="discount",
-        dtype="Decimal",
+        # Utf8 (honest enum string), NOT Decimal. Empirically proven against the
+        # live unit project 1201081073731555 stored task dicts: Discount is an
+        # Asana ENUM (resource_subtype="enum", enum_value.name="0%",
+        # display_value="0%") -- never a number cf. The model declares it
+        # EnumField() (models/business/unit.py), which is authoritative for
+        # runtime shape. The prior Decimal dtype was a model/schema contract
+        # mismatch: the resolver coercer dropped enum "0%" to None (the builder
+        # coercer's %-strip masked it on one path only). Carrying the honest enum
+        # string preserves values like "10%"/"None" without lossy numeric coercion.
+        dtype="Utf8",
         nullable=True,
-        source="cf:Discount",  # Number field (percentage)
-        description="Discount percentage",
+        source="cf:Discount",  # Enum field (percentage label, e.g. "0%", "10%")
+        description="Discount percentage label (enum string, e.g. '0%', '10%')",
     ),
     ColumnDef(
         name="office",
