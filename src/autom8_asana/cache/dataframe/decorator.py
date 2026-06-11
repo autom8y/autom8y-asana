@@ -219,7 +219,23 @@ def dataframe_cache(
                         retry_after_seconds=30,
                     )
 
-                await cache.put_async(project_gid, entity_type, df, watermark)
+                # Thread the build's fail-closed write decision (Warmer-Path PRESERVE
+                # Enforcement, W7 twin). The build method (self._build_dataframe)
+                # stashes the decision on the strategy instance; reading it here makes
+                # the request-path decorator GATED at the converged write primitive
+                # rather than guard-covered. Absent context degrades to a bare put
+                # (write_decision=None) — the backstop guard still covers a below-floor
+                # frame with no decision.
+                _write_ctx = getattr(self, "_last_write_context", None) or {}
+                await cache.put_async(
+                    project_gid,
+                    entity_type,
+                    df,
+                    watermark,
+                    write_decision=_write_ctx.get("write_decision"),
+                    population_degraded=bool(_write_ctx.get("population_degraded", False)),
+                    population_min_rate=float(_write_ctx.get("population_min_rate", 1.0)),
+                )
 
                 await cache.release_build_lock_async(project_gid, entity_type, success=True)
 

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -129,6 +129,19 @@ class BuildResult:
         fetch_time_ms: Time spent fetching from API in milliseconds.
         sections_probed: Number of sections checked for freshness.
         sections_delta_updated: Number of sections updated via delta merge.
+        write_decision: The fail-closed write-gate verdict the builder computed at
+            Step-6 (``fail_closed_write.WriteDecision``; typed ``Any`` to avoid an
+            import cycle at module load, mirroring ``_FinalizeResult.decision``).
+            Carried so the warmer / admin / decorator — the SECOND finalize writers —
+            honor PRESERVE/COALESCE at the converged write primitive instead of
+            silently re-persisting a degraded frame (Warmer-Path PRESERVE Enforcement,
+            ADR-warmer-path-preserve-enforcement-2026-06-11, extends #127). ``None``
+            when the build produced no decision (e.g. a no-sections cold-empty build).
+        population_degraded: True when the freshly-built frame breached the population
+            floor over the active subset (the FORK-1/FORK-2 verdict). Carried so the
+            convergence gate's backstop guard can refuse an ungated below-floor write.
+        population_min_rate: The observed minimum per-column active-subset non-null
+            rate (forensics / alarm dimension). 1.0 when not assessed.
     """
 
     status: BuildStatus
@@ -141,6 +154,9 @@ class BuildResult:
     fetch_time_ms: float
     sections_probed: int = 0
     sections_delta_updated: int = 0
+    write_decision: Any = None  # WriteDecision (avoid an import cycle at module load)
+    population_degraded: bool = False
+    population_min_rate: float = 1.0
 
     @property
     def sections_succeeded(self) -> int:
@@ -215,6 +231,9 @@ class BuildResult:
         *,
         sections_probed: int = 0,
         sections_delta_updated: int = 0,
+        write_decision: Any = None,
+        population_degraded: bool = False,
+        population_min_rate: float = 1.0,
     ) -> BuildResult:
         """Construct BuildResult from a list of SectionResults.
 
@@ -233,6 +252,11 @@ class BuildResult:
             fetch_time_ms: Fetch time.
             sections_probed: Freshness probe count.
             sections_delta_updated: Delta-updated section count.
+            write_decision: The Step-6 fail-closed write verdict (carried so the
+                warmer / admin / decorator honor PRESERVE/COALESCE at the converged
+                write primitive). None when no decision was produced.
+            population_degraded: True when the freshly-built frame breached the floor.
+            population_min_rate: Observed min active-subset non-null rate (1.0 default).
 
         Returns:
             BuildResult with classified status.
@@ -258,6 +282,9 @@ class BuildResult:
             fetch_time_ms=fetch_time_ms,
             sections_probed=sections_probed,
             sections_delta_updated=sections_delta_updated,
+            write_decision=write_decision,
+            population_degraded=population_degraded,
+            population_min_rate=population_min_rate,
         )
 
 

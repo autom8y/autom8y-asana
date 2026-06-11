@@ -113,6 +113,13 @@ class DataFrameCacheEntry:
     schema_version: str
     row_count: int = field(init=False)
     build_quality: Any = None  # BuildQuality | None (C2)
+    # Fail-closed write context (Warmer-Path PRESERVE Enforcement). Carried from the
+    # build through put_async into the ProgressiveTier so the converged write
+    # primitive (write_final_artifacts_async) honors PRESERVE/COALESCE at the
+    # operative warmer write site. None = no decision recorded (historical behavior).
+    write_decision: Any = None  # WriteDecision | None
+    population_degraded: bool = False
+    population_min_rate: float = 1.0
 
     def __post_init__(self) -> None:
         """Compute row_count from DataFrame."""
@@ -625,6 +632,7 @@ class DataFrameCache:
         *,
         population_degraded: bool = False,
         population_min_rate: float = 1.0,
+        write_decision: Any = None,
     ) -> bool:
         """Store DataFrame in both tiers.
 
@@ -648,6 +656,13 @@ class DataFrameCache:
             dataframe: Polars DataFrame to cache.
             watermark: Freshness watermark (based on max modified_at).
             build_result: Optional BuildResult for quality metadata (C2).
+            population_degraded: True when the freshly-built frame breached the floor
+                (carried into the converged write gate's backstop guard).
+            population_min_rate: Observed min active-subset non-null rate.
+            write_decision: The fail-closed ``WriteDecision`` the build computed
+                (Warmer-Path PRESERVE Enforcement). Carried through to the
+                ProgressiveTier so ``write_final_artifacts_async`` honors
+                PRESERVE/COALESCE at the operative write site. None = no decision.
 
         Returns:
             True if the durable (S3) write landed; False if it was non-durable.
@@ -697,6 +712,9 @@ class DataFrameCache:
             created_at=datetime.now(UTC),
             schema_version=schema_version,
             build_quality=build_quality,
+            write_decision=write_decision,
+            population_degraded=population_degraded,
+            population_min_rate=population_min_rate,
         )
 
         # Write to progressive tier first (source of truth). The boolean is

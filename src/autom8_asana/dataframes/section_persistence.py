@@ -812,10 +812,36 @@ class SectionPersistence:
         entity_type: str | None = None,
         population_degraded: bool | None = None,
         population_min_rate: float | None = None,
+        write_decision: Any = None,
+        prior_good_loader: Any = None,
+        value_columns: tuple[str, ...] | None = None,
     ) -> bool:
         """Write final artifacts atomically (DataFrame + watermark + optional index).
 
         Called after all sections are complete and merged.
+
+        THE CONVERGED WRITE GATE (Warmer-Path PRESERVE Enforcement,
+        ADR-warmer-path-preserve-enforcement-2026-06-11, extends #127). Every
+        final-frame ``dataframe.parquet`` write — builder finalize, warmer, admin
+        rebuild, decorator — reaches ``save_dataframe`` ONLY through this primitive.
+        The gate honors the fail-closed ``WriteDecision`` here, at the single physical
+        choke point, so no future sibling writer can silently bypass it:
+
+          * ``PRESERVE_PRIOR_GOOD`` — SKIP ``save_dataframe`` (and the index / freshness
+            stamp). The strictly-better prior-good frame on disk is served in the gap;
+            returns ``True`` (the last-good frame IS durable — it is already on disk).
+          * ``WRITE_COALESCED`` — null-cell coalesce ``df`` against the prior-good frame
+            (loaded via ``prior_good_loader``) before writing. Idempotent: re-coalescing
+            an already-full frame is a no-op, so the gate's behavior is independent of
+            which caller fed it (a builder that already coalesced is safe).
+          * ``WRITE_AS_IS`` / ``None`` (healthy, or a caller that recorded no decision) —
+            the historical unconditional save, UNLESS the backstop guard fires.
+
+        Backstop guard (impossible-by-construction): a below-floor frame
+        (``population_degraded is True``) arriving with NO ``write_decision`` is REFUSED
+        (``ungated_below_floor_write_refused``) — the prior-good is preserved rather than
+        overwritten by a silent 0/N degrade. This catches the receiver preload paths
+        (W4/W5) and any FUTURE orphan writer for free.
 
         Args:
             project_gid: Asana project GID.
@@ -825,11 +851,22 @@ class SectionPersistence:
             entity_type: Optional entity type for schema_version resolution.
             population_degraded: Optional population-floor verdict threaded into the
                 durable sidecar (Cure-Recovery-Path Hardening, FORK-2) so the next
-                warm's quality-aware rebuild gate can re-heal a below-floor frame.
+                warm's quality-aware rebuild gate can re-heal a below-floor frame. Also
+                the backstop-guard predicate: True + no ``write_decision`` => REFUSE.
             population_min_rate: Optional observed min active-subset non-null rate.
+            write_decision: The fail-closed ``WriteDecision`` the builder computed
+                (``fail_closed_write.WriteDecision``; typed ``Any`` to avoid an import
+                cycle at module load). ``None`` = caller recorded no decision.
+            prior_good_loader: Optional zero-arg async callable returning the prior-good
+                frame (or ``None``) for WRITE_COALESCED. Defaults to
+                ``self._storage.load_dataframe`` for this entity when omitted. Reuses an
+                existing storage read seam — adds NO new ``asyncio.to_thread`` (FROZEN-4).
+            value_columns: The entity's economic value columns for the coalesce (e.g.
+                ``("mrr",)``). Resolved from the entity type when omitted.
 
         Returns:
-            True if all artifacts written successfully.
+            True if all artifacts written successfully (OR PRESERVE skipped the write,
+            since the durable prior-good frame is already on disk).
         """
         if self._polars_module is None:
             logger.warning("polars not available, cannot write final artifacts")
@@ -838,6 +875,67 @@ class SectionPersistence:
         # Ensure watermark is timezone-aware for save_dataframe
         if watermark.tzinfo is None:
             watermark = watermark.replace(tzinfo=UTC)
+
+        # ── The converged fail-closed write gate ────────────────────────────
+        # Resolve the WriteDecision enum locally (avoid an import cycle at module
+        # load; the gate is a no-op for callers that never thread a decision and
+        # never present a below-floor frame, i.e. the historical behavior).
+        from autom8_asana.dataframes.builders.fail_closed_write import WriteDecision
+
+        if write_decision is WriteDecision.PRESERVE_PRIOR_GOOD:
+            # Fail closed: do NOT overwrite the strictly-better prior-good frame on
+            # disk, and do NOT stamp the index/freshness (so freshness does not
+            # falsely advance over a frame that was never rewritten). The last-good
+            # frame is served in the gap. Mirrors the #127 builder Step-6 semantics
+            # (progressive.py PRESERVE early-return) at the convergence altitude so
+            # the WARMER (W3), admin (W6), and decorator (W7) all honor it too.
+            logger.warning(
+                "fail_closed_write_preserve_prior_good_enforced",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "population_min_rate": population_min_rate,
+                    "reason": "converged_gate_skipped_save_dataframe_at_write_site",
+                },
+            )
+            # True: the prior-good frame IS durable (already on disk). A skipped write
+            # must NOT present as a non-durable FAILURE (VG-001), nor reset freshness.
+            return True
+
+        if population_degraded is True and write_decision is None and not df.is_empty():
+            # Backstop guard (impossible-by-construction): a below-floor frame with NO
+            # recorded WriteDecision reached the one write site. Rather than silently
+            # persist a 0/N degrade over a possibly-better prior-good, REFUSE loudly and
+            # preserve whatever is on disk. Future orphan writers + the receiver preload
+            # paths (W4/W5) become loud, last-good-preserving refusals here for free.
+            logger.error(
+                "ungated_below_floor_write_refused",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "population_min_rate": population_min_rate,
+                    "row_count": len(df),
+                    "reason": "below_floor_frame_arrived_with_no_recorded_write_decision",
+                },
+            )
+            # True: nothing was written, but the prior-good on disk is preserved and
+            # durable. The refusal is the SUCCESS path (do not crash the warm / flip
+            # the breaker on a guard refusal — it is the same fail-closed posture as
+            # PRESERVE; the loud log is the forcing signal).
+            return True
+
+        if write_decision is WriteDecision.WRITE_COALESCED:
+            # Rescue prior-good value cells into df's null cells before writing. Loads
+            # the prior-good frame through the supplied loader (or the default storage
+            # read), then null-cell coalesces — idempotent: an already-full frame is a
+            # no-op, so a builder that already coalesced is double-coalesce-safe (R-1).
+            df = await self._coalesce_against_prior_good(
+                project_gid,
+                df,
+                entity_type=entity_type,
+                prior_good_loader=prior_good_loader,
+                value_columns=value_columns,
+            )
 
         df_ok = await self._storage.save_dataframe(
             project_gid,
@@ -876,6 +974,75 @@ class SectionPersistence:
                 },
             )
         return success
+
+    async def _coalesce_against_prior_good(
+        self,
+        project_gid: str,
+        df: pl.DataFrame,
+        *,
+        entity_type: str | None,
+        prior_good_loader: Any,
+        value_columns: tuple[str, ...] | None,
+    ) -> pl.DataFrame:
+        """Null-cell coalesce ``df`` against the prior-good frame for WRITE_COALESCED.
+
+        Loads the prior-good frame via ``prior_good_loader`` (a zero-arg async
+        callable) or, when omitted, the default storage read for this entity (an
+        EXISTING read seam — no new ``asyncio.to_thread``, FROZEN-4 preserved). Then
+        applies ``fail_closed_write.coalesce_prior_good`` to fill ONLY null value cells
+        with the prior-good value for the same gid (never fabricates, never overwrites
+        a populated cell). Idempotent — an already-full frame is unchanged (R-1
+        double-coalesce safety). On ANY read/coalesce failure returns ``df`` unchanged
+        (additive, two-way-door posture).
+        """
+        from autom8_asana.dataframes.builders.fail_closed_write import coalesce_prior_good
+
+        # Resolve the entity's value columns when the caller did not supply them.
+        cols = value_columns
+        if cols is None and entity_type is not None:
+            from autom8_asana.dataframes.builders.post_build_population_receipt import (
+                _VALUE_COLUMNS_BY_ENTITY,
+            )
+
+            cols = _VALUE_COLUMNS_BY_ENTITY.get(entity_type, ())
+        if not cols:
+            return df
+
+        try:
+            if prior_good_loader is not None:
+                prior_good = await prior_good_loader()
+            else:
+                prior_good, _wm = await self._storage.load_dataframe(
+                    project_gid, entity_type=entity_type
+                )
+        except Exception as e:  # BROAD-CATCH: coalesce is additive  # noqa: BLE001
+            logger.warning(
+                "fail_closed_coalesce_prior_good_read_failed",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+            return df
+
+        if prior_good is None:
+            return df
+
+        try:
+            return coalesce_prior_good(df, prior_good, cols)
+        except Exception as e:  # BROAD-CATCH: coalesce is additive  # noqa: BLE001
+            logger.warning(
+                "fail_closed_coalesce_prior_good_failed",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+            return df
 
     # ========== Checkpoint Operations ==========
 

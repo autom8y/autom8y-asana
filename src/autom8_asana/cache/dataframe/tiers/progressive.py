@@ -245,13 +245,20 @@ class ProgressiveTier:
         self._stats["writes"] += 1
 
         try:
-            # Delegate to SectionPersistence for consistent writes
+            # Delegate to SectionPersistence for consistent writes. Thread the entry's
+            # fail-closed write context (Warmer-Path PRESERVE Enforcement) so the
+            # converged write primitive honors PRESERVE/COALESCE at this — the
+            # operative warmer write site (W3) — instead of an unconditional save.
+            # index_data stays None for the index-laziness reason (unrelated).
             success = await self.persistence.write_final_artifacts_async(
                 project_gid=project_gid,
                 df=entry.dataframe,
                 watermark=entry.watermark,
                 index_data=None,  # Index is built lazily, not stored with cache
                 entity_type=entity_type,
+                population_degraded=getattr(entry, "population_degraded", False),
+                population_min_rate=getattr(entry, "population_min_rate", 1.0),
+                write_decision=getattr(entry, "write_decision", None),
             )
 
             if success:
