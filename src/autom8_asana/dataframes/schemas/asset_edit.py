@@ -146,7 +146,11 @@ ASSET_EDIT_SPECIFIC_COLUMNS: list[ColumnDef] = [
     ),
     ColumnDef(
         name="score",
-        dtype="Float64",
+        # D3 SSOT reconcile (FPC Phase-1): number-sourced cell -- ``score`` is read
+        # via ``_get_number_field`` (Decimal) on the AssetEdit model, so its
+        # canonical schema dtype string is "Decimal". Zero runtime delta: both
+        # "Decimal" and "Float64" map to pl.Float64 in ColumnDef.get_polars_dtype.
+        dtype="Decimal",
         nullable=True,
         source="cf:Score",
         description="Score value (number)",
