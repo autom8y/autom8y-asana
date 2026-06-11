@@ -33,162 +33,36 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-import polars as pl
+import polars as pl  # noqa: TC002 — used at runtime for DataFrame construction
 
 from autom8_asana.dataframes.builders.fail_closed_write import WriteDecision
 
-_ENTITY = "unit"
-_PROJECT = "1207519540893045"
-
-_SCHEMA_COLS = {
-    "gid": pl.Utf8,
-    "section": pl.Utf8,
-    "is_completed": pl.Boolean,
-    "mrr": pl.Float64,
-}
-
-
-def _frame(rows: list[dict[str, Any]]) -> pl.DataFrame:
-    return pl.DataFrame(rows, schema=_SCHEMA_COLS)
-
-
-def _prior_good_frame(n_active: int = 3) -> pl.DataFrame:
-    """Healthy prior-good: every active row carries a populated mrr (723/3021 scaled)."""
-    return _frame(
-        [
-            {"gid": f"g{i}", "section": "Active", "is_completed": False, "mrr": 100.0 * (i + 1)}
-            for i in range(n_active)
-        ]
-    )
-
-
-def _degraded_frame(n_active: int = 3) -> pl.DataFrame:
-    """Freshly-built degraded frame: same active rows, mrr entirely null (0/3021 scaled)."""
-    return _frame(
-        [
-            {"gid": f"g{i}", "section": "Active", "is_completed": False, "mrr": None}
-            for i in range(n_active)
-        ]
-    )
+# Shared infrastructure — eunomia E4 CHANGE-E4-008: extracted to conftest.py.
+# conftest.py provides: _ENTITY, _PROJECT, _frame, _prior_good_frame,
+# _degraded_frame, _InMemoryStorage, _DegradedBuildStrategy, _make_real_cache.
+from tests.integration.cache.conftest import (  # noqa: F401
+    _ENTITY,
+    _PROJECT,
+    _degraded_frame,
+    _DegradedBuildStrategy,
+    _frame,
+    _InMemoryStorage,
+    _make_real_cache,
+    _prior_good_frame,
+)
 
 
 def _partial_degraded_frame(n_active: int = 3) -> pl.DataFrame:
     """Below-floor frame with SOME cells null (the WRITE_COALESCED precondition): the
     first active row keeps its value, the rest are null — coalesce against prior-good
     rescues them so the WRITTEN (and served) frame is >= prior-good."""
-    rows = [
+    rows: list[dict[str, Any]] = [
         {"gid": f"g{i}", "section": "Active", "is_completed": False, "mrr": None}
         for i in range(n_active)
     ]
     if rows:
         rows[0]["mrr"] = 100.0  # one real cell -> partial heal, not wholesale outage
     return _frame(rows)
-
-
-# ── in-memory DataFrameStorage (real persistence path, no S3) ───────────────
-
-
-class _InMemoryStorage:
-    """In-memory DataFrameStorage stand-in for the PERSISTENCE backend (distinct from
-    the WRITE LOGIC / SERVE LOGIC under test). Faithful v2 entity-keyed save/load so
-    ``write_final_artifacts_async``, the prior-good read, AND the progressive-tier
-    read on serve all exercise REAL section_persistence + tier code."""
-
-    def __init__(self) -> None:
-        self.is_available = True
-        self._frames: dict[str, tuple[pl.DataFrame, Any, dict[str, Any]]] = {}
-        self._json: dict[str, bytes] = {}
-
-    def _key(self, project_gid: str, entity_type: str | None) -> str:
-        return f"{project_gid}:{entity_type}"
-
-    async def save_dataframe(
-        self,
-        project_gid,
-        df,
-        watermark,
-        *,
-        entity_type=None,
-        population_degraded=None,
-        population_min_rate=None,
-    ) -> bool:
-        meta = {
-            "row_count": len(df),
-            "columns": df.columns,
-            "entity_type": entity_type,
-        }
-        self._frames[self._key(project_gid, entity_type)] = (df.clone(), watermark, meta)
-        return True
-
-    async def load_dataframe(self, project_gid, entity_type=None):
-        hit = self._frames.get(self._key(project_gid, entity_type))
-        if hit is None:
-            return None, None
-        df, wm, _meta = hit
-        return df.clone(), wm
-
-    async def load_dataframe_with_metadata(self, project_gid, entity_type=None):
-        hit = self._frames.get(self._key(project_gid, entity_type))
-        if hit is None:
-            return None, None, None
-        df, wm, meta = hit
-        return df.clone(), wm, dict(meta)
-
-    async def save_index(self, project_gid, index_data, entity_type=None) -> bool:
-        return True
-
-    async def load_index(self, project_gid, entity_type=None):
-        return None
-
-    async def save_json(self, key, data) -> bool:
-        self._json[key] = data
-        return True
-
-    async def load_json(self, key):
-        return self._json.get(key)
-
-
-class _DegradedBuildStrategy:
-    """Strategy stand-in returning the degraded frame + the build's write decision
-    via ``_last_write_context`` — the production reality of the two-writer split
-    (the builder PRESERVED on disk via Writer A then handed BACK the degraded frame).
-    The warmer reads ``_last_write_context`` and threads it into ``put_async``."""
-
-    def __init__(self, *, decision: WriteDecision, frame: pl.DataFrame) -> None:
-        self.entity_type = _ENTITY
-        self._frame = frame
-        self._last_write_context: dict[str, Any] = {
-            "write_decision": decision,
-            "population_degraded": decision is not WriteDecision.WRITE_AS_IS,
-            "population_min_rate": 0.0 if decision is not WriteDecision.WRITE_AS_IS else 1.0,
-        }
-
-    async def _build_dataframe(
-        self, project_gid: str, client: Any
-    ) -> tuple[pl.DataFrame, datetime]:
-        return self._frame, datetime.now(UTC)
-
-
-def _make_real_cache(storage: _InMemoryStorage):
-    """A REAL integration DataFrameCache: memory tier + progressive tier writing
-    through REAL SectionPersistence onto the in-memory storage. Everything from
-    ``put_async``/``get_async`` down is production code."""
-    from autom8_asana.cache.dataframe.circuit_breaker import CircuitBreaker
-    from autom8_asana.cache.dataframe.coalescer import DataFrameCacheCoalescer
-    from autom8_asana.cache.dataframe.tiers.memory import MemoryTier
-    from autom8_asana.cache.dataframe.tiers.progressive import ProgressiveTier
-    from autom8_asana.cache.integration.dataframe_cache import DataFrameCache
-    from autom8_asana.dataframes.section_persistence import SectionPersistence
-
-    persistence = SectionPersistence(storage=storage)
-    return DataFrameCache(
-        memory_tier=MemoryTier(max_heap_percent=0.3, max_entries=64),
-        progressive_tier=ProgressiveTier(persistence=persistence),
-        coalescer=DataFrameCacheCoalescer(max_wait_seconds=60.0),
-        circuit_breaker=CircuitBreaker(
-            failure_threshold=3, reset_timeout_seconds=60, success_threshold=1
-        ),
-    )
 
 
 def _served_mrr_nonnull(entry) -> int:
