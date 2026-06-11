@@ -365,3 +365,107 @@ async def test_warmer_write_as_is_serves_from_memory(monkeypatch):
     assert cache.memory_tier.get(cache_key) is not None, "healthy warm did not promote to hot tier"
     served = await cache.get_async(_PROJECT, _ENTITY)
     assert _served_mrr_nonnull(served) == 3
+
+
+# ── CIRCUIT-OPEN: the FOURTH serve path — circuit-LKG must NOT serve a poisoned
+#    hot entry (DEFECT-3, same class, 3rd recursion). ──────────────────────────
+
+
+async def test_circuit_open_lkg_serves_prior_good_not_poisoned_memory():
+    """CIRCUIT-OPEN serve-altitude probe (the surface #128's serve-altitude tests
+    missed). When the circuit breaker is OPEN, ``get_async`` short-circuits to
+    ``_get_circuit_lkg`` BEFORE the normal ``_check_freshness_and_serve`` path. The
+    circuit-LKG memory branch reads ``memory_tier.get`` and (pre-fix) serves on
+    ``_schema_is_valid(entry)`` ALONE — it never checks ``population_degraded``. So a
+    pre-existing poisoned (0/3) hot entry serves under circuit-open: the original
+    game-day silent 0/N symptom, RELOCATED to the circuit-LKG path.
+
+    Seed S3 prior-good 3/3 → inject a poisoned ``population_degraded`` 0/3 entry into
+    memory → open the breaker (``record_failure`` × 3) → ``get_async``. The served
+    frame's active-subset ``count(mrr non-null)`` MUST equal the prior-good count (3),
+    NEVER 0 (the circuit-LKG path must soft-reject the poisoned memory entry and fall
+    through to the S3-LKG branch which holds the prior-good).
+
+    RED on unmodified #128 head (circuit-LKG serves 0/3 from poisoned memory). GREEN
+    after routing the circuit-LKG memory branch through the gated serve accessor."""
+    from autom8_asana.cache.integration.dataframe_cache import DataFrameCacheEntry
+    from autom8_asana.dataframes.models.registry import get_schema_version
+
+    storage = _InMemoryStorage()
+    now = datetime.now(UTC)
+    await storage.save_dataframe(_PROJECT, _prior_good_frame(3), now, entity_type=_ENTITY)
+
+    cache = _make_real_cache(storage)
+    cache_key = cache._build_key(_PROJECT, _ENTITY)
+    schema_version = get_schema_version(_ENTITY) or "unknown"
+    poisoned = DataFrameCacheEntry(
+        project_gid=_PROJECT,
+        entity_type=_ENTITY,
+        dataframe=_degraded_frame(3),
+        watermark=now,
+        created_at=datetime.now(UTC),
+        schema_version=schema_version,
+        population_degraded=True,
+        population_min_rate=0.0,
+    )
+    cache.memory_tier.put(cache_key, poisoned)
+
+    # Open the breaker: failure_threshold=3 → 3 failures opens (and stays open for the
+    # 60s reset window, well beyond this test's runtime).
+    for _ in range(3):
+        cache.circuit_breaker.record_failure(_PROJECT)
+    assert cache.circuit_breaker.is_open(_PROJECT), "precondition: breaker must be OPEN"
+
+    served = await cache.get_async(_PROJECT, _ENTITY)
+    assert _served_mrr_nonnull(served) == 3, (
+        "circuit-LKG served the poisoned 0/3 hot entry under circuit-open instead of "
+        "soft-rejecting population_degraded and rehydrating the prior-good 3/3 from S3 "
+        "(the FOURTH serve path bypassed the population_degraded gate — DEFECT-3)"
+    )
+
+
+async def test_circuit_open_lkg_serves_healthy_memory_entry():
+    """CIRCUIT-OPEN control (circuit-LKG intent preserved). The fix must NOT break the
+    circuit-LKG design intent: under circuit-open a HEALTHY memory entry should STILL
+    be served from memory (last-known-good), with no needless S3 fallthrough. Only a
+    ``population_degraded`` entry is soft-rejected.
+
+    Inject a HEALTHY 3/3 entry into memory, open the breaker, ``get_async`` → served
+    from memory (3/3). This is the bug-control: the DEFECT is circuit-open + POISONED,
+    not circuit-open + healthy. GREEN on both #128 head and after the fix."""
+    from autom8_asana.cache.integration.dataframe_cache import DataFrameCacheEntry
+    from autom8_asana.dataframes.models.registry import get_schema_version
+
+    # No S3 seed: if the fix wrongly fell through to S3 for a healthy entry, the serve
+    # would MISS (no S3 frame) — proving the healthy memory entry was served directly.
+    storage = _InMemoryStorage()
+    now = datetime.now(UTC)
+
+    cache = _make_real_cache(storage)
+    cache_key = cache._build_key(_PROJECT, _ENTITY)
+    schema_version = get_schema_version(_ENTITY) or "unknown"
+    healthy = DataFrameCacheEntry(
+        project_gid=_PROJECT,
+        entity_type=_ENTITY,
+        dataframe=_prior_good_frame(3),
+        watermark=now,
+        created_at=datetime.now(UTC),
+        schema_version=schema_version,
+        population_degraded=False,
+        population_min_rate=1.0,
+    )
+    cache.memory_tier.put(cache_key, healthy)
+
+    for _ in range(3):
+        cache.circuit_breaker.record_failure(_PROJECT)
+    assert cache.circuit_breaker.is_open(_PROJECT), "precondition: breaker must be OPEN"
+
+    served = await cache.get_async(_PROJECT, _ENTITY)
+    assert _served_mrr_nonnull(served) == 3, (
+        "circuit-LKG failed to serve a HEALTHY memory entry under circuit-open "
+        "(circuit-LKG last-known-good intent was broken — over-rejection)"
+    )
+    # Served from MEMORY (not S3 — there is no S3 frame to fall through to).
+    assert cache.memory_tier.get(cache_key) is not None, (
+        "healthy memory entry was wrongly evicted under circuit-open"
+    )
