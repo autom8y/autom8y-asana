@@ -9,4 +9,4 @@ permissions:
 
 jobs:
   dependency-review:
-    uses: autom8y/autom8y-workflows/.github/workflows/security-dependency-review.yml@44b771e516a49a0d964782e4bbd0f0e39b2f97a1
+    uses: autom8y/autom8y-workflows/.github/workflows/security-dependency-review.yml@f5601acbe3905270dfcb9069854c78c0f940ad05
