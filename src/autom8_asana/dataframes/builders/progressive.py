@@ -822,6 +822,18 @@ class ProgressiveProjectBuilder:
 
         if total_rows > 0 or honest_complete_empty:
             index_data = self._build_index_data(write_df)
+            # Writer A routes through the converged primitive too (Warmer-Path PRESERVE
+            # Enforcement). It NEVER reaches here on PRESERVE (it early-returned at the
+            # Step-6 PRESERVE branch above), and WRITE_COALESCED has ALREADY been applied
+            # to write_df, so it records WRITE_AS_IS — the frame is now honest-as-written.
+            # This (a) avoids a double-coalesce in the primitive (R-1), and (b) records a
+            # decision so the primitive's backstop guard does NOT refuse a legitimate
+            # cold-start honest-null write (decision WRITE_AS_IS, population_degraded True,
+            # no prior-good — must persist for honest-empty-200, R-3).
+            from autom8_asana.dataframes.builders.fail_closed_write import (
+                WriteDecision as _WriteDecision,
+            )
+
             await self._persistence.write_final_artifacts_async(
                 self._project_gid,
                 write_df,
@@ -830,6 +842,7 @@ class ProgressiveProjectBuilder:
                 entity_type=self._entity_type,
                 population_degraded=persisted_degraded,
                 population_min_rate=persisted_min_rate,
+                write_decision=_WriteDecision.WRITE_AS_IS,
             )
             if honest_complete_empty:
                 logger.info(
@@ -1072,7 +1085,13 @@ class ProgressiveProjectBuilder:
 
         total_time = (time.perf_counter() - start_time) * 1000
 
-        # Classify and log build result
+        # Classify and log build result. Carry the Step-6 fail-closed write decision
+        # (and the population verdict) onto BuildResult so the SECOND finalize writers
+        # — warmer (W3), admin (W6), decorator (W7) — honor PRESERVE/COALESCE at the
+        # converged write primitive instead of silently re-persisting the degraded
+        # frame the builder hands back (Warmer-Path PRESERVE Enforcement; the #127
+        # builder Step-6 early-return is UNCHANGED — this only stops DISCARDING the
+        # decision it already computed).
         build_result = BuildResult.from_section_results(
             section_results=section_results,
             dataframe=merged_df,
@@ -1083,6 +1102,9 @@ class ProgressiveProjectBuilder:
             fetch_time_ms=fetch_time,
             sections_probed=resume_result.sections_probed,
             sections_delta_updated=resume_result.sections_delta_updated,
+            write_decision=finalize.decision,
+            population_degraded=self._population_degraded,
+            population_min_rate=self._population_min_rate,
         )
 
         logger.info(

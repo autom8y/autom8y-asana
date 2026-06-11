@@ -113,6 +113,13 @@ class DataFrameCacheEntry:
     schema_version: str
     row_count: int = field(init=False)
     build_quality: Any = None  # BuildQuality | None (C2)
+    # Fail-closed write context (Warmer-Path PRESERVE Enforcement). Carried from the
+    # build through put_async into the ProgressiveTier so the converged write
+    # primitive (write_final_artifacts_async) honors PRESERVE/COALESCE at the
+    # operative warmer write site. None = no decision recorded (historical behavior).
+    write_decision: Any = None  # WriteDecision | None
+    population_degraded: bool = False
+    population_min_rate: float = 1.0
 
     def __post_init__(self) -> None:
         """Compute row_count from DataFrame."""
@@ -284,8 +291,10 @@ class DataFrameCache:
             )
             return _result
 
-        # Try memory tier first
-        entry = self.memory_tier.get(cache_key)
+        # Try memory tier first -- through the converged gated serve accessor so the
+        # population_degraded soft-reject applies on EVERY memory read (the single
+        # serve-side primitive; mirror of the put-side memory-skip gate).
+        entry = self._memory_get_serviceable(cache_key, project_gid, entity_type)
         if entry is not None:
             result = self._check_freshness_and_serve(
                 entry, current_watermark, project_gid, entity_type, cache_key, "memory"
@@ -340,6 +349,60 @@ class DataFrameCache:
         )
         return None
 
+    @staticmethod
+    def _is_population_degraded_entry(entry: DataFrameCacheEntry) -> bool:
+        """True when a HOT-TIER entry is the freshly-nulled 0/N frame whose write was
+        PRESERVE-skipped (or COALESCE-superseded) on S3.
+
+        Such an entry must NEVER be served from the hot tier: the durable S3 tier holds
+        a strictly-better frame (the untouched prior-good for PRESERVE; the coalesced-
+        good for COALESCE), and a freshly poisoned entry would otherwise look FRESH
+        (recent ``created_at``, valid schema) and be served preferentially. This is the
+        serve-side mirror of the put-side ``_is_degrade_decision`` gate.
+        """
+        return getattr(entry, "population_degraded", False)
+
+    def _memory_get_serviceable(
+        self,
+        cache_key: str,
+        project_gid: str,
+        entity_type: str,
+    ) -> DataFrameCacheEntry | None:
+        """The ONE gated memory-serve accessor — the converged serve-side primitive.
+
+        Every serve path that reads the hot (memory) tier MUST funnel through this
+        accessor so no path can surface a degraded frame:
+
+          1. reads ``memory_tier.get(cache_key)``;
+          2. applies the ``population_degraded`` soft-reject -- EVICT from memory and
+             return ``None`` so the caller falls through to the S3 / S3-LKG branch and
+             re-hydrates the strictly-better durable frame on the very next serve;
+          3. returns the entry UNCHANGED for a healthy frame -- downstream callers keep
+             their own schema / watermark / freshness checks (this accessor is the
+             degrade-gate ONLY, not a freshness gate).
+
+        Both ``get_async`` (normal serve, via ``_check_freshness_and_serve``) and
+        ``_get_circuit_lkg`` (circuit-open serve) route through here. The S3 tier is
+        NEVER soft-rejected: a degraded S3 frame is the honest-null / honest-empty-200
+        contract and the source of truth (rejecting it would risk a 503 trap). Per-entity
+        (NFR-3): only THIS (project_gid, entity_type) key is touched. No new ``to_thread``
+        (FROZEN-4): the memory read is synchronous.
+        """
+        entry = self.memory_tier.get(cache_key)
+        if entry is not None and self._is_population_degraded_entry(entry):
+            logger.info(
+                "dataframe_cache_memory_soft_reject_degraded",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "row_count": entry.row_count,
+                    "reason": "population_degraded_hot_entry_rehydrate_from_s3",
+                },
+            )
+            self.memory_tier.remove(cache_key)
+            return None
+        return entry
+
     async def _get_circuit_lkg(
         self,
         cache_key: str,
@@ -359,8 +422,15 @@ class DataFrameCache:
         Returns:
             DataFrameCacheEntry if found and schema-valid, None otherwise.
         """
-        # Try memory tier first
-        entry = self.memory_tier.get(cache_key)
+        # Try memory tier first -- through the converged gated serve accessor. This is
+        # the FOURTH serve path (DEFECT-3): under circuit-open we still serve last-known-
+        # good from the hot tier, but a population_degraded (0/N) entry MUST be soft-
+        # rejected here exactly as on the normal serve path -- otherwise a pre-existing
+        # poisoned hot entry surfaces the game-day 0/N symptom under circuit-open. The
+        # gated accessor evicts the poisoned entry and returns None, so we fall through
+        # to the S3-LKG branch below (which holds the strictly-better prior-good frame).
+        # A HEALTHY entry passes through unchanged -- circuit-LKG intent preserved.
+        entry = self._memory_get_serviceable(cache_key, project_gid, entity_type)
         if entry is not None and self._schema_is_valid(entry):
             self._stats[entity_type]["lkg_circuit_serves"] += 1
             self._stats[entity_type]["memory_hits"] += 1
@@ -436,6 +506,23 @@ class DataFrameCache:
         )
         return None
 
+    @staticmethod
+    def _is_degrade_decision(write_decision: Any) -> bool:
+        """True when a fail-closed ``WriteDecision`` means the in-hand frame is the
+        DEGRADED one that must NOT be promoted to the hot tier.
+
+        ``PRESERVE_PRIOR_GOOD`` skipped the S3 write entirely (the good prior-good
+        stays on disk); ``WRITE_COALESCED`` wrote a SEPARATE coalesced-good frame to S3
+        while the in-hand ``entry.dataframe`` is still the pre-coalesce degraded df. In
+        BOTH cases the durable S3 tier holds the good frame and the hot tier must
+        re-hydrate from it on the next serve, never serve the degraded in-hand frame.
+        ``WRITE_AS_IS`` (and ``None`` = no decision) is a healthy/honest write that the
+        hot tier may serve. Resolved by enum VALUE to avoid importing the enum here
+        (``write_decision`` is typed ``Any`` across the carry chain).
+        """
+        value = getattr(write_decision, "value", None)
+        return value in ("preserve_prior_good", "write_coalesced")
+
     def _check_freshness_and_serve(
         self,
         entry: DataFrameCacheEntry,
@@ -456,6 +543,30 @@ class DataFrameCache:
             FRESHNESS_CONTRACT_MAX_AGE_SECONDS,
             LKG_MAX_STALENESS_MULTIPLIER,
         )
+
+        # Belt-and-braces serve guard (Warmer-Path PRESERVE Enforcement, serve
+        # altitude): a ``population_degraded`` entry in the HOT TIER must never be
+        # served. The PRIMARY gate is now the converged ``_memory_get_serviceable``
+        # accessor that ``get_async`` reads the memory tier through, so a poisoned hot
+        # entry is soft-rejected BEFORE reaching here. This in-path check is retained as
+        # the backstop for any memory entry that reaches ``_check_freshness_and_serve``
+        # by a future path that did not route through the accessor -- it uses the SAME
+        # ``_is_population_degraded_entry`` predicate so the reject rule is single-
+        # sourced. Memory tier ONLY: the S3 tier is the source of truth (a degraded S3
+        # frame is the honest-null / honest-empty-200 contract, never soft-rejected --
+        # that would risk a 503 trap).
+        if tier == "memory" and self._is_population_degraded_entry(entry):
+            logger.info(
+                "dataframe_cache_memory_soft_reject_degraded",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "row_count": entry.row_count,
+                    "reason": "population_degraded_hot_entry_rehydrate_from_s3",
+                },
+            )
+            self.memory_tier.remove(cache_key)
+            return None
 
         status = self._check_freshness(entry, current_watermark)
 
@@ -625,6 +736,7 @@ class DataFrameCache:
         *,
         population_degraded: bool = False,
         population_min_rate: float = 1.0,
+        write_decision: Any = None,
     ) -> bool:
         """Store DataFrame in both tiers.
 
@@ -648,6 +760,13 @@ class DataFrameCache:
             dataframe: Polars DataFrame to cache.
             watermark: Freshness watermark (based on max modified_at).
             build_result: Optional BuildResult for quality metadata (C2).
+            population_degraded: True when the freshly-built frame breached the floor
+                (carried into the converged write gate's backstop guard).
+            population_min_rate: Observed min active-subset non-null rate.
+            write_decision: The fail-closed ``WriteDecision`` the build computed
+                (Warmer-Path PRESERVE Enforcement). Carried through to the
+                ProgressiveTier so ``write_final_artifacts_async`` honors
+                PRESERVE/COALESCE at the operative write site. None = no decision.
 
         Returns:
             True if the durable (S3) write landed; False if it was non-durable.
@@ -697,6 +816,9 @@ class DataFrameCache:
             created_at=datetime.now(UTC),
             schema_version=schema_version,
             build_quality=build_quality,
+            write_decision=write_decision,
+            population_degraded=population_degraded,
+            population_min_rate=population_min_rate,
         )
 
         # Write to progressive tier first (source of truth). The boolean is
@@ -716,8 +838,37 @@ class DataFrameCache:
             )
             return False
 
-        # Then memory tier
-        self.memory_tier.put(cache_key, entry)
+        # Then memory tier -- but ONLY for a frame the hot tier may honestly serve.
+        #
+        # Warmer-Path PRESERVE Enforcement (serve-altitude closure, extends the #128
+        # S3-disk gate): #128 correctly SKIPPED the durable S3 write under PRESERVE,
+        # but ``entry.dataframe`` here is still the DEGRADED 0/N frame the builder
+        # handed back. Promoting it to the hot tier relocates the game-day 0/N symptom
+        # from disk to memory -- ``get_async`` checks memory FIRST and serves the
+        # fresh-``created_at`` poisoned entry preferentially over the good prior-good
+        # frame on S3. So when the decision degraded the frame (PRESERVE skipped the
+        # write, or COALESCE wrote a SEPARATE good frame to S3 while ``entry.dataframe``
+        # remains the pre-coalesce degraded df), we must NOT promote ``entry``. Instead
+        # EVICT any stale hot entry so the next ``get_async`` re-hydrates the good frame
+        # from S3 (the untouched prior-good for PRESERVE; the coalesced-good for
+        # COALESCE). Per-entity (NFR-3): only THIS (project_gid, entity_type) key is
+        # touched. The serve-path soft-reject in ``_check_freshness_and_serve`` is the
+        # belt-and-braces backstop for any entry that slips through.
+        if self._is_degrade_decision(write_decision) or population_degraded:
+            self.memory_tier.remove(cache_key)
+            logger.info(
+                "dataframe_cache_put_memory_skip_degraded",
+                extra={
+                    "project_gid": project_gid,
+                    "entity_type": entity_type,
+                    "row_count": entry.row_count,
+                    "write_decision": getattr(write_decision, "value", None),
+                    "population_degraded": population_degraded,
+                    "reason": "degraded_frame_not_promoted_to_hot_tier",
+                },
+            )
+        else:
+            self.memory_tier.put(cache_key, entry)
 
         # Clear circuit breaker on successful write
         self.circuit_breaker.close(project_gid)
