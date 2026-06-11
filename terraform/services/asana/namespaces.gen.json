@@ -149,7 +149,7 @@
       "semantic_plane": "task-durable-cache",
       "writer_owner": {
         "code_anchor": null,
-        "external_name": "UNATTRIBUTED (durable-first writer; Phase-gamma gamma-0 discovery)",
+        "external_name": "autom8-monolith (Go): apis/aws_api/services/s3/models/asana_cache/tasks/main.py:447-448 writes task.json+stories.json (EntryType TASK/STORIES :271-278; manifest modified_at.json :387-388); bucket autom8-s3 via objects/s3_bucket.py:151 + asana-cache prefix get_full_path(). Pinned by incident-commander receipt 2026-06-11.",
         "is_attributed": true,
         "repo": "EXTERNAL"
       }

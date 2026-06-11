@@ -228,16 +228,27 @@ TASK_CACHE = StorageNamespaceContract(
     prefix="asana-cache",
     semantic_plane=SemanticPlane.TASK_DURABLE_CACHE,
     writer_owner=WriterOwner(
-        # WRITER-UNATTRIBUTED (the gamma-0 discovery item). A1's
-        # autom8_adapter.py:300 attribution is REFUTED by A2 (that path builds a
-        # Redis provider, provider-agnostic set_versioned). No prod
-        # S3CacheProvider construction site exists in this repo. The honest tag is
-        # UNATTRIBUTED: we declare an external owner placeholder but pin NO code
-        # anchor and NO fabricated provenance handle (the main.tf:1218 comment was
-        # adversary-verified absent from live TF — never cited here).
+        # WRITER PINNED (gamma-0 RESOLVED, incident-commander receipt 2026-06-11).
+        # The durable per-task copies are written by the EXTERNAL autom8 Go monolith
+        # (NOT this repo): apis/aws_api/services/s3/models/asana_cache/tasks/main.py
+        # constructs the task.json + stories.json objects at :447-448 (EntryType
+        # TASK/STORIES declared at :271-278; the per-gid manifest modified_at.json at
+        # :387-388). The bucket is autom8-s3 (objects/s3_bucket.py:151) under the
+        # asana-cache prefix family (get_full_path()). code_anchor stays None — it is
+        # repo-relative by contract (WriterOwner docstring) and this writer is not in
+        # autom8y-asana; the cross-repo file:line provenance lives in external_name.
+        # A1's autom8_adapter.py:300 attribution remains REFUTED (that path builds a
+        # Redis provider); the main.tf:1218 comment was adversary-verified absent from
+        # live TF and is NOT cited.
         repo=WriterOwner.EXTERNAL,
         code_anchor=None,
-        external_name="UNATTRIBUTED (durable-first writer; Phase-gamma gamma-0 discovery)",
+        external_name=(
+            "autom8-monolith (Go): apis/aws_api/services/s3/models/asana_cache/"
+            "tasks/main.py:447-448 writes task.json+stories.json (EntryType "
+            "TASK/STORIES :271-278; manifest modified_at.json :387-388); bucket "
+            "autom8-s3 via objects/s3_bucket.py:151 + asana-cache prefix "
+            "get_full_path(). Pinned by incident-commander receipt 2026-06-11."
+        ),
     ),
     reader_apis=(
         # The #121 cure — the blessed explicit reader (DurableTaskCacheReader),
