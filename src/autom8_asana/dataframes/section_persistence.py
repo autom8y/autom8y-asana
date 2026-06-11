@@ -810,6 +810,8 @@ class SectionPersistence:
         watermark: datetime,
         index_data: dict[str, Any] | None = None,
         entity_type: str | None = None,
+        population_degraded: bool | None = None,
+        population_min_rate: float | None = None,
     ) -> bool:
         """Write final artifacts atomically (DataFrame + watermark + optional index).
 
@@ -821,6 +823,10 @@ class SectionPersistence:
             watermark: Watermark timestamp.
             index_data: Optional serialized GidLookupIndex data.
             entity_type: Optional entity type for schema_version resolution.
+            population_degraded: Optional population-floor verdict threaded into the
+                durable sidecar (Cure-Recovery-Path Hardening, FORK-2) so the next
+                warm's quality-aware rebuild gate can re-heal a below-floor frame.
+            population_min_rate: Optional observed min active-subset non-null rate.
 
         Returns:
             True if all artifacts written successfully.
@@ -834,7 +840,12 @@ class SectionPersistence:
             watermark = watermark.replace(tzinfo=UTC)
 
         df_ok = await self._storage.save_dataframe(
-            project_gid, df, watermark, entity_type=entity_type
+            project_gid,
+            df,
+            watermark,
+            entity_type=entity_type,
+            population_degraded=population_degraded,
+            population_min_rate=population_min_rate,
         )
 
         idx_ok = True

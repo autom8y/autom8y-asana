@@ -622,6 +622,9 @@ class DataFrameCache:
         dataframe: pl.DataFrame,
         watermark: datetime,
         build_result: Any = None,
+        *,
+        population_degraded: bool = False,
+        population_min_rate: float = 1.0,
     ) -> bool:
         """Store DataFrame in both tiers.
 
@@ -665,7 +668,11 @@ class DataFrameCache:
                 },
             )
 
-        # Build quality metadata from BuildResult (C2)
+        # Build quality metadata from BuildResult (C2). The population-floor
+        # verdict (Cure-Recovery-Path Hardening, FORK-1/FORK-2 shared seam) rides
+        # on BuildQuality.population_degraded so a consumer / the next warm can make
+        # a serving / re-heal decision. dataclasses.replace keeps BuildQuality
+        # frozen/slots intact.
         build_quality = None
         if build_result is not None:
             from autom8_asana.dataframes.builders.build_result import (
@@ -673,6 +680,14 @@ class DataFrameCache:
             )
 
             build_quality = BuildQuality.from_build_result(build_result)
+            if population_degraded or population_min_rate < 1.0:
+                from dataclasses import replace as _dc_replace
+
+                build_quality = _dc_replace(
+                    build_quality,
+                    population_degraded=population_degraded,
+                    population_min_rate=population_min_rate,
+                )
 
         entry = DataFrameCacheEntry(
             project_gid=project_gid,

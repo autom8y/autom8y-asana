@@ -308,8 +308,17 @@ class TestFinalArtifactsViaStorage:
         )
 
         assert result is True
+        # Cure-Recovery-Path Hardening: write_final_artifacts_async threads the
+        # population-floor verdict (population_degraded / population_min_rate) into
+        # save_dataframe so the persisted watermark.json carries the quality flag the
+        # quality-aware rebuild gate reads. The healthy path passes both as None.
         storage.save_dataframe.assert_called_once_with(
-            "proj_123", df, watermark, entity_type="offer"
+            "proj_123",
+            df,
+            watermark,
+            entity_type="offer",
+            population_degraded=None,
+            population_min_rate=None,
         )
         # SEAM-1: save_index also keys the v2 entity-segmented path.
         storage.save_index.assert_called_once_with("proj_123", index_data, entity_type="offer")
