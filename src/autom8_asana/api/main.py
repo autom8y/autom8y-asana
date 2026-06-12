@@ -449,22 +449,11 @@ def create_app() -> FastAPI:
             # S3 D4: fleet-canonical FleetQuery surface, dual-mounted
             # at /v1/query/entities and /api/v1/query/entities per
             # TDD-fleet-api-sovereignty-s3 section 7.4.3.
-            #
-            # IMPORTANT: fleet routes MUST mount BEFORE query_router so
-            # that POST /v1/query/entities matches the fleet handler
-            # rather than the legacy /v1/query/{entity_type} wildcard
-            # (which would treat "entities" as a path parameter and
-            # validate the body against the legacy QueryRequest model
-            # without a `filters` field, surfacing a 422 extra_forbidden
-            # error). FastAPI matches routes in registration order.
             RouterMount(router=fleet_query_router_v1),
             RouterMount(router=fleet_query_router_api_v1),
-            # Sprint 3 (project-asana-pipeline-extraction Phase 1): the
-            # /exports route mirrors the FleetQuery dual-mount precedent per
-            # TDD §6.2 + spike-handoff §6 P1-C-07. Mount BEFORE query_router
-            # so /v1/exports is not shadowed by the legacy /v1/query/{wildcard}
-            # path matcher (FastAPI matches in registration order — same
-            # discipline as the comment block above).
+            # Sprint 3 (project-asana-pipeline-extraction Phase 1): mount
+            # /exports before query_router per TDD §6.2 + spike-handoff §6
+            # P1-C-07 (FastAPI matches in registration order).
             RouterMount(router=exports_router_v1),
             RouterMount(router=exports_router_api_v1),
             RouterMount(router=query_router),
