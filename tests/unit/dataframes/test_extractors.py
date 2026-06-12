@@ -76,7 +76,8 @@ def unit_resolver() -> MockCustomFieldResolver:
             "weekly_ad_spend": Decimal("1500.50"),
             "products": ["Product A", "Product B"],
             "languages": ["English", "Spanish"],
-            "discount": Decimal("10.5"),
+            # Discount is an Asana enum string ("0%", "10%"), not a number.
+            "discount": "10%",
             "vertical": "Healthcare",
             "specialty": "Dental",
         }
@@ -714,7 +715,7 @@ class TestUnitExtractor:
         assert row.weekly_ad_spend == Decimal("1500.50")
         assert row.products == ["Product A", "Product B"]
         assert row.languages == ["English", "Spanish"]
-        assert row.discount == Decimal("10.5")
+        assert row.discount == "10%"
         assert row.vertical == "Healthcare"
         assert row.specialty == "Dental"
 
