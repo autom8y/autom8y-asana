@@ -1498,15 +1498,12 @@ class TestDenominatorIntegrityGuard:
         # the per-workflow DMS namespace nor the fleet namespace.
         ts_calls = [c[0][0] for c in mock_emit_ts.call_args_list]
         assert ts_calls == [], (
-            f"Total-failure run must NOT emit any LastSuccessTimestamp; "
-            f"got emits to: {ts_calls}"
+            f"Total-failure run must NOT emit any LastSuccessTimestamp; got emits to: {ts_calls}"
         )
 
         # BridgeFleetHealth is a health signal and MUST still fire at 0.0
         # (it legitimately reports the failed state -- only the LST is gated).
-        fleet_health_calls = [
-            c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"
-        ]
+        fleet_health_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
         assert len(fleet_health_calls) == 1
         assert fleet_health_calls[0][0] == ("BridgeFleetHealth", 0.0)
 
@@ -1547,12 +1544,8 @@ class TestDenominatorIntegrityGuard:
 
         # LST emitted to BOTH the per-workflow DMS namespace and the fleet.
         ts_calls = [c[0][0] for c in mock_emit_ts.call_args_list]
-        assert "Autom8y/AsanaInsights" in ts_calls, (
-            "succeeded>0 must emit per-workflow LST"
-        )
-        assert "Autom8y/AsanaBridgeFleet" in ts_calls, (
-            "succeeded>0 must emit fleet LST"
-        )
+        assert "Autom8y/AsanaInsights" in ts_calls, "succeeded>0 must emit per-workflow LST"
+        assert "Autom8y/AsanaBridgeFleet" in ts_calls, "succeeded>0 must emit fleet LST"
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
@@ -1575,9 +1568,7 @@ class TestDenominatorIntegrityGuard:
         mock_ds.__aexit__ = AsyncMock(return_value=False)
         mock_ds_class.return_value = mock_ds
 
-        wf = _mock_workflow(
-            result=_make_workflow_result(total=5, succeeded=0, failed=5, skipped=0)
-        )
+        wf = _mock_workflow(result=_make_workflow_result(total=5, succeeded=0, failed=5, skipped=0))
         factory = MagicMock(return_value=wf)
         # No per-workflow dms_namespace; fleet_namespace keeps its default.
         config = _make_config(workflow_factory=factory)
