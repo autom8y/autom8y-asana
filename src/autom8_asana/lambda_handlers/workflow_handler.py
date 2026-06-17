@@ -310,15 +310,23 @@ def create_workflow_handler(
         )
 
         # Dead-man's-switch: record successful completion timestamp.
-        # Emitted only when a dms_namespace is configured and the workflow
-        # completed without total failure.
-        if config.dms_namespace:
+        # Emitted only when a dms_namespace is configured AND at least one
+        # entity succeeded. Without the succeeded-gate, a total batch failure
+        # (succeeded=0, failed=total) would still publish a FRESH
+        # LastSuccessTimestamp -> a silent-green dead-man over a fully-failed
+        # run. This aligns the LST predicate with the BridgeFleetHealth
+        # predicate emitted to the fleet namespace below.
+        if config.dms_namespace and result.succeeded > 0:
             emit_success_timestamp(config.dms_namespace)
 
         # Fleet-level observability (Tier 2 + 3).
         # Per ADR-bridge-observability-fleet: Emit BridgeFleetHealth metric
         # and fleet DMS timestamp after successful execution. Non-blocking:
         # emit_metric() already swallows CloudWatch errors internally.
+        # BridgeFleetHealth is a 0/1 health signal that legitimately reports
+        # 0.0 on a fully-failed run, so it is always emitted. The fleet
+        # LastSuccessTimestamp, by contrast, is a freshness dead-man and MUST
+        # be genuine-success-gated identically to the per-workflow LST above.
         if config.fleet_namespace:
             emit_metric(
                 "BridgeFleetHealth",
@@ -327,7 +335,8 @@ def create_workflow_handler(
                 dimensions={"workflow_id": config.workflow_id},
                 namespace=config.fleet_namespace,
             )
-            emit_success_timestamp(config.fleet_namespace)
+            if result.succeeded > 0:
+                emit_success_timestamp(config.fleet_namespace)
 
         # Per ADR-bridge-dispatch-model Decision 3: Publish domain event
         # after successful execution. Fire-and-forget semantics.

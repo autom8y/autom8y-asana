@@ -1443,3 +1443,140 @@ class TestSPOF1Recovery:
             fleet_health_calls[0][1]["dimensions"]["workflow_id"]
             == (recovered_bridge["workflow_id"])
         )
+
+
+class TestDenominatorIntegrityGuard:
+    """The LastSuccessTimestamp dead-man freshness emit MUST be gated on
+    genuine success (result.succeeded > 0).
+
+    A total batch failure (succeeded=0, failed=total) reaches execute_async
+    and returns a WorkflowResult -- WITHOUT this guard it would publish a
+    FRESH LastSuccessTimestamp to both the per-workflow DMS namespace and
+    the fleet namespace, greening the dead-men over a fully-failed run
+    (a silent-green). The guard aligns the LST predicate with the
+    BridgeFleetHealth predicate (1.0 if succeeded > 0 else 0.0).
+    """
+
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    @patch("autom8_asana.client.AsanaClient")
+    @patch("autom8_asana.clients.data.client.DataServiceClient")
+    def test_total_failure_does_not_emit_success_timestamp(
+        self,
+        mock_ds_class: MagicMock,
+        mock_asana_class: MagicMock,
+        mock_emit: MagicMock,
+        mock_emit_ts: MagicMock,
+    ) -> None:
+        """succeeded=0, failed=total -> NO LST emit to per-workflow or fleet namespace."""
+        mock_asana = MagicMock(spec=AsanaClient)
+        mock_asana_class.return_value = mock_asana
+
+        mock_ds = AsyncMock(spec=DataServiceClient)
+        mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
+        mock_ds.__aexit__ = AsyncMock(return_value=False)
+        mock_ds_class.return_value = mock_ds
+
+        # Total batch failure: every entity failed, none succeeded.
+        wf = _mock_workflow(
+            result=_make_workflow_result(total=10, succeeded=0, failed=10, skipped=0)
+        )
+        factory = MagicMock(return_value=wf)
+        config = _make_config(
+            workflow_factory=factory,
+            dms_namespace="Autom8y/AsanaInsights",
+        )
+
+        handler = create_workflow_handler(config)
+        result = handler({}, MagicMock())
+
+        # The run still returns 200 (the handler ran to completion); the point
+        # is that the freshness dead-man is NOT greened over a failed batch.
+        assert result["statusCode"] == 200
+
+        # emit_success_timestamp must NOT have been called at all -- neither
+        # the per-workflow DMS namespace nor the fleet namespace.
+        ts_calls = [c[0][0] for c in mock_emit_ts.call_args_list]
+        assert ts_calls == [], (
+            f"Total-failure run must NOT emit any LastSuccessTimestamp; got emits to: {ts_calls}"
+        )
+
+        # BridgeFleetHealth is a health signal and MUST still fire at 0.0
+        # (it legitimately reports the failed state -- only the LST is gated).
+        fleet_health_calls = [c for c in mock_emit.call_args_list if c[0][0] == "BridgeFleetHealth"]
+        assert len(fleet_health_calls) == 1
+        assert fleet_health_calls[0][0] == ("BridgeFleetHealth", 0.0)
+
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    @patch("autom8_asana.client.AsanaClient")
+    @patch("autom8_asana.clients.data.client.DataServiceClient")
+    def test_partial_success_does_emit_success_timestamp(
+        self,
+        mock_ds_class: MagicMock,
+        mock_asana_class: MagicMock,
+        mock_emit: MagicMock,
+        mock_emit_ts: MagicMock,
+    ) -> None:
+        """succeeded>0 (even with failures) -> LST emitted to BOTH namespaces."""
+        mock_asana = MagicMock(spec=AsanaClient)
+        mock_asana_class.return_value = mock_asana
+
+        mock_ds = AsyncMock(spec=DataServiceClient)
+        mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
+        mock_ds.__aexit__ = AsyncMock(return_value=False)
+        mock_ds_class.return_value = mock_ds
+
+        # At least one entity succeeded -> the dead-man legitimately greens.
+        wf = _mock_workflow(
+            result=_make_workflow_result(total=10, succeeded=1, failed=9, skipped=0)
+        )
+        factory = MagicMock(return_value=wf)
+        config = _make_config(
+            workflow_factory=factory,
+            dms_namespace="Autom8y/AsanaInsights",
+        )
+
+        handler = create_workflow_handler(config)
+        result = handler({}, MagicMock())
+
+        assert result["statusCode"] == 200
+
+        # LST emitted to BOTH the per-workflow DMS namespace and the fleet.
+        ts_calls = [c[0][0] for c in mock_emit_ts.call_args_list]
+        assert "Autom8y/AsanaInsights" in ts_calls, "succeeded>0 must emit per-workflow LST"
+        assert "Autom8y/AsanaBridgeFleet" in ts_calls, "succeeded>0 must emit fleet LST"
+
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_success_timestamp")
+    @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
+    @patch("autom8_asana.client.AsanaClient")
+    @patch("autom8_asana.clients.data.client.DataServiceClient")
+    def test_total_failure_no_fleet_lst_even_without_per_workflow_namespace(
+        self,
+        mock_ds_class: MagicMock,
+        mock_asana_class: MagicMock,
+        mock_emit: MagicMock,
+        mock_emit_ts: MagicMock,
+    ) -> None:
+        """Fleet LST is independently gated: total failure suppresses it even
+        when dms_namespace is None (fleet_namespace defaults to the bridge ns)."""
+        mock_asana = MagicMock(spec=AsanaClient)
+        mock_asana_class.return_value = mock_asana
+
+        mock_ds = AsyncMock(spec=DataServiceClient)
+        mock_ds.__aenter__ = AsyncMock(return_value=mock_ds)
+        mock_ds.__aexit__ = AsyncMock(return_value=False)
+        mock_ds_class.return_value = mock_ds
+
+        wf = _mock_workflow(result=_make_workflow_result(total=5, succeeded=0, failed=5, skipped=0))
+        factory = MagicMock(return_value=wf)
+        # No per-workflow dms_namespace; fleet_namespace keeps its default.
+        config = _make_config(workflow_factory=factory)
+
+        handler = create_workflow_handler(config)
+        handler({}, MagicMock())
+
+        ts_calls = [c[0][0] for c in mock_emit_ts.call_args_list]
+        assert "Autom8y/AsanaBridgeFleet" not in ts_calls, (
+            "Fleet LST must be suppressed on a total-failure run"
+        )
