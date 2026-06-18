@@ -283,7 +283,7 @@ dev = [
 
 [[package]]
 name = "autom8y-auth"
-version = "3.3.0"
+version = "4.1.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-core" },
@@ -293,9 +293,9 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyjwt", extra = ["crypto"] },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/3.3.0/autom8y_auth-3.3.0.tar.gz", hash = "sha256:7203dd0c37571bdf0f2a96939858896c3565d76947d7a4aa0d74818b4ffee6f9" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/4.1.0/autom8y_auth-4.1.0.tar.gz", hash = "sha256:f030fbfbd213d132437227ea2be2a499ba6ddbd9306c820a0147588a6a83d932" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/3.3.0/autom8y_auth-3.3.0-py3-none-any.whl", hash = "sha256:bc6dd56781b80e59efe7b87c6cd276df1ca922c151cf0cae70d1f097a1fb42ad" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/4.1.0/autom8y_auth-4.1.0-py3-none-any.whl", hash = "sha256:76f125c4fc16fe47dffeffd872a4dfbf62398017af0ba14dc368013ea1199a30" },
 ]
 
 [package.optional-dependencies]
