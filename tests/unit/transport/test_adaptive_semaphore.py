@@ -772,3 +772,61 @@ class TestFixedSemaphoreAdapter:
         slot3 = task.result()
         await slot2.__aexit__(None, None, None)
         await slot3.__aexit__(None, None, None)
+
+
+# ---------------------------------------------------------------------------
+# C-3 (TDD-asr-offer-warmer-durability §6): conservative cold-start window.
+# ---------------------------------------------------------------------------
+
+
+class TestStartWindow:
+    """Tests for the conservative cold-start window (C-3).
+
+    The semaphore previously always started at the ceiling, so a fresh client
+    blasted the full ceiling wide on its first fan-out and self-inflicted a 429
+    burst (the proven ROOT-1a storm). start_window lets the warm begin small and
+    ramp UP only when the API tolerates it.
+    """
+
+    def test_default_start_window_is_ceiling(self) -> None:
+        """start_window=None => start at ceiling (backward-compatible default)."""
+        config = AIMDConfig(ceiling=50)
+        assert config.effective_start_window == 50
+        sem = AsyncAdaptiveSemaphore(config=config, name="read")
+        assert sem.current_limit == 50
+
+    def test_conservative_start_window_below_ceiling(self) -> None:
+        """A conservative start_window initializes the window below the ceiling."""
+        config = AIMDConfig(ceiling=50, start_window=4)
+        assert config.effective_start_window == 4
+        sem = AsyncAdaptiveSemaphore(config=config, name="read")
+        assert sem.current_limit == 4
+        # ceiling is still the cap the window may ramp up to.
+        assert sem.ceiling == 50
+
+    def test_start_window_above_ceiling_rejected(self) -> None:
+        """A start_window above the ceiling is a configuration error."""
+        with pytest.raises(ConfigurationError, match="start_window"):
+            AIMDConfig(ceiling=10, start_window=50)
+
+    def test_start_window_below_floor_rejected(self) -> None:
+        """A start_window below the floor is a configuration error."""
+        with pytest.raises(ConfigurationError, match="start_window"):
+            AIMDConfig(ceiling=50, floor=5, start_window=2)
+
+    async def test_conservative_start_ramps_up_on_success(self) -> None:
+        """From a conservative start, the window ramps UP additively on success."""
+        config = AIMDConfig(
+            ceiling=50,
+            start_window=4,
+            grace_period_seconds=0.0,
+            increase_interval_seconds=0.0,
+        )
+        clock = FakeClock(start=100.0)
+        sem = AsyncAdaptiveSemaphore(config=config, name="read", clock=clock)
+        assert sem.current_limit == 4
+        slot = await sem.acquire()
+        slot.succeed()
+        await slot.__aexit__(None, None, None)
+        # Additive increase: 4 -> 5, never blasting to ceiling.
+        assert sem.current_limit == 5

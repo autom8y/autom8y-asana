@@ -68,6 +68,13 @@ class AIMDConfig:
     increase_interval_seconds: float = 2.0
     cooldown_trigger: int = 5
     cooldown_duration_seconds: float = 30.0
+    # C-3 (TDD-asr-offer-warmer-durability §6): the window the semaphore STARTS
+    # at on a cold client. Previously the window always began at ``ceiling``, so a
+    # fresh Lambda link blasted the full ceiling wide on its first fan-out before
+    # AIMD could react -- the proven ROOT-1a self-inflicted 429 storm. Starting at
+    # a conservative value (<= ceiling) ramps UP additively only when the API
+    # tolerates it. None => start at ceiling (backward-compatible default).
+    start_window: int | None = None
 
     def __post_init__(self) -> None:
         """Validate configuration parameters."""
@@ -83,6 +90,16 @@ class AIMDConfig:
             raise ConfigurationError("grace_period_seconds must be non-negative")
         if self.increase_interval_seconds < 0:
             raise ConfigurationError("increase_interval_seconds must be non-negative")
+        if self.start_window is not None and not (self.floor <= self.start_window <= self.ceiling):
+            raise ConfigurationError(
+                f"start_window ({self.start_window}) must be within "
+                f"[floor={self.floor}, ceiling={self.ceiling}]"
+            )
+
+    @property
+    def effective_start_window(self) -> int:
+        """The window to initialize the semaphore at (start_window or ceiling)."""
+        return self.start_window if self.start_window is not None else self.ceiling
 
 
 class Slot:
@@ -257,8 +274,10 @@ class AsyncAdaptiveSemaphore:
         self._logger = logger
         self._clock = clock or time.monotonic
 
-        # AIMD state
-        self._window: float = float(config.ceiling)
+        # AIMD state. C-3: start at the conservative cold-start window (defaults
+        # to ceiling for backward compatibility) so a fresh client ramps UP rather
+        # than blasting the ceiling wide and self-inflicting a 429 burst.
+        self._window: float = float(config.effective_start_window)
         self._in_flight: int = 0
         self._epoch: int = 0
 
