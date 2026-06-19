@@ -115,11 +115,30 @@ class ParallelSectionFetcher:
     max_concurrent: int = 8
     opt_fields: list[str] | None = None
     cache_provider: CacheProvider | None = None  # Per ADR-0131: GID enumeration caching
+    # C-2 (TDD-asr-offer-warmer-durability §6): an optional shared semaphore that
+    # bounds section fan-out ACROSS concurrently-warmed projects, not just within
+    # one fetch. The three per-fetch callsites below create a fresh local
+    # Semaphore(max_concurrent) when this is None (unchanged behavior). When a
+    # warm cycle injects ONE shared semaphore, the stacked callsite-local
+    # semaphores can no longer multiply past a single warm-cycle-scoped in-flight
+    # bound -- the same hook hierarchy_warmer.warm_ancestors_async already exposes
+    # (hierarchy_warmer.py:110), generalized here so the section lane inherits it.
+    global_semaphore: asyncio.Semaphore | None = None
     _api_call_count: int = field(default=0, init=False, repr=False)
 
     # TTL constants per PRD-CACHE-OPT-P3
     _SECTIONS_TTL: ClassVar[int] = 1800  # 30 minutes
     _GID_ENUM_TTL: ClassVar[int] = 300  # 5 minutes
+
+    def _acquire_semaphore(self) -> asyncio.Semaphore:
+        """Return the warm-cycle-shared semaphore if injected, else a fresh local.
+
+        C-2: when ``global_semaphore`` is provided, every fan-out in this fetcher
+        shares it so concurrent section fetches across projects cannot exceed one
+        coordinated bound. When None, falls back to the prior per-callsite
+        ``asyncio.Semaphore(self.max_concurrent)`` (no behavior change).
+        """
+        return self.global_semaphore or asyncio.Semaphore(self.max_concurrent)
 
     async def fetch_all(self) -> FetchResult:
         """Fetch all tasks via parallel section fetch.
@@ -156,7 +175,7 @@ class ParallelSectionFetcher:
             )
 
         # FR-FETCH-004: Create semaphore for concurrency control
-        semaphore = asyncio.Semaphore(self.max_concurrent)
+        semaphore = self._acquire_semaphore()
 
         # FR-FETCH-003: Fetch tasks from all sections concurrently
         # FR-FALLBACK-004: Use return_exceptions=True to detect failures
@@ -372,7 +391,7 @@ class ParallelSectionFetcher:
             return {}
 
         # Create semaphore for concurrency control
-        semaphore = asyncio.Semaphore(self.max_concurrent)
+        semaphore = self._acquire_semaphore()
 
         # Fetch GIDs from all sections concurrently
         results = await asyncio.gather(
@@ -650,7 +669,7 @@ class ParallelSectionFetcher:
             )
 
         # Fetch tasks from relevant sections
-        semaphore = asyncio.Semaphore(self.max_concurrent)
+        semaphore = self._acquire_semaphore()
 
         results = await asyncio.gather(
             *[self._fetch_section(section_gid, semaphore) for section_gid in sections_to_fetch],

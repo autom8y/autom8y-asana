@@ -30,7 +30,6 @@ from autom8y_http import (
     TimeoutException,
     TokenBucketRateLimiter,
 )
-from autom8y_log import LoggerProtocol
 
 from autom8_asana.errors import (
     AsanaError,
@@ -50,12 +49,42 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from autom8y_http import CircuitBreakerProtocol, RetryPolicyProtocol
+    from autom8y_log import LoggerProtocol
 
     from autom8_asana.config import AsanaConfig
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.log import LogProvider
 
 __all__ = ["AsanaHttpClient"]
+
+# Methods the AsyncAdaptiveSemaphore actually invokes on its logger
+# (aimd_decrease / aimd_at_minimum / aimd_increase / cooldown / grace events).
+# The AIMD primitive never calls bind(), so a logger that provides these three
+# levels is fully usable for AIMD observability even if it does not satisfy the
+# full LoggerProtocol structurally.
+_AIMD_LOGGER_METHODS = ("debug", "info", "warning")
+
+
+def _aimd_observable_logger(logger: Any) -> LoggerProtocol | None:
+    """Return a logger usable for AIMD events, or None if it cannot log.
+
+    The previous gate used ``isinstance(logger, LoggerProtocol)``, which is a
+    runtime_checkable Protocol that also requires ``bind``. The deployed
+    ``DefaultLogProvider`` provides debug/info/warning/error/exception but NOT
+    ``bind`` -- so the isinstance check returned False and the AIMD semaphore was
+    handed ``None``, running observability-dark: ``aimd_decrease`` /
+    ``aimd_at_minimum`` never reached prod logs under a 429 storm (the C-1 root).
+
+    AIMD only ever calls debug/info/warning, so the correct admission test is
+    whether the logger provides those callables -- not whether it satisfies the
+    full LoggerProtocol. This admits the production DefaultLogProvider path while
+    still rejecting a genuinely logger-less (None) construction.
+    """
+    if logger is None:
+        return None
+    if all(callable(getattr(logger, m, None)) for m in _AIMD_LOGGER_METHODS):
+        return logger  # type: ignore[no-any-return]
+    return None
 
 
 class AsanaHttpClient:
@@ -135,6 +164,11 @@ class AsanaHttpClient:
         # acquire() -> Slot interface, so _request() uses a unified code path.
         if config.concurrency.aimd_enabled:
             cc = config.concurrency
+            # C-3: clamp the configured conservative start window into each
+            # semaphore's [floor, ceiling]. The write ceiling may be lower than
+            # the configured start, so min() keeps the write semaphore valid.
+            read_start = min(cc.aimd_start_window, cc.read_limit)
+            write_start = min(cc.aimd_start_window, cc.write_limit)
             read_aimd_config = AIMDConfig(
                 ceiling=cc.read_limit,
                 floor=cc.aimd_floor,
@@ -144,6 +178,7 @@ class AsanaHttpClient:
                 increase_interval_seconds=cc.aimd_increase_interval_seconds,
                 cooldown_trigger=cc.aimd_cooldown_trigger,
                 cooldown_duration_seconds=cc.aimd_cooldown_duration_seconds,
+                start_window=read_start,
             )
             write_aimd_config = AIMDConfig(
                 ceiling=cc.write_limit,
@@ -154,10 +189,14 @@ class AsanaHttpClient:
                 increase_interval_seconds=cc.aimd_increase_interval_seconds,
                 cooldown_trigger=cc.aimd_cooldown_trigger,
                 cooldown_duration_seconds=cc.aimd_cooldown_duration_seconds,
+                start_window=write_start,
             )
-            semaphore_logger: LoggerProtocol | None = (
-                logger if isinstance(logger, LoggerProtocol) else None
-            )
+            # C-1 (TDD-asr-offer-warmer-durability §6): admit any logger that
+            # provides the debug/info/warning methods AIMD uses, not only those
+            # satisfying the full LoggerProtocol. The deployed DefaultLogProvider
+            # lacks bind() but logs fine; the old isinstance gate nulled it and
+            # left the limiter observability-dark (zero aimd_decrease in prod).
+            semaphore_logger: LoggerProtocol | None = _aimd_observable_logger(logger)
             self._read_semaphore: AsyncAdaptiveSemaphore | FixedSemaphoreAdapter = (
                 AsyncAdaptiveSemaphore(
                     config=read_aimd_config,

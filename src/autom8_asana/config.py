@@ -69,6 +69,45 @@ __all__ = [
 logger = get_logger(__name__)
 
 
+def _env_int(name: str, default: int) -> int:
+    """Read an int from the environment, falling back to ``default``.
+
+    Used for C-3 concurrency tuning knobs so SRE can damp the warm storm without
+    a redeploy. A malformed value falls back to the default rather than crashing
+    the Lambda cold start (and logs a warning for diagnosability).
+    """
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning(
+            "invalid_int_env_override",
+            extra={"env": name, "value": raw, "fallback": default},
+        )
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    """Read a float from the environment, falling back to ``default``.
+
+    Companion to :func:`_env_int` for fractional AIMD knobs (e.g. the
+    multiplicative-decrease factor).
+    """
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning(
+            "invalid_float_env_override",
+            extra={"env": name, "value": raw, "fallback": default},
+        )
+        return default
+
+
 # =============================================================================
 # Environment Accessors
 # =============================================================================
@@ -301,14 +340,35 @@ class ConcurrencyConfig:
     FixedSemaphoreAdapter (kill switch for safe rollback).
     """
 
-    read_limit: int = 50  # Concurrent GET requests (AIMD ceiling)
-    write_limit: int = 15  # Concurrent mutation requests (AIMD ceiling)
+    # C-3 (TDD-asr-offer-warmer-durability §6): the read ceiling and AIMD
+    # aggressiveness are env-overridable so SRE can damp the self-inflicted 429
+    # storm WITHOUT a redeploy. Defaults are lowered from the prior read_limit=50
+    # / decrease=0.5: a cold warm that begins at a 50-wide window blasts the API
+    # before AIMD can react (the proven ROOT-1a self-storm). Env knobs:
+    #   ASANA_CONCURRENCY_READ_LIMIT, ASANA_CONCURRENCY_WRITE_LIMIT,
+    #   ASANA_CONCURRENCY_AIMD_START_WINDOW, ASANA_CONCURRENCY_AIMD_MULT_DECREASE
+    read_limit: int = field(
+        default_factory=lambda: _env_int("ASANA_CONCURRENCY_READ_LIMIT", 12)
+    )  # Concurrent GET requests (AIMD ceiling) -- lowered from 50 (ROOT-1a)
+    write_limit: int = field(
+        default_factory=lambda: _env_int("ASANA_CONCURRENCY_WRITE_LIMIT", 8)
+    )  # Concurrent mutation requests (AIMD ceiling)
 
     # AIMD parameters (all optional, sensible defaults)
     aimd_enabled: bool = True  # Kill switch: False falls back to fixed semaphore
     aimd_floor: int = 1  # Minimum concurrency (>= 1 to prevent deadlock)
-    aimd_multiplicative_decrease: float = 0.5  # Halve on 429 (TCP standard)
+    aimd_multiplicative_decrease: float = field(
+        default_factory=lambda: _env_float("ASANA_CONCURRENCY_AIMD_MULT_DECREASE", 0.4)
+    )  # Sharper than the TCP-standard 0.5 so a storm is damped faster (ROOT-1a)
     aimd_additive_increase: float = 1.0  # +1 on success (TCP standard)
+    # C-3: conservative cold-start window. The semaphore previously began at the
+    # ceiling, so a fresh Lambda link blasted the full ceiling wide on its first
+    # fan-out then halved -- self-inflicting the burst. Starting at a small window
+    # (env: ASANA_CONCURRENCY_AIMD_START_WINDOW) ramps UP additively only when the
+    # API tolerates it, never blasting first. 0 / unset => start at floor-safe min.
+    aimd_start_window: int = field(
+        default_factory=lambda: _env_int("ASANA_CONCURRENCY_AIMD_START_WINDOW", 4)
+    )
     aimd_grace_period_seconds: float = 5.0  # Suppress increases after decrease
     aimd_increase_interval_seconds: float = 2.0  # Min time between increases (FR-007)
     aimd_cooldown_trigger: int = 5  # Consecutive 429s for cooldown warning
@@ -327,6 +387,19 @@ class ConcurrencyConfig:
             raise ConfigurationError("aimd_floor must be <= read_limit and write_limit")
         if not 0.0 < self.aimd_multiplicative_decrease < 1.0:
             raise ConfigurationError("aimd_multiplicative_decrease must be in (0, 1)")
+        # C-3: the cold-start window must sit within [floor, ceiling]. A start
+        # above the ceiling would defeat the conservative ramp; below the floor
+        # would deadlock. Clamp-by-rejection keeps the env override honest.
+        if self.aimd_start_window < self.aimd_floor:
+            raise ConfigurationError(
+                f"aimd_start_window ({self.aimd_start_window}) must be >= aimd_floor "
+                f"({self.aimd_floor})"
+            )
+        if self.aimd_start_window > self.read_limit:
+            raise ConfigurationError(
+                f"aimd_start_window ({self.aimd_start_window}) must be <= read_limit "
+                f"({self.read_limit})"
+            )
 
 
 @dataclass(frozen=True)
