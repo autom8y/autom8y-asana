@@ -59,6 +59,9 @@ Operational agents available on demand. Their commands handle the lifecycle:
 
 Summon: `ari agent summon {name}` then restart CC.
 Dismiss: `ari agent dismiss {name}` then restart CC.
+### Harness Agents
+Cross-harness peer-dispatch agents available via their command:
+- **iris** - Operational bot — executes API integrations against org-ecosystem services -> `/iris`
 <!-- KNOSSOS:END agent-configurations -->
 
 <!-- KNOSSOS:START platform-infrastructure -->
