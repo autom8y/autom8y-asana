@@ -80,6 +80,7 @@ src/smoke_test_report.csv
 .codex/
 .gemini/
 .mcp.json
+.mcp.json.meta
 .opencode/
 # KNOSSOS:END channel-ignores
 
@@ -90,6 +91,12 @@ src/smoke_test_report.csv
 !**/.sos/land/
 !**/.sos/land/**
 **/.ledge/*
+!**/.ledge/reviews/
+!**/.ledge/reviews/**
+!**/.ledge/specs/
+!**/.ledge/specs/**
+!**/.ledge/decisions/
+!**/.ledge/decisions/**
 !**/.ledge/shelf/
 !**/.ledge/shelf/**
 **/.knossos/
