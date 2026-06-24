@@ -51,6 +51,7 @@ from autom8_asana.lambda_handlers.cloudwatch import (
     emit_metric,
     emit_warmer_coverage_rate,
 )
+from autom8_asana.lambda_handlers.offer_warm_amp import emit_offer_warm_complete
 from autom8_asana.lambda_handlers.pipeline_stage_aggregator import (
     _aggregate_pipeline_stages,
 )
@@ -578,6 +579,10 @@ async def _prematerialize_bulk_set_async(
                 if status.result == WarmResult.SUCCESS:
                     completed_tokens.append(token)
                     emit_metric("WarmSuccess", 1, dimensions={"entity_type": entity_type})
+                    # node-1: per-entity OfferWarmComplete -> AMP (SUCCESS-only,
+                    # last-write-wins gauge). Emitted on the materialized SUCCESS
+                    # gate so a silent drop fails the two-sided canary.
+                    emit_offer_warm_complete(entity_type)
                     emit_metric(
                         "RowsWarmed",
                         status.row_count,
@@ -947,6 +952,10 @@ async def _warm_cache_async(
                             1,
                             dimensions={"entity_type": entity_type},
                         )
+                        # node-1: per-entity OfferWarmComplete -> AMP
+                        # (SUCCESS-only, last-write-wins gauge). On the warm
+                        # SUCCESS gate so a silent drop fails the canary.
+                        emit_offer_warm_complete(entity_type)
                         emit_metric(
                             "WarmDuration",
                             entity_duration_ms,
