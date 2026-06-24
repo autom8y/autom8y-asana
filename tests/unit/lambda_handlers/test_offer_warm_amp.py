@@ -481,9 +481,7 @@ class TestPrematerializeBulkSetSuccessGateWiring:
         """
         from autom8_asana.cache.dataframe.warmer import WarmResult, WarmStatus
 
-        success = WarmStatus(
-            entity_type="offer", result=WarmResult.SUCCESS, row_count=10
-        )
+        success = WarmStatus(entity_type="offer", result=WarmResult.SUCCESS, row_count=10)
         mock_emit = await self._drive_bulk_warm(success)()
         mock_emit.assert_called_once_with("offer")
 
@@ -491,8 +489,6 @@ class TestPrematerializeBulkSetSuccessGateWiring:
         """REAL bulk FAILURE path must NOT route through emit_offer_warm_complete."""
         from autom8_asana.cache.dataframe.warmer import WarmResult, WarmStatus
 
-        failure = WarmStatus(
-            entity_type="offer", result=WarmResult.FAILURE, error="boom"
-        )
+        failure = WarmStatus(entity_type="offer", result=WarmResult.FAILURE, error="boom")
         mock_emit = await self._drive_bulk_warm(failure)()
         mock_emit.assert_not_called()
