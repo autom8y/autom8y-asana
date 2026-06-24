@@ -353,3 +353,146 @@ class TestCacheWarmerSuccessGateWiring:
         failure = WarmStatus(entity_type="offer", result=WarmResult.FAILURE, error="boom")
         mock_emit = await self._drive_warm(failure)()
         mock_emit.assert_not_called()
+
+
+class TestPrematerializeBulkSetSuccessGateWiring:
+    """End-to-end: the REAL bulk/checkpoint-resume loop calls the emit ONLY on SUCCESS.
+
+    Companion to :class:`TestCacheWarmerSuccessGateWiring`, which covers the
+    ``_warm_cache_async`` per-entity loop SUCCESS gate (cache_warmer.py:958). THIS
+    class covers the SECOND, independent SUCCESS call site: the
+    ``_prematerialize_bulk_set_async`` bulk/checkpoint-resume loop SUCCESS gate
+    (cache_warmer.py:585). That path is the generic continuation-driven coroutine
+    any offer warmed via the bulk/resume lane flows through; before this test it
+    had NO discriminating coverage (commenting out the :585 emit alone left the
+    canary fully GREEN).
+
+    The bulk coroutine is keyed off an injected ``key_source``; here it yields a
+    single ``("project-585", "offer")`` key so the SUCCESS branch decodes
+    ``entity_type="offer"`` and MUST route through
+    ``emit_offer_warm_complete("offer")``. ``warm_key_async`` is mocked to return a
+    chosen ``WarmResult`` so only the loop body runs.
+
+    Deleting the production emit line at the :585 SUCCESS gate makes
+    ``test_real_bulk_success_path_emits`` go RED -- the production-wiring
+    discrimination twin for the :585 site (G-THEATER).
+    """
+
+    @staticmethod
+    def _drive_bulk_warm(monkey_result):
+        """Run _prematerialize_bulk_set_async for a single 'offer' key.
+
+        Injects a one-key ``key_source`` (``("project-585", "offer")``) and mocks
+        ``warm_key_async`` -> ``monkey_result``. Returns the AsyncMock patching
+        ``emit_offer_warm_complete`` so the caller asserts call/no-call. All
+        external surfaces (cache, settings/bucket, PAT, workspace gid, client,
+        warmer, checkpoint) are mocked so only the loop body runs.
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from autom8_asana.lambda_handlers.cache_warmer import (
+            _prematerialize_bulk_set_async,
+        )
+
+        mock_cache = MagicMock()
+
+        mock_warmer = MagicMock()
+        mock_warmer.warm_key_async = AsyncMock(return_value=monkey_result)
+
+        mock_settings = MagicMock()
+        mock_settings.s3.bucket = "test-bucket"
+
+        class _FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+        # The single injected bulk key. The bulk loop encodes/decodes
+        # (gid, entity_type) tokens; this key decodes to entity_type="offer" so the
+        # SUCCESS branch must emit with the verbatim warmed entity.
+        def _offer_key_source():
+            return [("project-585", "offer")]
+
+        async def _run():
+            with (
+                patch.dict(
+                    "os.environ",
+                    {"ASANA_WORKSPACE_GID": "ws-123"},
+                    clear=True,
+                ),
+                patch(
+                    "autom8_asana.cache.dataframe.factory.get_dataframe_cache",
+                    return_value=mock_cache,
+                ),
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer.get_settings",
+                    return_value=mock_settings,
+                ),
+                patch(
+                    "autom8_asana.auth.bot_pat.get_bot_pat",
+                    return_value="test-pat",
+                ),
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer.resolve_secret_from_env",
+                    return_value="ws-123",
+                ),
+                patch(
+                    "autom8_asana.lambda_handlers.checkpoint.CheckpointManager.load_async",
+                    new_callable=AsyncMock,
+                    return_value=None,
+                ),
+                patch(
+                    "autom8_asana.lambda_handlers.checkpoint.CheckpointManager.save_async",
+                    new_callable=AsyncMock,
+                ),
+                patch(
+                    "autom8_asana.lambda_handlers.checkpoint.CheckpointManager.clear_async",
+                    new_callable=AsyncMock,
+                ),
+                patch(
+                    "autom8_asana.AsanaClient",
+                    return_value=_FakeClient(),
+                ),
+                patch(
+                    "autom8_asana.cache.dataframe.warmer.CacheWarmer",
+                    return_value=mock_warmer,
+                ),
+                patch(
+                    "autom8_asana.lambda_handlers.cache_warmer.emit_offer_warm_complete"
+                ) as mock_emit,
+            ):
+                await _prematerialize_bulk_set_async(
+                    resume_from_checkpoint=False,
+                    key_source=_offer_key_source,
+                )
+                return mock_emit
+
+        return _run
+
+    async def test_real_bulk_success_path_emits(self) -> None:
+        """REAL bulk SUCCESS path routes through emit_offer_warm_complete('offer').
+
+        RED twin: comment out ``emit_offer_warm_complete(entity_type)`` at the
+        ``_prematerialize_bulk_set_async`` SUCCESS gate (cache_warmer.py:585) and
+        this assertion fails (zero calls) -- proving the test bites the :585 site
+        specifically, the gap the :958 canary did not cover.
+        """
+        from autom8_asana.cache.dataframe.warmer import WarmResult, WarmStatus
+
+        success = WarmStatus(
+            entity_type="offer", result=WarmResult.SUCCESS, row_count=10
+        )
+        mock_emit = await self._drive_bulk_warm(success)()
+        mock_emit.assert_called_once_with("offer")
+
+    async def test_real_bulk_failure_path_does_not_emit(self) -> None:
+        """REAL bulk FAILURE path must NOT route through emit_offer_warm_complete."""
+        from autom8_asana.cache.dataframe.warmer import WarmResult, WarmStatus
+
+        failure = WarmStatus(
+            entity_type="offer", result=WarmResult.FAILURE, error="boom"
+        )
+        mock_emit = await self._drive_bulk_warm(failure)()
+        mock_emit.assert_not_called()
