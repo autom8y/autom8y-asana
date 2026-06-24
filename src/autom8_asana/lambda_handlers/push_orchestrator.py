@@ -205,3 +205,24 @@ async def _push_account_status_for_completed_entities(
                 "invocation_id": invocation_id,
             },
         )
+    else:
+        # Empty denominator: every warmed entity contributed zero status
+        # entries (the three-way reconciler denominator is null on this run).
+        # Previously this branch was metric-silent, making a benign idle run
+        # indistinguishable from a misconfigured one. Per SRE observability-
+        # design N1 §B-1 (AI-4): emit StatusPushSkipped{three_way_denominator_null}.
+        # Additive observability only -- no push behavior change.
+        emit_metric(
+            "StatusPushSkipped",
+            1,
+            dimensions={"skip_reason": "three_way_denominator_null"},
+            namespace="Autom8y/AsanaBridgeFleet",
+        )
+        logger.info(
+            "status_push_skipped",
+            extra={
+                "reason": "three_way_denominator_null",
+                "entry_count": 0,
+                "invocation_id": invocation_id,
+            },
+        )
