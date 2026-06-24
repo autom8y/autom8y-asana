@@ -13,7 +13,25 @@ import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from autom8_asana.automation.workflows.base import WorkflowResult
+
+
+@pytest.fixture(autouse=True)
+def _neutralize_service_token_provider():
+    """W-AUTH: the handler now injects ServiceTokenAuthProvider() into
+    DataServiceClient (workflow_handler.py _execute). These tests mock the
+    client/workflow level and run with no SERVICE_CLIENT_ID/SECRET in the env,
+    so a real provider construction would raise ValueError and 500 the handler.
+    No-op the provider constructor; the injection contract is owned by
+    test_workflow_handler_auth_injection.py.
+    """
+    from autom8_asana.auth.service_token import ServiceTokenAuthProvider
+
+    with patch.object(ServiceTokenAuthProvider, "__init__", lambda self, *a, **k: None):
+        yield
+
 
 # ---------------------------------------------------------------------------
 # Helpers

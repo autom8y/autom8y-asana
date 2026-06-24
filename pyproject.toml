@@ -20,7 +20,7 @@ dependencies = [
     "autom8y-config>=2.0.1", # Pin to 2.0.1+ for IPv4 loopback fix (INCIDENT 2026-04-28 Lambda extension)
     "autom8y-http[otel]>=0.6.0",
     "autom8y-cache>=0.4.0", # Per TDD-GID-RESOLUTION-SERVICE: HierarchyAwareResolver + schema versioning
-    "autom8y-log>=0.5.6",
+    "autom8y-log>=0.7.0", # 0.7.0+ exports sanitize_log_extra() for reserved LogRecord key safety in DefaultLogProvider
     "opentelemetry-instrumentation-httpx>=0.42b0", # W3C traceparent auto-propagation on outbound httpx calls
     "autom8y-core>=4.2.0,<5.0.0",
     # Platform observability (PRD-PLATFORM-OBSERVABILITY-STD M3.3)
@@ -29,7 +29,14 @@ dependencies = [
     # (instrument_app wiring in api/main.py — denominator-scoped SLI selection)
     # FOI S2 WS-B2: 0.10.0+ inherits the autom8y_build_info emitting-floor (#456)
     # and RemoteWriteConfig (0.9.0) by construction at the instrument_app seam.
-    "autom8y-telemetry[aws,fastapi,otlp]>=0.10.0",
+    # remote-write: pulls python-snappy>=0.7 (BLOCK-snappy compression of the
+    # Prometheus WriteRequest) so the offer-warm AMP remote-write emit succeeds.
+    # Mirrors ASR/autom8y-telemetry's canonical [remote-write] extra; without it
+    # the warmer image shipped without snappy and the emit failed with
+    # ModuleNotFoundError: No module named 'snappy' (offer-axis node-0 root cause).
+    # python-snappy 0.7.x is a pure-Python wheel delegating to cramjam (Rust,
+    # self-contained manylinux2014 cp312 x86_64 wheel) -- no libsnappy system pkg.
+    "autom8y-telemetry[aws,fastapi,otlp,remote-write]>=0.10.0",
     "boto3>=1.42.19", # S3 for progressive cache warming (asyncio.to_thread)
     "pyyaml>=6.0.0", # YAML config parsing (lifecycle, automation, query/saved)
     "openpyxl>=3.1.0,<4.0", # Excel workbook generation (payment reconciliation bridge)
@@ -85,7 +92,7 @@ dev = [
     "boto3-stubs[secretsmanager]>=1.34.0", # Type stubs for boto3
     "autom8y-auth[observability]>=3.3.0",  # Required for test_auth tests (S2 UC-1/2/3)
     # SDK testing subpackages (per TDD-SDK-TESTING-ADOPTION)
-    "autom8y-log[testing]>=0.5.6",
+    "autom8y-log[testing]>=0.7.0",
     "autom8y-cache[testing]>=0.4.0",
     "autom8y-http[testing]>=0.6.0",
     "autom8y-config[testing]>=2.0.1",
