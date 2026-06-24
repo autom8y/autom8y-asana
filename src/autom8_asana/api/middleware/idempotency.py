@@ -472,17 +472,61 @@ def _is_eligible(method: str, path: str) -> str | None:
 
 
 def _get_service_name(request: Request) -> str:
-    """Extract service name from auth context or JWT claims.
+    """Resolve the strict-once S2S discriminator from the verified JWT claims.
 
-    Falls back to "unknown" if not available (graceful for tests
-    and unauthenticated requests).
+    PRODUCTION WIRING (the load-bearing fact this function depends on):
+    the fleet ``JWTAuthMiddleware`` (autom8y_auth/middleware.py) runs BEFORE
+    this idempotency middleware and, on a successful S2S/JWT validation,
+    populates ``request.state.claims`` (a ``ServiceClaims`` Pydantic object)
+    and ``request.state.claims_dict`` (its ``model_dump()``). It does NOT set
+    ``request.state.auth_context`` — that attribute is never written anywhere
+    in production. Reading it (the prior implementation) therefore ALWAYS
+    yielded ``_DEFAULT_SERVICE`` for real S2S callers, silently disabling the
+    R-IDEM-2 strict-once 500 gate. We now re-source from ``request.state.claims``.
+
+    Canonical SA-identity fields (same precedence rate_limit.py uses for the
+    SA rate-limit namespace — ``service_account_id`` then ``client_id`` — see
+    rate_limit.py module docstring and ``_decode_jwt_sa_identity``):
+
+      1. ``service_account_id`` (canonical sa.yaml_id). Read from the dumped
+         ``claims_dict`` for forward-compat: the validated ``ServiceClaims``
+         model declares ``extra="ignore"`` and has no ``service_account_id``
+         field today, so this survives only if a future claims model preserves
+         it. Kept first so this code tracks rate_limit.py's canonical ordering.
+      2. ``client_id`` (sa.client_id). A real ``ServiceClaims`` field, present
+         on ServiceAccount tokens — survives JWT validation.
+      3. ``service_name`` property / ``sub`` (the SA UUID). Stable identity
+         carrier of last resort.
+
+    The PRESENCE of a verified ``request.state.claims`` IS the S2S signal by
+    construction: the fleet middleware only sets it after a JWT validates on a
+    protected path. Any returned value other than ``_DEFAULT_SERVICE`` makes
+    the caller strict-once at the finalize gate. PAT/human and unauthenticated
+    callers (no ``claims``) resolve to ``_DEFAULT_SERVICE``.
     """
-    # Check request state for auth context (set by auth middleware)
-    auth_ctx = getattr(request.state, "auth_context", None)
-    if auth_ctx is not None:
-        svc: str | None = getattr(auth_ctx, "caller_service", None)
-        if svc:
-            return svc
+    claims = getattr(request.state, "claims", None)
+    if claims is None:
+        return _DEFAULT_SERVICE
+
+    # 1. service_account_id (canonical) — read from the dumped dict if the
+    #    middleware populated it (validated model drops it under extra=ignore;
+    #    this honors rate_limit.py's canonical-first ordering for forward-compat).
+    claims_dict = getattr(request.state, "claims_dict", None)
+    if isinstance(claims_dict, dict):
+        sa_id = claims_dict.get("service_account_id")
+        if isinstance(sa_id, str) and sa_id:
+            return sa_id
+
+    # 2. client_id — a real ServiceClaims field, present on ServiceAccount tokens.
+    client_id = getattr(claims, "client_id", None)
+    if isinstance(client_id, str) and client_id:
+        return client_id
+
+    # 3. service_name property / sub — the SA UUID, stable identity of last resort.
+    svc = getattr(claims, "service_name", None)
+    if isinstance(svc, str) and svc:
+        return svc
+
     return _DEFAULT_SERVICE
 
 
@@ -757,10 +801,13 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                 },
             )
             # R-IDEM-2 (HARD): a strict-once S2S caller MUST NOT receive a 2xx
-            # with an unpersisted key. caller_service presence (service_name !=
-            # _DEFAULT_SERVICE) is the strict-once discriminator -- a JWT service
-            # claim IS an S2S caller by construction; PAT/human callers resolve
-            # to _DEFAULT_SERVICE. The response body was buffered above (F-2), so
+            # with an unpersisted key. The strict-once discriminator is the
+            # presence of a verified JWT on request.state.claims, re-sourced by
+            # _get_service_name (service_name != _DEFAULT_SERVICE) -- the fleet
+            # JWTAuthMiddleware only sets request.state.claims after a JWT
+            # validates, so a non-default service_name IS an S2S caller by
+            # construction; PAT/human/unauthenticated callers resolve to
+            # _DEFAULT_SERVICE. The response body was buffered above (F-2), so
             # the 2xx has not yet reached the client -- retraction is sound.
             #
             # The processing sentinel written at claim() remains in the store

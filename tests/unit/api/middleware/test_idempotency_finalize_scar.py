@@ -46,10 +46,17 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
+from autom8y_auth.claims import ServiceClaims
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
-from autom8_asana.api.dependencies import AuthContext, AuthMode
+from autom8_asana.api.dependencies import (
+    AuthContext,
+    AuthContextDep,
+    AuthMode,
+    get_auth_context,
+)
 from autom8_asana.api.middleware.idempotency import (
     IdempotencyMiddleware,
     InMemoryIdempotencyStore,
@@ -65,7 +72,13 @@ _MIDDLEWARE_LOGGER_PATH = "autom8_asana.api.middleware.idempotency.logger"
 _METRIC_PATCH_PATH = "autom8_asana.api.middleware.idempotency.emit_metric"
 
 # A strict-once S2S caller is discriminated by JWT service_name presence.
+# The fleet JWTAuthMiddleware sets request.state.claims after a JWT validates;
+# the canonical SA identity carried into the metric is service_account_id (or
+# client_id). _S2S_SERVICE is the service_account_id the prod-wired fixture
+# stamps onto the validated ServiceClaims (mirrors rate_limit.py's canonical).
 _S2S_SERVICE = "autom8y-data"
+_S2S_CLIENT_ID = "client-autom8y-data-0001"
+_S2S_SUB = "sa-uuid-autom8y-data"
 
 
 class _ExecutionCounter:
@@ -75,24 +88,70 @@ class _ExecutionCounter:
         self.count = 0
 
 
+class _JWTClaimsMiddleware(BaseHTTPMiddleware):
+    """Production-representative stand-in for the fleet ``JWTAuthMiddleware``.
+
+    The real ``autom8y_auth.middleware.JWTAuthMiddleware`` validates the JWT and
+    sets ``request.state.claims`` (a ``ServiceClaims`` Pydantic object) plus
+    ``request.state.claims_dict`` (its ``model_dump()``) — and runs BEFORE the
+    idempotency middleware. It NEVER sets ``request.state.auth_context``. This
+    fixture middleware reproduces exactly that surface so the test exercises the
+    real discriminator path. ``service_account_id`` is injected into the dumped
+    dict (the validated model drops it under ``extra="ignore"``, mirroring the
+    forward-compat read in ``_get_service_name`` step 1).
+    """
+
+    def __init__(self, app: Any, *, claims: ServiceClaims, service_account_id: str | None) -> None:
+        super().__init__(app)
+        self._claims = claims
+        self._service_account_id = service_account_id
+
+    async def dispatch(self, request: Request, call_next: Any) -> Any:
+        request.state.claims = self._claims
+        dumped = self._claims.model_dump()
+        if self._service_account_id is not None:
+            # Mirror the raw-JWT canonical SA claim the auth service emits.
+            dumped["service_account_id"] = self._service_account_id
+        request.state.claims_dict = dumped
+        return await call_next(request)
+
+
 def _create_app(
     store: InMemoryIdempotencyStore,
     *,
     caller_service: str | None = None,
     counter: _ExecutionCounter | None = None,
 ) -> FastAPI:
-    """Build an app whose /v1/intake/business handler is idempotency-wrapped.
+    """Build an app wired the way PRODUCTION wires it.
 
-    If ``caller_service`` is provided, an inner middleware injects an
-    ``AuthContext`` onto ``request.state`` so the idempotency middleware's
-    ``_get_service_name`` returns that service (S2S strict-once). When ``None``,
-    no auth_context is set -> ``_get_service_name`` returns ``_DEFAULT_SERVICE``
-    (PAT/human, non-strict-once).
+    Production wiring (the teeth the prior fixture lacked):
+      * Auth is a route dependency ``Depends(get_auth_context)`` returning an
+        ``AuthContext`` — exactly as production routes declare it. The dependency
+        return value is NOT written to ``request.state`` (this is the defect
+        surface: the idempotency middleware cannot see a Depends return).
+      * When ``caller_service`` is provided, a ``JWTAuthMiddleware``-equivalent
+        (``_JWTClaimsMiddleware``) runs OUTSIDE the idempotency middleware and
+        sets ``request.state.claims`` (+ ``claims_dict``) — NOT
+        ``request.state.auth_context``. This is the production discriminator
+        surface. The idempotency middleware must re-source from ``claims``.
+      * When ``caller_service`` is ``None``, no claims middleware is added — the
+        PAT/human/unauthenticated path. ``_get_service_name`` -> ``_DEFAULT_SERVICE``.
+
+    Middleware order (outer -> inner): _JWTClaimsMiddleware, IdempotencyMiddleware.
+    add_middleware stacks LIFO, so the claims middleware (added last) is outermost
+    and runs first — exactly the fleet ordering (auth before idempotency).
     """
     app = FastAPI()
 
     @app.post("/v1/intake/business")
-    async def create_business(request: Request) -> JSONResponse:
+    async def create_business(
+        request: Request,
+        # Production routes resolve the caller via this dependency alias
+        # (Annotated[AuthContext, Depends(get_auth_context)]). It returns an
+        # AuthContext but does NOT set request.state.auth_context — exactly the
+        # production idiom (see api/routes/admin.py, fleet_query.py).
+        auth: AuthContextDep,
+    ) -> JSONResponse:
         if counter is not None:
             counter.count += 1
         body = await request.json()
@@ -104,18 +163,36 @@ def _create_app(
             },
         )
 
+    # The route's get_auth_context dependency would otherwise hit the real JWT
+    # validator. Override it to return a representative AuthContext for the S2S
+    # caller (JWT) or a PAT caller — this mirrors a validated request WITHOUT
+    # writing to request.state, preserving the defect surface exactly.
+    async def _override_auth_context() -> AuthContext:
+        return AuthContext(
+            mode=AuthMode.JWT if caller_service is not None else AuthMode.PAT,
+            asana_pat="pat-test",
+            caller_service=caller_service,
+        )
+
+    app.dependency_overrides[get_auth_context] = _override_auth_context
+
     app.add_middleware(IdempotencyMiddleware, store=store)
 
     if caller_service is not None:
-        # Outermost: sets auth_context BEFORE the idempotency middleware reads it.
-        @app.middleware("http")
-        async def _inject_auth_context(request: Request, call_next: Any) -> Any:
-            request.state.auth_context = AuthContext(
-                mode=AuthMode.JWT,
-                asana_pat="pat-test",
-                caller_service=caller_service,
-            )
-            return await call_next(request)
+        # Outermost: a JWTAuthMiddleware-equivalent that sets request.state.claims
+        # (the production surface) BEFORE the idempotency middleware runs.
+        claims = ServiceClaims(
+            sub=_S2S_SUB,
+            iss="https://auth.autom8y.io",
+            exp=9999999999,
+            iat=1,
+            client_id=_S2S_CLIENT_ID,
+        )
+        app.add_middleware(
+            _JWTClaimsMiddleware,
+            claims=claims,
+            service_account_id=caller_service,
+        )
 
     return app
 
