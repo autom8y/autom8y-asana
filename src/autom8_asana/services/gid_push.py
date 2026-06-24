@@ -19,11 +19,43 @@ from autom8y_log import get_logger
 from pydantic import BaseModel, ConfigDict
 
 from autom8_asana.clients.data._pii import mask_pii_in_string
+from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 
 if TYPE_CHECKING:
     from autom8_asana.services.gid_lookup import GidLookupIndex
 
 logger = get_logger(__name__)
+
+# Shared bridge observability namespace (NOT the per-service default
+# autom8/lambda). Per SRE observability-design N1 §B-1 / §G-PROPAGATE: the
+# StatusPushSkipped skip-reason contract belongs to the shared bridge fleet
+# namespace so every bridge workflow inherits it uniformly.
+_BRIDGE_FLEET_NAMESPACE = "Autom8y/AsanaBridgeFleet"
+
+# StatusPushSkipped skip_reason dimension values (closed enum).
+# Every StatusPush skip path emits StatusPushSkipped{skip_reason=...} so an
+# idle skip (benign) and a misconfigured skip (url_absent / invalid_key) are
+# distinguishable in CloudWatch. Additive observability only -- emitting this
+# counter MUST NOT change push behavior (return values are unchanged).
+SKIP_REASON_FEATURE_DISABLED = "feature_disabled"
+SKIP_REASON_URL_ABSENT = "url_absent"
+SKIP_REASON_INVALID_KEY = "invalid_key"
+SKIP_REASON_THREE_WAY_DENOMINATOR_NULL = "three_way_denominator_null"
+
+
+def _emit_status_push_skipped(skip_reason: str) -> None:
+    """Emit StatusPushSkipped{skip_reason} to the shared bridge namespace.
+
+    Non-blocking: emit_metric() already swallows CloudWatch errors internally
+    so observability never fails the push seam.
+    """
+    emit_metric(
+        "StatusPushSkipped",
+        1,
+        dimensions={"skip_reason": skip_reason},
+        namespace=_BRIDGE_FLEET_NAMESPACE,
+    )
+
 
 # Environment variable to disable GID push (emergency kill switch).
 # Enabled by default; set to "false", "0", or "no" to disable.
@@ -493,6 +525,7 @@ async def push_status_to_data_service(
             "status_push_disabled",
             extra={"reason": f"{STATUS_PUSH_ENABLED_ENV_VAR} is false"},
         )
+        _emit_status_push_skipped(SKIP_REASON_FEATURE_DISABLED)
         return False
 
     base_url = data_service_url or _get_data_service_url()
@@ -501,6 +534,7 @@ async def push_status_to_data_service(
             "status_push_skipped",
             extra={"reason": "AUTOM8Y_DATA_URL not configured"},
         )
+        _emit_status_push_skipped(SKIP_REASON_URL_ABSENT)
         return False
 
     token = auth_token or _get_auth_token()
@@ -509,6 +543,7 @@ async def push_status_to_data_service(
             "status_push_skipped",
             extra={"reason": "AUTOM8Y_DATA_API_KEY not available"},
         )
+        _emit_status_push_skipped(SKIP_REASON_INVALID_KEY)
         return False
 
     if not entries:
