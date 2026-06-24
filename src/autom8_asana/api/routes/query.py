@@ -16,7 +16,6 @@ Authentication:
 
 from __future__ import annotations
 
-import os
 import time
 from typing import Annotated, Any, Never
 
@@ -745,23 +744,6 @@ async def query_aggregate(
 # Deprecated endpoint (sunset 2026-06-01)
 # ---------------------------------------------------------------------------
 
-# FORK-1 retire canary (api/main.py:470 mount). Evidence: 0
-# `deprecated_query_endpoint_used` hits on the live ECS group since 2026-06-01
-# (N1 §D). Retire executes as 410-canary-then-unmount: flip this flag to make
-# the still-mounted route return 410 Gone (and stop logging the deprecated
-# marker) for one cadence, watch ECS 4xx + the marker count stay 0, THEN remove
-# the mount. Reversible: unset the env var to restore the route.
-_LEGACY_QUERY_410_ENV_VAR = "QUERY_LEGACY_410_GONE"
-
-
-def _legacy_query_410_armed() -> bool:
-    """Whether the FORK-1 410 retire canary is armed for the legacy endpoint."""
-    return os.environ.get(_LEGACY_QUERY_410_ENV_VAR, "").lower() in {
-        "true",
-        "1",
-        "yes",
-    }
-
 
 @router.post(
     "/{entity_type}",
@@ -780,36 +762,6 @@ async def query_entities(
     entity_service: EntityServiceDep,
 ) -> JSONResponse:
     """Query entities from DataFrame cache (deprecated -- use /rows)."""
-    # FORK-1 410 retire canary: when armed, the route is reachable but dead.
-    # Returns 410 Gone WITHOUT logging deprecated_query_endpoint_used so the
-    # operator can watch that count stay 0 during the canary window.
-    if _legacy_query_410_armed():
-        logger.info(
-            "deprecated_query_endpoint_410_canary",
-            extra={
-                "request_id": request_id,
-                "entity_type": entity_type,
-                "caller_service": claims.service_name,
-            },
-        )
-        return JSONResponse(
-            status_code=410,
-            content={
-                "error": {
-                    "code": "ENDPOINT_RETIRED",
-                    "message": (
-                        f"POST /v1/query/{entity_type} is retired. Use "
-                        f"POST /v1/query/{entity_type}/rows."
-                    ),
-                },
-            },
-            headers={
-                "Deprecation": "true",
-                "Sunset": "2026-06-01",
-                "Link": f'</v1/query/{entity_type}/rows>; rel="successor-version"',
-            },
-        )
-
     start_time = time.monotonic()
 
     logger.info(
