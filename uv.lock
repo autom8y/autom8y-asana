@@ -233,7 +233,7 @@ requires-dist = [
     { name = "autom8y-events", marker = "extra == 'events'", specifier = ">=1.2.0,<2.0.0" },
     { name = "autom8y-http", extras = ["otel"], specifier = ">=0.6.0" },
     { name = "autom8y-http", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=0.6.0" },
-    { name = "autom8y-log", specifier = ">=0.5.6" },
+    { name = "autom8y-log", specifier = ">=0.5.6,<1.0.0" },
     { name = "autom8y-log", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=0.5.6" },
     { name = "autom8y-telemetry", extras = ["aws", "fastapi", "otlp"], specifier = ">=0.10.0" },
     { name = "awslambdaric", marker = "extra == 'lambda'", specifier = ">=2.2.0" },
@@ -416,16 +416,16 @@ testing = [
 
 [[package]]
 name = "autom8y-log"
-version = "0.6.0"
+version = "0.7.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-config" },
     { name = "autom8y-core" },
     { name = "structlog" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.6.0/autom8y_log-0.6.0.tar.gz", hash = "sha256:62f10dbb2ddfb679cc07e44b99ff061ecab096235c5c773dc4fa7e8551367a4f" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.7.0/autom8y_log-0.7.0.tar.gz", hash = "sha256:34be4c1c6050f60d5cd7a5a08d572241ee23e276ee10ce653c7058804c6cd88a", upload-time = "2026-06-24T13:35:33.554Z" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.6.0/autom8y_log-0.6.0-py3-none-any.whl", hash = "sha256:b00f33e535bc1ea72a50402d58665c4da4bdca651b579a59c5becafb85d628a8" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.7.0/autom8y_log-0.7.0-py3-none-any.whl", hash = "sha256:1123bfedd82bee19b5b2633205098375538118c75a265aabe3aec54b2f73c46c", upload-time = "2026-06-24T13:35:33.271Z" },
 ]
 
 [package.optional-dependencies]
