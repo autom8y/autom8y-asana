@@ -36,6 +36,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.responses import Response
 
 from autom8_asana.core.logging import get_logger
+from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 
 if TYPE_CHECKING:
     from fastapi import Request
@@ -471,17 +472,61 @@ def _is_eligible(method: str, path: str) -> str | None:
 
 
 def _get_service_name(request: Request) -> str:
-    """Extract service name from auth context or JWT claims.
+    """Resolve the strict-once S2S discriminator from the verified JWT claims.
 
-    Falls back to "unknown" if not available (graceful for tests
-    and unauthenticated requests).
+    PRODUCTION WIRING (the load-bearing fact this function depends on):
+    the fleet ``JWTAuthMiddleware`` (autom8y_auth/middleware.py) runs BEFORE
+    this idempotency middleware and, on a successful S2S/JWT validation,
+    populates ``request.state.claims`` (a ``ServiceClaims`` Pydantic object)
+    and ``request.state.claims_dict`` (its ``model_dump()``). It does NOT set
+    ``request.state.auth_context`` — that attribute is never written anywhere
+    in production. Reading it (the prior implementation) therefore ALWAYS
+    yielded ``_DEFAULT_SERVICE`` for real S2S callers, silently disabling the
+    R-IDEM-2 strict-once 500 gate. We now re-source from ``request.state.claims``.
+
+    Canonical SA-identity fields (same precedence rate_limit.py uses for the
+    SA rate-limit namespace — ``service_account_id`` then ``client_id`` — see
+    rate_limit.py module docstring and ``_decode_jwt_sa_identity``):
+
+      1. ``service_account_id`` (canonical sa.yaml_id). Read from the dumped
+         ``claims_dict`` for forward-compat: the validated ``ServiceClaims``
+         model declares ``extra="ignore"`` and has no ``service_account_id``
+         field today, so this survives only if a future claims model preserves
+         it. Kept first so this code tracks rate_limit.py's canonical ordering.
+      2. ``client_id`` (sa.client_id). A real ``ServiceClaims`` field, present
+         on ServiceAccount tokens — survives JWT validation.
+      3. ``service_name`` property / ``sub`` (the SA UUID). Stable identity
+         carrier of last resort.
+
+    The PRESENCE of a verified ``request.state.claims`` IS the S2S signal by
+    construction: the fleet middleware only sets it after a JWT validates on a
+    protected path. Any returned value other than ``_DEFAULT_SERVICE`` makes
+    the caller strict-once at the finalize gate. PAT/human and unauthenticated
+    callers (no ``claims``) resolve to ``_DEFAULT_SERVICE``.
     """
-    # Check request state for auth context (set by auth middleware)
-    auth_ctx = getattr(request.state, "auth_context", None)
-    if auth_ctx is not None:
-        svc: str | None = getattr(auth_ctx, "caller_service", None)
-        if svc:
-            return svc
+    claims = getattr(request.state, "claims", None)
+    if claims is None:
+        return _DEFAULT_SERVICE
+
+    # 1. service_account_id (canonical) — read from the dumped dict if the
+    #    middleware populated it (validated model drops it under extra=ignore;
+    #    this honors rate_limit.py's canonical-first ordering for forward-compat).
+    claims_dict = getattr(request.state, "claims_dict", None)
+    if isinstance(claims_dict, dict):
+        sa_id = claims_dict.get("service_account_id")
+        if isinstance(sa_id, str) and sa_id:
+            return sa_id
+
+    # 2. client_id — a real ServiceClaims field, present on ServiceAccount tokens.
+    client_id = getattr(claims, "client_id", None)
+    if isinstance(client_id, str) and client_id:
+        return client_id
+
+    # 3. service_name property / sub — the SA UUID, stable identity of last resort.
+    svc = getattr(claims, "service_name", None)
+    if isinstance(svc, str) and svc:
+        return svc
+
     return _DEFAULT_SERVICE
 
 
@@ -701,22 +746,28 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
         if "content-type" in response.headers:
             stored_headers["content-type"] = response.headers["content-type"]
 
-        # 8. Finalize the key with the actual response
+        # 8. Finalize the key with the actual response.
+        #
+        # SCAR-IDEM-001 / W-IDEM (ADR-omniscience-idempotency Section 3.7):
+        # finalize() returns a bool -- the real DynamoDBIdempotencyStore swallows
+        # its own DynamoDB failures internally (``except Exception: ... return
+        # False``); InMemoryIdempotencyStore returns False when the key is
+        # absent. The earlier remediation DISCARDED this bool, so a finalize
+        # failure was observable (logged) but never propagated. We now READ the
+        # bool. The try/except remains as a defensive guard for a store that
+        # RAISES (rather than returning False) -- a raise is treated identically
+        # to ``finalize() -> False`` (both mean "key NOT persisted"). We do NOT
+        # widen the catch to BaseException: asyncio.CancelledError must continue
+        # to propagate so request cancellation semantics are preserved.
         try:
-            await self.store.finalize(
+            finalized = await self.store.finalize(
                 pk=pk,
                 sk=sk,
                 response_status=response.status_code,
                 response_body=response_body,
                 response_headers=stored_headers,
             )
-            logger.info(
-                "idempotency_key_stored",
-                key=key,
-                endpoint=path_template,
-                status=response.status_code,
-            )
-        except Exception:  # noqa: BLE001 — SCAR-IDEM-001: VERIFY-BEFORE-PROD — finalize failure means key NOT persisted; a client retry will re-execute the mutation (double-execution risk). Acceptable only if: (a) DynamoDBIdempotencyStore.finalize() already logs at warning with exc_info, AND (b) the upstream caller is a human or idempotent system. For S2S callers with strict-once semantics this must be promoted to an error metric. See ADR-omniscience-idempotency Section 3.7.
+        except Exception:  # noqa: BLE001 — a store that RAISES (vs returning False) is treated as a finalize failure; the bool-checking branch below handles both uniformly.
             logger.exception(
                 "idempotency_store_finalize_failed",
                 extra={
@@ -725,6 +776,70 @@ class IdempotencyMiddleware(BaseHTTPMiddleware):
                     "key": key,
                     "impact": "idempotency_key_not_persisted_retry_will_re_execute",
                 },
+            )
+            finalized = False
+
+        if not finalized:
+            # R-IDEM-1: operator-visible error metric. The middleware runs in the
+            # ECS API process; emit_metric is import-safe here (boto3 client init
+            # is lazy, inside emit_metric -- same module already imported by
+            # api/routes/workflows.py in the API process).
+            emit_metric(
+                "IdempotencyFinalizeFailure",
+                1,
+                unit="Count",
+                dimensions={"endpoint": path_template, "service_name": service_name},
+            )
+            logger.error(
+                "idempotency_store_finalize_failed",
+                extra={
+                    "operation": "finalize",
+                    "endpoint": path_template,
+                    "key": key,
+                    "service_name": service_name,
+                    "impact": "idempotency_key_not_persisted",
+                },
+            )
+            # R-IDEM-2 (HARD): a strict-once S2S caller MUST NOT receive a 2xx
+            # with an unpersisted key. The strict-once discriminator is the
+            # presence of a verified JWT on request.state.claims, re-sourced by
+            # _get_service_name (service_name != _DEFAULT_SERVICE) -- the fleet
+            # JWTAuthMiddleware only sets request.state.claims after a JWT
+            # validates, so a non-default service_name IS an S2S caller by
+            # construction; PAT/human/unauthenticated callers resolve to
+            # _DEFAULT_SERVICE. The response body was buffered above (F-2), so
+            # the 2xx has not yet reached the client -- retraction is sound.
+            #
+            # The processing sentinel written at claim() remains in the store
+            # (finalize never upgraded it to "complete"). A retry while the
+            # sentinel is fresh hits the 409 in-flight path; after TTL expiry it
+            # re-executes -- which is exactly why the strict-once caller is told
+            # NOT to blind-retry (500 + typed body is the compensating control).
+            if service_name != _DEFAULT_SERVICE:
+                return JSONResponse(
+                    status_code=500,
+                    headers={
+                        "Idempotency-Key": key,
+                        "X-Idempotent-Not-Persisted": "true",
+                    },
+                    content={
+                        "error": "IDEMPOTENCY_KEY_NOT_PERSISTED",
+                        "message": (
+                            "The mutation executed but its idempotency key could "
+                            "not be recorded. Do not retry blindly; reconcile "
+                            "before re-issuing."
+                        ),
+                    },
+                )
+            # R-IDEM-4: PAT/human (non-strict-once) callers preserve current
+            # behavior -- the handler response is returned; the failure is
+            # metric+log observable only. Fall through to step 9.
+        else:
+            logger.info(
+                "idempotency_key_stored",
+                key=key,
+                endpoint=path_template,
+                status=response.status_code,
             )
 
         # 9. Return response with echo header
