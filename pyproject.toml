@@ -29,7 +29,14 @@ dependencies = [
     # (instrument_app wiring in api/main.py — denominator-scoped SLI selection)
     # FOI S2 WS-B2: 0.10.0+ inherits the autom8y_build_info emitting-floor (#456)
     # and RemoteWriteConfig (0.9.0) by construction at the instrument_app seam.
-    "autom8y-telemetry[aws,fastapi,otlp]>=0.10.0",
+    # remote-write: pulls python-snappy>=0.7 (BLOCK-snappy compression of the
+    # Prometheus WriteRequest) so the offer-warm AMP remote-write emit succeeds.
+    # Mirrors ASR/autom8y-telemetry's canonical [remote-write] extra; without it
+    # the warmer image shipped without snappy and the emit failed with
+    # ModuleNotFoundError: No module named 'snappy' (offer-axis node-0 root cause).
+    # python-snappy 0.7.x is a pure-Python wheel delegating to cramjam (Rust,
+    # self-contained manylinux2014 cp312 x86_64 wheel) -- no libsnappy system pkg.
+    "autom8y-telemetry[aws,fastapi,otlp,remote-write]>=0.10.0",
     "boto3>=1.42.19", # S3 for progressive cache warming (asyncio.to_thread)
     "pyyaml>=6.0.0", # YAML config parsing (lifecycle, automation, query/saved)
     "openpyxl>=3.1.0,<4.0", # Excel workbook generation (payment reconciliation bridge)
