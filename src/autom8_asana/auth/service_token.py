@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import os
 
+from autom8y_config.lambda_extension import resolve_secret_from_env
+
 
 class ServiceTokenAuthProvider:
     """AuthProvider that exchanges ServiceAccount credentials for JWT via TokenManager.
@@ -22,7 +24,10 @@ class ServiceTokenAuthProvider:
 
     Args:
         client_id: ServiceAccount client_id. Defaults to SERVICE_CLIENT_ID env var.
-        client_secret: ServiceAccount client_secret. Defaults to SERVICE_CLIENT_SECRET env var.
+        client_secret: ServiceAccount client_secret. Defaults to
+            ``resolve_secret_from_env("SERVICE_CLIENT_SECRET")`` -- resolves the
+            ``_ARN``-suffixed key on Lambda (secret_arns delivery via the
+            secrets extension) and falls back to the bare name on ECS / local.
         auth_url: Auth service URL for JWT exchange.
     """
 
@@ -35,7 +40,26 @@ class ServiceTokenAuthProvider:
         from autom8y_core import Config, TokenManager
 
         cid = client_id or os.environ.get("SERVICE_CLIENT_ID", "")
-        csecret = client_secret or os.environ.get("SERVICE_CLIENT_SECRET", "")
+        # W-AUTH: read SERVICE_CLIENT_SECRET via resolve_secret_from_env so the
+        # provider is delivery-convention-agnostic. ECS injects the bare name via
+        # terraform `external_secrets`; the scheduled-lambda module injects it via
+        # `secret_arns`, which renames the key to SERVICE_CLIENT_SECRET_ARN
+        # (`${k}_ARN`) and resolves the ARN lazily through the Parameters-and-
+        # Secrets extension. resolve_secret_from_env keys on `<name>_ARN` first
+        # (Lambda) and falls back to the bare `<name>` (ECS / local dev), so a
+        # single read is correct on BOTH topologies. A bare os.environ.get was
+        # blind to the Lambda `_ARN` convention -> the insights-export
+        # `succeeded:0` dark-export. RuntimeError (extension HTTP failure) is
+        # deliberately NOT caught here: it must propagate honestly (raise-and-500
+        # at workflow_handler.py top-level) rather than degrade to a silent
+        # no-credential path. Only the absent-secret ValueError is narrowed into
+        # the explicit credentials-required error below.
+        csecret = client_secret
+        if not csecret:
+            try:
+                csecret = resolve_secret_from_env("SERVICE_CLIENT_SECRET")
+            except ValueError:
+                csecret = ""
         if not cid or not csecret:
             raise ValueError(
                 "SERVICE_CLIENT_ID and SERVICE_CLIENT_SECRET are required for "
