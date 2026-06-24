@@ -360,16 +360,16 @@ testing = [
 
 [[package]]
 name = "autom8y-core"
-version = "4.6.0"
+version = "4.7.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-api-schemas" },
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/4.6.0/autom8y_core-4.6.0.tar.gz", hash = "sha256:c6e75433d69418cba584b3ec4bd94bf503eabee116906c84a697af4bd243003c", upload-time = "2026-06-23T22:54:53.079Z" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/4.7.0/autom8y_core-4.7.0.tar.gz", hash = "sha256:01d6049f070c20e0810b077bb58cd502565cdbc6c9d6b6d19db792f8877973d8", upload-time = "2026-06-24T12:03:49.098Z" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/4.6.0/autom8y_core-4.6.0-py3-none-any.whl", hash = "sha256:246eaa5f62a4dc75b49eb68d7136caabb14653d4d4fd482d789d9af707766147", upload-time = "2026-06-23T22:54:52.846Z" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/4.7.0/autom8y_core-4.7.0-py3-none-any.whl", hash = "sha256:5aa5acc12381490adef9278c51ef6f7f42f57c3c4342bbfe95828377455766b8", upload-time = "2026-06-24T12:03:49.322Z" },
 ]
 
 [package.optional-dependencies]
