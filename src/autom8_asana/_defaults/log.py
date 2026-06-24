@@ -92,22 +92,40 @@ class DefaultLogProvider:
     def _sanitize_kwargs(
         extra: dict[str, Any] | None, kwargs: dict[str, Any]
     ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
-        """Move non-stdlib kwargs into ``extra`` so they don't break ``_log()``.
+        """Make ``extra`` + non-stdlib kwargs safe for stdlib ``Logger._log()``.
 
-        External callers (e.g. ``autom8y_http``) may pass arbitrary keyword
-        arguments like ``message=`` that stdlib ``Logger._log()`` rejects.
-        This helper intercepts them and folds them into the ``extra`` dict,
-        prefixing any keys that collide with reserved ``LogRecord`` attributes.
+        Two collision surfaces reach ``logging.Logger.makeRecord``, which raises
+        ``KeyError("Attempt to overwrite '<attr>' in LogRecord")`` whenever any
+        key shadows a reserved ``LogRecord`` attribute (e.g. ``name``):
+
+        1. Non-stdlib **keyword arguments** -- external callers (e.g.
+           ``autom8y_http``) may pass ``message=`` etc. that ``_log()`` rejects.
+        2. The **``extra`` dict itself** -- a payload row fetched on the hierarchy
+           warm path carries data keys like ``name``; passing ``extra={"name":
+           ...}`` straight through aborts the warm refresh, leaving the offer
+           frame cold (the ASR offer-503 cold-frame failure).
+
+        Both surfaces are folded through the SAME reserved-key relocation: any key
+        colliding with a ``LogRecord`` attribute is re-emitted under a ``log_``
+        prefix (value preserved, observability not blinded). Non-reserved keys
+        pass through unchanged. This is the single sanitization chokepoint for
+        every log method on this provider.
         """
         non_stdlib = {k: v for k, v in kwargs.items() if k not in _STDLIB_LOG_KWARGS}
-        if not non_stdlib:
-            return extra, kwargs
         clean_kwargs = {k: v for k, v in kwargs.items() if k in _STDLIB_LOG_KWARGS}
-        merged_extra = dict(extra) if extra else {}
-        for k, v in non_stdlib.items():
-            safe_key = f"log_{k}" if k in _LOGRECORD_RESERVED else k
-            merged_extra[safe_key] = v
-        return merged_extra, clean_kwargs
+
+        # Sanitize the caller-supplied extra dict, then fold in any non-stdlib
+        # kwargs. Both go through the reserved-key relocation. We always rebuild
+        # extra so the `extra` collision door is closed even when there are no
+        # stray kwargs (the cold-frame warm-refresh crash path).
+        merged_extra: dict[str, Any] = {}
+        for source in (extra or {}, non_stdlib):
+            for k, v in source.items():
+                safe_key = f"log_{k}" if k in _LOGRECORD_RESERVED else k
+                merged_extra[safe_key] = v
+
+        sanitized_extra = merged_extra if merged_extra else None
+        return sanitized_extra, clean_kwargs
 
     def debug(
         self, msg: str, *args: Any, extra: dict[str, Any] | None = None, **kwargs: Any
