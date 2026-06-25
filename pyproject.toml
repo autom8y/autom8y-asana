@@ -20,7 +20,7 @@ dependencies = [
     "autom8y-config>=2.0.1", # Pin to 2.0.1+ for IPv4 loopback fix (INCIDENT 2026-04-28 Lambda extension)
     "autom8y-http[otel]>=0.6.0",
     "autom8y-cache>=0.4.0", # Per TDD-GID-RESOLUTION-SERVICE: HierarchyAwareResolver + schema versioning
-    "autom8y-log>=0.7.0", # 0.7.0+ exports sanitize_log_extra() for reserved LogRecord key safety in DefaultLogProvider
+    "autom8y-log>=0.7.0,<1.0.0", # 0.7.0+ exports sanitize_log_extra() for reserved LogRecord key safety in DefaultLogProvider
     "opentelemetry-instrumentation-httpx>=0.42b0", # W3C traceparent auto-propagation on outbound httpx calls
     "autom8y-core>=4.2.0,<5.0.0",
     # Platform observability (PRD-PLATFORM-OBSERVABILITY-STD M3.3)
