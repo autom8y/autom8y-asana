@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from autom8_asana.models.business.base import BusinessEntity
 from autom8_asana.models.business.business import Business
 from autom8_asana.models.business.hydration import HydrationResult
 from autom8_asana.query.models import RowsMeta, RowsResponse
@@ -36,16 +37,43 @@ def mock_client() -> MagicMock:
     return client
 
 
+def make_entry_task(
+    *,
+    gid: str = "ENTRY_TASK",
+    name: str = "Entry Task",
+    custom_fields: list[dict[str, Any]] | None = None,
+) -> BusinessEntity:
+    """Build a hydrated entry task (``BusinessEntity``) carrying a cf manifest.
+
+    Returns a concrete ``BusinessEntity`` (subclass of ``Task``) with a populated
+    ``custom_fields`` list — the manifest carrier the sprint-2 dynamic tail reads
+    off ``EntryAnchor.entry_task`` (GAP-2). ``custom_fields`` defaults to a single
+    "Asset ID" text cf so the threading + cf-carrier assertions have a payload.
+    """
+    cfs = (
+        custom_fields
+        if custom_fields is not None
+        else [{"gid": "cf1", "name": "Asset ID", "text_value": "a, b"}]
+    )
+    return BusinessEntity(gid=gid, name=name, resource_type="task", custom_fields=cfs)
+
+
 def make_hydration_result(
     *,
     business_gid: str,
     entry_type: EntityType,
     path_len: int = 0,
+    entry_entity: BusinessEntity | None = None,
 ) -> HydrationResult:
     """Build a HydrationResult anchoring ``business_gid`` for an entry type.
 
     ``path`` carries ``path_len`` placeholder entities so EntryAnchor.path_len
     reflects the parent-chain depth (offer => 3 per the hydration docstring).
+
+    ``entry_entity`` (additive, default ``None`` — preserves all existing callers)
+    is the hydrated entry task for a non-Business entry. For a Business entry it is
+    ``None`` and the cf manifest lives on ``business`` (hydration.py:319-322); GAP-2
+    threading reads the cf-carrier from whichever topology applies (D-3).
     """
     business = Business(gid=business_gid, name="Anchored Business", resource_type="task")
     path: list[Any] = [
@@ -53,7 +81,7 @@ def make_hydration_result(
     ]
     return HydrationResult(
         business=business,
-        entry_entity=None,
+        entry_entity=entry_entity,
         entry_type=entry_type,
         path=path,
         api_calls=1 + path_len,

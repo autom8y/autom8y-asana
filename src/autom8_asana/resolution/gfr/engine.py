@@ -37,10 +37,16 @@ from autom8y_log import get_logger
 from autom8_asana.core.entity_registry import get_registry
 from autom8_asana.query.models import Comparison, Op, RowsRequest
 from autom8_asana.resolution.gfr import guard as guard_mod
+from autom8_asana.resolution.gfr.dynvocab import resolve_dynamic_fields
 from autom8_asana.resolution.gfr.entry import EntryAnchor, _fetch_and_anchor_async
-from autom8_asana.resolution.gfr.errors import UnresolvedError
+from autom8_asana.resolution.gfr.errors import (
+    AmbiguousCardinalityError,
+    GuardViolationError,
+    UnresolvedError,
+)
 from autom8_asana.resolution.gfr.models import (
     FieldPlan,
+    FieldWithProvenance,
     ResolutionPlan,
     ResolvedFields,
     TruthTier,
@@ -163,6 +169,54 @@ async def _resolve_identity_plan_async(
     )
 
 
+def _merge_resolved(
+    identity: ResolvedFields | None,
+    dynamic: ResolvedFields | None,
+) -> ResolvedFields:
+    """Merge the identity and dynamic ``ResolvedFields`` per-row (TDD §3.2).
+
+    Both results are ``ResolvedFields`` keyed by field name, so the merge is a
+    per-row dict union. Identity is gid-exact single-row and the dynamic tail is
+    single-task (the entry task is one entity), so ``row_count`` is 1 in the driving
+    case; the merge asserts row-count agreement and is row-set-native-safe (INVARIANT
+    I5 preserved). Exactly one side may be ``None`` (a pure-identity or pure-dynamic
+    request); the merge returns the present side unchanged in that case.
+    """
+    if identity is None and dynamic is None:
+        # Caller guards this case before invoking _merge_resolved (terminal raise).
+        raise UnresolvedError(fields=[], reason="no-identity-path")
+    if dynamic is None:
+        return identity  # type: ignore[return-value]
+    if identity is None:
+        return dynamic
+    if identity.row_count != dynamic.row_count:
+        # The identity read (gid-exact, 1 row) and the single-task tail (1 row) must
+        # agree on row count; a divergence is a structural drift signal (INVARIANT I5).
+        raise AmbiguousCardinalityError(row_count=max(identity.row_count, dynamic.row_count))
+    merged_rows: list[dict[str, FieldWithProvenance]] = []
+    for id_row, dyn_row in zip(identity.rows, dynamic.rows, strict=True):
+        # QA F-1 harden: the identity-row and dynamic-row key sets MUST be disjoint.
+        # The ``{**id_row, **dyn_row}`` union would silently let a dynamic value
+        # CLOBBER an identity value on key overlap. Unreachable today (identity owns
+        # company_id; the tail owns disjoint NAME-keyed dynamic fields), but a latent
+        # footgun: a future change that routed the same field name to both paths
+        # would silently leak the dynamic value over the certified identity value.
+        # Fail loud instead (defense in depth on the all-or-nothing INVARIANT I4/I5
+        # boundary) — never silently clobber.
+        overlap = id_row.keys() & dyn_row.keys()
+        if overlap:
+            logger.error(
+                "GFR engine: identity/dynamic key overlap on merge (structural drift)",
+                extra={"gid": identity.gid, "overlap": sorted(overlap)},
+            )
+            raise GuardViolationError(
+                f"identity and dynamic rows must be disjoint; overlapping keys "
+                f"{sorted(overlap)} would clobber a certified identity value"
+            )
+        merged_rows.append({**id_row, **dyn_row})
+    return ResolvedFields(gid=identity.gid, rows=merged_rows, row_count=len(merged_rows))
+
+
 async def resolve_async(
     gid: str,
     fields: Sequence[str],
@@ -222,29 +276,48 @@ async def resolve_async(
     # 3. GUARD — identity-path purity on the plan (INVARIANT I1, defense in depth).
     guard_mod.assert_plan_identity_pure(plan)
 
-    # 4-6. EXECUTE each plan element. For this telos rung the driving case is the
-    #      identity plan (company_id); the engine resolves identity plan elements
-    #      via the gid-exact Business read. Non-identity enrichment plans are out
-    #      of scope for the identity-correctness rung this session drives.
+    # 4-6. EXECUTE each plan element. Two parallel, additive paths:
+    #      (a) the identity plan (company_id) via the gid-exact Business read — the
+    #          certified identity spine, UNCHANGED; and
+    #      (b) the is_identity=False dynamic tail (sprint-2 D-T1a) for fields the
+    #          planner routed to plan.dynamic_fields (no resolvable schema owner) —
+    #          resolved off anchor.entry_task's cf manifest, NAME-keyed, cache-only.
+    #      The dynamic branch never enters _resolve_identity_plan_async; it is
+    #      structurally parallel and invisible to the identity guard (TDD §8.1).
     identity_plans = plan.identity_plans
-    if not identity_plans:
-        # No tenant-identity field requested: nothing on the identity spine to
-        # resolve in this rung. A field set with no resolvable owner would have
-        # already raised unknown-field in the planner; a non-identity-only set is
-        # explicitly out of this session's identity-correctness scope.
+
+    identity_result: ResolvedFields | None = None
+    if identity_plans:
+        # Identity is Business-owned and single-sourced; resolve the (single)
+        # identity plan element. Multiple identity plans cannot occur (company_id is
+        # the only identity field and is Business-only).
+        identity_result = await _resolve_identity_plan_async(
+            anchor=anchor,
+            field_plan=identity_plans[0],
+            query_engine=query_engine,
+            client=client,
+            truth_tier=truth_tier,
+            verifier=verifier,
+        )
+
+    dynamic_result: ResolvedFields | None = None
+    if plan.dynamic_fields:
+        # Cache-only: resolves off the already-hydrated entry_task; zero new Asana
+        # call. Raises UnresolvedError(reason="unknown-field") on genuine absence
+        # (governed-strict, all-or-nothing within the dynamic subset).
+        dynamic_result = resolve_dynamic_fields(
+            anchor=anchor,
+            fields=plan.dynamic_fields,
+            source=TruthTier.CACHE,
+        )
+
+    # A field set with neither an identity plan nor a dynamic field has no resolvable
+    # owner on the identity-correctness spine — the SAME terminal verdict as before
+    # (e.g. a non-identity SCHEMA field, out of this session's identity scope).
+    if identity_result is None and dynamic_result is None:
         raise UnresolvedError(fields=field_list, reason="no-identity-path")
 
-    # Identity is Business-owned and single-sourced; resolve the (single) identity
-    # plan element. Multiple identity plans cannot occur (company_id is the only
-    # identity field and is Business-only).
-    result = await _resolve_identity_plan_async(
-        anchor=anchor,
-        field_plan=identity_plans[0],
-        query_engine=query_engine,
-        client=client,
-        truth_tier=truth_tier,
-        verifier=verifier,
-    )
+    result = _merge_resolved(identity_result, dynamic_result)
 
     # 7. CARDINALITY (INVARIANT I5).
     if scalar:

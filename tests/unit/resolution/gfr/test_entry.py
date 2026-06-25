@@ -17,7 +17,8 @@ from autom8_asana.core.types import EntityType
 from autom8_asana.errors import HydrationError
 from autom8_asana.resolution.gfr.entry import EntryAnchor, _fetch_and_anchor_async
 from autom8_asana.resolution.gfr.errors import UnresolvedError
-from tests.unit.resolution.gfr.conftest import make_hydration_result
+from autom8_asana.resolution.gfr.guard import assert_rows_tenant_identity
+from tests.unit.resolution.gfr.conftest import make_entry_task, make_hydration_result
 
 pytestmark = [pytest.mark.xdist_group("gfr_resolver")]
 
@@ -99,3 +100,122 @@ class TestEntryBudgetIsolation:
         assert hydrate_mock.await_count == 1
         # Bounded budget: 1 entry hydrate + <=3 parent reads for an offer chain.
         assert anchor.path_len <= 3
+
+
+class TestEntryTaskThreading:
+    """GAP-2 — EntryAnchor additively threads the hydrated cf-carrying task.
+
+    The entry phase already hydrates a task carrying every custom field with its
+    typed values (HYP-1). Sprint-1 stops discarding it: ``entry_task`` exposes the
+    cf-manifest carrier to the sprint-2 dynamic tail. The field is additive
+    (optional, default ``None``), ``is_identity=False`` enrichment data, and
+    invisible to the identity guard (TDD §2, §4.1).
+    """
+
+    @pytest.mark.asyncio
+    async def test_entry_anchor_has_entry_task_field(self, mock_client) -> None:
+        """The field exists with a ``None`` default (additive at the type level)."""
+        # Constructible without entry_task (default None) — proves additivity.
+        anchor = EntryAnchor(
+            gid="g", entity_type=EntityType.OFFER, business_gid="B", path_len=0
+        )
+        assert anchor.entry_task is None
+
+    @pytest.mark.asyncio
+    async def test_offer_entry_threads_hydrated_task(self, mock_client) -> None:
+        """Non-Business entry: ``entry_task`` is the hydrated ``entry_entity`` task."""
+        entry_task = make_entry_task(gid="O_correct")
+        result = make_hydration_result(
+            business_gid="B_correct",
+            entry_type=EntityType.OFFER,
+            path_len=3,
+            entry_entity=entry_task,
+        )
+        with patch(_HYDRATE, AsyncMock(return_value=result)):
+            anchor = await _fetch_and_anchor_async("O_correct", mock_client)
+        # The SAME object hydration produced — sprint-1 only stops discarding it.
+        assert anchor.entry_task is entry_task
+
+    @pytest.mark.asyncio
+    async def test_business_entry_threads_business_as_task(self, mock_client) -> None:
+        """Business entry (D-3): ``entry_entity is None`` => thread ``business``.
+
+        ``hydration.py:319-322`` sets ``entry_entity=None`` when the entry gid IS a
+        Business; the cf manifest then lives on ``result.business``. The threading
+        must give the tail a uniform cf-carrier, so it threads ``business`` here.
+        """
+        result = make_hydration_result(
+            business_gid="B_self",
+            entry_type=EntityType.BUSINESS,
+            path_len=0,
+            entry_entity=None,  # the Business-entry topology
+        )
+        with patch(_HYDRATE, AsyncMock(return_value=result)):
+            anchor = await _fetch_and_anchor_async("B_self", mock_client)
+        # D-3: not None — the cf-carrying task in the Business topology is business.
+        assert anchor.entry_task is result.business
+
+    @pytest.mark.asyncio
+    async def test_entry_task_carries_custom_fields(self, mock_client) -> None:
+        """The threaded task exposes ``.custom_fields`` (the sprint-2 manifest)."""
+        entry_task = make_entry_task(
+            gid="O", custom_fields=[{"gid": "cf1", "name": "Asset ID", "text_value": "a, b"}]
+        )
+        result = make_hydration_result(
+            business_gid="B", entry_type=EntityType.OFFER, path_len=3, entry_entity=entry_task
+        )
+        with patch(_HYDRATE, AsyncMock(return_value=result)):
+            anchor = await _fetch_and_anchor_async("O", mock_client)
+        assert anchor.entry_task is not None
+        assert anchor.entry_task.custom_fields == [
+            {"gid": "cf1", "name": "Asset ID", "text_value": "a, b"}
+        ]
+
+    @pytest.mark.asyncio
+    async def test_existing_entry_anchor_fields_unchanged(self, mock_client) -> None:
+        """Regression: the original 4 fields are unchanged for the Offer case."""
+        entry_task = make_entry_task(gid="O_correct")
+        result = make_hydration_result(
+            business_gid="B_correct",
+            entry_type=EntityType.OFFER,
+            path_len=3,
+            entry_entity=entry_task,
+        )
+        with patch(_HYDRATE, AsyncMock(return_value=result)):
+            anchor = await _fetch_and_anchor_async("O_correct", mock_client)
+        assert anchor.gid == "O_correct"
+        assert anchor.entity_type is EntityType.OFFER
+        assert anchor.business_gid == "B_correct"
+        assert anchor.path_len == 3
+
+
+class TestEntryTaskInvisibleToGuard:
+    """GAP-2 §4.1 — the seam is structurally invisible to the identity guard."""
+
+    def test_entry_task_invisible_to_identity_guard(self) -> None:
+        """A populated ``entry_task`` cannot change ``assert_rows_tenant_identity``.
+
+        The guard reads only ``row["gid"]`` from query-result rows; it never
+        receives or inspects an ``EntryAnchor``. Constructing an anchor WITH a
+        populated cf-carrying ``entry_task`` is inert to the guard: a matching-gid
+        row still passes, a mismatched-gid row still raises — purely on the row gid.
+        """
+        # An anchor carrying a fat cf manifest — the guard must remain blind to it.
+        anchor = EntryAnchor(
+            gid="O",
+            entity_type=EntityType.OFFER,
+            business_gid="B_tenant",
+            path_len=3,
+            entry_task=make_entry_task(
+                gid="O",
+                custom_fields=[{"gid": "cf1", "name": "Asset ID", "text_value": "leak?"}],
+            ),
+        )
+        # Guard passes purely on the row gid == anchored business_gid.
+        assert_rows_tenant_identity([{"gid": anchor.business_gid}], anchor.business_gid)
+
+        # And a cross-tenant row still raises — entry_task contributes nothing.
+        from autom8_asana.resolution.gfr.guard import GuardViolationError
+
+        with pytest.raises(GuardViolationError):
+            assert_rows_tenant_identity([{"gid": "OTHER_TENANT"}], anchor.business_gid)

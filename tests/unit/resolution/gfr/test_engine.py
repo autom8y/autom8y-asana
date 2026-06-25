@@ -19,10 +19,16 @@ from autom8_asana.resolution.gfr import engine as engine_mod
 from autom8_asana.resolution.gfr.engine import resolve_async
 from autom8_asana.resolution.gfr.errors import (
     AmbiguousCardinalityError,
+    GfrError,
     GuardViolationError,
     UnresolvedError,
 )
-from autom8_asana.resolution.gfr.models import FieldStatus, TruthTier
+from autom8_asana.resolution.gfr.models import (
+    FieldStatus,
+    FieldWithProvenance,
+    ResolvedFields,
+    TruthTier,
+)
 from tests.unit.resolution.gfr.conftest import (
     FakeByGuidVerifier,
     make_hydration_result,
@@ -343,8 +349,21 @@ class TestTierTwoEndToEnd:
 class TestAllOrNothing:
     @pytest.mark.asyncio
     async def test_unknown_field_fails_whole_call(self, mock_client) -> None:
+        """A genuinely-absent field STILL fails the whole call (caller contract).
+
+        Sprint-2 D-T1a moved the ``unknown-field`` interception point from plan-time
+        to tail-time: a no-schema field (``bogus_field``) now partitions to
+        ``plan.dynamic_fields`` and the manifest-aware dynamic tail makes the
+        governed-strict absence call against ``anchor.entry_task``. The
+        ``_offer_anchor()`` entry task carries no matching cf, so ``bogus_field`` is
+        genuinely ABSENT -> the WHOLE call still raises
+        ``UnresolvedError(reason="unknown-field")`` carrying the absent field. The
+        caller-visible verdict is PRESERVED; only the interception point moved.
+        """
         query_engine = AsyncMock()
-        query_engine.execute_rows = AsyncMock()
+        query_engine.execute_rows = AsyncMock(
+            return_value=make_rows_response(rows=[{"company_id": "G_A", "gid": "B_correct"}])
+        )
         with patch(_HYDRATE, AsyncMock(return_value=_offer_anchor())):
             with pytest.raises(UnresolvedError) as exc:
                 await resolve_async(
@@ -354,8 +373,9 @@ class TestAllOrNothing:
                     query_engine=query_engine,
                 )
         assert exc.value.reason == "unknown-field"
-        # The frame read never fired — planner rejected before any read.
-        query_engine.execute_rows.assert_not_called()
+        # All-or-nothing across the identity + dynamic merge: the genuinely-absent
+        # dynamic field collapses the whole call even though company_id resolved.
+        assert exc.value.fields == ["bogus_field"]
 
     @pytest.mark.asyncio
     async def test_business_row_not_found_on_empty_identity_frame(self, mock_client) -> None:
@@ -385,3 +405,218 @@ class TestAllOrNothing:
                     query_engine=query_engine,
                 )
         assert exc.value.reason == "no-identity-path"
+
+
+def _offer_anchor_with_cfs(
+    *,
+    business_gid: str = "B_correct",
+    custom_fields: list[dict] | None = None,
+):
+    """An Offer hydration result whose threaded entry_task carries a cf manifest."""
+    from tests.unit.resolution.gfr.conftest import make_entry_task
+
+    return make_hydration_result(
+        business_gid=business_gid,
+        entry_type=EntityType.OFFER,
+        path_len=3,
+        entry_entity=make_entry_task(gid="O", custom_fields=custom_fields),
+    )
+
+
+class TestDynamicTailWiring:
+    """Sprint-2 D-T1a: the engine resolves plan.dynamic_fields via the tail + merge."""
+
+    @pytest.mark.asyncio
+    async def test_dynamic_only_field_resolves_via_tail(self, mock_client) -> None:
+        """A no-schema field resolves off the entry_task cf manifest (no identity)."""
+        query_engine = AsyncMock()
+        query_engine.execute_rows = AsyncMock()  # must NOT be called for a dynamic-only set
+        anchor = _offer_anchor_with_cfs(
+            custom_fields=[
+                {
+                    "gid": "cf1",
+                    "name": "Account Health Score",
+                    "resource_subtype": "text",
+                    "text_value": "a",
+                }
+            ]
+        )
+        with patch(_HYDRATE, AsyncMock(return_value=anchor)):
+            result = await resolve_async(
+                "O", ["account_health_score"], client=mock_client, query_engine=query_engine
+            )
+        row = result.scalar()
+        assert row["account_health_score"].value == "a"
+        # No identity field requested -> the identity read never fired (cache-only tail).
+        query_engine.execute_rows.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_mixed_identity_and_dynamic_fields(self, mock_client) -> None:
+        """D-T1a mixed case: company_id (identity) + account_health_score (dynamic) merge in one call."""
+        query_engine = AsyncMock()
+        query_engine.execute_rows = AsyncMock(
+            return_value=make_rows_response(rows=[{"company_id": "G_A", "gid": "B_correct"}])
+        )
+        anchor = _offer_anchor_with_cfs(
+            custom_fields=[
+                {
+                    "gid": "cf1",
+                    "name": "Account Health Score",
+                    "resource_subtype": "text",
+                    "text_value": "a",
+                }
+            ]
+        )
+        with patch(_HYDRATE, AsyncMock(return_value=anchor)):
+            result = await resolve_async(
+                "O",
+                ["company_id", "account_health_score"],
+                client=mock_client,
+                query_engine=query_engine,
+            )
+        row = result.scalar()
+        # identity via the gid-exact path; account_health_score via the tail; merged into one row.
+        assert row["company_id"].value == "G_A"
+        assert row["account_health_score"].value == "a"
+        # The identity read DID fire (the merge is identity + dynamic).
+        query_engine.execute_rows.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_present_but_null_dynamic_field_in_mixed_call(self, mock_client) -> None:
+        """A present-but-null dynamic field appears in the merged row with value=None."""
+        query_engine = AsyncMock()
+        query_engine.execute_rows = AsyncMock(
+            return_value=make_rows_response(rows=[{"company_id": "G_A", "gid": "B_correct"}])
+        )
+        anchor = _offer_anchor_with_cfs(
+            custom_fields=[
+                {
+                    "gid": "cf1",
+                    "name": "Account Health Score",
+                    "resource_subtype": "text",
+                    "text_value": "",
+                }
+            ]
+        )
+        with patch(_HYDRATE, AsyncMock(return_value=anchor)):
+            result = await resolve_async(
+                "O",
+                ["company_id", "account_health_score"],
+                client=mock_client,
+                query_engine=query_engine,
+            )
+        row = result.scalar()
+        assert row["company_id"].value == "G_A"
+        # present-but-null: the NAME is a key, value=None (never absent).
+        assert "account_health_score" in row
+        assert row["account_health_score"].value is None
+
+    @pytest.mark.asyncio
+    async def test_tail_invisible_to_identity_guard(self, mock_client) -> None:
+        """A dynamic-only resolve never enters the identity read / guard path.
+
+        The tail rows are built from anchor.entry_task, never from execute_rows, so
+        they never pass through assert_rows_tenant_identity (TDD §8.1). The mechanical
+        proof: the identity read is never issued for a dynamic-only request.
+        """
+        query_engine = AsyncMock()
+        query_engine.execute_rows = AsyncMock()
+        anchor = _offer_anchor_with_cfs(
+            custom_fields=[
+                {
+                    "gid": "cf1",
+                    "name": "Account Health Score",
+                    "resource_subtype": "text",
+                    "text_value": "a",
+                }
+            ]
+        )
+        with patch(_HYDRATE, AsyncMock(return_value=anchor)):
+            await resolve_async(
+                "O", ["account_health_score"], client=mock_client, query_engine=query_engine
+            )
+        # No RowsRequest built, no execute_rows => no path into the identity guard.
+        query_engine.execute_rows.assert_not_called()
+
+
+class TestAssetIdEndToEnd:
+    """Sprint-3 FRAME-002 worked example end-to-end through the engine.
+
+    asset_id is foreign-owned (asset_edit) but ABSENT from the Offer's own schema,
+    so under Option A (ADR-gfr-dynvocab-tail-scope) it routes to the dynamic tail
+    and resolves off the Offer entry-task manifest as a SET via the NAME-keyed
+    comma-split override — no new Asana call, identity spine untouched.
+    """
+
+    @pytest.mark.asyncio
+    async def test_asset_id_resolves_as_set_off_entry_manifest(self, mock_client) -> None:
+        query_engine = AsyncMock()
+        query_engine.execute_rows = AsyncMock()  # cache-only: must NOT fire for a dynamic-only set
+        anchor = _offer_anchor_with_cfs(
+            custom_fields=[
+                {
+                    "gid": "cf1",
+                    "name": "Asset ID",
+                    "resource_subtype": "text",
+                    "text_value": "a, b ,c",
+                }
+            ]
+        )
+        with patch(_HYDRATE, AsyncMock(return_value=anchor)):
+            result = await resolve_async(
+                "O", ["asset_id"], client=mock_client, query_engine=query_engine
+            )
+        row = result.scalar()
+        assert row["asset_id"].value == {"a", "b", "c"}
+        assert row["asset_id"].typing_origin == "override"
+        # Cache-only: zero new Asana call beyond the accounted entry fetch.
+        query_engine.execute_rows.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_mixed_company_id_and_asset_id_set(self, mock_client) -> None:
+        """company_id via the certified gid-exact path; asset_id as a SET via the tail."""
+        query_engine = AsyncMock()
+        query_engine.execute_rows = AsyncMock(
+            return_value=make_rows_response(rows=[{"company_id": "G_A", "gid": "B_correct"}])
+        )
+        anchor = _offer_anchor_with_cfs(
+            custom_fields=[
+                {"gid": "cf1", "name": "Asset ID", "resource_subtype": "text", "text_value": "x,y"}
+            ]
+        )
+        with patch(_HYDRATE, AsyncMock(return_value=anchor)):
+            result = await resolve_async(
+                "O", ["company_id", "asset_id"], client=mock_client, query_engine=query_engine
+            )
+        row = result.scalar()
+        assert row["company_id"].value == "G_A"
+        assert row["asset_id"].value == {"x", "y"}
+        query_engine.execute_rows.assert_called_once()
+
+
+class TestMergeDisjointness:
+    """QA F-1 harden: _merge_resolved asserts identity-row and dynamic-row key
+    sets are DISJOINT (fail loud, never silently clobber an identity value)."""
+
+    def test_merge_raises_on_overlapping_keys(self) -> None:
+        """A future change that put the same field name in both rows must fail loud,
+        not silently let the dynamic row clobber the identity value."""
+        fwp = FieldWithProvenance(
+            value="id-value", status=FieldStatus.FRESH, source=TruthTier.CACHE
+        )
+        dyn_fwp = FieldWithProvenance(
+            value="dyn-value", status=FieldStatus.FRESH, source=TruthTier.CACHE
+        )
+        identity = ResolvedFields(gid="O", rows=[{"company_id": fwp}], row_count=1)
+        dynamic = ResolvedFields(gid="O", rows=[{"company_id": dyn_fwp}], row_count=1)
+        with pytest.raises(GfrError):
+            engine_mod._merge_resolved(identity, dynamic)
+
+    def test_merge_disjoint_keys_merges_cleanly(self) -> None:
+        """The normal (disjoint) case still merges both rows into one."""
+        id_fwp = FieldWithProvenance(value="G_A", status=FieldStatus.FRESH, source=TruthTier.CACHE)
+        dyn_fwp = FieldWithProvenance(value="a", status=FieldStatus.FRESH, source=TruthTier.CACHE)
+        identity = ResolvedFields(gid="O", rows=[{"company_id": id_fwp}], row_count=1)
+        dynamic = ResolvedFields(gid="O", rows=[{"asset_id": dyn_fwp}], row_count=1)
+        merged = engine_mod._merge_resolved(identity, dynamic)
+        assert set(merged.rows[0].keys()) == {"company_id", "asset_id"}

@@ -38,6 +38,7 @@ from autom8_asana.resolution.gfr.errors import UnresolvedError
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
+    from autom8_asana.models.business.base import BusinessEntity
 
 logger = get_logger(__name__)
 
@@ -55,12 +56,21 @@ class EntryAnchor:
             never via an ``office_phone`` value-join.
         path_len: Number of intermediate entities traversed upward (excluding the
             Business root). Used by tests to attest the bounded entry budget.
+        entry_task: Carries the hydrated entry task (cf manifest) for the
+            ``is_identity=False`` dynamic tail (sprint-2). The same object
+            hydration already produced — for a non-Business entry it is the
+            hydrated entry entity; for a Business entry (where
+            ``HydrationResult.entry_entity`` is ``None``) it is the hydrated
+            Business root, which carries the cf manifest. NOT part of the identity
+            spine; never read by ``assert_rows_tenant_identity``. Optional with a
+            ``None`` default so the field is strictly additive.
     """
 
     gid: str
     entity_type: EntityType
     business_gid: str
     path_len: int
+    entry_task: BusinessEntity | None = None
 
 
 async def _fetch_and_anchor_async(gid: str, client: AsanaClient) -> EntryAnchor:
@@ -108,11 +118,19 @@ async def _fetch_and_anchor_async(gid: str, client: AsanaClient) -> EntryAnchor:
         raise UnresolvedError(fields=[gid], reason="entity-type-undetectable")
 
     business_gid = result.business.gid
+    # GAP-2 (D-3): thread the cf-CARRYING task in BOTH entry topologies. For a
+    # non-Business entry, the hydrated task is result.entry_entity. For a Business
+    # entry, result.entry_entity is None (hydration.py:319-322 "Started at
+    # Business") and the cf manifest lives on result.business. Either way this is
+    # the cf-bearing task for the entry gid — a uniform source for the sprint-2
+    # dynamic tail. No new fetch: both objects already exist in ``result``.
+    entry_task = result.entry_entity if result.entry_entity is not None else result.business
     anchor = EntryAnchor(
         gid=gid,
         entity_type=entity_type,
         business_gid=business_gid,
         path_len=len(result.path),
+        entry_task=entry_task,
     )
     logger.debug(
         "GFR entry: anchored",

@@ -21,10 +21,30 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.resolution.gfr.errors import AmbiguousCardinalityError
+
+# Typing-provenance vocabulary (sprint-3 FRAME-004). The CLOSED set of origins a
+# resolved field's typed value can carry, so a caller can distinguish a
+# schema-validated value from a heuristically-coerced one from an override-
+# transformed one. Surfaced as a module ``Literal`` so the field type and any
+# consumer share one source of truth.
+#
+# * ``schema``    — value came from a certified dataframe schema dtype (reserved for
+#                   the schema-resolved path; the dynamic tail does NOT mint it).
+# * ``heuristic`` — value extracted by the ``resource_subtype`` typing table
+#                   (``_extract_raw_value``) for a KNOWN subtype.
+# * ``override``  — a registered NAME-keyed, EntityType-scoped override transformed
+#                   the raw value (e.g. asset_id text -> comma-split SET).
+# * ``absent``    — reserved: a genuinely-absent field never reaches a row (it
+#                   raises ``unknown-field``); kept in the vocabulary for caller
+#                   completeness and downstream provenance consumers.
+# * ``fallback``  — value came from the ``case _`` ``display_value`` fallthrough for
+#                   an UNKNOWN ``resource_subtype`` (FRAME-003 observability).
+TypingOrigin = Literal["schema", "heuristic", "override", "absent", "fallback"]
 
 
 class FieldStatus(StrEnum):
@@ -78,6 +98,25 @@ class FieldWithProvenance(BaseModel):
     as_of: datetime | None = Field(
         default=None,
         description="Frame watermark (tier-1) or data-service timestamp (tier-2).",
+    )
+    typing_origin: TypingOrigin | None = Field(
+        default=None,
+        description=(
+            "How the value was typed (sprint-3 FRAME-004): schema | heuristic | "
+            "override | absent | fallback. Lets a caller distinguish a "
+            "schema-validated value from a heuristically-coerced or "
+            "override-transformed one. None for the certified identity-spine path "
+            "(which predates this tag); the dynamic tail always stamps it. Additive, "
+            "default None so every existing construction stays valid."
+        ),
+    )
+    cf_type: str | None = Field(
+        default=None,
+        description=(
+            "The Asana custom-field ``resource_subtype`` the value was typed from "
+            "(sprint-3 FRAME-004), e.g. 'text' | 'number' | 'date'. None for the "
+            "identity-spine path; stamped by the dynamic tail. Additive, default None."
+        ),
     )
 
 
@@ -143,6 +182,22 @@ class ResolutionPlan(BaseModel):
 
     entry_entity_type: str = Field(description="Detected entity type of the entry gid.")
     field_plans: list[FieldPlan] = Field(description="One plan element per distinct owning entity.")
+    dynamic_fields: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Requested fields with no resolvable schema owner (sprint-2 D-T1a). The "
+            "planner CANNOT pre-judge absence for these — that requires the live cf "
+            "manifest — so it partitions them here instead of raising 'unknown-field' "
+            "at plan time. The is_identity=False dynamic tail "
+            "(``dynvocab.resolve_dynamic_fields``) resolves them off the hydrated "
+            "``anchor.entry_task`` manifest, NAME-keyed, governed-strict: a field "
+            "genuinely absent from the manifest STILL raises "
+            "``UnresolvedError(reason='unknown-field')`` (closed vocab preserved); "
+            "only the interception point moves from plan-time to tail-time. Additive, "
+            "default empty so every existing construction and the identity-plan path "
+            "are byte-identical.",
+        ),
+    )
 
     @property
     def identity_plans(self) -> list[FieldPlan]:
