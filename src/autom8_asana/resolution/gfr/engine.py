@@ -126,6 +126,17 @@ async def _resolve_identity_plan_async(
         )
         raise UnresolvedError(fields=field_plan.fields, reason="business-row-not-found")
 
+    # ENGINE-OWNED Vector-A tenant guard (GAP-1, INVARIANT I1). The frozen query
+    # substrate filtered the frame to the anchored tenant via the gid-exact
+    # ``where`` (``query/engine.py:169`` ``df.filter``) — but that is the
+    # SUBSTRATE's contract, not the engine's. Before reading ``data[0]``'s
+    # company_id, the engine re-asserts in its OWN code that EVERY returned row
+    # carries gid == business_gid. An unfiltered/cross-tenant frame (drifted
+    # provider) would otherwise leak a different tenant's company_id silently;
+    # this raises GuardViolationError instead (defense in depth, not a
+    # replacement for the frozen filter).
+    guard_mod.assert_rows_tenant_identity(response.data, anchor.business_gid)
+
     source = TruthTier.CACHE
     as_of: datetime | None = None
     if truth_tier == TruthTier.VERIFIED:

@@ -129,6 +129,50 @@ class TestIdentityPurityPlan:
             guard_mod.assert_plan_identity_pure(plan)
 
 
+class TestPostExecuteTenantIdentity:
+    """GAP-1: the engine-owned post-execute Vector-A tenant guard.
+
+    ``assert_rows_tenant_identity`` is the central-guard-surface re-assertion of
+    the tenant filter the FROZEN substrate applies (``query/engine.py:169``
+    ``df.filter``). It is NOT a replacement for that filter — it is defense in
+    depth ABOVE it, making the invariant engine-owned and test-guaranteed.
+    """
+
+    def test_all_rows_match_anchored_gid_passes(self) -> None:
+        rows = [
+            {"company_id": "G_A", "gid": "B_correct"},
+            {"company_id": "G_A", "gid": "B_correct"},
+        ]
+        guard_mod.assert_rows_tenant_identity(rows, "B_correct")  # no raise
+
+    def test_empty_frame_is_noop(self) -> None:
+        # The engine raises business-row-not-found on an empty frame BEFORE this
+        # guard; the guard itself is a no-op on empty (no row to mis-attribute).
+        guard_mod.assert_rows_tenant_identity([], "B_correct")  # no raise
+
+    def test_wrong_tenant_row_raises(self) -> None:
+        rows = [{"company_id": "G_WRONG", "gid": "B_WRONG"}]
+        with pytest.raises(GuardViolationError) as exc:
+            guard_mod.assert_rows_tenant_identity(rows, "B_correct")
+        assert "B_WRONG" in str(exc.value)
+        assert "B_correct" in str(exc.value)
+
+    def test_mixed_frame_with_one_wrong_tenant_raises(self) -> None:
+        # An unfiltered multi-tenant frame: the correct tenant row is present but
+        # so is a foreign one. ANY mismatch fires (per-row, not just data[0]).
+        rows = [
+            {"company_id": "G_correct", "gid": "B_correct"},
+            {"company_id": "G_WRONG", "gid": "B_WRONG"},
+        ]
+        with pytest.raises(GuardViolationError):
+            guard_mod.assert_rows_tenant_identity(rows, "B_correct")
+
+    def test_row_missing_gid_raises_fail_closed(self) -> None:
+        rows = [{"company_id": "G_A"}]  # no gid key
+        with pytest.raises(GuardViolationError):
+            guard_mod.assert_rows_tenant_identity(rows, "B_correct")
+
+
 class TestCacheOnlyRedProof:
     """RED proof (B5, new_hole 3): offer-domain data-frame miss => no API fallback.
 
