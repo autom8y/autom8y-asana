@@ -26,6 +26,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from autom8_asana.resolution.gfr.errors import AmbiguousCardinalityError
+from autom8_asana.storage_namespace import TASK_CACHE
 
 # Typing-provenance vocabulary (sprint-3 FRAME-004). The CLOSED set of origins a
 # resolved field's typed value can carry, so a caller can distinguish a
@@ -69,7 +70,10 @@ class TruthTier(StrEnum):
     ``office_phone`` analytics join.
     """
 
-    CACHE = "asana-cache"  # tier-1 default: local cached copy off the gid-exact row
+    # tier-1 default: local cached copy off the gid-exact row. DERIVED from the
+    # storage-namespace registry (TASK_CACHE.prefix == "asana-cache") so the value
+    # has a single source of truth and is not a loose prefix literal (arch t3).
+    CACHE = TASK_CACHE.prefix
     VERIFIED = "data-verified"  # tier-2 on demand: authoritative by-guid data-service
 
 
@@ -195,7 +199,7 @@ class ResolutionPlan(BaseModel):
             "``UnresolvedError(reason='unknown-field')`` (closed vocab preserved); "
             "only the interception point moves from plan-time to tail-time. Additive, "
             "default empty so every existing construction and the identity-plan path "
-            "are byte-identical.",
+            "are byte-identical."
         ),
     )
 

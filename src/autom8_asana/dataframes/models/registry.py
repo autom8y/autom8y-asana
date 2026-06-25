@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import threading
-from typing import TYPE_CHECKING, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from autom8y_log import get_logger
 
@@ -17,6 +17,7 @@ from autom8_asana.dataframes.errors import SchemaNotFoundError, SchemaVersionErr
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from autom8_asana.core.entity_registry import EntityDescriptor
     from autom8_asana.dataframes.models.schema import DataFrameSchema
 
 
@@ -424,6 +425,11 @@ class SchemaRegistry:
                     )
                 continue
 
+            # The guard above `continue`s unless BOTH paths are present (truthy),
+            # so both are non-None from here; assert it so the str|None -> str the
+            # resolver expects is SOUND (the bool guard cannot narrow the optionals
+            # for mypy on its own).
+            assert desc.model_class_path is not None and desc.schema_module_path is not None
             model_class = _resolve_dotted_path(desc.model_class_path)
             schema = _resolve_dotted_path(desc.schema_module_path)
 
@@ -520,10 +526,10 @@ class SchemaRegistry:
 
     def _emit_unpaired_if_substantive(
         self,
-        desc: object,
+        desc: EntityDescriptor,
         *,
         has_model: bool,
-        resolve: Callable[[str], object],
+        resolve: Callable[[str], Any],
     ) -> int:
         """Emit ``model_schema_coverage_unpaired`` for a substantive single-path descriptor.
 
@@ -546,9 +552,16 @@ class SchemaRegistry:
         """
         try:
             if has_model:
-                substance_count = len(model_field_names(resolve(desc.model_class_path)))
+                # Caller invokes this only when exactly one side is present, and
+                # passes has_model accordingly, so model_class_path is non-None here.
+                model_path = desc.model_class_path
+                assert model_path is not None
+                substance_count = len(model_field_names(resolve(model_path)))
             else:
-                substance_count = schema_cf_cascade_count(resolve(desc.schema_module_path))
+                # Symmetric: not-has_model + exactly-one-side => schema_module_path present.
+                schema_path = desc.schema_module_path
+                assert schema_path is not None
+                substance_count = schema_cf_cascade_count(resolve(schema_path))
         except Exception:  # noqa: BLE001 -- warn-first: a bad single-path desc must not abort the loop
             get_logger(__name__).warning(
                 "model_schema_coverage_unpaired_resolve_failed",
