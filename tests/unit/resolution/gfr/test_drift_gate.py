@@ -621,9 +621,7 @@ class TestExtractabilityKeyedOnNonEmptiness:
         a genuinely-analyzable model to UNANALYZABLE. This test goes RED on that swap;
         the inherited-empty cases above cannot (empty under both ``dir`` and ``vars``).
         """
-        assert model_field_names(_InheritedRealFieldsModel) == frozenset(
-            {"Asset ID", "Offer Name"}
-        )
+        assert model_field_names(_InheritedRealFieldsModel) == frozenset({"Asset ID", "Offer Name"})
         assert model_fields_are_extractable(_InheritedRealFieldsModel) is True
 
     def test_non_str_uppercase_constant_is_not_extractable(self) -> None:
@@ -910,6 +908,7 @@ class TestUnpairedSinglePathObservable:
         )
 
         assert not [
-            n for n, e in events
+            n
+            for n, e in events
             if n == "model_schema_coverage_unpaired" and e.get("entity") == "synthetic_paired"
         ], "a paired descriptor has a counterpart -- it must NOT emit unpaired"

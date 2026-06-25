@@ -116,9 +116,7 @@ class TestEntryTaskThreading:
     async def test_entry_anchor_has_entry_task_field(self, mock_client) -> None:
         """The field exists with a ``None`` default (additive at the type level)."""
         # Constructible without entry_task (default None) — proves additivity.
-        anchor = EntryAnchor(
-            gid="g", entity_type=EntityType.OFFER, business_gid="B", path_len=0
-        )
+        anchor = EntryAnchor(gid="g", entity_type=EntityType.OFFER, business_gid="B", path_len=0)
         assert anchor.entry_task is None
 
     @pytest.mark.asyncio
