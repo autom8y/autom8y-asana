@@ -1008,9 +1008,12 @@ class TestFreshnessContractOverride:
         GATED on CQ-RETURN-3 (see config.py SECTION RECALIBRATION comment).
 
         offer was ADDED 2026-06-25 (operator-adjudicated (b)+(c) availability-first):
-        16200s = 4h warm cadence (14400s) + 30min margin. Before this, offer had NO
-        contract key, so its ceiling fell back to the multiplier (10×180=1800s) =
-        ~1/8 of the warm window, shedding 503s for ~7/8 of every window. See config
+        16200s = the operator availability-first read-tolerance bound (≤~4h-stale
+        accepted for the 4-hourly recon read), set above the observed ~70-min warm
+        cadence. (``0 */4`` is the disabled ASR consumer-READ schedule, NOT a warm
+        lane.) Before this, offer had NO contract key, so its ceiling fell back to
+        the multiplier (10×180=1800s); since the frame warms only ~every 70 min it
+        was older than 1800s for the bulk of every window, shedding 503s. See config
         OFFER WARM-RESILIENCE comment.
 
         These three receiver entity_types are keyed; the other OQ-2 tiers
@@ -1458,25 +1461,34 @@ class TestOfferFreshnessResilience:
     """Operator-adjudicated (b)+(c) offer-frame warm-resilience fix.
 
     ROOT (proven @ origin/main b59a35f6): the offer frame (entity_type ``offer``,
-    TTL=180s, project 1143843662099250) is WARMED on a 4h (14400s) cron cadence,
-    but has NO FRESHNESS_CONTRACT_MAX_AGE_SECONDS entry. The ceiling therefore
-    falls back to LKG_MAX_STALENESS_MULTIPLIER(10) × ttl(180) = 1800s, which is
-    ~1/8 of the warm window. For ~7/8 of every window the frame is older than
-    1800s, so the STALE branch sheds None (offer is cache-only / no build-on-miss)
-    => upstream 503 via dataframe_cache_s3_lkg_max_staleness_exceeded.
+    TTL=180s, project 1143843662099250) has NO FRESHNESS_CONTRACT_MAX_AGE_SECONDS
+    entry. The ceiling therefore falls back to LKG_MAX_STALENESS_MULTIPLIER(10) ×
+    ttl(180) = 1800s. The frame's OBSERVED warm cadence is ~70 min (per the SRE
+    measured handoff: warms ~70 min apart), so for the bulk of every warm window
+    the frame is older than 1800s, so the STALE branch sheds None (offer is
+    cache-only / no build-on-miss) => upstream 503 via
+    dataframe_cache_s3_lkg_max_staleness_exceeded.
+
+    NOTE — there is NO 4h warm lane. The 4-hourly cron ``0 */4``
+    (``autom8y-account-status-recon-schedule``) is the DISABLED ASR consumer-READ
+    schedule, NOT a warm cadence; conflating it with warming was a factually-false
+    premise (corrected here and in config.py).
 
     OPERATOR RATIFICATION (b)+(c) availability-first: the ASR/BI consumer ACCEPTS
-    up-to-~4h-stale offer data (matching the 4h warm cadence). That tolerance is
-    the basis for the freshness-contract ceiling.
+    up-to-~4h-stale offer data for its 4-hourly recon read. That read-tolerance —
+    NOT any warm cadence — is the basis for the freshness-contract ceiling (16200s
+    = 4h30m), which is set comfortably above the observed ~70-min warm cadence.
 
-    FIX (b): add an ``offer`` entry to FRESHNESS_CONTRACT_MAX_AGE_SECONDS that
-    comfortably exceeds the 14400s warm cadence + warm-duration/jitter margin
-    (16200s = 4h30m). Flips ceiling_source multiplier -> freshness_contract;
-    turns the 503 into an LKG 2xx.
+    FIX (b): add an ``offer`` entry to FRESHNESS_CONTRACT_MAX_AGE_SECONDS set to the
+    operator availability-first tolerance bound (16200s = 4h30m), comfortably above
+    the observed ~70-min warm cadence. Flips ceiling_source multiplier ->
+    freshness_contract; turns the 503 into an LKG 2xx.
 
     FIX (c) hardening: at the ceiling-exceeded gate, a POPULATED/HEALTHY frame is
     served as LKG (with record_serving_stale honesty) + _trigger_swr_refresh,
-    instead of returning None — closing the shed-WITHOUT-refresh seam. A
+    instead of returning None — closing the shed-WITHOUT-refresh seam. This is the
+    cadence-INDEPENDENT backstop: it serves any populated/healthy cache-only frame
+    over ANY ceiling, so the 16200s value is not load-bearing for availability. A
     DEGRADED or EMPTY frame MUST STILL shed None (INV-C5: warmed-empty/degraded
     stays loud, never silent-green).
     """
@@ -1537,25 +1549,37 @@ class TestOfferFreshnessResilience:
     # ----- GREEN (b): the offer freshness contract -------------------------
 
     async def test_GREEN_b_offer_contract_value_and_margin(self) -> None:
-        """FIX (b): an ``offer`` key exists and comfortably exceeds the 4h cadence.
+        """FIX (b): an ``offer`` key exists, sits above the observed warm cadence,
+        and is within the operator availability-first read-tolerance.
 
-        Warm cadence = 14400s (4h, warm_all lane cron `0 */4`). The contract
-        ceiling must clear that PLUS a margin for warm-cycle duration + cron
-        jitter + AIMD warm-governor backoff, while staying within the operator
-        availability-first tolerance (~4h-stale). Chosen value 16200s (4h30m):
-        14400s cadence + 1800s (30min) headroom.
+        Two independent invariants:
+          1. The ceiling EXCEEDS the OBSERVED warm cadence (~70 min / 4200s per the
+             SRE measured handoff) by a safe margin, so a frame warmed once per
+             window never ages past the ceiling mid-window even under AIMD
+             warm-governor backoff. (There is NO 4h warm lane — ``0 */4`` is the
+             disabled ASR consumer-READ schedule, not a warm cadence.)
+          2. The ceiling is WITHIN the operator availability-first read-tolerance
+             (≤~4h-stale = 14400s accepted for the 4-hourly recon read).
+        Chosen value: 16200s (4h30m), the operator-ratified bound.
         """
         import autom8_asana.config as config
 
         assert "offer" in config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS
         offer_ceiling = config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS["offer"]
-        warm_cadence_seconds = 4 * 60 * 60  # 14400s — warm_all lane cron 0 */4
-        assert offer_ceiling > warm_cadence_seconds, (
-            "offer freshness contract must exceed the 4h warm cadence so a frame "
-            "warmed once per window never ages past the ceiling mid-window"
+        # Invariant 1: above the OBSERVED ~70-min warm cadence by a safe margin.
+        observed_warm_cadence_seconds = 70 * 60  # 4200s — SRE-measured (~70 min)
+        assert offer_ceiling > observed_warm_cadence_seconds, (
+            "offer ceiling must exceed the observed warm cadence so a frame warmed "
+            "once per window never ages past the ceiling mid-window"
         )
         # Comfortable margin (>=15min) for warm duration / jitter / AIMD backoff.
-        assert offer_ceiling - warm_cadence_seconds >= 900
+        assert offer_ceiling - observed_warm_cadence_seconds >= 900
+        # Invariant 2: within the operator availability-first read-tolerance.
+        operator_read_tolerance_seconds = 4 * 60 * 60  # 14400s — ≤~4h-stale accepted
+        assert offer_ceiling <= operator_read_tolerance_seconds + 1800, (
+            "offer ceiling must stay within the operator availability-first "
+            "read-tolerance (≤~4h-stale for the 4-hourly recon)"
+        )
         assert offer_ceiling == 16200.0  # 4h30m — the ratified value
 
     async def test_GREEN_b_offer_within_contract_serves_lkg_2xx(self) -> None:
