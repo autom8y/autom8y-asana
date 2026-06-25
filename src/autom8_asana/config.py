@@ -255,11 +255,36 @@ LKG_MAX_STALENESS_MULTIPLIER: float = 10.0
 # stale/LKG (the §D V6 serve-stale-section paradigm) instead of hard-rejecting
 # onto the POST /v1/query/section/rows 502 hotspot. The prior 576s value only made
 # sense paired with the ≤10-min warm lane, which proved Asana-429-infeasible.
+# OFFER WARM-RESILIENCE (2026-06-25, operator-adjudicated (b)+(c) availability-first):
+# The offer frame (entity_type "offer", primary_project_gid=1143843662099250) is
+# WARMED on a 4h (14400s) cron cadence (warm_all lane `0 */4`; entity_registry.py
+# warmable=True warm_priority=3 ttl=180s) but had NO contract entry, so its ceiling
+# fell back to the multiplier: LKG_MAX_STALENESS_MULTIPLIER(10.0) × ttl(180) = 1800s
+# = ~1/8 of the warm window. For ~7/8 of every window the frame is older than 1800s,
+# so the STALE branch sheds None; offer is cache-only (no build-on-miss) => 503 via
+# dataframe_cache_*_lkg_max_staleness_exceeded. NOT a warm-coverage gap — a ceiling
+# mis-calibration relative to the 4h cadence.
+#
+# OPERATOR RATIFICATION: the ASR/BI consumer ACCEPTS up-to-~4h-stale offer data
+# (matching the 4h warm cadence) — availability-first. That tolerance is the basis
+# for this ceiling number; it is the consumer's declared real freshness tolerance
+# (the OQ-2-class contract receipt for offer), not an internal best-guess.
+#
+# VALUE = 16200.0 (4h30m): the 14400s warm cadence PLUS a 1800s (30min) margin for
+# warm-cycle duration + cron jitter + the AIMD warm-governor backoff. So a frame
+# warmed exactly once per 4h window never ages past the ceiling mid-window even if
+# a single warm tick slips by up to 30 min, while still bounding stale offer data
+# inside the operator-ratified ~4h availability tolerance. This flips
+# ceiling_source multiplier -> freshness_contract for offer and turns the cache-only
+# 503 into an honest LKG 2xx (served stale, with record_serving_stale honesty).
 FRESHNESS_CONTRACT_MAX_AGE_SECONDS: dict[str, float] = {
     "project": 86400.0,  # PROJECT_DF_REFRESH_HOURS=24  -> caching.py:33 (24h)
     # section: RECALIBRATED 576 -> 3000 (50min LKG ceiling). GATED on CQ-RETURN-3
     # + a deliberate land gate. See SECTION RECALIBRATION comment above.
     "section": 3000.0,
+    # offer: 4h warm cadence (14400s) + 30min margin = 16200s. Operator-ratified
+    # availability-first ~4h-stale tolerance. See OFFER WARM-RESILIENCE comment above.
+    "offer": 16200.0,
 }
 
 # FACADE: Delegates to EntityRegistry. Preserves existing import path.
