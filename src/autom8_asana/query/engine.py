@@ -46,6 +46,7 @@ from autom8_asana.query.models import (
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.clients.data.client import DataServiceClient
+    from autom8_asana.dataframes.models.schema import DataFrameSchema
     from autom8_asana.metrics.resolve import SectionIndex
     from autom8_asana.protocols.dataframe_provider import DataFrameProvider
 
@@ -254,6 +255,19 @@ class QueryEngine:
             project_gid, entity_type=entity_type
         )
 
+        # 12.6 FM-5 ARM-B (ADR-fm5-armb-contract-locus D2): co-derive the
+        # consumer-column honest-refusal contract at THIS one gate (one-gate graft,
+        # NOT a sibling path; same gate, SSOT-fed, no new endpoint or control-flow
+        # branch). A consumer that declares no required_columns gets today's
+        # behavior: contract_complete=True, empty unservable, column_manifest=None.
+        contract_complete, unservable_required_columns, column_manifest = (
+            self._derive_column_contract(
+                schema=schema,
+                required_columns=request.required_columns,
+                df=df,
+            )
+        )
+
         # ADR-1 (honest-empty-200): a genuinely-empty project is one that is
         # honest-complete (no FAILED sections) yet whose FRAME holds zero rows.
         # Attesting it via meta.honest_empty=True lets the consumer distinguish a
@@ -277,6 +291,9 @@ class QueryEngine:
                 query_ms=round(elapsed_ms, 2),
                 honest_contract_complete=honest_contract_complete,
                 honest_empty=honest_empty,
+                contract_complete=contract_complete,
+                unservable_required_columns=unservable_required_columns,
+                column_manifest=column_manifest,
                 **join_meta,  # type: ignore[arg-type]
                 **freshness_meta,  # type: ignore[arg-type]
             ),
@@ -594,6 +611,51 @@ class QueryEngine:
                 exc_info=True,
             )
             return False
+
+    def _derive_column_contract(
+        self,
+        *,
+        schema: DataFrameSchema,
+        required_columns: list[str] | None,
+        df: pl.DataFrame,
+    ) -> tuple[bool, list[str], dict[str, object] | None]:
+        """Co-derive the FM-5 ARM-B consumer-column honest-refusal contract.
+
+        The column analogue of ``honest_contract_complete`` (ADR-fm5-armb-contract-
+        locus D2), emitted as a DISTINCT sibling field. Completeness is derived
+        from SCHEMA membership (``schema.column_names()``), NEVER ``df.columns``
+        (ADR D3): the production project parquet carries a 100%-NULL ``offer_id``
+        that a physical-presence check would mis-read as COMPLETE; schema-membership
+        is immune. A declared-but-unservable column yields a TYPED
+        ``contract_complete=False`` plus the named columns — never a silent narrow
+        frame, a KeyError, or a $0/7-row fossil.
+
+        Args:
+            schema: The served DataFrameSchema (the serve-boundary contract).
+            required_columns: The consumer's declared required columns (wire field),
+                or None for a non-declaring request.
+            df: The (already-projected) result frame, used ONLY for the optional
+                belt-and-braces population manifest — never for the completeness
+                gate.
+
+        Returns:
+            ``(contract_complete, unservable_required_columns, column_manifest)``.
+            For a non-declaring request this is the two-way-door identity
+            ``(True, [], None)``.
+        """
+        served = set(schema.column_names())
+        required = list(required_columns or [])
+        # SCHEMA membership, NOT df.columns (ADR D3): immune to a 100%-NULL served column.
+        unservable = [c for c in required if c not in served]
+        contract_complete = not unservable
+        column_manifest: dict[str, object] | None = None
+        if required:  # belt-and-braces: only scan when a contract is actually declared
+            served_in_frame = sorted(served & set(df.columns))
+            column_manifest = {
+                "served": served_in_frame,
+                "population": {c: int(df[c].drop_nulls().len()) for c in served_in_frame},
+            }
+        return contract_complete, unservable, column_manifest
 
     async def _execute_entity_join(
         self,
