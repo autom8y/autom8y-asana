@@ -22,6 +22,9 @@ from typing import TYPE_CHECKING, Any
 from autom8y_api_schemas import OfficePhone
 from autom8y_log import get_logger
 
+from autom8_asana.automation.workflows.active_offer_enumeration import (
+    enumerate_active_offers,
+)
 from autom8_asana.automation.workflows.base import (
     WorkflowItemError,
     WorkflowResult,
@@ -41,11 +44,6 @@ from autom8_asana.automation.workflows.insights.tables import (
     TableSpec,
 )
 from autom8_asana.clients.utils.pii import mask_phone_number
-from autom8_asana.models.business.activity import (
-    OFFER_CLASSIFIER,
-    AccountActivity,
-    extract_section_name,
-)
 from autom8_asana.models.business.offer import Offer
 from autom8_asana.resolution.context import ResolutionContext
 
@@ -303,142 +301,16 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
     async def _enumerate_offers(self) -> list[dict[str, Any]]:
         """List ACTIVE (non-completed) Offer tasks using section-targeted fetch.
 
-        Primary path: resolve ACTIVE section GIDs, fetch tasks per section
-        in parallel (Semaphore(5)), merge and deduplicate by GID.
-
-        Fallback: project-level fetch with client-side classification (current behavior).
+        Delegates to the shared ``enumerate_active_offers`` helper so the
+        insights export and the grain-bridge leads consumer share ONE
+        active-set definition (no second classifier). Behavior (section-targeted
+        primary + project-level fallback) is unchanged.
         """
-        from autom8_asana.automation.workflows.section_resolution import (
-            resolve_section_gids,
+        return await enumerate_active_offers(
+            self._asana_client,
+            logger=logger,
+            workflow_id=self.workflow_id,
         )
-
-        active_section_names = OFFER_CLASSIFIER.sections_for(AccountActivity.ACTIVE)
-
-        # Resolve section GIDs
-        try:
-            resolved = await resolve_section_gids(
-                self._asana_client.sections,
-                OFFER_PROJECT_GID,
-                active_section_names,
-            )
-        except (
-            Exception  # noqa: BLE001
-        ):  # BROAD-CATCH: boundary -- section resolution failure falls back to full enumeration
-            logger.warning(
-                "section_resolution_failed_fallback",
-                workflow_id=self.workflow_id,
-                project_gid=OFFER_PROJECT_GID,
-            )
-            return await self._enumerate_offers_fallback()
-
-        if not resolved:
-            logger.warning(
-                "section_resolution_empty_fallback",
-                workflow_id=self.workflow_id,
-                project_gid=OFFER_PROJECT_GID,
-            )
-            return await self._enumerate_offers_fallback()
-
-        # Parallel section fetch with bounded concurrency
-        semaphore = asyncio.Semaphore(5)
-
-        async def fetch_section(section_gid: str) -> list[Any]:
-            async with semaphore:
-                result: list[Any] = await self._asana_client.tasks.list_async(
-                    section=section_gid,
-                    opt_fields=["name", "completed", "parent", "parent.name"],
-                    completed_since="now",
-                ).collect()
-                return result
-
-        results = await asyncio.gather(
-            *[fetch_section(gid) for gid in resolved.values()],
-            return_exceptions=True,
-        )
-
-        # If any section fetch failed, fall back entirely
-        if any(isinstance(r, Exception) for r in results):
-            logger.warning(
-                "section_fetch_partial_failure_fallback",
-                workflow_id=self.workflow_id,
-                project_gid=OFFER_PROJECT_GID,
-                failed_count=sum(1 for r in results if isinstance(r, Exception)),
-            )
-            return await self._enumerate_offers_fallback()
-
-        # Flatten, dedup by GID, build offer dicts
-        seen_gids: set[str] = set()
-        offers: list[dict[str, Any]] = []
-        for section_tasks in results:
-            assert isinstance(section_tasks, list)  # guarded by early-exit above
-            for t in section_tasks:
-                if t.completed or t.gid in seen_gids:
-                    continue
-                seen_gids.add(t.gid)
-                offers.append(
-                    {
-                        "gid": t.gid,
-                        "name": t.name,
-                    }
-                )
-
-        logger.info(
-            "insights_section_targeted_enumeration",
-            sections_targeted=len(resolved),
-            tasks_enumerated=len(offers),
-        )
-
-        return offers
-
-    async def _enumerate_offers_fallback(self) -> list[dict[str, Any]]:
-        """Fallback: project-level fetch with client-side ACTIVE classification.
-
-        This is the pre-migration enumeration logic, preserved verbatim for
-        resilience when section resolution or section-level fetch fails.
-        """
-        page_iterator = self._asana_client.tasks.list_async(
-            project=OFFER_PROJECT_GID,
-            opt_fields=[
-                "name",
-                "completed",
-                "parent",
-                "parent.name",
-                "memberships.section.name",
-            ],
-            completed_since="now",
-        )
-        tasks = await page_iterator.collect()
-
-        # Filter to non-completed tasks first
-        non_completed = [t for t in tasks if not t.completed]
-        total_before = len(non_completed)
-
-        # Filter to only ACTIVE offers by section classification
-        active_offers: list[dict[str, Any]] = []
-        for t in non_completed:
-            section_name = extract_section_name(t, OFFER_PROJECT_GID)
-            if section_name is None:
-                continue
-            activity = OFFER_CLASSIFIER.classify(section_name)
-            if activity != AccountActivity.ACTIVE:
-                continue
-            active_offers.append(
-                {
-                    "gid": t.gid,
-                    "name": t.name,
-                }
-            )
-
-        filtered_count = total_before - len(active_offers)
-        if filtered_count > 0:
-            logger.info(
-                "insights_export_offers_filtered_by_activity",
-                total_before=total_before,
-                active_count=len(active_offers),
-                filtered_count=filtered_count,
-            )
-
-        return active_offers
 
     async def _process_offer(
         self,
