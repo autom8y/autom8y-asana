@@ -325,9 +325,22 @@ async def _perform_incremental_rebuild(
                     df = build_result.dataframe
                     watermark = build_result.watermark
 
-                # Update cache and watermark
+                # Update cache and watermark. Thread the build's fail-closed write
+                # decision (Warmer-Path PRESERVE Enforcement, W6 twin of the warmer
+                # bug): the admin rebuild is the SAME two-writer pattern — it extracts
+                # build_result.dataframe (degraded on PRESERVE) and put_async-writes it.
+                # Carrying the decision lets the converged write primitive honor
+                # PRESERVE here too instead of silently overwriting the prior-good.
                 if dataframe_cache is not None and df is not None and len(df) > 0:
-                    await dataframe_cache.put_async(project_gid, entity_type, df, watermark)
+                    await dataframe_cache.put_async(
+                        project_gid,
+                        entity_type,
+                        df,
+                        watermark,
+                        write_decision=build_result.write_decision,
+                        population_degraded=build_result.population_degraded,
+                        population_min_rate=build_result.population_min_rate,
+                    )
                 watermark_repo.set_watermark(project_gid, watermark)
 
                 logger.info(

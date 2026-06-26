@@ -146,6 +146,123 @@ class TestDefaultLogProviderEnhanced:
         assert provider._logger.name == "custom_logger"
 
 
+class _RecordCaptureHandler(logging.Handler):
+    """Capture emitted LogRecords so reserved-key sanitization can be asserted.
+
+    Reaching ``emit()`` proves the record survived stdlib ``makeRecord`` — a
+    reserved ``extra`` key (e.g. ``name``) would have raised
+    ``KeyError: "Attempt to overwrite '<key>' in LogRecord"`` inside the logger
+    *before* any handler ran, so the record would never arrive here.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append(record)
+
+
+class TestDefaultLogProviderReservedExtraSanitization:
+    """Two-sided guard for the reserved-LogRecord-key crash in the cache warmer.
+
+    Pre-fix, ``DefaultLogProvider(...).<level>(msg, extra={"name": ...})`` reached
+    a RAW stdlib logger and raised ``KeyError: "Attempt to overwrite 'name' in
+    LogRecord"`` — crashing every Asana task fetch on the warm path (the seeder
+    logs ``extra={"name": ...}`` idiomatically). Post-fix the provider routes
+    ``extra`` through ``autom8y_log.sanitize_log_extra`` so reserved keys are
+    renamed (``name`` -> ``extra_name``) with values preserved.
+    """
+
+    def _provider_with_capture(self, name: str) -> tuple[object, _RecordCaptureHandler]:
+        from autom8_asana._defaults.log import DefaultLogProvider
+
+        provider = DefaultLogProvider(level=logging.DEBUG, name=name)
+        capture = _RecordCaptureHandler()
+        provider._logger.addHandler(capture)  # type: ignore[attr-defined]
+        return provider, capture
+
+    def test_reserved_name_key_does_not_raise_and_value_preserved(self) -> None:
+        """extra={"name": ...} must not raise; value preserved under extra_name.
+
+        This is the exact crash the cache warmer hit. Pre-fix this call raised
+        ``KeyError: "Attempt to overwrite 'name' in LogRecord"``.
+        """
+        provider, capture = self._provider_with_capture("reserved_name_provider")
+
+        # Must NOT raise (pre-fix: KeyError "Attempt to overwrite 'name'").
+        provider.info("Creating new Business", extra={"name": "Acme Corp"})
+
+        assert len(capture.records) == 1
+        record = capture.records[0]
+        # Reserved key renamed, value preserved under the safe key.
+        assert record.__dict__["extra_name"] == "Acme Corp"
+        # The original logger name is intact (caller's value did not clobber it).
+        assert record.name == "reserved_name_provider"
+
+    def test_second_reserved_key_module_sanitized(self) -> None:
+        """A second reserved key (module) is also renamed with value preserved."""
+        provider, capture = self._provider_with_capture("reserved_module_provider")
+
+        provider.warning("entity", extra={"module": "seeder", "name": "Unit-1"})
+
+        assert len(capture.records) == 1
+        record = capture.records[0]
+        assert record.__dict__["extra_module"] == "seeder"
+        assert record.__dict__["extra_name"] == "Unit-1"
+
+    def test_non_reserved_key_passes_through_unchanged(self) -> None:
+        """Non-reserved extra keys keep their original name and value."""
+        provider, capture = self._provider_with_capture("non_reserved_provider")
+
+        provider.info("ctx", extra={"gid": "12345", "correlation_id": "abc"})
+
+        assert len(capture.records) == 1
+        record = capture.records[0]
+        assert record.__dict__["gid"] == "12345"
+        assert record.__dict__["correlation_id"] == "abc"
+        # No spurious renaming of non-reserved keys.
+        assert "extra_gid" not in record.__dict__
+
+    @pytest.mark.asyncio
+    async def test_error_handler_client_path_with_reserved_extra(self) -> None:
+        """End-to-end: the real @error_handler warm path must not crash.
+
+        Reproduces the warmer surface: a client whose ``_log`` is a
+        ``DefaultLogProvider`` and whose ``@error_handler``-wrapped method logs
+        ``extra={"name": ...}``. Pre-fix the inner log raised KeyError, which the
+        decorator caught and re-raised, FAILING the operation. Post-fix the
+        operation completes and the value is preserved.
+        """
+        from autom8_asana._defaults.log import DefaultLogProvider
+        from autom8_asana.observability import error_handler
+
+        provider = DefaultLogProvider(level=logging.DEBUG, name="warm_path_provider")
+        capture = _RecordCaptureHandler()
+        provider._logger.addHandler(capture)
+
+        class _FakeTasksClient:
+            def __init__(self, log_provider: DefaultLogProvider) -> None:
+                self._log = log_provider
+
+            @error_handler
+            async def get(self, task_gid: str) -> str:
+                # The seeder-style idiomatic reserved-key log on the warm path.
+                self._log.info("Seeding entity", extra={"name": "Business-A"})
+                return task_gid
+
+        client = _FakeTasksClient(provider)
+
+        # Pre-fix: KeyError propagates out of get() via the decorator's re-raise.
+        result = await client.get("task-gid-123")
+
+        assert result == "task-gid-123"
+        # The reserved-key log record made it through stdlib makeRecord.
+        seeding_records = [r for r in capture.records if r.getMessage() == "Seeding entity"]
+        assert len(seeding_records) == 1
+        assert seeding_records[0].__dict__["extra_name"] == "Business-A"
+
+
 class TestObservabilityHook:
     """Tests for ObservabilityHook protocol."""
 

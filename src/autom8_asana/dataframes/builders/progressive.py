@@ -74,6 +74,30 @@ class _ResumeResult:
     sections_delta_updated: int
 
 
+@dataclass
+class _FinalizeResult:
+    """Outcome of the Steps 5.65 -> 6 cure -> floor -> write finalizer.
+
+    Carries the (possibly coalesced) frame the build proceeds with plus the
+    receipts the write decision rested on, so callers (build_progressive_async)
+    and tests can read the verdict without re-deriving it (Cure-Recovery-Path
+    Hardening).
+
+    Attributes:
+        merged_df: The frame after the cure (and any prior-good coalesce). On a
+            PRESERVE_PRIOR_GOOD skip this is the freshly-built frame the build
+            classifies on, even though it was NOT persisted.
+        decision: The write-gate decision honored.
+        recovery_receipt: The cure's receipt (None when the cure did not run).
+        population_receipt: The floor verdict (None when the receipt did not run).
+    """
+
+    merged_df: pl.DataFrame
+    decision: Any  # WriteDecision (avoid an import cycle at module load)
+    recovery_receipt: Any  # NumericRecoveryReceipt | None
+    population_receipt: Any  # PopulationReceipt | None
+
+
 class ProgressiveProjectBuilder:
     """Builder that writes section DataFrames progressively to S3.
 
@@ -135,6 +159,12 @@ class ProgressiveProjectBuilder:
         self._dataframe_view: DataFrameViewPlugin | None = None
         self._section_dfs: dict[str, pl.DataFrame] = {}
         self._manifest: SectionManifest | None = None
+        # Population-floor verdict for the last build (Cure-Recovery-Path
+        # Hardening): surfaced to the cache entry as
+        # BuildQuality.population_degraded so the next warm's rebuild gate (FORK-2)
+        # can re-heal a below-floor frame. Default healthy.
+        self._population_degraded: bool = False
+        self._population_min_rate: float = 1.0
         # Delta checkpoint state -- reset per section (R5)
         self._checkpoint_df: pl.DataFrame | None = None
         self._checkpoint_task_count: int = 0
@@ -617,6 +647,246 @@ class ProgressiveProjectBuilder:
 
         return merged_df
 
+    async def _finalize_artifacts_write_async(
+        self,
+        merged_df: pl.DataFrame,
+        watermark: datetime,
+        *,
+        total_rows: int | None = None,
+        section_results: list[SectionResult] | None = None,
+    ) -> _FinalizeResult:
+        """Steps 5.65 -> 6: cure, population floor, fail-closed write, persist.
+
+        The Step-6 write gate (Cure-Recovery-Path Hardening, FORK-1). Runs the
+        path-canon cure (which heals null numeric cells from the durable per-task
+        cache), assesses the population floor over the active subset, then DECIDES
+        what to do with the freshly-built frame given the prior-good frame on disk:
+
+          * PRESERVE_PRIOR_GOOD -- the cure healed nothing (wholesale durable-read
+            outage) and a strictly-better prior-good frame exists: SKIP the write
+            (and the manifest stamp) so the last-good frame is served in the gap.
+          * WRITE_COALESCED -- a partial heal still below floor with a
+            strictly-better prior-good: coalesce the prior-good value cells into
+            the new frame's null cells, then write a frame >= prior-good.
+          * WRITE_AS_IS -- healthy frame, or cold-start with no usable prior-good
+            (preserves honest-empty-200; never strands a project in the 503 trap).
+
+        NEVER fabricates (COALESCE copies a prior REAL value). Per-entity, never
+        cross-entity. The floor breach is over the ACTIVE subset (the receipt
+        already filters it). On any uncertainty (prior-good read error, etc.) the
+        decision degrades to WRITE_AS_IS -- an additive, two-way-door posture.
+
+        Args:
+            merged_df: The merged frame for this warm.
+            watermark: The build watermark.
+            total_rows: Row count of the merged frame (computed when omitted).
+            section_results: Section outcomes (for the honest-empty log only).
+
+        Returns:
+            A _FinalizeResult carrying the proceed-frame + the write decision and
+            the receipts it rested on.
+        """
+        from autom8_asana.dataframes.builders.fail_closed_write import (
+            WriteDecision,
+            coalesce_prior_good,
+            decide_write,
+        )
+        from autom8_asana.dataframes.builders.post_build_population_receipt import (
+            _VALUE_COLUMNS_BY_ENTITY,
+            post_build_population_receipt,
+        )
+
+        if total_rows is None:
+            total_rows = len(merged_df)
+
+        recovery_receipt: Any = None
+        population_receipt: Any = None
+
+        # Step 5.65: Path-canon recovery of stripped numeric custom-field cells
+        # (FPC Phase-2). CACHE-REUSE ONLY; runs BEFORE the population receipt so the
+        # floor assesses a HEALED frame. Field-agnostic; NEVER fabricates / raises.
+        if total_rows > 0 and self._store is not None:
+            from autom8_asana.dataframes.builders.null_number_recovery import (
+                recover_null_number_cells,
+            )
+
+            merged_df, recovery_receipt = await recover_null_number_cells(
+                merged_df=merged_df,
+                schema=self._schema,
+                store=self._store,
+                entity_type=self._entity_type,
+                project_gid=self._project_gid,
+            )
+
+        # Step 5.7: Value-population receipt (FM-4, ADR-SEAM1 Decision 4). WARN-first
+        # attestation over the active-classified subset; NEVER raises / changes build
+        # status. Its return value is now CONSUMED (the fail-closed seam) -- the
+        # WARN side effect is preserved unchanged.
+        if total_rows > 0:
+            try:
+                population_receipt = post_build_population_receipt(
+                    merged_df=merged_df,
+                    schema=self._schema,
+                    entity_type=self._entity_type,
+                    project_gid=self._project_gid,
+                )
+            except Exception as e:  # BROAD-CATCH: receipt is additive  # noqa: BLE001
+                logger.warning(
+                    "population_receipt_failed",
+                    extra={
+                        "project_gid": self._project_gid,
+                        "entity_type": self._entity_type,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    },
+                )
+
+        # Step 5.8: Fail-closed write decision. Read the prior-good frame
+        # best-effort; a read failure degrades to WRITE_AS_IS (never block a write
+        # on a prior-good read error).
+        value_columns = _VALUE_COLUMNS_BY_ENTITY.get(self._entity_type, ())
+        prior_good_frame: pl.DataFrame | None = None
+        if value_columns and population_receipt is not None and population_receipt.below_floor:
+            prior_good_frame = await self._load_prior_good_frame()
+
+        decision = decide_write(
+            population_receipt,
+            recovery_receipt,
+            prior_good_frame,
+            value_columns,
+        )
+
+        # Step 6: Write final artifacts, honoring the decision.
+        # honest-empty-200: persist the artifact when the build produced rows OR
+        # when it is HONEST-COMPLETE-but-empty (all known sections COMPLETE,
+        # total_rows == 0); a genuinely-empty project must still persist a zero-row
+        # frame so the receiver serves honest-empty-200 instead of a 503 trap.
+        honest_complete_empty = total_rows == 0 and (
+            self._manifest is None or is_honest_complete(self._manifest)
+        )
+
+        if decision is WriteDecision.PRESERVE_PRIOR_GOOD:
+            # Fail closed: do NOT overwrite the strictly-better prior-good frame,
+            # and do NOT stamp the manifest (so freshness does not falsely advance
+            # over a frame that was never rewritten). The last-good frame is served.
+            logger.warning(
+                "fail_closed_write_preserve_prior_good",
+                extra={
+                    "project_gid": self._project_gid,
+                    "entity_type": self._entity_type,
+                    "min_nonnull_rate": (
+                        round(population_receipt.min_rate, 6)
+                        if population_receipt is not None
+                        else None
+                    ),
+                    "reason": "below_floor_wholesale_durable_read_outage",
+                },
+            )
+            return _FinalizeResult(
+                merged_df=merged_df,
+                decision=decision,
+                recovery_receipt=recovery_receipt,
+                population_receipt=population_receipt,
+            )
+
+        write_df = merged_df
+        # The persisted population verdict reflects the frame ACTUALLY written.
+        persisted_degraded = (
+            population_receipt.below_floor if population_receipt is not None else False
+        )
+        persisted_min_rate = population_receipt.min_rate if population_receipt is not None else 1.0
+        if decision is WriteDecision.WRITE_COALESCED and prior_good_frame is not None:
+            write_df = coalesce_prior_good(merged_df, prior_good_frame, value_columns)
+            logger.warning(
+                "fail_closed_write_coalesced_prior_good",
+                extra={
+                    "project_gid": self._project_gid,
+                    "entity_type": self._entity_type,
+                    "value_columns": list(value_columns),
+                    "reason": "below_floor_partial_heal_rescued_prior_good",
+                },
+            )
+            # WRITE_COALESCED rescued prior-good cells, so the written frame may
+            # clear the floor even though the freshly-built one did not. Recompute
+            # the carried flag against write_df so a degraded flag is not stamped on
+            # a frame that is no longer below-floor (else FORK-2 would re-warm-storm
+            # a now-healthy frame).
+            coalesced_receipt = post_build_population_receipt(
+                merged_df=write_df,
+                schema=self._schema,
+                entity_type=self._entity_type,
+                project_gid=self._project_gid,
+            )
+            persisted_degraded = coalesced_receipt.below_floor
+            persisted_min_rate = coalesced_receipt.min_rate
+
+        if total_rows > 0 or honest_complete_empty:
+            index_data = self._build_index_data(write_df)
+            # Writer A routes through the converged primitive too (Warmer-Path PRESERVE
+            # Enforcement). It NEVER reaches here on PRESERVE (it early-returned at the
+            # Step-6 PRESERVE branch above), and WRITE_COALESCED has ALREADY been applied
+            # to write_df, so it records WRITE_AS_IS — the frame is now honest-as-written.
+            # This (a) avoids a double-coalesce in the primitive (R-1), and (b) records a
+            # decision so the primitive's backstop guard does NOT refuse a legitimate
+            # cold-start honest-null write (decision WRITE_AS_IS, population_degraded True,
+            # no prior-good — must persist for honest-empty-200, R-3).
+            from autom8_asana.dataframes.builders.fail_closed_write import (
+                WriteDecision as _WriteDecision,
+            )
+
+            await self._persistence.write_final_artifacts_async(
+                self._project_gid,
+                write_df,
+                watermark,
+                index_data=index_data,
+                entity_type=self._entity_type,
+                population_degraded=persisted_degraded,
+                population_min_rate=persisted_min_rate,
+                write_decision=_WriteDecision.WRITE_AS_IS,
+            )
+            if honest_complete_empty:
+                logger.info(
+                    "progressive_build_persisted_honest_empty",
+                    extra={
+                        "project_gid": self._project_gid,
+                        "entity_type": self._entity_type,
+                        "total_sections": len(section_results or ()),
+                    },
+                )
+
+        return _FinalizeResult(
+            merged_df=write_df,
+            decision=decision,
+            recovery_receipt=recovery_receipt,
+            population_receipt=population_receipt,
+        )
+
+    async def _load_prior_good_frame(self) -> pl.DataFrame | None:
+        """Best-effort read of the persisted prior-good frame for this entity.
+
+        Reads the SAME storage path the warm already touches
+        (``persistence.storage.load_dataframe``). On ANY read failure returns None
+        so the caller degrades to WRITE_AS_IS -- never block a write on a
+        prior-good read error (additive posture, mirrors the cure's broad-catch).
+        Adds NO new ``asyncio.to_thread`` site (FROZEN-4 preserved).
+        """
+        try:
+            df, _watermark = await self._persistence.storage.load_dataframe(
+                self._project_gid, entity_type=self._entity_type
+            )
+        except Exception as e:  # BROAD-CATCH: prior-good read is best-effort  # noqa: BLE001
+            logger.warning(
+                "fail_closed_prior_good_read_failed",
+                extra={
+                    "project_gid": self._project_gid,
+                    "entity_type": self._entity_type,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            )
+            return None
+        return df
+
     @trace_computation("progressive.build", engine="autom8y-asana")
     async def build_progressive_async(
         self,
@@ -795,77 +1065,33 @@ class ProgressiveProjectBuilder:
                 project_gid=self._project_gid,
             )
 
-        # Step 5.7: Value-population receipt (FM-4, ADR-SEAM1 Decision 4).
-        # WARN-first attestation that the active-classified subset actually
-        # carries non-null economic value columns (mrr/offer_id for offer). A
-        # present-but-null economics frame fires RED here -- the only gate that
-        # covers VALUE columns (the cascade audits cover KEY columns only). NEVER
-        # raises and NEVER changes build status: a degraded-but-present warm must
-        # still serve. Runs on any non-empty frame; entities without value
-        # columns (section/project) are a safe no-op inside the receipt.
-        if total_rows > 0:
-            from autom8_asana.dataframes.builders.post_build_population_receipt import (
-                post_build_population_receipt,
-            )
-
-            try:
-                post_build_population_receipt(
-                    merged_df=merged_df,
-                    schema=self._schema,
-                    entity_type=self._entity_type,
-                    project_gid=self._project_gid,
-                )
-            except Exception as e:  # BROAD-CATCH: receipt is additive  # noqa: BLE001
-                logger.warning(
-                    "population_receipt_failed",
-                    extra={
-                        "project_gid": self._project_gid,
-                        "entity_type": self._entity_type,
-                        "error": str(e),
-                        "error_type": type(e).__name__,
-                    },
-                )
-
-        # Step 6: Write final artifacts
-        # ADR-1 edit 1 (honest-empty-200): persist the final artifact when the
-        # build produced rows OR when it is HONEST-COMPLETE-but-empty (all known
-        # sections COMPLETE, total_rows == 0). Previously the `total_rows > 0`
-        # gate skipped the write for genuinely-empty projects, so no
-        # `dataframe.parquet` was ever persisted -> the receiver loaded None ->
-        # cold-miss -> perpetual CACHE_BUILD_IN_PROGRESS 503 that never cleared
-        # (the rebuild re-yields total_rows == 0). Persisting the zero-row,
-        # schema'd frame makes the empty project a first-class cached artifact:
-        # load_dataframe returns an empty frame (not None), the 503 trap is never
-        # entered, and the freshness prober (gated on is_complete) re-stamps it.
-        # The cascade-validation (Step 5.5) and hierarchy-warm (Step 5.25) gates
-        # above STAY `total_rows > 0` -- an empty frame has nothing to validate
-        # or warm; only this FINAL-ARTIFACT write is un-gated for honest-empty.
-        honest_complete_empty = total_rows == 0 and (
-            self._manifest is None or is_honest_complete(self._manifest)
+        # Steps 5.65 -> 6: cure -> population floor -> fail-closed write decision ->
+        # persistence. Extracted into _finalize_artifacts_write_async so the
+        # Step-6 write gate honors the population-floor verdict (Cure-Recovery-Path
+        # Hardening, FORK-1): a degraded warm degrades to the LAST-GOOD frame
+        # instead of persisting a freshly-nulled frame. The returned verdict feeds
+        # BuildQuality.population_degraded so the cache entry / next warm's rebuild
+        # gate (FORK-2) can read it.
+        finalize = await self._finalize_artifacts_write_async(
+            merged_df=merged_df,
+            watermark=watermark,
+            total_rows=total_rows,
+            section_results=section_results,
         )
-        if total_rows > 0 or honest_complete_empty:
-            index_data = self._build_index_data(merged_df)
-
-            await self._persistence.write_final_artifacts_async(
-                self._project_gid,
-                merged_df,
-                watermark,
-                index_data=index_data,
-                entity_type=self._entity_type,
-            )
-            if honest_complete_empty:
-                logger.info(
-                    "progressive_build_persisted_honest_empty",
-                    extra={
-                        "project_gid": self._project_gid,
-                        "entity_type": self._entity_type,
-                        "total_sections": len(section_results),
-                    },
-                )
+        merged_df = finalize.merged_df
+        if finalize.population_receipt is not None:
+            self._population_degraded = finalize.population_receipt.below_floor
+            self._population_min_rate = finalize.population_receipt.min_rate
 
         total_time = (time.perf_counter() - start_time) * 1000
 
-        # Classify and log build result
+        # Classify and log build result. Carry the Step-6 fail-closed write decision
+        # (and the population verdict) onto BuildResult so the SECOND finalize writers
+        # — warmer (W3), admin (W6), decorator (W7) — honor PRESERVE/COALESCE at the
+        # converged write primitive instead of silently re-persisting the degraded
+        # frame the builder hands back (Warmer-Path PRESERVE Enforcement; the #127
+        # builder Step-6 early-return is UNCHANGED — this only stops DISCARDING the
+        # decision it already computed).
         build_result = BuildResult.from_section_results(
             section_results=section_results,
             dataframe=merged_df,
@@ -876,6 +1102,9 @@ class ProgressiveProjectBuilder:
             fetch_time_ms=fetch_time,
             sections_probed=resume_result.sections_probed,
             sections_delta_updated=resume_result.sections_delta_updated,
+            write_decision=finalize.decision,
+            population_degraded=self._population_degraded,
+            population_min_rate=self._population_min_rate,
         )
 
         logger.info(

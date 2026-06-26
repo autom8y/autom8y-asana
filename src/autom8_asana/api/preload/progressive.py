@@ -101,6 +101,74 @@ def _dataframe_to_task_dicts(
     return task_dicts
 
 
+async def _quality_aware_resume(
+    df_storage: Any,
+    project_gid: str,
+    entity_type: str,
+) -> bool:
+    """Return the ``resume`` flag for a warm, applying the FORK-2 quality term.
+
+    Reads the persisted population-floor verdict from the durable sidecar. When the
+    last build of THIS frame was below-floor (``population_degraded``) AND the
+    durable-read grant is healthy (the preload only runs when the service can read
+    S3, so the grant is healthy by construction at this site), force a NON-resume
+    rebuild so the cure re-heals the degraded cells.
+
+    Defaults to ``True`` (resume) on any read failure / missing flag / healthy frame
+    -- the additive, two-way-door posture: a degraded read never blocks the normal
+    resume warm.
+
+    Args:
+        df_storage: The DataFrameStorage (or None when S3 unavailable).
+        project_gid: Asana project GID.
+        entity_type: Entity type (selects the v2 sidecar).
+
+    Returns:
+        ``False`` to force a full rebuild (re-heal), ``True`` to resume normally.
+    """
+    if df_storage is None:
+        return True
+    try:
+        _df, _wm, meta = await df_storage.load_dataframe_with_metadata(project_gid, entity_type)
+    except Exception as e:  # noqa: BLE001 — ADVISORY: sidecar read is best-effort; failure degrades to resume
+        logger.warning(
+            "quality_aware_resume_metadata_read_failed",
+            extra={
+                "project_gid": project_gid,
+                "entity_type": entity_type,
+                "error": str(e),
+                "error_type": type(e).__name__,
+            },
+        )
+        return True
+
+    if not meta:
+        return True
+
+    from autom8_asana.metrics.rebuild_gate import needs_rebuild
+
+    population_degraded = bool(meta.get("population_degraded", False))
+    # The preload runs only when the service can read S3, so the durable-read grant
+    # is healthy here (grant_unhealthy_recently=False); the cure will re-heal.
+    force_rebuild = needs_rebuild(
+        stale_by_age=False,
+        population_degraded=population_degraded,
+        grant_unhealthy_recently=False,
+    )
+    if force_rebuild:
+        logger.warning(
+            "quality_aware_rebuild_forced",
+            extra={
+                "project_gid": project_gid,
+                "entity_type": entity_type,
+                "population_min_rate": meta.get("population_min_rate"),
+                "reason": "persisted_frame_below_floor_grant_healthy",
+            },
+        )
+        return False  # NON-resume: rebuild + re-run the cure
+    return True
+
+
 def _invoke_cache_warmer_lambda_from_preload(function_arn: str, entity_types: list[str]) -> None:
     """Invoke cache warmer Lambda for entities missing S3 data."""
     import json
@@ -589,7 +657,21 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                 )
                                 # Fall through to builder.build_progressive_async()
 
-                        result = await builder.build_progressive_async(resume=True)
+                        # FORK-2 (Cure-Recovery-Path Hardening): quality-aware
+                        # rebuild. A manifest exists, so the default warm resumes
+                        # (skips completed sections, freshness-skipping the
+                        # rebuild). But if the persisted frame is BELOW-FLOOR
+                        # (population_degraded, read from the durable sidecar) AND
+                        # the durable-read grant is healthy again, force a NON-resume
+                        # rebuild so the cure re-heals the degraded cells from the
+                        # now-readable durable cache (else the degraded frame never
+                        # self-heals -- EXP-1 GAP-2). FreshnessReport.stale stays a
+                        # pure age signal; the quality term lives HERE in the
+                        # rebuild gate (TDD §4.3).
+                        resume_warm = await _quality_aware_resume(
+                            df_storage, project_gid, entity_type
+                        )
+                        result = await builder.build_progressive_async(resume=resume_warm)
 
                         # Update totals
                         sections_fetched_total += result.sections_succeeded
@@ -599,7 +681,10 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                             # Store in watermark repo
                             watermark_repo.set_watermark(project_gid, result.watermark)
 
-                            # Store in DataFrameCache singleton
+                            # Store in DataFrameCache singleton. Carry the
+                            # population-floor verdict (FORK-1/FORK-2 seam) onto the
+                            # cache entry so the receiver-serving path observes the
+                            # degraded state alongside the in-memory build_quality.
                             if dataframe_cache is not None and result.dataframe is not None:
                                 await dataframe_cache.put_async(
                                     project_gid,
@@ -607,6 +692,8 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
                                     result.dataframe,
                                     result.watermark,
                                     build_result=result,
+                                    population_degraded=builder._population_degraded,
+                                    population_min_rate=builder._population_min_rate,
                                 )
 
                         return True

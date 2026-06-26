@@ -149,6 +149,16 @@ class UniversalResolutionStrategy:
     # Freshness info from last cache access
     _last_freshness_info: FreshnessInfo | None = field(default=None, repr=False)
 
+    # Carry for the fail-closed write decision from the LAST build (Warmer-Path
+    # PRESERVE Enforcement). _build_entity_dataframe stashes the build's
+    # WriteDecision + population verdict here; the warmer reads it post-build and
+    # threads it into put_async so the converged write primitive honors PRESERVE at
+    # the operative warmer write site (the strategy instance is freshly constructed
+    # per warm via get_universal_strategy, so there is no cross-warm leakage). Shape:
+    # {"write_decision": WriteDecision|None, "population_degraded": bool,
+    #  "population_min_rate": float} or None when no build ran.
+    _last_write_context: dict[str, Any] | None = field(default=None, repr=False)
+
     async def resolve(
         self,
         criteria: list[dict[str, Any]],
@@ -1248,6 +1258,18 @@ class UniversalResolutionStrategy:
                 result = await builder.build_progressive_async(resume=True)
                 df: pl.DataFrame | None = result.dataframe
 
+            # Stash the build's fail-closed write decision so the warmer (the SECOND
+            # finalize writer, W3) can honor PRESERVE/COALESCE at the converged write
+            # primitive — instead of silently re-persisting the degraded frame the
+            # builder hands back (Warmer-Path PRESERVE Enforcement). Keeping
+            # _build_dataframe's (df, watermark) arity intact preserves the decorator
+            # (W7) and build-with-timeout 2-tuple unpack contracts.
+            self._last_write_context = {
+                "write_decision": result.write_decision,
+                "population_degraded": result.population_degraded,
+                "population_min_rate": result.population_min_rate,
+            }
+
             logger.info(
                 "entity_dataframe_built",
                 extra={
@@ -1260,6 +1282,7 @@ class UniversalResolutionStrategy:
             return df
 
         except _DATAFRAME_BUILD_ERRORS as e:
+            self._last_write_context = None
             logger.warning(
                 "entity_dataframe_build_failed",
                 extra={

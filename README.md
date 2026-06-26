@@ -93,6 +93,20 @@ export WORKSPACE_GID="your_workspace_gid"
 
 This eliminates the need for env var bridging in ECS task definitions.
 
+## Contributing / Local Development
+
+```bash
+# Install dependencies
+uv sync
+
+# Install pre-commit hooks (required — enforces lint/format on every commit)
+pre-commit install
+```
+
+Note: `just lint` runs `ruff check` (lint) but does NOT run `ruff format`. To
+format code locally, run `just fmt` (or rely on pre-commit, which runs both).
+The canonical local pre-push sequence is `just fmt && just lint`.
+
 ## License
 
 MIT License - see LICENSE file for details.

@@ -149,6 +149,20 @@ _SANCTIONED_IO_TO_THREAD: dict[str, str] = {
     "autom8_asana/automation/events/transport.py": (
         "automation event transport boto3 publish — I/O offload"
     ),
+    # DurableTaskCacheReader: the blessed bounded-concurrency durable S3 per-task
+    # cache read (RAW boto3 get_object of {TASK_CACHE.prefix}/tasks/<gid>/task.json
+    # — NOT S3CacheProvider, whose prefix + envelope deserialization were the #120
+    # inert defect). This is where the FPC Phase-2 cure's cold-tier fill now lives:
+    # the StorageNamespaceContract retire moved the raw-read LOGIC (and thus the
+    # sole asyncio.to_thread offload site) OUT of null_number_recovery.py INTO this
+    # reader module (subsumed, not duplicated). Blocking I/O offload, NOT a CPU
+    # merge; semaphore-capped (ASANA_CURE_COLD_CONCURRENCY, default 24); 0 Asana
+    # GETs (durable_task_cache.py:DurableTaskCacheReader.read_batch_with).
+    "autom8_asana/cache/durable_task_cache.py": (
+        "durable S3 per-task cache read (raw boto3 get_object) backfilling null "
+        "numeric cf cells — I/O offload, semaphore-capped, 0 Asana GETs; the cure's "
+        "cold-tier read logic subsumed here by the StorageNamespaceContract retire"
+    ),
 }
 
 

@@ -66,7 +66,18 @@ class TestAIMDIntegration429:
 
     async def test_429_triggers_aimd_decrease_in_request(self):
         """Mock 429 response, verify semaphore window decreased."""
-        config = AsanaConfig(concurrency=ConcurrencyConfig(read_limit=50, write_limit=15))
+        # aimd_start_window=read_limit: this test exercises the AIMD HALVING math
+        # (50 -> 25), so it opts into the legacy start-at-ceiling. The new
+        # conservative cold-start default (C-3) is exercised by
+        # test_warmer_storm_durability.py.
+        config = AsanaConfig(
+            concurrency=ConcurrencyConfig(
+                read_limit=50,
+                write_limit=15,
+                aimd_start_window=50,
+                aimd_multiplicative_decrease=0.5,  # assert legacy 0.5 halving math
+            )
+        )
         auth = MockAuthProvider()
         client = AsanaHttpClient(config, auth)
         # Disable retry so the 429 raises immediately
@@ -95,6 +106,8 @@ class TestAIMDIntegration429:
                 write_limit=15,
                 aimd_grace_period_seconds=0.0,
                 aimd_increase_interval_seconds=0.0,
+                aimd_start_window=50,  # legacy start-at-ceiling for the 50->25->26 math
+                aimd_multiplicative_decrease=0.5,  # assert legacy 0.5 halving math
             )
         )
         auth = MockAuthProvider()
@@ -122,7 +135,17 @@ class TestAIMDIntegration429:
 
     async def test_429_does_not_affect_other_pool(self):
         """Mock 429 on read, verify write semaphore unchanged."""
-        config = AsanaConfig(concurrency=ConcurrencyConfig(read_limit=50, write_limit=15))
+        # Legacy start-at-ceiling: read halves 50->25 while write holds at its
+        # ceiling 15. aimd_start_window=50 clamps to each pool's ceiling
+        # (read=50, write=min(50,15)=15), preserving the original 50/15 math.
+        config = AsanaConfig(
+            concurrency=ConcurrencyConfig(
+                read_limit=50,
+                write_limit=15,
+                aimd_start_window=50,
+                aimd_multiplicative_decrease=0.5,  # assert legacy 0.5 halving math
+            )
+        )
         auth = MockAuthProvider()
         client = AsanaHttpClient(config, auth)
         client._retry_policy = None
@@ -223,6 +246,8 @@ class TestRetryReacquiresSlot:
                 write_limit=15,
                 aimd_grace_period_seconds=0.0,
                 aimd_increase_interval_seconds=0.0,
+                aimd_start_window=50,  # legacy start-at-ceiling for the 50->25->26 math
+                aimd_multiplicative_decrease=0.5,  # assert legacy 0.5 halving math
             )
         )
         auth = MockAuthProvider()

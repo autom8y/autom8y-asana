@@ -326,12 +326,20 @@ class TestProgressiveTierPut:
         result = await tier.put_async("unit:proj-1", entry)
 
         assert result is True
+        # The tier threads the entry's fail-closed write context into the converged
+        # write primitive (Warmer-Path PRESERVE Enforcement). For a default entry the
+        # context is the no-decision/not-degraded baseline (write_decision=None,
+        # population_degraded=False, population_min_rate=1.0) — the historical save
+        # behavior with the decision channel now wired through.
         persistence.write_final_artifacts_async.assert_called_once_with(
             project_gid="proj-1",
             df=entry.dataframe,
             watermark=entry.watermark,
             index_data=None,
             entity_type="unit",
+            population_degraded=False,
+            population_min_rate=1.0,
+            write_decision=None,
         )
 
         stats = tier.get_stats()

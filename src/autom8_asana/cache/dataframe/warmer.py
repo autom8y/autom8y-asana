@@ -410,6 +410,16 @@ class CacheWarmer:
                     error="DataFrame build returned None",
                 )
 
+            # Read the build's fail-closed write decision off the strategy instance
+            # (Warmer-Path PRESERVE Enforcement). The builder PRESERVED on disk via
+            # Writer A then handed back the degraded frame; without this carry the
+            # warmer (Writer B) would silently re-persist it via put_async ->
+            # write_final_artifacts_async. Threading the decision lets the converged
+            # write primitive honor PRESERVE/COALESCE at the operative write site.
+            # Absent context (strategy never built / no decision) degrades to the
+            # historical bare put_async (write_decision=None) — additive posture.
+            write_ctx = getattr(strategy, "_last_write_context", None) or {}
+
             # Store in cache. The boolean is load-bearing (VG-001): a False
             # means the durable (S3) write was non-durable (swallowed transport
             # error). A non-durable write must NOT present as a warm SUCCESS --
@@ -420,6 +430,9 @@ class CacheWarmer:
                 entity_type=entity_type,
                 dataframe=df,
                 watermark=watermark,
+                write_decision=write_ctx.get("write_decision"),
+                population_degraded=bool(write_ctx.get("population_degraded", False)),
+                population_min_rate=float(write_ctx.get("population_min_rate", 1.0)),
             )
             if not durable:
                 logger.error(

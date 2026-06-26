@@ -1,0 +1,183 @@
+# Nightly live-smoke forcing function (CHANGE-001)
+#
+# WHY THIS EXISTS — forcing-function intent:
+#   The repo carries two READ-ONLY live-smoke suites that prove the durable
+#   task-cache reader and the null_number_recovery cold-read cure can recover a
+#   known-populated unit (gid 1207519540893045 -> MRR 1500) THROUGH THEIR REAL
+#   boto3 GET + json parse + envelope unwrap against live S3. In the standard
+#   `Test` workflow they are skip-gated on `ASANA_CACHE_S3_BUCKET` + AWS creds so
+#   the unit suite stays hermetic — which means in CI they SKIP, every run,
+#   forever. With zero forcing-function references they can rot silently: the
+#   integration-boundary-fidelity Layer-4 hole the eunomia stub-theater plan
+#   names as the §6 PERMANENT-SKIP-RISK (CHANGE-001 in
+#   .ledge/specs/PLAN-eunomia-stub-theater-remediation-2026-06-10.md).
+#
+#   This nightly job is that forcing function. It assumes an OIDC role, sets the
+#   skip-gate env so the smokes actually RUN, and HARD-FAILS if the suite
+#   reports a SKIP (a nightly that silently skips is theater, not a gate).
+#
+# ANTI-THEATER ASSERTION:
+#   The final step greps the pytest summary and fails the job if it sees any
+#   "skipped" outcome or fewer than the expected number of `passed` tests.
+#   "0 errors, all green" with a silent skip is treated as FAILURE.
+#
+# ON FAILURE: this workflow fails loudly (red in the Actions tab). No paging is
+#   wired — the red run IS the signal. Failure modes that are *expected* until
+#   the IAM grant lands are documented in the PR body (see below).
+#
+# KNOWN IAM PREREQUISITE (honest disclosure — read before relying on green):
+#   The smokes assert the EXECUTING principal can read
+#   s3://<bucket>/asana-cache/tasks/<gid>/task.json (an AccessDenied is a real
+#   Layer-4 grant FAILURE, by design). The OIDC role this workflow assumes is
+#   `github-actions-deploy` — the SAME role the existing `Test` workflow uses for
+#   AWS (its trust policy `repo:autom8y/autom8*:*` permits this satellite to
+#   assume it). HOWEVER, at authoring time that role's policy grants S3 read ONLY
+#   on `autom8y-terraform/duckdb-extensions/*`; it does NOT yet grant
+#   `autom8-s3/asana-cache/tasks/*`. The exact grant the smoke needs already
+#   exists on the runtime reader (`autom8y-asana-service-ecs-task` inline policy
+#   `autom8y-asana-service-task-s3`, Sid `S3DurableTaskCacheReadOnly`) but that
+#   role is `ecs-tasks.amazonaws.com`-only and is NOT OIDC-assumable.
+#   => Until a read-only `asana-cache/tasks/*` grant is added to
+#      `github-actions-deploy` (or a dedicated OIDC smoke role is provisioned and
+#      wired via the `LIVE_SMOKE_ROLE` repo variable below), this nightly will
+#      fail on AccessDenied. That failure is honest, not flaky. Track the grant
+#      against the autom8y#481 IAM substrate.
+#   The role and bucket are repo-variable-overridable so the grant fix needs NO
+#   workflow edit (set vars LIVE_SMOKE_ROLE / ASANA_CACHE_S3_BUCKET).
+
+name: Nightly Live Smoke
+
+on:
+  schedule:
+    # 09:15 UTC daily — offset off the busy :00 to dodge runner contention.
+    - cron: '15 9 * * *'
+  workflow_dispatch: {}
+
+concurrency:
+  group: nightly-live-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  live-smoke:
+    name: Live read-only S3 smoke (forcing function)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write   # OIDC role assumption
+      contents: read
+    env:
+      # Satisfy the smokes' skip gate (_HAS_LIVE_S3): a real bucket + AWS creds.
+      # Creds come from the OIDC assume-role step below. Bucket is overridable
+      # via a repo variable; defaults to the live durable-cache bucket.
+      ASANA_CACHE_S3_BUCKET: ${{ vars.ASANA_CACHE_S3_BUCKET || 'autom8-s3' }}
+      AWS_REGION: us-east-1
+      AUTOM8Y_ENV: test
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (node24)
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0 (node24)
+        with:
+          python-version: '3.12'
+
+      - name: Configure AWS credentials (OIDC)
+        # Mirrors the Test workflow's AWS auth: assume the github-actions-deploy
+        # role via OIDC (trust permits repo:autom8y/autom8*:*). Overridable via
+        # the LIVE_SMOKE_ROLE repo variable for a future dedicated read-only role.
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0 (node24)
+        with:
+          role-to-assume: ${{ vars.LIVE_SMOKE_ROLE || format('arn:aws:iam::{0}:role/github-actions-deploy', vars.AWS_ACCOUNT_ID) }}
+          aws-region: us-east-1
+
+      - name: Login to CodeArtifact
+        run: |
+          # Retry the token fetch (CodeArtifact connect-timeout flake class):
+          # a bare `aws codeartifact get-authorization-token` with no retry/timeouts
+          # exits 255 on a connect-timeout and kills the job PRE-check. 3 attempts
+          # x 5s backoff, with explicit CLI connect/read timeouts so a stuck
+          # connection FAILS FAST into the retry instead of hanging. The `if` guard
+          # keeps the loop alive under `set -e`; a final non-empty assertion
+          # HARD-FAILS so a genuinely unreachable CodeArtifact still blocks.
+          CODEARTIFACT_AUTH_TOKEN=""
+          for attempt in 1 2 3; do
+            if CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token \
+              --domain autom8y --domain-owner 696318035277 \
+              --query authorizationToken --output text \
+              --cli-connect-timeout 15 --cli-read-timeout 30) && [ -n "$CODEARTIFACT_AUTH_TOKEN" ]; then
+              break
+            fi
+            echo "::warning::CodeArtifact get-authorization-token attempt ${attempt}/3 failed (connect/read timeout or empty token) — retrying in 5s"
+            CODEARTIFACT_AUTH_TOKEN=""
+            [ "$attempt" -lt 3 ] && sleep 5
+          done
+          if [ -z "$CODEARTIFACT_AUTH_TOKEN" ]; then
+            echo "::error::CodeArtifact get-authorization-token FAILED after 3 attempts — CodeArtifact unreachable or token empty"
+            exit 1
+          fi
+          export CODEARTIFACT_AUTH_TOKEN
+          echo "UV_EXTRA_INDEX_URL=https://aws:${CODEARTIFACT_AUTH_TOKEN}@autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" >> "$GITHUB_ENV"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        # --no-sources: ignore [tool.uv.sources] monorepo-relative path overrides
+        # and resolve autom8y-* from CodeArtifact. Mirrors the Test workflow.
+        run: |
+          uv pip install --system --no-sources '.[dev,api,auth,events]'
+          uv pip install --system --no-sources --group dev
+
+      - name: Run live-smoke suite (skip-gate satisfied; fail loud on skip)
+        run: |
+          # -o addopts="" drops the repo-wide --dist=loadgroup (needs xdist);
+          # -p no:xdist runs in the main process. -rs surfaces skip reasons in
+          # the summary so the assertion step below can detect a silent skip.
+          # Tee to a log so the next step can grep the pytest summary line.
+          set -o pipefail
+          python -m pytest \
+            tests/unit/cache/test_durable_task_cache_live_smoke.py \
+            tests/unit/dataframes/builders/test_null_number_recovery_live_smoke.py \
+            -o addopts="" -o asyncio_mode=auto \
+            -p no:xdist -p no:cacheprovider \
+            -rs -v --no-header \
+            2>&1 | tee /tmp/live-smoke.log
+
+      - name: Assert smokes RAN (anti-theater forcing function)
+        if: always()
+        run: |
+          # The whole point of this nightly: if the live smokes SKIP, the job must
+          # FAIL. A nightly that silently skips is theater. We assert (a) zero
+          # skipped outcomes and (b) at least the expected number of passes.
+          #
+          # Expected: 5 live-smoke tests (3 durable-reader + 2 cure-path).
+          EXPECTED_PASSED=5
+          LOG=/tmp/live-smoke.log
+
+          if [ ! -s "$LOG" ]; then
+            echo "::error::No pytest log produced — the run step failed before emitting a summary. Job FAILS."
+            exit 1
+          fi
+
+          SUMMARY="$(grep -E '=+ .* (passed|failed|skipped|error).* =+' "$LOG" | tail -1)"
+          echo "pytest summary: ${SUMMARY:-<none found>}"
+
+          # (a) ANY skip => the forcing function caught a silent-skip. FAIL.
+          if echo "$SUMMARY" | grep -qiE '[0-9]+ skipped'; then
+            echo "::error::Live smokes SKIPPED — the skip gate was not satisfied (ASANA_CACHE_S3_BUCKET unset or AWS creds missing). A skipping nightly is theater; failing loud. Summary: $SUMMARY"
+            exit 1
+          fi
+
+          # (b) Verify the expected number of tests actually PASSED.
+          PASSED="$(echo "$SUMMARY" | grep -oE '[0-9]+ passed' | grep -oE '[0-9]+' || echo 0)"
+          if [ "${PASSED:-0}" -lt "$EXPECTED_PASSED" ]; then
+            echo "::error::Expected >= ${EXPECTED_PASSED} live-smoke tests to PASS, saw ${PASSED:-0}. Either tests failed (AccessDenied on the durable-cache read => Layer-4 grant gap; see workflow header) or collection changed. Failing loud. Summary: $SUMMARY"
+            exit 1
+          fi
+
+          echo "Live-smoke forcing function satisfied: ${PASSED} tests passed, 0 skipped."

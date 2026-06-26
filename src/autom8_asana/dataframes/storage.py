@@ -89,6 +89,8 @@ class DataFrameStorage(Protocol):
         watermark: datetime,
         *,
         entity_type: str | None = None,
+        population_degraded: bool | None = None,
+        population_min_rate: float | None = None,
     ) -> bool:
         """Persist DataFrame and watermark atomically (best-effort).
 
@@ -97,6 +99,9 @@ class DataFrameStorage(Protocol):
             df: Polars DataFrame to persist.
             watermark: Watermark timestamp (must be timezone-aware).
             entity_type: Optional entity type for watermark metadata.
+            population_degraded: Optional population-floor verdict persisted in the
+                durable sidecar (Cure-Recovery-Path Hardening, FORK-2).
+            population_min_rate: Optional observed min active-subset non-null rate.
 
         Returns:
             True if both writes succeed, False if either fails.
@@ -837,10 +842,19 @@ class S3DataFrameStorage:
         watermark: datetime,
         df: pl.DataFrame | None = None,
         entity_type: str | None = None,
+        population_degraded: bool | None = None,
+        population_min_rate: float | None = None,
     ) -> bytes:
         """Serialize watermark metadata to JSON bytes.
 
         Format matches the established watermark JSON schema.
+
+        ``population_degraded`` / ``population_min_rate`` (Cure-Recovery-Path
+        Hardening, FORK-2) are ADDITIVE: persisted in the durable sidecar so the
+        NEXT warm's quality-aware rebuild gate can re-heal a below-floor frame
+        (the Lambda warm is stateless — the in-memory ``BuildQuality`` dies with
+        the invocation, so the durable sidecar is the carry-forward channel). A
+        legacy sidecar lacking the keys reads back as healthy (default False/1.0).
         """
         watermark_data: dict[str, Any] = {
             "project_gid": project_gid,
@@ -852,6 +866,10 @@ class S3DataFrameStorage:
             watermark_data["columns"] = df.columns
         if entity_type is not None:
             watermark_data["entity_type"] = entity_type
+        if population_degraded is not None:
+            watermark_data["population_degraded"] = population_degraded
+        if population_min_rate is not None:
+            watermark_data["population_min_rate"] = population_min_rate
         return json.dumps(watermark_data).encode("utf-8")
 
     @staticmethod
@@ -869,6 +887,8 @@ class S3DataFrameStorage:
         watermark: datetime,
         *,
         entity_type: str | None = None,
+        population_degraded: bool | None = None,
+        population_min_rate: float | None = None,
     ) -> bool:
         """Persist DataFrame and watermark to S3.
 
@@ -881,6 +901,12 @@ class S3DataFrameStorage:
             df: Polars DataFrame to persist.
             watermark: Watermark timestamp (must be timezone-aware).
             entity_type: Optional entity type for watermark metadata.
+            population_degraded: Optional population-floor verdict (Cure-Recovery-
+                Path Hardening, FORK-2). Persisted in the durable sidecar so the
+                next warm's quality-aware rebuild gate can re-heal a below-floor
+                frame.
+            population_min_rate: Optional observed min active-subset non-null rate
+                (forensics / alarm dimension).
 
         Returns:
             True if both writes succeed, False if either fails.
@@ -916,7 +942,14 @@ class S3DataFrameStorage:
             return False
 
         # Write watermark (co-located under the same entity segment as the df)
-        wm_bytes = self._serialize_watermark(project_gid, watermark, df, entity_type)
+        wm_bytes = self._serialize_watermark(
+            project_gid,
+            watermark,
+            df,
+            entity_type,
+            population_degraded=population_degraded,
+            population_min_rate=population_min_rate,
+        )
         wm_ok = await self._put_object(
             self._watermark_key(project_gid, entity_type),
             wm_bytes,

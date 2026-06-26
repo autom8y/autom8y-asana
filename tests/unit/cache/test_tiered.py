@@ -1,4 +1,16 @@
-"""Tests for TieredCacheProvider."""
+"""Tests for TieredCacheProvider (Redis-only after the S3 cold-tier retirement).
+
+The S3 cold tier was the storage-topology census's *mask #1 — phantom S3 cold
+tier* (wired nowhere; ``ASANA_CACHE_S3_ENABLED`` set nowhere) and is RETIRED. The
+``s3_enabled`` flag, ``TieredConfig``, the optional ``cold_tier`` argument, the
+promotion path, and ``get_cold_metrics`` are gone. ``TieredCacheProvider`` is now
+an honest Redis-only passthrough.
+
+These tests assert the SURVIVING behavior: every operation delegates to the hot
+tier. The deleted tests exercised the retired cold-tier path (promotion, cold
+hits, write-through to S3, cold-failure degradation, cold-tier metrics) — they
+tested deleted behavior and were removed honestly (NOT weakened).
+"""
 
 from __future__ import annotations
 
@@ -10,7 +22,7 @@ import pytest
 from autom8_asana.cache.models.entry import CacheEntry, EntryType
 from autom8_asana.cache.models.freshness_unified import FreshnessIntent
 from autom8_asana.cache.models.metrics import CacheMetrics
-from autom8_asana.core.errors import S3TransportError
+from autom8_asana.cache.providers.tiered import TieredCacheProvider
 from autom8_asana.protocols.cache import CacheProvider, WarmResult
 
 # ============================================================================
@@ -21,17 +33,6 @@ from autom8_asana.protocols.cache import CacheProvider, WarmResult
 @pytest.fixture
 def mock_hot_tier() -> Mock:
     """Create a mock hot tier cache provider."""
-    mock = Mock(spec=CacheProvider)
-    mock.get_versioned.return_value = None
-    mock.get_batch.return_value = {}
-    mock.is_healthy.return_value = True
-    mock.get_metrics.return_value = CacheMetrics()
-    return mock
-
-
-@pytest.fixture
-def mock_cold_tier() -> Mock:
-    """Create a mock cold tier cache provider."""
     mock = Mock(spec=CacheProvider)
     mock.get_versioned.return_value = None
     mock.get_batch.return_value = {}
@@ -53,438 +54,129 @@ def sample_entry() -> CacheEntry:
     )
 
 
-@pytest.fixture
-def sample_subtasks_entry() -> CacheEntry:
-    """Create a sample subtasks cache entry for testing."""
-    return CacheEntry(
-        key="123456",
-        data=[{"gid": "sub1"}, {"gid": "sub2"}],
-        entry_type=EntryType.SUBTASKS,
-        version=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
-        cached_at=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
-        ttl=300,
-    )
-
-
 # ============================================================================
-# Configuration Tests
+# Construction
 # ============================================================================
 
 
-class TestTieredConfigDefaults:
-    """Tests for TieredCacheProvider configuration defaults."""
+class TestConstruction:
+    """Tests for the Redis-only provider construction."""
 
-    def test_tiered_config_defaults(self, mock_hot_tier: Mock) -> None:
-        """Test TieredCacheProvider has correct default configuration."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        config = TieredConfig()
-        provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
-
-        assert provider._config.s3_enabled is False
-        assert provider._config.promotion_ttl == 3600
-        assert provider._config.write_through is True
-
-    def test_s3_disabled_by_default(self, mock_hot_tier: Mock) -> None:
-        """Test S3 cold tier is disabled by default."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        config = TieredConfig()
-        provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
-
-        assert provider._config.s3_enabled is False
-        assert provider._cold is None
-
-    def test_s3_enabled_via_config(self, mock_hot_tier: Mock, mock_cold_tier: Mock) -> None:
-        """Test S3 cold tier can be enabled via configuration."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        assert provider._config.s3_enabled is True
-        assert provider._cold is mock_cold_tier
+    def test_constructs_over_a_single_hot_tier(self, mock_hot_tier: Mock) -> None:
+        """The provider takes a single hot tier — there is no cold-tier argument."""
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
+        assert provider._hot is mock_hot_tier
 
 
 # ============================================================================
-# Read Path Tests - S3 Disabled
+# Read path (delegates to hot tier)
 # ============================================================================
 
 
-class TestReadPathS3Disabled:
-    """Tests for read path when S3 cold tier is disabled."""
+class TestReadPath:
+    """Tests for the read path delegating to the hot tier."""
 
-    def test_get_versioned_s3_disabled_hit(
-        self, mock_hot_tier: Mock, sample_entry: CacheEntry
-    ) -> None:
-        """Test get_versioned returns from hot tier when S3 is disabled."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
+    def test_get_versioned_hit(self, mock_hot_tier: Mock, sample_entry: CacheEntry) -> None:
+        """get_versioned returns the hot-tier entry."""
         mock_hot_tier.get_versioned.return_value = sample_entry
-        config = TieredConfig(s3_enabled=False)
-        provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
         result = provider.get_versioned("123456", EntryType.TASK)
 
-        assert result is not None
-        assert result.key == "123456"
-        assert result.data["name"] == "Test Task"
-        mock_hot_tier.get_versioned.assert_called_once_with(
-            "123456", EntryType.TASK, FreshnessIntent.EVENTUAL
-        )
-
-    def test_get_versioned_s3_disabled_miss(self, mock_hot_tier: Mock) -> None:
-        """Test get_versioned returns None on miss when S3 is disabled."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        mock_hot_tier.get_versioned.return_value = None
-        config = TieredConfig(s3_enabled=False)
-        provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
-
-        result = provider.get_versioned("123456", EntryType.TASK)
-
-        assert result is None
+        assert result is sample_entry
         mock_hot_tier.get_versioned.assert_called_once()
-        # Cold tier should not be checked when S3 is disabled
+
+    def test_get_versioned_miss(self, mock_hot_tier: Mock) -> None:
+        """get_versioned returns None on a hot-tier miss (no cold tier to consult)."""
+        mock_hot_tier.get_versioned.return_value = None
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
+
+        assert provider.get_versioned("123456", EntryType.TASK) is None
 
 
 # ============================================================================
-# Read Path Tests - S3 Enabled
-# ============================================================================
-
-
-class TestReadPathS3Enabled:
-    """Tests for read path when S3 cold tier is enabled."""
-
-    def test_get_versioned_hot_hit(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-        sample_entry: CacheEntry,
-    ) -> None:
-        """Test get_versioned returns immediately from hot tier without checking cold."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        mock_hot_tier.get_versioned.return_value = sample_entry
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        result = provider.get_versioned("123456", EntryType.TASK)
-
-        assert result is not None
-        assert result.key == "123456"
-        mock_hot_tier.get_versioned.assert_called_once()
-        mock_cold_tier.get_versioned.assert_not_called()
-
-    def test_get_versioned_hot_miss_cold_hit(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-        sample_entry: CacheEntry,
-    ) -> None:
-        """Test get_versioned checks cold tier on hot miss and promotes to hot."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        mock_hot_tier.get_versioned.return_value = None
-        mock_cold_tier.get_versioned.return_value = sample_entry
-        config = TieredConfig(s3_enabled=True, promotion_ttl=600)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        result = provider.get_versioned("123456", EntryType.TASK)
-
-        assert result is not None
-        assert result.key == "123456"
-        mock_hot_tier.get_versioned.assert_called_once()
-        mock_cold_tier.get_versioned.assert_called_once()
-        # Entry should be promoted to hot tier
-        mock_hot_tier.set_versioned.assert_called_once()
-
-    def test_get_versioned_both_miss(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-    ) -> None:
-        """Test get_versioned returns None when both tiers miss."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        mock_hot_tier.get_versioned.return_value = None
-        mock_cold_tier.get_versioned.return_value = None
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        result = provider.get_versioned("123456", EntryType.TASK)
-
-        assert result is None
-        mock_hot_tier.get_versioned.assert_called_once()
-        mock_cold_tier.get_versioned.assert_called_once()
-        # No promotion should occur on miss
-        mock_hot_tier.set_versioned.assert_not_called()
-
-    def test_promotion_sets_correct_ttl(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-        sample_entry: CacheEntry,
-    ) -> None:
-        """Test promoted entry uses promotion_ttl from config."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        mock_hot_tier.get_versioned.return_value = None
-        mock_cold_tier.get_versioned.return_value = sample_entry
-        promotion_ttl = 120
-        config = TieredConfig(s3_enabled=True, promotion_ttl=promotion_ttl)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        provider.get_versioned("123456", EntryType.TASK)
-
-        # Verify the promoted entry has the promotion TTL
-        mock_hot_tier.set_versioned.assert_called_once()
-        call_args = mock_hot_tier.set_versioned.call_args
-        promoted_entry = call_args[0][1]  # Second positional arg is the entry
-        assert promoted_entry.ttl == promotion_ttl
-
-
-# ============================================================================
-# Write Path Tests
+# Write path (delegates to hot tier)
 # ============================================================================
 
 
 class TestWritePath:
-    """Tests for write path operations."""
+    """Tests for the write path delegating to the hot tier."""
 
-    def test_set_versioned_s3_disabled(self, mock_hot_tier: Mock, sample_entry: CacheEntry) -> None:
-        """Test set_versioned only writes to hot tier when S3 is disabled."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        config = TieredConfig(s3_enabled=False)
-        provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
-
-        provider.set_versioned("123456", sample_entry)
-
-        mock_hot_tier.set_versioned.assert_called_once_with("123456", sample_entry)
-
-    def test_set_versioned_s3_enabled(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-        sample_entry: CacheEntry,
+    def test_set_versioned_delegates_to_hot(
+        self, mock_hot_tier: Mock, sample_entry: CacheEntry
     ) -> None:
-        """Test set_versioned writes to both tiers when S3 is enabled."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        config = TieredConfig(s3_enabled=True, write_through=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
+        """set_versioned writes to the hot tier only."""
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
         provider.set_versioned("123456", sample_entry)
 
         mock_hot_tier.set_versioned.assert_called_once_with("123456", sample_entry)
-        mock_cold_tier.set_versioned.assert_called_once_with("123456", sample_entry)
-
-    def test_write_through_cold_failure(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-        sample_entry: CacheEntry,
-    ) -> None:
-        """Test hot tier write succeeds even when cold tier write fails."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        mock_cold_tier.set_versioned.side_effect = S3TransportError("S3 error")
-        config = TieredConfig(s3_enabled=True, write_through=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        # Should not raise despite cold tier failure
-        provider.set_versioned("123456", sample_entry)
-
-        mock_hot_tier.set_versioned.assert_called_once_with("123456", sample_entry)
-        mock_cold_tier.set_versioned.assert_called_once()
 
 
 # ============================================================================
-# Batch Operations Tests
+# Batch operations (delegate to hot tier)
 # ============================================================================
 
 
 class TestBatchOperations:
     """Tests for batch operations."""
 
-    def test_get_batch_mixed_hits(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-    ) -> None:
-        """Test get_batch returns entries from hot, cold, or None for each key."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
+    def test_get_batch_delegates_to_hot(self, mock_hot_tier: Mock) -> None:
+        """get_batch returns the hot-tier results."""
         now = datetime.now(UTC)
         hot_entry = CacheEntry(
             key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now, ttl=300
         )
-        cold_entry = CacheEntry(
-            key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now, ttl=300
-        )
+        mock_hot_tier.get_batch.return_value = {"1": hot_entry, "2": None}
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
-        # Hot tier has key "1", misses "2" and "3"
-        mock_hot_tier.get_batch.return_value = {"1": hot_entry, "2": None, "3": None}
-        # Cold tier has key "2", misses "3"
-        mock_cold_tier.get_batch.return_value = {"2": cold_entry, "3": None}
-
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        result = provider.get_batch(["1", "2", "3"], EntryType.TASK)
+        result = provider.get_batch(["1", "2"], EntryType.TASK)
 
         assert result["1"] is not None
         assert result["1"].data["id"] == 1
-        assert result["2"] is not None
-        assert result["2"].data["id"] == 2
-        assert result["3"] is None
+        assert result["2"] is None
+        mock_hot_tier.get_batch.assert_called_once_with(["1", "2"], EntryType.TASK)
 
-    def test_set_batch_write_through(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-    ) -> None:
-        """Test set_batch writes to both tiers when S3 is enabled."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
+    def test_get_batch_empty_keys_short_circuits(self, mock_hot_tier: Mock) -> None:
+        """get_batch with no keys returns {} without touching the hot tier."""
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
+        assert provider.get_batch([], EntryType.TASK) == {}
+        mock_hot_tier.get_batch.assert_not_called()
+
+    def test_set_batch_delegates_to_hot(self, mock_hot_tier: Mock) -> None:
+        """set_batch writes to the hot tier only."""
         now = datetime.now(UTC)
         entries = {
             "1": CacheEntry(key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now),
             "2": CacheEntry(key="2", data={"id": 2}, entry_type=EntryType.TASK, version=now),
         }
-
-        config = TieredConfig(s3_enabled=True, write_through=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
         provider.set_batch(entries)
 
         mock_hot_tier.set_batch.assert_called_once_with(entries)
-        mock_cold_tier.set_batch.assert_called_once_with(entries)
+
+    def test_set_batch_empty_short_circuits(self, mock_hot_tier: Mock) -> None:
+        """set_batch with no entries is a no-op."""
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
+
+        provider.set_batch({})
+
+        mock_hot_tier.set_batch.assert_not_called()
 
 
 # ============================================================================
-# Invalidation Tests
+# Invalidation (delegates to hot tier)
 # ============================================================================
 
 
 class TestInvalidation:
     """Tests for cache invalidation."""
 
-    def test_invalidate_both_tiers(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-    ) -> None:
-        """Test invalidate removes entries from both tiers when S3 is enabled."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        provider.invalidate("123456", [EntryType.TASK, EntryType.SUBTASKS])
-
-        mock_hot_tier.invalidate.assert_called_once_with(
-            "123456", [EntryType.TASK, EntryType.SUBTASKS]
-        )
-        mock_cold_tier.invalidate.assert_called_once_with(
-            "123456", [EntryType.TASK, EntryType.SUBTASKS]
-        )
-
-    def test_invalidate_s3_disabled(self, mock_hot_tier: Mock) -> None:
-        """Test invalidate only removes from hot tier when S3 is disabled."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        config = TieredConfig(s3_enabled=False)
-        provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
+    def test_invalidate_delegates_to_hot(self, mock_hot_tier: Mock) -> None:
+        """invalidate removes entries from the hot tier only."""
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
         provider.invalidate("123456", [EntryType.TASK])
 
@@ -492,270 +184,86 @@ class TestInvalidation:
 
 
 # ============================================================================
-# Health Check Tests
+# Health check
 # ============================================================================
 
 
 class TestHealthCheck:
     """Tests for health check operations."""
 
-    def test_is_healthy_hot_healthy(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-    ) -> None:
-        """Test is_healthy returns True when hot tier is healthy."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
+    def test_is_healthy_reflects_hot_tier(self, mock_hot_tier: Mock) -> None:
+        """is_healthy mirrors the hot tier's health."""
         mock_hot_tier.is_healthy.return_value = True
-        mock_cold_tier.is_healthy.return_value = True
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
         assert provider.is_healthy() is True
-        mock_hot_tier.is_healthy.assert_called_once()
-
-    def test_is_healthy_hot_unhealthy(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-    ) -> None:
-        """Test is_healthy returns False when hot tier is unhealthy."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
 
         mock_hot_tier.is_healthy.return_value = False
-        mock_cold_tier.is_healthy.return_value = True
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
         assert provider.is_healthy() is False
-
-    def test_is_healthy_cold_unhealthy(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-    ) -> None:
-        """Test is_healthy still returns True when cold tier is unhealthy."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        mock_hot_tier.is_healthy.return_value = True
-        mock_cold_tier.is_healthy.return_value = False
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        # Cold tier health should not affect overall health
-        # (graceful degradation principle)
-        assert provider.is_healthy() is True
 
 
 # ============================================================================
-# Metrics Tests
+# clear_all_tasks
+# ============================================================================
+
+
+class TestClearAllTasks:
+    """Tests for clear_all_tasks."""
+
+    def test_clear_all_tasks_reports_redis_and_zero_s3(self, mock_hot_tier: Mock) -> None:
+        """clear_all_tasks clears the hot tier; the s3 count is always 0 (no cold tier)."""
+        mock_hot_tier.clear_all_tasks.return_value = 42
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
+
+        result = provider.clear_all_tasks()
+
+        assert result == {"redis": 42, "s3": 0}
+        mock_hot_tier.clear_all_tasks.assert_called_once()
+
+
+# ============================================================================
+# Metrics
 # ============================================================================
 
 
 class TestMetrics:
-    """Tests for metrics aggregation."""
+    """Tests for metrics."""
 
-    def test_metrics_aggregation(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-    ) -> None:
-        """Test metrics are aggregated from both tiers."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
+    def test_get_metrics_returns_own_metrics(self, mock_hot_tier: Mock) -> None:
+        """get_metrics returns the provider's own metrics instance."""
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
+        assert provider.get_metrics() is not None
 
+    def test_get_hot_metrics_delegates_to_hot(self, mock_hot_tier: Mock) -> None:
+        """get_hot_metrics returns the hot tier's metrics."""
         hot_metrics = CacheMetrics()
-        hot_metrics.record_hit(1.0)
-        hot_metrics.record_hit(1.0)
-        hot_metrics.record_miss(1.0)
-
-        cold_metrics = CacheMetrics()
-        cold_metrics.record_hit(2.0)
-        cold_metrics.record_miss(2.0)
-        cold_metrics.record_miss(2.0)
-
         mock_hot_tier.get_metrics.return_value = hot_metrics
-        mock_cold_tier.get_metrics.return_value = cold_metrics
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
+        assert provider.get_hot_metrics() is hot_metrics
 
-        metrics = provider.get_metrics()
+    def test_reset_metrics_resets_own_metrics(self, mock_hot_tier: Mock) -> None:
+        """reset_metrics resets the provider's own metrics only."""
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
+        provider._metrics.record_hit(1.0)
+        assert provider._metrics.hits > 0
 
-        # Metrics should reflect tiered operations
-        assert metrics is not None
+        provider.reset_metrics()
 
-    def test_promotion_count_tracked(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-        sample_entry: CacheEntry,
-    ) -> None:
-        """Test promotion count is tracked in metrics."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        mock_hot_tier.get_versioned.return_value = None
-        mock_cold_tier.get_versioned.return_value = sample_entry
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        # Perform a get that results in promotion
-        provider.get_versioned("123456", EntryType.TASK)
-
-        # Verify promotion occurred
-        mock_hot_tier.set_versioned.assert_called_once()
-
-        # Check promotion is tracked (implementation-specific)
-        metrics = provider.get_metrics()
-        assert metrics is not None
+        assert provider._metrics.hits == 0
 
 
 # ============================================================================
-# Graceful Degradation Tests
-# ============================================================================
-
-
-class TestGracefulDegradation:
-    """Tests for graceful degradation when cold tier fails."""
-
-    def test_cold_tier_get_failure_continues(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-    ) -> None:
-        """Test get operations continue despite S3 errors."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        mock_hot_tier.get_versioned.return_value = None
-        mock_cold_tier.get_versioned.side_effect = S3TransportError("S3 connection error")
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        # Should not raise despite cold tier failure
-        result = provider.get_versioned("123456", EntryType.TASK)
-
-        # Returns None (no data available)
-        assert result is None
-        mock_hot_tier.get_versioned.assert_called_once()
-        mock_cold_tier.get_versioned.assert_called_once()
-
-    def test_cold_tier_invalidate_failure_continues(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-    ) -> None:
-        """Test invalidate operations continue despite S3 errors."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        mock_cold_tier.invalidate.side_effect = S3TransportError("S3 connection error")
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        # Should not raise despite cold tier failure
-        provider.invalidate("123456", [EntryType.TASK])
-
-        mock_hot_tier.invalidate.assert_called_once()
-        mock_cold_tier.invalidate.assert_called_once()
-
-    def test_cold_tier_batch_failure_continues(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-    ) -> None:
-        """Test batch operations continue despite S3 errors."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        now = datetime.now(UTC)
-        hot_entry = CacheEntry(key="1", data={"id": 1}, entry_type=EntryType.TASK, version=now)
-
-        mock_hot_tier.get_batch.return_value = {"1": hot_entry, "2": None}
-        mock_cold_tier.get_batch.side_effect = S3TransportError("S3 connection error")
-
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        # Should not raise despite cold tier failure
-        result = provider.get_batch(["1", "2"], EntryType.TASK)
-
-        # Should return what hot tier had
-        assert result["1"] is not None
-        assert result["2"] is None
-
-
-# ============================================================================
-# Simple Operations Tests (Backward Compatibility)
+# Simple operations (backward compatibility)
 # ============================================================================
 
 
 class TestSimpleOperations:
-    """Tests for simple key-value operations (backward compatibility)."""
+    """Tests for simple key-value operations."""
 
     def test_simple_get_delegates_to_hot(self, mock_hot_tier: Mock) -> None:
-        """Test simple get delegates to hot tier."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
+        """Simple get delegates to the hot tier."""
         mock_hot_tier.get.return_value = {"data": "value"}
-        config = TieredConfig(s3_enabled=False)
-        provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
         result = provider.get("key")
 
@@ -763,28 +271,16 @@ class TestSimpleOperations:
         mock_hot_tier.get.assert_called_once_with("key")
 
     def test_simple_set_delegates_to_hot(self, mock_hot_tier: Mock) -> None:
-        """Test simple set delegates to hot tier."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        config = TieredConfig(s3_enabled=False)
-        provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
+        """Simple set delegates to the hot tier."""
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
         provider.set("key", {"data": "value"}, ttl=300)
 
         mock_hot_tier.set.assert_called_once_with("key", {"data": "value"}, 300)
 
     def test_simple_delete_delegates_to_hot(self, mock_hot_tier: Mock) -> None:
-        """Test simple delete delegates to hot tier."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        config = TieredConfig(s3_enabled=False)
-        provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
+        """Simple delete delegates to the hot tier."""
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
         provider.delete("key")
 
@@ -792,7 +288,7 @@ class TestSimpleOperations:
 
 
 # ============================================================================
-# Warm Operation Tests
+# Warm operations
 # ============================================================================
 
 
@@ -800,15 +296,9 @@ class TestWarmOperations:
     """Tests for cache warming operations."""
 
     def test_warm_delegates_to_hot(self, mock_hot_tier: Mock) -> None:
-        """Test warm operation delegates to hot tier."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
+        """warm delegates to the hot tier."""
         mock_hot_tier.warm.return_value = WarmResult(warmed=3, failed=0, skipped=0)
-        config = TieredConfig(s3_enabled=False)
-        provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
         result = provider.warm(["1", "2", "3"], [EntryType.TASK])
 
@@ -817,7 +307,7 @@ class TestWarmOperations:
 
 
 # ============================================================================
-# Check FreshnessIntent Tests
+# Freshness
 # ============================================================================
 
 
@@ -825,15 +315,9 @@ class TestCheckFreshness:
     """Tests for freshness checking operations."""
 
     def test_check_freshness_delegates_to_hot(self, mock_hot_tier: Mock) -> None:
-        """Test check_freshness delegates to hot tier."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
+        """check_freshness delegates to the hot tier."""
         mock_hot_tier.check_freshness.return_value = True
-        config = TieredConfig(s3_enabled=False)
-        provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
         version = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
         result = provider.check_freshness("123456", EntryType.TASK, version)
@@ -842,98 +326,18 @@ class TestCheckFreshness:
         mock_hot_tier.check_freshness.assert_called_once_with("123456", EntryType.TASK, version)
 
 
-# ============================================================================
-# Reset Metrics Tests
-# ============================================================================
-
-
-class TestResetMetrics:
-    """Tests for metrics reset."""
-
-    def test_reset_metrics_resets_own_metrics(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-    ) -> None:
-        """Test reset_metrics resets the tiered provider's own metrics only.
-
-        Per implementation (line 441), reset_metrics only resets self._metrics,
-        not individual tier metrics. Use get_hot_metrics().reset() and
-        get_cold_metrics().reset() separately if tier resets are needed.
-        """
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        # Record a metric so we can verify reset works
-        provider._metrics.record_hit(1.0)
-        assert provider._metrics.hits > 0
-
-        provider.reset_metrics()
-
-        # Verify own metrics are reset
-        assert provider._metrics.hits == 0
-        # Implementation does NOT delegate to tiers - that's intentional
-
-
-# ============================================================================
-# FreshnessIntent Parameter Passthrough Tests
-# ============================================================================
-
-
 class TestFreshnessPassthrough:
     """Tests for freshness parameter passthrough."""
 
     def test_get_versioned_passes_freshness_to_hot(
         self, mock_hot_tier: Mock, sample_entry: CacheEntry
     ) -> None:
-        """Test get_versioned passes freshness parameter to hot tier."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
+        """get_versioned passes the freshness parameter to the hot tier."""
         mock_hot_tier.get_versioned.return_value = sample_entry
-        config = TieredConfig(s3_enabled=False)
-        provider = TieredCacheProvider(hot_tier=mock_hot_tier, config=config)
+        provider = TieredCacheProvider(hot_tier=mock_hot_tier)
 
         provider.get_versioned("123456", EntryType.TASK, FreshnessIntent.STRICT)
 
         mock_hot_tier.get_versioned.assert_called_once_with(
             "123456", EntryType.TASK, FreshnessIntent.STRICT
-        )
-
-    def test_get_versioned_passes_freshness_to_cold(
-        self,
-        mock_hot_tier: Mock,
-        mock_cold_tier: Mock,
-        sample_entry: CacheEntry,
-    ) -> None:
-        """Test get_versioned passes freshness parameter to cold tier on miss."""
-        from autom8_asana.cache.providers.tiered import (
-            TieredCacheProvider,
-            TieredConfig,
-        )
-
-        mock_hot_tier.get_versioned.return_value = None
-        mock_cold_tier.get_versioned.return_value = sample_entry
-        config = TieredConfig(s3_enabled=True)
-        provider = TieredCacheProvider(
-            hot_tier=mock_hot_tier,
-            cold_tier=mock_cold_tier,
-            config=config,
-        )
-
-        provider.get_versioned("123456", EntryType.TASK, FreshnessIntent.EVENTUAL)
-
-        mock_cold_tier.get_versioned.assert_called_once_with(
-            "123456", EntryType.TASK, FreshnessIntent.EVENTUAL
         )

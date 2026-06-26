@@ -139,7 +139,7 @@ dependencies = [
     { name = "autom8y-core" },
     { name = "autom8y-http", extra = ["otel"] },
     { name = "autom8y-log" },
-    { name = "autom8y-telemetry", extra = ["aws", "fastapi", "otlp"] },
+    { name = "autom8y-telemetry", extra = ["aws", "fastapi", "otlp", "remote-write"] },
     { name = "boto3" },
     { name = "httpx" },
     { name = "openpyxl" },
@@ -156,6 +156,7 @@ api = [
     { name = "autom8y-api-schemas" },
     { name = "fastapi" },
     { name = "slowapi" },
+    { name = "starlette" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 auth = [
@@ -232,9 +233,9 @@ requires-dist = [
     { name = "autom8y-events", marker = "extra == 'events'", specifier = ">=1.2.0,<2.0.0" },
     { name = "autom8y-http", extras = ["otel"], specifier = ">=0.6.0" },
     { name = "autom8y-http", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=0.6.0" },
-    { name = "autom8y-log", specifier = ">=0.5.6" },
-    { name = "autom8y-log", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=0.5.6" },
-    { name = "autom8y-telemetry", extras = ["aws", "fastapi", "otlp"], specifier = ">=0.10.0" },
+    { name = "autom8y-log", specifier = ">=0.7.0,<1.0.0" },
+    { name = "autom8y-log", extras = ["testing"], marker = "extra == 'dev'", specifier = ">=0.7.0" },
+    { name = "autom8y-telemetry", extras = ["aws", "fastapi", "otlp", "remote-write"], specifier = ">=0.10.0" },
     { name = "awslambdaric", marker = "extra == 'lambda'", specifier = ">=2.2.0" },
     { name = "boto3", specifier = ">=1.42.19" },
     { name = "boto3-stubs", extras = ["secretsmanager"], marker = "extra == 'dev'", specifier = ">=1.34.0" },
@@ -263,6 +264,7 @@ requires-dist = [
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.20.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
     { name = "slowapi", marker = "extra == 'api'", specifier = ">=0.1.9" },
+    { name = "starlette", marker = "extra == 'api'", specifier = ">=1.3.1" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.27.0" },
 ]
 provides-extras = ["redis", "aws", "api", "auth", "events", "interop", "scheduler", "lambda", "dev"]
@@ -281,7 +283,7 @@ dev = [
 
 [[package]]
 name = "autom8y-auth"
-version = "3.3.0"
+version = "4.1.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-core" },
@@ -291,9 +293,9 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyjwt", extra = ["crypto"] },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/3.3.0/autom8y_auth-3.3.0.tar.gz", hash = "sha256:7203dd0c37571bdf0f2a96939858896c3565d76947d7a4aa0d74818b4ffee6f9" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/4.1.0/autom8y_auth-4.1.0.tar.gz", hash = "sha256:f030fbfbd213d132437227ea2be2a499ba6ddbd9306c820a0147588a6a83d932" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/3.3.0/autom8y_auth-3.3.0-py3-none-any.whl", hash = "sha256:bc6dd56781b80e59efe7b87c6cd276df1ca922c151cf0cae70d1f097a1fb42ad" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-auth/4.1.0/autom8y_auth-4.1.0-py3-none-any.whl", hash = "sha256:76f125c4fc16fe47dffeffd872a4dfbf62398017af0ba14dc368013ea1199a30" },
 ]
 
 [package.optional-dependencies]
@@ -358,16 +360,16 @@ testing = [
 
 [[package]]
 name = "autom8y-core"
-version = "4.5.0"
+version = "4.8.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-api-schemas" },
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/4.5.0/autom8y_core-4.5.0.tar.gz", hash = "sha256:02ed9313435e81fb402812fb73cefec24fd5cecb36ea43e30de3810c1f1a89f5" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/4.8.0/autom8y_core-4.8.0.tar.gz", hash = "sha256:e073b6a31dea73f28e08303aadf9d2a4b68a5e872d82cd3911549b000a014d05", upload-time = "2026-06-24T21:01:04.182Z" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/4.5.0/autom8y_core-4.5.0-py3-none-any.whl", hash = "sha256:ca48e6d9c8ab1c0b43b0c289cd8446cacb2b0c99175cccd20a970da8ff045d17" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-core/4.8.0/autom8y_core-4.8.0-py3-none-any.whl", hash = "sha256:9dc58340866610a0d84a1d4a303a5e3cb49b361b3769e6a0523c3ad17aa8b597", upload-time = "2026-06-24T21:01:04.542Z" },
 ]
 
 [package.optional-dependencies]
@@ -377,7 +379,7 @@ testing = [
 
 [[package]]
 name = "autom8y-events"
-version = "1.2.0"
+version = "1.2.1"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-config" },
@@ -385,9 +387,9 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-events/1.2.0/autom8y_events-1.2.0.tar.gz", hash = "sha256:c15804d505f4893935191086c88091fa4aeb4dd61d03a8ed260d6b278b5bc525" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-events/1.2.1/autom8y_events-1.2.1.tar.gz", hash = "sha256:eda0d3f244f655be5ac27a777ef1266b29103d90585a90ab4e160c9440a91491" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-events/1.2.0/autom8y_events-1.2.0-py3-none-any.whl", hash = "sha256:ef416aefc8b3872c705901706f47b974acb870f31899cc65644eef5a57151eb4" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-events/1.2.1/autom8y_events-1.2.1-py3-none-any.whl", hash = "sha256:f927d3529f2f4d439e61e7005d194c85da417909df0d977ec896fec193ee81b5" },
 ]
 
 [[package]]
@@ -414,15 +416,16 @@ testing = [
 
 [[package]]
 name = "autom8y-log"
-version = "0.5.6"
+version = "0.8.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "autom8y-config" },
+    { name = "autom8y-core" },
     { name = "structlog" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.5.6/autom8y_log-0.5.6.tar.gz", hash = "sha256:62b71afb7c2bc251a5600c67a6de83f05d9199b053a0ce1507475dc6b4ff5dbd" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.8.0/autom8y_log-0.8.0.tar.gz", hash = "sha256:7d9fd245247865de56d873fa3ad27bc6cbea50b63d6b6643a2a49a12671f07d0", upload-time = "2026-06-25T11:14:39.304Z" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.5.6/autom8y_log-0.5.6-py3-none-any.whl", hash = "sha256:b9eb311c0de02373b218ca6ac3ef43cca46a47c9e6726b07bfd67b4f5786e3cb" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/autom8y-log/0.8.0/autom8y_log-0.8.0-py3-none-any.whl", hash = "sha256:af06fc176370ab1776503ca2bffdab3f724cfbd4b9c0aa8b68393a9955c7dd46", upload-time = "2026-06-25T11:14:39.056Z" },
 ]
 
 [package.optional-dependencies]
@@ -458,6 +461,9 @@ fastapi = [
 otlp = [
     { name = "opentelemetry-exporter-otlp-proto-grpc" },
     { name = "opentelemetry-exporter-otlp-proto-http" },
+]
+remote-write = [
+    { name = "python-snappy" },
 ]
 
 [[package]]
@@ -766,6 +772,74 @@ wheels = [
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/coverage/7.13.4/coverage-7.13.4-cp314-cp314t-win_amd64.whl", hash = "sha256:4c7d3cc01e7350f2f0f6f7036caaf5673fb56b6998889ccfe9e1c1fe75a9c932" },
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/coverage/7.13.4/coverage-7.13.4-cp314-cp314t-win_arm64.whl", hash = "sha256:23e3f687cf945070d1c90f85db66d11e3025665d8dafa831301a0e0038f3db9b" },
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/coverage/7.13.4/coverage-7.13.4-py3-none-any.whl", hash = "sha256:1af1641e57cf7ba1bd67d677c9abdbcd6cc2ab7da3bca7fa1e2b7e50e65f2ad0" },
+]
+
+[[package]]
+name = "cramjam"
+version = "2.11.0"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0.tar.gz", hash = "sha256:5c82500ed91605c2d9781380b378397012e25127e89d64f460fea6aeac4389b4" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:dba5c14b8b4f73ea1e65720f5a3fe4280c1d27761238378be8274135c60bbc6e" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:11eb40722b3fcf3e6890fba46c711bf60f8dc26360a24876c85e52d76c33b25b" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:aeb26e2898994b6e8319f19a4d37c481512acdcc6d30e1b5ecc9d8ec57e835cb" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:4f8d82081ed7d8fe52c982bd1f06e4c7631a73fe1fb6d4b3b3f2404f87dc40fe" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:092a3ec26e0a679305018380e4f652eae1b6dfe3fc3b154ee76aa6b92221a17c" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:529d6d667c65fd105d10bd83d1cd3f9869f8fd6c66efac9415c1812281196a92" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:555eb9c90c450e0f76e27d9ff064e64a8b8c6478ab1a5594c91b7bc5c82fd9f0" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:5edf4c9e32493035b514cf2ba0c969d81ccb31de63bd05490cc8bfe3b431674e" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2fa2fe41f48c4d58d923803383b0737f048918b5a0d10390de9628bb6272b107" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-musllinux_1_1_aarch64.whl", hash = "sha256:9ca14cf1cabdb0b77d606db1bb9e9ca593b1dbd421fcaf251ec9a5431ec449f3" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-musllinux_1_1_armv7l.whl", hash = "sha256:309e95bf898829476bccf4fd2c358ec00e7ff73a12f95a3cdeeba4bb1d3683d5" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-musllinux_1_1_i686.whl", hash = "sha256:86dca35d2f15ef22922411496c220f3c9e315d5512f316fe417461971cc1648d" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:193c6488bd2f514cbc0bef5c18fad61a5f9c8d059dd56edf773b3b37f0e85496" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-win32.whl", hash = "sha256:514e2c008a8b4fa823122ca3ecab896eac41d9aa0f5fc881bd6264486c204e32" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp312-cp312-win_amd64.whl", hash = "sha256:53fed080476d5f6ad7505883ec5d1ec28ba36c2273db3b3e92d7224fe5e463db" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:2c289729cc1c04e88bafa48b51082fb462b0a57dbc96494eab2be9b14dca62af" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:045201ee17147e36cf43d8ae2fa4b4836944ac672df5874579b81cf6d40f1a1f" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:619cd195d74c9e1d2a3ad78d63451d35379c84bd851aec552811e30842e1c67a" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:6eb3ae5ab72edb2ed68bdc0f5710f0a6cad7fd778a610ec2c31ee15e32d3921e" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:df7da3f4b19e3078f9635f132d31b0a8196accb2576e3213ddd7a77f93317c20" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:57286b289cd557ac76c24479d8ecfb6c3d5b854cce54ccc7671f9a2f5e2a2708" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:28952fbbf8b32c0cb7fa4be9bcccfca734bf0d0989f4b509dc7f2f70ba79ae06" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:78ed2e4099812a438b545dfbca1928ec825e743cd253bc820372d6ef8c3adff4" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7d9aecd5c3845d415bd6c9957c93de8d93097e269137c2ecb0e5a5256374bdc8" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-musllinux_1_1_aarch64.whl", hash = "sha256:362fcf4d6f5e1242a4540812455f5a594949190f6fbc04f2ffbfd7ae0266d788" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-musllinux_1_1_armv7l.whl", hash = "sha256:13240b3dea41b1174456cb9426843b085dc1a2bdcecd9ee2d8f65ac5703374b0" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-musllinux_1_1_i686.whl", hash = "sha256:c54eed83726269594b9086d827decc7d2015696e31b99bf9b69b12d9063584fe" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-musllinux_1_1_x86_64.whl", hash = "sha256:f8195006fdd0fc0a85b19df3d64a3ef8a240e483ae1dfc7ac6a4316019eb5df2" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-win32.whl", hash = "sha256:ccf30e3fe6d770a803dcdf3bb863fa44ba5dc2664d4610ba2746a3c73599f2e4" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp313-cp313-win_amd64.whl", hash = "sha256:ee36348a204f0a68b03400f4736224e9f61d1c6a1582d7f875c1ca56f0254268" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:7ba5e38c9fbd06f086f4a5a64a1a5b7b417cd3f8fc07a20e5c03651f72f36100" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:b8adeee57b41fe08e4520698a4b0bd3cc76dbd81f99424b806d70a5256a391d3" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:b96a74fa03a636c8a7d76f700d50e9a8bc17a516d6a72d28711225d641e30968" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:c3811a56fa32e00b377ef79121c0193311fd7501f0fb378f254c7f083cc1fbe0" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:c5d927e87461f8a0d448e4ab5eb2bca9f31ca5d8ea86d70c6f470bb5bc666d7e" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:f1f5c450121430fd89cb5767e0a9728ecc65997768fd4027d069cb0368af62f9" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:724aa7490be50235d97f07e2ca10067927c5d7f336b786ddbc868470e822aa25" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:54c4637122e7cfd7aac5c1d3d4c02364f446d6923ea34cf9d0e8816d6e7a4936" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:17eb39b1696179fb471eea2de958fa21f40a2cd8bf6b40d428312d5541e19dc4" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-musllinux_1_1_aarch64.whl", hash = "sha256:36aa5a798aa34e11813a80425a30d8e052d8de4a28f27bfc0368cfc454d1b403" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-musllinux_1_1_armv7l.whl", hash = "sha256:449fca52774dc0199545fbf11f5128933e5a6833946707885cf7be8018017839" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-musllinux_1_1_i686.whl", hash = "sha256:d87d37b3d476f4f7623c56a232045d25bd9b988314702ea01bd9b4a94948a778" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-musllinux_1_1_x86_64.whl", hash = "sha256:26cb45c47d71982d76282e303931c6dd4baee1753e5d48f9a89b3a63e690b3a3" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-win32.whl", hash = "sha256:4efe919d443c2fd112fe25fe636a52f9628250c9a50d9bddb0488d8a6c09acc6" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314-win_amd64.whl", hash = "sha256:ccec3524ea41b9abd5600e3e27001fd774199dbb4f7b9cb248fcee37d4bda84c" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:966ac9358b23d21ecd895c418c048e806fd254e46d09b1ff0cdad2eba195ea3e" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-macosx_10_12_x86_64.whl", hash = "sha256:387f09d647a0d38dcb4539f8a14281f8eb6bb1d3e023471eb18a5974b2121c86" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:665b0d8fbbb1a7f300265b43926457ec78385200133e41fef19d85790fc1e800" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-manylinux_2_12_i686.manylinux2010_i686.whl", hash = "sha256:ca905387c7a371531b9622d93471be4d745ef715f2890c3702479cd4fc85aa51" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:3c1aa56aef2c8af55a21ed39040a94a12b53fb23beea290f94d19a76027e2ffb" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:e5db59c1cdfaa2ab85cc988e602d6919495f735ca8a5fd7603608eb1e23c26d5" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:b1f893014f00fe5e89a660a032e813bf9f6d91de74cd1490cdb13b2b59d0c9a3" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:c26a1eb487947010f5de24943bd7c422dad955b2b0f8650762539778c380ca89" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7d5c8bfb438d94e7b892d1426da5fc4b4a5370cc360df9b8d9d77c33b896c37e" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-musllinux_1_1_aarch64.whl", hash = "sha256:cb1fb8c9337ab0da25a01c05d69a0463209c347f16512ac43be5986f3d1ebaf4" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-musllinux_1_1_armv7l.whl", hash = "sha256:1f6449f6de52dde3e2f1038284910c8765a397a25e2d05083870f3f5e7fc682c" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-musllinux_1_1_i686.whl", hash = "sha256:382dec4f996be48ed9c6958d4e30c2b89435d7c2c4dbf32480b3b8886293dd65" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-musllinux_1_1_x86_64.whl", hash = "sha256:d388bd5723732c3afe1dd1d181e4213cc4e1be210b080572e7d5749f6e955656" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-win32.whl", hash = "sha256:0a70ff17f8e1d13f322df616505550f0f4c39eda62290acb56f069d4857037c8" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/cramjam/2.11.0/cramjam-2.11.0-cp314-cp314t-win_amd64.whl", hash = "sha256:028400d699442d40dbda02f74158c73d05cb76587a12490d0bfedd958fd49188" },
 ]
 
 [[package]]
@@ -1961,11 +2035,11 @@ wheels = [
 
 [[package]]
 name = "pyjwt"
-version = "2.12.0"
+version = "2.13.0"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/pyjwt/2.12.0/pyjwt-2.12.0.tar.gz", hash = "sha256:2f62390b667cd8257de560b850bb5a883102a388829274147f1d724453f8fb02" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/pyjwt/2.13.0/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/pyjwt/2.12.0/pyjwt-2.12.0-py3-none-any.whl", hash = "sha256:9bb459d1bdd0387967d287f5656bf7ec2b9a26645d1961628cda1764e087fd6e" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/pyjwt/2.13.0/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728" },
 ]
 
 [package.optional-dependencies]
@@ -2118,6 +2192,18 @@ source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.ama
 sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/python-dotenv/1.2.2/python_dotenv-1.2.2.tar.gz", hash = "sha256:2c371a91fbd7ba082c2c1dc1f8bf89ca22564a087c2c287cd9b662adde799cf3" }
 wheels = [
     { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/python-dotenv/1.2.2/python_dotenv-1.2.2-py3-none-any.whl", hash = "sha256:1d8214789a24de455a8b8bd8ae6fe3c6b69a5e3d64aa8a8e5d68e694bbcb285a" },
+]
+
+[[package]]
+name = "python-snappy"
+version = "0.7.3"
+source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
+dependencies = [
+    { name = "cramjam" },
+]
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/python-snappy/0.7.3/python_snappy-0.7.3.tar.gz", hash = "sha256:40216c1badfb2d38ac781ecb162a1d0ec40f8ee9747e610bcfefdfa79486cee3" }
+wheels = [
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/python-snappy/0.7.3/python_snappy-0.7.3-py3-none-any.whl", hash = "sha256:074c0636cfcd97e7251330f428064050ac81a52c62ed884fc2ddebbb60ed7f50" },
 ]
 
 [[package]]
@@ -2478,15 +2564,15 @@ wheels = [
 
 [[package]]
 name = "starlette"
-version = "0.52.1"
+version = "1.3.1"
 source = { registry = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/" }
 dependencies = [
     { name = "anyio" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
-sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/starlette/0.52.1/starlette-0.52.1.tar.gz", hash = "sha256:834edd1b0a23167694292e94f597773bc3f89f362be6effee198165a35d62933" }
+sdist = { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/starlette/1.3.1/starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0" }
 wheels = [
-    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/starlette/0.52.1/starlette-0.52.1-py3-none-any.whl", hash = "sha256:0029d43eb3d273bc4f83a08720b4912ea4b071087a3b48db01b7c839f7954d74" },
+    { url = "https://autom8y-696318035277.d.codeartifact.us-east-1.amazonaws.com/pypi/autom8y-python/simple/starlette/1.3.1/starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6" },
 ]
 
 [[package]]

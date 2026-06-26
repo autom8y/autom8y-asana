@@ -67,7 +67,9 @@ def _check_custom_field(result: CustomField) -> None:
         (
             WorkspacesClient,
             "ws123",
-            {"gid": "ws123", "name": "My Workspace", "is_organization": True},
+            # Response gid deliberately DISTINCT from the request gid so a
+            # source-swap mutation (Model(gid=request_gid)) is caught. See P2-1.
+            {"gid": "RESP-ws-9001", "name": "My Workspace", "is_organization": True},
             Workspace,
             "/workspaces/{gid}",
             _check_workspace,
@@ -76,7 +78,7 @@ def _check_custom_field(result: CustomField) -> None:
             UsersClient,
             "1234567890123",
             {
-                "gid": "1234567890123",
+                "gid": "RESP-user-9002",
                 "name": "Alice Smith",
                 "email": "alice@example.com",
             },
@@ -88,7 +90,7 @@ def _check_custom_field(result: CustomField) -> None:
             ProjectsClient,
             "1234567890123",
             {
-                "gid": "1234567890123",
+                "gid": "RESP-proj-9003",
                 "name": "My Project",
                 "archived": False,
                 "public": True,
@@ -101,7 +103,7 @@ def _check_custom_field(result: CustomField) -> None:
             SectionsClient,
             "1234567890123",
             {
-                "gid": "1234567890123",
+                "gid": "RESP-sec-9004",
                 "name": "To Do",
                 "project": {"gid": "9876543210987", "name": "Project"},
             },
@@ -113,7 +115,7 @@ def _check_custom_field(result: CustomField) -> None:
             CustomFieldsClient,
             "1234567890123",
             {
-                "gid": "1234567890123",
+                "gid": "RESP-cf-9005",
                 "name": "Priority",
                 "resource_subtype": "enum",
                 "enum_options": [
@@ -154,15 +156,24 @@ async def test_get_async_returns_model(
     client = client_factory(client_cls, use_cache=False)
     mock_http.get.return_value = payload
 
+    # Guard the P2-1 fix: the response gid MUST differ from the request gid,
+    # otherwise the deserializer-source assertion below would tautologically
+    # pass for a Model(gid=request_gid) source-swap mutation.
+    assert payload["gid"] != gid
+
     result = await client.get_async(gid)
 
-    # Behavioral assertions (typed model shape + common fields)
+    # Behavioral assertions: gid/name MUST be sourced from the RESPONSE payload,
+    # not the request gid (kills the P2-1 tautology -- a source-swap mutation
+    # in the production deserializer now yields request gid != response gid).
     assert isinstance(result, expected_model)
     assert result.gid == payload["gid"]
     assert result.name == payload["name"]
     extra_check(result)
 
-    # Asana-contract assertion (URL + params) -- retained per Pattern E decision tree category 1
+    # Asana-contract assertion (URL + params) -- retained per Pattern E decision
+    # tree category 1. This is the SECOND half of the proof: it legitimately
+    # uses the REQUEST gid (it drives the URL), so it stays unchanged.
     mock_http.get.assert_called_once_with(url_template.format(gid=gid), params={})
 
 
@@ -212,19 +223,20 @@ async def test_get_async_raw_returns_dict(
         (
             WorkspacesClient,
             "ws456",
-            {"gid": "ws456", "name": "Sync Workspace"},
+            # Response gid DISTINCT from request gid (P2-1 tautology kill).
+            {"gid": "RESP-ws-sync-9101", "name": "Sync Workspace"},
             Workspace,
         ),
         (
             ProjectsClient,
             "1234567890123",
-            {"gid": "1234567890123", "name": "Sync Project"},
+            {"gid": "RESP-proj-sync-9102", "name": "Sync Project"},
             Project,
         ),
         (
             CustomFieldsClient,
             "1234567890123",
-            {"gid": "1234567890123", "name": "Field"},
+            {"gid": "RESP-cf-sync-9103", "name": "Field"},
             CustomField,
         ),
     ],
@@ -248,9 +260,13 @@ def test_get_sync_returns_model(
     client = client_factory(client_cls, use_cache=False, log_provider=None)
     mock_http.get.return_value = payload
 
+    # Guard: response gid differs from request gid (P2-1 tautology kill).
+    assert payload["gid"] != gid
+
     result = client.get(gid)
 
     assert isinstance(result, expected_model)
+    # gid MUST be sourced from the RESPONSE, not the request gid.
     assert result.gid == payload["gid"]
 
 
@@ -262,7 +278,13 @@ def test_get_sync_returns_model(
             "list_async",
             (),
             {},
-            [{"gid": "ws1", "name": "WS 1"}, {"gid": "ws2", "name": "WS 2"}],
+            # Distinct response sentinels per page item (P2-1 tautology kill):
+            # the model gid MUST be sourced from each response item, not from
+            # any request param.
+            [
+                {"gid": "RESP-page-0", "name": "WS 1"},
+                {"gid": "RESP-page-1", "name": "WS 2"},
+            ],
             Workspace,
         ),
         (
@@ -270,7 +292,10 @@ def test_get_sync_returns_model(
             "list_for_workspace_async",
             ("ws123",),
             {},
-            [{"gid": "u1", "name": "User 1"}, {"gid": "u2", "name": "User 2"}],
+            [
+                {"gid": "RESP-page-0", "name": "User 1"},
+                {"gid": "RESP-page-1", "name": "User 2"},
+            ],
             User,
         ),
         (
@@ -278,7 +303,10 @@ def test_get_sync_returns_model(
             "list_async",
             (),
             {"workspace": "ws123"},
-            [{"gid": "p1", "name": "Project 1"}, {"gid": "p2", "name": "Project 2"}],
+            [
+                {"gid": "RESP-page-0", "name": "Project 1"},
+                {"gid": "RESP-page-1", "name": "Project 2"},
+            ],
             Project,
         ),
     ],
@@ -312,9 +340,11 @@ async def test_list_async_returns_page_iterator(
     items = await result.collect()
     assert len(items) == 2
     assert all(isinstance(m, expected_model) for m in items)
-    # Preserve the stricter Workspaces-case assertion across all cases:
-    assert items[0].gid == page_items[0]["gid"]
-    assert items[1].gid == page_items[1]["gid"]
+    # Each item gid MUST be sourced from its RESPONSE page item (distinct
+    # sentinels), preserving the stricter Workspaces-case assertion across
+    # all cases and killing the P2-1 source-swap tautology.
+    assert items[0].gid == "RESP-page-0"
+    assert items[1].gid == "RESP-page-1"
 
 
 # =============================================================================
@@ -444,13 +474,19 @@ class TestProjectsClientCreateAsync:
         self, projects_client: ProjectsClient, mock_http: MockHTTPClient
     ) -> None:
         """create_async returns Project model by default."""
-        mock_http.post.return_value = {"gid": "newproj123", "name": "New Project"}
+        # Response name DISTINCT from request name (P2-1 tautology kill): the
+        # model name MUST be sourced from the response, not the request param.
+        mock_http.post.return_value = {
+            "gid": "newproj123",
+            "name": "SERVER-RENAMED-New Project",
+        }
 
         result = await projects_client.create_async(name="New Project", workspace="ws123")
 
         assert isinstance(result, Project)
         assert result.gid == "newproj123"
-        assert result.name == "New Project"
+        assert result.name == "SERVER-RENAMED-New Project"
+        # Request-body contract assert legitimately uses the REQUEST name.
         mock_http.post.assert_called_once_with(
             "/projects",
             json={"data": {"name": "New Project", "workspace": "ws123"}},
@@ -488,13 +524,18 @@ class TestProjectsClientUpdateAsync:
         self, projects_client: ProjectsClient, mock_http: MockHTTPClient
     ) -> None:
         """update_async returns Project model by default."""
-        mock_http.put.return_value = {"gid": "proj123", "name": "Updated Name"}
+        # Response name DISTINCT from request name (P2-1 tautology kill).
+        mock_http.put.return_value = {
+            "gid": "proj123",
+            "name": "SERVER-RENAMED-Updated Name",
+        }
 
         result = await projects_client.update_async("proj123", name="Updated Name")
 
         assert isinstance(result, Project)
         assert result.gid == "proj123"
-        assert result.name == "Updated Name"
+        assert result.name == "SERVER-RENAMED-Updated Name"
+        # Request-body contract assert legitimately uses the REQUEST name.
         mock_http.put.assert_called_once_with(
             "/projects/proj123",
             json={"data": {"name": "Updated Name"}},
@@ -626,13 +667,18 @@ class TestSectionsClientCreateAsync:
         self, sections_client: SectionsClient, mock_http: MockHTTPClient
     ) -> None:
         """create_async returns Section model by default."""
-        mock_http.post.return_value = {"gid": "newsec123", "name": "New Section"}
+        # Response name DISTINCT from request name (P2-1 tautology kill).
+        mock_http.post.return_value = {
+            "gid": "newsec123",
+            "name": "SERVER-RENAMED-New Section",
+        }
 
         result = await sections_client.create_async(name="New Section", project="proj123")
 
         assert isinstance(result, Section)
         assert result.gid == "newsec123"
-        assert result.name == "New Section"
+        assert result.name == "SERVER-RENAMED-New Section"
+        # Request-body contract assert legitimately uses the REQUEST name.
         mock_http.post.assert_called_once_with(
             "/projects/proj123/sections",
             json={"data": {"name": "New Section"}},
@@ -752,9 +798,10 @@ class TestCustomFieldsClientCreateAsync:
         self, custom_fields_client: CustomFieldsClient, mock_http: MockHTTPClient
     ) -> None:
         """create_async returns CustomField model by default."""
+        # Response name DISTINCT from request name (P2-1 tautology kill).
         mock_http.post.return_value = {
             "gid": "newcf123",
-            "name": "New Field",
+            "name": "SERVER-RENAMED-New Field",
             "resource_subtype": "text",
         }
 
@@ -766,7 +813,8 @@ class TestCustomFieldsClientCreateAsync:
 
         assert isinstance(result, CustomField)
         assert result.gid == "newcf123"
-        assert result.name == "New Field"
+        assert result.name == "SERVER-RENAMED-New Field"
+        # Request-body contract assert legitimately uses the REQUEST name.
         mock_http.post.assert_called_once_with(
             "/custom_fields",
             json={
@@ -809,9 +857,10 @@ class TestCustomFieldsClientEnumOptions:
         self, custom_fields_client: CustomFieldsClient, mock_http: MockHTTPClient
     ) -> None:
         """create_enum_option_async creates enum option."""
+        # Response name DISTINCT from request name (P2-1 tautology kill).
         mock_http.post.return_value = {
             "gid": "opt123",
-            "name": "New Option",
+            "name": "SERVER-RENAMED-New Option",
             "color": "blue",
             "enabled": True,
         }
@@ -822,7 +871,8 @@ class TestCustomFieldsClientEnumOptions:
 
         assert isinstance(result, CustomFieldEnumOption)
         assert result.gid == "opt123"
-        assert result.name == "New Option"
+        assert result.name == "SERVER-RENAMED-New Option"
+        # Request-body contract assert legitimately uses the REQUEST name.
         mock_http.post.assert_called_once_with(
             "/custom_fields/cf123/enum_options",
             json={"data": {"name": "New Option", "enabled": True, "color": "blue"}},

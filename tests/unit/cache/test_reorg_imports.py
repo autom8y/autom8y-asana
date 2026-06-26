@@ -28,7 +28,6 @@ def test_root_imports():
         RequestCoalescer,
         StalenessCheckSettings,
         TieredCacheProvider,
-        TieredConfig,
         TTLSettings,
         UnifiedTaskStore,
         check_batch_staleness,
@@ -40,7 +39,6 @@ def test_root_imports():
 
     assert CacheEntry is not None
     assert TieredCacheProvider is not None
-    assert TieredConfig is not None
     assert TTLSettings is not None
     assert OverflowSettings is not None
     assert check_batch_staleness is not None
