@@ -303,8 +303,7 @@ def test_d1_unit_discount_dtype_parity_HELD() -> None:
     token = resolve_field_class_token(Unit, "discount")
     assert token == "EnumField"
     assert not parity_mismatch(column, token), (
-        f"unit.discount schema dtype {column.dtype!r} disagrees with EnumField "
-        "(expects 'Utf8')"
+        f"unit.discount schema dtype {column.dtype!r} disagrees with EnumField (expects 'Utf8')"
     )
 
 
@@ -320,6 +319,5 @@ def test_d2_offer_cost_dtype_parity_HELD() -> None:
     token = resolve_field_class_token(Offer, "cost")
     assert token == "NumberField"
     assert not parity_mismatch(column, token), (
-        f"offer.cost schema dtype {column.dtype!r} disagrees with NumberField "
-        "(expects 'Decimal')"
+        f"offer.cost schema dtype {column.dtype!r} disagrees with NumberField (expects 'Decimal')"
     )
