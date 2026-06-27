@@ -18,5 +18,10 @@ RUN groupadd --gid 1000 appuser && \
 WORKDIR /app
 COPY --link --from=node-binary /usr/local/bin/node /usr/local/bin/node
 COPY --link --chown=1000:1000 vendor/deck-producer/ /app/vendor/deck-producer/
+# Explicit export/ ownership contract: ensures the freeze target dir exists and
+# is appuser-writable even if a future change drops --chown or alters COPY ordering.
+# Defense-in-depth; mkdirSync(recursive) in inline.mjs:197 also handles this.
+RUN mkdir -p /app/vendor/deck-producer/export \
+    && chown appuser:appuser /app/vendor/deck-producer/export
 ENV AUTOM8_WALKTHROUGH_PRODUCER_DIR=/app/vendor/deck-producer
 USER appuser

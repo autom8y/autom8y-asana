@@ -14,8 +14,13 @@
 # Usage (local):
 #   scripts/smoke-freeze.sh <docker-image>
 #
-# Leg 1 — valid addr: frozen deck emitted, exit 0, frozen addr present in file
-# Leg 2 — broken addr: ADDR-NON-CANONICAL in stderr, exit nonzero, NO file
+# Leg 1 — valid addr: frozen deck emitted in-container AS appuser, no mount,
+#          exit 0, frozen addr present in the in-container file.
+# Leg 2 — broken addr: ADDR-NON-CANONICAL in stderr, exit nonzero, NO file.
+#
+# Prod-representative: runs as appuser with NO writable mount over export/.
+# The assertion that the file was written is performed INSIDE the container.
+# A writable host mount would mask the CLASS-1a EACCES failure mode (G-THEATER).
 
 set -euo pipefail
 
@@ -31,47 +36,44 @@ echo "=== CON-2 freeze smoke: $IMAGE ==="
 
 # ---------------------------------------------------------------------------
 # Leg 1 — valid --addr
+# Run AS appuser, NO writable mount. Assertion performed inside the container.
 # ---------------------------------------------------------------------------
 echo ""
-echo "--- Leg 1: valid --addr -> frozen deck must be emitted ---"
+echo "--- Leg 1: valid --addr -> frozen deck must be emitted (in-container, as appuser) ---"
 docker run --rm \
-  --entrypoint node \
-  -v "$SMOKE_TMP:/app/vendor/deck-producer/export" \
-  "$IMAGE" \
-  /app/vendor/deck-producer/build/inline.mjs \
-    --deck templates/ghl-calendar-setup \
-    --title "GHL Calendar Setup — Contente" \
-    --out GhlCalendarSetup.html \
-    --addr "$ADDR"
-
-FROZEN_FILE="$SMOKE_TMP/GhlCalendarSetup.html"
-if [ ! -f "$FROZEN_FILE" ]; then
-  echo "FAIL: Leg 1 — frozen file not emitted" >&2; exit 1
-fi
-if ! grep -q "$ADDR" "$FROZEN_FILE"; then
-  echo "FAIL: Leg 1 — frozen address not found in output file" >&2; exit 1
-fi
-echo "PASS: Leg 1 — frozen deck emitted with address frozen in place"
-ls -lh "$FROZEN_FILE"
+  --user appuser \
+  --entrypoint sh \
+  "$IMAGE" -c '
+    node /app/vendor/deck-producer/build/inline.mjs \
+      --deck templates/ghl-calendar-setup \
+      --title "GHL Calendar Setup — Contente" \
+      --out GhlCalendarSetup.html \
+      --addr "'"$ADDR"'" \
+    && test -f /app/vendor/deck-producer/export/GhlCalendarSetup.html \
+    && grep -q "'"$ADDR"'" /app/vendor/deck-producer/export/GhlCalendarSetup.html'
+echo "PASS: Leg 1 — frozen deck emitted with address frozen in place (in-container, as appuser)"
 
 # ---------------------------------------------------------------------------
 # Leg 2 — broken --addr
-# Uses a temp file to capture stderr without losing exit code in subshell.
+# Run AS appuser, NO writable mount. Assert: exit nonzero + ADDR-NON-CANONICAL
+# in output + NO file written. Output captured to host scratch (not mounted).
 # ---------------------------------------------------------------------------
 echo ""
-echo "--- Leg 2: broken --addr -> ADDR-NON-CANONICAL, exit nonzero, no file ---"
-rm -f "$FROZEN_FILE"
-LEG2_STDERR_FILE="$SMOKE_TMP/.leg2_stderr"
+echo "--- Leg 2: broken --addr -> ADDR-NON-CANONICAL, exit nonzero, no file (in-container, as appuser) ---"
+LEG2_STDERR_FILE="$SMOKE_TMP/.leg2_output"
 set +e
 docker run --rm \
-  --entrypoint node \
-  -v "$SMOKE_TMP:/app/vendor/deck-producer/export" \
-  "$IMAGE" \
-  /app/vendor/deck-producer/build/inline.mjs \
-    --deck templates/ghl-calendar-setup \
-    --title "GHL Calendar Setup — Contente" \
-    --out GhlCalendarSetup.html \
-    --addr "not-a-valid-address" >"$LEG2_STDERR_FILE" 2>&1
+  --user appuser \
+  --entrypoint sh \
+  "$IMAGE" -c '
+    node /app/vendor/deck-producer/build/inline.mjs \
+      --deck templates/ghl-calendar-setup \
+      --title "GHL Calendar Setup — Contente" \
+      --out GhlCalendarSetup.html \
+      --addr "not-a-valid-address"; rc=$?
+    if [ -f /app/vendor/deck-producer/export/GhlCalendarSetup.html ]; then
+      echo "FAIL: file written despite broken addr" >&2; exit 99; fi
+    exit $rc' >"$LEG2_STDERR_FILE" 2>&1
 LEG2_EXIT=$?
 set -e
 cat "$LEG2_STDERR_FILE"
@@ -81,9 +83,6 @@ if [ "$LEG2_EXIT" -eq 0 ]; then
 fi
 if ! grep -q "ADDR-NON-CANONICAL" "$LEG2_STDERR_FILE"; then
   echo "FAIL: Leg 2 — ADDR-NON-CANONICAL not found in output" >&2; exit 1
-fi
-if [ -f "$FROZEN_FILE" ]; then
-  echo "FAIL: Leg 2 — file written despite broken addr (must be NO FILE)" >&2; exit 1
 fi
 echo "PASS: Leg 2 — ADDR-NON-CANONICAL confirmed, exit $LEG2_EXIT, no file"
 

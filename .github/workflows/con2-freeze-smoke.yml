@@ -4,6 +4,7 @@ name: CON-2 Freeze Smoke
 # Uses a focused image (Dockerfile.smoke) — no CodeArtifact auth required.
 # Both freeze legs must pass: valid addr (frozen file + addr frozen in HTML)
 # and broken addr (ADDR-NON-CANONICAL, exit nonzero, no file).
+# Prod-representative: smoke runs as appuser with NO writable mount (G-THEATER).
 # Authority: G-THEATER gate (grandeur anchor 2026-06-27)
 
 on:
@@ -22,6 +23,10 @@ on:
       - scripts/smoke-freeze.sh
       - .github/workflows/con2-freeze-smoke.yml
 
+concurrency:
+  group: con2-freeze-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -29,9 +34,10 @@ jobs:
   freeze-smoke:
     name: in-container freeze smoke (both legs)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (node24)
       - name: Build focused smoke image (no CodeArtifact needed)
         run: docker build -f Dockerfile.smoke -t con2-smoke:ci .
-      - name: Run freeze smoke — both legs
+      - name: Run freeze smoke — both legs (as appuser, no mount)
         run: bash scripts/smoke-freeze.sh con2-smoke:ci
