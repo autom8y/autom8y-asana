@@ -258,14 +258,14 @@ class TestMissingOfficePhone:
 
 @requires_producer
 class TestProducerFreezeReal:
-    def test_freeze_red_non_canonical_addr_raises_and_writes_no_file(self) -> None:
+    async def test_freeze_red_non_canonical_addr_raises_and_writes_no_file(self) -> None:
         pdir = _producer_dir()
         out_name = "walkthrough_unittest_red.html"
         out_path = pdir / "export" / out_name
         if out_path.exists():
             out_path.unlink()
         with pytest.raises(ProducerFreezeError):
-            freeze_walkthrough_deck(
+            await freeze_walkthrough_deck(
                 producer_dir=pdir,
                 deck_template=SPIKE_DECK,
                 gated_address="not-a-valid-address",
@@ -275,12 +275,12 @@ class TestProducerFreezeReal:
         # ADDR-NON-CANONICAL fires -> producer writes NO file.
         assert not out_path.exists()
 
-    def test_freeze_green_canonical_addr_returns_bytes_with_address(self) -> None:
+    async def test_freeze_green_canonical_addr_returns_bytes_with_address(self) -> None:
         pdir = _producer_dir()
         out_name = "walkthrough_unittest_green.html"
         out_path = pdir / "export" / out_name
         try:
-            frozen = freeze_walkthrough_deck(
+            frozen = await freeze_walkthrough_deck(
                 producer_dir=pdir,
                 deck_template=SPIKE_DECK,
                 gated_address=SPIKE_ADDRESS,
@@ -358,7 +358,7 @@ class TestAttachReplaceCycle:
     def _patch_freeze(self, monkeypatch: pytest.MonkeyPatch) -> None:
         frozen = b"<html>" + SPIKE_ADDRESS.encode("utf-8") + b"</html>"
 
-        def _fake_freeze(**_kwargs: Any) -> bytes:
+        async def _fake_freeze(**_kwargs: Any) -> bytes:
             return frozen
 
         monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", _fake_freeze)

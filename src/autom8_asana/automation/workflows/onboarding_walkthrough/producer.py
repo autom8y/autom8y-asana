@@ -14,7 +14,7 @@ canonical address form, so G-PROPAGATE P2 is honored.
 
 from __future__ import annotations
 
-import subprocess
+import asyncio
 from pathlib import Path
 
 from autom8y_log import get_logger
@@ -43,7 +43,7 @@ class ProducerFreezeError(RuntimeError):
     """
 
 
-def freeze_walkthrough_deck(
+async def freeze_walkthrough_deck(
     *,
     producer_dir: Path,
     deck_template: str,
@@ -89,33 +89,43 @@ def freeze_walkthrough_deck(
         out_filename,  # relative filename -> producer writes export/<out_filename>
     ]
 
+    # Native async subprocess (asyncio.create_subprocess_exec): the Python side
+    # only awaits I/O on the child, consuming NO thread-pool slot -- so the
+    # concurrency-invariants guard (test_no_unsanctioned_to_thread_offload_site)
+    # stays green by ELIMINATION rather than by allowlisting a to_thread merge.
     try:
-        result = subprocess.run(  # noqa: S603 -- fixed argv, no shell; deck/out are workflow-controlled
-            cmd,
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
             cwd=producer_dir,
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
         )
     except FileNotFoundError as exc:  # node binary not on PATH (deploy precondition)
         raise ProducerFreezeError(
             f"producer entrypoint not runnable (node missing?): {exc}"
         ) from exc
-    except subprocess.TimeoutExpired as exc:
+
+    try:
+        _stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout_s)
+    except TimeoutError as exc:
+        proc.kill()
+        await proc.wait()
         raise ProducerFreezeError(f"producer timed out after {timeout_s}s") from exc
+
+    returncode = proc.returncode
+    stderr = (stderr_b or b"").decode("utf-8", "replace")
 
     # Fail closed on any non-zero exit OR the explicit ADDR-NON-CANONICAL refusal
     # (the refusal IS a non-zero exit, but we check the sentinel for a precise
     # diagnostic and as defense against future exit-code drift).
-    if result.returncode != 0 or ADDR_NON_CANONICAL_SENTINEL in (result.stderr or ""):
-        stderr_snippet = (result.stderr or "").strip()[:500]
+    if returncode != 0 or ADDR_NON_CANONICAL_SENTINEL in stderr:
+        stderr_snippet = stderr.strip()[:500]
         logger.error(
             "walkthrough_producer_failed",
-            returncode=result.returncode,
+            returncode=returncode,
             stderr=stderr_snippet,
         )
-        raise ProducerFreezeError(f"producer exit={result.returncode}: {stderr_snippet}")
+        raise ProducerFreezeError(f"producer exit={returncode}: {stderr_snippet}")
 
     out_path = producer_dir / "export" / out_filename
     if not out_path.exists() or out_path.stat().st_size == 0:

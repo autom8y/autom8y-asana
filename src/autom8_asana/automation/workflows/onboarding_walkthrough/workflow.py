@@ -24,7 +24,6 @@ Per ADR-bridge-intermediate-base-class: extends ``BridgeWorkflowAction`` (reuses
 
 from __future__ import annotations
 
-import asyncio
 import io
 import os
 from datetime import UTC, datetime
@@ -253,10 +252,12 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         ts = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         out_filename = f"walkthrough_{gid}_{ts}.html"
 
-        # 5. FREEZE -- sole freezer (A2). Blocking subprocess off the event loop.
+        # 5. FREEZE -- sole freezer (A2). Native async subprocess (no thread
+        # offload): producer.freeze_walkthrough_deck uses
+        # asyncio.create_subprocess_exec, so the concurrency-guard fitness
+        # function stays green by elimination, not by allowlisting a to_thread.
         try:
-            frozen_bytes = await asyncio.to_thread(
-                _producer.freeze_walkthrough_deck,
+            frozen_bytes = await _producer.freeze_walkthrough_deck(
                 producer_dir=self._producer_dir,
                 deck_template=deck_template,
                 gated_address=gated_address,
