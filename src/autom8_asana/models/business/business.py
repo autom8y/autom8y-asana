@@ -281,6 +281,13 @@ class Business(BusinessEntity, SharedCascadingFieldsMixin, FinancialFieldsMixin)
     aggression_level = EnumField()
     vca_status = EnumField()
 
+    # Onboarding walkthrough necessity-rule input (PRD FR-11; D-1 resolved).
+    # Auto-derives the Asana field name "Calendar Provider" (descriptors.py);
+    # returns the enum name string (e.g. "JaneApp", "GHL") consumed by the
+    # OnboardingWalkthroughWorkflow positive gate. If the live field name ever
+    # diverges from the derived form, switch to EnumField(field_name="Calendar Provider").
+    calendar_provider = EnumField()
+
     # People fields - rep inherited from SharedCascadingFieldsMixin
 
     # --- Cascading Field Definitions (ADR-0054) ---
