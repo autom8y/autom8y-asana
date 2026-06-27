@@ -48,6 +48,7 @@ RUN if [ -n "$SECRETS_EXT_LAYER_URL" ]; then \
         curl -sSL "${SECRETS_EXT_LAYER_URL}" -o /tmp/layer.zip && \
         unzip /tmp/layer.zip -d /opt && \
         rm /tmp/layer.zip && \
+        dnf clean all && \
         test -f /opt/extensions/bootstrap; \
     else \
         mkdir -p /opt/extensions && \
