@@ -55,6 +55,16 @@ RUN if [ -n "$SECRETS_EXT_LAYER_URL" ]; then \
     fi
 
 # =============================================================================
+# Stage 1b: Node.js binary extraction (CON-2)
+# =============================================================================
+# Provides the Node>=22 runtime binary for the deck-freeze subprocess.
+# Only the binary is extracted into the runtime stage — no npm toolchain ships.
+# The producer source is in vendor/deck-producer/ (A2-vendor bundle, N2 §3).
+# Both node:22-slim and python:3.12-slim are Debian Bookworm — glibc ABI compatible.
+FROM node:22-slim@sha256:813a7480f28fdadac1f7f5c824bcdad435b5bc1322a5968bbbdef8d058f9dff4 AS node-binary
+# ^ No RUN commands; this stage is a binary source only.
+
+# =============================================================================
 # Stage 1: Builder
 # =============================================================================
 FROM python:3.12-slim@sha256:5072b08ad74609c5329ab4085a96dfa873de565fb4751a4cfcd7dcc427661df0 AS builder
@@ -115,6 +125,20 @@ COPY --link --from=builder --chown=1000:1000 /app/src /app/src
 
 # Copy entrypoint script
 COPY --link scripts/entrypoint.sh /app/entrypoint.sh
+
+# Node.js binary for deck-freeze subprocess (CON-2)
+# node:22-slim and python:3.12-slim are both Debian Bookworm — glibc ABI compatible.
+# Binary is owned root:root with execute-all bits; appuser can execute it.
+COPY --link --from=node-binary /usr/local/bin/node /usr/local/bin/node
+
+# Vendored deck producer (CON-2 A2-vendor bundle, N2 §3)
+# --chown=1000:1000: inline.mjs writes to vendor/deck-producer/export/ at freeze time;
+# appuser (UID/GID 1000) must own the tree to write the frozen deck.
+COPY --link --chown=1000:1000 vendor/deck-producer/ /app/vendor/deck-producer/
+
+# Producer directory path consumed by the walkthrough workflow producer module.
+# Python reads this env var via AUTOM8_WALKTHROUGH_PRODUCER_DIR (constants.py:34).
+ENV AUTOM8_WALKTHROUGH_PRODUCER_DIR=/app/vendor/deck-producer
 
 # Set ownership and permissions
 RUN chown -R appuser:appuser /app && chmod +x /app/entrypoint.sh

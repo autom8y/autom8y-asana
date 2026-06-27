@@ -1,0 +1,25 @@
+{
+  "name": "@contente/deck-inliner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Owned in-repo build that turns an editable .dc.html Contente onboarding deck into a single self-contained offline .html a non-technical clinic owner opens by double-click.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prep": "node build/prep/vendor-runtime.mjs && node build/prep/vendor-fonts.mjs && node build/prep/optimize-images.mjs",
+    "build": "node build/inline.mjs --deck templates/ghl-calendar-setup --title 'GHL Calendar Setup — Contente' --out GhlCalendarSetup.html",
+    "build:all": "node build/inline.mjs --all",
+    "test:acceptance": "node build/test/acceptance.mjs"
+  },
+  "dependencies": {
+    "@autom8y/contente-tokens": "github:autom8y/contente-tokens#v1.0.0",
+    "entities": "^6.0.1",
+    "parse5": "^8.0.0"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0",
+    "sharp": "^0.34.4"
+  }
+}
