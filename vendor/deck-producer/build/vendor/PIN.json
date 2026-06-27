@@ -1,0 +1,7 @@
+{
+  "react": "18.3.1",
+  "reactUmd": "https://unpkg.com/react@18.3.1/umd/react.production.min.js",
+  "reactDomUmd": "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js",
+  "dsBundleNamespace": "ContenteDesignSystem_9ed584",
+  "vendoredAt": "2026-06-24"
+}

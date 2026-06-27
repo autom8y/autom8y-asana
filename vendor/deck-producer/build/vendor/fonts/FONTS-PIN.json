@@ -1,0 +1,79 @@
+{
+  "source": "https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap",
+  "declaredTuples": 14,
+  "uniqueWoff2": 8,
+  "uniqueWoff2Bytes": 147384,
+  "faces": [
+    {
+      "family": "JetBrains Mono",
+      "style": "normal",
+      "weights": [
+        400,
+        500,
+        700
+      ],
+      "variable": true
+    },
+    {
+      "family": "Plus Jakarta Sans",
+      "style": "normal",
+      "weights": [
+        400,
+        500,
+        600,
+        700,
+        800
+      ],
+      "variable": true
+    },
+    {
+      "family": "Spectral",
+      "style": "italic",
+      "weights": [
+        400
+      ],
+      "variable": false
+    },
+    {
+      "family": "Spectral",
+      "style": "normal",
+      "weights": [
+        400
+      ],
+      "variable": false
+    },
+    {
+      "family": "Spectral",
+      "style": "normal",
+      "weights": [
+        500
+      ],
+      "variable": false
+    },
+    {
+      "family": "Spectral",
+      "style": "normal",
+      "weights": [
+        600
+      ],
+      "variable": false
+    },
+    {
+      "family": "Spectral",
+      "style": "normal",
+      "weights": [
+        700
+      ],
+      "variable": false
+    },
+    {
+      "family": "Spectral",
+      "style": "normal",
+      "weights": [
+        800
+      ],
+      "variable": false
+    }
+  ],
+  "vendoredAt": "2026-06-24"
+}
