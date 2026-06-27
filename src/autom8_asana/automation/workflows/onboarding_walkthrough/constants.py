@@ -22,8 +22,10 @@ map values are the template *folder* names (the producer invoker prepends
 
 from __future__ import annotations
 
-# --- Feature flag (MC-2 #725 broad-rollout block: defaults OFF) ---
-# Kill-switch consumed by BridgeWorkflowAction.validate_async (bridge_base.py).
+# --- Feature flag (MC-2 #725 broad-rollout block: OPT-IN, defaults OFF) ---
+# Unlike the opt-OUT sibling bridges, OnboardingWalkthroughWorkflow.validate_async
+# OVERRIDES the base to require EXPLICIT enable (=true/1/yes/on). Unset/blank =>
+# DISABLED, so dispatch-wiring can never make it fire by default before the pilot.
 WALKTHROUGH_ENABLED_ENV_VAR = "AUTOM8_WALKTHROUGH_ENABLED"
 
 # --- Producer location (CONFIG, never hardcoded to a worktree path) ---

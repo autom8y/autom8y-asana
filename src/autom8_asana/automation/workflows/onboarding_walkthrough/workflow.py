@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -102,6 +103,23 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
     @property
     def workflow_id(self) -> str:  # type: ignore[override]  # read-only property overrides base attr
         return "onboarding-walkthrough"
+
+    async def validate_async(self) -> list[str]:
+        """Opt-IN safe-default kill-switch (MC-2 #725 broad-rollout containment).
+
+        The sibling bridges (InsightsExport / ConversationAudit) are opt-OUT --
+        enabled unless ``=false/0/no``. This not-yet-piloted automation INVERTS
+        that: it stays DISABLED unless the operator EXPLICITLY enables it, so
+        wiring up dispatch can never make it fire by default. The rest of
+        pre-flight (data-source health) is delegated to the base unchanged.
+        """
+        env_value = os.environ.get(self.feature_flag_env_var, "").lower()
+        if env_value not in {"true", "1", "yes", "on"}:
+            return [
+                f"Workflow disabled (opt-in): set {self.feature_flag_env_var}=true "
+                "to enable (MC-2 #725: stays off until the operator enables it)"
+            ]
+        return await super().validate_async()
 
     # --- Bridge hooks ---
 

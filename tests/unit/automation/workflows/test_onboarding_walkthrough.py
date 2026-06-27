@@ -172,6 +172,34 @@ def _entity(
     }
 
 
+# --- F1 / opt-IN kill-switch: disabled unless EXPLICITLY enabled (MC-2 #725) ---
+
+
+class TestOptInKillSwitch:
+    """Two-sided: unset/false => disabled (skip); explicit-true => proceeds.
+
+    Inverts the opt-OUT sibling default so dispatch-wiring can never fire this
+    automation by default before the operator pulls the (reserved) enable lever.
+    """
+
+    async def test_unset_flag_disables(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv(constants.WALKTHROUGH_ENABLED_ENV_VAR, raising=False)
+        wf, _att, _r, _o = _make_workflow()
+        errors = await wf.validate_async()
+        assert errors, "unset flag MUST disable (opt-in safe-default)"  # RED leg
+        assert constants.WALKTHROUGH_ENABLED_ENV_VAR in errors[0]
+
+    async def test_explicit_false_disables(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(constants.WALKTHROUGH_ENABLED_ENV_VAR, "false")
+        wf, _att, _r, _o = _make_workflow()
+        assert await wf.validate_async(), "explicit false MUST disable"
+
+    async def test_explicit_enable_proceeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(constants.WALKTHROUGH_ENABLED_ENV_VAR, "true")
+        wf, _att, _r, _o = _make_workflow()  # data_client=None => base health no-op
+        assert await wf.validate_async() == [], "explicit enable MUST proceed"  # GREEN leg
+
+
 # --- T2 / AC-GATE RED: wrong / absent / unmapped enum -> no-op skip ---
 
 
