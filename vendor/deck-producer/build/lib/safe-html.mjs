@@ -59,7 +59,10 @@ export function safeReplace(html, needle, payload) {
  * from any tag-balance count. (inline.mjs:297)
  */
 function structuralCopy(html) {
-  return html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi, '<script$1></script>');
+  // \s* before > makes the close-tag match whitespace-tolerant: </script > is valid HTML.
+  // Without \s* the regex fails to strip </script > leaving JS content un-stripped
+  // and miscounting tag balance (CodeQL js/bad-tag-filter #236).
+  return html.replace(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi, '<script$1></script>');
 }
 
 /**
@@ -69,9 +72,11 @@ function structuralCopy(html) {
 export function assertScriptBalance(html) {
   const structural = structuralCopy(html);
   const opens = (structural.match(/<script\b/gi) || []).length;
-  const closes = (structural.match(/<\/script>/gi) || []).length;
+  // \s* keeps close-tag counter consistent with structuralCopy's whitespace-tolerant regex
+  // so opens/closes stay balanced under </script > variants (CodeQL js/bad-tag-filter #236).
+  const closes = (structural.match(/<\/script\s*>/gi) || []).length;
   if (opens !== closes) {
-    const rawCloses = (html.match(/<\/script>/gi) || []).length;
+    const rawCloses = (html.match(/<\/script\s*>/gi) || []).length;
     const escCloses = (html.match(/<\\\/script>/gi) || []).length;
     throw new BuildError(
       'SCRIPT-IMBALANCE',
@@ -108,7 +113,9 @@ export function assertNoScriptSrc(html) {
  */
 export function assertNoRelativeRefs(html) {
   // Strip <script>...</script> so dead string literals inside minified JS are excluded.
-  const scan = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '<script>/*stripped*/</script>');
+  // \s* before > matches </script > (whitespace before close >) — consistent with
+  // structuralCopy fix (CodeQL js/bad-tag-filter #235).
+  const scan = html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '<script>/*stripped*/</script>');
   const patterns = [
     { re: /from\s*=\s*["']\.\/[^"']+\.(?:js|mjs)["']/i, label: 'relative x-import from="./*.js"' },
     { re: /src\s*=\s*["']\.\/[^"']+\.(?:js|css)["']/i, label: 'relative .js/.css src attribute' },
