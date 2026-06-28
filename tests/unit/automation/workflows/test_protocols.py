@@ -244,18 +244,34 @@ class TestInteropProtocolAlignment:
         Per H-003: Verifies the interop dependency resolves correctly
         as an optional extra.
         """
-        from autom8y_client_sdk.data import DataInsightProtocol
-
-        assert hasattr(DataInsightProtocol, "get_insight")
+        sdk_data = pytest.importorskip(
+            "autom8y_client_sdk.data",
+            reason=(
+                "autom8y_client_sdk is an optional [interop] extra not in the CI dev "
+                "matrix (.[dev,api,auth,events]). Install: pip install "
+                "'autom8y-asana[interop]'. "
+                "DEFER D-2: add interop to CI matrix when the SDK contract is stable "
+                "(ADR H-003)."
+            ),
+        )
+        assert hasattr(sdk_data.DataInsightProtocol, "get_insight")
 
     def test_interop_read_protocol_has_health_check(self) -> None:
         """autom8y_client_sdk.data.DataReadProtocol has health_check.
 
         Documents the semantic overlap with DataSource.is_healthy().
         """
-        from autom8y_client_sdk.data import DataReadProtocol
-
-        assert hasattr(DataReadProtocol, "health_check")
+        sdk_data = pytest.importorskip(
+            "autom8y_client_sdk.data",
+            reason=(
+                "autom8y_client_sdk is an optional [interop] extra not in the CI dev "
+                "matrix (.[dev,api,auth,events]). Install: pip install "
+                "'autom8y-asana[interop]'. "
+                "DEFER D-2: add interop to CI matrix when the SDK contract is stable "
+                "(ADR H-003)."
+            ),
+        )
+        assert hasattr(sdk_data.DataReadProtocol, "health_check")
 
     def test_protocol_coverage_map_documented(self) -> None:
         """protocols.py module docstring documents the coverage map.
