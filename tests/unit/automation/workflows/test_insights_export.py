@@ -736,14 +736,40 @@ class TestPartialAllowlist:
 
 
 @pytest.mark.usefixtures("_force_fallback")
-class TestOperatorPlaneDark:
-    """GAP-1 deploy-INERT: the mint is refused -> empty decks, graceful, no fallback."""
+class TestOperatorPlaneInertNoOp:
+    """GAP-1 deploy-INERT: a mint REFUSAL makes the export a TRUE no-op.
 
-    async def test_mint_refused_empty_decks_no_crash(self, mock_resolution_context) -> None:
-        """OperatorMintRefusedError -> all clean tables empty, offer still succeeds."""
+    The hazard (rite-disjoint gate finding): the un-guarded INERT path
+    UPLOADED an empty HTML deck per Offer and DELETED prior matching
+    attachments. If the EventBridge schedule fired pre-FLIP, every Offer's
+    prior (last-good) deck was replaced with an empty one -- a real
+    (non-PII) data-loss regression.
+
+    The fix: on ``OperatorMintRefusedError`` the publish step is SKIPPED
+    ENTIRELY -- no empty deck is built/uploaded and NO prior attachment is
+    deleted; prior decks stay intact. Two-sided canary:
+
+    - REFUSAL arm -> NO upload, NO delete, prior attachment untouched, the
+      INERT WARNING is emitted, and nothing is counted as succeeded
+      (the counter stays RED).
+    - LIVE arm -> mint succeeds, so upload + prior-delete still happen
+      (no regression).
+
+    A third test pins the distinction: a successful-but-EMPTY live result
+    is NOT a refusal, so it still follows the normal publish path.
+    """
+
+    async def test_mint_refused_is_true_no_op(self, mock_resolution_context) -> None:
+        """REFUSAL arm: NO upload, NO delete; prior deck untouched; counter RED.
+
+        RED against the un-guarded behavior (empty deck uploaded + prior
+        attachment deleted); GREEN once the INERT no-op guard skips publish.
+        """
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        prior_deck = _make_attachment("prior-deck-1", "insights_export_Acme_20260201.html")
         wf, _, mock_data, mock_att = _make_workflow(
             offers=[o1],
+            existing_attachments={"o1": [prior_deck]},
             operator_error=OperatorMintRefusedError(
                 "operator token mint refused (HTTP 403)",
                 reason="mint_refused_403",
@@ -751,22 +777,73 @@ class TestOperatorPlaneDark:
             ),
         )
 
-        result = await _enumerate_and_execute(wf)
+        with patch("autom8_asana.automation.workflows.insights.workflow.logger") as mock_logger:
+            result = await _enumerate_and_execute(wf)
 
-        # Graceful: no crash; the offer renders an empty agency deck (success).
-        assert result.total == 1
-        assert result.succeeded == 1
-        assert result.failed == 0
-        # Empty report still uploaded (existing empty-data semantics).
-        assert mock_att.upload_async.call_count == 1
+        # TRUE no-op: NOTHING published, NOTHING deleted -> prior deck intact.
+        mock_att.upload_async.assert_not_called()
+        mock_att.delete_async.assert_not_called()
+        # We never even list a task's attachments for deletion on the INERT path.
+        mock_att.list_for_task_async.assert_not_called()
         # G-NO-FALLBACK: the SA fleet-read methods are NEVER called.
         mock_data.get_insights_async.assert_not_called()
         mock_data.get_appointments_async.assert_not_called()
         mock_data.get_leads_async.assert_not_called()
         mock_data.get_reconciliation_async.assert_not_called()
-        # The clean tables are all empty (counter stays RED).
+        # Counter stays RED: nothing succeeded; the whole run is INERT (all skipped).
+        assert result.total == 1
+        assert result.succeeded == 0
+        assert result.failed == 0
+        assert result.skipped == 1
+        assert result.metadata.get("operator_plane_inert") is True
+        # The INERT skip WARNING is emitted.
+        warning_events = [c.args[0] for c in mock_logger.warning.call_args_list if c.args]
+        assert "insights_export_skipped_operator_plane_inert" in warning_events
+
+    async def test_live_mint_still_uploads_and_deletes(self, mock_resolution_context) -> None:
+        """LIVE arm (no regression): mint succeeds -> upload + prior-delete happen."""
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        prior_deck = _make_attachment("prior-deck-1", "insights_export_Acme_20260201.html")
+        wf, _, _, mock_att = _make_workflow(
+            offers=[o1],
+            existing_attachments={"o1": [prior_deck]},
+        )
+
+        result = await _enumerate_and_execute(wf)
+
+        assert result.succeeded == 1
+        assert mock_att.upload_async.call_count == 1
+        assert mock_att.delete_async.call_count == 1
+        assert mock_att.delete_async.call_args[0][0] == "prior-deck-1"
+
+    async def test_successful_but_empty_live_result_still_publishes(
+        self, mock_resolution_context
+    ) -> None:
+        """Distinction: a successful-but-EMPTY live result is NOT a refusal.
+
+        Only a mint REFUSAL triggers the no-op skip. A live mint that returns
+        genuinely-empty data still follows the existing publish-empty behavior
+        (the counter behavior is unchanged for the non-INERT path).
+        """
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        wf, _, mock_data, mock_att = _make_workflow(
+            offers=[o1],
+            operator_rows=[],  # mint SUCCEEDS, returns empty rows for every office
+        )
+
+        result = await _enumerate_and_execute(wf)
+
+        # Live (non-INERT) path is unchanged: the empty deck is still published.
+        assert result.succeeded == 1
+        assert mock_att.upload_async.call_count == 1
+        # Still no SA fleet-read fallback on the live path (G-NO-FALLBACK).
+        mock_data.get_insights_async.assert_not_called()
+        mock_data.get_appointments_async.assert_not_called()
+        mock_data.get_leads_async.assert_not_called()
+        mock_data.get_reconciliation_async.assert_not_called()
+        # All clean tables are empty-but-success (counter stays RED on content).
         counts = result.metadata["per_offer_table_counts"]["o1"]
-        assert counts["tables_succeeded"] == TOTAL_TABLE_COUNT  # empty == success
+        assert counts["tables_succeeded"] == TOTAL_TABLE_COUNT
         assert counts["tables_failed"] == 0
 
 

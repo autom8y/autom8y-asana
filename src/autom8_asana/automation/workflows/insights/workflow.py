@@ -133,9 +133,20 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         self._cache_hits: int = 0
         # GAP-1 PR-A: pre-fetched operator-plane batch cache, populated once per run
         # in execute_async (batch-over-O). Shape: {table_name: {office_phone: rows}}.
-        # Empty when the operator plane is dark (INERT / refusal) -> every office
-        # renders empty clean decks gracefully (no crash, no SA fleet-read fallback).
+        # A per-insight route denial leaves THAT table absent here -> its office
+        # decks render empty gracefully (no crash, no SA fleet-read fallback). A
+        # whole-plane mint refusal is handled separately via the INERT no-op guard
+        # below (the run skips publish entirely rather than rendering empty decks).
         self._operator_batch: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        # GAP-1 PR-A INERT no-op guard: True when the operator-plane mint was
+        # REFUSED (the empty OPERATOR_ARN_ALLOWLIST 403, or no ambient AWS
+        # credentials to sign sts:GetCallerIdentity). This is the deploy-INERT
+        # signal. It is DISTINCT from a successful-but-empty live result: only a
+        # mint REFUSAL makes the run a TRUE no-op (execute_async skips the whole
+        # publish step -- no empty deck is built/uploaded and NO prior attachment
+        # is deleted), so a pre-FLIP schedule firing cannot overwrite any Offer's
+        # last-good deck with an empty one. Reset at the top of every prefetch.
+        self._operator_plane_refused: bool = False
         # Dry-run preview output directory. Injectable so concurrent dry-runs
         # (and xdist-parallel tests) target distinct, non-colliding directories
         # instead of one shared cwd-relative path whose deterministic filename
@@ -243,9 +254,40 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         # GAP-1 PR-A: mint once + fetch the clean tables batch-over-O BEFORE the
         # per-offer fan-out. The per-offer pass reads the resulting cache (it does
         # NOT make per-office operator calls -- that would blow the 10/min route
-        # budget). On a dark plane (INERT / refusal) the cache stays empty and each
-        # offer renders empty clean decks gracefully.
+        # budget). A whole-plane mint refusal sets self._operator_plane_refused;
+        # the INERT no-op guard below then skips the publish step entirely (a
+        # per-insight denial instead leaves only that table empty and still
+        # publishes).
         await self._prefetch_operator_tables(entities, params)
+
+        # GAP-1 PR-A INERT no-op guard: if the operator-plane mint was REFUSED
+        # (the empty OPERATOR_ARN_ALLOWLIST 403, or no ambient AWS credentials),
+        # the whole operator plane is dark. SKIP the publish step ENTIRELY at the
+        # earliest INERT detection -- do NOT build or upload an empty deck, and do
+        # NOT delete prior attachments. This makes deploy-INERT a TRUE no-op by
+        # construction (not by a fragile schedule-disable gate): a pre-FLIP
+        # schedule firing leaves every Offer's last-good deck intact, with no
+        # empty-deck overwrite. The completion counter stays RED
+        # (insights_export_completed is NOT emitted) and there is NO SA fleet-read
+        # fallback (G-NO-FALLBACK). NOTE: this fires ONLY on mint REFUSAL; a
+        # successful-but-empty live result still follows the normal publish path.
+        if self._operator_plane_refused:
+            logger.warning(
+                "insights_export_skipped_operator_plane_inert",
+                total_offers=len(entities),
+                dry_run=dry_run,
+            )
+            now = datetime.now(UTC)
+            return WorkflowResult(
+                workflow_id=self.workflow_id,
+                started_at=now,
+                completed_at=now,
+                total=len(entities),
+                succeeded=0,
+                failed=0,
+                skipped=len(entities),
+                metadata={"operator_plane_inert": True},
+            )
 
         result = await super().execute_async(entities, params)
 
@@ -594,12 +636,22 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         token). The per-office results are cached in ``self._operator_batch`` for
         the per-offer pass to read.
 
-        Fails GRACEFULLY closed: an ``OperatorTokenError`` (the INERT empty-allowlist
-        403, or a route denial) is logged WARNING once and leaves the cache empty --
-        every offer then renders empty clean decks. NEVER falls back to the SA
-        fleet-read (G-NO-FALLBACK); the cross-tenant counter simply stays RED.
+        Fails GRACEFULLY closed:
+
+        - A whole-plane mint REFUSAL (``OperatorMintRefusedError`` -- the INERT
+          empty-allowlist 403, or no ambient AWS credentials) is logged WARNING
+          once and sets ``self._operator_plane_refused``. execute_async then makes
+          the run a TRUE no-op: it skips the publish step entirely (no empty deck
+          uploaded, NO prior attachment deleted -- prior decks stay intact).
+        - A per-insight route denial (``OperatorAccessDeniedError``) leaves only
+          THAT table empty and continues; the offer still publishes (clean decks
+          render empty for the denied table).
+
+        NEVER falls back to the SA fleet-read (G-NO-FALLBACK); the cross-tenant
+        counter simply stays RED.
         """
         self._operator_batch = {}
+        self._operator_plane_refused = False
 
         office_set = await self._resolve_owned_office_set(entities, params)
         if not office_set:
@@ -624,10 +676,13 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                 )
             except OperatorMintRefusedError as exc:
                 # The mint is dark (INERT empty-allowlist 403, or no credentials):
-                # the WHOLE operator plane is unreachable -- stop, leave every table
-                # empty. Graceful, no crash, NO SA fleet-read fallback. The counter
-                # stays RED with zero regression.
+                # the WHOLE operator plane is unreachable. Flag the run as INERT so
+                # execute_async skips the publish step ENTIRELY (TRUE no-op: no empty
+                # deck uploaded, NO prior attachment deleted -- prior decks intact).
+                # Graceful, no crash, NO SA fleet-read fallback. The counter stays
+                # RED with zero regression.
                 self._operator_batch = {}
+                self._operator_plane_refused = True
                 logger.warning(
                     "insights_export_operator_plane_unavailable",
                     reason=getattr(exc, "reason", None),
