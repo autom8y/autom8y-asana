@@ -36,6 +36,10 @@ from autom8_asana.clients.data.models import (
     InsightsResponse,
 )
 from autom8_asana.core.scope import EntityScope
+from autom8_asana.errors import (
+    OperatorAccessDeniedError,
+    OperatorMintRefusedError,
+)
 
 # Patch path for resolve_section_gids (lazy import inside _enumerate_offers)
 _RESOLVE_PATCH = "autom8_asana.automation.workflows.section_resolution.resolve_section_gids"
@@ -154,14 +158,26 @@ def _make_workflow(
     table_errors: dict[str, Exception] | None = None,
     existing_attachments: dict[str, list[MagicMock]] | None = None,
     preview_dir: pathlib.Path | None = None,
+    operator_rows: list[dict[str, Any]] | None = None,
+    operator_error: Exception | None = None,
+    operator_insight_errors: dict[str, Exception] | None = None,
+    operator_insight_rows: dict[str, list[dict[str, Any]]] | None = None,
 ) -> tuple[InsightsExportWorkflow, MagicMock, MagicMock, MagicMock]:
     """Build an InsightsExportWorkflow with configured mocks.
 
+    GAP-1 PR-A: the cross-tenant export consumes the operator-plane batch
+    (``get_operator_insights_batch_async``), NOT the per-table SA methods. This
+    mocks the operator batch to return ``{phone: rows}`` for every requested phone
+    and keeps the SA methods as AsyncMocks so tests can assert they are NEVER
+    called on the cross-tenant path (M3 / AT-DROP-1).
+
     Args:
         offers: List of mock task objects for enumerate_offers.
-        insights_response: Default InsightsResponse for all table fetches.
-        insights_error: Default error to raise for ALL table fetches.
-        table_errors: Dict mapping method name -> error (e.g. "get_insights_async").
+        operator_rows: Rows each office receives for every clean table.
+        operator_error: Exception the operator batch raises for ALL insights
+            (e.g. OperatorMintRefusedError -> the INERT/dark-plane path).
+        operator_insight_errors: Per-insight_name exception (e.g. one table denied).
+        operator_insight_rows: Per-insight_name rows override.
         existing_attachments: Dict mapping offer GID -> attachments.
 
     Returns:
@@ -188,6 +204,26 @@ def _make_workflow(
     # Default InsightsResponse for all calls
     default_response = insights_response or _make_insights_response()
 
+    # GAP-1: the operator-plane batch is the ONLY data path for the cross-tenant
+    # export. Return the same rows for every requested office (the resolution
+    # fixture maps all offers to one phone, so O is a single-element set).
+    default_op_rows = operator_rows if operator_rows is not None else default_response.data
+
+    async def mock_operator_batch(
+        insight_name: str, phones: list[str], **kwargs: Any
+    ) -> dict[str, list[dict[str, Any]]]:
+        if operator_error is not None:
+            raise operator_error
+        if operator_insight_errors and insight_name in operator_insight_errors:
+            raise operator_insight_errors[insight_name]
+        rows = (operator_insight_rows or {}).get(insight_name, default_op_rows)
+        return {phone: list(rows) for phone in phones}
+
+    mock_data_client.get_operator_insights_batch_async = AsyncMock(side_effect=mock_operator_batch)
+
+    # The SA per-table methods MUST NOT be called on the cross-tenant path (M3).
+    # Keep them as AsyncMocks purely so call_count assertions can prove zero use;
+    # a stray call returns benign data rather than a MagicMock.
     if insights_error:
         mock_data_client.get_insights_async = AsyncMock(side_effect=insights_error)
         mock_data_client.get_appointments_async = AsyncMock(side_effect=insights_error)
@@ -469,137 +505,70 @@ class TestResolution:
 
 @pytest.mark.usefixtures("_force_fallback")
 class TestFetchAllTables:
-    """Tests for table fetching (AC-W01.7) -- via fallback path."""
+    """GAP-1: the 4 clean tables are served from the operator-plane batch."""
 
-    async def test_all_twelve_api_calls_dispatched(self, mock_resolution_context) -> None:
-        """All 12 API calls are dispatched (each table independently)."""
-        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
-        wf, _, mock_data, _ = _make_workflow(offers=[o1])
+    async def test_operator_batch_fetched_once_per_clean_table(
+        self, mock_resolution_context
+    ) -> None:
+        """One operator batch call per clean table (batch-over-O), NOT per office."""
+        offers = [_make_task(f"o{i}", f"Offer {i}", parent_gid=f"biz{i}") for i in range(5)]
+        wf, _, mock_data, _ = _make_workflow(offers=offers)
 
-        result = await _enumerate_and_execute(wf)
+        await _enumerate_and_execute(wf)
 
-        # 8 insights calls + 1 appointments + 1 leads + 2 reconciliation = 12 total
-        assert mock_data.get_insights_async.call_count == 8
-        assert mock_data.get_appointments_async.call_count == 1
-        assert mock_data.get_leads_async.call_count == 1
+        # 4 clean tables -> exactly 4 operator batch calls regardless of office count.
+        assert mock_data.get_operator_insights_batch_async.call_count == TOTAL_TABLE_COUNT
+        called_insights = {
+            c.kwargs["insight_name"]
+            for c in mock_data.get_operator_insights_batch_async.call_args_list
+        }
+        assert called_insights == {
+            "account_level_stats",
+            "offer_level_stats",
+            "question_level_stats",
+            "asset_level_stats",
+        }
 
-    async def test_correct_factory_params(self, mock_resolution_context) -> None:
-        """Each table uses the correct factory and period."""
+    async def test_clean_tables_use_correct_insight_names(self, mock_resolution_context) -> None:
+        """Each clean table maps to its de-identified aggregate insight name."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, mock_data, _ = _make_workflow(offers=[o1])
 
         await _enumerate_and_execute(wf)
 
-        # Verify factory params in insights calls
-        insights_calls = mock_data.get_insights_async.call_args_list
-        factory_period_pairs = set()
-        for c in insights_calls:
-            factory_period_pairs.add((c.kwargs.get("factory"), c.kwargs.get("period")))
-
-        # 8 insights calls: 7 unique (factory, period) pairs + UNUSED ASSETS
-        # shares ("assets", "t30") with ASSET TABLE
-        expected_pairs = {
-            ("base", "lifetime"),  # SUMMARY
-            ("base", "quarter"),  # BY QUARTER
-            ("base", "month"),  # BY MONTH
-            ("base", "week"),  # BY WEEK
-            ("ad_questions", "lifetime"),  # AD QUESTIONS
-            ("assets", "t30"),  # ASSET TABLE + UNUSED ASSETS
-            ("business_offers", "t30"),  # OFFER TABLE
+        by_insight = {
+            c.kwargs["insight_name"]: c.kwargs
+            for c in mock_data.get_operator_insights_batch_async.call_args_list
         }
-        assert factory_period_pairs == expected_pairs
+        assert by_insight["account_level_stats"]["period"] == "lifetime"
+        assert by_insight["offer_level_stats"]["period"] == "t30"
+        assert by_insight["question_level_stats"]["period"] == "lifetime"
+        assert by_insight["asset_level_stats"]["period"] == "t30"
 
-        # Verify UNUSED ASSETS call has include_unused=True
-        unused_calls = [
-            c
-            for c in insights_calls
-            if c.kwargs.get("factory") == "assets" and c.kwargs.get("include_unused") is True
-        ]
-        assert len(unused_calls) == 1
-
-
-class TestUnusedAssetsApiCall:
-    """Tests for UNUSED ASSETS via data-service include_unused=True."""
-
-    async def test_unused_assets_fetched_via_api(self) -> None:
-        """UNUSED ASSETS is fetched as its own API call with include_unused=True."""
-        unused_data = [
-            {"name": "Unused Ad 1", "spend": 0, "leads": 0},
-            {"name": "Unused Ad 2", "spend": 0, "leads": 0},
-        ]
-        unused_response = _make_insights_response(data=unused_data)
-        default_response = _make_insights_response()
-
-        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
-
-        async def route_insights(factory: str, **kwargs: Any) -> InsightsResponse:
-            if factory == "assets" and kwargs.get("include_unused") is True:
-                return unused_response
-            return default_response
-
-        wf, _, mock_data, _ = _make_workflow(offers=[o1])
-        mock_data.get_insights_async = AsyncMock(side_effect=route_insights)
-
-        table_results = await wf._fetch_all_tables(
-            office_phone="+17705753103",
-            vertical="chiropractic",
-            row_limits=DEFAULT_ROW_LIMITS,
-            offer_gid="o1",
-        )
-
-        unused_result = table_results["UNUSED ASSETS"]
-        assert unused_result.success is True
-        assert unused_result.row_count == 2
-        assert len(unused_result.data) == 2
-
-    async def test_unused_assets_independent_of_asset_table(self) -> None:
-        """UNUSED ASSETS succeeds even when ASSET TABLE fails."""
-        unused_data = [{"name": "Unused", "spend": 0, "leads": 0}]
-        unused_response = _make_insights_response(data=unused_data)
-        default_response = _make_insights_response()
-
-        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
-
-        async def selective_insights(factory: str, **kwargs: Any) -> InsightsResponse:
-            if factory == "assets" and kwargs.get("include_unused") is True:
-                return unused_response
-            if factory == "assets":
-                raise ConnectionError("Asset fetch failed")
-            return default_response
-
-        wf, _, mock_data, _ = _make_workflow(offers=[o1])
-        mock_data.get_insights_async = AsyncMock(side_effect=selective_insights)
-
-        table_results = await wf._fetch_all_tables(
-            office_phone="+17705753103",
-            vertical="chiropractic",
-            row_limits=DEFAULT_ROW_LIMITS,
-            offer_gid="o1",
-        )
-
-        # ASSET TABLE failed but UNUSED ASSETS succeeded independently
-        assert table_results["ASSET TABLE"].success is False
-        assert table_results["UNUSED ASSETS"].success is True
-        assert table_results["UNUSED ASSETS"].row_count == 1
-
-    async def test_unused_assets_passes_include_unused_true(self) -> None:
-        """Verify get_insights_async is called with include_unused=True for UNUSED ASSETS."""
+    async def test_no_sa_fleet_read_methods_called(self, mock_resolution_context) -> None:
+        """M3 / AT-DROP-1: the cross-tenant path NEVER calls the SA fleet-read methods."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, mock_data, _ = _make_workflow(offers=[o1])
 
-        table_results = await wf._fetch_all_tables(
-            office_phone="+17705753103",
-            vertical="chiropractic",
-            row_limits=DEFAULT_ROW_LIMITS,
-            offer_gid="o1",
-        )
+        await _enumerate_and_execute(wf)
 
-        # Find the call with include_unused=True
-        calls = mock_data.get_insights_async.call_args_list
-        unused_calls = [c for c in calls if c.kwargs.get("include_unused") is True]
-        assert len(unused_calls) == 1
-        assert unused_calls[0].kwargs["factory"] == "assets"
-        assert unused_calls[0].kwargs["period"] == "t30"
+        mock_data.get_insights_async.assert_not_called()
+        mock_data.get_appointments_async.assert_not_called()
+        mock_data.get_leads_async.assert_not_called()
+        mock_data.get_reconciliation_async.assert_not_called()
+
+    async def test_batch_over_owned_set_single_call_for_many_offices(
+        self, mock_resolution_context
+    ) -> None:
+        """All offers resolve to one phone -> one-element O sent to each batch call."""
+        offers = [_make_task(f"o{i}", f"Offer {i}", parent_gid=f"biz{i}") for i in range(3)]
+        wf, _, mock_data, _ = _make_workflow(offers=offers)
+
+        await _enumerate_and_execute(wf)
+
+        for c in mock_data.get_operator_insights_batch_async.call_args_list:
+            # The resolution fixture maps every offer to +17705753103.
+            assert c.kwargs["phones"] == ["+17705753103"]
 
 
 @pytest.mark.usefixtures("_force_fallback")
@@ -740,62 +709,65 @@ class TestWorkflowResult:
 
 
 @pytest.mark.usefixtures("_force_fallback")
-class TestPartialFailure:
-    """Tests for partial table failure (AC-W02.1, AC-W02.2) -- via fallback path."""
+class TestPartialAllowlist:
+    """GAP-1: one insight denied (e.g. not yet allowlisted) -> that table empty only."""
 
-    async def test_one_table_fails_rest_succeed(self, mock_resolution_context) -> None:
-        """1 of 12 tables fails -> 11 succeed, report still uploaded."""
-        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
-        default_response = _make_insights_response()
-
-        call_count = 0
-
-        async def fail_one_insights(factory: str, **kwargs: Any) -> InsightsResponse:
-            nonlocal call_count
-            call_count += 1
-            # Fail the first insights call (SUMMARY)
-            if factory == "base" and kwargs.get("period") == "lifetime":
-                raise ConnectionError("Network error on SUMMARY")
-            return default_response
-
-        wf, _, mock_data, mock_att = _make_workflow(offers=[o1])
-        mock_data.get_insights_async = AsyncMock(side_effect=fail_one_insights)
-
-        result = await _enumerate_and_execute(wf)
-
-        # Offer still succeeds with partial data
-        assert result.succeeded == 1
-        # Upload still called (partial report)
-        assert mock_att.upload_async.call_count == 1
-        # Per-offer table counts should show the failure
-        table_counts = result.metadata["per_offer_table_counts"]["o1"]
-        assert table_counts["tables_failed"] > 0
-        assert table_counts["tables_succeeded"] > 0
-
-
-@pytest.mark.usefixtures("_force_fallback")
-class TestTotalFailure:
-    """Tests for total table failure (AC-W02.3) -- via fallback path."""
-
-    async def test_all_tables_fail_no_upload(self, mock_resolution_context) -> None:
-        """All 12 tables fail -> no upload, offer marked failed."""
+    async def test_one_insight_denied_others_serve(self, mock_resolution_context) -> None:
+        """A 404 on offer_level_stats leaves OFFER TABLE empty; the rest serve."""
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, _, mock_att = _make_workflow(
             offers=[o1],
-            insights_error=ConnectionError("Service down"),
+            operator_insight_errors={
+                "offer_level_stats": OperatorAccessDeniedError(
+                    "not allowlisted", reason="route_denied_404", status_code=404
+                )
+            },
         )
 
         result = await _enumerate_and_execute(wf)
 
+        # Offer still succeeds (3 tables with data + 1 empty); report uploaded.
+        assert result.succeeded == 1
+        assert mock_att.upload_async.call_count == 1
+        # Empty tables are success (data=[]), so no table is "failed".
+        table_counts = result.metadata["per_offer_table_counts"]["o1"]
+        assert table_counts["tables_succeeded"] == TOTAL_TABLE_COUNT
+        assert table_counts["tables_failed"] == 0
+
+
+@pytest.mark.usefixtures("_force_fallback")
+class TestOperatorPlaneDark:
+    """GAP-1 deploy-INERT: the mint is refused -> empty decks, graceful, no fallback."""
+
+    async def test_mint_refused_empty_decks_no_crash(self, mock_resolution_context) -> None:
+        """OperatorMintRefusedError -> all clean tables empty, offer still succeeds."""
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        wf, _, mock_data, mock_att = _make_workflow(
+            offers=[o1],
+            operator_error=OperatorMintRefusedError(
+                "operator token mint refused (HTTP 403)",
+                reason="mint_refused_403",
+                status_code=403,
+            ),
+        )
+
+        result = await _enumerate_and_execute(wf)
+
+        # Graceful: no crash; the offer renders an empty agency deck (success).
         assert result.total == 1
-        assert result.failed == 1
-        assert result.succeeded == 0
-        # No upload should occur
-        mock_att.upload_async.assert_not_called()
-        # Error should have the all_tables_failed type
-        assert len(result.errors) == 1
-        assert result.errors[0].error_type == "all_tables_failed"
-        assert result.errors[0].recoverable is True
+        assert result.succeeded == 1
+        assert result.failed == 0
+        # Empty report still uploaded (existing empty-data semantics).
+        assert mock_att.upload_async.call_count == 1
+        # G-NO-FALLBACK: the SA fleet-read methods are NEVER called.
+        mock_data.get_insights_async.assert_not_called()
+        mock_data.get_appointments_async.assert_not_called()
+        mock_data.get_leads_async.assert_not_called()
+        mock_data.get_reconciliation_async.assert_not_called()
+        # The clean tables are all empty (counter stays RED).
+        counts = result.metadata["per_offer_table_counts"]["o1"]
+        assert counts["tables_succeeded"] == TOTAL_TABLE_COUNT  # empty == success
+        assert counts["tables_failed"] == 0
 
 
 @pytest.mark.usefixtures("_force_fallback")
@@ -867,24 +839,30 @@ class TestConstants:
     """Tests for module constants."""
 
     def test_table_names_count(self) -> None:
-        assert TOTAL_TABLE_COUNT == 12
-        assert len(TABLE_NAMES) == 12
+        # GAP-1 PR-A: the cross-tenant export serves the 4 CLEAN de-identified
+        # aggregate tables (PII dropped; BY-period + UNUSED ASSETS deferred to FF).
+        assert TOTAL_TABLE_COUNT == 4
+        assert len(TABLE_NAMES) == 4
 
-    def test_table_names_order(self) -> None:
-        assert TABLE_NAMES[0] == "SUMMARY"
-        assert TABLE_NAMES[1] == "APPOINTMENTS"
-        assert TABLE_NAMES[2] == "LEADS"
-        assert TABLE_NAMES[3] == "LIFETIME RECONCILIATIONS"
-        assert TABLE_NAMES[4] == "T14 RECONCILIATIONS"
-        assert TABLE_NAMES[-1] == "UNUSED ASSETS"
+    def test_table_names_are_the_four_clean_tables(self) -> None:
+        assert set(TABLE_NAMES) == {"SUMMARY", "AD QUESTIONS", "ASSET TABLE", "OFFER TABLE"}
+        # The dropped PII tables are gone from the cross-tenant view.
+        for dropped in (
+            "APPOINTMENTS",
+            "LEADS",
+            "LIFETIME RECONCILIATIONS",
+            "T14 RECONCILIATIONS",
+            "UNUSED ASSETS",
+            "BY QUARTER",
+        ):
+            assert dropped not in TABLE_NAMES
 
     def test_offer_project_gid(self) -> None:
         assert OFFER_PROJECT_GID == "1143843662099250"
 
     def test_default_row_limits(self) -> None:
+        # GAP-1 PR-A: APPOINTMENTS/LEADS dropped (PII); only ASSET TABLE remains.
         assert DEFAULT_ROW_LIMITS == {
-            "APPOINTMENTS": 100,
-            "LEADS": 100,
             "ASSET TABLE": 150,
         }
 
@@ -1332,140 +1310,55 @@ class TestDryRun:
         preview_file.unlink(missing_ok=True)
 
 
-# --- F-15: Reconciliation Phone Filtering Tests ---
+# --- GAP-1 PR-A: OQ-4a asana-side activity filter ---
 
 
-class TestReconciliationPhoneFiltering:
-    """F-15: Verify reconciliation tables filter to queried phone only.
+class TestActivityFilterArm:
+    """GAP-1: OQ-4a -- ASSET TABLE / AD QUESTIONS drop zero-activity rows asana-side."""
 
-    The API may return rows for all businesses sharing the same vertical.
-    The phone filter in _fetch_table must retain only rows matching the
-    queried office_phone.
-    """
-
-    async def test_lifetime_recon_filters_to_queried_phone(self) -> None:
-        """LIFETIME RECONCILIATIONS: multi-phone response filtered to queried phone."""
-        queried_phone = "+17705753103"
-        other_phone = "+14045551234"
-
-        multi_phone_response = _make_insights_response(
-            data=[
-                {"office_phone": queried_phone, "collected": 5000.0, "spend": 4200.0},
-                {"office_phone": other_phone, "collected": 3000.0, "spend": 2500.0},
-                {"office_phone": queried_phone, "collected": 1000.0, "spend": 800.0},
-            ],
-        )
-
-        wf, _, mock_data, _ = _make_workflow()
-        mock_data.get_reconciliation_async = AsyncMock(return_value=multi_phone_response)
-
-        _lifetime_recon_spec = TableSpec(
-            table_name="LIFETIME RECONCILIATIONS",
-            dispatch_type=DispatchType.RECONCILIATION,
-        )
-        result = await wf._fetch_table(
-            spec=_lifetime_recon_spec,
-            offer_gid="offer-1",
-            office_phone=queried_phone,
-            vertical="chiropractic",
-            row_limits={},
-        )
-
-        assert result.success is True
-        # Only queried phone's rows should survive
-        assert result.row_count == 2
-        for row in result.data:
-            assert row["office_phone"] == queried_phone
-
-    async def test_t14_recon_filters_to_queried_phone(self) -> None:
-        """T14 RECONCILIATIONS: multi-phone response filtered to queried phone."""
-        queried_phone = "+17705753103"
-        other_phone = "+14045551234"
-
-        multi_phone_response = _make_insights_response(
-            data=[
-                {"office_phone": queried_phone, "period": 0, "collected": 1200.0},
-                {"office_phone": other_phone, "period": 0, "collected": 900.0},
-            ],
-        )
-
-        wf, _, mock_data, _ = _make_workflow()
-        mock_data.get_reconciliation_async = AsyncMock(return_value=multi_phone_response)
-
-        _t14_recon_spec = TableSpec(
-            table_name="T14 RECONCILIATIONS",
-            dispatch_type=DispatchType.RECONCILIATION,
-            window_days=14,
-        )
-        result = await wf._fetch_table(
-            spec=_t14_recon_spec,
-            offer_gid="offer-1",
-            office_phone=queried_phone,
-            vertical="chiropractic",
-            row_limits={},
-        )
-
-        assert result.success is True
-        assert result.row_count == 1
-        assert result.data[0]["office_phone"] == queried_phone
-
-    async def test_single_phone_no_filtering(self) -> None:
-        """When all rows share the same phone, no filtering occurs."""
-        queried_phone = "+17705753103"
-
-        single_phone_response = _make_insights_response(
-            data=[
-                {"office_phone": queried_phone, "collected": 5000.0},
-                {"office_phone": queried_phone, "collected": 3000.0},
-            ],
-        )
-
-        wf, _, mock_data, _ = _make_workflow()
-        mock_data.get_reconciliation_async = AsyncMock(return_value=single_phone_response)
-
-        _lifetime_recon_spec = TableSpec(
-            table_name="LIFETIME RECONCILIATIONS",
-            dispatch_type=DispatchType.RECONCILIATION,
-        )
-        result = await wf._fetch_table(
-            spec=_lifetime_recon_spec,
-            offer_gid="offer-1",
-            office_phone=queried_phone,
-            vertical="chiropractic",
-            row_limits={},
-        )
-
-        assert result.success is True
-        assert result.row_count == 2
-
-    async def test_response_data_not_mutated(self) -> None:
-        """Original response.data is not mutated by phone filtering (F-08)."""
-        queried_phone = "+17705753103"
-        other_phone = "+14045551234"
-
-        original_data = [
-            {"office_phone": queried_phone, "collected": 5000.0},
-            {"office_phone": other_phone, "collected": 3000.0},
+    async def test_asset_table_drops_zero_activity_rows(self) -> None:
+        """ASSET TABLE keeps spend>0 OR leads>0; zero-activity rows are removed."""
+        phone = "+17705753103"
+        rows = [
+            {"name": "active spend", "spend": 100, "leads": 0},
+            {"name": "active leads", "spend": 0, "leads": 3},
+            {"name": "zero activity", "spend": 0, "leads": 0},
         ]
-        multi_phone_response = _make_insights_response(data=original_data)
+        wf, _, _, _ = _make_workflow()
+        # Pre-populate the batch-over-O cache (normally filled by the prefetch).
+        wf._operator_batch = {"ASSET TABLE": {phone: rows}}
 
-        wf, _, mock_data, _ = _make_workflow()
-        mock_data.get_reconciliation_async = AsyncMock(return_value=multi_phone_response)
-
-        _lifetime_recon_spec = TableSpec(
-            table_name="LIFETIME RECONCILIATIONS",
-            dispatch_type=DispatchType.RECONCILIATION,
-        )
-        await wf._fetch_table(
-            spec=_lifetime_recon_spec,
-            offer_gid="offer-1",
-            office_phone=queried_phone,
+        table_results = await wf._fetch_all_tables(
+            office_phone=phone,
             vertical="chiropractic",
-            row_limits={},
+            row_limits=DEFAULT_ROW_LIMITS,
+            offer_gid="o1",
         )
 
-        # Original response.data should still have both rows (not mutated)
-        assert len(multi_phone_response.data) == 2
+        asset = table_results["ASSET TABLE"]
+        assert asset.success is True
+        # The zero-activity row is dropped (OQ-4a).
+        assert asset.row_count == 2
+        names = {r["name"] for r in asset.data}
+        assert "zero activity" not in names
+
+    async def test_summary_is_not_activity_filtered(self) -> None:
+        """SUMMARY (account_level_stats) has no activity filter -> rows pass through."""
+        phone = "+17705753103"
+        rows = [{"office": "A", "spend": 0, "leads": 0}]
+        wf, _, _, _ = _make_workflow()
+        wf._operator_batch = {"SUMMARY": {phone: rows}}
+
+        table_results = await wf._fetch_all_tables(
+            office_phone=phone,
+            vertical="chiropractic",
+            row_limits=DEFAULT_ROW_LIMITS,
+            offer_gid="o1",
+        )
+
+        summary = table_results["SUMMARY"]
+        assert summary.success is True
+        assert summary.row_count == 1
 
 
 # --- F-02: Business Cache Dedup Tests ---

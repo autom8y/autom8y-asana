@@ -51,17 +51,33 @@ from autom8_asana.automation.workflows.insights.formatter import (
 )
 from autom8_asana.automation.workflows.insights.tables import TABLE_SPECS
 
-# Derived from TABLE_SPECS for backward compatibility in tests.
+# The export's ACTIVE cross-tenant table set (GAP-1 PR-A: the 4 clean operator
+# tables). compose_report iterates TABLE_SPECS, so this drives the rendered set.
 TABLE_ORDER: list[str] = [s.table_name for s in TABLE_SPECS]
 
-# Derived from TABLE_SPECS for backward compatibility in tests.
-# ASSET TABLE spec has exclude_columns; period specs have display_columns.
+# ASSET TABLE spec has exclude_columns (one of the 4 active tables).
 _ASSET_EXCLUDE_COLUMNS = next(
     s.exclude_columns for s in TABLE_SPECS if s.table_name == "ASSET TABLE"
 )
-_PERIOD_DISPLAY_COLUMNS = next(
-    s.display_columns for s in TABLE_SPECS if s.table_name == "BY QUARTER"
-)
+
+# The BY-period display columns are test scaffolding for the SHARED renderer's
+# column-filtering capability. The BY-period tables themselves are deferred to
+# PR-FF (no longer in TABLE_SPECS), so this is a literal here -- it exercises the
+# renderer's display_columns whitelist via a manually-built period-shaped spec.
+_PERIOD_DISPLAY_COLUMNS: list[str] = [
+    "period_label",
+    "period_start",
+    "period_end",
+    "spend",
+    "leads",
+    "cpl",
+    "scheds",
+    "booking_rate",
+    "cps",
+    "conv_rate",
+    "ctr",
+    "ltv",
+]
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -614,81 +630,37 @@ class TestComposeReport:
     """Full compose_report with mixed results."""
 
     def _build_mixed_report_data(self, started_at: float) -> InsightsReportData:
-        """Build report data with mixed success/error/empty results."""
+        """Build report data with mixed success/error/empty results.
+
+        GAP-1 PR-A: the cross-tenant export renders the 4 CLEAN operator tables.
+        The mix below exercises error + empty + success rendering across them.
+        """
         table_results: dict[str, TableResult] = {}
 
-        # SUMMARY: success with data
+        # SUMMARY renders an error section
         table_results["SUMMARY"] = _make_table_result(
             "SUMMARY",
-            data=[{"offer_cost": 1500, "impressions": 45000}],
-        )
-
-        # APPOINTMENTS: error  # noqa: ERA001
-        table_results["APPOINTMENTS"] = _make_table_result(
-            "APPOINTMENTS",
             success=False,
             error_type="InsightsServiceError",
             error_message="Request timed out",
         )
 
-        # LEADS: success with data
-        table_results["LEADS"] = _make_table_result(
-            "LEADS",
-            data=[{"date": "2026-02-08", "name": "Jane"}],
-        )
-
-        # LIFETIME RECONCILIATIONS: success with data
-        table_results["LIFETIME RECONCILIATIONS"] = _make_table_result(
-            "LIFETIME RECONCILIATIONS",
-            data=[{"office_phone": "+19259998806", "collected": 5000.0}],
-        )
-
-        # T14 RECONCILIATIONS: success with data
-        table_results["T14 RECONCILIATIONS"] = _make_table_result(
-            "T14 RECONCILIATIONS",
-            data=[{"period": 0, "period_label": "P0", "collected": 1200.0}],
-        )
-
-        # BY QUARTER: empty
-        table_results["BY QUARTER"] = _make_table_result(
-            "BY QUARTER",
+        # AD QUESTIONS renders an empty section
+        table_results["AD QUESTIONS"] = _make_table_result(
+            "AD QUESTIONS",
             data=[],
         )
 
-        # BY MONTH: success with data
-        table_results["BY MONTH"] = _make_table_result(
-            "BY MONTH",
-            data=[{"month": "January", "spend": 500}],
-        )
-
-        # BY WEEK: success with data
-        table_results["BY WEEK"] = _make_table_result(
-            "BY WEEK",
-            data=[{"week": "W01", "spend": 100}],
-        )
-
-        # AD QUESTIONS: success with data
-        table_results["AD QUESTIONS"] = _make_table_result(
-            "AD QUESTIONS",
-            data=[{"question": "Hours?", "answer": "9-5"}],
-        )
-
-        # ASSET TABLE: success with data
+        # ASSET TABLE renders a populated section
         table_results["ASSET TABLE"] = _make_table_result(
             "ASSET TABLE",
             data=[{"asset": "banner_1", "imp": 1000}],
         )
 
-        # OFFER TABLE: success with data
+        # OFFER TABLE renders a populated section
         table_results["OFFER TABLE"] = _make_table_result(
             "OFFER TABLE",
             data=[{"offer": "spring_deal", "clicks": 200}],
-        )
-
-        # UNUSED ASSETS: empty
-        table_results["UNUSED ASSETS"] = _make_table_result(
-            "UNUSED ASSETS",
-            data=[],
         )
 
         return _make_report_data(
@@ -771,22 +743,15 @@ class TestComposeReport:
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
         report = compose_report(data)
-        # BY QUARTER is empty
+        # AD QUESTIONS is empty
         assert "No data available" in report
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_compose_report_unused_assets_empty(self, mock_monotonic):
-        mock_monotonic.return_value = 103.45
-        data = self._build_mixed_report_data(100.0)
-        report = compose_report(data)
-        assert "No unused assets found" in report
 
     @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_missing_table_gets_error(self, mock_monotonic):
         """Tables not in table_results get a 'missing' error marker."""
         mock_monotonic.return_value = 101.0
 
-        # Only provide SUMMARY, all others missing
+        # Only provide SUMMARY, all other clean tables missing
         data = _make_report_data(
             table_results={
                 "SUMMARY": _make_table_result("SUMMARY", data=[{"a": 1}]),
@@ -795,8 +760,8 @@ class TestComposeReport:
         )
         report = compose_report(data)
         assert "[ERROR] missing: Table result not available" in report
-        # APPOINTMENTS is missing -- check its section exists
-        assert 'id="appointments"' in report
+        # OFFER TABLE is missing -- check its section exists
+        assert 'id="offer-table"' in report
 
     @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_footer_counts(self, mock_monotonic):
@@ -804,8 +769,8 @@ class TestComposeReport:
         mock_monotonic.return_value = 103.45
         data = self._build_mixed_report_data(100.0)
         report = compose_report(data)
-        # 11 successful results out of 12 (APPOINTMENTS failed)
-        assert "11/12" in report
+        # 3 successful (AD QUESTIONS empty + ASSET + OFFER) of 4 (SUMMARY errored)
+        assert "3/4" in report
         assert "Errors" in report
 
     @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
@@ -1150,460 +1115,6 @@ class TestColumnOrdering:
         # Also verify empty list preferred_leading
         result_empty = _reorder_columns(columns, [])
         assert result_empty == ["spend", "clicks", "impressions"]
-
-
-# ---------------------------------------------------------------------------
-# TestReconciliationTables -- TDD-WS5 Part 2 reconciliation consumer tests
-# ---------------------------------------------------------------------------
-
-
-class TestReconciliationTables:
-    """Reconciliation table rendering and configuration tests.
-
-    Per TDD-WS5 Part 2 Section 2.5-2.6: Validates LIFETIME RECONCILIATIONS
-    and T14 RECONCILIATIONS table entries in TABLE_ORDER, COLUMN_ORDER, and
-    rendered HTML output.
-    """
-
-    def test_table_order_has_12_entries(self):
-        """TABLE_ORDER has 12 entries (was 10, +2 reconciliation tables)."""
-        assert len(TABLE_ORDER) == 12
-
-    def test_reconciliation_tables_at_positions_4_5(self):
-        """LIFETIME RECONCILIATIONS at index 3, T14 RECONCILIATIONS at index 4."""
-        assert TABLE_ORDER[3] == "LIFETIME RECONCILIATIONS"
-        assert TABLE_ORDER[4] == "T14 RECONCILIATIONS"
-
-    def test_reconciliation_tables_after_leads(self):
-        """Reconciliation tables follow LEADS in TABLE_ORDER."""
-        leads_idx = TABLE_ORDER.index("LEADS")
-        lifetime_idx = TABLE_ORDER.index("LIFETIME RECONCILIATIONS")
-        t14_idx = TABLE_ORDER.index("T14 RECONCILIATIONS")
-        assert lifetime_idx == leads_idx + 1
-        assert t14_idx == leads_idx + 2
-
-    def test_reconciliation_tables_before_by_quarter(self):
-        """Reconciliation tables precede BY QUARTER in TABLE_ORDER."""
-        t14_idx = TABLE_ORDER.index("T14 RECONCILIATIONS")
-        quarter_idx = TABLE_ORDER.index("BY QUARTER")
-        assert t14_idx < quarter_idx
-
-    def test_lifetime_reconciliations_column_order(self):
-        """LIFETIME RECONCILIATIONS has correct COLUMN_ORDER entry."""
-        assert "LIFETIME RECONCILIATIONS" in COLUMN_ORDER
-        expected = [
-            "office_phone",
-            "vertical",
-            "num_invoices",
-            "collected",
-            "spend",
-            "variance",
-            "variance_pct",
-        ]
-        assert COLUMN_ORDER["LIFETIME RECONCILIATIONS"] == expected
-
-    def test_t14_reconciliations_column_order(self):
-        """T14 RECONCILIATIONS has correct COLUMN_ORDER entry with period columns."""
-        assert "T14 RECONCILIATIONS" in COLUMN_ORDER
-        expected = [
-            "period",
-            "period_label",
-            "period_start",
-            "period_end",
-            "period_len",
-            "num_invoices",
-            "collected",
-            "spend",
-            "variance",
-            "variance_pct",
-        ]
-        assert COLUMN_ORDER["T14 RECONCILIATIONS"] == expected
-
-    def test_lifetime_reconciliations_renders_correct_column_order(self):
-        """LIFETIME RECONCILIATIONS renders office_phone, vertical first."""
-        rows = [
-            {
-                "office_phone": "+19259998806",
-                "vertical": "chiro",
-                "num_invoices": 25,
-                "collected": 5000.00,
-                "spend": 4200.00,
-                "variance": 800.00,
-                "variance_pct": 16.0,
-                "first_payment": "2025-11-01",
-                "latest_payment": "2026-02-19",
-                "days_with_activity": 45,
-            },
-        ]
-        result = _render_section("LIFETIME RECONCILIATIONS", rows=rows, row_count=1)
-
-        # Preferred columns should appear before non-preferred columns
-        office_phone_pos = result.find("Office Phone")
-        vertical_pos = result.find("Vertical")
-        num_invoices_pos = result.find("Num Invoices")
-        collected_pos = result.find("Collected")
-        first_payment_pos = result.find("First Payment")
-
-        assert office_phone_pos < vertical_pos
-        assert vertical_pos < num_invoices_pos
-        assert num_invoices_pos < collected_pos
-        # Non-preferred columns come after preferred ones
-        assert collected_pos < first_payment_pos
-
-    def test_t14_reconciliations_renders_period_columns_first(self):
-        """T14 RECONCILIATIONS renders period, period_label, period_start, period_end first."""
-        rows = [
-            {
-                "office_phone": "+19259998806",
-                "vertical": "chiro",
-                "period": 0,
-                "period_len": 14,
-                "period_start": "2026-02-07",
-                "period_end": "2026-02-20",
-                "period_label": "P0",
-                "num_invoices": 4,
-                "collected": 1200.00,
-                "spend": 980.50,
-                "variance": 219.50,
-                "variance_pct": 18.29,
-            },
-            {
-                "office_phone": "+19259998806",
-                "vertical": "chiro",
-                "period": 1,
-                "period_len": 12,
-                "period_start": "2026-01-24",
-                "period_end": "2026-02-06",
-                "period_label": "P1",
-                "num_invoices": 3,
-                "collected": 900.00,
-                "spend": 850.00,
-                "variance": 50.00,
-                "variance_pct": 5.56,
-            },
-        ]
-        result = _render_section("T14 RECONCILIATIONS", rows=rows, row_count=2)
-
-        # _DISPLAY_LABELS: period_label -> "Period", period_start -> "Start",
-        # period_end -> "End", period_len -> "Days"
-        # Note: "period" column also title-cases to "Period" (first occurrence)
-        first_period_pos = result.find(">Period<")
-        start_pos = result.find(">Start<")
-        end_pos = result.find(">End<")
-        days_pos = result.find(">Days<")
-        num_invoices_pos = result.find(">Num Invoices<")
-        office_phone_pos = result.find(">Office Phone<")
-
-        # period-related columns before metrics
-        assert first_period_pos < num_invoices_pos
-        assert start_pos < num_invoices_pos
-        assert end_pos < num_invoices_pos
-        assert days_pos < num_invoices_pos
-        # office_phone is not in preferred leading -- comes after
-        assert office_phone_pos > end_pos
-
-    def test_lifetime_reconciliations_section_id(self):
-        """LIFETIME RECONCILIATIONS section has correct slugified id."""
-        rows = [{"office_phone": "+19259998806", "collected": 5000.00}]
-        result = _render_section("LIFETIME RECONCILIATIONS", rows=rows, row_count=1)
-        assert 'id="lifetime-reconciliations"' in result
-
-    def test_t14_reconciliations_section_id(self):
-        """T14 RECONCILIATIONS section has correct slugified id."""
-        rows = [{"period": 0, "period_label": "P0", "collected": 1200.00}]
-        result = _render_section("T14 RECONCILIATIONS", rows=rows, row_count=1)
-        assert 'id="t14-reconciliations"' in result
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_compose_report_includes_reconciliation_sections(self, mock_monotonic):
-        """compose_report includes reconciliation sections in output."""
-        mock_monotonic.return_value = 101.0
-
-        table_results: dict[str, TableResult] = {}
-        # Provide all 12 tables
-        for name in TABLE_ORDER:
-            if name == "LIFETIME RECONCILIATIONS":
-                table_results[name] = _make_table_result(
-                    name,
-                    data=[
-                        {
-                            "office_phone": "+19259998806",
-                            "vertical": "chiro",
-                            "num_invoices": 25,
-                            "collected": 5000.0,
-                            "spend": 4200.0,
-                            "variance": 800.0,
-                            "variance_pct": 16.0,
-                        }
-                    ],
-                )
-            elif name == "T14 RECONCILIATIONS":
-                table_results[name] = _make_table_result(
-                    name,
-                    data=[
-                        {
-                            "period": 0,
-                            "period_label": "P0",
-                            "period_start": "2026-02-07",
-                            "period_end": "2026-02-20",
-                            "num_invoices": 4,
-                            "collected": 1200.0,
-                            "spend": 980.5,
-                            "variance": 219.5,
-                            "variance_pct": 18.29,
-                        }
-                    ],
-                )
-            else:
-                table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-
-        # Both reconciliation sections should be present
-        assert 'id="lifetime-reconciliations"' in report
-        assert 'id="t14-reconciliations"' in report
-
-        # Section order: reconciliation after LEADS, before BY QUARTER
-        leads_pos = report.find('id="leads"')
-        lifetime_pos = report.find('id="lifetime-reconciliations"')
-        t14_pos = report.find('id="t14-reconciliations"')
-        quarter_pos = report.find('id="by-quarter"')
-
-        assert leads_pos < lifetime_pos < t14_pos < quarter_pos
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_compose_report_footer_reflects_12_tables(self, mock_monotonic):
-        """Footer table count reflects 12 tables when all succeed."""
-        mock_monotonic.return_value = 101.0
-
-        table_results = {}
-        for name in TABLE_ORDER:
-            table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-        assert "12/12" in report
-
-
-# ---------------------------------------------------------------------------
-# TestReconciliationPending -- WS-A payment data pending UX
-# ---------------------------------------------------------------------------
-
-
-class TestReconciliationPending:
-    """Payment data pending detection and display for reconciliation tables."""
-
-    def test_is_payment_data_pending_all_null(self):
-        """All payment indicator columns null -> pending."""
-        rows = [
-            {
-                "office_phone": "+19259998806",
-                "vertical": "chiro",
-                "spend": 4200.0,
-                "collected": None,
-                "num_invoices": None,
-                "variance": None,
-                "expected_collection": None,
-                "expected_variance": None,
-            },
-        ]
-        assert _is_payment_data_pending(rows) is True
-
-    def test_is_payment_data_pending_some_data(self):
-        """Any non-null payment column -> not pending."""
-        rows = [
-            {
-                "office_phone": "+19259998806",
-                "vertical": "chiro",
-                "spend": 4200.0,
-                "collected": 5000.0,
-                "num_invoices": None,
-                "variance": None,
-            },
-        ]
-        assert _is_payment_data_pending(rows) is False
-
-    def test_is_payment_data_pending_empty_rows(self):
-        """Empty row list -> not pending (no data at all)."""
-        assert _is_payment_data_pending([]) is False
-
-    def test_is_payment_data_pending_columns_absent(self):
-        """Payment columns not present in row dict -> treated as null (pending)."""
-        rows = [{"office_phone": "+19259998806", "vertical": "chiro", "spend": 4200.0}]
-        assert _is_payment_data_pending(rows) is True
-
-    def test_is_payment_data_pending_multiple_rows_all_null(self):
-        """Multiple rows all with null payment columns -> pending."""
-        rows = [
-            {
-                "spend": 1000.0,
-                "collected": None,
-                "num_invoices": None,
-                "variance": None,
-                "expected_collection": None,
-                "expected_variance": None,
-            },
-            {
-                "spend": 2000.0,
-                "collected": None,
-                "num_invoices": None,
-                "variance": None,
-                "expected_collection": None,
-                "expected_variance": None,
-            },
-        ]
-        assert _is_payment_data_pending(rows) is True
-
-    def test_is_payment_data_pending_one_row_has_data(self):
-        """One row with data among nulls -> not pending."""
-        rows = [
-            {
-                "spend": 1000.0,
-                "collected": None,
-                "num_invoices": None,
-                "variance": None,
-            },
-            {
-                "spend": 2000.0,
-                "collected": 500.0,
-                "num_invoices": None,
-                "variance": None,
-            },
-        ]
-        assert _is_payment_data_pending(rows) is False
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_compose_report_recon_pending_shows_info_message(self, mock_monotonic):
-        """Reconciliation tables with all-null payment cols show pending message."""
-        mock_monotonic.return_value = 101.0
-
-        table_results: dict[str, TableResult] = {}
-        for name in TABLE_ORDER:
-            if name in ("LIFETIME RECONCILIATIONS", "T14 RECONCILIATIONS"):
-                table_results[name] = _make_table_result(
-                    name,
-                    data=[
-                        {
-                            "office_phone": "+19259998806",
-                            "vertical": "chiro",
-                            "spend": 4200.0,
-                            "budget": 5000.0,
-                            "collected": None,
-                            "num_invoices": None,
-                            "variance": None,
-                            "expected_collection": None,
-                            "expected_variance": None,
-                        }
-                    ],
-                )
-            else:
-                table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-
-        # Both sections should show the pending message
-        assert _RECONCILIATION_PENDING_MESSAGE in report
-        # Sections should still exist (not dropped)
-        assert 'id="lifetime-reconciliations"' in report
-        assert 'id="t14-reconciliations"' in report
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_compose_report_recon_with_data_renders_normally(self, mock_monotonic):
-        """Reconciliation tables with actual payment data render as normal tables."""
-        mock_monotonic.return_value = 101.0
-
-        table_results: dict[str, TableResult] = {}
-        for name in TABLE_ORDER:
-            if name == "LIFETIME RECONCILIATIONS":
-                table_results[name] = _make_table_result(
-                    name,
-                    data=[
-                        {
-                            "office_phone": "+19259998806",
-                            "vertical": "chiro",
-                            "spend": 4200.0,
-                            "collected": 5000.0,
-                            "num_invoices": 25,
-                            "variance": 800.0,
-                            "variance_pct": 16.0,
-                        }
-                    ],
-                )
-            elif name == "T14 RECONCILIATIONS":
-                table_results[name] = _make_table_result(
-                    name,
-                    data=[
-                        {
-                            "period": 0,
-                            "period_label": "P0",
-                            "spend": 980.5,
-                            "collected": 1200.0,
-                            "num_invoices": 4,
-                            "variance": 219.5,
-                        }
-                    ],
-                )
-            else:
-                table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-
-        # Should NOT show pending message
-        assert _RECONCILIATION_PENDING_MESSAGE not in report
-        # Should render as normal data tables
-        assert "$5,000.00" in report  # collected value rendered
-        assert "$1,200.00" in report
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_compose_report_recon_independent_detection(self, mock_monotonic):
-        """Each recon table is checked independently for pending status."""
-        mock_monotonic.return_value = 101.0
-
-        table_results: dict[str, TableResult] = {}
-        for name in TABLE_ORDER:
-            if name == "LIFETIME RECONCILIATIONS":
-                # This one has payment data
-                table_results[name] = _make_table_result(
-                    name,
-                    data=[
-                        {
-                            "office_phone": "+19259998806",
-                            "vertical": "chiro",
-                            "spend": 4200.0,
-                            "collected": 5000.0,
-                            "num_invoices": 25,
-                            "variance": 800.0,
-                        }
-                    ],
-                )
-            elif name == "T14 RECONCILIATIONS":
-                # This one is pending
-                table_results[name] = _make_table_result(
-                    name,
-                    data=[
-                        {
-                            "period": 0,
-                            "period_label": "P0",
-                            "spend": 980.5,
-                            "collected": None,
-                            "num_invoices": None,
-                            "variance": None,
-                        }
-                    ],
-                )
-            else:
-                table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-
-        # LIFETIME should render normally (has data)
-        assert "$5,000.00" in report
-        # T14 should show pending
-        assert _RECONCILIATION_PENDING_MESSAGE in report
 
 
 # ---------------------------------------------------------------------------
@@ -2014,72 +1525,30 @@ class TestPhase1Constants:
         assert "Banner" in report
         assert "$500.00" in report
 
-    # --- compose_report: period table column filtering ---
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_compose_report_period_table_filters_display_columns(self, mock_monotonic):
-        """Period tables only display columns from _PERIOD_DISPLAY_COLUMNS."""
-        mock_monotonic.return_value = 101.0
-        week_data = [
-            {
-                "period_label": "W01",
-                "period_start": "2026-01-01",
-                "period_end": "2026-01-07",
-                "spend": 500,
-                "leads": 10,
-                "cpl": 50.0,
-                "some_extra_metric": 42,
-                "another_hidden": "foo",
-            },
-        ]
-        table_results: dict[str, TableResult] = {}
-        for name in TABLE_ORDER:
-            if name == "BY WEEK":
-                table_results[name] = _make_table_result(name, data=week_data)
-            else:
-                table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-
-        # Display columns should be present in table headers
-        assert ">Period<" in report  # period_label -> "Period"
-        assert ">Start<" in report  # period_start -> "Start"
-        assert ">Spend<" in report
-        # Non-display columns should be filtered out of table headers
-        # (they may still appear in embedded JSON full_rows for Copy TSV)
-        week_section = report.split('id="by-week"')[1].split("</section>")[0]
-        thead = week_section.split("<thead>")[1].split("</thead>")[0]
-        assert "some_extra_metric" not in thead
-        assert "another_hidden" not in thead
+    # GAP-1 PR-A: the BY-period display-columns whitelist filtering is deferred to
+    # PR-FF (no active table sets display_columns); the renderer capability is
+    # exercised directly in TestPhase6QA Copy-TSV JSON-embed tests.
 
     # --- compose_report: full_rows populated ---
 
     @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
     def test_compose_report_populates_full_rows(self, mock_monotonic):
-        """DataSection.full_rows contains the original unfiltered data."""
+        """DataSection.full_rows is populated for an active (ASSET TABLE) section."""
         mock_monotonic.return_value = 101.0
-        week_data = [
-            {
-                "period_label": "W01",
-                "spend": 500,
-                "some_extra": 42,
-            },
+        asset_data = [
+            {"asset": "banner_1", "spend": 500, "imp": 1000},
         ]
         table_results: dict[str, TableResult] = {}
         for name in TABLE_ORDER:
-            if name == "BY WEEK":
-                table_results[name] = _make_table_result(name, data=week_data)
+            if name == "ASSET TABLE":
+                table_results[name] = _make_table_result(name, data=asset_data)
             else:
                 table_results[name] = _make_table_result(name, data=[{"a": 1}])
 
         data = _make_report_data(table_results=table_results, started_at=100.0)
-        # We need to inspect the DataSection objects, so we call compose_report
-        # indirectly by checking the report renders correctly (full_rows is
-        # internal plumbing for Copy TSV in later phases).
         report = compose_report(data)
-        # The report should render without error
-        assert 'id="by-week"' in report
+        # The report renders the active section (full_rows is internal plumbing).
+        assert 'id="asset-table"' in report
 
 
 # ---------------------------------------------------------------------------
@@ -2773,184 +2242,6 @@ class TestPhase6QA:
         assert parsed[0]["offer_id"] == "oid_123"
 
     # -----------------------------------------------------------------------
-    # Period Table Column Filtering
-    # -----------------------------------------------------------------------
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_by_week_display_rows_filtered(self, mock_monotonic):
-        """BY WEEK display rows contain only _PERIOD_DISPLAY_COLUMNS."""
-        mock_monotonic.return_value = 101.0
-        week_data = [
-            {
-                "period_label": "W01",
-                "period_start": "2026-01-01",
-                "period_end": "2026-01-07",
-                "spend": 500,
-                "leads": 10,
-                "cpl": 50.0,
-                "scheds": 5,
-                "booking_rate": 0.50,
-                "cps": 100.0,
-                "conv_rate": 30.0,
-                "ctr": 5.0,
-                "ltv": 200.0,
-                "extra_col_1": "should_be_hidden",
-                "extra_col_2": 999,
-                "n_distinct_ads": 15,
-            },
-        ]
-        table_results = {}
-        for name in TABLE_ORDER:
-            if name == "BY WEEK":
-                table_results[name] = _make_table_result(name, data=week_data)
-            else:
-                table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-
-        week_section = report.split('id="by-week"')[1].split("</section>")[0]
-        thead = week_section.split("<thead>")[1].split("</thead>")[0]
-
-        # Extra columns should NOT be in table headers
-        assert "Extra Col 1" not in thead
-        assert "Extra Col 2" not in thead
-        assert "Distinct Ads" not in thead
-
-        # Period display columns should be present
-        assert ">Period<" in thead  # period_label
-        assert ">Start<" in thead  # period_start
-        assert ">Spend<" in thead
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_by_month_display_rows_filtered(self, mock_monotonic):
-        """BY MONTH display rows also filter to _PERIOD_DISPLAY_COLUMNS."""
-        mock_monotonic.return_value = 101.0
-        month_data = [
-            {
-                "period_label": "Jan 2026",
-                "period_start": "2026-01-01",
-                "period_end": "2026-01-31",
-                "spend": 1500,
-                "leads": 30,
-                "hidden_metric": 42,
-            },
-        ]
-        table_results = {}
-        for name in TABLE_ORDER:
-            if name == "BY MONTH":
-                table_results[name] = _make_table_result(name, data=month_data)
-            else:
-                table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-
-        month_section = report.split('id="by-month"')[1].split("</section>")[0]
-        thead = month_section.split("<thead>")[1].split("</thead>")[0]
-
-        assert "hidden_metric" not in thead
-        assert "Hidden Metric" not in thead
-        assert ">Period<" in thead
-        assert ">Spend<" in thead
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_by_quarter_display_rows_filtered(self, mock_monotonic):
-        """BY QUARTER display rows also filter to _PERIOD_DISPLAY_COLUMNS."""
-        mock_monotonic.return_value = 101.0
-        quarter_data = [
-            {
-                "period_label": "Q1 2026",
-                "period_start": "2026-01-01",
-                "period_end": "2026-03-31",
-                "spend": 5000,
-                "extra_field": "hidden",
-            },
-        ]
-        table_results = {}
-        for name in TABLE_ORDER:
-            if name == "BY QUARTER":
-                table_results[name] = _make_table_result(name, data=quarter_data)
-            else:
-                table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-
-        quarter_section = report.split('id="by-quarter"')[1].split("</section>")[0]
-        thead = quarter_section.split("<thead>")[1].split("</thead>")[0]
-
-        assert "extra_field" not in thead
-        assert "Extra Field" not in thead
-        assert ">Period<" in thead
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_period_table_full_rows_contain_all_columns(self, mock_monotonic):
-        """Period table full_rows (for Copy TSV) contain ALL original columns."""
-
-        mock_monotonic.return_value = 101.0
-        week_data = [
-            {
-                "period_label": "W01",
-                "spend": 500,
-                "extra_hidden": "secret",
-                "another_metric": 42,
-            },
-        ]
-        table_results = {}
-        for name in TABLE_ORDER:
-            if name == "BY WEEK":
-                table_results[name] = _make_table_result(name, data=week_data)
-            else:
-                table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-
-        # Extract JSON from the BY WEEK script tag
-        marker = '<script type="application/json" id="data-by-week">'
-        start = report.find(marker)
-        assert start > 0
-        json_start = start + len(marker)
-        json_end = report.find("</script>", json_start)
-        json_str = report[json_start:json_end]
-        parsed = json.loads(json_str)
-
-        # full_rows should contain ALL original columns
-        assert "extra_hidden" in parsed[0]
-        assert "another_metric" in parsed[0]
-        assert parsed[0]["extra_hidden"] == "secret"
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_period_table_missing_display_column_silently_skipped(self, mock_monotonic):
-        """Period display column not in data -> silently skipped."""
-        mock_monotonic.return_value = 101.0
-        # Only provide period_label and spend (no period_start, period_end, etc.)
-        week_data = [
-            {"period_label": "W01", "spend": 500},
-        ]
-        table_results = {}
-        for name in TABLE_ORDER:
-            if name == "BY WEEK":
-                table_results[name] = _make_table_result(name, data=week_data)
-            else:
-                table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-
-        # Should render without error
-        assert 'id="by-week"' in report
-        week_section = report.split('id="by-week"')[1].split("</section>")[0]
-        thead = week_section.split("<thead>")[1].split("</thead>")[0]
-        # Only period_label and spend should be in headers
-        assert ">Period<" in thead
-        assert ">Spend<" in thead
-        # Missing display columns should NOT appear
-        assert ">Start<" not in thead
-        assert ">End<" not in thead
-
-    # -----------------------------------------------------------------------
     # Copy TSV JSON Embed Validation
     # -----------------------------------------------------------------------
 
@@ -3008,89 +2299,6 @@ class TestPhase6QA:
         parsed = json.loads(json_str)
 
         assert parsed == [{"a": 1}]
-
-    # -----------------------------------------------------------------------
-    # Reconciliation Pending (re-verification)
-    # -----------------------------------------------------------------------
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_recon_pending_shows_empty_state(self, mock_monotonic):
-        """Reconciliation table with all-null payment cols renders as empty section."""
-        mock_monotonic.return_value = 101.0
-        table_results = {}
-        for name in TABLE_ORDER:
-            if name == "LIFETIME RECONCILIATIONS":
-                table_results[name] = _make_table_result(
-                    name,
-                    data=[
-                        {
-                            "office_phone": "+19259998806",
-                            "spend": 4200.0,
-                            "collected": None,
-                            "num_invoices": None,
-                            "variance": None,
-                            "expected_collection": None,
-                            "expected_variance": None,
-                        }
-                    ],
-                )
-            else:
-                table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-
-        assert _RECONCILIATION_PENDING_MESSAGE in report
-        # Should show as empty section (no data table)
-        lifetime_section = report.split('id="lifetime-reconciliations"')[1].split("</section>")[0]
-        assert '<table class="data-table"' not in lifetime_section
-        assert 'class="empty"' in lifetime_section
-
-    @patch("autom8_asana.automation.workflows.insights.formatter.time.monotonic")
-    def test_recon_with_data_renders_as_table(self, mock_monotonic):
-        """Reconciliation table with actual data renders as a normal table."""
-        mock_monotonic.return_value = 101.0
-        table_results = {}
-        for name in TABLE_ORDER:
-            if name == "T14 RECONCILIATIONS":
-                table_results[name] = _make_table_result(
-                    name,
-                    data=[
-                        {
-                            "period": 0,
-                            "period_label": "P0",
-                            "collected": 1200.0,
-                            "num_invoices": 4,
-                            "spend": 980.5,
-                            "variance": 219.5,
-                        }
-                    ],
-                )
-            elif name == "LIFETIME RECONCILIATIONS":
-                # Must also provide payment data for LIFETIME to avoid
-                # triggering pending message for LIFETIME RECONCILIATIONS
-                table_results[name] = _make_table_result(
-                    name,
-                    data=[
-                        {
-                            "office_phone": "+19259998806",
-                            "collected": 5000.0,
-                            "num_invoices": 25,
-                            "spend": 4200.0,
-                            "variance": 800.0,
-                        }
-                    ],
-                )
-            else:
-                table_results[name] = _make_table_result(name, data=[{"a": 1}])
-
-        data = _make_report_data(table_results=table_results, started_at=100.0)
-        report = compose_report(data)
-
-        assert _RECONCILIATION_PENDING_MESSAGE not in report
-        t14_section = report.split('id="t14-reconciliations"')[1].split("</section>")[0]
-        assert '<table class="data-table"' in t14_section
-        assert "$1,200.00" in t14_section
 
     # -----------------------------------------------------------------------
     # Sparkline Edge Cases

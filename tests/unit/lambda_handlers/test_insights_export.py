@@ -116,8 +116,6 @@ class TestHandlerModule:
         assert _config.default_params["max_concurrency"] == 5
         assert _config.default_params["attachment_pattern"] == "insights_export_*.html"
         assert _config.default_params["row_limits"] == {
-            "APPOINTMENTS": 100,
-            "LEADS": 100,
             "ASSET TABLE": 150,
         }
 
@@ -302,7 +300,7 @@ class TestHandlerExecution:
         event = {
             "max_concurrency": 3,
             "attachment_pattern": "custom_*.md",
-            "row_limits": {"APPOINTMENTS": 50},
+            "row_limits": {"ASSET TABLE": 50},
         }
 
         with (
@@ -324,7 +322,7 @@ class TestHandlerExecution:
         call_params = mock_workflow.execute_async.call_args[0][1]
         assert call_params["max_concurrency"] == 3
         assert call_params["attachment_pattern"] == "custom_*.md"
-        assert call_params["row_limits"] == {"APPOINTMENTS": 50}
+        assert call_params["row_limits"] == {"ASSET TABLE": 50}
 
     @patch("autom8_asana.lambda_handlers.workflow_handler.emit_metric")
     def test_params_use_defaults_when_event_empty(
@@ -356,8 +354,6 @@ class TestHandlerExecution:
         assert call_params["max_concurrency"] == 5
         assert call_params["attachment_pattern"] == "insights_export_*.html"
         assert call_params["row_limits"] == {
-            "APPOINTMENTS": 100,
-            "LEADS": 100,
             "ASSET TABLE": 150,
         }
         assert call_params["workflow_id"] == "insights-export"
