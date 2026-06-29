@@ -702,6 +702,8 @@ class TestT7ResolveAssertIntegration:
         assert out.error is not None
         assert out.error.error_type == "tenant_binding_violation"
         atts.upload_async.assert_not_called()
+
+
 # =====================================================================
 # OB-GUIDE byte-exact attestation (forwarding-cutover-first-value · S3)
 # =====================================================================
