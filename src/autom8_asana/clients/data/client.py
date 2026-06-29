@@ -35,6 +35,7 @@ from autom8_asana.clients.data import _cache as _cache_mod
 from autom8_asana.clients.data import _metrics as _metrics_mod
 from autom8_asana.clients.data import _normalize as _normalize_mod
 from autom8_asana.clients.data import _response as _response_mod
+from autom8_asana.clients.data._endpoints._pacer import OperatorCallPacer
 from autom8_asana.clients.data.config import DataServiceConfig
 from autom8_asana.clients.data.models import (
     BatchInsightsResponse,
@@ -1380,6 +1381,18 @@ class DataServiceClient:
 
     # --- Operator-plane batch API (GAP-1 PR-A) ---
 
+    @staticmethod
+    def new_operator_pacer() -> OperatorCallPacer:
+        """Construct a fresh run-scoped operator-call budget governor (TDD §5.1).
+
+        The caller (the insights export) builds ONE pacer per run and threads it
+        into every ``get_operator_insights_batch_async`` call so the aggregate wire
+        count is capped by a SINGLE shared counter across all insights and the
+        bisection recursion (RISK-5), self-limiting strictly below the server's
+        10/min DoS guard (INV-1). Stateless across runs.
+        """
+        return OperatorCallPacer()
+
     async def get_operator_insights_batch_async(
         self,
         insight_name: str,
@@ -1390,15 +1403,18 @@ class DataServiceClient:
         end_date: date | None = None,
         filters: dict[str, Any] | None = None,
         limit: int | None = None,
+        pacer: OperatorCallPacer | None = None,
     ) -> dict[str, list[dict[str, Any]]]:
         """Execute one operator-plane insight batch over the owned offices.
 
         Per TDD §5.2/§5.3: mints (or reuses) an ``OperatorClaims`` Bearer token and
-        POSTs ``POST /api/v1/insights/operator/execute-batch`` ONCE for the whole
-        owned set ``phones`` (batch-over-O), then folds the per-office
+        POSTs ``POST /api/v1/insights/operator/execute-batch`` for the owned set
+        ``phones`` (batch-over-O, chunked to <=100), folding the per-office
         ``BatchInsightResponse`` into ``{office_phone: rows}`` via the OQ-2 adapter.
         Carries its OWN ``Authorization: Bearer <operator_token>``; it does NOT
-        route through ``_get_auth_token`` / the SA ServiceClaims path.
+        route through ``_get_auth_token`` / the SA ServiceClaims path. On an
+        all-or-nothing batch 404 over >1 office it bisects (bounded, paced) to serve
+        the owned subset; a drift office costs O(drift . log N), never O(N).
 
         Args:
             insight_name: Registered de-identified aggregate insight name (must be
@@ -1409,6 +1425,9 @@ class DataServiceClient:
             end_date: Custom range end (overrides period).
             filters: Additional filter criteria.
             limit: Max rows per office result.
+            pacer: Run-scoped wire-call budget governor. When threaded by the
+                caller across multiple insight calls, the cap is per-RUN (RISK-5);
+                when omitted, a fresh per-call budget is used.
 
         Returns:
             Mapping of ``office_phone`` -> list of row dicts (empty list per office
@@ -1416,9 +1435,11 @@ class DataServiceClient:
 
         Raises:
             OperatorMintRefusedError: the mint refused (incl. the INERT
-                empty-allowlist 403). Fails closed -- NO SA fleet-read fallback.
-            OperatorAccessDeniedError: the route returned the bare 404-as-oracle or
-                another error status. Fails closed -- NO SA fleet-read fallback.
+                empty-allowlist 403) or the route returned 403. Fails closed -- NO
+                SA fleet-read fallback.
+            OperatorAccessDeniedError: a single whole-request office returned the
+                bare 404-as-oracle or another error status. Fails closed -- NO SA
+                fleet-read fallback.
         """
         from autom8_asana.clients.data._endpoints import operator as _operator_ep
 
@@ -1431,4 +1452,5 @@ class DataServiceClient:
             end_date=end_date,
             filters=filters,
             limit=limit,
+            pacer=pacer,
         )
