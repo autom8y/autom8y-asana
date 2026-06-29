@@ -395,8 +395,7 @@ class TestPreflightSecretspecDrift:
             returncode=2,
             stdout="",
             stderr=(
-                "error: unexpected argument '--config' found\n\n"
-                "Usage: secretspec check [OPTIONS]"
+                "error: unexpected argument '--config' found\n\nUsage: secretspec check [OPTIONS]"
             ),
         )
 
@@ -410,9 +409,7 @@ class TestPreflightSecretspecDrift:
         for var in _CLI_REQUIRED:
             monkeypatch.setenv(var, "present")
 
-        with patch.object(
-            metrics_main.subprocess, "run", return_value=self._fake_nonzero()
-        ):
+        with patch.object(metrics_main.subprocess, "run", return_value=self._fake_nonzero()):
             # Returns cleanly via the inline fallback; absence of SystemExit is the assertion.
             metrics_main._preflight_cli_profile()
 
@@ -427,9 +424,7 @@ class TestPreflightSecretspecDrift:
             monkeypatch.delenv(var, raising=False)
 
         captured = io.StringIO()
-        with patch.object(
-            metrics_main.subprocess, "run", return_value=self._fake_nonzero()
-        ):
+        with patch.object(metrics_main.subprocess, "run", return_value=self._fake_nonzero()):
             with pytest.raises(SystemExit) as exc_info:
                 with patch("sys.stderr", captured):
                     metrics_main._preflight_cli_profile()

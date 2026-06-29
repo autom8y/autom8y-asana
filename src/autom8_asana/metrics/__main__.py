@@ -159,8 +159,7 @@ def _preflight_cli_profile() -> None:
         # authoritative inline os.environ check, which reports exactly which _CLI_REQUIRED
         # vars are unset (kept in parity with secretspec.toml by TestPreflightParity).
         print(
-            f"WARNING: secretspec check exited {result.returncode}; "
-            "using inline preflight check.",
+            f"WARNING: secretspec check exited {result.returncode}; using inline preflight check.",
             file=sys.stderr,
         )
         _preflight_inline_fallback()
