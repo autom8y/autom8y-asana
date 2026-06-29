@@ -30,6 +30,7 @@ from autom8_asana.automation.workflows.insights.workflow import (
     InsightsExportWorkflow,
     _sanitize_business_name,
 )
+from autom8_asana.clients.data._endpoints._pacer import OperatorCallPacer
 from autom8_asana.clients.data.models import (
     ColumnInfo,
     InsightsMetadata,
@@ -1511,3 +1512,122 @@ class TestBusinessCacheDedup:
         assert wf._offer_to_business["offer-orphan"] is None
         # No business_cache entry for None resolution
         assert len(wf._business_cache) == 0
+
+
+# --- WS-2: run-scoped pacer threading + partial-run deck protection ---
+
+
+@pytest.mark.usefixtures("_force_fallback")
+class TestOperatorPacerThreading:
+    """RISK-5: ONE shared pacer threaded across all 4 insight calls (not 4xB)."""
+
+    async def test_one_pacer_shared_across_all_insight_calls(self, mock_resolution_context) -> None:
+        """The workflow builds ONE pacer per run and passes the SAME instance to
+        every operator insight call -- so the aggregate wire-call cap is per-RUN."""
+        offers = [_make_task(f"o{i}", f"Offer {i}", parent_gid=f"biz{i}") for i in range(3)]
+        wf, _, mock_data, _ = _make_workflow(offers=offers)
+        # The MagicMock data client returns a MagicMock from new_operator_pacer();
+        # wire a REAL run-scoped pacer so threading/identity is exercised.
+        mock_data.new_operator_pacer = lambda: OperatorCallPacer()
+
+        captured: list[object] = []
+
+        async def capture_pacer(
+            insight_name: str, phones: list[str], *, pacer: object = None, **kwargs: Any
+        ) -> dict[str, list[dict[str, Any]]]:
+            captured.append(pacer)
+            return {p: [{"x": 1}] for p in phones}
+
+        mock_data.get_operator_insights_batch_async = AsyncMock(side_effect=capture_pacer)
+
+        await _enumerate_and_execute(wf)
+
+        # One call per clean table, every one carrying the SAME pacer instance.
+        assert len(captured) == TOTAL_TABLE_COUNT
+        assert captured[0] is not None
+        assert isinstance(captured[0], OperatorCallPacer)
+        assert all(p is captured[0] for p in captured)
+
+
+@pytest.mark.usefixtures("_force_fallback")
+class TestPartialRunDeckProtection:
+    """RISK-4: a budget-capped partial run must NOT overwrite an unreached office's
+    prior deck (no empty-deck upload, no prior-attachment delete)."""
+
+    async def test_budget_unreached_office_skips_publish_prior_deck_intact(
+        self, mock_resolution_context
+    ) -> None:
+        """The operator batch leaves the resolved office unreached (budget-capped) ->
+        the offer is SKIPPED: NO upload, NO delete, prior deck intact, run partial."""
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        prior_deck = _make_attachment("prior-deck-1", "insights_export_Acme_20260201.html")
+        wf, _, mock_data, mock_att = _make_workflow(
+            offers=[o1],
+            existing_attachments={"o1": [prior_deck]},
+        )
+        # Wire a REAL pacer (the MagicMock client otherwise returns a MagicMock).
+        mock_data.new_operator_pacer = lambda: OperatorCallPacer()
+
+        async def unreached_mock(
+            insight_name: str, phones: list[str], *, pacer: Any = None, **kwargs: Any
+        ) -> dict[str, list[dict[str, Any]]]:
+            # Simulate the bisection running out of budget before serving these
+            # offices: mark them unreached (NON-definitive) and serve nothing.
+            if pacer is not None:
+                pacer.mark_unreached(phones)
+            return {}
+
+        mock_data.get_operator_insights_batch_async = AsyncMock(side_effect=unreached_mock)
+
+        with patch("autom8_asana.automation.workflows.insights.workflow.logger") as mock_logger:
+            result = await _enumerate_and_execute(wf)
+
+        # Prior deck protected: NO upload, NO delete, no list-for-delete.
+        mock_att.upload_async.assert_not_called()
+        mock_att.delete_async.assert_not_called()
+        mock_att.list_for_task_async.assert_not_called()
+        # The offer is SKIPPED (not failed, not succeeded).
+        assert result.total == 1
+        assert result.succeeded == 0
+        assert result.skipped == 1
+        # The run is honestly flagged partial.
+        assert result.metadata.get("operator_run_partial") is True
+        assert result.metadata.get("operator_unreached_office_count") == 1
+        # The per-office protection WARNING is emitted.
+        warning_events = [c.args[0] for c in mock_logger.warning.call_args_list if c.args]
+        assert "insights_export_offer_skipped_budget_unreached" in warning_events
+
+    async def test_process_offer_skips_unreached_office_directly(
+        self, mock_resolution_context
+    ) -> None:
+        """Unit guard: an office in _operator_unreached_offices skips publish."""
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        wf, _, _, mock_att = _make_workflow(offers=[o1])
+        wf._operator_unreached_offices = {"+17705753103"}  # the resolution-fixture phone
+
+        outcome = await wf._process_offer(
+            offer_gid="o1",
+            offer_name="Offer 1",
+            attachment_pattern=DEFAULT_ATTACHMENT_PATTERN,
+            row_limits=DEFAULT_ROW_LIMITS,
+        )
+
+        assert outcome.status == "skipped"
+        assert outcome.reason == "operator_budget_unreached"
+        mock_att.upload_async.assert_not_called()
+        mock_att.delete_async.assert_not_called()
+
+    async def test_fully_served_run_publishes_and_is_not_partial(
+        self, mock_resolution_context
+    ) -> None:
+        """Positive control: a fully-served run publishes and is NOT flagged partial."""
+        o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
+        wf, _, _, mock_att = _make_workflow(offers=[o1])
+
+        result = await _enumerate_and_execute(wf)
+
+        # Fully served -> normal publish path runs; no partial flag, no unreached.
+        mock_att.upload_async.assert_called_once()
+        assert result.succeeded == 1
+        assert result.metadata.get("operator_run_partial") is None
+        assert wf._operator_unreached_offices == set()
