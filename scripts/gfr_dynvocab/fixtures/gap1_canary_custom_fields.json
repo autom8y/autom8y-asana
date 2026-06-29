@@ -1,0 +1,18 @@
+{
+  "_comment": "Offline fixture for the GAP-1 probe (TDD §3.3). Recorded/guarded custom_fields array shape for the live canary b167331c-536f-4996-9b2d-2f696f35f556. Used by --mode=offline + CI; carries a populated Asset ID so the offline dry-run is a faithful CONFIRMED-shape rehearsal of the assess_custom_fields logic. This is NOT the live verdict — the live verdict is settled only by the operator-fired --mode=live run (TDD §3.6).",
+  "canary": "b167331c-536f-4996-9b2d-2f696f35f556",
+  "custom_fields": [
+    {
+      "gid": "1210000000000001",
+      "name": "Asset ID",
+      "resource_subtype": "text",
+      "text_value": "asset-001, asset-002"
+    },
+    {
+      "gid": "1210000000000002",
+      "name": "Stage",
+      "resource_subtype": "enum",
+      "enum_value": {"gid": "e1", "name": "Active"}
+    }
+  ]
+}

@@ -22,6 +22,9 @@ from typing import TYPE_CHECKING, Any
 from autom8y_api_schemas import OfficePhone
 from autom8y_log import get_logger
 
+from autom8_asana.automation.workflows.active_offer_enumeration import (
+    enumerate_active_offers,
+)
 from autom8_asana.automation.workflows.base import (
     WorkflowItemError,
     WorkflowResult,
@@ -41,11 +44,7 @@ from autom8_asana.automation.workflows.insights.tables import (
     TableSpec,
 )
 from autom8_asana.clients.utils.pii import mask_phone_number
-from autom8_asana.models.business.activity import (
-    OFFER_CLASSIFIER,
-    AccountActivity,
-    extract_section_name,
-)
+from autom8_asana.errors import OperatorAccessDeniedError, OperatorMintRefusedError
 from autom8_asana.models.business.offer import Offer
 from autom8_asana.resolution.context import ResolutionContext
 
@@ -72,19 +71,20 @@ DEFAULT_ATTACHMENT_PATTERN = "insights_export_*.html"
 WORKFLOW_VERSION = "insights-export-v1.0"
 
 # Default row limits per table type.
-# APPOINTMENTS/LEADS: upstream API supports up to 500; self-limited to 100
-# for report readability (increase requires UX review).
-# ASSET TABLE: capped at 150, sorted by spend desc (per WS-G spec).
+# ASSET TABLE: capped at 150, sorted by spend desc (per WS-G spec), applied at
+# display time. (GAP-1 PR-A: APPOINTMENTS/LEADS were dropped from the cross-tenant
+# export as PII; their limits are gone with them.)
 DEFAULT_ROW_LIMITS: dict[str, int] = {
-    "APPOINTMENTS": 100,
-    "LEADS": 100,
     "ASSET TABLE": 150,
 }
 
 # Table names in section order -- derived from TABLE_SPECS (per TDD-SPRINT-C).
 TABLE_NAMES = [s.table_name for s in TABLE_SPECS]
 
-TOTAL_TABLE_COUNT = len(TABLE_NAMES)  # 12
+# GAP-1 PR-A: the cross-tenant export now serves the 4 CLEAN de-identified
+# aggregate tables only (the 4 PII tables are dropped; BY-period + UNUSED ASSETS
+# are deferred to PR-FF). See tables.py.
+TOTAL_TABLE_COUNT = len(TABLE_NAMES)  # 4
 
 
 class InsightsExportWorkflow(BridgeWorkflowAction):
@@ -131,6 +131,30 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         self._offer_to_business: dict[str, str | None] = {}
         # Actual cache hit counter (per F-13: replaces derived formula)
         self._cache_hits: int = 0
+        # GAP-1 PR-A: pre-fetched operator-plane batch cache, populated once per run
+        # in execute_async (batch-over-O). Shape: {table_name: {office_phone: rows}}.
+        # A per-insight route denial leaves THAT table absent here -> its office
+        # decks render empty gracefully (no crash, no SA fleet-read fallback). A
+        # whole-plane mint refusal is handled separately via the INERT no-op guard
+        # below (the run skips publish entirely rather than rendering empty decks).
+        self._operator_batch: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        # GAP-1 PR-A INERT no-op guard: True when the operator-plane mint was
+        # REFUSED (the empty OPERATOR_ARN_ALLOWLIST 403, or no ambient AWS
+        # credentials to sign sts:GetCallerIdentity). This is the deploy-INERT
+        # signal. It is DISTINCT from a successful-but-empty live result: only a
+        # mint REFUSAL makes the run a TRUE no-op (execute_async skips the whole
+        # publish step -- no empty deck is built/uploaded and NO prior attachment
+        # is deleted), so a pre-FLIP schedule firing cannot overwrite any Offer's
+        # last-good deck with an empty one. Reset at the top of every prefetch.
+        self._operator_plane_refused: bool = False
+        # WS-2 partial-run protection: offices the operator batch could NOT serve
+        # this run because the run budget / throttle stopped the bisection before
+        # reaching them (NON-definitive). _process_offer SKIPS the publish for these
+        # (no empty deck uploaded, NO prior attachment deleted) -- the per-office
+        # mirror of the INERT no-op guard, so a budget-capped partial run never
+        # overwrites an unreached office's last-good deck (RISK-4). Reset per run.
+        # Distinct from drift/denied offices (definitive answer -> publish empty).
+        self._operator_unreached_offices: set[str] = set()
         # Dry-run preview output directory. Injectable so concurrent dry-runs
         # (and xdist-parallel tests) target distinct, non-colliding directories
         # instead of one shared cwd-relative path whose deterministic filename
@@ -235,7 +259,54 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             dry_run=dry_run,
         )
 
+        # GAP-1 PR-A: mint once + fetch the clean tables batch-over-O BEFORE the
+        # per-offer fan-out. The per-offer pass reads the resulting cache (it does
+        # NOT make per-office operator calls -- that would blow the 10/min route
+        # budget). A whole-plane mint refusal sets self._operator_plane_refused;
+        # the INERT no-op guard below then skips the publish step entirely (a
+        # per-insight denial instead leaves only that table empty and still
+        # publishes).
+        await self._prefetch_operator_tables(entities, params)
+
+        # GAP-1 PR-A INERT no-op guard: if the operator-plane mint was REFUSED
+        # (the empty OPERATOR_ARN_ALLOWLIST 403, or no ambient AWS credentials),
+        # the whole operator plane is dark. SKIP the publish step ENTIRELY at the
+        # earliest INERT detection -- do NOT build or upload an empty deck, and do
+        # NOT delete prior attachments. This makes deploy-INERT a TRUE no-op by
+        # construction (not by a fragile schedule-disable gate): a pre-FLIP
+        # schedule firing leaves every Offer's last-good deck intact, with no
+        # empty-deck overwrite. The completion counter stays RED
+        # (insights_export_completed is NOT emitted) and there is NO SA fleet-read
+        # fallback (G-NO-FALLBACK). NOTE: this fires ONLY on mint REFUSAL; a
+        # successful-but-empty live result still follows the normal publish path.
+        if self._operator_plane_refused:
+            logger.warning(
+                "insights_export_skipped_operator_plane_inert",
+                total_offers=len(entities),
+                dry_run=dry_run,
+            )
+            now = datetime.now(UTC)
+            return WorkflowResult(
+                workflow_id=self.workflow_id,
+                started_at=now,
+                completed_at=now,
+                total=len(entities),
+                succeeded=0,
+                failed=0,
+                skipped=len(entities),
+                metadata={"operator_plane_inert": True},
+            )
+
         result = await super().execute_async(entities, params)
+
+        # WS-2: flag the run partial iff the operator batch left owned offices
+        # unreached this run (budget/throttle-capped). Their prior decks were
+        # preserved (RISK-4); the operator can re-drive next window or land Lever 1.
+        if self._operator_unreached_offices:
+            result.metadata["operator_run_partial"] = True
+            result.metadata["operator_unreached_office_count"] = len(
+                self._operator_unreached_offices
+            )
 
         logger.info(
             "insights_export_completed",
@@ -245,6 +316,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             skipped=result.skipped,
             total_tables_succeeded=result.metadata.get("total_tables_succeeded", 0),
             total_tables_failed=result.metadata.get("total_tables_failed", 0),
+            operator_run_partial=result.metadata.get("operator_run_partial", False),
             duration_seconds=round(result.duration_seconds, 2),
         )
 
@@ -303,142 +375,16 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
     async def _enumerate_offers(self) -> list[dict[str, Any]]:
         """List ACTIVE (non-completed) Offer tasks using section-targeted fetch.
 
-        Primary path: resolve ACTIVE section GIDs, fetch tasks per section
-        in parallel (Semaphore(5)), merge and deduplicate by GID.
-
-        Fallback: project-level fetch with client-side classification (current behavior).
+        Delegates to the shared ``enumerate_active_offers`` helper so the
+        insights export and the grain-bridge leads consumer share ONE
+        active-set definition (no second classifier). Behavior (section-targeted
+        primary + project-level fallback) is unchanged.
         """
-        from autom8_asana.automation.workflows.section_resolution import (
-            resolve_section_gids,
+        return await enumerate_active_offers(
+            self._asana_client,
+            logger=logger,
+            workflow_id=self.workflow_id,
         )
-
-        active_section_names = OFFER_CLASSIFIER.sections_for(AccountActivity.ACTIVE)
-
-        # Resolve section GIDs
-        try:
-            resolved = await resolve_section_gids(
-                self._asana_client.sections,
-                OFFER_PROJECT_GID,
-                active_section_names,
-            )
-        except (
-            Exception  # noqa: BLE001
-        ):  # BROAD-CATCH: boundary -- section resolution failure falls back to full enumeration
-            logger.warning(
-                "section_resolution_failed_fallback",
-                workflow_id=self.workflow_id,
-                project_gid=OFFER_PROJECT_GID,
-            )
-            return await self._enumerate_offers_fallback()
-
-        if not resolved:
-            logger.warning(
-                "section_resolution_empty_fallback",
-                workflow_id=self.workflow_id,
-                project_gid=OFFER_PROJECT_GID,
-            )
-            return await self._enumerate_offers_fallback()
-
-        # Parallel section fetch with bounded concurrency
-        semaphore = asyncio.Semaphore(5)
-
-        async def fetch_section(section_gid: str) -> list[Any]:
-            async with semaphore:
-                result: list[Any] = await self._asana_client.tasks.list_async(
-                    section=section_gid,
-                    opt_fields=["name", "completed", "parent", "parent.name"],
-                    completed_since="now",
-                ).collect()
-                return result
-
-        results = await asyncio.gather(
-            *[fetch_section(gid) for gid in resolved.values()],
-            return_exceptions=True,
-        )
-
-        # If any section fetch failed, fall back entirely
-        if any(isinstance(r, Exception) for r in results):
-            logger.warning(
-                "section_fetch_partial_failure_fallback",
-                workflow_id=self.workflow_id,
-                project_gid=OFFER_PROJECT_GID,
-                failed_count=sum(1 for r in results if isinstance(r, Exception)),
-            )
-            return await self._enumerate_offers_fallback()
-
-        # Flatten, dedup by GID, build offer dicts
-        seen_gids: set[str] = set()
-        offers: list[dict[str, Any]] = []
-        for section_tasks in results:
-            assert isinstance(section_tasks, list)  # guarded by early-exit above
-            for t in section_tasks:
-                if t.completed or t.gid in seen_gids:
-                    continue
-                seen_gids.add(t.gid)
-                offers.append(
-                    {
-                        "gid": t.gid,
-                        "name": t.name,
-                    }
-                )
-
-        logger.info(
-            "insights_section_targeted_enumeration",
-            sections_targeted=len(resolved),
-            tasks_enumerated=len(offers),
-        )
-
-        return offers
-
-    async def _enumerate_offers_fallback(self) -> list[dict[str, Any]]:
-        """Fallback: project-level fetch with client-side ACTIVE classification.
-
-        This is the pre-migration enumeration logic, preserved verbatim for
-        resilience when section resolution or section-level fetch fails.
-        """
-        page_iterator = self._asana_client.tasks.list_async(
-            project=OFFER_PROJECT_GID,
-            opt_fields=[
-                "name",
-                "completed",
-                "parent",
-                "parent.name",
-                "memberships.section.name",
-            ],
-            completed_since="now",
-        )
-        tasks = await page_iterator.collect()
-
-        # Filter to non-completed tasks first
-        non_completed = [t for t in tasks if not t.completed]
-        total_before = len(non_completed)
-
-        # Filter to only ACTIVE offers by section classification
-        active_offers: list[dict[str, Any]] = []
-        for t in non_completed:
-            section_name = extract_section_name(t, OFFER_PROJECT_GID)
-            if section_name is None:
-                continue
-            activity = OFFER_CLASSIFIER.classify(section_name)
-            if activity != AccountActivity.ACTIVE:
-                continue
-            active_offers.append(
-                {
-                    "gid": t.gid,
-                    "name": t.name,
-                }
-            )
-
-        filtered_count = total_before - len(active_offers)
-        if filtered_count > 0:
-            logger.info(
-                "insights_export_offers_filtered_by_activity",
-                total_before=total_before,
-                active_count=len(active_offers),
-                filtered_count=filtered_count,
-            )
-
-        return active_offers
 
     async def _process_offer(
         self,
@@ -480,6 +426,26 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
 
             office_phone, vertical, business_name = resolution
             masked_phone = mask_phone_number(office_phone)
+
+            # WS-2 RISK-4: if the operator batch could NOT serve this office this run
+            # (the run budget / throttle stopped the bisection before reaching it --
+            # a NON-definitive miss), SKIP the publish ENTIRELY: do NOT build/upload
+            # an empty deck and do NOT delete the prior attachment. This mirrors the
+            # whole-plane INERT no-op guard at per-office granularity so a budget-
+            # capped partial run leaves this office's last-good deck intact. Distinct
+            # from a served-empty or drift office (definitive answer -> publishes
+            # empty per the normal path).
+            if office_phone in self._operator_unreached_offices:
+                logger.warning(
+                    "insights_export_offer_skipped_budget_unreached",
+                    offer_gid=offer_gid,
+                    office_phone=masked_phone,
+                )
+                return _OfferOutcome(
+                    gid=offer_gid,
+                    status="skipped",
+                    reason="operator_budget_unreached",
+                )
 
             logger.info(
                 "insights_export_offer_started",
@@ -695,6 +661,150 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
 
         return result
 
+    async def _prefetch_operator_tables(
+        self,
+        entities: list[dict[str, Any]],
+        params: dict[str, Any],
+    ) -> None:
+        """Mint once and fetch the clean tables batch-over-O (GAP-1 PR-A).
+
+        Resolves the intended owned office set ``O`` (warming the per-offer
+        resolution cache), then for EACH operator-plane table issues ONE
+        ``get_operator_insights_batch_async(phones=O)`` call (reusing one minted
+        token). The per-office results are cached in ``self._operator_batch`` for
+        the per-offer pass to read.
+
+        Fails GRACEFULLY closed:
+
+        - A whole-plane mint REFUSAL (``OperatorMintRefusedError`` -- the INERT
+          empty-allowlist 403, or no ambient AWS credentials) is logged WARNING
+          once and sets ``self._operator_plane_refused``. execute_async then makes
+          the run a TRUE no-op: it skips the publish step entirely (no empty deck
+          uploaded, NO prior attachment deleted -- prior decks stay intact).
+        - A per-insight route denial (``OperatorAccessDeniedError``) leaves only
+          THAT table empty and continues; the offer still publishes (clean decks
+          render empty for the denied table).
+
+        NEVER falls back to the SA fleet-read (G-NO-FALLBACK); the cross-tenant
+        counter simply stays RED.
+        """
+        self._operator_batch = {}
+        self._operator_plane_refused = False
+        self._operator_unreached_offices = set()
+
+        office_set = await self._resolve_owned_office_set(entities, params)
+        if not office_set:
+            logger.info("insights_export_no_owned_offices", total_offers=len(entities))
+            return
+
+        phones = sorted(office_set)
+        operator_specs = [
+            s for s in TABLE_SPECS if s.dispatch_type is DispatchType.OPERATOR_INSIGHTS
+        ]
+
+        # ONE run-scoped budget governor threaded across ALL operator insights AND
+        # the bisection recursion, so the AGGREGATE wire count is capped by a SINGLE
+        # shared counter (B_run, default 9 < 10) -- per-RUN, not per-insight. This
+        # holds INV-1 (the 10/min DoS guard): the export self-limits strictly below
+        # it, so the guard stays armed and fires at the 11th for anything else (TDD
+        # §5.3 / ADR-003 / RISK-5).
+        pacer = self._data_client.new_operator_pacer()
+
+        fetched = 0
+        for spec in operator_specs:
+            # operator specs always carry insight_name (asserted in tables.py)
+            insight_name = spec.insight_name
+            assert insight_name is not None  # noqa: S101 -- spec invariant
+            try:
+                per_office = await self._data_client.get_operator_insights_batch_async(
+                    insight_name=insight_name,
+                    phones=phones,
+                    period=spec.period,
+                    pacer=pacer,
+                )
+            except OperatorMintRefusedError as exc:
+                # The mint is dark (INERT empty-allowlist 403, or no credentials):
+                # the WHOLE operator plane is unreachable. Flag the run as INERT so
+                # execute_async skips the publish step ENTIRELY (TRUE no-op: no empty
+                # deck uploaded, NO prior attachment deleted -- prior decks intact).
+                # Graceful, no crash, NO SA fleet-read fallback. The counter stays
+                # RED with zero regression.
+                self._operator_batch = {}
+                self._operator_plane_refused = True
+                logger.warning(
+                    "insights_export_operator_plane_unavailable",
+                    reason=getattr(exc, "reason", None),
+                    error=str(exc),
+                )
+                return
+            except OperatorAccessDeniedError as exc:
+                # THIS insight is denied (e.g. not yet on the data-plane allowlist,
+                # or all its offices drifted out of O): leave this table empty and
+                # continue with the others. NO SA fleet-read fallback.
+                logger.warning(
+                    "insights_export_operator_table_denied",
+                    table=spec.table_name,
+                    reason=getattr(exc, "reason", None),
+                    error=str(exc),
+                )
+                continue
+            except (
+                Exception  # noqa: BLE001
+            ) as exc:  # BROAD-CATCH: an unexpected operator error must not crash the daily run
+                logger.warning(
+                    "insights_export_operator_table_error",
+                    table=spec.table_name,
+                    error_type=type(exc).__name__,
+                    error=str(exc),
+                )
+                continue
+            self._operator_batch[spec.table_name] = per_office
+            fetched += 1
+
+        # Offices the run budget / throttle could not reach this run (NON-definitive
+        # -- the bisection stopped before serving them). The per-offer pass PROTECTS
+        # their prior decks (skips publish), distinct from drift/denied offices which
+        # got a definitive answer and publish empty (RISK-4 / TDD §5.3).
+        self._operator_unreached_offices = set(pacer.unreached)
+
+        logger.info(
+            "insights_export_operator_batch_fetched",
+            tables=fetched,
+            requested=len(operator_specs),
+            offices=len(phones),
+            wire_calls=pacer.spent,
+            partial=pacer.partial,
+            unreached_offices=len(self._operator_unreached_offices),
+        )
+
+    async def _resolve_owned_office_set(
+        self,
+        entities: list[dict[str, Any]],
+        params: dict[str, Any],
+    ) -> set[str]:
+        """Resolve every offer to its office_phone; return the deduped owned set.
+
+        This is the ``phones=O`` the batch-over-O calls send (asana's INTENDED
+        set; the data plane intersects it with the server-resolved owned set,
+        all-or-nothing). It warms ``self._business_cache`` / ``self._offer_to_business``
+        so the subsequent per-offer pass hits the cache (no double Asana fetch). A
+        single offer's resolution failure is isolated (it just drops out of O).
+        """
+        max_concurrency = params.get("max_concurrency", DEFAULT_MAX_CONCURRENCY)
+        semaphore = asyncio.Semaphore(max_concurrency)
+
+        async def _resolve_one(entity: dict[str, Any]) -> tuple[str, str, str | None] | None:
+            async with semaphore:
+                try:
+                    return await self._resolve_offer(entity["gid"])
+                except (
+                    Exception  # noqa: BLE001
+                ):  # BROAD-CATCH: one offer's resolution failure must not abort the prefetch
+                    return None
+
+        resolutions = await asyncio.gather(*(_resolve_one(e) for e in entities))
+        return {r[0] for r in resolutions if r is not None and r[0]}
+
     async def _fetch_all_tables(
         self,
         office_phone: str,
@@ -729,76 +839,35 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         vertical: str,
         row_limits: dict[str, int],
     ) -> TableResult:
-        """Fetch a single table with error isolation.
+        """Resolve one table for one office from the pre-fetched operator batch.
 
-        Per FR-05: Uses match statement on spec.dispatch_type (D-04).
-        Reconciliation phone filtering stays in the dispatcher (D-02).
+        GAP-1 PR-A: the cross-tenant export serves ONLY the operator-plane clean
+        tables. This reads the per-office rows from ``self._operator_batch`` (filled
+        once in ``_prefetch_operator_tables`` via batch-over-O) -- it does NOT make a
+        per-office wire call (that would blow the 10/min route budget) and it NEVER
+        calls the SA fleet-read methods (get_appointments/leads/reconciliation/
+        get_insights) on the cross-tenant path (M3 / G-NO-FALLBACK). OQ-4a: the
+        asana-side activity filter is applied here for the tables that need it (the
+        operator batch route does not apply the factory-frame activity filter).
         """
         fetch_start = time.monotonic()
 
         try:
-            # Resolve effective limit: runtime override > spec default > None
-            effective_limit = row_limits.get(spec.table_name) or spec.default_limit
+            if spec.dispatch_type is not DispatchType.OPERATOR_INSIGHTS:
+                # Defensive: the cross-tenant export carries ONLY operator specs.
+                raise ValueError(
+                    f"unsupported dispatch_type {spec.dispatch_type!r} on the "
+                    f"cross-tenant export (only OPERATOR_INSIGHTS is served)"
+                )
 
-            filtered_data: list[dict[str, Any]] | None = None
+            rows = self._operator_batch.get(spec.table_name, {}).get(office_phone, [])
 
-            match spec.dispatch_type:
-                case DispatchType.APPOINTMENTS:
-                    response = await self._data_client.get_appointments_async(
-                        office_phone,
-                        days=spec.days or 90,
-                        limit=effective_limit or 100,
-                    )
-                case DispatchType.LEADS:
-                    response = await self._data_client.get_leads_async(
-                        office_phone,
-                        days=spec.days or 30,
-                        exclude_appointments=spec.exclude_appointments,
-                        limit=effective_limit or 100,
-                    )
-                case DispatchType.RECONCILIATION:
-                    response = await self._data_client.get_reconciliation_async(
-                        office_phone,
-                        vertical,
-                        period=spec.period,
-                        window_days=spec.window_days,
-                    )
-                    # Defensive phone filtering stays in dispatcher (per D-02).
-                    # Uses local variable to avoid mutating response (per F-08).
-                    if hasattr(response, "data") and response.data:
-                        phones_in_data = {
-                            r.get("office_phone")
-                            for r in response.data
-                            if r.get("office_phone") is not None
-                        }
-                        if len(phones_in_data) > 1:
-                            pre_filter = len(response.data)
-                            filtered_data = [
-                                r for r in response.data if r.get("office_phone") == office_phone
-                            ]
-                            logger.info(
-                                "insights_export_recon_filtered",
-                                offer_gid=offer_gid,
-                                table_name=spec.table_name,
-                                pre_filter=pre_filter,
-                                post_filter=len(filtered_data),
-                                unique_phones=len(phones_in_data),
-                            )
-                case DispatchType.INSIGHTS:
-                    response = await self._data_client.get_insights_async(
-                        factory=spec.factory,
-                        office_phone=office_phone,
-                        vertical=vertical,
-                        period=spec.period or "lifetime",
-                        include_unused=spec.include_unused,
-                    )
+            # OQ-4a: asana-side activity filter (keep spend>0 OR leads>0). Applied
+            # only to the tables that need it (ASSET TABLE, AD QUESTIONS); it only
+            # removes rows, preserving de-identification.
+            data = _apply_activity_filter(rows) if spec.activity_filter else list(rows)
 
             elapsed_ms = (time.monotonic() - fetch_start) * 1000
-            # Use filtered_data if reconciliation phone filtering was applied
-            if spec.dispatch_type == DispatchType.RECONCILIATION and filtered_data is not None:
-                data = filtered_data
-            else:
-                data = response.data if hasattr(response, "data") else []
 
             logger.info(
                 "insights_export_table_fetched",
@@ -839,6 +908,24 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
 
 
 # --- Helper Functions ---
+
+
+def _apply_activity_filter(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """OQ-4a: keep rows with ``spend > 0 OR leads > 0`` (drop zero-activity rows).
+
+    Mirrors the data plane's factory-frame activity filter (autom8y-data
+    ``_insights_helpers.apply_activity_filter``), which the operator batch route
+    does NOT apply. Both ``spend`` and ``leads`` are present on the rewired
+    asset/question rows; a missing/null metric is treated as 0. This only REMOVES
+    rows, so it preserves de-identification.
+    """
+
+    def _is_active(row: dict[str, Any]) -> bool:
+        spend = row.get("spend") or 0
+        leads = row.get("leads") or 0
+        return spend > 0 or leads > 0
+
+    return [row for row in rows if _is_active(row)]
 
 
 def _sanitize_business_name(name: str) -> str:

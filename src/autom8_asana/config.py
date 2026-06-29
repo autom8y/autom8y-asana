@@ -69,6 +69,45 @@ __all__ = [
 logger = get_logger(__name__)
 
 
+def _env_int(name: str, default: int) -> int:
+    """Read an int from the environment, falling back to ``default``.
+
+    Used for C-3 concurrency tuning knobs so SRE can damp the warm storm without
+    a redeploy. A malformed value falls back to the default rather than crashing
+    the Lambda cold start (and logs a warning for diagnosability).
+    """
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning(
+            "invalid_int_env_override",
+            extra={"env": name, "value": raw, "fallback": default},
+        )
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    """Read a float from the environment, falling back to ``default``.
+
+    Companion to :func:`_env_int` for fractional AIMD knobs (e.g. the
+    multiplicative-decrease factor).
+    """
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning(
+            "invalid_float_env_override",
+            extra={"env": name, "value": raw, "fallback": default},
+        )
+        return default
+
+
 # =============================================================================
 # Environment Accessors
 # =============================================================================
@@ -216,11 +255,53 @@ LKG_MAX_STALENESS_MULTIPLIER: float = 10.0
 # stale/LKG (the §D V6 serve-stale-section paradigm) instead of hard-rejecting
 # onto the POST /v1/query/section/rows 502 hotspot. The prior 576s value only made
 # sense paired with the ≤10-min warm lane, which proved Asana-429-infeasible.
+# OFFER WARM-RESILIENCE (2026-06-25, operator-adjudicated (b)+(c) availability-first):
+# The offer frame (entity_type "offer", primary_project_gid=1143843662099250;
+# entity_registry.py warmable=True warm_priority=3 ttl=180s) had NO contract entry,
+# so its ceiling fell back to the multiplier: LKG_MAX_STALENESS_MULTIPLIER(10.0) ×
+# ttl(180) = 1800s. The offer frame's OBSERVED warm cadence is ~70 min (per the SRE
+# measured handoff: warms at 20:39 / 21:49Z, ~70 min apart), so for the bulk of
+# every ~70-min window the frame is older than 1800s; the STALE branch sheds None,
+# offer is cache-only (no build-on-miss) => 503 via
+# dataframe_cache_*_lkg_max_staleness_exceeded. NOT a warm-coverage gap — a ceiling
+# mis-calibration relative to the observed warm cadence.
+#
+# NOTE — `0 */4` is NOT a warm lane. The 4-hourly cron `0 */4`
+# (`autom8y-account-status-recon-schedule`) is the DISABLED ASR consumer-READ
+# schedule (node-4, currently DEFERRED), i.e. how often the consumer READS offer
+# data — NOT how often this receiver warms the frame. Conflating the two
+# (the prior comment's "warmed on a 4h cron warm_all lane `0 */4`") was a
+# FACTUALLY-FALSE premise; corrected here. The receiver has no `0 */4` warm lane.
+#
+# OPERATOR RATIFICATION: the ASR/BI consumer ACCEPTS up-to-~4h-stale offer data —
+# availability-first ((b)+(c): "≤~4h-stale offer data accepted for the 4-hourly
+# recon"). That tolerance — keyed to the consumer's 4-hourly recon READ, not to any
+# warm cadence — is the basis for this ceiling: it is the consumer's declared real
+# freshness tolerance (the OQ-2-class contract receipt for offer), not an internal
+# best-guess.
+#
+# VALUE = 16200.0 (4h30m): the operator-ratified availability-first read-tolerance
+# bound, set comfortably ABOVE the observed ~70-min warm cadence so a frame warmed
+# once per warm window never ages past the ceiling mid-window even under AIMD
+# warm-governor backoff / 429-throttled hierarchy-gap warming, while remaining
+# within the ~4h consumer tolerance. This value is NOT load-bearing for
+# availability: FIX (c) is the cadence-INDEPENDENT backstop — it serves ANY
+# populated/healthy cache-only frame over ANY ceiling as LKG 2xx (with
+# record_serving_stale honesty) + SWR refresh, regardless of this number. FIX (b)
+# (this entry) flips ceiling_source multiplier -> freshness_contract for offer so
+# the honest-LKG path is attributed to the ratified contract rather than the
+# multiplier.
 FRESHNESS_CONTRACT_MAX_AGE_SECONDS: dict[str, float] = {
     "project": 86400.0,  # PROJECT_DF_REFRESH_HOURS=24  -> caching.py:33 (24h)
     # section: RECALIBRATED 576 -> 3000 (50min LKG ceiling). GATED on CQ-RETURN-3
     # + a deliberate land gate. See SECTION RECALIBRATION comment above.
     "section": 3000.0,
+    # offer: 16200s (4h30m) = operator-ratified availability-first read-tolerance
+    # bound (≤~4h-stale for the 4-hourly recon), set above the observed ~70-min warm
+    # cadence; NOT load-bearing (FIX (c) is the cadence-independent backstop). GATED
+    # on operator land-gate / OQ-2 consumer ratification — see memory
+    # autom8y-asana-query503-coldframe. See OFFER WARM-RESILIENCE comment above.
+    "offer": 16200.0,
 }
 
 # FACADE: Delegates to EntityRegistry. Preserves existing import path.
@@ -301,14 +382,35 @@ class ConcurrencyConfig:
     FixedSemaphoreAdapter (kill switch for safe rollback).
     """
 
-    read_limit: int = 50  # Concurrent GET requests (AIMD ceiling)
-    write_limit: int = 15  # Concurrent mutation requests (AIMD ceiling)
+    # C-3 (TDD-asr-offer-warmer-durability §6): the read ceiling and AIMD
+    # aggressiveness are env-overridable so SRE can damp the self-inflicted 429
+    # storm WITHOUT a redeploy. Defaults are lowered from the prior read_limit=50
+    # / decrease=0.5: a cold warm that begins at a 50-wide window blasts the API
+    # before AIMD can react (the proven ROOT-1a self-storm). Env knobs:
+    #   ASANA_CONCURRENCY_READ_LIMIT, ASANA_CONCURRENCY_WRITE_LIMIT,
+    #   ASANA_CONCURRENCY_AIMD_START_WINDOW, ASANA_CONCURRENCY_AIMD_MULT_DECREASE
+    read_limit: int = field(
+        default_factory=lambda: _env_int("ASANA_CONCURRENCY_READ_LIMIT", 12)
+    )  # Concurrent GET requests (AIMD ceiling) -- lowered from 50 (ROOT-1a)
+    write_limit: int = field(
+        default_factory=lambda: _env_int("ASANA_CONCURRENCY_WRITE_LIMIT", 8)
+    )  # Concurrent mutation requests (AIMD ceiling)
 
     # AIMD parameters (all optional, sensible defaults)
     aimd_enabled: bool = True  # Kill switch: False falls back to fixed semaphore
     aimd_floor: int = 1  # Minimum concurrency (>= 1 to prevent deadlock)
-    aimd_multiplicative_decrease: float = 0.5  # Halve on 429 (TCP standard)
+    aimd_multiplicative_decrease: float = field(
+        default_factory=lambda: _env_float("ASANA_CONCURRENCY_AIMD_MULT_DECREASE", 0.4)
+    )  # Sharper than the TCP-standard 0.5 so a storm is damped faster (ROOT-1a)
     aimd_additive_increase: float = 1.0  # +1 on success (TCP standard)
+    # C-3: conservative cold-start window. The semaphore previously began at the
+    # ceiling, so a fresh Lambda link blasted the full ceiling wide on its first
+    # fan-out then halved -- self-inflicting the burst. Starting at a small window
+    # (env: ASANA_CONCURRENCY_AIMD_START_WINDOW) ramps UP additively only when the
+    # API tolerates it, never blasting first. 0 / unset => start at floor-safe min.
+    aimd_start_window: int = field(
+        default_factory=lambda: _env_int("ASANA_CONCURRENCY_AIMD_START_WINDOW", 4)
+    )
     aimd_grace_period_seconds: float = 5.0  # Suppress increases after decrease
     aimd_increase_interval_seconds: float = 2.0  # Min time between increases (FR-007)
     aimd_cooldown_trigger: int = 5  # Consecutive 429s for cooldown warning
@@ -327,6 +429,19 @@ class ConcurrencyConfig:
             raise ConfigurationError("aimd_floor must be <= read_limit and write_limit")
         if not 0.0 < self.aimd_multiplicative_decrease < 1.0:
             raise ConfigurationError("aimd_multiplicative_decrease must be in (0, 1)")
+        # C-3: the cold-start window must sit within [floor, ceiling]. A start
+        # above the ceiling would defeat the conservative ramp; below the floor
+        # would deadlock. Clamp-by-rejection keeps the env override honest.
+        if self.aimd_start_window < self.aimd_floor:
+            raise ConfigurationError(
+                f"aimd_start_window ({self.aimd_start_window}) must be >= aimd_floor "
+                f"({self.aimd_floor})"
+            )
+        if self.aimd_start_window > self.read_limit:
+            raise ConfigurationError(
+                f"aimd_start_window ({self.aimd_start_window}) must be <= read_limit "
+                f"({self.read_limit})"
+            )
 
 
 @dataclass(frozen=True)

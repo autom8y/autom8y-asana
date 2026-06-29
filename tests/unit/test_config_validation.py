@@ -149,12 +149,51 @@ class TestRetryConfig:
 class TestConcurrencyConfig:
     """Tests for ConcurrencyConfig validation."""
 
-    def test_default_values_are_valid(self) -> None:
-        """Default configuration is valid."""
+    def test_default_values_are_valid(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Default configuration is valid.
+
+        C-3 (TDD-asr-offer-warmer-durability §6) lowered the conservative
+        defaults from read_limit=50 to env-overridable values that damp the
+        self-inflicted 429 storm. With no env overrides set, the defaults are the
+        conservative storm-safe values. The env knobs are exercised below.
+        """
+        for env in (
+            "ASANA_CONCURRENCY_READ_LIMIT",
+            "ASANA_CONCURRENCY_WRITE_LIMIT",
+            "ASANA_CONCURRENCY_AIMD_START_WINDOW",
+            "ASANA_CONCURRENCY_AIMD_MULT_DECREASE",
+        ):
+            monkeypatch.delenv(env, raising=False)
+
         config = ConcurrencyConfig()
 
-        assert config.read_limit == 50
-        assert config.write_limit == 15
+        assert config.read_limit == 12
+        assert config.write_limit == 8
+        assert config.aimd_start_window == 4
+        assert config.aimd_multiplicative_decrease == 0.4
+
+    def test_concurrency_env_overrides(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """C-3: SRE can damp the storm without a redeploy via env knobs."""
+        monkeypatch.setenv("ASANA_CONCURRENCY_READ_LIMIT", "20")
+        monkeypatch.setenv("ASANA_CONCURRENCY_WRITE_LIMIT", "10")
+        monkeypatch.setenv("ASANA_CONCURRENCY_AIMD_START_WINDOW", "6")
+        monkeypatch.setenv("ASANA_CONCURRENCY_AIMD_MULT_DECREASE", "0.3")
+
+        config = ConcurrencyConfig()
+
+        assert config.read_limit == 20
+        assert config.write_limit == 10
+        assert config.aimd_start_window == 6
+        assert config.aimd_multiplicative_decrease == 0.3
+
+    def test_invalid_env_override_falls_back(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A malformed env value falls back to the default, not a crash."""
+        monkeypatch.setenv("ASANA_CONCURRENCY_READ_LIMIT", "not-an-int")
+        monkeypatch.delenv("ASANA_CONCURRENCY_AIMD_START_WINDOW", raising=False)
+
+        config = ConcurrencyConfig()
+
+        assert config.read_limit == 12  # fell back to the conservative default
 
     def test_accepts_valid_values(self) -> None:
         """Accepts valid custom values."""

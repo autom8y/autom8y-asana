@@ -312,11 +312,15 @@ class TestStandardSupersetOfDetection:
         assert len(DETECTION_OPT_FIELDS) == 4
 
     def test_standard_fields_count(self) -> None:
-        """Standard has exactly 15 fields.
+        """Standard has the FR-FIELDS-001 opt-fields.
 
-        Per FR-FIELDS-001: Standard set has 15 fields.
+        Count updated 15 -> 16 by gfr-dynvocab sprint-3 FRAME-003: a
+        ``custom_fields.date_value`` member was added to close the LIVE
+        governed-strict date hole (a date cf otherwise resolves to None on the live
+        fetch). The addition is a single extra opt-field on the EXISTING entry
+        fetch — NOT a new Asana call.
         """
-        assert len(STANDARD_TASK_OPT_FIELDS) == 15
+        assert len(STANDARD_TASK_OPT_FIELDS) == 16
 
 
 # =============================================================================
