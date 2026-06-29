@@ -29,6 +29,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from autom8_asana.clients.data import _normalize as _normalize_mod
+from autom8_asana.clients.data._endpoints._pacer import BudgetExhausted, OperatorCallPacer
 from autom8_asana.errors import OperatorAccessDeniedError, OperatorMintRefusedError
 
 if TYPE_CHECKING:
@@ -39,6 +40,18 @@ if TYPE_CHECKING:
 # The mounted path of the operator-plane per-office batch route (data plane
 # OPERATOR_BATCH_ROUTE_PATH). Single literal here; the data plane owns the SoT.
 OPERATOR_BATCH_PATH = "/api/v1/insights/operator/execute-batch"
+
+# Server office-batch ceiling for the operator route: OperatorBatchInsightRequest
+# inherits BatchInsightExecuteRequest whose phones field is max_length = 100 (data
+# plane models.py MAX_BATCH_SIZE). Chunk the owned set to <=100 before batching so a
+# large fleet never 422s (TDD FILE-3 / RISK-3). The data plane owns the true SoT;
+# this mirror is the conservative client-side guard.
+OPERATOR_BATCH_CEILING = 100
+
+# Bisection-local cap on Retry-After honored 429 retries of one sub-batch before it
+# is skipped (marked unreached, prior deck protected). Keeps a throttled sub-batch
+# from burning the whole run budget (TDD §5.2 step 5 / RISK-7).
+_MAX_THROTTLE_RETRIES = 1
 
 
 def distribute_per_office(body: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
@@ -111,6 +124,7 @@ async def _post_operator_batch(
     client: DataServiceClient,
     request_body: dict[str, Any],
     *,
+    pacer: OperatorCallPacer | None = None,
     force_refresh_on_401: bool = True,
 ) -> Any:
     """POST one operator batch with the operator Bearer (no SA token, ever).
@@ -118,11 +132,21 @@ async def _post_operator_batch(
     Mints/reuses the operator token via the provider and injects it as a
     PER-REQUEST ``Authorization`` header on the dedicated operator client. One
     forced re-mint + retry on a 401.
+
+    When a ``pacer`` is supplied, EACH HTTP attempt (the initial post AND the 401
+    re-auth retry) reserves one budget token first, so the run budget counts actual
+    wire calls (== server-side rate-limit consumption). ``pacer.acquire`` may raise
+    :class:`BudgetExhausted`; callers serve what they reached and flag the run
+    partial.
     """
     provider = client._get_operator_token_provider()
     http_client = await client._get_operator_client()
 
     async def _post(token: str) -> Any:
+        if pacer is not None:
+            # One token per HTTP attempt -- the 401 retry below is a second wire
+            # call and a second server-side rate-limit hit, so it is budgeted too.
+            await pacer.acquire()
         return await http_client.post(
             OPERATOR_BATCH_PATH,
             json=request_body,
@@ -141,86 +165,26 @@ async def _post_operator_batch(
     return response
 
 
-async def _drift_sweep(
+async def _acquire_and_post(
     client: DataServiceClient,
     insight_name: str,
     phones: list[str],
+    pacer: OperatorCallPacer,
     *,
     period: str | None,
     start_date: date | None,
     end_date: date | None,
     filters: dict[str, Any] | None,
     limit: int | None,
-) -> dict[str, list[dict[str, Any]]]:
-    """EC-4 bounded per-office sweep ON THE OPERATOR ROUTE (never SA).
+) -> Any:
+    """POST one operator sub-batch under the pacer; honor Retry-After on 429.
 
-    Fired only when an all-or-nothing batch 404s over >1 office. Calls the SAME
-    operator route once per office: a 200 contributes that office's rows; ANY
-    other status (404 drift, 429, 5xx) skips that office (empty deck). Never an SA
-    fleet-read. If EVERY office 404s (e.g. a non-allowlisted insight, not drift),
-    returns an empty map -- the workflow renders empty decks, no crash.
+    Returns the FINAL response (which may still be 429 after the bounded retries).
+    Re-issues the SAME sub-batch (not a split) after honoring ``Retry-After``, up to
+    ``_MAX_THROTTLE_RETRIES`` (TDD §5.2 step 5). Raises :class:`BudgetExhausted`
+    (from :func:`_post_operator_batch`) when the run budget is spent.
     """
-    swept: dict[str, list[dict[str, Any]]] = {}
-    for phone in phones:
-        single_body = _build_request_body(
-            insight_name,
-            [phone],
-            period=period,
-            start_date=start_date,
-            end_date=end_date,
-            filters=filters,
-            limit=limit,
-        )
-        try:
-            response = await _post_operator_batch(client, single_body)
-        except Exception:  # noqa: BLE001 -- per-office isolation; one office never fails the sweep
-            continue
-        if response.status_code != 200:
-            # Drift / denial / transient for THIS office: skip (empty), no SA path.
-            continue
-        try:
-            swept.update(distribute_per_office(response.json()))
-        except ValueError:
-            continue
-    return swept
-
-
-async def execute_operator_batch(
-    client: DataServiceClient,
-    insight_name: str,
-    phones: list[str],
-    *,
-    period: str | None = None,
-    start_date: date | None = None,
-    end_date: date | None = None,
-    filters: dict[str, Any] | None = None,
-    limit: int | None = None,
-    allow_drift_sweep: bool = True,
-) -> dict[str, list[dict[str, Any]]]:
-    """POST one operator batch over the owned offices; return ``{phone: rows}``.
-
-    Mints (or reuses) a single operator Bearer token, POSTs the
-    ``OperatorBatchInsightRequest`` shape (``insight_name`` + ``phones`` + period/
-    range/filters/limit) with ``Authorization: Bearer <operator_token>``, and folds
-    the response per-office via :func:`distribute_per_office`. On an all-or-nothing
-    batch 404 over >1 office, falls back to the EC-4 :func:`_drift_sweep` (still on
-    the operator route).
-
-    Raises:
-        OperatorMintRefusedError: the mint refused (incl. the INERT empty-allowlist
-            403). Propagated from the token provider. Fails closed -- no SA fallback.
-        OperatorAccessDeniedError: the route returned the bare 404-as-oracle for a
-            single-office request (no sweep possible) or another error status.
-            Fails closed -- no SA fleet-read fallback.
-    """
-    # Honor the existing emergency kill switch for the live era (INERT today).
-    client._check_feature_enabled()
-
-    if not phones:
-        # Nothing owned to read -- an empty batch is a no-op (no wire call).
-        return {}
-
-    request_body = _build_request_body(
+    body = _build_request_body(
         insight_name,
         phones,
         period=period,
@@ -229,24 +193,168 @@ async def execute_operator_batch(
         filters=filters,
         limit=limit,
     )
-    response = await _post_operator_batch(client, request_body)
+    attempt = 0
+    while True:
+        response = await _post_operator_batch(client, body, pacer=pacer)
+        if response.status_code == 429 and attempt < _MAX_THROTTLE_RETRIES:
+            await pacer.honor_retry_after(response)
+            attempt += 1
+            continue
+        return response
+
+
+async def _bounded_bisect_serve(
+    client: DataServiceClient,
+    insight_name: str,
+    phones: list[str],
+    pacer: OperatorCallPacer,
+    *,
+    period: str | None,
+    start_date: date | None,
+    end_date: date | None,
+    filters: dict[str, Any] | None,
+    limit: int | None,
+) -> dict[str, list[dict[str, Any]]]:
+    """EC-4 drift-resilient BOUNDED BISECTION on the operator route (never SA).
+
+    Replaces the O(N) linear per-office sweep. On an all-or-nothing batch 404 over a
+    >1-office sub-batch, binary-splits and recurses: an all-owned half 200s in ONE
+    call (serving every office in it); a drift-bearing half 404s and splits further
+    -> O(drift . log N) calls for clustered drift vs O(N) for the linear sweep. Every
+    wire call is reserved from the shared run budget (``pacer``); when the budget or
+    throttle stops it, the unreached offices are marked for prior-deck protection
+    (RISK-4) and an empty (partial) result is returned -- NEVER a crash, NEVER the SA
+    fleet-read (G-NO-FALLBACK).
+
+    Status handling (TDD §5.2):
+      - 200         -> distribute_per_office: serve EVERY office in this sub-batch.
+      - 404, len==1 -> drift office: {} (empty deck, no oracle leak; definitive).
+      - 404, len>1  -> split in half, recurse left then right, merge.
+      - 403         -> raise OperatorMintRefusedError: the plane is closed (whole-run
+                       INERT no-op upstream; NO prior deck overwritten).
+      - 429 / 5xx / 401-after-retry / malformed -> mark_unreached + {} (skip this
+                       sub-batch; prior deck protected; siblings already served are
+                       preserved -- this path NEVER raises and NEVER falls back to SA).
+    """
+    try:
+        response = await _acquire_and_post(
+            client,
+            insight_name,
+            phones,
+            pacer,
+            period=period,
+            start_date=start_date,
+            end_date=end_date,
+            filters=filters,
+            limit=limit,
+        )
+    except BudgetExhausted:
+        # Run budget spent before this sub-batch could be served. Protect its
+        # offices' prior decks (the per-office mirror of the INERT no-op guard).
+        pacer.mark_unreached(phones)
+        return {}
+
     status_code = response.status_code
 
+    if status_code == 200:
+        try:
+            return distribute_per_office(response.json())
+        except ValueError:
+            # Malformed 200: protect rather than overwrite prior decks with empty.
+            pacer.mark_unreached(phones)
+            return {}
+
     if status_code == 404:
-        # The bare 404-as-oracle. Over >1 office this is indistinguishable from
-        # ownership drift, so try the bounded per-office sweep (operator route
-        # only). Over a single office there is nothing to sweep -- fail closed.
-        if allow_drift_sweep and len(phones) > 1:
-            return await _drift_sweep(
+        if len(phones) == 1:
+            # Definitive drift office: empty deck, no oracle leak. NOT marked
+            # unreached -- the route gave a definitive "not owned" answer, so the
+            # existing publish-empty behavior for drift offices is preserved.
+            return {}
+        mid = len(phones) // 2
+        served = await _bounded_bisect_serve(
+            client,
+            insight_name,
+            phones[:mid],
+            pacer,
+            period=period,
+            start_date=start_date,
+            end_date=end_date,
+            filters=filters,
+            limit=limit,
+        )
+        served.update(
+            await _bounded_bisect_serve(
                 client,
                 insight_name,
-                phones,
+                phones[mid:],
+                pacer,
                 period=period,
                 start_date=start_date,
                 end_date=end_date,
                 filters=filters,
                 limit=limit,
             )
+        )
+        return served
+
+    if status_code == 403:
+        # The operator plane is closed (mint/route forbidden). Fail closed -- raise
+        # so the workflow goes INERT (no-op) and NO prior deck is overwritten.
+        raise OperatorMintRefusedError(
+            "operator batch forbidden (HTTP 403)",
+            reason="route_forbidden_403",
+            status_code=403,
+        )
+
+    # 429 (after retries) / 401-after-retry / 5xx / other: a transient or contract
+    # failure for THIS sub-batch. Skip it (mark unreached -> prior deck protected),
+    # NEVER an SA fleet-read, NEVER raise to lose already-served siblings.
+    pacer.mark_unreached(phones)
+    return {}
+
+
+def _chunked(phones: list[str], size: int) -> list[list[str]]:
+    """Split ``phones`` into contiguous chunks of at most ``size`` offices."""
+    return [phones[i : i + size] for i in range(0, len(phones), size)]
+
+
+async def _serve_unbisected(
+    client: DataServiceClient,
+    insight_name: str,
+    phones: list[str],
+    pacer: OperatorCallPacer,
+    *,
+    period: str | None,
+    start_date: date | None,
+    end_date: date | None,
+    filters: dict[str, Any] | None,
+    limit: int | None,
+) -> dict[str, list[dict[str, Any]]]:
+    """POST one batch with NO bisection; fail closed (raise) on a non-200.
+
+    Used for the single whole-request office and the ``allow_bisect=False`` path. A
+    bare 404-as-oracle here is a definitive denial of the entire request (there is no
+    owned subset to recover via splitting), so it raises -- the workflow renders that
+    request's table empty (RT-2/RT-3). A spent budget returns {} gracefully.
+    """
+    try:
+        response = await _acquire_and_post(
+            client,
+            insight_name,
+            phones,
+            pacer,
+            period=period,
+            start_date=start_date,
+            end_date=end_date,
+            filters=filters,
+            limit=limit,
+        )
+    except BudgetExhausted:
+        pacer.mark_unreached(phones)
+        return {}
+
+    status_code = response.status_code
+    if status_code == 404:
         raise OperatorAccessDeniedError(
             "operator batch refused (bare 404-as-oracle)",
             reason="route_denied_404",
@@ -276,3 +384,86 @@ async def execute_operator_batch(
         ) from exc
 
     return distribute_per_office(body)
+
+
+async def execute_operator_batch(
+    client: DataServiceClient,
+    insight_name: str,
+    phones: list[str],
+    *,
+    period: str | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    filters: dict[str, Any] | None = None,
+    limit: int | None = None,
+    pacer: OperatorCallPacer | None = None,
+    allow_bisect: bool = True,
+) -> dict[str, list[dict[str, Any]]]:
+    """POST the operator batch over the owned offices; return ``{phone: rows}``.
+
+    Mints (or reuses) a single operator Bearer token and POSTs the
+    ``OperatorBatchInsightRequest`` shape (``insight_name`` + ``phones`` + period/
+    range/filters/limit) with ``Authorization: Bearer <operator_token>``, folding the
+    response per-office via :func:`distribute_per_office`. Every wire call is reserved
+    from ``pacer`` (a shared run budget when threaded by the workflow, else a fresh
+    per-call budget) so the AGGREGATE wire count self-limits strictly below the
+    server's 10/min DoS guard (INV-1).
+
+    Shape (TDD §5.2/§5.4):
+
+    - ``phones`` chunked to <=100 (FILE-3 / RISK-3) so a large fleet never 422s.
+    - A single whole-request office (or ``allow_bisect=False``) posts once and fails
+      closed on a non-200 (the bare 404-as-oracle raises -- RT-2/RT-3).
+    - A multi-office chunk that 404s is bisected (:func:`_bounded_bisect_serve`):
+      owned sub-batches 200 in one call; a drift office costs O(drift . log N) and is
+      skipped (empty deck, no oracle leak). Offices the budget/throttle could not
+      reach are marked on the pacer for prior-deck protection (RISK-4).
+
+    Raises:
+        OperatorMintRefusedError: the mint refused (incl. the INERT empty-allowlist
+            403) or the route returned 403. Fails closed -- NO SA fleet-read fallback.
+        OperatorAccessDeniedError: a single whole-request office (or unbisected batch)
+            returned the bare 404-as-oracle or another error status. Fails closed --
+            NO SA fleet-read fallback.
+    """
+    # Honor the existing emergency kill switch for the live era (INERT today).
+    client._check_feature_enabled()
+
+    if not phones:
+        # Nothing owned to read -- an empty batch is a no-op (no wire call).
+        return {}
+
+    # A fresh per-call budget when the caller does not thread a shared one. The
+    # workflow threads ONE pacer across all 4 insights so the cap is per-RUN, not
+    # per-insight (RISK-5).
+    pacer = pacer if pacer is not None else OperatorCallPacer()
+
+    if len(phones) == 1 or not allow_bisect:
+        return await _serve_unbisected(
+            client,
+            insight_name,
+            phones,
+            pacer,
+            period=period,
+            start_date=start_date,
+            end_date=end_date,
+            filters=filters,
+            limit=limit,
+        )
+
+    served: dict[str, list[dict[str, Any]]] = {}
+    for chunk in _chunked(phones, OPERATOR_BATCH_CEILING):
+        served.update(
+            await _bounded_bisect_serve(
+                client,
+                insight_name,
+                chunk,
+                pacer,
+                period=period,
+                start_date=start_date,
+                end_date=end_date,
+                filters=filters,
+                limit=limit,
+            )
+        )
+    return served

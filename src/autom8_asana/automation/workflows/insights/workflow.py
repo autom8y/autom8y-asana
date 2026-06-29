@@ -147,6 +147,14 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         # is deleted), so a pre-FLIP schedule firing cannot overwrite any Offer's
         # last-good deck with an empty one. Reset at the top of every prefetch.
         self._operator_plane_refused: bool = False
+        # WS-2 partial-run protection: offices the operator batch could NOT serve
+        # this run because the run budget / throttle stopped the bisection before
+        # reaching them (NON-definitive). _process_offer SKIPS the publish for these
+        # (no empty deck uploaded, NO prior attachment deleted) -- the per-office
+        # mirror of the INERT no-op guard, so a budget-capped partial run never
+        # overwrites an unreached office's last-good deck (RISK-4). Reset per run.
+        # Distinct from drift/denied offices (definitive answer -> publish empty).
+        self._operator_unreached_offices: set[str] = set()
         # Dry-run preview output directory. Injectable so concurrent dry-runs
         # (and xdist-parallel tests) target distinct, non-colliding directories
         # instead of one shared cwd-relative path whose deterministic filename
@@ -291,6 +299,15 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
 
         result = await super().execute_async(entities, params)
 
+        # WS-2: flag the run partial iff the operator batch left owned offices
+        # unreached this run (budget/throttle-capped). Their prior decks were
+        # preserved (RISK-4); the operator can re-drive next window or land Lever 1.
+        if self._operator_unreached_offices:
+            result.metadata["operator_run_partial"] = True
+            result.metadata["operator_unreached_office_count"] = len(
+                self._operator_unreached_offices
+            )
+
         logger.info(
             "insights_export_completed",
             total=result.total,
@@ -299,6 +316,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             skipped=result.skipped,
             total_tables_succeeded=result.metadata.get("total_tables_succeeded", 0),
             total_tables_failed=result.metadata.get("total_tables_failed", 0),
+            operator_run_partial=result.metadata.get("operator_run_partial", False),
             duration_seconds=round(result.duration_seconds, 2),
         )
 
@@ -408,6 +426,26 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
 
             office_phone, vertical, business_name = resolution
             masked_phone = mask_phone_number(office_phone)
+
+            # WS-2 RISK-4: if the operator batch could NOT serve this office this run
+            # (the run budget / throttle stopped the bisection before reaching it --
+            # a NON-definitive miss), SKIP the publish ENTIRELY: do NOT build/upload
+            # an empty deck and do NOT delete the prior attachment. This mirrors the
+            # whole-plane INERT no-op guard at per-office granularity so a budget-
+            # capped partial run leaves this office's last-good deck intact. Distinct
+            # from a served-empty or drift office (definitive answer -> publishes
+            # empty per the normal path).
+            if office_phone in self._operator_unreached_offices:
+                logger.warning(
+                    "insights_export_offer_skipped_budget_unreached",
+                    offer_gid=offer_gid,
+                    office_phone=masked_phone,
+                )
+                return _OfferOutcome(
+                    gid=offer_gid,
+                    status="skipped",
+                    reason="operator_budget_unreached",
+                )
 
             logger.info(
                 "insights_export_offer_started",
@@ -652,6 +690,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         """
         self._operator_batch = {}
         self._operator_plane_refused = False
+        self._operator_unreached_offices = set()
 
         office_set = await self._resolve_owned_office_set(entities, params)
         if not office_set:
@@ -663,6 +702,14 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             s for s in TABLE_SPECS if s.dispatch_type is DispatchType.OPERATOR_INSIGHTS
         ]
 
+        # ONE run-scoped budget governor threaded across ALL operator insights AND
+        # the bisection recursion, so the AGGREGATE wire count is capped by a SINGLE
+        # shared counter (B_run, default 9 < 10) -- per-RUN, not per-insight. This
+        # holds INV-1 (the 10/min DoS guard): the export self-limits strictly below
+        # it, so the guard stays armed and fires at the 11th for anything else (TDD
+        # §5.3 / ADR-003 / RISK-5).
+        pacer = self._data_client.new_operator_pacer()
+
         fetched = 0
         for spec in operator_specs:
             # operator specs always carry insight_name (asserted in tables.py)
@@ -673,6 +720,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                     insight_name=insight_name,
                     phones=phones,
                     period=spec.period,
+                    pacer=pacer,
                 )
             except OperatorMintRefusedError as exc:
                 # The mint is dark (INERT empty-allowlist 403, or no credentials):
@@ -713,11 +761,20 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             self._operator_batch[spec.table_name] = per_office
             fetched += 1
 
+        # Offices the run budget / throttle could not reach this run (NON-definitive
+        # -- the bisection stopped before serving them). The per-offer pass PROTECTS
+        # their prior decks (skips publish), distinct from drift/denied offices which
+        # got a definitive answer and publish empty (RISK-4 / TDD §5.3).
+        self._operator_unreached_offices = set(pacer.unreached)
+
         logger.info(
             "insights_export_operator_batch_fetched",
             tables=fetched,
             requested=len(operator_specs),
             offices=len(phones),
+            wire_calls=pacer.spent,
+            partial=pacer.partial,
+            unreached_offices=len(self._operator_unreached_offices),
         )
 
     async def _resolve_owned_office_set(
