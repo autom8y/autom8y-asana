@@ -327,12 +327,14 @@ class TestPreflightParity:
             [
                 "secretspec",
                 "check",
-                "--config",
+                "--file",
                 str(_SECRETSPEC_TOML),
                 "--provider",
                 "env",
                 "--profile",
                 "cli",
+                "--reason",
+                "test_secretspec_binary_parity_when_available",
             ],
             capture_output=True,
             text=True,
@@ -368,6 +370,72 @@ class TestPreflightParity:
             for var, val in original.items():
                 if val is not None:
                     os.environ[var] = val
+
+
+class TestPreflightSecretspecDrift:
+    """Regression: secretspec 0.12.x preflight false-block (hotfix 2026-06-29).
+
+    secretspec 0.12.x renamed ``--config`` -> ``--file`` and added a require_reason
+    policy (default "agents"). The preflight's old invocation arg-errored, and the
+    non-zero branch scraped the error text and mis-reported the failure as a
+    missing-S3-vars contract violation -- blocking correctly-configured runs (exit 2).
+    The fix degrades ANY secretspec non-zero exit to the authoritative inline
+    os.environ check. These are two-sided teeth: the guard must PASS when the required
+    vars are set (no false block -- the exact regression) and still REFUSE when they
+    are genuinely unset, regardless of secretspec's own verdict.
+    """
+
+    @staticmethod
+    def _fake_nonzero() -> subprocess.CompletedProcess[str]:
+        # Simulates secretspec 0.12.x rejecting the stale --config flag (or any future
+        # CLI drift): a non-zero exit whose stderr does NOT cleanly enumerate the
+        # missing required vars.
+        return subprocess.CompletedProcess(
+            args=["secretspec", "check"],
+            returncode=2,
+            stdout="",
+            stderr=(
+                "error: unexpected argument '--config' found\n\n"
+                "Usage: secretspec check [OPTIONS]"
+            ),
+        )
+
+    def test_nonzero_exit_with_required_vars_set_does_not_block(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The exact regression: a secretspec non-violation failure must NOT block a
+        correctly-configured run. Pre-fix this raised SystemExit(2)."""
+        from autom8_asana.metrics import __main__ as metrics_main
+
+        for var in _CLI_REQUIRED:
+            monkeypatch.setenv(var, "present")
+
+        with patch.object(
+            metrics_main.subprocess, "run", return_value=self._fake_nonzero()
+        ):
+            # Returns cleanly via the inline fallback; absence of SystemExit is the assertion.
+            metrics_main._preflight_cli_profile()
+
+    def test_nonzero_exit_with_required_vars_unset_still_blocks(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The guard still fails loud (exit 2) on genuinely-missing vars -- the fix
+        removes the false positive without weakening enforcement."""
+        from autom8_asana.metrics import __main__ as metrics_main
+
+        for var in _CLI_REQUIRED:
+            monkeypatch.delenv(var, raising=False)
+
+        captured = io.StringIO()
+        with patch.object(
+            metrics_main.subprocess, "run", return_value=self._fake_nonzero()
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                with patch("sys.stderr", captured):
+                    metrics_main._preflight_cli_profile()
+
+        assert exc_info.value.code == 2
+        assert "ASANA_CACHE_S3_BUCKET" in captured.getvalue()
 
 
 # ---------------------------------------------------------------------------

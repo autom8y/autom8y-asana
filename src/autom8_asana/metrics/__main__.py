@@ -86,7 +86,7 @@ which is strict about S3 cache configuration. See:
      copy: cp .env/local.example .env/local   # then edit .env/local with real values
   3. secretspec.toml              (the contract itself — declares which vars are required under --profile cli)
      path: {root}/secretspec.toml
-     validate: secretspec check --config secretspec.toml --provider env --profile cli
+     validate: secretspec check --file secretspec.toml --provider env --profile cli --reason "manual preflight check"
 
 Typical fix: ensure .env/defaults contains ASANA_CACHE_S3_BUCKET and ASANA_CACHE_S3_REGION,
 then re-run 'direnv allow' (or source the env manually) and retry."""
@@ -107,15 +107,22 @@ def _preflight_cli_profile() -> None:
     Silent on success. Writes actionable error to stderr and exits 2 on failure.
     See TDD-0001-cli-preflight-contract.md for the full behavioral specification.
     """
+    # secretspec 0.12.x renamed --config -> --file and added a require_reason policy
+    # (default "agents"): a check without a reason now errors. Match the current CLI
+    # contract. If secretspec drifts again, the non-zero branch below degrades to the
+    # authoritative inline os.environ check rather than mis-reporting a contract
+    # violation. See tests/unit/metrics/test_main.py::TestPreflightSecretspecDrift.
     secretspec_cmd = [
         "secretspec",
         "check",
-        "--config",
+        "--file",
         str(_REPO_ROOT / "secretspec.toml"),
         "--provider",
         "env",
         "--profile",
         "cli",
+        "--reason",
+        "autom8_asana.metrics CLI preflight: validate cli-profile S3 cache config",
     ]
     try:
         result = subprocess.run(
@@ -143,15 +150,21 @@ def _preflight_cli_profile() -> None:
         return
 
     if result.returncode != 0:
-        # secretspec reported a violation — extract missing var names from its stderr.
-        # Fall back to the inline tuple if parsing produces an empty list.
-        import re
-
-        raw = result.stderr or ""
-        found = re.findall(r"\b(ASANA_\w+|AUTOM8\w*)\b", raw)
-        missing = found if found else list(_CLI_REQUIRED)
-        _emit_preflight_error(missing)
-        sys.exit(2)
+        # secretspec rejected the check. Do NOT scrape its (verbose, version-specific)
+        # output to guess which vars are missing: secretspec 0.12.x prints the full
+        # variable checklist to stderr, so a regex match yields dozens of names, and a
+        # non-violation failure (the --config->--file flag rename, the require_reason
+        # policy, or any future drift) would be mis-reported as a missing-S3-vars
+        # contract violation — falsely blocking a correctly-configured run. Defer to the
+        # authoritative inline os.environ check, which reports exactly which _CLI_REQUIRED
+        # vars are unset (kept in parity with secretspec.toml by TestPreflightParity).
+        print(
+            f"WARNING: secretspec check exited {result.returncode}; "
+            "using inline preflight check.",
+            file=sys.stderr,
+        )
+        _preflight_inline_fallback()
+        return
 
 
 # ---------------------------------------------------------------------------
