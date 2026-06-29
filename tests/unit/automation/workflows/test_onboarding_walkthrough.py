@@ -17,7 +17,7 @@ import os
 import shutil
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -31,6 +31,11 @@ from autom8_asana.automation.workflows.onboarding_walkthrough import (
 from autom8_asana.automation.workflows.onboarding_walkthrough.producer import (
     ProducerFreezeError,
     freeze_walkthrough_deck,
+)
+from autom8_asana.automation.workflows.onboarding_walkthrough.tenant_binding import (
+    TenantBindingError,
+    assert_exclusive_tenant_binding,
+    harvest_routing_addresses,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.workflow import (
     OnboardingWalkthroughWorkflow,
@@ -463,3 +468,188 @@ class TestResolveContract:
         assert re.fullmatch(r"[0-9a-f-]{36}@appointments\.contenteapp\.com", addr), (
             f"non-canonical: {addr}"
         )
+
+
+# --- T7 runtime tenant-binding assertion: the runtime byte-exact oracle ---
+#
+# Two loci close the §6 two-tenant hazard (North Star Medical 7639994340 NO guid
+# vs Family +17156902466 guid d167d635):
+#   (b) the upstream multiplicity guard prevents the wrong-tenant RESOLVE
+#       (a colliding office_phone fail-closes in autom8y-data); and
+#   (a) the runtime tenant-binding assertion (THESE tests) ensures the frozen
+#       artifact carries EXACTLY the resolved address -- no producer-side drift.
+
+# The pilot tenant (the one-guid spine: resolved == frozen == allowlisted).
+_T7_RESOLVED = "d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com"
+# A distinct WRONG tenant -- the address that must NEVER ride along in the deck.
+_T7_FOREIGN = "11111111-2222-4333-8444-555555555555@appointments.contenteapp.com"
+
+
+def _deck_bytes(*addresses: str) -> bytes:
+    """A minimal frozen-deck stand-in embedding the given routing address(es).
+
+    Mirrors how the producer renders the address (mailto + display text). The
+    FIRST address is rendered twice so the oracle's dedup is exercised.
+    """
+    parts = ["<html><body>"]
+    for i, addr in enumerate(addresses):
+        parts.append(f'<a href="mailto:{addr}">Forward to {addr}</a>')
+        if i == 0:
+            parts.append(f"<p>Your routing address: {addr}</p>")
+    parts.append("</body></html>")
+    return "".join(parts).encode("utf-8")
+
+
+class TestT7TenantBindingOracle:
+    """Two-sided unit proof of the byte-exact oracle (pure function, no mocks).
+
+    G-THEATER: every RED fires on a deliberately-broken INPUT (a frozen-bytes
+    fixture that carries a wrong/extra/absent address), NEVER a defect injected
+    into production code; the clean fixture passes GREEN.
+    """
+
+    def test_green_exact_single_address_passes(self) -> None:
+        # Resolved address present (rendered twice) and NOTHING else -> no raise.
+        assert_exclusive_tenant_binding(
+            frozen=_deck_bytes(_T7_RESOLVED), gated_address=_T7_RESOLVED
+        )
+
+    def test_green_harvest_dedups_repeated_address(self) -> None:
+        assert harvest_routing_addresses(_deck_bytes(_T7_RESOLVED)) == {_T7_RESOLVED}
+
+    def test_red_foreign_extra_address_failcloses(self) -> None:
+        # Presence holds (resolved IS in the deck) but a SECOND wrong-tenant
+        # address rides along -- exclusivity fails. This is the precise gap the
+        # producer's substring presence check (producer.py) cannot catch.
+        with pytest.raises(TenantBindingError) as ei:
+            assert_exclusive_tenant_binding(
+                frozen=_deck_bytes(_T7_RESOLVED, _T7_FOREIGN),
+                gated_address=_T7_RESOLVED,
+            )
+        msg = str(ei.value)
+        assert "resolved_present=True" in msg
+        assert "distinct_addresses=2" in msg
+        # The foreign address is MASKED, never spilled in full.
+        assert _T7_FOREIGN not in msg
+        assert "11111111" in msg
+
+    def test_red_wrong_tenant_only_failcloses(self) -> None:
+        # Resolve says A; the deck carries only B -> presence fails too.
+        with pytest.raises(TenantBindingError) as ei:
+            assert_exclusive_tenant_binding(
+                frozen=_deck_bytes(_T7_FOREIGN), gated_address=_T7_RESOLVED
+            )
+        assert "resolved_present=False" in str(ei.value)
+
+    def test_red_no_routing_address_failcloses(self) -> None:
+        with pytest.raises(TenantBindingError):
+            assert_exclusive_tenant_binding(
+                frozen=b"<html>no routing address here</html>",
+                gated_address=_T7_RESOLVED,
+            )
+
+
+class TestT7RuntimeBindingWorkflow:
+    """Two-sided proof of the assertion in the LIVE workflow path (process_entity).
+
+    The producer freeze is mocked to PLANT the frozen bytes -- the RED fires on a
+    deliberately-broken INPUT (a wrong-tenant/extra address in the artifact),
+    NEVER a defect injected into production code; the clean resolve passes GREEN.
+    The Asana attach is mocked (no live write).
+    """
+
+    async def test_green_clean_freeze_binds_and_uploads(self) -> None:
+        resolver = _make_resolver(address=_T7_RESOLVED)
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+        with patch.object(
+            producer_module,
+            "freeze_walkthrough_deck",
+            AsyncMock(return_value=_deck_bytes(_T7_RESOLVED)),
+        ):
+            out = await wf.process_entity(_entity(provider="GHL"), {})
+        assert out.status == "succeeded"
+        atts.upload_async.assert_awaited_once()
+
+    async def test_red_wrong_tenant_artifact_failcloses_no_upload(self) -> None:
+        resolver = _make_resolver(address=_T7_RESOLVED)
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+        with patch.object(
+            producer_module,
+            "freeze_walkthrough_deck",
+            AsyncMock(return_value=_deck_bytes(_T7_RESOLVED, _T7_FOREIGN)),
+        ):
+            out = await wf.process_entity(_entity(provider="GHL"), {})
+        assert out.status == "failed"
+        assert out.error is not None
+        assert out.error.error_type == "tenant_binding_violation"
+        assert out.error.recoverable is False
+        atts.upload_async.assert_not_called()
+
+
+class TestT7ResolveAssertIntegration:
+    """Deterministic local-fixture integration: the resolve->freeze->assert path
+    end-to-end, with NO live data-service (the @integration live test above stays
+    the reserved AUTOM8Y_DATA_URL operator lever). Exercises BOTH walls:
+
+      * the upstream multiplicity-guard fail-closed arm -- a colliding office_phone
+        surfaces from autom8y-data as HTTP 409 / DATA-CONFLICT-002 ->
+        DataServiceUnavailableError; the workflow fail-closes BEFORE any freeze, so
+        no wrong-tenant address is ever minted; and
+      * the producer-side runtime tenant-binding assertion -- a clean resolve binds
+        (GREEN); a drifted/contaminated artifact fail-closes (RED).
+    """
+
+    async def test_collision_failcloses_before_freeze(self) -> None:
+        # autom8y-data business.py:346 _single_business_or_raise raises
+        # OfficePhoneCollisionError -> 409 DATA-CONFLICT-002 (errors.py) -> the core
+        # SDK surfaces the non-200 as DataServiceUnavailableError. The freeze must
+        # never be reached -> no wrong-tenant address is minted.
+        from autom8y_core.errors import DataServiceUnavailableError
+
+        resolver = _make_resolver(
+            raises=DataServiceUnavailableError(method="resolve_routing_address_by_phone_async")
+        )
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+        freeze_spy = AsyncMock(return_value=_deck_bytes(_T7_RESOLVED))
+        with patch.object(producer_module, "freeze_walkthrough_deck", freeze_spy):
+            out = await wf.process_entity(_entity(provider="GHL"), {})
+        assert out.status == "failed"
+        assert out.error is not None
+        assert out.error.error_type == "resolve_unavailable"
+        freeze_spy.assert_not_awaited()
+        atts.upload_async.assert_not_called()
+
+    async def test_clean_resolve_binds_end_to_end_dry_run(self) -> None:
+        # dry_run exercises resolve -> freeze -> tenant-binding assert WITHOUT the
+        # attach boundary. GREEN: the artifact binds to exactly the resolved tenant.
+        resolver = _make_resolver(address=_T7_RESOLVED)
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+        with patch.object(
+            producer_module,
+            "freeze_walkthrough_deck",
+            AsyncMock(return_value=_deck_bytes(_T7_RESOLVED)),
+        ):
+            out = await wf.process_entity(_entity(provider="GHL"), {"dry_run": True})
+        assert out.status == "succeeded"
+        assert out.reason == "dry_run"
+        resolver.resolve_routing_address_by_phone_async.assert_awaited_once_with(
+            office_phone=PILOT_PHONE
+        )
+        atts.upload_async.assert_not_called()
+
+    async def test_drifted_artifact_failcloses_end_to_end_dry_run(self) -> None:
+        # Resolve is clean (tenant A) but the frozen artifact drifts to ALSO carry
+        # tenant B -> the assertion fail-closes even in dry_run (it runs before the
+        # dry_run return), so a contaminated deck is caught regardless of attach.
+        resolver = _make_resolver(address=_T7_RESOLVED)
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+        with patch.object(
+            producer_module,
+            "freeze_walkthrough_deck",
+            AsyncMock(return_value=_deck_bytes(_T7_RESOLVED, _T7_FOREIGN)),
+        ):
+            out = await wf.process_entity(_entity(provider="GHL"), {"dry_run": True})
+        assert out.status == "failed"
+        assert out.error is not None
+        assert out.error.error_type == "tenant_binding_violation"
+        atts.upload_async.assert_not_called()

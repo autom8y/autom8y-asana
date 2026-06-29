@@ -43,6 +43,10 @@ from autom8_asana.automation.workflows.onboarding_walkthrough import producer as
 from autom8_asana.automation.workflows.onboarding_walkthrough.producer import (
     ProducerFreezeError,
 )
+from autom8_asana.automation.workflows.onboarding_walkthrough.tenant_binding import (
+    TenantBindingError,
+    assert_exclusive_tenant_binding,
+)
 from autom8_asana.clients.utils.pii import mask_phone_number
 
 if TYPE_CHECKING:
@@ -280,6 +284,36 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                     error_type="producer_freeze_failed",
                     message=str(exc),
                     recoverable=True,
+                ),
+            )
+
+        # 5b. TENANT-BINDING ASSERT (T7) -- the runtime analogue of the byte-exact
+        # oracle. The frozen deck MUST carry EXACTLY the resolved routing address:
+        # present (the producer's substring check) AND exclusive (no OTHER canonical
+        # routing address). A producer-side injection drift or a template-static
+        # foreign address is a wrong-tenant leak in the artifact the client receives.
+        # Runs before the dry_run return so a dry_run exercises the full
+        # resolve->freeze->assert path. Fail-closed: refuse to attach, surface
+        # loudly, clean up the producer temp file (non-recoverable -- a retry on a
+        # drifted producer / contaminated template would only reproduce it).
+        try:
+            assert_exclusive_tenant_binding(frozen=frozen_bytes, gated_address=gated_address)
+        except TenantBindingError as exc:
+            logger.error(
+                "onboarding_walkthrough_tenant_binding_violation",
+                task_gid=gid,
+                office_phone=masked,
+                error=str(exc),
+            )
+            self._cleanup_export(out_filename)
+            return BridgeOutcome(
+                gid=gid,
+                status="failed",
+                error=WorkflowItemError(
+                    item_id=gid,
+                    error_type="tenant_binding_violation",
+                    message=str(exc),
+                    recoverable=False,
                 ),
             )
 
