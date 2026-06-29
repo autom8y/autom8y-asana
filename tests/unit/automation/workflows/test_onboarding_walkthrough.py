@@ -548,6 +548,50 @@ class TestT7TenantBindingOracle:
                 gated_address=_T7_RESOLVED,
             )
 
+    def test_red_uppercase_hex_foreign_address_failcloses_after_casefold(self) -> None:
+        """GAP-1 (chaos N3 H-T1) -- the case-sensitivity seam, RED arm through the REAL guard.
+
+        An UPPERCASE-hex foreign routing address embedded in the frozen bytes EVADED the
+        lowercase-only harvester regex: ``findall`` never saw it, so the exclusivity
+        set-equality saw ONLY the resolved address and passed GREEN -- fail-OPEN, a
+        wrong-tenant address riding silently in the artifact the client receives. The
+        case-insensitive harvest (``re.IGNORECASE``) + lowercase-normalized set-equality now
+        HARVEST the variant and bind exclusively -> RED.
+
+        Teeth: this fixture is GREEN on the lowercase-only regex (the evaded seam); it fires
+        RED only through the case-folded guard. The RED is a deliberately-broken INPUT (a
+        contaminated deck-template literal -- the documented pre-flip manual-NOTE hazard) the
+        hardened guard CORRECTLY rejects, NEVER a defect injected into prod code
+        (@discriminating-canary-doctrine)."""
+        foreign_upper = "AAAAAAAA-BBBB-4CCC-8DDD-EEEEEEEEEEEE@appointments.contenteapp.com"
+        with pytest.raises(TenantBindingError) as ei:
+            assert_exclusive_tenant_binding(
+                frozen=_deck_bytes(_T7_RESOLVED, foreign_upper),
+                gated_address=_T7_RESOLVED,
+            )
+        msg = str(ei.value)
+        assert "resolved_present=True" in msg
+        assert "distinct_addresses=2" in msg
+        # The foreign variant is MASKED (and lowercase-normalized for DB matching), never
+        # spilled in full; the normalized breadcrumb still identifies the implicated tenant.
+        assert foreign_upper not in msg
+        assert "aaaaaaaa" in msg
+
+    def test_green_uppercase_variant_of_resolved_does_not_false_red(self) -> None:
+        """GAP-1 GREEN twin -- the case-fold must not OVER-correct.
+
+        An UPPERCASE-hex rendering of the SAME resolved tenant (the canonical lowercase
+        address is present AND an uppercase rendering of the identical guid) is the SAME
+        tenant under the lowercase-canonical invariant. The case-fold normalizes both onto
+        the resolved address and binds EXCLUSIVELY -> GREEN. Case-folding catches a FOREIGN
+        variant (RED above) WITHOUT false-RED'ing a case-variant of the resolved address
+        itself -- the two-sided teeth bite ONLY on a wrong tenant."""
+        resolved_upper = _T7_RESOLVED.upper()  # same guid, uppercase hex
+        assert_exclusive_tenant_binding(
+            frozen=_deck_bytes(_T7_RESOLVED, resolved_upper),
+            gated_address=_T7_RESOLVED,
+        )
+
 
 class TestT7RuntimeBindingWorkflow:
     """Two-sided proof of the assertion in the LIVE workflow path (process_entity).

@@ -52,8 +52,20 @@ import re
 # tests/unit/automation/workflows/test_onboarding_walkthrough.py. The negative
 # lookbehind ensures we harvest a *complete* address, not a hex suffix of a longer
 # run (which would be non-canonical anyway).
+#
+# Case-INSENSITIVE (``re.IGNORECASE``): the canonical form is lowercase, enforced
+# UPSTREAM by the producer's ``CANONICAL_ADDR_RE`` and the DB's lowercase v4 guids.
+# This module is the producer-side VERIFIER, not the minter -- it must FAIL-CLOSED on a
+# non-canonical case-variant, never fail-OPEN by failing to SEE it. A lowercase-only
+# class would let an uppercase-hex foreign address embedded in a deck template (the
+# pre-flip manual-NOTE hazard documented above) slip past ``findall`` invisibly; matching
+# case-insensitively HARVESTS the variant so the exclusivity set-equality below (which
+# normalizes to lowercase) catches it. Harvest wider, then bind exactly -- never the
+# reverse. This does not weaken the canonical contract: the producer still mints
+# lowercase-only; the verifier merely refuses to be blind to a variant.
 CANONICAL_ROUTING_ADDR_RE = re.compile(
-    r"(?<![0-9a-f-])[0-9a-f-]{36}@appointments\.contenteapp\.com"
+    r"(?<![0-9a-f-])[0-9a-f-]{36}@appointments\.contenteapp\.com",
+    re.IGNORECASE,
 )
 
 
@@ -118,12 +130,23 @@ def assert_exclusive_tenant_binding(*, frozen: bytes, gated_address: str) -> Non
         TenantBindingError: if the resolved address is absent, or any foreign
             canonical routing address is present, in the frozen bytes.
     """
-    harvested = harvest_routing_addresses(frozen)
-    if harvested == {gated_address}:
+    # Case-fold the comparison at the guard boundary: canonical routing addresses are
+    # lowercase by construction (producer ``CANONICAL_ADDR_RE`` + DB v4 guids). Normalizing
+    # BOTH the harvested set AND the gated address to lowercase means a case-variant FOREIGN
+    # address (now harvested via ``re.IGNORECASE``) is caught as a distinct member
+    # (set != {gated} -> RED), WHILE a case-variant of the RESOLVED address collapses onto
+    # it and does NOT false-RED. This never weakens the canonical contract -- the producer
+    # still mints lowercase-only -- it only ensures a non-canonical variant fails CLOSED
+    # here instead of riding along silently. The masked breadcrumb is likewise normalized,
+    # which is correct: the DB stores lowercase guids, so the lowercased prefix is the form
+    # an operator matches against during an incident.
+    gated_norm = gated_address.lower()
+    harvested = {addr.lower() for addr in harvest_routing_addresses(frozen)}
+    if harvested == {gated_norm}:
         return
 
-    resolved_present = gated_address in harvested
-    foreign = sorted(harvested - {gated_address})
+    resolved_present = gated_norm in harvested
+    foreign = sorted(harvested - {gated_norm})
     raise TenantBindingError(
         "frozen deck tenant-binding violation: expected exactly the resolved "
         f"routing address; resolved_present={resolved_present}, "
