@@ -31,6 +31,10 @@ __all__ = [
     "InsightsServiceError",
     # Export API Exceptions (TDD-CONV-AUDIT-001)
     "ExportError",
+    # Operator-plane token Exceptions (GAP-1 PR-A)
+    "OperatorTokenError",
+    "OperatorMintRefusedError",
+    "OperatorAccessDeniedError",
 ]
 
 
@@ -487,3 +491,60 @@ class ExportError(AsanaError):
         super().__init__(message)
         self.office_phone = office_phone
         self.reason = reason
+
+
+# --- Operator-plane token Exceptions (GAP-1 PR-A) ---
+
+
+class OperatorTokenError(AsanaError):
+    """Base for failures on the operator-plane mint / consume path (GAP-1 PR-A).
+
+    Raised by the cross-tenant agency-BI export when it cannot obtain or use a
+    machine-operator (``OperatorClaims``) token. The fail-closed contract
+    (G-NO-FALLBACK): the operator path NEVER degrades to the SA fleet-read
+    (``/data-service/insights``) on refusal/denial -- a fleet-read fallback would
+    re-assert DATA-VAL-003, the precise telos antithesis. Subclasses carry a
+    machine-readable ``reason`` for logging/triage; the cross-tenant deck simply
+    comes back empty for the rewired tables (the counter stays RED, no
+    regression), never a PII fleak and never a crash.
+
+    Attributes:
+        reason: Machine-readable failure category (e.g. "mint_refused_403",
+            "no_credentials", "route_denied_404").
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        reason: str | None = None,
+        status_code: int | None = None,
+        **kwargs: Any,
+    ) -> None:
+        if status_code is not None and "status_code" not in kwargs:
+            kwargs["status_code"] = status_code
+        super().__init__(message, **kwargs)
+        self.reason = reason
+
+
+class OperatorMintRefusedError(OperatorTokenError):
+    """The auth ``/operator/token`` mint refused to issue a token.
+
+    The dominant pre-FLIP case is the INERT gate: the empty
+    ``OPERATOR_ARN_ALLOWLIST`` makes auth 403 every mint (the whole operator
+    plane is dark until the operator allowlists the asana role ARN at FLIP). Also
+    raised when ambient AWS credentials are unavailable to sign the
+    ``sts:GetCallerIdentity`` request. Handled gracefully: WARNING, empty deck, NO
+    crash, NO SA fallback (G-NO-FALLBACK).
+    """
+
+
+class OperatorAccessDeniedError(OperatorTokenError):
+    """The operator route refused the request (the bare 404-as-oracle).
+
+    Raised when ``POST /api/v1/insights/operator/execute-batch`` returns the bare
+    404 -- a non-allowlisted ``insight_name`` (C-1 default-deny), an office not in
+    the data-resolved owned set ``O``, or a non-operator token (REC-3). Byte
+    identical to a genuine absence by design (no existence oracle). Handled
+    gracefully: WARNING, empty deck, NO crash, NO SA fallback (G-NO-FALLBACK).
+    """

@@ -44,6 +44,7 @@ from autom8_asana.automation.workflows.insights.tables import (
     TableSpec,
 )
 from autom8_asana.clients.utils.pii import mask_phone_number
+from autom8_asana.errors import OperatorAccessDeniedError, OperatorMintRefusedError
 from autom8_asana.models.business.offer import Offer
 from autom8_asana.resolution.context import ResolutionContext
 
@@ -70,19 +71,20 @@ DEFAULT_ATTACHMENT_PATTERN = "insights_export_*.html"
 WORKFLOW_VERSION = "insights-export-v1.0"
 
 # Default row limits per table type.
-# APPOINTMENTS/LEADS: upstream API supports up to 500; self-limited to 100
-# for report readability (increase requires UX review).
-# ASSET TABLE: capped at 150, sorted by spend desc (per WS-G spec).
+# ASSET TABLE: capped at 150, sorted by spend desc (per WS-G spec), applied at
+# display time. (GAP-1 PR-A: APPOINTMENTS/LEADS were dropped from the cross-tenant
+# export as PII; their limits are gone with them.)
 DEFAULT_ROW_LIMITS: dict[str, int] = {
-    "APPOINTMENTS": 100,
-    "LEADS": 100,
     "ASSET TABLE": 150,
 }
 
 # Table names in section order -- derived from TABLE_SPECS (per TDD-SPRINT-C).
 TABLE_NAMES = [s.table_name for s in TABLE_SPECS]
 
-TOTAL_TABLE_COUNT = len(TABLE_NAMES)  # 12
+# GAP-1 PR-A: the cross-tenant export now serves the 4 CLEAN de-identified
+# aggregate tables only (the 4 PII tables are dropped; BY-period + UNUSED ASSETS
+# are deferred to PR-FF). See tables.py.
+TOTAL_TABLE_COUNT = len(TABLE_NAMES)  # 4
 
 
 class InsightsExportWorkflow(BridgeWorkflowAction):
@@ -129,6 +131,22 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         self._offer_to_business: dict[str, str | None] = {}
         # Actual cache hit counter (per F-13: replaces derived formula)
         self._cache_hits: int = 0
+        # GAP-1 PR-A: pre-fetched operator-plane batch cache, populated once per run
+        # in execute_async (batch-over-O). Shape: {table_name: {office_phone: rows}}.
+        # A per-insight route denial leaves THAT table absent here -> its office
+        # decks render empty gracefully (no crash, no SA fleet-read fallback). A
+        # whole-plane mint refusal is handled separately via the INERT no-op guard
+        # below (the run skips publish entirely rather than rendering empty decks).
+        self._operator_batch: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        # GAP-1 PR-A INERT no-op guard: True when the operator-plane mint was
+        # REFUSED (the empty OPERATOR_ARN_ALLOWLIST 403, or no ambient AWS
+        # credentials to sign sts:GetCallerIdentity). This is the deploy-INERT
+        # signal. It is DISTINCT from a successful-but-empty live result: only a
+        # mint REFUSAL makes the run a TRUE no-op (execute_async skips the whole
+        # publish step -- no empty deck is built/uploaded and NO prior attachment
+        # is deleted), so a pre-FLIP schedule firing cannot overwrite any Offer's
+        # last-good deck with an empty one. Reset at the top of every prefetch.
+        self._operator_plane_refused: bool = False
         # Dry-run preview output directory. Injectable so concurrent dry-runs
         # (and xdist-parallel tests) target distinct, non-colliding directories
         # instead of one shared cwd-relative path whose deterministic filename
@@ -232,6 +250,44 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             max_concurrency=max_concurrency,
             dry_run=dry_run,
         )
+
+        # GAP-1 PR-A: mint once + fetch the clean tables batch-over-O BEFORE the
+        # per-offer fan-out. The per-offer pass reads the resulting cache (it does
+        # NOT make per-office operator calls -- that would blow the 10/min route
+        # budget). A whole-plane mint refusal sets self._operator_plane_refused;
+        # the INERT no-op guard below then skips the publish step entirely (a
+        # per-insight denial instead leaves only that table empty and still
+        # publishes).
+        await self._prefetch_operator_tables(entities, params)
+
+        # GAP-1 PR-A INERT no-op guard: if the operator-plane mint was REFUSED
+        # (the empty OPERATOR_ARN_ALLOWLIST 403, or no ambient AWS credentials),
+        # the whole operator plane is dark. SKIP the publish step ENTIRELY at the
+        # earliest INERT detection -- do NOT build or upload an empty deck, and do
+        # NOT delete prior attachments. This makes deploy-INERT a TRUE no-op by
+        # construction (not by a fragile schedule-disable gate): a pre-FLIP
+        # schedule firing leaves every Offer's last-good deck intact, with no
+        # empty-deck overwrite. The completion counter stays RED
+        # (insights_export_completed is NOT emitted) and there is NO SA fleet-read
+        # fallback (G-NO-FALLBACK). NOTE: this fires ONLY on mint REFUSAL; a
+        # successful-but-empty live result still follows the normal publish path.
+        if self._operator_plane_refused:
+            logger.warning(
+                "insights_export_skipped_operator_plane_inert",
+                total_offers=len(entities),
+                dry_run=dry_run,
+            )
+            now = datetime.now(UTC)
+            return WorkflowResult(
+                workflow_id=self.workflow_id,
+                started_at=now,
+                completed_at=now,
+                total=len(entities),
+                succeeded=0,
+                failed=0,
+                skipped=len(entities),
+                metadata={"operator_plane_inert": True},
+            )
 
         result = await super().execute_async(entities, params)
 
@@ -567,6 +623,131 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
 
         return result
 
+    async def _prefetch_operator_tables(
+        self,
+        entities: list[dict[str, Any]],
+        params: dict[str, Any],
+    ) -> None:
+        """Mint once and fetch the clean tables batch-over-O (GAP-1 PR-A).
+
+        Resolves the intended owned office set ``O`` (warming the per-offer
+        resolution cache), then for EACH operator-plane table issues ONE
+        ``get_operator_insights_batch_async(phones=O)`` call (reusing one minted
+        token). The per-office results are cached in ``self._operator_batch`` for
+        the per-offer pass to read.
+
+        Fails GRACEFULLY closed:
+
+        - A whole-plane mint REFUSAL (``OperatorMintRefusedError`` -- the INERT
+          empty-allowlist 403, or no ambient AWS credentials) is logged WARNING
+          once and sets ``self._operator_plane_refused``. execute_async then makes
+          the run a TRUE no-op: it skips the publish step entirely (no empty deck
+          uploaded, NO prior attachment deleted -- prior decks stay intact).
+        - A per-insight route denial (``OperatorAccessDeniedError``) leaves only
+          THAT table empty and continues; the offer still publishes (clean decks
+          render empty for the denied table).
+
+        NEVER falls back to the SA fleet-read (G-NO-FALLBACK); the cross-tenant
+        counter simply stays RED.
+        """
+        self._operator_batch = {}
+        self._operator_plane_refused = False
+
+        office_set = await self._resolve_owned_office_set(entities, params)
+        if not office_set:
+            logger.info("insights_export_no_owned_offices", total_offers=len(entities))
+            return
+
+        phones = sorted(office_set)
+        operator_specs = [
+            s for s in TABLE_SPECS if s.dispatch_type is DispatchType.OPERATOR_INSIGHTS
+        ]
+
+        fetched = 0
+        for spec in operator_specs:
+            # operator specs always carry insight_name (asserted in tables.py)
+            insight_name = spec.insight_name
+            assert insight_name is not None  # noqa: S101 -- spec invariant
+            try:
+                per_office = await self._data_client.get_operator_insights_batch_async(
+                    insight_name=insight_name,
+                    phones=phones,
+                    period=spec.period,
+                )
+            except OperatorMintRefusedError as exc:
+                # The mint is dark (INERT empty-allowlist 403, or no credentials):
+                # the WHOLE operator plane is unreachable. Flag the run as INERT so
+                # execute_async skips the publish step ENTIRELY (TRUE no-op: no empty
+                # deck uploaded, NO prior attachment deleted -- prior decks intact).
+                # Graceful, no crash, NO SA fleet-read fallback. The counter stays
+                # RED with zero regression.
+                self._operator_batch = {}
+                self._operator_plane_refused = True
+                logger.warning(
+                    "insights_export_operator_plane_unavailable",
+                    reason=getattr(exc, "reason", None),
+                    error=str(exc),
+                )
+                return
+            except OperatorAccessDeniedError as exc:
+                # THIS insight is denied (e.g. not yet on the data-plane allowlist,
+                # or all its offices drifted out of O): leave this table empty and
+                # continue with the others. NO SA fleet-read fallback.
+                logger.warning(
+                    "insights_export_operator_table_denied",
+                    table=spec.table_name,
+                    reason=getattr(exc, "reason", None),
+                    error=str(exc),
+                )
+                continue
+            except (
+                Exception  # noqa: BLE001
+            ) as exc:  # BROAD-CATCH: an unexpected operator error must not crash the daily run
+                logger.warning(
+                    "insights_export_operator_table_error",
+                    table=spec.table_name,
+                    error_type=type(exc).__name__,
+                    error=str(exc),
+                )
+                continue
+            self._operator_batch[spec.table_name] = per_office
+            fetched += 1
+
+        logger.info(
+            "insights_export_operator_batch_fetched",
+            tables=fetched,
+            requested=len(operator_specs),
+            offices=len(phones),
+        )
+
+    async def _resolve_owned_office_set(
+        self,
+        entities: list[dict[str, Any]],
+        params: dict[str, Any],
+    ) -> set[str]:
+        """Resolve every offer to its office_phone; return the deduped owned set.
+
+        This is the ``phones=O`` the batch-over-O calls send (asana's INTENDED
+        set; the data plane intersects it with the server-resolved owned set,
+        all-or-nothing). It warms ``self._business_cache`` / ``self._offer_to_business``
+        so the subsequent per-offer pass hits the cache (no double Asana fetch). A
+        single offer's resolution failure is isolated (it just drops out of O).
+        """
+        max_concurrency = params.get("max_concurrency", DEFAULT_MAX_CONCURRENCY)
+        semaphore = asyncio.Semaphore(max_concurrency)
+
+        async def _resolve_one(entity: dict[str, Any]) -> tuple[str, str, str | None] | None:
+            async with semaphore:
+                try:
+                    return await self._resolve_offer(entity["gid"])
+                except (
+                    Exception  # noqa: BLE001
+                ):  # BROAD-CATCH: one offer's resolution failure must not abort the prefetch
+                    return None
+
+        resolutions = await asyncio.gather(*(_resolve_one(e) for e in entities))
+        return {r[0] for r in resolutions if r is not None and r[0]}
+
     async def _fetch_all_tables(
         self,
         office_phone: str,
@@ -601,76 +782,35 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         vertical: str,
         row_limits: dict[str, int],
     ) -> TableResult:
-        """Fetch a single table with error isolation.
+        """Resolve one table for one office from the pre-fetched operator batch.
 
-        Per FR-05: Uses match statement on spec.dispatch_type (D-04).
-        Reconciliation phone filtering stays in the dispatcher (D-02).
+        GAP-1 PR-A: the cross-tenant export serves ONLY the operator-plane clean
+        tables. This reads the per-office rows from ``self._operator_batch`` (filled
+        once in ``_prefetch_operator_tables`` via batch-over-O) -- it does NOT make a
+        per-office wire call (that would blow the 10/min route budget) and it NEVER
+        calls the SA fleet-read methods (get_appointments/leads/reconciliation/
+        get_insights) on the cross-tenant path (M3 / G-NO-FALLBACK). OQ-4a: the
+        asana-side activity filter is applied here for the tables that need it (the
+        operator batch route does not apply the factory-frame activity filter).
         """
         fetch_start = time.monotonic()
 
         try:
-            # Resolve effective limit: runtime override > spec default > None
-            effective_limit = row_limits.get(spec.table_name) or spec.default_limit
+            if spec.dispatch_type is not DispatchType.OPERATOR_INSIGHTS:
+                # Defensive: the cross-tenant export carries ONLY operator specs.
+                raise ValueError(
+                    f"unsupported dispatch_type {spec.dispatch_type!r} on the "
+                    f"cross-tenant export (only OPERATOR_INSIGHTS is served)"
+                )
 
-            filtered_data: list[dict[str, Any]] | None = None
+            rows = self._operator_batch.get(spec.table_name, {}).get(office_phone, [])
 
-            match spec.dispatch_type:
-                case DispatchType.APPOINTMENTS:
-                    response = await self._data_client.get_appointments_async(
-                        office_phone,
-                        days=spec.days or 90,
-                        limit=effective_limit or 100,
-                    )
-                case DispatchType.LEADS:
-                    response = await self._data_client.get_leads_async(
-                        office_phone,
-                        days=spec.days or 30,
-                        exclude_appointments=spec.exclude_appointments,
-                        limit=effective_limit or 100,
-                    )
-                case DispatchType.RECONCILIATION:
-                    response = await self._data_client.get_reconciliation_async(
-                        office_phone,
-                        vertical,
-                        period=spec.period,
-                        window_days=spec.window_days,
-                    )
-                    # Defensive phone filtering stays in dispatcher (per D-02).
-                    # Uses local variable to avoid mutating response (per F-08).
-                    if hasattr(response, "data") and response.data:
-                        phones_in_data = {
-                            r.get("office_phone")
-                            for r in response.data
-                            if r.get("office_phone") is not None
-                        }
-                        if len(phones_in_data) > 1:
-                            pre_filter = len(response.data)
-                            filtered_data = [
-                                r for r in response.data if r.get("office_phone") == office_phone
-                            ]
-                            logger.info(
-                                "insights_export_recon_filtered",
-                                offer_gid=offer_gid,
-                                table_name=spec.table_name,
-                                pre_filter=pre_filter,
-                                post_filter=len(filtered_data),
-                                unique_phones=len(phones_in_data),
-                            )
-                case DispatchType.INSIGHTS:
-                    response = await self._data_client.get_insights_async(
-                        factory=spec.factory,
-                        office_phone=office_phone,
-                        vertical=vertical,
-                        period=spec.period or "lifetime",
-                        include_unused=spec.include_unused,
-                    )
+            # OQ-4a: asana-side activity filter (keep spend>0 OR leads>0). Applied
+            # only to the tables that need it (ASSET TABLE, AD QUESTIONS); it only
+            # removes rows, preserving de-identification.
+            data = _apply_activity_filter(rows) if spec.activity_filter else list(rows)
 
             elapsed_ms = (time.monotonic() - fetch_start) * 1000
-            # Use filtered_data if reconciliation phone filtering was applied
-            if spec.dispatch_type == DispatchType.RECONCILIATION and filtered_data is not None:
-                data = filtered_data
-            else:
-                data = response.data if hasattr(response, "data") else []
 
             logger.info(
                 "insights_export_table_fetched",
@@ -711,6 +851,24 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
 
 
 # --- Helper Functions ---
+
+
+def _apply_activity_filter(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """OQ-4a: keep rows with ``spend > 0 OR leads > 0`` (drop zero-activity rows).
+
+    Mirrors the data plane's factory-frame activity filter (autom8y-data
+    ``_insights_helpers.apply_activity_filter``), which the operator batch route
+    does NOT apply. Both ``spend`` and ``leads`` are present on the rewired
+    asset/question rows; a missing/null metric is treated as 0. This only REMOVES
+    rows, so it preserves de-identification.
+    """
+
+    def _is_active(row: dict[str, Any]) -> bool:
+        spend = row.get("spend") or 0
+        leads = row.get("leads") or 0
+        return spend > 0 or leads > 0
+
+    return [row for row in rows if _is_active(row)]
 
 
 def _sanitize_business_name(name: str) -> str:

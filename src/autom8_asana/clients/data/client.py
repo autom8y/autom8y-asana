@@ -56,6 +56,7 @@ if TYPE_CHECKING:
 
     from autom8_asana.cache.models.staleness_settings import StalenessCheckSettings
     from autom8_asana.clients.data._metrics import MetricsHook
+    from autom8_asana.clients.data._operator_mint import OperatorTokenProvider
     from autom8_asana.protocols.auth import AuthProvider
     from autom8_asana.protocols.cache import CacheProvider
     from autom8_asana.protocols.log import LogProvider
@@ -67,6 +68,19 @@ __all__ = ["DataServiceClient"]
 from autom8_asana.clients.data._pii import (  # noqa: E402
     mask_pii_in_string as _mask_pii_in_string,
 )
+
+
+def _origin_of(url: str) -> str:
+    """Return the ``scheme://netloc`` origin of a URL (for the mint client base).
+
+    The operator mint URL is absolute (it targets the auth service, a different
+    origin than the data service); the mint HTTP client is built against this
+    origin and posts the full path.
+    """
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}"
 
 
 class DataServiceClient:
@@ -109,6 +123,7 @@ class DataServiceClient:
         cache_provider: CacheProvider | None = None,
         staleness_settings: StalenessCheckSettings | None = None,
         metrics_hook: MetricsHook | None = None,
+        operator_token_provider: OperatorTokenProvider | None = None,
     ) -> None:
         """Initialize DataServiceClient.
 
@@ -138,6 +153,14 @@ class DataServiceClient:
         # HTTP client (created lazily via _get_client)
         self._client: Autom8yHttpClient | None = None
         self._client_lock = asyncio.Lock()
+
+        # GAP-1 PR-A: operator-plane state. A SEPARATE HTTP client (no SA Bearer
+        # default header -- the operator path carries its OWN Authorization) and a
+        # token provider that mints/reuses the OperatorClaims token. Both created
+        # lazily; the provider may be injected (tests / round-trip harness).
+        self._operator_token_provider = operator_token_provider
+        self._operator_client: Autom8yHttpClient | None = None
+        self._operator_client_lock = asyncio.Lock()
 
         # Circuit breaker for cascade failure prevention (Story 2.3)
         # Translate domain config to SDK config (autom8y-http >= 0.3.0)
@@ -385,6 +408,11 @@ class DataServiceClient:
             self._client = None
             if self._log:
                 self._log.debug("DataServiceClient: HTTP client closed")
+        if self._operator_client is not None:
+            await self._operator_client.close()
+            self._operator_client = None
+            if self._log:
+                self._log.debug("DataServiceClient: operator HTTP client closed")
 
     # --- HTTP Client Management ---
 
@@ -472,6 +500,77 @@ class DataServiceClient:
             return resolve_secret_from_env(self._config.token_key)
         except ValueError:
             return None
+
+    # --- Operator-plane (GAP-1 PR-A) ---
+
+    def _get_operator_token_provider(self) -> OperatorTokenProvider:
+        """Get or lazily build the operator-token provider (mint-once + reuse).
+
+        The provider holds a SigV4 mint client pointed at the auth
+        ``/operator/token`` endpoint. The mint client posts via a dedicated
+        Autom8yHttpClient (the SigV4 signing is local; a plain JSON post forwards
+        the signed components). This provider NEVER touches ``_get_auth_token`` /
+        the SA Bearer path (the operator path is disjoint from the SA path).
+        """
+        if self._operator_token_provider is None:
+            from autom8_asana.clients.data._operator_mint import (
+                OperatorMintClient,
+                OperatorTokenProvider,
+            )
+
+            token_url = self._config.operator_token_url
+            base_url = _origin_of(token_url) if token_url else self._config.base_url
+            mint_http = Autom8yHttpClient(
+                config=HttpClientConfig(
+                    base_url=base_url,
+                    connect_timeout=self._config.timeout.connect,
+                    read_timeout=self._config.timeout.read,
+                    write_timeout=self._config.timeout.write,
+                    pool_timeout=self._config.timeout.pool,
+                    enable_retry=False,
+                    enable_circuit_breaker=False,
+                ),
+                logger=self._log,  # type: ignore[arg-type]
+            )
+            mint_client = OperatorMintClient(
+                token_url=token_url,
+                http_client=mint_http,
+                logger=self._log,
+            )
+            self._operator_token_provider = OperatorTokenProvider(mint_client, logger=self._log)
+        return self._operator_token_provider
+
+    async def _get_operator_client(self) -> Autom8yHttpClient:
+        """Get or create the operator-route HTTP client (no SA Bearer default).
+
+        Distinct from ``_get_client``: it carries NO default ``Authorization``
+        header. The operator Bearer is injected PER-REQUEST by the operator
+        endpoint, so the SA ServiceClaims token never rides the operator path
+        (AT-CONSUME-1). Uses double-checked locking for lazy init.
+        """
+        if self._operator_client is not None:
+            return self._operator_client
+
+        async with self._operator_client_lock:
+            if self._operator_client is not None:
+                return self._operator_client
+
+            http_config = HttpClientConfig(
+                base_url=self._config.base_url,
+                connect_timeout=self._config.timeout.connect,
+                read_timeout=self._config.timeout.read,
+                write_timeout=self._config.timeout.write,
+                pool_timeout=self._config.timeout.pool,
+                max_connections=self._config.connection_pool.max_connections,
+                max_keepalive_connections=self._config.connection_pool.max_keepalive_connections,
+                keepalive_expiry=self._config.connection_pool.keepalive_expiry,
+                enable_retry=False,
+                enable_circuit_breaker=False,
+            )
+            self._operator_client = Autom8yHttpClient(config=http_config, logger=self._log)  # type: ignore[arg-type]
+            self._operator_client._client.headers["Accept"] = "application/json"
+            self._operator_client._client.headers["Content-Type"] = "application/json"
+            return self._operator_client
 
     def _check_feature_enabled(self) -> None:
         """Check if the insights integration is enabled (emergency kill switch).
@@ -1276,5 +1375,60 @@ class DataServiceClient:
             office_phone,
             days=days,
             exclude_appointments=exclude_appointments,
+            limit=limit,
+        )
+
+    # --- Operator-plane batch API (GAP-1 PR-A) ---
+
+    async def get_operator_insights_batch_async(
+        self,
+        insight_name: str,
+        phones: list[str],
+        *,
+        period: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        filters: dict[str, Any] | None = None,
+        limit: int | None = None,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Execute one operator-plane insight batch over the owned offices.
+
+        Per TDD §5.2/§5.3: mints (or reuses) an ``OperatorClaims`` Bearer token and
+        POSTs ``POST /api/v1/insights/operator/execute-batch`` ONCE for the whole
+        owned set ``phones`` (batch-over-O), then folds the per-office
+        ``BatchInsightResponse`` into ``{office_phone: rows}`` via the OQ-2 adapter.
+        Carries its OWN ``Authorization: Bearer <operator_token>``; it does NOT
+        route through ``_get_auth_token`` / the SA ServiceClaims path.
+
+        Args:
+            insight_name: Registered de-identified aggregate insight name (must be
+                on the data plane's C-1 operator allowlist).
+            phones: The owned offices ``O`` (E.164) to batch over.
+            period: Period preset (applied to all offices).
+            start_date: Custom range start (overrides period).
+            end_date: Custom range end (overrides period).
+            filters: Additional filter criteria.
+            limit: Max rows per office result.
+
+        Returns:
+            Mapping of ``office_phone`` -> list of row dicts (empty list per office
+            on per-office error / missing data; never a dropped key).
+
+        Raises:
+            OperatorMintRefusedError: the mint refused (incl. the INERT
+                empty-allowlist 403). Fails closed -- NO SA fleet-read fallback.
+            OperatorAccessDeniedError: the route returned the bare 404-as-oracle or
+                another error status. Fails closed -- NO SA fleet-read fallback.
+        """
+        from autom8_asana.clients.data._endpoints import operator as _operator_ep
+
+        return await _operator_ep.execute_operator_batch(
+            self,
+            insight_name,
+            phones,
+            period=period,
+            start_date=start_date,
+            end_date=end_date,
+            filters=filters,
             limit=limit,
         )

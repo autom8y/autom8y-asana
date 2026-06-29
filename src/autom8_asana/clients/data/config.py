@@ -230,6 +230,13 @@ class DataServiceConfig:
     base_url: str = field(default_factory=lambda: get_settings().data_service.url)
     token_key: str = "AUTOM8Y_DATA_API_KEY"  # noqa: S105 -- env var name for secret lookup, not a password
 
+    # GAP-1 PR-A: auth machine-operator mint URL. None => operator plane
+    # unreachable (deploy-INERT). Distinct from token_key (the SA ServiceClaims
+    # path); the operator path NEVER uses token_key (G-NO-FALLBACK).
+    operator_token_url: str | None = field(
+        default_factory=lambda: get_settings().data_service.operator_token_url
+    )
+
     timeout: TimeoutConfig = field(default_factory=TimeoutConfig)
     connection_pool: ConnectionPoolConfig = field(default_factory=ConnectionPoolConfig)
     retry: RetryConfig = field(default_factory=RetryConfig)
@@ -289,4 +296,5 @@ class DataServiceConfig:
         return cls(
             base_url=s.url,
             cache_ttl=s.cache_ttl,
+            operator_token_url=s.operator_token_url,
         )
