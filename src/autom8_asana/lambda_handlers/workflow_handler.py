@@ -153,9 +153,26 @@ def create_workflow_handler(
         asana_client = AsanaClient()
 
         if config.requires_data_client:
+            from autom8_asana.auth.service_token import ServiceTokenAuthProvider
             from autom8_asana.clients.data.client import DataServiceClient
 
-            async with DataServiceClient() as data_client:
+            # W-AUTH: inject the S2S auth provider so DataServiceClient sends a
+            # genuine service JWT. Without it, DataServiceClient._get_auth_token
+            # falls back to resolve_secret_from_env(token_key) where token_key
+            # defaults to AUTOM8Y_DATA_API_KEY -- NOT a service JWT -- so the
+            # call to autom8_data is rejected (AUTH-TEB-001) and every entity
+            # fails (the insights-export `succeeded:0` dark-export since
+            # 2026-06-10). This mirrors the API DI factory at
+            # dependencies.py:497-505 -- but DELIBERATELY does NOT swallow the
+            # construction error the way that path does (dependencies.py:502-503
+            # `except (ValueError, ImportError): pass`). On the Lambda there is
+            # no env-var fallback worth degrading to: a missing/unresolvable
+            # SERVICE_CLIENT_SECRET is a hard misconfiguration, so the error
+            # propagates to the handler's top-level catch and surfaces as a 500
+            # (honest-failure) rather than another silent dark-export.
+            auth_provider = ServiceTokenAuthProvider()
+
+            async with DataServiceClient(auth_provider=auth_provider) as data_client:
                 workflow = config.workflow_factory(asana_client, data_client)
                 _register_workflow(workflow)
                 return await _validate_enumerate_and_run(workflow, scope, params)

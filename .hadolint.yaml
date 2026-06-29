@@ -30,3 +30,9 @@ override:
 # Lift if dev → prod migration occurs.
 ignored:
   - DL3008
+  - DL3041  # unzip in the conditional secrets-extension stage is a transient
+            # extraction tool (no-op for ECS builds; layer cache discarded — only
+            # /opt/extensions is COPYed forward). The pre-signed AWS layer URL is the
+            # trust anchor; pinning unzip to an exact amzn2023 build adds base-image-bump
+            # brittleness with no supply-chain benefit. Lift if the stage gains
+            # persistent installed packages.

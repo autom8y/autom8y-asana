@@ -573,8 +573,24 @@ Verify INDEX.md status matches frontmatter (if script available):
 
 ---
 
+## Pre-push Checklist
+
+Before pushing, run the fast fitness gate to catch concurrency-offload regressions
+that otherwise only surface in full-shard CI:
+
+```bash
+just fitness
+```
+
+This runs 7 AST-level concurrency invariant guard tests with no xdist (fast, no-deps).
+It catches unsanctioned `asyncio.to_thread(...)` additions and FROZEN-4 defaults drift.
+It is the low-cost pre-push gate for the CLASS-1b scoped-run-miss failure class.
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2025-12-24 | Initial contribution guide based on IA spec |
+| 1.1 | 2026-06-27 | Add pre-push fitness gate guidance (just fitness) |

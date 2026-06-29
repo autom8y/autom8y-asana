@@ -22,8 +22,25 @@ class TestStandardTaskOptFields:
         assert isinstance(STANDARD_TASK_OPT_FIELDS, tuple)
 
     def test_field_count(self) -> None:
-        """FR-FIELDS-001: Contains exactly 15 required fields."""
-        assert len(STANDARD_TASK_OPT_FIELDS) == 15
+        """FR-FIELDS-001: Contains the required opt-fields.
+
+        Count updated 15 -> 16 by gfr-dynvocab sprint-3 FRAME-003: a
+        ``custom_fields.date_value`` member was added to close the LIVE
+        governed-strict date hole (a date cf previously resolved to ``None`` on the
+        live fetch because its value sub-field was never requested). The addition is
+        a single extra opt-field on the EXISTING entry fetch — NOT a new Asana call.
+        """
+        assert len(STANDARD_TASK_OPT_FIELDS) == 16
+
+    def test_includes_date_value(self) -> None:
+        """FRAME-003: custom_fields.date_value closes the LIVE date hole.
+
+        Without this member the Asana fetch never carries date_value, so a date cf
+        resolves to None even when present-and-populated — a governed-strict
+        violation (present-but-typed-date looks absent). _extract_raw_value's
+        ``case "date"`` reads ``date_value``; this is the opt-field that makes it
+        available on the live fetch."""
+        assert "custom_fields.date_value" in STANDARD_TASK_OPT_FIELDS
 
     def test_includes_parent_gid(self) -> None:
         """FR-FIELDS-003: Includes parent.gid for upward traversal."""

@@ -292,6 +292,25 @@ class RowsRequest(BaseModel):
         default=None,
         description="Columns to return. Null returns all columns.",
     )
+    # FM-5 ARM-B (ADR-fm5-armb-contract-locus): the honest-refusal consumer-column
+    # contract. A consumer declares the columns its code INDEXES and requires
+    # served; the server answers, per request, whether the served schema can
+    # satisfy that declaration (meta.contract_complete). This is the AUTHORITATIVE
+    # runtime wire contract. Null (default) yields today's behavior — no
+    # enforcement, contract_complete=True (additive, two-way door). Distinct from
+    # ``select`` (which projects columns and 400s on an explicit unknown field via
+    # UnknownFieldError): ``required_columns`` is a DECLARATION the no-select path
+    # also honors, surfacing a typed signal instead of a silent narrow frame.
+    required_columns: list[str] | None = Field(
+        default=None,
+        description=(
+            "FM-5 ARM-B honest-refusal contract: columns the consumer's code "
+            "indexes and requires served. The response meta reports "
+            "contract_complete=False plus the named unservable columns if the "
+            "served schema cannot satisfy them — never a silent drop. Null "
+            "(default) preserves today's behavior."
+        ),
+    )
     limit: int = Field(
         default=100,
         ge=1,
@@ -456,6 +475,48 @@ class RowsMeta(BaseModel):
             "honest-empty-200, not a stuck build-in-progress 503. False otherwise."
         ),
         examples=[False],
+    )
+    # FM-5 ARM-B (ADR-fm5-armb-contract-locus D2): the column analogue of
+    # honest_contract_complete, co-derived at the SAME one gate but emitted as a
+    # DISTINCT sibling field — NOT a mutation of honest_contract_complete. Folding
+    # column-completeness into honest_contract_complete would route a STRUCTURAL
+    # column gap into the section-completeness 503/retry semantics above
+    # ("honest_contract_complete=False -> 503"), a retry-forever conflation (a
+    # missing schema column is never fixed by retrying). Completeness is derived
+    # from SCHEMA membership, never df.columns (immune to a 100%-NULL served
+    # column). Default True: a non-declaring consumer (no required_columns) gets
+    # today's behavior — byte-equivalent meta semantics for existing callers.
+    contract_complete: bool = Field(
+        default=True,
+        description=(
+            "FM-5 ARM-B honest-refusal contract. True iff every column the consumer "
+            "declared in request.required_columns is present in the served schema. "
+            "False iff any declared column is unservable — a TYPED contract-incomplete "
+            "signal, never a silent narrow frame, a KeyError, or a $0/7-row fossil. "
+            "Distinct sibling of honest_contract_complete (which carries section "
+            "completeness and drives 503/retry); a column gap is structural, not a "
+            "retry. True by default for non-declaring consumers."
+        ),
+        examples=[True],
+    )
+    unservable_required_columns: list[str] = Field(
+        default_factory=list,
+        description=(
+            "The declared required columns the served schema cannot satisfy (the "
+            "named cause behind contract_complete=False). Empty when the contract is "
+            "complete or no columns were declared."
+        ),
+        examples=[["offer_id"]],
+    )
+    column_manifest: dict[str, object] | None = Field(
+        default=None,
+        description=(
+            "Belt-and-braces population detail, computed ONLY when required_columns "
+            "is declared (non-declaring callers pay nothing): the served columns "
+            "present in this frame and their per-column non-null counts, so a consumer "
+            "can fail fast on a present-but-empty column. Null when no contract is "
+            "declared."
+        ),
     )
 
 

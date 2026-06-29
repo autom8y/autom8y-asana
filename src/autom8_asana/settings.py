@@ -670,6 +670,18 @@ class DataServiceSettings(Autom8yBaseSettings):
         default=True,
         description="Emergency kill switch for insights integration (default on)",
     )
+    # GAP-1 PR-A: the auth machine-operator mint endpoint. Read from the AUTH
+    # prefix (NOT AUTOM8Y_DATA_) because the mint lives on the auth service, not
+    # the data service. Absent (None) => the operator plane is unreachable and the
+    # cross-tenant export comes back empty for the rewired tables (deploy-INERT;
+    # the counter stays RED until the operator wires this + allowlists the role).
+    operator_token_url: str | None = Field(
+        default=None,
+        description="auth /operator/token mint URL for the machine-operator token (GAP-1)",
+        validation_alias=AliasChoices(
+            "AUTOM8Y_AUTH_OPERATOR_TOKEN_URL",
+        ),
+    )
 
 
 class ObservabilitySettings(Autom8yBaseSettings):

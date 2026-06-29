@@ -36,6 +36,8 @@ def make_entry(
     schema_version: str | None = None,
     created_hours_ago: int = 0,
     created_seconds_ago: int | None = None,
+    *,
+    empty: bool = False,
 ) -> CacheEntry:
     """Create a test CacheEntry.
 
@@ -45,13 +47,20 @@ def make_entry(
     Args:
         created_seconds_ago: Fine-grained age control (takes precedence
             over created_hours_ago when provided).
+        empty: when True the entry is structurally EMPTY (0 rows). An empty
+            cache-only frame over the staleness ceiling stays loud (sheds None)
+            under INV-C5 — used to exercise ceiling-rejection mechanics without
+            tripping the FIX (c) populated-healthy over-ceiling LKG rescue.
     """
-    df = pl.DataFrame(
-        {
-            "gid": ["gid-1", "gid-2"],
-            "name": ["A", "B"],
-        }
-    )
+    if empty:
+        df = pl.DataFrame({"gid": [], "name": []})
+    else:
+        df = pl.DataFrame(
+            {
+                "gid": ["gid-1", "gid-2"],
+                "name": ["A", "B"],
+            }
+        )
 
     # Default to registry version if not explicitly provided
     if schema_version is None:
@@ -898,12 +907,19 @@ class TestMaxStalenessEnforcement:
         assert stats["unit"]["lkg_serves"] == 1
 
     async def test_max_staleness_exceeded_rejected(self) -> None:
-        """With multiplier=5.0, entry aged at 6x TTL is rejected."""
+        """With multiplier=5.0, an over-ceiling UNHEALTHY entry is rejected.
+
+        UPDATED 2026-06-25 (offer warm-resilience FIX (c)): unit is a CACHE-ONLY
+        entity (body_parameterized=False), so a POPULATED over-ceiling frame is now
+        served as LKG + refresh rather than shed. To assert the ceiling-rejection
+        mechanics this entry is EMPTY (0 rows) — an unhealthy frame stays loud and
+        sheds None over the ceiling (INV-C5), independent of FIX (c).
+        """
         memory = MemoryTier(max_entries=100)
         progressive_tier = AsyncMock()
         progressive_tier.get_async.return_value = None
         # unit TTL = 900s. Entry 5400s old = 6x TTL. Multiplier=5 -> max=4500s.
-        entry = make_entry(entity_type="unit", created_seconds_ago=5400)
+        entry = make_entry(entity_type="unit", created_seconds_ago=5400, empty=True)
         memory.put("unit:proj-1", entry)
 
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
@@ -914,12 +930,17 @@ class TestMaxStalenessEnforcement:
         assert result is None
 
     async def test_max_staleness_evicts_from_memory(self) -> None:
-        """Rejected entry is removed from memory tier."""
+        """Rejected (unhealthy over-ceiling) entry is removed from memory tier.
+
+        UPDATED 2026-06-25 (FIX (c)): uses an EMPTY frame so the ceiling rejection
+        + eviction still fires for a cache-only entity (see
+        test_max_staleness_exceeded_rejected).
+        """
         memory = MemoryTier(max_entries=100)
         progressive_tier = AsyncMock()
         progressive_tier.get_async.return_value = None
         # unit TTL = 900s. Entry 5400s old = 6x TTL. Multiplier=5 -> max=4500s.
-        entry = make_entry(entity_type="unit", created_seconds_ago=5400)
+        entry = make_entry(entity_type="unit", created_seconds_ago=5400, empty=True)
         memory.put("unit:proj-1", entry)
 
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
@@ -966,12 +987,12 @@ class TestFreshnessContractOverride:
     transcribed from autom8/config/thresholds/caching.py. A calibrated per-entity value
     OVERRIDES the multiplier ceiling for that entity (it expresses the consumer's real
     freshness tolerance, OQ-2). Only entity_types that flow through the receiver
-    serve-stale path ("project", "section") are keyed; consumer-side-only tiers are
-    intentionally omitted (dead-key avoidance).
+    serve-stale path ("project", "section", "offer") are keyed; consumer-side-only
+    tiers are intentionally omitted (dead-key avoidance).
     """
 
     async def test_calibrated_knob_matches_recalibrated_contract(self) -> None:
-        """project=86400s (OQ-2); section=3000s (RECALIBRATED 2026-06-04).
+        """project=86400s (OQ-2); section=3000s (RECALIBRATED); offer=16200s (warm-resilience).
 
         project is the OQ-2 contract transcribed at source from the consumer
         monolith (autom8/config/thresholds/caching.py): PROJECT_DF_REFRESH_HOURS=24
@@ -986,7 +1007,16 @@ class TestFreshnessContractOverride:
         serve-stale/LKG relief path alongside project. RECOMMENDED-DEFAULT value;
         GATED on CQ-RETURN-3 (see config.py SECTION RECALIBRATION comment).
 
-        Only these two receiver entity_types are keyed; the other OQ-2 tiers
+        offer was ADDED 2026-06-25 (operator-adjudicated (b)+(c) availability-first):
+        16200s = the operator availability-first read-tolerance bound (≤~4h-stale
+        accepted for the 4-hourly recon read), set above the observed ~70-min warm
+        cadence. (``0 */4`` is the disabled ASR consumer-READ schedule, NOT a warm
+        lane.) Before this, offer had NO contract key, so its ceiling fell back to
+        the multiplier (10×180=1800s); since the frame warms only ~every 70 min it
+        was older than 1800s for the bulk of every window, shedding 503s. See config
+        OFFER WARM-RESILIENCE comment.
+
+        These three receiver entity_types are keyed; the other OQ-2 tiers
         (analytics/backfill/vertical-summary) have no receiver entity_type and are
         intentionally NOT present (keying them would be dead keys).
         """
@@ -995,6 +1025,7 @@ class TestFreshnessContractOverride:
         assert config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS == {
             "project": 86400.0,
             "section": 3000.0,
+            "offer": 16200.0,
         }
 
     async def test_contract_override_rejects_below_multiplier_ceiling(self) -> None:
@@ -1004,11 +1035,15 @@ class TestFreshnessContractOverride:
         old (8x TTL) -> the multiplier alone WOULD serve it (see
         TestMaxStalenessEnforcement.test_max_staleness_within_limit_served). A 3600s
         contract ceiling rejects it -> None (hard-reject -> 503 path).
+
+        UPDATED 2026-06-25 (FIX (c)): unit is cache-only; a POPULATED over-ceiling
+        frame is now served as LKG. The EMPTY frame here keeps the contract-tighter-
+        than-multiplier rejection assertion intact under INV-C5.
         """
         memory = MemoryTier(max_entries=100)
         progressive_tier = AsyncMock()
         progressive_tier.get_async.return_value = None
-        entry = make_entry(entity_type="unit", created_seconds_ago=7200)
+        entry = make_entry(entity_type="unit", created_seconds_ago=7200, empty=True)
         memory.put("unit:proj-1", entry)
 
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
@@ -1077,11 +1112,15 @@ class TestFreshnessContractOverride:
         multiplier=0.0 alone serves unbounded-stale (see
         TestMaxStalenessEnforcement.test_max_staleness_zero_serves_unlimited). A
         contract ceiling of 1800s rejects a 7200s-old entry regardless.
+
+        UPDATED 2026-06-25 (FIX (c)): EMPTY frame so the contract-bounds-even-with-
+        multiplier-disabled rejection holds for the cache-only unit entity under
+        INV-C5 (a populated frame would now be served as over-ceiling LKG).
         """
         memory = MemoryTier(max_entries=100)
         progressive_tier = AsyncMock()
         progressive_tier.get_async.return_value = None
-        entry = make_entry(entity_type="unit", created_seconds_ago=7200)
+        entry = make_entry(entity_type="unit", created_seconds_ago=7200, empty=True)
         memory.put("unit:proj-1", entry)
 
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
@@ -1116,13 +1155,15 @@ class TestLKGHonestyDefaultTD006:
     async def test_default_activates_guard_branch(self) -> None:
         """With the default 10.0, the `if multiplier > 0` ceiling branch is entered.
 
-        offer TTL=180s -> ceiling = 10 * 180 = 1800s. A 1500s-old offer entry is
-        past grace (540s) but within the 1800s ceiling, so it serves as LKG — proof
-        the guard branch ran and ALLOWED a within-ceiling frame (vs the disabled
-        branch, which would serve it for an unrelated reason).
+        offer TTL=180s. A 1500s-old offer entry is past grace (540s) and within both
+        the old multiplier ceiling (1800s) and the new offer freshness contract
+        (16200s, see OFFER WARM-RESILIENCE), so it serves as LKG — proof the guard
+        branch ran and ALLOWED a within-ceiling frame (vs the disabled branch, which
+        would serve it for an unrelated reason).
         """
         memory = MemoryTier(max_entries=100)
-        # offer TTL=180s, grace=540s, ceiling(default 10x)=1800s. 1500s = within.
+        # offer TTL=180s, grace=540s. 1500s = within ceiling (multiplier 1800 /
+        # contract 16200) -> LKG serve.
         entry = make_entry(entity_type="offer", created_seconds_ago=1500)
         memory.put("offer:proj-1", entry)
 
@@ -1136,18 +1177,23 @@ class TestLKGHonestyDefaultTD006:
         assert cache.get_stats()["offer"]["lkg_serves"] == 1
 
     async def test_default_trips_ceiling_past_offer_window(self) -> None:
-        """A frame past the default offer ceiling (1800s) trips to None (503-path).
+        """A frame past the SHIPPED offer ceiling trips to None (503-path) when unhealthy.
 
-        2000s > 1800s ceiling: the guard returns None, the entry is evicted from
-        memory, and NO LKG serve is recorded. Returning None is what drives
-        _build_on_miss -> 503+Retry-After upstream — the honest backpressure that
-        replaces the flattered stale-2xx.
+        UPDATED 2026-06-25 for the offer warm-resilience fix: offer now carries a
+        FRESHNESS_CONTRACT_MAX_AGE_SECONDS entry (16200s), so the trip threshold is
+        the contract ceiling, not the 1800s multiplier. AND FIX (c) serves a
+        POPULATED/HEALTHY over-ceiling frame as LKG — so to observe the honest
+        backpressure (None -> upstream 503+Retry-After) the frame here is EMPTY
+        (INV-C5: warmed-empty stays loud). An empty frame older than 16200s sheds
+        None, is evicted, and records NO LKG serve — the honest-backpressure
+        semantics this test guards, preserved against the new ceiling.
         """
         memory = MemoryTier(max_entries=100)
         progressive_tier = AsyncMock()
         progressive_tier.get_async.return_value = None
-        # offer TTL=180s, default ceiling=1800s. 2000s old = past ceiling.
-        entry = make_entry(entity_type="offer", created_seconds_ago=2000)
+        # offer contract ceiling=16200s. 17000s old EMPTY frame = past ceiling +
+        # unhealthy -> sheds None (INV-C5).
+        entry = make_offer_entry(project_gid="proj-1", created_seconds_ago=17000, empty=True)
         memory.put("offer:proj-1", entry)
 
         cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
@@ -1369,3 +1415,384 @@ class TestSWRBuildLockRelease:
 
         # Circuit breaker should have recorded the failure
         assert circuit.is_open("proj-1")
+
+
+def make_offer_entry(
+    project_gid: str = "1143843662099250",
+    created_seconds_ago: int = 3450,
+    *,
+    population_degraded: bool = False,
+    empty: bool = False,
+) -> CacheEntry:
+    """Build a REAL offer CacheEntry for the warm-resilience tests.
+
+    Drives the production ``_check_freshness_and_serve``/``get_async`` path — no
+    begged-question mock of the serve decision. The offer entity (entity_type
+    ``"offer"``, TTL=180s, primary_project_gid=1143843662099250) is the proven
+    offer-frame shed locus.
+
+    Args:
+        created_seconds_ago: age of the frame (default 3450s = ~57.5 min, past
+            the multiplier ceiling of 1800s but within the operator-ratified
+            ~4h tolerance — the RED window).
+        population_degraded: when True the frame carries the warm-degrade flag
+            (INV-C5: warmed-degraded stays loud / sheds None even under FIX-c).
+        empty: when True the frame is structurally EMPTY (0 rows) — also INV-C5.
+    """
+    if empty:
+        df = pl.DataFrame({"gid": [], "name": []})
+    else:
+        df = pl.DataFrame({"gid": ["o-1", "o-2"], "name": ["Offer A", "Offer B"]})
+
+    schema_version = _get_schema_version_for_entity("offer") or "1.0.0"
+
+    return CacheEntry(
+        project_gid=project_gid,
+        entity_type="offer",
+        dataframe=df,
+        watermark=datetime.now(UTC),
+        created_at=datetime.now(UTC) - timedelta(seconds=created_seconds_ago),
+        schema_version=schema_version,
+        population_degraded=population_degraded,
+    )
+
+
+class TestOfferFreshnessResilience:
+    """Operator-adjudicated (b)+(c) offer-frame warm-resilience fix.
+
+    ROOT (proven @ origin/main b59a35f6): the offer frame (entity_type ``offer``,
+    TTL=180s, project 1143843662099250) has NO FRESHNESS_CONTRACT_MAX_AGE_SECONDS
+    entry. The ceiling therefore falls back to LKG_MAX_STALENESS_MULTIPLIER(10) ×
+    ttl(180) = 1800s. The frame's OBSERVED warm cadence is ~70 min (per the SRE
+    measured handoff: warms ~70 min apart), so for the bulk of every warm window
+    the frame is older than 1800s, so the STALE branch sheds None (offer is
+    cache-only / no build-on-miss) => upstream 503 via
+    dataframe_cache_s3_lkg_max_staleness_exceeded.
+
+    NOTE — there is NO 4h warm lane. The 4-hourly cron ``0 */4``
+    (``autom8y-account-status-recon-schedule``) is the DISABLED ASR consumer-READ
+    schedule, NOT a warm cadence; conflating it with warming was a factually-false
+    premise (corrected here and in config.py).
+
+    OPERATOR RATIFICATION (b)+(c) availability-first: the ASR/BI consumer ACCEPTS
+    up-to-~4h-stale offer data for its 4-hourly recon read. That read-tolerance —
+    NOT any warm cadence — is the basis for the freshness-contract ceiling (16200s
+    = 4h30m), which is set comfortably above the observed ~70-min warm cadence.
+
+    FIX (b): add an ``offer`` entry to FRESHNESS_CONTRACT_MAX_AGE_SECONDS set to the
+    operator availability-first tolerance bound (16200s = 4h30m), comfortably above
+    the observed ~70-min warm cadence. Flips ceiling_source multiplier ->
+    freshness_contract; turns the 503 into an LKG 2xx.
+
+    FIX (c) hardening: at the ceiling-exceeded gate, a POPULATED/HEALTHY frame is
+    served as LKG (with record_serving_stale honesty) + _trigger_swr_refresh,
+    instead of returning None — closing the shed-WITHOUT-refresh seam. This is the
+    cadence-INDEPENDENT backstop: it serves any populated/healthy cache-only frame
+    over ANY ceiling, so the 16200s value is not load-bearing for availability. A
+    DEGRADED or EMPTY frame MUST STILL shed None (INV-C5: warmed-empty/degraded
+    stays loud, never silent-green).
+    """
+
+    # ----- RED arm: the proven bug locus (now closed by FIX (b)+(c)) --------
+
+    async def test_RED_offer_multiplier_ceiling_no_longer_sheds_populated(
+        self,
+    ) -> None:
+        """RED-locus regression: a populated offer at the bare multiplier ceiling.
+
+        PRE-FIX (proven @ origin/main b59a35f6): with NO offer key in
+        FRESHNESS_CONTRACT_MAX_AGE_SECONDS the ceiling is the multiplier-derived
+        10×180=1800s. A 3450s-old populated offer (well within the operator-ratified
+        ~4h tolerance) is past 1800s, so the STALE branch emitted
+        dataframe_cache_*_lkg_max_staleness_exceeded(ceiling_source=multiplier) and
+        returned None — the cache-only 503 shed-WITHOUT-refresh. This arm asserted
+        that shed RED-first (recorded failing before the fix landed).
+
+        POST-FIX: even with the contract patched OUT (bare multiplier ceiling),
+        FIX (c) rescues the POPULATED/HEALTHY cache-only frame: served LKG (2xx,
+        record_serving_stale honesty) + SWR refresh scheduled, NOT shed. This proves
+        the shed-without-refresh seam is closed at the multiplier ceiling itself, not
+        only via the FIX (b) contract.
+        """
+        memory = MemoryTier(max_entries=100)
+        entry = make_offer_entry(created_seconds_ago=3450)
+        memory.put("offer:1143843662099250", entry)
+
+        cache = make_cache(memory_tier=memory)
+
+        captured: list[dict] = []
+
+        def _capture(event: str, *a, **kw):  # noqa: ANN002, ANN003
+            captured.append({"event": event, "extra": kw.get("extra", {})})
+
+        # Contract patched OUT -> multiplier ceiling (1800s) applies (the old bug
+        # locus). FIX (c) closes the seam at this very ceiling.
+        with patch("autom8_asana.config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS", {}):
+            with patch("autom8_asana.api.metrics.record_serving_stale") as mock_serving_stale:
+                with patch(
+                    "autom8_asana.cache.integration.dataframe_cache.logger.warning",
+                    side_effect=_capture,
+                ):
+                    with patch(
+                        "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+                    ):
+                        result = await cache.get_async("1143843662099250", "offer")
+
+        # Seam closed: served LKG (not the pre-fix shed None).
+        assert result is entry
+        assert cache.get_stats()["offer"]["lkg_serves"] == 1
+        mock_serving_stale.assert_called_once()  # honesty preserved
+        # The pre-fix shed warning is NO LONGER emitted for a populated frame.
+        shed = [c for c in captured if c["event"].endswith("_lkg_max_staleness_exceeded")]
+        assert not shed, "populated cache-only over-ceiling frame must not shed (FIX c)"
+
+    # ----- GREEN (b): the offer freshness contract -------------------------
+
+    async def test_GREEN_b_offer_contract_value_and_margin(self) -> None:
+        """FIX (b): an ``offer`` key exists, sits above the observed warm cadence,
+        and is within the operator availability-first read-tolerance.
+
+        Two independent invariants:
+          1. The ceiling EXCEEDS the OBSERVED warm cadence (~70 min / 4200s per the
+             SRE measured handoff) by a safe margin, so a frame warmed once per
+             window never ages past the ceiling mid-window even under AIMD
+             warm-governor backoff. (There is NO 4h warm lane — ``0 */4`` is the
+             disabled ASR consumer-READ schedule, not a warm cadence.)
+          2. The ceiling is WITHIN the operator availability-first read-tolerance
+             (≤~4h-stale = 14400s accepted for the 4-hourly recon read).
+        Chosen value: 16200s (4h30m), the operator-ratified bound.
+        """
+        import autom8_asana.config as config
+
+        assert "offer" in config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS
+        offer_ceiling = config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS["offer"]
+        # Invariant 1: above the OBSERVED ~70-min warm cadence by a safe margin.
+        observed_warm_cadence_seconds = 70 * 60  # 4200s — SRE-measured (~70 min)
+        assert offer_ceiling > observed_warm_cadence_seconds, (
+            "offer ceiling must exceed the observed warm cadence so a frame warmed "
+            "once per window never ages past the ceiling mid-window"
+        )
+        # Comfortable margin (>=15min) for warm duration / jitter / AIMD backoff.
+        assert offer_ceiling - observed_warm_cadence_seconds >= 900
+        # Invariant 2: within the operator availability-first read-tolerance.
+        operator_read_tolerance_seconds = 4 * 60 * 60  # 14400s — ≤~4h-stale accepted
+        assert offer_ceiling <= operator_read_tolerance_seconds + 1800, (
+            "offer ceiling must stay within the operator availability-first "
+            "read-tolerance (≤~4h-stale for the 4-hourly recon)"
+        )
+        assert offer_ceiling == 16200.0  # 4h30m — the ratified value
+
+    async def test_GREEN_b_offer_within_contract_serves_lkg_2xx(self) -> None:
+        """FIX (b): age 3450s < contract ceiling => served LKG 2xx (was 503).
+
+        With the offer contract present, the RED-window 3450s frame is within the
+        ceiling and serves as LKG: ceiling_source=freshness_contract,
+        record_serving_stale fires (the honesty telemetry), and a 2xx entry is
+        returned instead of the shed None.
+        """
+        memory = MemoryTier(max_entries=100)
+        entry = make_offer_entry(created_seconds_ago=3450)
+        memory.put("offer:1143843662099250", entry)
+
+        cache = make_cache(memory_tier=memory)
+
+        captured: list[dict] = []
+
+        def _capture(event: str, *a, **kw):  # noqa: ANN002, ANN003
+            captured.append({"event": event, "extra": kw.get("extra", {})})
+
+        # Exercise the SHIPPED contract (no patch of the map) — the real value.
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.logger.warning",
+            side_effect=_capture,
+        ):
+            with patch("autom8_asana.api.metrics.record_serving_stale") as mock_serving_stale:
+                with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
+                    result = await cache.get_async("1143843662099250", "offer")
+
+        assert result is entry  # LKG 2xx, not None
+        assert cache.get_stats()["offer"]["lkg_serves"] == 1
+        mock_serving_stale.assert_called_once()  # honesty telemetry fired
+        # No ceiling-exceeded shed at the contract ceiling.
+        shed = [c for c in captured if c["event"].endswith("_lkg_max_staleness_exceeded")]
+        assert not shed, "within-contract frame must NOT emit the ceiling-exceeded shed"
+        # An LKG serve WAS emitted with ceiling honesty (freshness=stale).
+        lkg = [c for c in captured if c["event"].endswith("_lkg_serve")]
+        assert lkg, "expected dataframe_cache_*_lkg_serve emission"
+
+    async def test_GREEN_b_ceiling_source_is_freshness_contract(self) -> None:
+        """FIX (b): an over-contract offer sheds with ceiling_source=freshness_contract.
+
+        Push the age past the 16200s contract ceiling (16500s) so the shed fires —
+        but now the shed honesty attributes the ceiling to the freshness_contract,
+        not the multiplier. This proves the contract is the authoritative ceiling.
+
+        Uses an EMPTY frame so the shed actually fires: FIX (c) would otherwise
+        serve a POPULATED over-ceiling frame as LKG (see test_GREEN_c_*). The
+        ceiling_source attribution is the assertion under test here, independent
+        of the FIX (c) populated-rescue path.
+        """
+        memory = MemoryTier(max_entries=100)
+        entry = make_offer_entry(created_seconds_ago=16500, empty=True)
+        memory.put("offer:1143843662099250", entry)
+
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
+
+        captured: list[dict] = []
+
+        def _capture(event: str, *a, **kw):  # noqa: ANN002, ANN003
+            captured.append({"event": event, "extra": kw.get("extra", {})})
+
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.logger.warning",
+            side_effect=_capture,
+        ):
+            result = await cache.get_async("1143843662099250", "offer")
+
+        assert result is None  # past the contract ceiling -> honest shed
+        shed = [c for c in captured if c["event"].endswith("_lkg_max_staleness_exceeded")]
+        assert shed
+        assert shed[0]["extra"]["ceiling_source"] == "freshness_contract"
+        assert shed[0]["extra"]["max_age_seconds"] == pytest.approx(16200.0, abs=1.0)
+
+    # ----- GREEN (c): shed-without-refresh seam closed ----------------------
+
+    async def test_GREEN_c_populated_over_ceiling_serves_lkg_and_refreshes(
+        self,
+    ) -> None:
+        """FIX (c): ceiling exceeded + POPULATED frame => LKG serve + SWR refresh.
+
+        Deliberately keep the ceiling at the multiplier 1800s (offer ABSENT from
+        the contract) and age the populated frame to 3450s (over-ceiling). Before
+        FIX (c) this returned None WITHOUT scheduling a refresh (shed-without-
+        refresh seam). After FIX (c) the populated/healthy frame is served as LKG
+        (record_serving_stale honesty) AND _trigger_swr_refresh is scheduled so a
+        future cadence slip degrades gracefully instead of going dark.
+        """
+        memory = MemoryTier(max_entries=100)
+        entry = make_offer_entry(created_seconds_ago=3450)
+        memory.put("offer:1143843662099250", entry)
+
+        cache = make_cache(memory_tier=memory)
+
+        with patch("autom8_asana.config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS", {}):
+            with patch("autom8_asana.api.metrics.record_serving_stale") as mock_serving_stale:
+                with patch(
+                    "autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"
+                ) as mock_create_task:
+                    result = await cache.get_async("1143843662099250", "offer")
+
+        assert result is entry  # served LKG (not the shed None)
+        assert cache.get_stats()["offer"]["lkg_serves"] == 1
+        mock_serving_stale.assert_called_once()  # honesty preserved
+        # _trigger_swr_refresh scheduled a background rebuild (seam closed).
+        assert mock_create_task.called, "FIX (c) must schedule an SWR refresh"
+        assert cache.get_stats()["offer"]["swr_refreshes_triggered"] == 1
+
+    async def test_GREEN_c_INV_C5_degraded_over_ceiling_still_sheds_none(
+        self,
+    ) -> None:
+        """INV-C5: a population-DEGRADED frame over the ceiling STILL sheds None.
+
+        FIX (c) only rescues POPULATED/HEALTHY frames. A warmed-but-degraded frame
+        must stay LOUD (shed None -> honest backpressure), never silent-green.
+        Driven via the S3 tier because a degraded memory entry is soft-rejected
+        even earlier (memory accessor) — the S3 path is where a degraded frame
+        actually reaches the STALE/ceiling gate.
+        """
+        memory = MemoryTier(max_entries=100)
+        degraded = make_offer_entry(created_seconds_ago=3450, population_degraded=True)
+
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = degraded
+
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
+
+        with patch("autom8_asana.config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS", {}):
+            with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
+                result = await cache.get_async("1143843662099250", "offer")
+
+        assert result is None  # INV-C5: degraded stays loud
+        assert cache.get_stats()["offer"]["lkg_serves"] == 0
+
+    async def test_GREEN_c_INV_C5_empty_over_ceiling_still_sheds_none(self) -> None:
+        """INV-C5: a structurally EMPTY (0-row) frame over the ceiling STILL sheds None.
+
+        A warmed-empty frame is the silent-green trap FIX (c) must NOT open. An
+        empty over-ceiling frame sheds None even though it is not flagged degraded.
+        """
+        memory = MemoryTier(max_entries=100)
+        empty = make_offer_entry(created_seconds_ago=3450, empty=True)
+        memory.put("offer:1143843662099250", empty)
+
+        progressive_tier = AsyncMock()
+        progressive_tier.get_async.return_value = None
+        cache = make_cache(memory_tier=memory, progressive_tier=progressive_tier)
+
+        with patch("autom8_asana.config.FRESHNESS_CONTRACT_MAX_AGE_SECONDS", {}):
+            with patch("autom8_asana.cache.integration.dataframe_cache.asyncio.create_task"):
+                result = await cache.get_async("1143843662099250", "offer")
+
+        assert result is None  # INV-C5: warmed-empty stays loud
+        assert cache.get_stats()["offer"]["lkg_serves"] == 0
+
+    # ----- Always-GREEN guard: fresh offer is unaffected --------------------
+
+    async def test_fresh_offer_within_ttl_served_no_staleness_log(self) -> None:
+        """Always-GREEN: a fresh offer (age<180s TTL) is FRESH, served, no staleness log.
+
+        Neither fix may over-trigger on fresh frames: a 120s-old offer is within
+        the 180s TTL -> FRESH -> served with NO LKG/staleness emission.
+        """
+        memory = MemoryTier(max_entries=100)
+        entry = make_offer_entry(created_seconds_ago=120)
+        memory.put("offer:1143843662099250", entry)
+
+        cache = make_cache(memory_tier=memory)
+
+        captured: list[dict] = []
+
+        def _capture(event: str, *a, **kw):  # noqa: ANN002, ANN003
+            captured.append({"event": event, "extra": kw.get("extra", {})})
+
+        with patch(
+            "autom8_asana.cache.integration.dataframe_cache.logger.warning",
+            side_effect=_capture,
+        ):
+            result = await cache.get_async("1143843662099250", "offer")
+
+        assert result is entry
+        assert cache.get_stats()["offer"]["lkg_serves"] == 0
+        staleness = [
+            c
+            for c in captured
+            if c["event"].endswith("_lkg_serve")
+            or c["event"].endswith("_lkg_max_staleness_exceeded")
+        ]
+        assert not staleness, "a FRESH offer must emit no staleness/LKG log"
+
+    # ----- SCAR-005/006 non-interference ------------------------------------
+
+    async def test_SCAR_005_006_non_interference_serve_side_only(self) -> None:
+        """SCAR-005/006: the fix is serve-side only; warm ORDERING is untouched.
+
+        The (b)+(c) change governs WHEN/WHETHER a BUILT frame is served and HOW
+        stale — it must NOT touch warm ordering / cascade_warm_order / warm_priority
+        / WarmupOrderingError. Assert the serve module does not import or reference
+        any of those ordering primitives (single-source non-interference guard).
+        """
+        import autom8_asana.cache.integration.dataframe_cache as dfc
+
+        src = __import__("inspect").getsource(dfc)
+        for forbidden in (
+            "cascade_warm_order",
+            "WarmupOrderingError",
+            "warm_priority",
+            "cascade_utils",
+        ):
+            assert forbidden not in src, (
+                f"serve-side dataframe_cache must not reference warm-ordering "
+                f"primitive {forbidden!r} (SCAR-005/006 non-interference)"
+            )

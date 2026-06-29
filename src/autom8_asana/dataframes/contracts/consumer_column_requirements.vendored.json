@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "declared_by": "autom8-monolith",
+  "declared_at": "2026-06-11",
+  "vendored_from": "apis/asana_api/satellite/consumer_column_requirements.json",
+  "vendored_note": "FM-5 ARM-B seed. Vendored copy of the monolith-owned consumer-required-column manifest. The monolith repo is the source of truth; requirements_drift_check asserts vendored == source once the source path is handed back (telos DEFER). Until then the freshness guard runs in schema-only mode. Do NOT edit by hand once the source binding lands.",
+  "consumers": [
+    {
+      "consumer_id": "business_offers.active_offers_frame",
+      "code_anchor": "apis/asana_api/objects/project/models/business_offers/main.py:203",
+      "query_shape": { "endpoint": "/v1/query/project/rows", "entity_type": "project" },
+      "required_columns": ["offer_id"],
+      "population_expectation": "nonnull_over_active_subset",
+      "on_missing": "typed_incomplete"
+    },
+    {
+      "consumer_id": "fetch_section_rows",
+      "code_anchor": "<monolith #85 call site>",
+      "query_shape": { "endpoint": "/v1/query/section/rows", "entity_type": "section" },
+      "required_columns": ["project_gid"],
+      "population_expectation": "present_all_rows",
+      "on_missing": "typed_incomplete"
+    }
+  ]
+}

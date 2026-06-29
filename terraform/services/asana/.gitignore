@@ -1,0 +1,6 @@
+# Terraform init/state artifacts -- never commit (authored-only module)
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan

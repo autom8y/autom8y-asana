@@ -362,6 +362,35 @@ class DataFrameCache:
         """
         return getattr(entry, "population_degraded", False)
 
+    @staticmethod
+    def _is_cache_only_entity(entity_type: str) -> bool:
+        """True when an entity is CACHE-ONLY (warmed out-of-band, no build-on-miss).
+
+        Cache-only entities (descriptor ``body_parameterized=False``, e.g. offer)
+        are warmed by the scheduled cache_warmer and a serve-miss returns ``None``
+        directly (no inline rebuild) — so a ceiling-exceeded shed is a terminal 503
+        with no path back to fresh. These are the entities FIX (c) rescues
+        (serve over-ceiling LKG + SWR refresh when populated/healthy).
+
+        Build-on-miss entities (``body_parameterized=True``: project/section) take
+        an arbitrary per-request GID and rebuild inline via
+        ``universal_strategy._build_on_miss`` on a miss — so their shed-None is the
+        intended backpressure signal and they must NOT be rescued.
+
+        Defensive: any registry-resolution failure or unknown entity defaults to
+        ``False`` (treat as build-on-miss / NOT rescued) — the conservative,
+        non-regressive default. Lazy import keeps the cache layer decoupled.
+        """
+        try:
+            from autom8_asana.core.entity_registry import get_registry
+
+            descriptor = get_registry().get(entity_type)
+            if descriptor is None:
+                return False
+            return not bool(getattr(descriptor, "body_parameterized", True))
+        except Exception:  # noqa: BLE001 -- conservative default on any lookup failure
+            return False
+
     def _memory_get_serviceable(
         self,
         cache_key: str,
@@ -659,8 +688,56 @@ class DataFrameCache:
                 max_age = LKG_MAX_STALENESS_MULTIPLIER * entity_ttl
 
             if max_age is not None and age > max_age:
-                logger.warning(
-                    f"dataframe_cache_{tier}_lkg_max_staleness_exceeded",
+                # FIX (c) — shed-without-refresh seam (offer warm-resilience,
+                # 2026-06-25): the ceiling-exceeded gate historically returned
+                # None UNCONDITIONALLY and ran BEFORE _trigger_swr_refresh below,
+                # so a ceiling-exceeded frame was shed WITHOUT scheduling a
+                # rebuild. For a CACHE-ONLY entity (body_parameterized=False, e.g.
+                # offer — warmed out-of-band, NO build-on-miss; see
+                # universal_strategy._get_dataframe ADR-G2RECV-002) that shed is a
+                # hard 503 with no path back to fresh. Harden it: when such a frame
+                # is POPULATED/HEALTHY (not population_degraded AND row_count > 0)
+                # serve the over-ceiling LKG (with record_serving_stale honesty)
+                # AND schedule a background refresh, so a future cadence slip
+                # degrades gracefully instead of going dark.
+                #
+                # SCOPE: BUILD-ON-MISS entities (body_parameterized=True:
+                # project/section) are deliberately NOT rescued — their shed-None
+                # is the intended signal that drives the inline _build_on_miss
+                # rebuild (the multiplier ceiling stays hard backpressure for them).
+                # Unknown/unresolvable entities default to the conservative
+                # build-on-miss path (NOT rescued) to preserve non-regression.
+                #
+                # INV-C5 (warmed-empty/degraded stays loud, never silent-green):
+                # a DEGRADED or structurally EMPTY frame MUST STILL shed None ->
+                # honest backpressure. FIX (c) only rescues healthy frames.
+                cache_only = self._is_cache_only_entity(entry.entity_type)
+                frame_healthy = (
+                    not self._is_population_degraded_entry(entry) and entry.row_count > 0
+                )
+                if not (cache_only and frame_healthy):
+                    logger.warning(
+                        f"dataframe_cache_{tier}_lkg_max_staleness_exceeded",
+                        extra={
+                            "project_gid": project_gid,
+                            "entity_type": entity_type,
+                            "age_seconds": age,
+                            "max_age_seconds": round(max_age, 1),
+                            "staleness_ratio": info.staleness_ratio,
+                            "ceiling_source": ceiling_source,
+                        },
+                    )
+                    if tier == "memory":
+                        self.memory_tier.remove(cache_key)
+                    return None
+
+                # Populated/healthy + over-ceiling: serve LKG + refresh (seam
+                # closed). Emit the ceiling-exceeded telemetry as INFO (honest
+                # signal that we are serving past the configured ceiling under
+                # the availability-first contract) and fall through to the LKG
+                # serve path below, which records serving_stale and triggers SWR.
+                logger.info(
+                    f"dataframe_cache_{tier}_lkg_over_ceiling_served",
                     extra={
                         "project_gid": project_gid,
                         "entity_type": entity_type,
@@ -668,11 +745,9 @@ class DataFrameCache:
                         "max_age_seconds": round(max_age, 1),
                         "staleness_ratio": info.staleness_ratio,
                         "ceiling_source": ceiling_source,
+                        "reason": "populated_healthy_serve_lkg_and_refresh",
                     },
                 )
-                if tier == "memory":
-                    self.memory_tier.remove(cache_key)
-                return None
 
             # LKG: Serve expired entry with warning, trigger refresh
             self._stats[entity_type][f"{tier}_hits"] += 1

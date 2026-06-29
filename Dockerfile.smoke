@@ -1,0 +1,27 @@
+# Dockerfile.smoke — focused CON-2 freeze proof image (CI smoke only)
+#
+# Proves: node:22-slim binary + vendor/deck-producer/ = node build/inline.mjs
+# executes inside the python:3.12-slim (Debian Bookworm) runtime base.
+#
+# NOT the production image. No Python dependencies, no CodeArtifact auth.
+# Both base images use the same SHA pins as the production Dockerfile.
+#
+# Build: docker build -f Dockerfile.smoke -t con2-smoke:local .
+# Smoke: bash scripts/smoke-freeze.sh con2-smoke:local
+# CI:    .github/workflows/con2-freeze-smoke.yml
+
+FROM node:22-slim@sha256:813a7480f28fdadac1f7f5c824bcdad435b5bc1322a5968bbbdef8d058f9dff4 AS node-binary
+
+FROM python:3.12-slim@sha256:5072b08ad74609c5329ab4085a96dfa873de565fb4751a4cfcd7dcc427661df0 AS runtime
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
+WORKDIR /app
+COPY --link --from=node-binary /usr/local/bin/node /usr/local/bin/node
+COPY --link --chown=1000:1000 vendor/deck-producer/ /app/vendor/deck-producer/
+# Explicit export/ ownership contract: ensures the freeze target dir exists and
+# is appuser-writable even if a future change drops --chown or alters COPY ordering.
+# Defense-in-depth; mkdirSync(recursive) in inline.mjs:197 also handles this.
+RUN mkdir -p /app/vendor/deck-producer/export \
+    && chown appuser:appuser /app/vendor/deck-producer/export
+ENV AUTOM8_WALKTHROUGH_PRODUCER_DIR=/app/vendor/deck-producer
+USER appuser

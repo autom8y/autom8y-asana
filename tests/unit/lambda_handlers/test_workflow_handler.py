@@ -58,6 +58,24 @@ pytestmark = [
     pytest.mark.worker_isolated,
 ]
 
+
+@pytest.fixture(autouse=True)
+def _neutralize_service_token_provider():
+    """W-AUTH: the handler now injects ServiceTokenAuthProvider() into
+    DataServiceClient (workflow_handler.py _execute). These tests patch
+    DataServiceClient wholesale and assert on registration / metrics / fleet
+    observability / event emission -- NOT on the S2S auth path -- and run with
+    no SERVICE_CLIENT_ID/SECRET in the env, so a real provider construction
+    would raise ValueError and 500 the handler before any of that runs. No-op
+    the provider constructor here; the injection contract itself is owned by
+    test_workflow_handler_auth_injection.py.
+    """
+    from autom8_asana.auth.service_token import ServiceTokenAuthProvider
+
+    with patch.object(ServiceTokenAuthProvider, "__init__", lambda self, *a, **k: None):
+        yield
+
+
 # --- Helpers ---
 
 

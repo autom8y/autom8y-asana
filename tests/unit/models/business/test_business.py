@@ -332,6 +332,7 @@ class TestBusinessFieldsClass:
         expected_fields = {
             # Entity-specific fields
             "AGGRESSION_LEVEL",
+            "CALENDAR_PROVIDER",  # PRD FR-11: onboarding walkthrough necessity-rule input
             "COMPANY_ID",
             "FACEBOOK_PAGE_ID",
             "FALLBACK_PAGE_ID",

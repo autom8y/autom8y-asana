@@ -24,6 +24,9 @@ WORKDIR /app
 # (no index access needed), then filters out private packages.
 # UV_NO_CONFIG=1 prevents uv from reading [tool.uv] CodeArtifact config.
 COPY pyproject.toml uv.lock ./
+# DL4006: ensure pipefail propagates from uv export through the grep pipe.
+# Without this, a non-zero uv export is silently masked by a successful grep.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN uv export --frozen --format requirements-txt --no-hashes \
     --no-dev --no-emit-project \
     --extra redis --extra api --extra auth \
