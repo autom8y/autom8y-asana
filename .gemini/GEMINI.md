@@ -4,7 +4,7 @@
 Use the available agents and slash commands. Agents activate automatically when your prompt matches their description.
 <!-- KNOSSOS:END execution-mode -->
 
-<!-- KNOSSOS:START quick-start source=ACTIVE_RITE+agents regenerate=true -->
+<!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
 5-agent workflow (sre):
@@ -59,6 +59,9 @@ Operational agents available on demand. Their commands handle the lifecycle:
 
 Summon: `ari agent summon {name}` then restart Gemini Code Assist.
 Dismiss: `ari agent dismiss {name}` then restart Gemini Code Assist.
+### Harness Agents
+Cross-harness peer-dispatch agents available via their command:
+- **iris** - Operational bot — executes API integrations against org-ecosystem services -> `/iris`
 <!-- KNOSSOS:END agent-configurations -->
 
 <!-- KNOSSOS:START platform-infrastructure -->

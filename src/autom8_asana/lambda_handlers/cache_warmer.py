@@ -51,6 +51,7 @@ from autom8_asana.lambda_handlers.cloudwatch import (
     emit_metric,
     emit_warmer_coverage_rate,
 )
+from autom8_asana.lambda_handlers.offer_warm_amp import emit_offer_warm_complete
 from autom8_asana.lambda_handlers.pipeline_stage_aggregator import (
     _aggregate_pipeline_stages,
 )
@@ -142,6 +143,38 @@ def _bulk_key_budget() -> int:
             extra={"raw": raw, "fallback": _DEFAULT_BULK_KEY_BUDGET},
         )
         return _DEFAULT_BULK_KEY_BUDGET
+
+
+def _sample_aimd_engaged(client: Any) -> bool | None:
+    """Attest whether the AIMD limiter provably governed this warm cycle (C-5).
+
+    Reads the live client's read-semaphore stats. Returns:
+      - True  if the AIMD window contracted at least once (decrease_count > 0)
+               OR is holding below its ceiling -- i.e. the limiter is actively
+               governing the warm (the honest "above floor" precondition);
+      - False if the limiter exists but never engaged AND sits at ceiling -- the
+               cycle completed under low load, not a governed warm under storm;
+      - None  if the limiter cannot be sampled (AIMD disabled / no stats) -- the
+               attestation is "not sampled", never silently True.
+
+    This is what distinguishes a genuine sustained hold from a one-cycle blip
+    that rode a storming retry loop: a full-coverage cycle with aimd_engaged=False
+    must NOT be trusted as a durable above-floor hold by the PT-02' re-gate.
+    """
+    try:
+        http = getattr(client, "http", None)
+        semaphore = getattr(http, "_read_semaphore", None)
+        get_stats = getattr(semaphore, "get_stats", None)
+        if get_stats is None:
+            return None
+        stats = get_stats()
+        decrease_count = int(stats.get("decrease_count", 0))
+        current_limit = int(stats.get("current_limit", 0))
+        ceiling = int(stats.get("ceiling", 0))
+        return decrease_count > 0 or (ceiling > 0 and current_limit < ceiling)
+    except Exception:  # noqa: BLE001 -- attestation must never crash the warm
+        logger.warning("aimd_engagement_sample_failed", exc_info=True)
+        return None
 
 
 # Flag to track if bootstrap has run (for lazy initialization)
@@ -426,6 +459,11 @@ async def _prematerialize_bulk_set_async(
     # coverage rate reports the partial result honestly (TD-007 theme).
     warmer = CacheWarmer(cache=cache, priority=[], strict=False)
 
+    # C-5: holds the AIMD-engagement attestation sampled from the live client's
+    # read semaphore at the full-cycle completion (None until sampled, so a
+    # partial / errored finish honestly reports "not sampled" rather than a lie).
+    aimd_engaged_holder: dict[str, bool | None] = {"value": None}
+
     def _finish(
         success: bool, message_prefix: str, *, checkpoint_cleared: bool = False
     ) -> WarmResponse:
@@ -444,17 +482,26 @@ async def _prematerialize_bulk_set_async(
         emit_metric("WarmerKeysEnumerated", total_enumerated)
         if checkpoint_cleared:
             emit_metric("WarmerCheckpointCleared", 1)
+        # C-5: emit the honest-hold attestation. A full-coverage cycle that did
+        # NOT engage the limiter (aimd_engaged is False) completed by luck/low
+        # load, not by a governed warm; surface it so the re-gate (PT-02') can
+        # require a SUSTAINED AIMD-stable hold and not trust a one-cycle blip.
+        aimd_engaged = aimd_engaged_holder["value"]
+        if aimd_engaged is not None:
+            emit_metric("WarmerAimdEngaged", 1 if aimd_engaged else 0)
         return WarmResponse(
             success=success,
             message=(
                 f"{message_prefix}: warmer_coverage_rate="
                 f"{rate:.4f} ({len(completed_tokens)}/{total_enumerated} keys)"
+                f" aimd_engaged={aimd_engaged}"
             ),
             entity_results=entity_results,
             total_rows=sum(r.get("row_count", 0) for r in entity_results),
             duration_ms=(time.monotonic() - start_time) * 1000,
             checkpoint_cleared=checkpoint_cleared,
             invocation_id=invocation_id,
+            aimd_engaged=aimd_engaged,
         )
 
     async def _checkpoint_and_continue(reason: str) -> WarmResponse:
@@ -532,6 +579,10 @@ async def _prematerialize_bulk_set_async(
                 if status.result == WarmResult.SUCCESS:
                     completed_tokens.append(token)
                     emit_metric("WarmSuccess", 1, dimensions={"entity_type": entity_type})
+                    # node-1: per-entity OfferWarmComplete -> AMP (SUCCESS-only,
+                    # last-write-wins gauge). Emitted on the materialized SUCCESS
+                    # gate so a silent drop fails the two-sided canary.
+                    emit_offer_warm_complete(entity_type)
                     emit_metric(
                         "RowsWarmed",
                         status.row_count,
@@ -558,6 +609,14 @@ async def _prematerialize_bulk_set_async(
                         entity_results=entity_results,
                     )
                     emit_metric("CheckpointSaved", 1)
+
+            # C-5: sample the AIMD limiter's engagement from the live client
+            # BEFORE leaving the client context. The "above floor" claim is only
+            # honest if the limiter provably governed the warm -- it engaged
+            # (decreased at least once) OR never needed to because the window
+            # stayed below ceiling. Sampling failures are swallowed: the
+            # attestation degrades to None ("not sampled"), never to a false True.
+            aimd_engaged_holder["value"] = _sample_aimd_engaged(client)
 
         # Full cycle finished within this invocation.
         all_covered = len(completed_tokens) == total_enumerated
@@ -616,6 +675,14 @@ class WarmResponse:
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     checkpoint_cleared: bool = False
     invocation_id: str | None = None
+    # C-5 (TDD-asr-offer-warmer-durability §6/§7): honest hold attestation. A full
+    # cycle "above floor" claim is trustworthy ONLY if the AIMD limiter provably
+    # ENGAGED during the warm (or never needed to, because the warm stayed under
+    # the rate ceiling). aimd_engaged is True when the read window contracted at
+    # least once OR held below its ceiling -- distinguishing a genuinely governed
+    # warm from one that completed only by riding a storming retry loop. None when
+    # the limiter could not be sampled (AIMD disabled / client absent).
+    aimd_engaged: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for Lambda response.
@@ -632,6 +699,7 @@ class WarmResponse:
             "timestamp": self.timestamp,
             "checkpoint_cleared": self.checkpoint_cleared,
             "invocation_id": self.invocation_id,
+            "aimd_engaged": self.aimd_engaged,
         }
 
 
@@ -884,6 +952,10 @@ async def _warm_cache_async(
                             1,
                             dimensions={"entity_type": entity_type},
                         )
+                        # node-1: per-entity OfferWarmComplete -> AMP
+                        # (SUCCESS-only, last-write-wins gauge). On the warm
+                        # SUCCESS gate so a silent drop fails the canary.
+                        emit_offer_warm_complete(entity_type)
                         emit_metric(
                             "WarmDuration",
                             entity_duration_ms,

@@ -9,41 +9,14 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any
 
+from autom8y_log import sanitize_log_extra
+
 if TYPE_CHECKING:
     from autom8_asana.protocols.log import CacheEventType
 
 
 _STDLIB_LOG_KWARGS = frozenset({"exc_info", "stack_info", "stacklevel"})
 """Keyword arguments accepted by ``logging.Logger._log()``."""
-
-_LOGRECORD_RESERVED = frozenset(
-    {
-        "name",
-        "msg",
-        "args",
-        "created",
-        "relativeCreated",
-        "exc_info",
-        "exc_text",
-        "stack_info",
-        "lineno",
-        "funcName",
-        "sinfo",
-        "pathname",
-        "filename",
-        "module",
-        "levelno",
-        "levelname",
-        "message",
-        "msecs",
-        "process",
-        "processName",
-        "thread",
-        "threadName",
-        "taskName",
-    }
-)
-"""LogRecord attributes that cannot appear as ``extra`` keys."""
 
 
 class DefaultLogProvider:
@@ -92,22 +65,47 @@ class DefaultLogProvider:
     def _sanitize_kwargs(
         extra: dict[str, Any] | None, kwargs: dict[str, Any]
     ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
-        """Move non-stdlib kwargs into ``extra`` so they don't break ``_log()``.
+        """Fold stray kwargs into ``extra`` and sanitize reserved ``LogRecord`` keys.
 
-        External callers (e.g. ``autom8y_http``) may pass arbitrary keyword
-        arguments like ``message=`` that stdlib ``Logger._log()`` rejects.
-        This helper intercepts them and folds them into the ``extra`` dict,
-        prefixing any keys that collide with reserved ``LogRecord`` attributes.
+        Two failure modes are handled here, at the single chokepoint where
+        ``extra`` is forwarded to stdlib ``logging`` (which rejects any ``extra``
+        key that shadows a reserved ``LogRecord`` attribute with
+        ``KeyError: "Attempt to overwrite '<key>' in LogRecord"``, raised inside
+        the logger before any handler runs):
+
+        1. External callers (e.g. ``autom8y_http``) may pass arbitrary keyword
+           arguments like ``message=`` that stdlib ``Logger._log()`` rejects.
+           Those are folded into ``extra`` so they don't break the call.
+        2. Callers idiomatically pass reserved keys directly in ``extra``
+           (e.g. ``extra={"name": ...}`` from the entity seeder). These reach
+           stdlib unchanged and crash the log call — and, on a hot path like the
+           cache warmer, the surrounding operation.
+
+        Both the merged ``extra`` and any reserved keys are routed through the
+        fleet-canonical :func:`autom8y_log.sanitize_log_extra`, which renames
+        reserved keys to a safe ``extra_``-prefixed form (``name`` ->
+        ``extra_name``) while preserving the value. Non-reserved keys pass
+        through unchanged. The sanitizer is the single source of truth for the
+        reserved-attribute set, so this provider does not duplicate that logic.
         """
         non_stdlib = {k: v for k, v in kwargs.items() if k not in _STDLIB_LOG_KWARGS}
-        if not non_stdlib:
-            return extra, kwargs
-        clean_kwargs = {k: v for k, v in kwargs.items() if k in _STDLIB_LOG_KWARGS}
-        merged_extra = dict(extra) if extra else {}
-        for k, v in non_stdlib.items():
-            safe_key = f"log_{k}" if k in _LOGRECORD_RESERVED else k
-            merged_extra[safe_key] = v
-        return merged_extra, clean_kwargs
+        clean_kwargs = (
+            kwargs
+            if not non_stdlib
+            else {k: v for k, v in kwargs.items() if k in _STDLIB_LOG_KWARGS}
+        )
+
+        # Fold stray (non-stdlib) kwargs into extra before sanitizing, so reserved
+        # stray keys are renamed by the same canonical sanitizer as reserved
+        # extra keys (no second, divergent reserved-key set to maintain).
+        merged_extra: dict[str, Any] | None
+        if non_stdlib:
+            merged_extra = dict(extra) if extra else {}
+            merged_extra.update(non_stdlib)
+        else:
+            merged_extra = extra
+
+        return sanitize_log_extra(merged_extra), clean_kwargs
 
     def debug(
         self, msg: str, *args: Any, extra: dict[str, Any] | None = None, **kwargs: Any

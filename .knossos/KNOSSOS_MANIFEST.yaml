@@ -1,13 +1,13 @@
 schema_version: "1.0"
-inscription_version: "321"
-last_sync: 2026-04-30T18:29:40.504162Z
+inscription_version: "325"
+last_sync: 2026-06-23T22:37:24.043125Z
 active_rite: sre
 template_path: knossos/templates/CLAUDE.md.tpl
 regions:
     agent-configurations:
         owner: regenerate
         source: agents/*.md
-        hash: sha256:8b306c311bc398b63a81d6f4e06d27eb621c21c5155440703f144ad0f9c5425a
+        hash: sha256:d9de296895284eee324c0ff3313c68a42efa0e0a2a8c2963b90d596b9b507a7a
     agent-routing:
         owner: knossos
         hash: sha256:996019558baa21447eeffca540e4bffa134fe2a7390d13e917ae13b71ccdadd9

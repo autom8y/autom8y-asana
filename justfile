@@ -122,6 +122,15 @@ test-integration *args:
 test-bench *args:
     uv run pytest tests/ -m "benchmark" {{args}}
 
+# Run AST fitness guards — fast, no-deps, safe for pre-push and scoped runs.
+# Catches: FROZEN-4 concurrency invariants + unsanctioned to_thread detection.
+# Run before pushing: it is fast (7 tests, no xdist) and catches concurrency-offload
+# regressions that otherwise only surface in full-shard CI (CLASS-1b scoped-run-miss).
+[group('test')]
+fitness:
+    uv run pytest tests/unit/dataframes/test_concurrency_invariants_guard.py \
+        -p no:xdist -o addopts="" -v --no-header
+
 # === Combined Checks ===
 
 # Full CI-equivalent check

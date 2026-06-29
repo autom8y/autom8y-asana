@@ -153,9 +153,26 @@ def create_workflow_handler(
         asana_client = AsanaClient()
 
         if config.requires_data_client:
+            from autom8_asana.auth.service_token import ServiceTokenAuthProvider
             from autom8_asana.clients.data.client import DataServiceClient
 
-            async with DataServiceClient() as data_client:
+            # W-AUTH: inject the S2S auth provider so DataServiceClient sends a
+            # genuine service JWT. Without it, DataServiceClient._get_auth_token
+            # falls back to resolve_secret_from_env(token_key) where token_key
+            # defaults to AUTOM8Y_DATA_API_KEY -- NOT a service JWT -- so the
+            # call to autom8_data is rejected (AUTH-TEB-001) and every entity
+            # fails (the insights-export `succeeded:0` dark-export since
+            # 2026-06-10). This mirrors the API DI factory at
+            # dependencies.py:497-505 -- but DELIBERATELY does NOT swallow the
+            # construction error the way that path does (dependencies.py:502-503
+            # `except (ValueError, ImportError): pass`). On the Lambda there is
+            # no env-var fallback worth degrading to: a missing/unresolvable
+            # SERVICE_CLIENT_SECRET is a hard misconfiguration, so the error
+            # propagates to the handler's top-level catch and surfaces as a 500
+            # (honest-failure) rather than another silent dark-export.
+            auth_provider = ServiceTokenAuthProvider()
+
+            async with DataServiceClient(auth_provider=auth_provider) as data_client:
                 workflow = config.workflow_factory(asana_client, data_client)
                 _register_workflow(workflow)
                 return await _validate_enumerate_and_run(workflow, scope, params)
@@ -310,15 +327,23 @@ def create_workflow_handler(
         )
 
         # Dead-man's-switch: record successful completion timestamp.
-        # Emitted only when a dms_namespace is configured and the workflow
-        # completed without total failure.
-        if config.dms_namespace:
+        # Emitted only when a dms_namespace is configured AND at least one
+        # entity succeeded. Without the succeeded-gate, a total batch failure
+        # (succeeded=0, failed=total) would still publish a FRESH
+        # LastSuccessTimestamp -> a silent-green dead-man over a fully-failed
+        # run. This aligns the LST predicate with the BridgeFleetHealth
+        # predicate emitted to the fleet namespace below.
+        if config.dms_namespace and result.succeeded > 0:
             emit_success_timestamp(config.dms_namespace)
 
         # Fleet-level observability (Tier 2 + 3).
         # Per ADR-bridge-observability-fleet: Emit BridgeFleetHealth metric
         # and fleet DMS timestamp after successful execution. Non-blocking:
         # emit_metric() already swallows CloudWatch errors internally.
+        # BridgeFleetHealth is a 0/1 health signal that legitimately reports
+        # 0.0 on a fully-failed run, so it is always emitted. The fleet
+        # LastSuccessTimestamp, by contrast, is a freshness dead-man and MUST
+        # be genuine-success-gated identically to the per-workflow LST above.
         if config.fleet_namespace:
             emit_metric(
                 "BridgeFleetHealth",
@@ -327,7 +352,8 @@ def create_workflow_handler(
                 dimensions={"workflow_id": config.workflow_id},
                 namespace=config.fleet_namespace,
             )
-            emit_success_timestamp(config.fleet_namespace)
+            if result.succeeded > 0:
+                emit_success_timestamp(config.fleet_namespace)
 
         # Per ADR-bridge-dispatch-model Decision 3: Publish domain event
         # after successful execution. Fire-and-forget semantics.

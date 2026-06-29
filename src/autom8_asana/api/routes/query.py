@@ -4,7 +4,6 @@ Routes:
 - GET  /v1/query/entities - List queryable entity types (introspection)
 - GET  /v1/query/{entity_type}/fields - List entity fields (introspection)
 - GET  /v1/query/{entity_type}/relations - List joinable entities (introspection)
-- POST /v1/query/{entity_type} - Legacy query with flat equality filtering (deprecated, sunset 2026-06-01)
 - POST /v1/query/{entity_type}/rows - Filtered row retrieval with composable predicates
 - POST /v1/query/{entity_type}/aggregate - Aggregate entity data with grouping
 
@@ -16,13 +15,10 @@ Authentication:
 
 from __future__ import annotations
 
-import time
 from typing import Annotated, Any, Never
 
 from autom8y_log import get_logger
 from fastapi import Depends, Request
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from autom8_asana.api.dependencies import (  # noqa: TC001 — FastAPI resolves these at runtime
     AuthContextDep,
@@ -66,23 +62,17 @@ from autom8_asana.query.models import (
 )
 from autom8_asana.services.errors import (
     CacheNotWarmError,
-    InvalidFieldError,
     InvalidParameterError,
     ServiceError,
 )
 from autom8_asana.services.query_service import (
     EntityQueryService,
     resolve_section_index,
-    validate_fields,
 )
 
 __all__ = [
     "router",
     "query_introspection_router",
-    # Legacy models (backward compatibility for imports)
-    "QueryRequest",
-    "QueryMeta",
-    "QueryResponse",
 ]
 
 logger = get_logger(__name__)
@@ -116,89 +106,6 @@ def _raise_query_error(request_id: str, error: QueryEngineError) -> Never:
     status = _ERROR_STATUS.get(type(error), _DEFAULT_ERROR_STATUS)
     d = error.to_dict()
     raise_api_error(request_id, status, d["error"], d["message"])
-
-
-# ---------------------------------------------------------------------------
-# Legacy models (for deprecated POST /{entity_type} endpoint)
-# ---------------------------------------------------------------------------
-
-DEFAULT_SELECT_FIELDS = ["gid", "name", "section"]
-
-
-class QueryRequest(BaseModel):
-    """Legacy query request with flat equality filtering (AND semantics)."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    where: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Flat equality predicates with AND semantics. Keys are column names, values are match targets.",
-        examples=[{"vertical": "chiro", "status": "active"}],
-    )
-    select: list[str] | None = Field(
-        default=None,
-        description="Column names to include in results. Null returns default fields (gid, name, section).",
-        examples=[["gid", "name", "office_phone"]],
-    )
-    limit: int = Field(
-        default=100,
-        description="Maximum number of rows to return. Values above 1000 are silently clamped.",
-        examples=[100],
-    )
-    offset: int = Field(
-        default=0,
-        description="Number of rows to skip for pagination.",
-        examples=[0],
-    )
-
-    @field_validator("limit")
-    @classmethod
-    def validate_limit(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("limit must be >= 1")
-        return min(v, 1000)
-
-    @field_validator("offset")
-    @classmethod
-    def validate_offset(cls, v: int) -> int:
-        if v < 0:
-            raise ValueError("offset must be >= 0")
-        return v
-
-
-class QueryMeta(BaseModel):
-    """Response metadata for pagination and context."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    total_count: int = Field(
-        description="Total number of matching rows before pagination.",
-    )
-    limit: int = Field(
-        description="Maximum rows per page as applied.",
-    )
-    offset: int = Field(
-        description="Number of rows skipped.",
-    )
-    entity_type: str = Field(
-        description="Entity type that was queried (e.g., 'unit', 'offer').",
-    )
-    project_gid: str = Field(
-        description="Asana project GID backing this entity type.",
-    )
-
-
-class QueryResponse(BaseModel):
-    """Response body for entity query."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    data: list[dict[str, Any]] = Field(
-        description="Query result rows. Each dict contains the requested select fields.",
-    )
-    meta: QueryMeta = Field(
-        description="Pagination metadata and query context.",
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -738,155 +645,3 @@ async def query_aggregate(
     )
 
     return build_success_response(data=result, request_id=request_id)
-
-
-# ---------------------------------------------------------------------------
-# Deprecated endpoint (sunset 2026-06-01)
-# ---------------------------------------------------------------------------
-
-
-@router.post(
-    "/{entity_type}",
-    response_model=SuccessResponse[QueryResponse],
-    openapi_extra={
-        "x-fleet-side-effects": [],
-        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
-    },
-)
-async def query_entities(
-    entity_type: str,
-    request_body: QueryRequest,
-    request_id: RequestId,
-    auth: AuthContextDep,
-    claims: Annotated[ServiceClaims, Depends(require_service_claims)],
-    entity_service: EntityServiceDep,
-) -> JSONResponse:
-    """Query entities from DataFrame cache (deprecated -- use /rows)."""
-    start_time = time.monotonic()
-
-    logger.info(
-        "entity_query_request",
-        extra={
-            "request_id": request_id,
-            "entity_type": entity_type,
-            "where_fields": list(request_body.where.keys()),
-            "select_fields": request_body.select,
-            "limit": request_body.limit,
-            "offset": request_body.offset,
-            "caller_service": claims.service_name,
-        },
-    )
-
-    # 1. Entity validation
-    try:
-        ctx = entity_service.validate_entity_type(entity_type)
-    except ServiceError as e:
-        raise_service_error(request_id, e)
-
-    # risk-1 fail-fast guard: the deprecated legacy endpoint has no body
-    # project_gid field, so a body-parameterized entity (ctx.project_gid=None)
-    # cannot supply a GID here. Fail-fast with a clear 400.
-    if ctx.project_gid is None:
-        raise_service_error(
-            request_id,
-            InvalidParameterError(
-                f"Entity type {entity_type} is body-parameterized and is not "
-                f"supported by this deprecated endpoint (no body project_gid field). "
-                f"Use POST /v1/query/{entity_type}/rows with a body project_gid."
-            ),
-        )
-
-    # 2. Field validation via QueryService
-    if request_body.where:
-        try:
-            validate_fields(list(request_body.where.keys()), entity_type, "where")
-        except InvalidFieldError as e:
-            raise_service_error(request_id, e)
-
-    select_fields = request_body.select or DEFAULT_SELECT_FIELDS
-
-    try:
-        validate_fields(select_fields, entity_type, "select")
-    except InvalidFieldError as e:
-        raise_service_error(request_id, e)
-
-    # 3. Execute query via EntityQueryService
-    query_service = EntityQueryService()
-
-    try:
-        async with AsanaClient(token=ctx.bot_pat) as client:
-            result = await query_service.query(
-                entity_type=entity_type,
-                project_gid=ctx.project_gid,
-                client=client,
-                where=request_body.where,
-                select=select_fields,
-                limit=request_body.limit,
-                offset=request_body.offset,
-            )
-    except CacheNotWarmError as e:
-        logger.warning(
-            "cache_not_warm",
-            extra={
-                "request_id": request_id,
-                "entity_type": entity_type,
-                "project_gid": ctx.project_gid,
-                "error": str(e),
-            },
-        )
-        raise_api_error(
-            request_id,
-            503,
-            "CACHE_NOT_WARMED",
-            str(e),
-            details={
-                "entity_type": entity_type,
-                "retry_after_seconds": 30,
-            },
-        )
-
-    # 4. Build response
-    response = QueryResponse(
-        data=result.data,
-        meta=QueryMeta(
-            total_count=result.total_count,
-            limit=request_body.limit,
-            offset=request_body.offset,
-            entity_type=entity_type,
-            project_gid=result.project_gid,
-        ),
-    )
-
-    elapsed_ms = (time.monotonic() - start_time) * 1000
-
-    logger.info(
-        "entity_query_complete",
-        extra={
-            "request_id": request_id,
-            "entity_type": entity_type,
-            "result_count": len(result.data),
-            "total_count": result.total_count,
-            "duration_ms": round(elapsed_ms, 2),
-            "caller_service": claims.service_name,
-            "project_gid": result.project_gid,
-            "cache_status": "hit_or_refreshed",
-        },
-    )
-
-    # Add deprecation headers (per TDD Section 8.2)
-    # Wrap in fleet SuccessResponse envelope; JSONResponse preserves headers
-    envelope = build_success_response(data=response, request_id=request_id)
-    response_obj = JSONResponse(content=envelope.model_dump(mode="json"))
-    response_obj.headers["Deprecation"] = "true"
-    response_obj.headers["Sunset"] = "2026-06-01"
-    response_obj.headers["Link"] = f'</v1/query/{entity_type}/rows>; rel="successor-version"'
-
-    logger.info(
-        "deprecated_query_endpoint_used",
-        extra={
-            "caller_service": claims.service_name,
-            "entity_type": entity_type,
-        },
-    )
-
-    return response_obj

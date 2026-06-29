@@ -82,7 +82,12 @@ class TestAsanaHttpClientInit:
         """
         from autom8_asana.config import ConcurrencyConfig
 
-        config = AsanaConfig(concurrency=ConcurrencyConfig(read_limit=10, write_limit=5))
+        # aimd_start_window=10 clamps each pool to its ceiling (read=10, write=5),
+        # so this stays a pure ceiling/start check. The new conservative cold
+        # start (C-3) is verified in test_warmer_storm_durability.py.
+        config = AsanaConfig(
+            concurrency=ConcurrencyConfig(read_limit=10, write_limit=5, aimd_start_window=10)
+        )
         auth = MockAuthProvider()
         client = AsanaHttpClient(config, auth)
 
@@ -333,3 +338,52 @@ class TestAsanaHttpClientClose:
         # No platform client created yet
         await client.close()  # Should not raise
         await client.close()  # Should not raise
+
+
+class TestAimdObservableLogger:
+    """C-1 (TDD-asr-offer-warmer-durability §6): the AIMD logger admission gate.
+
+    The deployed bulk-warmer constructs AsanaClient with DefaultLogProvider,
+    which provides debug/info/warning but NOT bind -- so the old
+    isinstance(LoggerProtocol) gate nulled it and the AIMD limiter ran
+    observability-dark (zero aimd_decrease in prod under a 429 storm). The new
+    gate admits any logger that provides the methods AIMD actually uses.
+    """
+
+    def test_default_log_provider_admitted(self) -> None:
+        """The deployed DefaultLogProvider is admitted to the AIMD semaphore."""
+        from autom8_asana._defaults.log import DefaultLogProvider
+
+        config = AsanaConfig()
+        client = AsanaHttpClient(config, MockAuthProvider(), logger=DefaultLogProvider())
+        assert client._read_semaphore._logger is not None
+        assert client._write_semaphore._logger is not None
+
+    def test_none_logger_stays_none(self) -> None:
+        """A genuinely absent logger is not fabricated."""
+        config = AsanaConfig()
+        client = AsanaHttpClient(config, MockAuthProvider(), logger=None)
+        assert client._read_semaphore._logger is None
+
+    def test_logger_missing_required_method_rejected(self) -> None:
+        """A logger lacking the AIMD methods is rejected (not silently broken)."""
+        from autom8_asana.transport.asana_http import _aimd_observable_logger
+
+        class _PartialLogger:
+            def info(self, event: str, **kwargs: object) -> None: ...
+
+            # no debug / warning
+
+        assert _aimd_observable_logger(_PartialLogger()) is None
+
+    def test_full_logger_admitted(self) -> None:
+        """A logger providing debug/info/warning is admitted."""
+        from autom8_asana.transport.asana_http import _aimd_observable_logger
+
+        class _FullLogger:
+            def debug(self, event: str, **kwargs: object) -> None: ...
+            def info(self, event: str, **kwargs: object) -> None: ...
+            def warning(self, event: str, **kwargs: object) -> None: ...
+
+        logger = _FullLogger()
+        assert _aimd_observable_logger(logger) is logger

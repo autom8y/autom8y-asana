@@ -504,6 +504,17 @@ class RateLimitSettings(Autom8yBaseSettings):
     Attributes:
         max_requests: Maximum requests per rate limit window.
         window_seconds: Rate limit window duration in seconds.
+
+    C-4 (TDD-asr-offer-warmer-durability §6) RATE-TIER HAZARD: the default 1500
+    req/min is the Asana PREMIUM/ENTERPRISE tier ceiling (25/sec). If the
+    workspace PAT is NOT on that tier, this token bucket admits ~10x the allowed
+    rate before the server 429s -- a contributor to the self-inflicted storm.
+    The live workspace tier could NOT be confirmed at implementation time (the
+    PAT lives in SSM, resolved at Lambda runtime; an unauthenticated probe 401s),
+    so the default is left SAFE-UNCHANGED at 1500 (no regression for premium
+    tenants) and made env-overridable: set ASANA_RATELIMIT_MAX_REQUESTS to the
+    true ceiling once SRE probes the tier (the C-3 AIMD governor is the active
+    safety net regardless, since it adapts below whatever bucket rate is set).
     """
 
     model_config = SettingsConfigDict(
@@ -514,7 +525,11 @@ class RateLimitSettings(Autom8yBaseSettings):
 
     max_requests: int = Field(
         default=1500,
-        description="Maximum requests per window (Asana API limit)",
+        description=(
+            "Maximum requests per window (Asana API limit). DEFAULT 1500 = PREMIUM "
+            "tier; override via ASANA_RATELIMIT_MAX_REQUESTS to the workspace's real "
+            "tier ceiling if the PAT is not premium (C-4 rate-tier hazard, UV-P)."
+        ),
         ge=1,
     )
     window_seconds: int = Field(
@@ -654,6 +669,18 @@ class DataServiceSettings(Autom8yBaseSettings):
     insights_enabled: bool = Field(
         default=True,
         description="Emergency kill switch for insights integration (default on)",
+    )
+    # GAP-1 PR-A: the auth machine-operator mint endpoint. Read from the AUTH
+    # prefix (NOT AUTOM8Y_DATA_) because the mint lives on the auth service, not
+    # the data service. Absent (None) => the operator plane is unreachable and the
+    # cross-tenant export comes back empty for the rewired tables (deploy-INERT;
+    # the counter stays RED until the operator wires this + allowlists the role).
+    operator_token_url: str | None = Field(
+        default=None,
+        description="auth /operator/token mint URL for the machine-operator token (GAP-1)",
+        validation_alias=AliasChoices(
+            "AUTOM8Y_AUTH_OPERATOR_TOKEN_URL",
+        ),
     )
 
 

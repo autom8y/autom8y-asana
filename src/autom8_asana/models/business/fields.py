@@ -248,6 +248,11 @@ STANDARD_TASK_OPT_FIELDS: tuple[str, ...] = (
     "custom_fields.text_value",
     "custom_fields.resource_subtype",
     "custom_fields.people_value",
+    # gfr-dynvocab FRAME-003: close the LIVE governed-strict date hole. Without
+    # this member the Asana fetch never carries date_value, so a `date` cf resolves
+    # to None even when present-and-populated (present-but-typed-date looks absent).
+    # This is a field on the EXISTING entry fetch, NOT a new Asana call.
+    "custom_fields.date_value",
 )
 
 # Minimal field set for detection-only operations (subset of standard).
