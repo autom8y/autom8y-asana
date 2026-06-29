@@ -135,3 +135,6 @@ tmp/
 # Mutation testing and property-based testing artifacts
 .mutmut-cache
 .hypothesis/
+
+# Vendored deck-producer render output (frozen decks are ephemeral; never tracked)
+vendor/deck-producer/export/

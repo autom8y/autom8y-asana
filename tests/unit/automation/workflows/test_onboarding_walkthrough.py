@@ -12,9 +12,14 @@ separately in the build log, not by a green test alone (G-THEATER).
 
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import inspect
 import io
 import os
+import re
 import shutil
+import uuid
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -697,3 +702,321 @@ class TestT7ResolveAssertIntegration:
         assert out.error is not None
         assert out.error.error_type == "tenant_binding_violation"
         atts.upload_async.assert_not_called()
+# =====================================================================
+# OB-GUIDE byte-exact attestation (forwarding-cutover-first-value · S3)
+# =====================================================================
+# Land predicate (a) of first-value for North Star Family Chiropractic: prove the
+# personalized walkthrough deck carries the BYTE-EXACT grandeur routing address
+# d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com (the FULL
+# uuidv4 -- never the 8-char shorthand d167d635@...). Proven by a TWO-SIDED
+# byte-diff through the REAL Node producer + an INDEPENDENT oracle, never by
+# "the producer ran". N=1, positively selected: the address is DERIVED from the
+# confirmed guid via the autom8y-core gate -- never reverse-matched from a render
+# or name-guessed (G-DENOM).
+
+NSF_GUID = "d167d635-1468-4ad5-9f88-8d44c8a4d1a9"
+# A DIFFERENT, equally-valid uuidv4. The producer ACCEPTS it (it is MC-1
+# canonical); the oracle CATCHES it (AC-3) -- proving the teeth are independent
+# of the producer.
+WRONG_BUT_CANONICAL_GUID = "b167331c-536f-4996-9b2d-2f696f35f556"
+
+# The vendored producer lives at <repo-root>/vendor/deck-producer; resolve it
+# relative to THIS file so the attestation tests need no env var to find it.
+_VENDORED_PRODUCER_DIR = Path(__file__).resolve().parents[4] / "vendor" / "deck-producer"
+
+# FORK-DECK(a): the provider-agnostic email-forwarding deck (the OB guide).
+OB_GUIDE_DECK = "email-forwarding-setup"
+
+
+def _core_mint_available() -> bool:
+    """True iff the autom8y-core canonical-address gate is importable."""
+    try:
+        from autom8y_core.helpers.routing import format_routing_address  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
+
+
+def _vendored_producer_available() -> bool:
+    """True iff node + the vendored producer (entrypoint + node_modules) exist."""
+    return (
+        shutil.which("node") is not None
+        and (_VENDORED_PRODUCER_DIR / "build" / "inline.mjs").exists()
+        and (_VENDORED_PRODUCER_DIR / "node_modules").exists()
+    )
+
+
+requires_ob_guide_mechanism = pytest.mark.skipif(
+    not (_vendored_producer_available() and _core_mint_available()),
+    reason="OB-guide mechanism needs node>=22 + vendored producer node_modules + autom8y-core mint",
+)
+
+requires_core_mint = pytest.mark.skipif(
+    not _core_mint_available(),
+    reason="autom8y-core format_routing_address gate not importable",
+)
+
+
+def _mint(guid: str) -> str:
+    """Mint the canonical routing address via the autom8y-core gate.
+
+    G-PROPAGATE: calls ``format_routing_address`` DIRECTLY -- it does NOT
+    reimplement the formatter, the canonical-address regex, or any phone->guid
+    resolution. Imported lazily so test COLLECTION is robust where autom8y-core
+    is absent (callers are skip-gated on _core_mint_available()).
+    """
+    from autom8y_core.helpers.routing import format_routing_address
+
+    return format_routing_address(guid)
+
+
+# --- the byte-diff ORACLE (the TEETH) ---
+#
+# Version/variant-AGNOSTIC, UUID-shaped routing-address harvester. It is STRICTLY
+# WEAKER than the producer's CANONICAL_ADDR_RE (inline-dc-runtime.mjs:115-116),
+# which anchors ^...$ AND pins the v4 version nibble `4` and the variant nibble
+# `[89ab]`. This pattern is unanchored (substring search) and accepts ANY hex in
+# every UUID slot -- a provable superset of CANONICAL_ADDR_RE's acceptance set --
+# so it CANNOT be a reimplementation of the canonical formatter/validator. Being
+# shape-based it excludes, by construction, BOTH the deck placeholder
+# `xxxx-xxxx@appointments.contenteapp.com` (EmailForwardingSetup.dc.html:342 --
+# 'x' is not a hex digit) AND the okAddr-regex source literal (which carries
+# `[0-9a-f]` class text, not literal hex in the UUID slots).
+_APPOINTMENT_ADDR_RE = re.compile(
+    rb"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}@appointments\.contenteapp\.com"
+)
+
+
+def harvest_appointment_addresses(frozen: bytes) -> set[str]:
+    """Extract EVERY appointments.contenteapp.com routing address embedded in the
+    frozen deck bytes, returned as a set of decoded strings.
+
+    An independent extractor (strictly-weaker shape than the producer's
+    validator), NOT a re-derivation of the canonical address form.
+    """
+    return {match.decode("ascii") for match in _APPOINTMENT_ADDR_RE.findall(frozen)}
+
+
+def assert_byte_exact_tenant_address(frozen: bytes, expected: str) -> None:
+    """Two-part byte-exact oracle (the TEETH):
+
+    1. PRESENCE    -- ``expected`` is a literal substring of the frozen bytes.
+    2. EXCLUSIVITY -- the ONLY appointment address harvested is exactly
+       ``expected`` (no wrong-but-canonical guid, no 8-char prefix shorthand, no
+       name-resolved address, no placeholder).
+
+    ``expected`` MUST be minted INDEPENDENTLY via the autom8y-core gate. Comparing
+    the render against the same ``--addr`` fed to the producer would be
+    tautological theater (G-THEATER): the oracle must be able to DISAGREE with the
+    producer, which AC-3's RED arm proves.
+    """
+    assert expected.encode("utf-8") in frozen, (
+        f"PRESENCE failed: {expected!r} is not a substring of the frozen bytes"
+    )
+    harvested = harvest_appointment_addresses(frozen)
+    assert harvested == {expected}, (
+        f"EXCLUSIVITY (byte-diff teeth) failed: harvested {harvested!r} != {{{expected!r}}}"
+    )
+
+
+async def _freeze_ob_guide(*, gated_address: str, out_filename: str) -> bytes:
+    """Render+freeze the OB-guide deck via the PYTHON invoker, which retains the
+    producer.py:141-142 output re-validation (NOT a raw ``node`` shell)."""
+    return await freeze_walkthrough_deck(
+        producer_dir=_VENDORED_PRODUCER_DIR,
+        deck_template=OB_GUIDE_DECK,
+        gated_address=gated_address,
+        client_name="North Star Family Chiropractic",
+        out_filename=out_filename,
+    )
+
+
+async def _render_placeholder_no_addr(out_filename: str) -> bytes:
+    """Render the deck WITHOUT ``--addr`` (the placeholder path).
+
+    ``freeze_walkthrough_deck`` mandates an address, so the no-addr arm (AC-1 RED)
+    shells the SAME node producer directly with no address. This is NOT a
+    reimplementation of the freeze -- it is the identical producer invoked without
+    a gated address, so the oracle can prove it harvests NOTHING from a
+    placeholder-only deck.
+    """
+    proc = await asyncio.create_subprocess_exec(
+        "node",
+        "build/inline.mjs",
+        "--deck",
+        f"templates/{OB_GUIDE_DECK}",
+        "--out",
+        out_filename,
+        cwd=_VENDORED_PRODUCER_DIR,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    _stdout, stderr = await proc.communicate()
+    assert proc.returncode == 0, (stderr or b"").decode("utf-8", "replace")[:300]
+    return (_VENDORED_PRODUCER_DIR / "export" / out_filename).read_bytes()
+
+
+def _ob_out(tag: str) -> str:
+    """Unique export filename (xdist-safe) that matches ATTACHMENT_GLOB."""
+    return f"walkthrough_1210776074464695_obguide_{tag}_{uuid.uuid4().hex[:12]}.html"
+
+
+def _ob_cleanup(out_filename: str) -> None:
+    (_VENDORED_PRODUCER_DIR / "export" / out_filename).unlink(missing_ok=True)
+
+
+@requires_ob_guide_mechanism
+class TestObGuideByteExactAttestation:
+    """Two-sided byte-exact attestation through the REAL producer + the oracle.
+
+    AC-1 / AC-2 / AC-3 / AC-7. The LIVE Asana attach is NEVER performed (staged
+    only); the deck address is byte-verified, never assumed from a green run.
+    """
+
+    async def test_ac1_green_oracle_passes_on_grandeur_render(self) -> None:
+        # GREEN: the real d167d635 render satisfies presence AND exclusivity.
+        out = _ob_out("ac1g")
+        try:
+            expected = _mint(NSF_GUID)
+            frozen = await _freeze_ob_guide(gated_address=expected, out_filename=out)
+            assert_byte_exact_tenant_address(frozen, expected)
+            assert harvest_appointment_addresses(frozen) == {expected}
+        finally:
+            _ob_cleanup(out)
+
+    async def test_ac1_red_no_addr_harvests_empty(self) -> None:
+        # RED: with NO --addr the deck renders only the `xxxx-xxxx` placeholder
+        # (raw-present, but 'x' is not hex), so the oracle harvests the EMPTY set.
+        out = _ob_out("ac1r")
+        try:
+            frozen = await _render_placeholder_no_addr(out)
+            assert harvest_appointment_addresses(frozen) == set()
+        finally:
+            _ob_cleanup(out)
+
+    async def test_ac2_red_prefix_shorthand_raises(self) -> None:
+        # RED: the 8-char prefix shorthand is NOT MC-1 canonical -> the producer
+        # refuses (ADDR-NON-CANONICAL) -> ProducerFreezeError.
+        out = _ob_out("ac2r")
+        try:
+            with pytest.raises(ProducerFreezeError):
+                await _freeze_ob_guide(
+                    gated_address="d167d635@appointments.contenteapp.com",
+                    out_filename=out,
+                )
+        finally:
+            _ob_cleanup(out)
+
+    async def test_ac2_green_full_uuid_accepted(self) -> None:
+        # GREEN: the full uuidv4 address is accepted and frozen into the deck.
+        out = _ob_out("ac2g")
+        try:
+            expected = _mint(NSF_GUID)
+            frozen = await _freeze_ob_guide(gated_address=expected, out_filename=out)
+            assert expected.encode("utf-8") in frozen
+        finally:
+            _ob_cleanup(out)
+
+    async def test_ac3_green_byte_equal_independent_mint(self) -> None:
+        # GREEN keystone: feed the d167d635 mint; compare against an INDEPENDENT
+        # d167d635 mint (never the fed --addr) -> byte-equal, oracle PASSES.
+        out = _ob_out("ac3g")
+        try:
+            fed = _mint(NSF_GUID)
+            frozen = await _freeze_ob_guide(gated_address=fed, out_filename=out)
+            expected = _mint(NSF_GUID)  # independent re-mint from the guid
+            assert_byte_exact_tenant_address(frozen, expected)
+        finally:
+            _ob_cleanup(out)
+
+    async def test_ac3_red_wrong_but_canonical_caught(self) -> None:
+        # RED keystone: feed a DIFFERENT valid v4. The producer ACCEPTS it (it is
+        # canonical) and injects it; the oracle -- comparing against the d167d635
+        # mint -- RAISES. Break the INPUT, never the SURFACE
+        # (discriminating-canary-doctrine): proves the teeth are producer-
+        # independent. The grandeur address is genuinely absent from this render.
+        out = _ob_out("ac3r")
+        try:
+            fed_wrong = _mint(WRONG_BUT_CANONICAL_GUID)
+            frozen = await _freeze_ob_guide(gated_address=fed_wrong, out_filename=out)
+            assert fed_wrong.encode("utf-8") in frozen  # producer DID accept+inject
+            expected = _mint(NSF_GUID)
+            with pytest.raises(AssertionError):
+                assert_byte_exact_tenant_address(frozen, expected)
+        finally:
+            _ob_cleanup(out)
+
+    async def test_ac7_integrity_receipt_sha256_and_byte_diff_pass(self) -> None:
+        # AC-7 TIER-1: compute a sha256 integrity digest over the frozen bytes and
+        # assert the byte-diff oracle PASSES on the real grandeur render.
+        out = _ob_out("ac7")
+        try:
+            expected = _mint(NSF_GUID)
+            frozen = await _freeze_ob_guide(gated_address=expected, out_filename=out)
+            digest = hashlib.sha256(frozen).hexdigest()
+            assert len(digest) == 64
+            assert all(c in "0123456789abcdef" for c in digest)
+            assert len(frozen) > 0
+            assert_byte_exact_tenant_address(frozen, expected)
+        finally:
+            _ob_cleanup(out)
+
+
+@requires_core_mint
+class TestObGuideMint:
+    """AC-4: the autom8y-core gate mints ONLY from a guid -- phone, E.164, and
+    name inputs each raise ValueError (the address is never name/phone-derived)."""
+
+    @pytest.mark.parametrize(
+        "bad_input",
+        ["7639994340", "+17156902466", "North Star Medical Clinic"],
+    )
+    def test_ac4_red_phone_or_name_raises_valueerror(self, bad_input: str) -> None:
+        with pytest.raises(ValueError):
+            _mint(bad_input)
+
+    def test_ac4_green_guid_mints_grandeur_address(self) -> None:
+        assert (
+            _mint(NSF_GUID) == "d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com"
+        )
+
+
+class TestObGuideOracleHygiene:
+    """AC-6 + harvester shape unit-tests. No producer/core required -- these run
+    everywhere (pure source inspection + synthetic bytes)."""
+
+    def test_ac6_oracle_source_has_no_live_attach_no_phone_or_name_resolution(self) -> None:
+        # Static grep-zero over the oracle source: the byte-exact path must NOT
+        # route through the live Asana attach, phone->guid resolution, or
+        # name->guid resolution.
+        source = inspect.getsource(harvest_appointment_addresses) + inspect.getsource(
+            assert_byte_exact_tenant_address
+        )
+        for forbidden in (
+            "upload_async",
+            "resolve_routing_address_by_phone",
+            "resolve_routing_address_by_name",
+            "nameparser",
+        ):
+            assert forbidden not in source, f"oracle must not reference {forbidden!r}"
+
+    def test_harvester_ignores_placeholder_and_shorthand_catches_canonical(self) -> None:
+        # Deterministic shape proof (no producer): the placeholder and the 8-char
+        # shorthand are invisible to the harvester; a real canonical address is
+        # caught exactly once.
+        grandeur = "d167d635-1468-4ad5-9f88-8d44c8a4d1a9@appointments.contenteapp.com"
+        blob = (
+            b"placeholder xxxx-xxxx@appointments.contenteapp.com and shorthand "
+            b"d167d635@appointments.contenteapp.com and real " + grandeur.encode("utf-8") + b" end"
+        )
+        assert harvest_appointment_addresses(blob) == {grandeur}
+
+    def test_harvester_strictly_weaker_than_canonical_addr_re(self) -> None:
+        # The harvester accepts a NON-v4 UUID-shaped address (version nibble 'd',
+        # variant nibble 'c') that CANONICAL_ADDR_RE would REJECT -- proving the
+        # harvester is strictly weaker, hence not a reimplementation (G-PROPAGATE).
+        non_v4 = b"00000000-0000-d000-c000-000000000000@appointments.contenteapp.com"
+        assert harvest_appointment_addresses(non_v4) == {
+            "00000000-0000-d000-c000-000000000000@appointments.contenteapp.com"
+        }
