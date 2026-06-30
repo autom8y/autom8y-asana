@@ -19,9 +19,11 @@ longer matches the enrolled ``override_stratum`` AND the snapshot was synced AFT
 the override was written (so a just-written override is never immediately re-flagged).
 On divergence the sweep APPENDS a fail-closed override (``actor=operator``,
 ``cascade_changed_at=NOW()``, ``requires_reattestation=True``,
-``notes=cascade_field_change_detected_by_normalizer``) -- the append-only enrollment
-log records the change and forces operator re-attestation; the effective posture
-fails closed to the GHL fallback until re-attested.
+``notes=cascade_field_change_detected_by_normalizer``) that PRESERVES the operator's
+existing enrolled ``override_stratum`` (it records the change + forces re-attestation,
+it does NOT silently re-enrol the office into the newly-detected stratum) -- the
+append-only enrollment log records the change and forces operator re-attestation; the
+effective posture fails closed to the GHL fallback until re-attested.
 
 OPERATOR-ACTIVATABLE / DEFAULT-DARK: the live override POST is gated behind
 ``SCHEDULING_ENROLLMENT_RECONCILE_ENABLED`` (DEFAULT-OFF).  The build runs DRY-RUN
@@ -101,21 +103,35 @@ def _parse_ts(value: object) -> datetime | None:
 
 def build_reattestation_override(
     guid: str,
-    snapshot: Mapping[str, Any],
+    override: Mapping[str, Any],
     now: datetime,
 ) -> dict[str, Any]:
     """Build the fail-closed cascade-change override (Phase-1 ``override`` contract).
 
     Field set is a subset of ``SchedulingEnrollmentOverrideRequest`` (extra=forbid):
     ``{guid, actor, override_stratum, override_ghl_calendar_id, cascade_changed_at,
-    requires_reattestation, notes}``.  ``override_stratum`` records the newly-detected
-    snapshot stratum; ``requires_reattestation=True`` is the fail-closed teeth.
+    requires_reattestation, notes}``.  ``requires_reattestation=True`` is the
+    fail-closed flag.
+
+    PRESERVES the operator's EXISTING enrolled ``override_stratum`` (and GHL calendar)
+    rather than auto-adopting the newly-detected snapshot stratum.  The back-fill row
+    must honestly read "still enrolled in <X>, flagged for re-attestation because the
+    cascade source changed" -- NOT silently re-enrol the office into the new provider.
+    The load-bearing fail-closed safety is delivered by the Phase-1 resolver
+    (``requires_reattestation`` dominates regardless of the enrolled stratum, PR #218);
+    this row only records the change and forces re-attestation without misrepresenting
+    what the operator actually enrolled in.
+
+    ``override`` is the existing operator override mapping (``enrollment["override"]``),
+    carrying ``override_stratum`` + ``override_ghl_calendar_id`` from the Phase-1
+    enrollment read.  Callers MUST only invoke this when an override exists; a
+    snapshot-only office has nothing to flag (see :func:`detect_divergence`).
     """
     return {
         "guid": guid,
         "actor": RECONCILE_ACTOR,
-        "override_stratum": snapshot["stratum"],
-        "override_ghl_calendar_id": snapshot.get("ghl_calendar_id"),
+        "override_stratum": override["override_stratum"],
+        "override_ghl_calendar_id": override.get("override_ghl_calendar_id"),
         "cascade_changed_at": now.isoformat(),
         "requires_reattestation": True,
         "notes": RECONCILE_NOTE,
@@ -169,7 +185,9 @@ def detect_divergence(
         # (avoids re-posting against an override the sweep itself just wrote).
         return DivergenceDecision(guid, False, "snapshot_not_newer", None)
 
-    payload = build_reattestation_override(guid, snapshot, now)
+    # Preserve the operator's enrolled stratum on the flag (semantic honesty); the
+    # snapshot proved the cascade changed but is NOT silently re-enrolled here.
+    payload = build_reattestation_override(guid, override, now)
     return DivergenceDecision(guid, True, "cascade_changed", payload)
 
 

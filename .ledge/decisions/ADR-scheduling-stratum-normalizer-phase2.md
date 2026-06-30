@@ -70,12 +70,37 @@ guard prevents a just-written override from being immediately re-flagged on the 
 pass (idempotent under repeated runs).
 
 Back-fill (fail-CLOSED): on divergence the sweep APPENDS a new override
-(`actor=operator`, `override_stratum=<the newly-detected snapshot stratum>`,
-`override_ghl_calendar_id=<fresh GHL coords>`, `cascade_changed_at=NOW()`,
-`requires_reattestation=True`, `notes="cascade_field_change_detected_by_normalizer"`).
-The append-only enrollment log records the change; `requires_reattestation=True` is
-the fail-closed teeth — the effective posture falls back to GHL until an operator
-re-attests.
+(`actor=operator`, `override_stratum=<the operator's EXISTING enrolled stratum,
+PRESERVED>`, `override_ghl_calendar_id=<the operator's enrolled calendar, PRESERVED>`,
+`cascade_changed_at=NOW()`, `requires_reattestation=True`,
+`notes="cascade_field_change_detected_by_normalizer"`). The append-only enrollment log
+records the change; `requires_reattestation=True` is the fail-closed flag. The back-fill
+does NOT auto-adopt the newly-detected snapshot stratum — it would misrepresent the
+enrollment as "now enrolled in <new provider>" when the operator never chose it. The
+row honestly reads "still enrolled in <X>, flagged for re-attestation"; the live
+fail-closed safety is delivered by the Phase-1 resolver (see the F-1 seam below).
+
+### The F-1 cross-PR fail-closed seam (resolver dominance)
+
+The fail-closed teeth are LOAD-BEARING in the Phase-1 resolver
+(`autom8y-data` PR #218 `scheduling_posture.resolve_effective_posture`), NOT in the
+back-fill payload's stratum value. The resolver fails closed to GHL whenever an
+override is flagged `requires_reattestation=True` AND has not been operator-re-attested
+since the cascade change (`attested_at >= cascade_changed_at`) — **regardless of whether
+the live snapshot corroborates the enrolled stratum**.
+
+This closes the N5 F-1 fail-open: the earlier resolver let a *self-corroborating* snapshot
+(one whose stratum equals the flagged `override_stratum`) silently re-open the override,
+so the re-attestation teeth never bit. Two surfaces depended on that exception — the
+back-fill (when it adopted the new stratum, it was always self-corroborating) AND any
+office whose snapshot later **flaps back** to the enrolled value while re-attestation is
+still pending. Both now fail closed. The cross-PR seam is locked by a composed test on
+each side (`test_scheduling_posture.py::TestComposedReconcileSeam` and
+`test_scheduling_enrollment_reconcile.py::test_composed_sweep_backfill_fails_closed_against_resolver_replica`)
+— the seam the isolated Phase-1/Phase-2 suites could not see. The architecture's further
+"AND the current stratum depends on the changed field" refinement RELAXES fail-closed and
+is deliberately DEFERRED (it would re-introduce a snapshot-gated exception); the
+strictly-safe baseline ships.
 
 ## Why (a) is STRUCK
 
@@ -161,3 +186,30 @@ the PURE `derive_effective_ghl_id`; the LIVE read of the duration-keyed field fa
 (not one of the eight FORK-UVP source fields; needs offer-duration context) is an
 explicit, additively-activatable deferral — pass a resolved `duration_fallback_id` to
 fold it in, no resolver change required.
+
+## Prediction Ledger
+
+Falsifiable predictions underwriting deferred design choices. Each carries a claim, a
+falsification condition, an expiry, and a named curator; when a prediction is falsified
+before expiry the linked decision is re-adjudicated.
+
+### TL-A7 — stratum volatility underwrites the materialized-projection TTL (DEFER-5)
+
+- **id**: TL-A7
+- **claim**: scheduling-provider stratum is structurally low-volatility, validating the
+  option-(iii) ~4-8h-TTL materialized projection (the freshness-stamped stratum snapshot
+  refreshed on the sweep/push cadence rather than resolved per-request).
+- **falsification_condition**: per-office cascade-field mutation rate > 2%/week measured
+  over a rolling 30/90-day window (i.e. more than ~2% of offices change a cascade SOURCE
+  field week-over-week — the stratum is then volatile enough that a multi-hour TTL serves
+  stale providers materially often).
+- **expiry**: 2026-12-27
+- **curator**: build team / SRE owner — assign at Phase-2 kick-off.
+- **re-adjudication trigger**: if falsified before expiry, re-adjudicate the projection
+  freshness model — SHORTEN the TTL/sweep cycle toward real-time, or move to
+  EVENT-DRIVEN invalidation (push-time or webhook-triggered reconciliation) instead of the
+  periodic sweep. The option-(c) sweep cadence (`SCHEDULING_ENROLLMENT_RECONCILE_*`) and
+  the stratum freshness TTL are the two levers; the fail-closed-to-GHL posture beyond TTL
+  (and the F-1 re-attestation dominance above) bounds the blast radius of a wrong
+  prediction in the interim — a volatile-but-not-yet-reconciled office degrades safely to
+  GHL rather than serving a confidently-wrong provider.
