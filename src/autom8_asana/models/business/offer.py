@@ -172,6 +172,25 @@ class Offer(
     custom_cal_url = TextField(field_name="Custom Cal URL")
     offer_schedule_link = TextField()
 
+    # Scheduling source fields (8 - cascade ACL inputs; scheduling-stratum Phase 2)
+    # The legacy CustomCalUrl cascade INPUTS, declared alongside the working
+    # ``custom_cal_url`` (the cascade OUTPUT) on the SAME field-bearing Offer entity.
+    # Placement rationale: in the monolith these eight live on ``unit_holder.*``, but
+    # autom8y-asana's UnitHolder is a thin HolderFactory container with ZERO field
+    # descriptors; the field-bearing scheduling entity here is Offer (where
+    # ``custom_cal_url`` already reads successfully). See the Phase-2 ADR.
+    # The normalizer reads these via the GFR dynvocab BY-NAME path (NameNormalizer-
+    # robust), so the convention-derived field_name is sufficient -- no hard-coded
+    # exact Asana display string is required.
+    reviewwave_id = TextField()
+    acuity_cal_url = TextField()
+    calendly_url = TextField()
+    janeapp_url = TextField()
+    ehr_cal_url = TextField()
+    trackstat_id = TextField()
+    sked_id = TextField()
+    custom_ghl_id = TextField()
+
     # Notes fields (2)
     internal_notes = TextField()
     external_notes = TextField()
