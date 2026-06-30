@@ -30,9 +30,13 @@ import structlog
 from autom8_asana.automation.workflows.bridge_base import BridgeWorkflowAction
 from autom8_asana.automation.workflows.onboarding_walkthrough import (
     constants,
+    identity_guard,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough import (
     producer as producer_module,
+)
+from autom8_asana.automation.workflows.onboarding_walkthrough.identity_guard import (
+    AnchorResult,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.producer import (
     ProducerFreezeError,
@@ -40,11 +44,20 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.producer import (
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.tenant_binding import (
     TenantBindingError,
+    _mask_addr,
     assert_exclusive_tenant_binding,
     harvest_routing_addresses,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.workflow import (
     OnboardingWalkthroughWorkflow,
+)
+from autom8_asana.core.types import EntityType
+from autom8_asana.resolution.gfr.models import TruthTier
+from tests.unit.resolution.gfr.conftest import (
+    FakeByGuidVerifier,
+    make_hydration_result,
+    make_record,
+    make_rows_response,
 )
 
 # --- Fixtures / probe constants (N0 live probe 2026-06-27) ---
@@ -130,13 +143,16 @@ def _passthrough_anchor(resolver: MagicMock) -> AsyncMock:
     """
     address = resolver.resolve_routing_address_by_phone_async.return_value
 
-    async def _anchor(*, task_gid: str, client: Any, query_engine: Any, verifier: Any) -> str:
+    async def _anchor(
+        *, task_gid: str, client: Any, query_engine: Any, verifier: Any
+    ) -> AnchorResult:
         if not isinstance(address, str):
             # No resolvable address (the resolver returns None) -> this path is not
             # reached (the workflow skips at address_unresolved before W1); return a
             # sentinel that would mismatch if it ever were.
-            return "no-address"
-        return address.split("@", 1)[0].lower()
+            return AnchorResult(company_id="no-address", tier=TruthTier.CACHE)
+        # Models the production-default CACHE-tier anchor (no verifier wired).
+        return AnchorResult(company_id=address.split("@", 1)[0].lower(), tier=TruthTier.CACHE)
 
     return AsyncMock(side_effect=_anchor)
 
@@ -162,6 +178,7 @@ def _make_workflow(
     existing_attachments: list[MagicMock] | None = None,
     query_engine: Any | None = None,
     company_id_anchor: Any | None = None,
+    verifier: Any | None = None,
     delete_raises_times: int = 0,
 ) -> tuple[OnboardingWalkthroughWorkflow, MagicMock, MagicMock, list[str]]:
     """Construct the workflow with mocked asana + attachments clients.
@@ -263,6 +280,7 @@ def _make_workflow(
         company_id_anchor=(
             company_id_anchor if company_id_anchor is not None else _passthrough_anchor(resolver)
         ),
+        verifier=verifier,
     )
     return wf, mock_attachments, resolver, order
 
@@ -823,11 +841,13 @@ _W1_GUID_A = "d167d635-1468-4ad5-9f88-8d44c8a4d1a9"
 _W1_GUID_B = "ffffffff-eeee-4ddd-8ccc-bbbbaaaa0000"  # a DIFFERENT tenant
 
 
-def _stub_anchor(company_id: str) -> AsyncMock:
+def _stub_anchor(company_id: str, *, tier: TruthTier = TruthTier.CACHE) -> AsyncMock:
     """A Source-B anchor stub that returns a FIXED company_id (independent of A)."""
 
-    async def _anchor(*, task_gid: str, client: Any, query_engine: Any, verifier: Any) -> str:
-        return company_id
+    async def _anchor(
+        *, task_gid: str, client: Any, query_engine: Any, verifier: Any
+    ) -> AnchorResult:
+        return AnchorResult(company_id=company_id, tier=tier)
 
     return AsyncMock(side_effect=_anchor)
 
@@ -1758,3 +1778,470 @@ class TestF5BoundedHarvest:
         ]
         assert len(fail_logs) == 1
         print(f"[F5] one bad-download prior tolerated -> task={out.status}/{out.reason}, no abort")
+
+
+# --- W3: ACTIVE-section enumeration over Calendar-Integrations (NO OFFER_CLASSIFIER) ---
+
+
+def _collectable(items: list[Any]) -> MagicMock:
+    """A PageIterator-like mock whose async ``.collect()`` yields ``items``."""
+    obj = MagicMock()
+    obj.collect = AsyncMock(return_value=list(items))
+    return obj
+
+
+def _collectable_raises(exc: Exception | None = None) -> MagicMock:
+    """A PageIterator-like mock whose async ``.collect()`` raises (network/5xx)."""
+    obj = MagicMock()
+    obj.collect = AsyncMock(side_effect=exc or RuntimeError("section api down"))
+    return obj
+
+
+def _section_obj(name: str, gid: str) -> MagicMock:
+    # NOTE: MagicMock(name=...) sets the repr name, NOT a .name attribute -- set both
+    # attributes explicitly so resolve_section_gids reads the real section name.
+    s = MagicMock()
+    s.name = name
+    s.gid = gid
+    return s
+
+
+def _task_obj(gid: str, *, completed: bool = False, name: str = "Task") -> MagicMock:
+    t = MagicMock()
+    t.gid = gid
+    t.completed = completed
+    t.name = name
+    return t
+
+
+class TestW3Enumeration:
+    """W3 re-points enumerate_entities to Calendar-Integrations/ACTIVE by NAME."""
+
+    @staticmethod
+    def _wire(
+        wf: OnboardingWalkthroughWorkflow,
+        *,
+        sections: list[MagicMock] | None = None,
+        tasks_by_section: dict[str, list[MagicMock]] | None = None,
+        project_tasks: list[MagicMock] | None = None,
+        sections_raise: bool = False,
+        section_fetch_raises: bool = False,
+    ) -> None:
+        # Shadow the entity-builder so the unit-under-test is the section-targeting
+        # logic, not pydantic Business validation (covered elsewhere).
+        wf._task_to_entity = lambda task: {"gid": task.gid, "name": getattr(task, "name", None)}  # type: ignore[method-assign]
+
+        if sections_raise:
+            wf._asana_client.sections.list_for_project_async = MagicMock(
+                return_value=_collectable_raises()
+            )
+        else:
+            wf._asana_client.sections.list_for_project_async = MagicMock(
+                return_value=_collectable(sections or [])
+            )
+
+        def _list_async(**kwargs: Any) -> MagicMock:
+            if "section" in kwargs:
+                if section_fetch_raises:
+                    return _collectable_raises(RuntimeError("section fetch 5xx"))
+                return _collectable((tasks_by_section or {}).get(kwargs["section"], []))
+            return _collectable(project_tasks or [])
+
+        wf._asana_client.tasks.list_async = MagicMock(side_effect=_list_async)
+
+    def test_constructor_sets_calendar_project_gid_default(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        assert wf._calendar_integrations_project_gid == constants.CALENDAR_INTEGRATIONS_PROJECT_GID
+
+    async def test_targets_calendar_integrations_active_section(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        active = [_task_obj("t-active-1"), _task_obj("t-active-2")]
+        self._wire(
+            wf,
+            sections=[
+                _section_obj("ACTIVE", "sec-active"),
+                _section_obj("TEMPLATE", "sec-tmpl"),
+                _section_obj("REVIEW", "sec-review"),
+            ],
+            tasks_by_section={"sec-active": active},
+        )
+
+        entities = await wf.enumerate_entities(MagicMock())
+
+        assert {e["gid"] for e in entities} == {"t-active-1", "t-active-2"}
+        # Sections resolved against the Calendar-Integrations project (constructor default).
+        wf._asana_client.sections.list_for_project_async.assert_called_once_with(
+            constants.CALENDAR_INTEGRATIONS_PROJECT_GID
+        )
+        # ONLY the ACTIVE section was fetched -- not TEMPLATE/REVIEW.
+        section_calls = [
+            c.kwargs.get("section") for c in wf._asana_client.tasks.list_async.call_args_list
+        ]
+        assert section_calls == ["sec-active"]
+        print(f"[W3] enumerated ACTIVE-only gids={sorted(e['gid'] for e in entities)}")
+
+    async def test_completed_active_tasks_excluded(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        self._wire(
+            wf,
+            sections=[_section_obj("ACTIVE", "sec-active")],
+            tasks_by_section={"sec-active": [_task_obj("live"), _task_obj("done", completed=True)]},
+        )
+        entities = await wf.enumerate_entities(MagicMock())
+        assert {e["gid"] for e in entities} == {"live"}
+
+    async def test_enumeration_uses_overridable_calendar_project_gid(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        wf._calendar_integrations_project_gid = "override-proj-777"  # two-way door
+        self._wire(
+            wf,
+            sections=[_section_obj("ACTIVE", "sec-x")],
+            tasks_by_section={"sec-x": [_task_obj("ov-1")]},
+        )
+        await wf.enumerate_entities(MagicMock())
+        wf._asana_client.sections.list_for_project_async.assert_called_once_with(
+            "override-proj-777"
+        )
+
+    async def test_falls_back_to_onboarding_project_on_section_resolution_failure(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        self._wire(wf, sections_raise=True, project_tasks=[_task_obj("onb-1"), _task_obj("onb-2")])
+
+        entities = await wf.enumerate_entities(MagicMock())
+
+        assert {e["gid"] for e in entities} == {"onb-1", "onb-2"}
+        # Preserved N=1 pilot path: the fallback enumerates the ONBOARDING project.
+        project_calls = [
+            c.kwargs.get("project") for c in wf._asana_client.tasks.list_async.call_args_list
+        ]
+        assert project_calls == [constants.ONBOARDING_PROJECT_GID]
+        print("[W3] section-resolution failure -> Onboarding project-level fallback fired")
+
+    async def test_falls_back_on_empty_active_resolution(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        # Sections exist but NONE is named ACTIVE -> resolve_section_gids returns {} -> fallback.
+        self._wire(
+            wf,
+            sections=[_section_obj("TEMPLATE", "s1"), _section_obj("REVIEW", "s2")],
+            project_tasks=[_task_obj("onb-9")],
+        )
+        entities = await wf.enumerate_entities(MagicMock())
+        assert {e["gid"] for e in entities} == {"onb-9"}
+        project_calls = [
+            c.kwargs.get("project") for c in wf._asana_client.tasks.list_async.call_args_list
+        ]
+        assert project_calls == [constants.ONBOARDING_PROJECT_GID]
+
+    async def test_falls_back_on_partial_section_fetch_failure(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        # ACTIVE resolves, but the section task-fetch raises -> no partial sweep, full fallback.
+        self._wire(
+            wf,
+            sections=[_section_obj("ACTIVE", "sec-active")],
+            section_fetch_raises=True,
+            project_tasks=[_task_obj("onb-fallback")],
+        )
+        entities = await wf.enumerate_entities(MagicMock())
+        assert {e["gid"] for e in entities} == {"onb-fallback"}
+
+    def test_enumeration_path_has_no_offer_classifier(self) -> None:
+        """Static guard (G-DENOM): the workflow never IMPORTS or USES the Offers
+        OFFER_CLASSIFIER nor the active_offer_enumeration module that carries it.
+
+        Parsed via AST so the guard bites on real imports/usage and is NOT tripped
+        by the explanatory prose that documents *why* the divergence exists.
+        """
+        import ast as _ast
+        import inspect as _inspect
+
+        import autom8_asana.automation.workflows.onboarding_walkthrough.workflow as wf_mod
+
+        tree = _ast.parse(_inspect.getsource(wf_mod))
+
+        imported: set[str] = set()
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.ImportFrom):
+                imported.add(node.module or "")
+                imported.update(alias.name for alias in node.names)
+            elif isinstance(node, _ast.Import):
+                imported.update(alias.name for alias in node.names)
+        names_used = {n.id for n in _ast.walk(tree) if isinstance(n, _ast.Name)}
+
+        assert "OFFER_CLASSIFIER" not in imported, "must not import OFFER_CLASSIFIER"
+        assert "OFFER_CLASSIFIER" not in names_used, "must not reference OFFER_CLASSIFIER in code"
+        assert not any("active_offer_enumeration" in m for m in imported), (
+            "enumeration must reuse section_resolution, NOT the Offers active_offer_enumeration"
+        )
+
+
+# =====================================================================
+# C-BN1-05 (SEC-N2 §3) -- the affirmative per-task SUCCESS audit record
+# =====================================================================
+# The batch replacement for the retired N=1 human attestation line: on the SUCCESS
+# path (W1 passed AND T7 passed AND the upload succeeded) the workflow emits ONE
+# structured record binding the automation identity, the task, the MASKED tenant
+# company_id (Source B) + MASKED gated routing address (Source A -- a routing-secret;
+# never logged in full), the W1 anchor-basis TIER (read from the GFR provenance), and
+# a timestamp. Two-sided: present on success, ABSENT on every skip/fail path.
+
+_AUDIT_EVENT = "onboarding_walkthrough_upload_succeeded"
+
+
+class TestCBN105SuccessAuditRecord:
+    """C-BN1-05: the per-task success audit record (presence + masking + tier; absence)."""
+
+    def _patch_freeze(self, monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        spy = AsyncMock(return_value=_deck_bytes(_W1_RESOLVED_A))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        return spy
+
+    async def test_success_emits_audit_record_with_masked_fields_and_tier(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # GREEN: a clean attach emits the structured audit record. The default
+        # (no-verifier) anchor resolves the CACHE tier, so anchor_tier == "CACHE".
+        from datetime import datetime
+
+        self._patch_freeze(monkeypatch)
+        resolver = _make_resolver(address=_W1_RESOLVED_A)
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+        with _capture_workflow_logs() as captured:
+            out = await wf.process_entity(_entity(gid="task-audit", provider="GHL"), {})
+
+        assert out.status == "succeeded"
+        atts.upload_async.assert_awaited_once()
+        record = next(e for e in captured if e["event"] == _AUDIT_EVENT)
+
+        # Bound identity + task.
+        assert record["workflow_id"] == "onboarding-walkthrough"
+        assert record["task_gid"] == "task-audit"
+        # MASKED tenant company_id (Source B) -- the 8-hex breadcrumb, never the full guid.
+        assert record["company_id"] == identity_guard.mask_guid(_W1_GUID_A)
+        # MASKED gated routing address (Source A) -- domain kept, secret guid masked.
+        assert record["gated_address"] == _mask_addr(_W1_RESOLVED_A)
+        # W1 anchor-basis TIER read from the GFR provenance.
+        assert record["anchor_tier"] == "CACHE"
+        # A parseable timestamp.
+        assert isinstance(record["attached_at"], str)
+        datetime.fromisoformat(record["attached_at"])  # raises if not ISO-8601
+        # The existing operational fields survive the augmentation.
+        assert record["filename"].startswith("walkthrough_task-audit_")
+        assert isinstance(record["size_bytes"], int)
+
+        # PII discipline (G-PROVE): the FULL guid and FULL routing address NEVER appear
+        # in any value of the record (mask-only; the address is a routing secret).
+        for value in record.values():
+            if isinstance(value, str):
+                assert _W1_GUID_A not in value, f"full guid leaked in {value!r}"
+                assert _W1_RESOLVED_A not in value, f"full routing address leaked in {value!r}"
+        print(
+            f"[C-BN1-05] audit record: workflow_id={record['workflow_id']!r} "
+            f"company_id={record['company_id']!r} gated_address={record['gated_address']!r} "
+            f"anchor_tier={record['anchor_tier']!r} attached_at={record['attached_at']!r}"
+        )
+
+    async def test_audit_record_reflects_verified_anchor_tier(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The tier field is read from the anchor result: an anchor that resolved at the
+        # VERIFIED tier yields anchor_tier == "VERIFIED" in the record (the BTM-3
+        # real-anchor arms prove the REAL anchor flips the tier; this proves the
+        # success-record mapping carries it for BOTH tier values).
+        self._patch_freeze(monkeypatch)
+        resolver = _make_resolver(address=_W1_RESOLVED_A)
+        wf, atts, _, _ = _make_workflow(
+            resolver=resolver,
+            company_id_anchor=_stub_anchor(_W1_GUID_A, tier=TruthTier.VERIFIED),
+        )
+        with _capture_workflow_logs() as captured:
+            out = await wf.process_entity(_entity(gid="task-v", provider="GHL"), {})
+        assert out.status == "succeeded"
+        record = next(e for e in captured if e["event"] == _AUDIT_EVENT)
+        assert record["anchor_tier"] == "VERIFIED"
+        print(f"[C-BN1-05] anchor_tier reflects VERIFIED: {record['anchor_tier']!r}")
+
+    async def test_skip_path_emits_no_audit_record(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # A W1 cross-tenant mismatch SKIPs -> NO success audit record (ABSENT on skip).
+        freeze_spy = self._patch_freeze(monkeypatch)
+        resolver = _make_resolver(address=_W1_RESOLVED_A)
+        wf, atts, _, _ = _make_workflow(
+            resolver=resolver, company_id_anchor=_stub_anchor(_W1_GUID_B)
+        )
+        with _capture_workflow_logs() as captured:
+            out = await wf.process_entity(_entity(provider="GHL"), {})
+        assert out.status == "skipped"
+        assert out.reason == "guid_anchor_mismatch"
+        atts.upload_async.assert_not_called()
+        freeze_spy.assert_not_awaited()
+        assert not [e for e in captured if e["event"] == _AUDIT_EVENT], (
+            "no success audit record may be emitted on a skip"
+        )
+
+    async def test_upload_failure_emits_no_audit_record(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # An upload failure FAILs (preserving the prior) -> NO success audit record
+        # (ABSENT on fail; the record sits AFTER the upload in the try).
+        self._patch_freeze(monkeypatch)
+        resolver = _make_resolver(address=_W1_RESOLVED_A)
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+        atts.upload_async = AsyncMock(side_effect=RuntimeError("network down"))
+        with _capture_workflow_logs() as captured:
+            out = await wf.process_entity(_entity(provider="GHL"), {})
+        assert out.status == "failed"
+        assert out.error is not None
+        assert out.error.error_type == "upload_failed"
+        assert not [e for e in captured if e["event"] == _AUDIT_EVENT], (
+            "no success audit record may be emitted on a failed upload"
+        )
+
+
+# =====================================================================
+# BTM-3 (SEC-N3 F-N3-002) -- VERIFIED-tier anchor via the wired ByGuidVerifier
+# =====================================================================
+# With the W4 handler wiring a ByGuidVerifier, the W1 anchor runs TruthTier.VERIFIED
+# (tier-2 by-GUID round-trip), not the blind CACHE tier. These arms drive the REAL
+# identity_guard.anchor_company_id + REAL GFR engine over a mocked substrate (the
+# gid-exact Business row + the by-guid verifier), proving: (a) the tier the REAL anchor
+# resolves at flips to VERIFIED when a verifier is wired (and CACHE when not -- the
+# two-sided twin), read from the GFR provenance via an anchor spy; and (b) a poisoned
+# cache company_id that does NOT round-trip by-GUID fails CLOSED to a skip (zero upload,
+# zero freeze). The tier -> audit-record mapping itself is proven separately at
+# TestCBN105SuccessAuditRecord (capture is reliable there -- no real-engine logging that
+# reconfigures structlog mid-capture).
+
+_BTM3_BIZ = "biz-verified-gid"
+_BTM3_HYDRATE = "autom8_asana.resolution.gfr.entry.hydrate_from_gid_async"
+
+
+def _spy_real_anchor() -> tuple[Any, list[TruthTier]]:
+    """The REAL GFR anchor wrapped to record the ``TruthTier`` it resolves at.
+
+    Reads the ground-truth tier off the REAL anchor's ``AnchorResult`` (which reads it
+    off the GFR provenance) -- robust to the structlog-capture/real-engine interaction,
+    and a direct proof that the wiring flips the tier the anchor actually resolves at.
+    """
+    tiers: list[TruthTier] = []
+
+    async def _spy(*, task_gid: str, client: Any, query_engine: Any, verifier: Any) -> AnchorResult:
+        result = await identity_guard.anchor_company_id(
+            task_gid=task_gid, client=client, query_engine=query_engine, verifier=verifier
+        )
+        tiers.append(result.tier)
+        return result
+
+    return _spy, tiers
+
+
+def _real_anchor_verified_workflow(
+    *, verifier: Any, cache_company_id: str, anchor: Any = None
+) -> tuple[OnboardingWalkthroughWorkflow, MagicMock]:
+    """Wire the REAL W1 anchor + REAL GFR engine over a mocked gid-exact substrate.
+
+    ``cache_company_id`` is the company_id the gid-exact Business cache row serves
+    (Source B tier-1); ``verifier`` is the tier-2 by-GUID port. The SDK resolver
+    returns A's canonical address (Source A). ``anchor`` overrides the anchor (e.g. a
+    tier-recording spy); it defaults to the REAL GFR-backed ``anchor_company_id``. The
+    producer freeze + hydrate are patched by the caller.
+    """
+    resolver = _make_resolver(address=_W1_RESOLVED_A)
+    query_engine = AsyncMock()
+    query_engine.execute_rows = AsyncMock(
+        return_value=make_rows_response(rows=[{"gid": _BTM3_BIZ, "company_id": cache_company_id}])
+    )
+    wf, atts, _, _ = _make_workflow(
+        resolver=resolver,
+        query_engine=query_engine,
+        company_id_anchor=anchor if anchor is not None else identity_guard.anchor_company_id,
+        verifier=verifier,
+    )
+    return wf, atts
+
+
+class TestBTM3VerifiedTierAnchor:
+    """BTM-3: a wired ByGuidVerifier flips the W1 anchor to VERIFIED and narrows poison."""
+
+    def _patch_freeze(self, monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        spy = AsyncMock(return_value=_deck_bytes(_W1_RESOLVED_A))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        return spy
+
+    async def test_verifier_wired_real_anchor_resolves_verified_tier(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # GREEN: the cache company_id round-trips by-GUID (verifier has the record) ->
+        # the REAL anchor resolves at the VERIFIED tier (read off the GFR provenance).
+        self._patch_freeze(monkeypatch)
+        anchor, tiers = _spy_real_anchor()
+        verifier = FakeByGuidVerifier(records={_W1_GUID_A: make_record(_W1_GUID_A)})
+        wf, atts = _real_anchor_verified_workflow(
+            verifier=verifier, cache_company_id=_W1_GUID_A, anchor=anchor
+        )
+        with patch(
+            _BTM3_HYDRATE,
+            AsyncMock(
+                return_value=make_hydration_result(
+                    business_gid=_BTM3_BIZ, entry_type=EntityType.OFFER, path_len=3
+                )
+            ),
+        ):
+            out = await wf.process_entity(_entity(gid="task-v", provider="GHL"), {})
+        assert out.status == "succeeded"
+        atts.upload_async.assert_awaited_once()
+        # The REAL anchor resolved at the VERIFIED tier (ground-truth GFR provenance).
+        assert tiers == [TruthTier.VERIFIED]
+        # The by-GUID port WAS consulted (INVARIANT I7), not the office_phone join.
+        assert verifier.calls == [_W1_GUID_A]
+        print(f"[BTM-3] verifier wired -> real anchor tier={tiers[0].name!r} (VERIFIED), uploaded")
+
+    async def test_no_verifier_real_anchor_resolves_cache_tier(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # CACHE twin (two-sided): with NO verifier the REAL engine stamps CACHE
+        # provenance; the anchor resolves at CACHE. Proves the tier readout is the
+        # ground-truth GFR provenance, not an inference -- the teeth bite per-tier.
+        self._patch_freeze(monkeypatch)
+        anchor, tiers = _spy_real_anchor()
+        wf, atts = _real_anchor_verified_workflow(
+            verifier=None, cache_company_id=_W1_GUID_A, anchor=anchor
+        )
+        with patch(
+            _BTM3_HYDRATE,
+            AsyncMock(
+                return_value=make_hydration_result(
+                    business_gid=_BTM3_BIZ, entry_type=EntityType.OFFER, path_len=3
+                )
+            ),
+        ):
+            out = await wf.process_entity(_entity(gid="task-v", provider="GHL"), {})
+        assert out.status == "succeeded"
+        assert tiers == [TruthTier.CACHE]
+        print(f"[BTM-3] no verifier -> real anchor tier={tiers[0].name!r} (CACHE), uploaded")
+
+    async def test_poisoned_cache_skips_under_verified_no_upload(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # RED: the gid-exact cache row carries a POISON company_id that does NOT
+        # round-trip by-GUID (the verifier's record set omits it) -> verify fails ->
+        # UnresolvedError -> skipped(anchor_unresolved), ZERO upload, ZERO freeze. The
+        # VERIFIED tier narrows cache poisoning that CACHE would trust verbatim.
+        freeze_spy = self._patch_freeze(monkeypatch)
+        poison = "deadbeef-0000-4000-8000-000000000000"
+        verifier = FakeByGuidVerifier(records={})  # every by-guid lookup MISSES
+        wf, atts = _real_anchor_verified_workflow(verifier=verifier, cache_company_id=poison)
+        with patch(
+            _BTM3_HYDRATE,
+            AsyncMock(
+                return_value=make_hydration_result(
+                    business_gid=_BTM3_BIZ, entry_type=EntityType.OFFER, path_len=3
+                )
+            ),
+        ):
+            out = await wf.process_entity(_entity(gid="task-v", provider="GHL"), {})
+        assert out.status == "skipped"
+        assert out.reason == "anchor_unresolved"
+        atts.upload_async.assert_not_called()
+        freeze_spy.assert_not_awaited()
+        # The by-GUID port was consulted on the poison and missed -> fail-closed.
+        assert verifier.calls == [poison]
+        print(f"[BTM-3] poisoned cache under VERIFIED -> {out.reason!r}, uploads=0 (narrowed)")

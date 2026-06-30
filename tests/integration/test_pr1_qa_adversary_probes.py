@@ -35,10 +35,12 @@ import structlog
 
 from autom8_asana.automation.workflows.onboarding_walkthrough import constants, identity_guard
 from autom8_asana.automation.workflows.onboarding_walkthrough import producer as producer_module
+from autom8_asana.automation.workflows.onboarding_walkthrough.identity_guard import AnchorResult
 from autom8_asana.automation.workflows.onboarding_walkthrough.workflow import (
     OnboardingWalkthroughWorkflow,
 )
 from autom8_asana.core.types import EntityType
+from autom8_asana.resolution.gfr.models import TruthTier
 from tests.unit.resolution.gfr.conftest import make_hydration_result, make_rows_response
 
 pytestmark = [pytest.mark.xdist_group("gfr_resolver")]
@@ -105,8 +107,8 @@ def freeze_echoing_resolved() -> AsyncMock:
 def echo_anchor(resolved_addr: str) -> AsyncMock:
     """A Source-B anchor that ECHOES Source A (W1 passes transparently)."""
 
-    async def _a(*, task_gid: str, client: Any, query_engine: Any, verifier: Any) -> str:
-        return resolved_addr.split("@", 1)[0].lower()
+    async def _a(*, task_gid: str, client: Any, query_engine: Any, verifier: Any) -> AnchorResult:
+        return AnchorResult(company_id=resolved_addr.split("@", 1)[0].lower(), tier=TruthTier.CACHE)
 
     return AsyncMock(side_effect=_a)
 

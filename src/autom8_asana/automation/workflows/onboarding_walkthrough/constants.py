@@ -38,6 +38,30 @@ WALKTHROUGH_PRODUCER_DIR_ENV_VAR = "AUTOM8_WALKTHROUGH_PRODUCER_DIR"
 # Overridable via constructor for test/non-prod targeting.
 ONBOARDING_PROJECT_GID = "1201319387632570"
 
+# --- Calendar-Integrations project (W3 batch-sweep enumeration target) ---
+# The batch sweep enumerates the ACTIVE section of the Calendar-Integrations
+# project. PROBE-SOURCED (R-1 census 2026-06-30): the project GID and its ACTIVE
+# section (resolved BY NAME -- gid 1209442954085037 at probe time) were confirmed
+# live; the GHL pilot task anchors a Business root at path_len=1. This GID lives
+# in core/project_registry.py's _CONSUMER_WARM_SET_TIER_3_LIGHT (a cache-warming
+# target) DELIBERATELY SEPARATE from the domain _REGISTRY, so it is referenced
+# here as a named workflow-local constant rather than promoted into _REGISTRY:
+# the enumeration needs only the GID string plus section-by-name resolution and
+# never a registry-domain promotion (promoting would widen get_project_gid /
+# all_entity_project_gids / parity -- project_registry.py:207-220). GFR's W1
+# anchor walks parent chains structurally and never consults project_registry.
+# Constructor-overridable on the workflow (two-way door with ONBOARDING_PROJECT_GID).
+CALENDAR_INTEGRATIONS_PROJECT_GID = "1209442849265632"
+
+# --- ACTIVE section name (W3; resolved BY NAME, never a hardcoded section GID) ---
+# The active-set definition for THIS Calendar-Integrations sweep is the section
+# literally named "ACTIVE", resolved via resolve_section_gids. This is NOT the
+# Offers OFFER_CLASSIFIER (an Offers-domain activity classifier bound to the Offer
+# project): importing it here would drag an Offers denominator into a
+# Calendar-Integrations sweep (G-DENOM hygiene). A literal frozenset keeps the
+# active-set definition local and explicit.
+ACTIVE_SECTION_NAMES: frozenset[str] = frozenset({"ACTIVE"})
+
 # --- Attachment naming (ADR-WALK-B1: unique-per-run, not a fixed name) ---
 # A fixed ``walkthrough.html`` would be excluded from its own deletion by the
 # AttachmentReplacementMixin (it excludes by name) and accumulate duplicates.
