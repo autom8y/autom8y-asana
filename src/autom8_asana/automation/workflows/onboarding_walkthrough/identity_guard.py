@@ -34,6 +34,7 @@ anchor to ``skipped(anchor_unresolved)``.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from autom8_asana.resolution import gfr
@@ -67,13 +68,29 @@ def extract_address_guid(gated_address: str) -> str:
     return gated_address.split("@", 1)[0].lower()
 
 
+@dataclass(frozen=True, slots=True)
+class AnchorResult:
+    """The W1 Source-B anchor outcome: the gid-exact ``company_id`` + the GFR truth-tier.
+
+    ``tier`` is the provenance ``source`` GFR stamped on the resolved ``company_id``
+    (``engine.py`` step 6) -- the GROUND-TRUTH basis the anchor ACTUALLY resolved at
+    (``CACHE`` tier-1 local cache read vs ``VERIFIED`` tier-2 by-GUID round-trip), read
+    from what GFR *did* rather than inferred from whether a verifier was wired. The
+    per-task SUCCESS audit record (SEC-N2 C-BN1-05) binds it so a sampled out-of-band
+    reconciliation (C-BN1-08) knows each attach's anchor basis.
+    """
+
+    company_id: str
+    tier: TruthTier
+
+
 async def anchor_company_id(
     *,
     task_gid: str,
     client: AsanaClient,
     query_engine: QueryEngine,
     verifier: ByGuidVerifier | None = None,
-) -> str:
+) -> AnchorResult:
     """Return the parent-chain-anchored, gid-exact ``company_id`` (Source B).
 
     Delegates to ``gfr.resolve_async`` (the SOLE by-GUID substrate): GFR walks the
@@ -91,7 +108,8 @@ async def anchor_company_id(
             I7 -- the by-GUID port, NEVER the office_phone analytics join).
 
     Returns:
-        The lowercased ``company_id`` string (Source B guid).
+        An ``AnchorResult`` carrying the lowercased ``company_id`` (Source B guid)
+        and the GFR provenance ``tier`` the anchor resolved at (CACHE vs VERIFIED).
 
     Raises:
         gfr.UnresolvedError: the parent chain cannot reach a Business root
@@ -110,8 +128,13 @@ async def anchor_company_id(
         scalar=True,
         verifier=verifier,
     )
-    # scalar=True guarantees exactly one row; read the single row's company_id.
-    return str(result.scalar()[_COMPANY_ID_FIELD].value).lower()
+    # scalar=True guarantees exactly one row. Read the single row's company_id AND
+    # the provenance ``source`` GFR stamped on it -- the tier the anchor ACTUALLY
+    # resolved at (CACHE tier-1 vs VERIFIED tier-2), surfaced for the C-BN1-05 audit
+    # record as the ground-truth basis (never inferred from whether a verifier was
+    # wired -- read from what GFR did).
+    field = result.scalar()[_COMPANY_ID_FIELD]
+    return AnchorResult(company_id=str(field.value).lower(), tier=field.source)
 
 
 def mask_guid(guid: str) -> str:

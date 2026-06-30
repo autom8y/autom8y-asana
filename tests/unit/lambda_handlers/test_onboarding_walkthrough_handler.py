@@ -109,6 +109,32 @@ class TestWiringGate:
         assert workflow._resolver is sentinel_resolver
         assert workflow._resolver is not mock_data  # NOT the asana-local data_client
 
+    def test_handler_wires_verifier_for_verified_tier(self, monkeypatch) -> None:
+        """BTM-3 harden (SEC-N3 F-N3-002): the factory wires a by-GUID verifier so the
+        W1 anchor runs the VERIFIED tier, not the blind CACHE tier.
+
+        The verifier is the SAME core-SDK client as the B1 resolver (it carries both
+        ``resolve_routing_address_by_phone_async`` and ``get_business_by_guid_async``),
+        so no second client is constructed. If a future change drops ``verifier=`` from
+        the factory, the anchor silently falls back to CACHE (cache-poisoning re-opens);
+        this gate makes that regression a build failure.
+        """
+        monkeypatch.setenv(_PRODUCER_DIR_ENV, "/tmp/walkthrough-producer")
+        from autom8_asana.lambda_handlers.onboarding_walkthrough import _create_workflow
+
+        mock_asana, mock_data = _factory_clients()
+        sentinel_resolver = MagicMock(name="sdk_resolver")
+        with patch(_SDK_RESOLVER_FROM_ENV, return_value=sentinel_resolver) as from_env:
+            workflow = _create_workflow(mock_asana, mock_data)
+
+        from_env.assert_called_once()  # ONE core-SDK client, reused for both roles
+        assert workflow._verifier is not None, (
+            "BTM-3 WIRING GATE: verifier unwired -> W1 anchor falls back to CACHE "
+            "tier, cache-poisoning re-opens."
+        )
+        assert workflow._verifier is sentinel_resolver  # the by-GUID-capable core-SDK client
+        assert workflow._verifier is workflow._resolver  # same client, two DI roles
+
 
 # ---------------------------------------------------------------------------
 # THE DARK PROOF -- flag unset => short-circuit, zero enumeration, zero Asana writes

@@ -52,12 +52,14 @@ from autom8_asana.lambda_handlers.workflow_handler import (
 def _create_workflow(asana_client: Any, data_client: Any) -> Any:
     """Deferred workflow construction for cold-start optimization.
 
-    Injects the four deps the sweep needs. ``data_client`` (the asana-local
+    Injects the deps the sweep needs. ``data_client`` (the asana-local
     ``DataServiceClient`` the generic factory builds) backs the ``query_engine``
     cross-service join surface. The B1 ``resolver`` is a SEPARATE client -- the
     autom8y-core SDK ``DataServiceClient``, which carries
     ``resolve_routing_address_by_phone_async`` (data_service.py:438) that the
-    asana-local ``data_client`` does NOT expose.
+    asana-local ``data_client`` does NOT expose. That same core-SDK client also
+    carries ``get_business_by_guid_async`` and is reused as the W1 ``verifier`` so
+    the identity anchor runs the VERIFIED tier (BTM-3 harden), not blind CACHE.
     """
     from autom8y_core.clients.data_service import DataServiceClient as SdkResolver
 
@@ -84,6 +86,16 @@ def _create_workflow(asana_client: Any, data_client: Any) -> Any:
         attachments_client=asana_client.attachments,
         producer_dir=os.environ[constants.WALKTHROUGH_PRODUCER_DIR_ENV_VAR],
         query_engine=query_engine,
+        # BTM-3 harden (SEC-N3 F-N3-002): wire the W1 tier-2 by-GUID verifier so the
+        # identity anchor runs TruthTier.VERIFIED, not the blind CACHE tier. The SAME
+        # core-SDK DataServiceClient already built for the B1 resolver ALSO exposes
+        # get_business_by_guid_async (the ByGuidVerifier port; data_service.py:434), so
+        # reuse it -- no second client, no new infra. This narrows cache-poisoning /
+        # data-integrity drift (a company_id that does not round-trip by-GUID ->
+        # UnresolvedError -> skip), consistent with the existing fail-CLOSED posture; an
+        # unresolvable env already fails loud via from_env() above. (Does NOT close
+        # BTM-2: a consistent double-fault to a REAL wrong tenant still round-trips.)
+        verifier=resolver,
         calendar_integrations_project_gid=constants.CALENDAR_INTEGRATIONS_PROJECT_GID,
     )
 
