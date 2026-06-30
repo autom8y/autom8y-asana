@@ -47,6 +47,7 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.producer import (
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.tenant_binding import (
     TenantBindingError,
+    _mask_addr,
     assert_exclusive_tenant_binding,
     harvest_routing_addresses,
 )
@@ -130,7 +131,7 @@ class CompanyIdAnchor(Protocol):
         client: Any,
         query_engine: QueryEngine,
         verifier: ByGuidVerifier | None,
-    ) -> str: ...
+    ) -> identity_guard.AnchorResult: ...
 
 
 class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
@@ -487,7 +488,7 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
             )
             return BridgeOutcome(gid=gid, status="skipped", reason="anchor_unresolved")
         try:
-            anchored_company_id = await self._company_id_anchor(
+            anchor_result = await self._company_id_anchor(
                 task_gid=gid,
                 client=self._asana_client,
                 query_engine=self._query_engine,
@@ -535,6 +536,11 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                 error=str(exc),
             )
             return BridgeOutcome(gid=gid, status="skipped", reason="anchor_unresolved")
+
+        # The certified Source-B tenant guid + the GFR truth-tier the anchor resolved
+        # at (CACHE vs VERIFIED). Both are consumed below: the guid for the cross-tenant
+        # gid-exact compare, the tier for the C-BN1-05 success audit record.
+        anchored_company_id = anchor_result.company_id
 
         if address_guid != anchored_company_id:
             # The phone-resolved address points at a DIFFERENT tenant than the
@@ -699,11 +705,27 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                     ),
                 )
 
+            # C-BN1-05 (SEC-N2 §3) -- the affirmative per-task SUCCESS audit record:
+            # the structural batch replacement for the retired N=1 human attestation
+            # line, reached ONLY after W1 passed (resolve-correctness) AND T7 passed
+            # (exclusive tenant binding) AND the upload succeeded. Binds the automation
+            # identity, the task, the MASKED tenant company_id (Source B) + MASKED gated
+            # routing address (Source A -- a routing-secret bearer capability, NEVER
+            # logged in full), the W1 anchor-basis TIER (CACHE vs VERIFIED, read from
+            # the GFR provenance the anchor resolved at), and a timestamp. This is the
+            # after-the-fact misroute-detection + C-BN1-08 sampled-CRR-1 reconcile
+            # substrate; by construction ABSENT on every skip/fail path (those return
+            # upstream of here).
             logger.info(
                 "onboarding_walkthrough_upload_succeeded",
+                workflow_id=self.workflow_id,
                 task_gid=gid,
                 filename=out_filename,
                 size_bytes=len(frozen_bytes),
+                company_id=identity_guard.mask_guid(anchored_company_id),
+                gated_address=_mask_addr(gated_address),
+                anchor_tier=anchor_result.tier.name,
+                attached_at=datetime.now(UTC).isoformat(),
             )
 
             await self._delete_old_attachments(

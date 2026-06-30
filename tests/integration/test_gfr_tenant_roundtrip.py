@@ -644,7 +644,12 @@ class TestW1SafetyThroughProcessEntity:
 
         async def _echo_source_a(*, task_gid, client, query_engine, verifier):
             # Echo Source A (G_B) so address_guid == anchored -> NO mismatch (W1 off).
-            return G_B.lower()
+            from autom8_asana.automation.workflows.onboarding_walkthrough.identity_guard import (
+                AnchorResult,
+            )
+            from autom8_asana.resolution.gfr.models import TruthTier
+
+            return AnchorResult(company_id=G_B.lower(), tier=TruthTier.CACHE)
 
         wf, upload_mock = _make_walkthrough_workflow(
             resolved_address=_addr_for(G_B),  # phone collision -> WRONG tenant B
