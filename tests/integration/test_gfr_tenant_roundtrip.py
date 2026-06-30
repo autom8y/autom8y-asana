@@ -477,3 +477,244 @@ class TestDefenses:
         # assert identity on a display field).
         assert ctx.office_name != G_CORRECT
         assert ctx.office_phone != G_CORRECT
+
+
+# =========================================================================== #
+# 4. W1 SAFETY (fixture a) -- the cross-tenant guard THROUGH process_entity.
+# =========================================================================== #
+# The mandated SAFETY proof: extend the SAME collision DELTA (broken phone-join ==
+# G_B, gid-exact GFR == G_A) all the way THROUGH the REAL
+# OnboardingWalkthroughWorkflow.process_entity, with the REAL W1 guard
+# (identity_guard.anchor_company_id -> the REAL gfr.resolve_async, engine+guard
+# UNMOCKED) wired into the workflow.
+#
+# Setup: task T anchors tenant A (parent-chain -> G_A); T.office_phone resolves
+# single-and-valid to tenant B (the mocked SDK resolver returns an address
+# embedding G_B -- the phone-collision wrong tenant). The deck the producer would
+# freeze carries the RESOLVED (B's) address.
+#
+#   * UNGUARDED leg (RED): with W1 absent (an anchor that always matches), the deck
+#     for tenant B lands on tenant A's task -> assert RED on the
+#     (task_gid, attached_deck_company_id) tuple / a NON-empty upload. We assert on
+#     the CAPTURED UPLOAD ARGS (the deck bytes), NOT on resolved_address (P6: the
+#     resolve is cleanly B by construction; the bug is attaching B's deck to A's
+#     task).
+#   * GUARDED leg (GREEN-by-skip): with the REAL W1, process_entity returns
+#     skipped(guid_anchor_mismatch) and the mocked upload records ZERO calls. NO
+#     freeze runs.
+#   * CORRECT-PHONE variant (GREEN both ways): T.office_phone resolves to A's own
+#     address (embedding G_A) -> W1 passes (G_A == G_A) -> freeze->T7->upload
+#     proceeds; the unguarded leg ALSO lands correctly (no mismatch to catch). The
+#     two-sided proof: W1 bites ONLY on the cross-tenant case.
+#
+# G-THEATER: the RED fires on a deliberately-broken INPUT (a wrong-tenant phone
+# resolve), NEVER a defect injected into production code. The asana attach + the
+# SDK resolve are mocked (no live write, no live data-service); the GFR engine,
+# planner, and engine-owned guard run UNMOCKED as the system under test.
+
+_WALKTHROUGH_WF = "autom8_asana.automation.workflows.onboarding_walkthrough.workflow"
+
+
+def _addr_for(guid: str) -> str:
+    """The canonical routing address embedding ``guid`` (the deck/SDK address form)."""
+    return f"{guid}{_MINT_DOMAIN}"
+
+
+def _wf_deck_bytes(addr: str) -> bytes:
+    """A minimal frozen-deck stand-in embedding ``addr`` (mirrors the producer)."""
+    return f'<html><body><a href="mailto:{addr}">{addr}</a></body></html>'.encode()
+
+
+def _harvest_deck_guid(frozen: bytes) -> str | None:
+    """Harvest the single embedded routing-address guid from captured deck bytes.
+
+    The independent oracle for the SAFETY assertion: reads the guid the attached
+    deck actually carries (the attached_deck_company_id), so the RED asserts on the
+    TASK+attached-deck-tenant tuple, not on the resolved address (P6).
+    """
+    import re as _re
+
+    m = _re.search(
+        rb"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})@appointments",
+        frozen,
+    )
+    return m.group(1).decode("ascii") if m else None
+
+
+def _make_walkthrough_workflow(
+    *,
+    resolved_address: str,
+    company_id_anchor: object,
+) -> tuple[object, AsyncMock]:
+    """Build the REAL OnboardingWalkthroughWorkflow with mocked I/O boundaries.
+
+    The SDK resolver returns ``resolved_address`` (Source A). ``company_id_anchor``
+    is the Source-B anchor (the REAL identity_guard.anchor_company_id for the
+    guarded legs, or an always-match stub for the unguarded RED). The producer
+    freeze is patched to plant a deck embedding the RESOLVED address (so an
+    unguarded attach lands the resolved tenant's deck). Attachments are mocked;
+    the returned ``upload_mock`` captures every upload (the SAFETY oracle).
+    """
+    from autom8_asana.automation.workflows.onboarding_walkthrough.workflow import (
+        OnboardingWalkthroughWorkflow,
+    )
+
+    resolver = MagicMock()
+    resolver.resolve_routing_address_by_phone_async = AsyncMock(return_value=resolved_address)
+
+    upload_mock = AsyncMock(return_value=MagicMock())
+    attachments = MagicMock()
+    attachments.upload_async = upload_mock
+    attachments.delete_async = AsyncMock()
+
+    # No prior walkthrough decks (W2 0a harvest sees an empty task -> no skip there;
+    # the SAFETY proof is about W1, not idempotency).
+    def _empty_list(_gid: str, **_kwargs: object) -> object:
+        async def _gen():
+            return
+            yield  # pragma: no cover - empty async generator
+
+        return _gen()
+
+    attachments.list_for_task_async = MagicMock(side_effect=_empty_list)
+    attachments.download_async = AsyncMock()
+
+    asana_client = MagicMock()
+    asana_client.tasks = MagicMock()
+    asana_client.tasks.get_async = AsyncMock()
+
+    wf = OnboardingWalkthroughWorkflow(
+        asana_client=asana_client,
+        resolver=resolver,
+        attachments_client=attachments,
+        producer_dir="/tmp/_no_producer_integration",
+        query_engine=MagicMock(),  # threaded to the REAL anchor's GFR call
+        company_id_anchor=company_id_anchor,
+    )
+    return wf, upload_mock
+
+
+def _real_anchor_over_collision_frame(business_gid: str):
+    """The REAL identity_guard.anchor_company_id wired over the collision substrate.
+
+    Returns a Source-B anchor that runs the REAL gfr.resolve_async (engine+guard
+    UNMOCKED) against the SAME mocked substrate the roundtrip tests use: the entry
+    fetch is patched to anchor the task to ``business_gid`` and execute_rows serves
+    the gid-exact Business row from the collision frame. So the anchor returns
+    G_A (the gid-exact tenant) while Source A is G_B (the phone-collision tenant).
+    """
+    from autom8_asana.automation.workflows.onboarding_walkthrough import identity_guard
+
+    async def _anchor(*, task_gid, client, query_engine, verifier):
+        async def _gid_exact_execute(entity_type, project_gid, _client, request):
+            target_gid = request.where.value
+            rows = _collision_business_frame().filter(pl.col("gid") == target_gid).to_dicts()
+            return make_rows_response(rows=rows)
+
+        real_engine = AsyncMock()
+        real_engine.execute_rows = _gid_exact_execute
+        anchor_result = make_hydration_result(
+            business_gid=business_gid, entry_type=EntityType.OFFER, path_len=3
+        )
+        with patch(_HYDRATE, AsyncMock(return_value=anchor_result)):
+            # Call the REAL guard helper -> REAL gfr.resolve_async.
+            return await identity_guard.anchor_company_id(
+                task_gid=task_gid,
+                client=client,
+                query_engine=real_engine,
+                verifier=verifier,
+            )
+
+    return _anchor
+
+
+class TestW1SafetyThroughProcessEntity:
+    """Fixture (a): the cross-tenant SAFETY guard exercised THROUGH process_entity
+    with the REAL GFR engine + guard (UNMOCKED) as the system under test."""
+
+    @pytest.mark.asyncio
+    async def test_unguarded_leg_attaches_wrong_tenant_deck_red(self) -> None:
+        """RED: WITHOUT W1, tenant B's deck lands on tenant A's task.
+
+        The unguarded leg uses an anchor that ECHOES Source A (so the gid-exact
+        compare never trips -- W1 effectively absent). The phone resolves to B's
+        address; the producer freezes B's deck; the attach fires with B's deck on
+        A's task. Assert RED on (A's task_gid, attached_deck_company_id == G_B) and
+        a NON-empty upload -- NOT on resolved_address (P6)."""
+
+        async def _echo_source_a(*, task_gid, client, query_engine, verifier):
+            # Echo Source A (G_B) so address_guid == anchored -> NO mismatch (W1 off).
+            return G_B.lower()
+
+        wf, upload_mock = _make_walkthrough_workflow(
+            resolved_address=_addr_for(G_B),  # phone collision -> WRONG tenant B
+            company_id_anchor=_echo_source_a,
+        )
+        with patch(
+            f"{_WALKTHROUGH_WF}._producer.freeze_walkthrough_deck",
+            AsyncMock(return_value=_wf_deck_bytes(_addr_for(G_B))),
+        ):
+            # T is tenant A's task (anchors G_A); office_phone collides to B.
+            out = await wf.process_entity(
+                {"gid": "task_A", "calendar_provider": "GHL", "office_phone": SHARED_PHONE},
+                {},
+            )
+
+        # The UNGUARDED leak: the attach fired (deck for B on A's task).
+        upload_mock.assert_awaited_once()
+        attached_bytes = upload_mock.await_args.kwargs["file"].getvalue()
+        attached_deck_company_id = _harvest_deck_guid(attached_bytes)
+        # RED on the (task_gid, attached_deck_company_id) tuple: B's deck on A's task.
+        assert attached_deck_company_id == G_B  # the WRONG tenant's deck was attached
+        assert attached_deck_company_id != G_A
+        assert out.status == "succeeded"  # unguarded => the leak "succeeds"
+
+    @pytest.mark.asyncio
+    async def test_guarded_leg_skips_cross_tenant_zero_uploads_green(self) -> None:
+        """GREEN-by-skip: WITH the REAL W1, the cross-tenant case is caught.
+
+        Source A (phone) resolves to B (G_B); the REAL GFR anchor walks A's
+        parent-chain to G_A; G_B != G_A -> skipped(guid_anchor_mismatch), the mocked
+        upload records ZERO calls, NO freeze runs."""
+        freeze_spy = AsyncMock(return_value=_wf_deck_bytes(_addr_for(G_B)))
+        wf, upload_mock = _make_walkthrough_workflow(
+            resolved_address=_addr_for(G_B),  # phone collision -> WRONG tenant B
+            company_id_anchor=_real_anchor_over_collision_frame(GID_BIZ),  # REAL GFR -> G_A
+        )
+        with patch(f"{_WALKTHROUGH_WF}._producer.freeze_walkthrough_deck", freeze_spy):
+            out = await wf.process_entity(
+                {"gid": "task_A", "calendar_provider": "GHL", "office_phone": SHARED_PHONE},
+                {},
+            )
+        assert out.status == "skipped"
+        assert out.reason == "guid_anchor_mismatch"
+        upload_mock.assert_not_awaited()  # ZERO uploads -- the leak is closed
+        freeze_spy.assert_not_awaited()  # NO freeze ran (guard precedes FREEZE)
+
+    @pytest.mark.asyncio
+    async def test_correct_phone_variant_green_both_ways(self) -> None:
+        """The two-sided canary: correct phone (resolves to A) -> W1 PASSES -> attach.
+
+        T.office_phone resolves to A's OWN address (embedding G_A); the REAL GFR
+        anchor is also G_A; G_A == G_A -> the guard passes; freeze->T7->upload
+        proceeds and the deck for A lands on A's task. W1 bites ONLY on the
+        cross-tenant case, never on the correct one."""
+        wf, upload_mock = _make_walkthrough_workflow(
+            resolved_address=_addr_for(G_A),  # correct phone -> A's own address
+            company_id_anchor=_real_anchor_over_collision_frame(GID_BIZ),  # REAL GFR -> G_A
+        )
+        with patch(
+            f"{_WALKTHROUGH_WF}._producer.freeze_walkthrough_deck",
+            AsyncMock(return_value=_wf_deck_bytes(_addr_for(G_A))),
+        ):
+            out = await wf.process_entity(
+                {"gid": "task_A", "calendar_provider": "GHL", "office_phone": CANARY_PHONE},
+                {},
+            )
+        assert out.status == "succeeded"
+        upload_mock.assert_awaited_once()
+        attached_deck_company_id = _harvest_deck_guid(
+            upload_mock.await_args.kwargs["file"].getvalue()
+        )
+        # GREEN: A's OWN deck lands on A's task (correct tenant).
+        assert attached_deck_company_id == G_A
