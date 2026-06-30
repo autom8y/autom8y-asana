@@ -50,15 +50,53 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.tenant_binding imp
     harvest_routing_addresses,
 )
 from autom8_asana.clients.utils.pii import mask_phone_number
-from autom8_asana.resolution.gfr.errors import GfrError
+from autom8_asana.resolution.gfr.errors import (
+    AmbiguousCardinalityError,
+    GfrError,
+    GuardViolationError,
+)
 
 if TYPE_CHECKING:
+    from _typeshed import ReadableBuffer
+
     from autom8_asana.clients.attachments import AttachmentsClient
     from autom8_asana.core.scope import EntityScope
     from autom8_asana.query.engine import QueryEngine
     from autom8_asana.resolution.gfr.truth_source import ByGuidVerifier
 
 logger = get_logger(__name__)
+
+
+class _PriorTooLargeError(Exception):
+    """Internal sentinel (F5): a prior deck exceeded the harvest size cap mid-stream.
+
+    Raised by ``_CappedBuffer.write`` when a streaming download would push the
+    buffer past ``constants.MAX_PRIOR_DECK_BYTES``. Never escapes the workflow --
+    ``_download_attachment_bytes`` catches it and returns ``None`` (skip this prior).
+    """
+
+
+class _CappedBuffer(io.BytesIO):
+    """A ``BytesIO`` that refuses to grow past ``cap`` bytes (F5 streaming guard).
+
+    The attachment download streams chunks into this buffer (``destination.write``);
+    if a prior exceeds the cap mid-stream we raise ``_PriorTooLargeError`` rather
+    than materialize an unbounded blob in memory. This guards the case where the
+    attachment's reported ``size`` is absent or under-reports -- the up-front size
+    check in ``_existing_walkthrough_guids`` is the cheap first line; this is the
+    hard wall that makes the bound hold regardless of what the size field claims.
+    """
+
+    def __init__(self, cap: int) -> None:
+        super().__init__()
+        self._cap = cap
+        self._written = 0
+
+    def write(self, buffer: ReadableBuffer, /) -> int:
+        self._written += memoryview(buffer).nbytes
+        if self._written > self._cap:
+            raise _PriorTooLargeError(self._written)
+        return super().write(buffer)
 
 
 @runtime_checkable
@@ -166,7 +204,30 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                 f"Workflow disabled (opt-in): set {self.feature_flag_env_var}=true "
                 "to enable (MC-2 #725: stays off until the operator enables it)"
             ]
-        return await super().validate_async()
+        problems = await super().validate_async()
+
+        # F4 -- W1 guard INERT detection (whole-sweep observability). The flag is
+        # ENABLED but the W1 GFR by-GUID anchor has no substrate (query_engine
+        # unwired). Per-task, that fail-closes every entity to skipped(anchor_unresolved)
+        # -- correct and safe, but at SWEEP altitude it means the run attaches NOTHING
+        # while reporting "ran clean", indistinguishable from a sweep where every task
+        # legitimately lacked an identity path. Surface it LOUDLY as a pre-flight
+        # problem (a single ERROR + a validation error string) so an unwired deploy is
+        # DETECTABLE -- a dark, inert sweep must never look like a healthy one. This is
+        # distinct from the per-task skip: it fires once, at pre-flight, before fan-out.
+        if self._query_engine is None:
+            logger.error(
+                "onboarding_walkthrough_guard_inert",
+                reason="query_engine_unwired",
+                detail="W1 guard INERT: query_engine unwired -- sweep will skip all tasks",
+            )
+            problems.append(
+                "W1 guard INERT: query_engine unwired -- the GFR by-GUID identity "
+                "guard has no substrate, so every task fails closed "
+                "(anchor_unresolved) and the sweep attaches nothing. Wire "
+                "query_engine before enabling this workflow."
+            )
+        return problems
 
     # --- Bridge hooks ---
 
@@ -333,12 +394,41 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                 query_engine=self._query_engine,
                 verifier=self._verifier,
             )
+        except GuardViolationError as exc:
+            # FAIL-CLOSED + LOUD (F3): a GuardViolationError means a plan element
+            # tried to reach the tenant-identity field via the office_phone value-join
+            # -- the v1 PHI-leak trap (errors.py:80). This is UNREACHABLE by
+            # construction (the identity path is gid-exact); a raise here is a hard
+            # STRUCTURAL-DRIFT signal, not a routine missing path. Skip like any anchor
+            # failure, but emit a DISTINCT reason at ERROR so the trap-reintroduction
+            # signal is never masked inside benign anchor_unresolved noise.
+            logger.error(
+                "onboarding_walkthrough_skipped",
+                task_gid=gid,
+                reason="guard_violation",
+                error=str(exc),
+            )
+            return BridgeOutcome(gid=gid, status="skipped", reason="guard_violation")
+        except AmbiguousCardinalityError as exc:
+            # FAIL-CLOSED + LOUD (F3): the gid-exact by-GUID anchor returned a
+            # non-single-row result (INVARIANT I5) -- the identity read was ambiguous,
+            # a data-integrity signal (duplicate/garbled Business rows for one gid),
+            # NOT a benign absent path. Distinct reason at ERROR so it is diagnosable
+            # apart from the routine no-identity-path skip.
+            logger.error(
+                "onboarding_walkthrough_skipped",
+                task_gid=gid,
+                reason="ambiguous_anchor",
+                error=str(exc),
+            )
+            return BridgeOutcome(gid=gid, status="skipped", reason="ambiguous_anchor")
         except GfrError as exc:
-            # FAIL-CLOSED: GFR cannot INDEPENDENTLY anchor this task's tenant
-            # (no parent chain to a Business root, anchored row absent, identity-path
-            # purity drift, or a non-single-row result) -> refuse to attach. Catching
-            # the GfrError base covers UnresolvedError / GuardViolationError /
-            # AmbiguousCardinalityError uniformly -- any GFR failure is a safe skip.
+            # FAIL-CLOSED (routine): GFR cannot independently anchor this task's tenant
+            # -- the BENIGN no-identity-path case (UnresolvedError: no parent chain to a
+            # Business root, or the anchored row is absent). This IS an expected runtime
+            # condition for a task that simply has no identity path, so it stays a
+            # WARNING + anchor_unresolved. The structural/integrity signals above are
+            # peeled off FIRST (subclasses precede the base) so they never hide here.
             logger.warning(
                 "onboarding_walkthrough_skipped",
                 task_gid=gid,
@@ -369,6 +459,15 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         target_guid = address_guid
         priors_for_target = existing_by_guid.get(target_guid, [])
         if priors_for_target:
+            # F1 -- TENANT-ISOLATION REAP. Before SKIPping (target already attached),
+            # reap any FOREIGN-guid prior: a deck for a DIFFERENT tenant whose
+            # delete-old soft-failed on a prior run (mixins.py per-item swallow). On
+            # the MINT path the upload-first glob delete reaps such priors; the
+            # already-attached SKIP path never runs it, so a wrong-tenant deck would
+            # otherwise persist on the task INDEFINITELY -- the exact misroute residue
+            # this initiative exists to kill. Idempotent: a no-op when no foreign prior
+            # exists; scoped strictly to attachments NOT carrying the target guid.
+            await self._reap_foreign_priors(gid, existing_by_guid, keep_guid=target_guid)
             if len(priors_for_target) > 1:
                 # >1 prior for THIS tenant (e.g. a delete-FAILURE residue from a
                 # prior run): dedupe-DOWN -- keep the newest, delete the rest -- then
@@ -535,25 +634,54 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
             task_gid: the task whose prior walkthrough decks to harvest.
 
         Returns:
-            ``{embedded_guid -> [attachment, ...]}`` for all prior walkthrough decks.
-            Empty when the task carries no ``walkthrough_*.html`` (the no-prior arm).
+            ``{embedded_guid -> [attachment, ...]}`` for all prior walkthrough decks,
+            with EACH attachment appearing AT MOST ONCE per guid (F2). Empty when the
+            task carries no ``walkthrough_*.html`` (the no-prior arm).
         """
-        out: dict[str, list[Any]] = {}
+        # ``by_gid``: guid -> {attachment.gid -> attachment}. Keying the inner level on
+        # the attachment gid is the F2 fix: ``harvest_routing_addresses`` returns the
+        # DISTINCT set of routing-address strings, so a single deck embedding the SAME
+        # guid in two case-variants (e.g. ``ABC@...`` and ``abc@...``) yields two set
+        # members that both lower() to one guid. Appending blindly counted that ONE
+        # attachment as TWO priors -> the >1 dedupe-down then deleted the only real
+        # deck and skipped the re-mint (self-delete). Collapsing on attachment gid here
+        # makes one attachment count once per guid, regardless of case-variant
+        # multiplicity (and is also robust to a paginated double-list of the same gid).
+        by_gid: dict[str, dict[str, Any]] = {}
         page_iter = self._attachments_client.list_for_task_async(
             task_gid,
-            opt_fields=["name", "created_at"],
+            opt_fields=["name", "created_at", "size"],
         )
         async for att in page_iter:
             name = getattr(att, "name", None) or ""
             if not fnmatch.fnmatch(name, constants.ATTACHMENT_GLOB):
                 continue
+            size = getattr(att, "size", None)
+            if isinstance(size, int) and size > constants.MAX_PRIOR_DECK_BYTES:
+                # F5 (cheap up-front guard): an oversized prior is not a deck this
+                # workflow minted; skip the harvest rather than pull MBs into memory.
+                logger.warning(
+                    "onboarding_walkthrough_prior_oversize_skipped",
+                    task_gid=task_gid,
+                    attachment_gid=att.gid,
+                    size_bytes=size,
+                    cap_bytes=constants.MAX_PRIOR_DECK_BYTES,
+                )
+                continue
             raw = await self._download_attachment_bytes(att.gid)
+            if raw is None:
+                # F5: this prior could not be harvested (download failure, or it
+                # streamed past the cap). Skip THIS prior only -- one bad prior must
+                # never abort the whole task's idempotency check. Worst case the target
+                # re-mints and the next run's dedupe-down reaps the residue (the
+                # presence-gate keeps it non-compounding); never a wrong-tenant attach.
+                continue
             for routing_addr in harvest_routing_addresses(raw):
                 guid = routing_addr.split("@", 1)[0].lower()
-                out.setdefault(guid, []).append(att)
-        return out
+                by_gid.setdefault(guid, {})[att.gid] = att
+        return {guid: list(atts.values()) for guid, atts in by_gid.items()}
 
-    async def _download_attachment_bytes(self, attachment_gid: str) -> bytes:
+    async def _download_attachment_bytes(self, attachment_gid: str) -> bytes | None:
         """Fetch a prior attachment's bytes for the W2 embedded-guid harvest.
 
         The AttachmentsClient download surface writes to a ``destination`` BinaryIO
@@ -561,15 +689,105 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         streams into an in-memory buffer and returns the bytes (UV-P-W2 discharge --
         the byte-download surface exists; it is destination-based, not bytes-returning).
 
+        F5: the buffer is size-CAPPED (``_CappedBuffer``) so a prior that streams past
+        ``constants.MAX_PRIOR_DECK_BYTES`` aborts mid-download instead of materializing
+        an unbounded blob; and the download is wrapped so a single failed/oversized
+        prior returns ``None`` (skip it) rather than propagating and aborting the
+        task's whole idempotency check.
+
         Args:
             attachment_gid: the prior attachment's gid.
 
         Returns:
-            The raw deck bytes (for ``harvest_routing_addresses``).
+            The raw deck bytes (for ``harvest_routing_addresses``), or ``None`` when
+            the prior is oversized or undownloadable (caller skips that prior).
         """
-        buffer = io.BytesIO()
-        await self._attachments_client.download_async(attachment_gid, destination=buffer)
+        buffer = _CappedBuffer(constants.MAX_PRIOR_DECK_BYTES)
+        try:
+            await self._attachments_client.download_async(attachment_gid, destination=buffer)
+        except _PriorTooLargeError:
+            logger.warning(
+                "onboarding_walkthrough_prior_oversize_truncated",
+                attachment_gid=attachment_gid,
+                cap_bytes=constants.MAX_PRIOR_DECK_BYTES,
+            )
+            return None
+        except Exception as exc:  # noqa: BLE001 -- boundary: one bad prior must not abort the idempotency check
+            logger.warning(
+                "onboarding_walkthrough_prior_download_failed",
+                attachment_gid=attachment_gid,
+                error=str(exc),
+            )
+            return None
         return buffer.getvalue()
+
+    async def _reap_foreign_priors(
+        self,
+        task_gid: str,
+        existing_by_guid: dict[str, list[Any]],
+        *,
+        keep_guid: str,
+    ) -> int:
+        """Delete prior walkthrough decks whose embedded guid != ``keep_guid`` (F1).
+
+        The already-attached SKIP path does not run the upload-first glob delete, so a
+        FOREIGN-tenant prior (a deck for a DIFFERENT guid whose delete soft-failed on a
+        prior run) would persist on the task indefinitely -- a wrong-tenant artifact,
+        the exact misroute residue this initiative exists to kill. This reaps every
+        prior carrying a guid OTHER than ``keep_guid``, soft-failing per item (mirrors
+        ``_delete_old_attachments`` -- one stuck delete never aborts the reap).
+
+        Strictly scoped: an attachment that ALSO carries the target guid (a
+        contaminated multi-address deck, which T7 blocks at mint) is NEVER reaped --
+        the keep-guid attachments are excluded by gid so the legitimate deck can never
+        be deleted here. Idempotent: a no-op when no foreign prior exists.
+
+        Args:
+            task_gid: the task being processed (for structured logging).
+            existing_by_guid: the W2 0a harvest map (embedded-guid -> [attachment]).
+            keep_guid: the target tenant guid whose decks must be preserved.
+
+        Returns:
+            The number of foreign attachments successfully deleted (for tests/metrics).
+        """
+        keep_att_gids = {att.gid for att in existing_by_guid.get(keep_guid, [])}
+        # att.gid -> (attachment, one foreign guid it is harvested under, for masked
+        # logging). Dedup on att.gid so a prior harvested under several foreign guids
+        # is reaped exactly once.
+        foreign_atts: dict[str, tuple[Any, str]] = {}
+        for guid, atts in existing_by_guid.items():
+            if guid == keep_guid:
+                continue
+            for att in atts:
+                if att.gid not in keep_att_gids:
+                    foreign_atts.setdefault(att.gid, (att, guid))
+        if not foreign_atts:
+            return 0
+
+        deleted = 0
+        for att, foreign_guid in foreign_atts.values():
+            try:
+                await self._attachments_client.delete_async(att.gid)
+                deleted += 1
+                # WARNING, not INFO: a foreign prior surviving to this path means a
+                # prior delete-old soft-failed and a wrong-tenant deck lingered. Reaping
+                # it is a self-heal, but the lingering itself is an anomaly worth
+                # surfacing (guids masked, never spilled in full).
+                logger.warning(
+                    "onboarding_walkthrough_foreign_prior_reaped",
+                    task_gid=task_gid,
+                    attachment_gid=att.gid,
+                    attachment_name=getattr(att, "name", None),
+                    foreign_guid=identity_guard.mask_guid(foreign_guid),
+                )
+            except Exception as exc:  # noqa: BLE001 -- boundary: reap delete soft-fails per item
+                logger.warning(
+                    "onboarding_walkthrough_foreign_reap_failed",
+                    task_gid=task_gid,
+                    attachment_gid=att.gid,
+                    error=str(exc),
+                )
+        return deleted
 
     async def _dedupe_down(self, task_gid: str, priors: list[Any]) -> None:
         """Reap all but the NEWEST of a same-guid prior set (>1 prior arm).

@@ -25,6 +25,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import structlog
 
 from autom8_asana.automation.workflows.bridge_base import BridgeWorkflowAction
 from autom8_asana.automation.workflows.onboarding_walkthrough import (
@@ -221,12 +222,22 @@ def _make_workflow(
 
     async def _download(attachment_gid: str, *, destination: Any) -> None:
         order.append("download")
-        addr = None
+        payload = b"<html>no routing address</html>"
         for att in store:
             if att.gid == attachment_gid:
-                addr = att._addr
+                # ``_raise_download is True`` => the download fails for THIS prior (F5:
+                # one bad prior must not abort the whole task's idempotency check).
+                if getattr(att, "_raise_download", None) is True:
+                    raise RuntimeError(f"simulated download failure for {attachment_gid}")
+                # ``_raw`` (explicit bytes) wins -- lets a test plant a deck whose
+                # BYTES carry the same guid in multiple case-variants (F2) or several
+                # distinct addresses, beyond the single-address ``_addr`` shorthand.
+                explicit = getattr(att, "_raw", None)
+                if isinstance(explicit, (bytes, bytearray)):
+                    payload = bytes(explicit)
+                elif att._addr:
+                    payload = _deck_bytes(att._addr)
                 break
-        payload = _deck_bytes(addr) if addr else b"<html>no routing address</html>"
         destination.write(payload)
 
     mock_attachments.download_async = AsyncMock(side_effect=_download)
@@ -892,11 +903,14 @@ class TestW1IdentityGuardUnit:
         atts.upload_async.assert_not_called()
         freeze_spy.assert_not_awaited()
 
-    async def test_red_guard_violation_skips_no_upload(
+    async def test_red_guard_violation_skips_distinct_reason_no_upload(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # A GuardViolationError (identity-path purity drift -- a hard structural
-        # signal) is ALSO caught by the GfrError base -> fail-closed skip, no upload.
+        # F3: a GuardViolationError (the v1 PHI-leak trap / identity-path purity drift
+        # -- a hard STRUCTURAL signal) still fail-closes (skip, no upload) but is now
+        # surfaced with a DISTINCT, LOUD reason ("guard_violation"), never masked as a
+        # routine "anchor_unresolved". The trap-reintroduction signal must not hide in
+        # the benign no-identity-path noise.
         from autom8_asana.resolution.gfr.errors import GuardViolationError
 
         freeze_spy = self._patch_freeze(monkeypatch)
@@ -907,7 +921,7 @@ class TestW1IdentityGuardUnit:
         )
         out = await wf.process_entity(_entity(provider="GHL"), {})
         assert out.status == "skipped"
-        assert out.reason == "anchor_unresolved"
+        assert out.reason == "guard_violation"  # F3: distinct, NOT anchor_unresolved
         atts.upload_async.assert_not_called()
         freeze_spy.assert_not_awaited()
 
@@ -1403,3 +1417,344 @@ class TestObGuideOracleHygiene:
         assert harvest_appointment_addresses(non_v4) == {
             "00000000-0000-d000-c000-000000000000@appointments.contenteapp.com"
         }
+
+
+# =====================================================================
+# PR1-HARDEN -- robustness fixes F1..F5 (QA-adversary fail-safe flags)
+# =====================================================================
+# Each fix is two-sided through the REAL process_entity / validate_async with the
+# faithful stateful attachments store. The per-task SAFETY core already PASSED
+# adversarial review (no wrong-tenant attach in any probe); these prove the
+# robustness deltas (tenant-isolation reap, dedupe correctness, guard
+# observability, sweep-inert detection, bounded harvest) WITHOUT regressing it.
+
+# Reuse the W2 tenant guids: target (A) vs a distinct foreign tenant (X).
+_HARDEN_TARGET = _W2_RESOLVED  # tenant A's canonical address (the deck to keep)
+_HARDEN_FOREIGN = _W2_OTHER  # a DIFFERENT tenant's address (the wrong-tenant residue)
+_HARDEN_TARGET_GUID = _W2_RESOLVED.split("@", 1)[0].lower()
+_HARDEN_FOREIGN_GUID = _W2_OTHER.split("@", 1)[0].lower()
+
+
+def _capture_workflow_logs() -> Any:
+    """structlog capture over the workflow module logger (level + event + kwargs).
+
+    Clears the BoundLoggerLazyProxy ``bind`` cache so ``capture_logs`` intercepts
+    even when an earlier test triggered ``cache_logger_on_first_use`` binding
+    (mirrors tests/unit/core/test_concurrency.py::TestStructuredLogging).
+    """
+    from autom8_asana.automation.workflows.onboarding_walkthrough import workflow as _wf_mod
+
+    proxy = _wf_mod.logger
+    if "bind" in getattr(proxy, "__dict__", {}):
+        del proxy.__dict__["bind"]
+    return structlog.testing.capture_logs()
+
+
+class TestF1ForeignPriorReap:
+    """F1 -- a foreign-tenant survivor (delete-old soft-fail residue) is REAPED on the
+    already-attached SKIP path, closing the wrong-tenant-persists tenant-isolation hole."""
+
+    def _patch_freeze(self, monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        spy = AsyncMock(return_value=_deck_bytes(_HARDEN_TARGET))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        return spy
+
+    async def test_foreign_survivor_reaped_on_run2_target_intact_no_remint(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # run1: target A has NO prior but a FOREIGN tenant-X deck sits on the task.
+        # A's deck mints (upload), then delete-old tries to reap X but SOFT-FAILS
+        # (delete_raises_times=1) -> X SURVIVES alongside A (the residue). run2: A is
+        # already_attached; F1 reaps the foreign X deck (deletes=1 on the survivor),
+        # A's deck stays intact, and there is NO re-mint.
+        self._patch_freeze(monkeypatch)
+        resolver = _make_resolver(address=_HARDEN_TARGET)
+        foreign = _make_attachment(
+            "deck-foreign-X", "walkthrough_task-1_20200101000000.html", addr=_HARDEN_FOREIGN
+        )
+        wf, atts, _, _ = _make_workflow(
+            resolver=resolver, existing_attachments=[foreign], delete_raises_times=1
+        )
+
+        out1 = await wf.process_entity(_entity(gid="task-1", provider="GHL"), {})
+        assert out1.status == "succeeded"
+        assert atts.upload_async.await_count == 1  # A's deck minted
+        deletes_after_run1 = atts.delete_async.await_count  # the soft-failed reap attempt
+
+        out2 = await wf.process_entity(_entity(gid="task-1", provider="GHL"), {})
+        assert out2.status == "skipped"
+        assert out2.reason == "already_attached"
+        # F1: run2 performed exactly ONE delete -- the foreign survivor.
+        assert atts.delete_async.await_count - deletes_after_run1 == 1
+        assert atts.delete_async.await_args.args == ("deck-foreign-X",)
+        # No re-mint across the double run.
+        assert atts.upload_async.await_count == 1
+
+        # Post-condition via the REAL harvest: the foreign guid is GONE, the target
+        # deck SURVIVES (one prior for the target guid).
+        after = await wf._existing_walkthrough_guids("task-1")
+        assert _HARDEN_FOREIGN_GUID not in after, "foreign wrong-tenant deck must be reaped"
+        assert _HARDEN_TARGET_GUID in after, "target deck must survive the reap"
+        assert len(after[_HARDEN_TARGET_GUID]) == 1
+        print(
+            f"[F1] run2 reaped foreign={_HARDEN_FOREIGN_GUID[:8]} deletes=1 "
+            f"target_intact={_HARDEN_TARGET_GUID[:8]} uploads={atts.upload_async.await_count}"
+        )
+
+    async def test_no_foreign_prior_reap_is_noop(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Two-sided: with ONLY the target's own deck present, the reap is a strict
+        # no-op (zero deletes) -- it acts solely when a foreign prior exists.
+        self._patch_freeze(monkeypatch)
+        resolver = _make_resolver(address=_HARDEN_TARGET)
+        own = _make_attachment(
+            "deck-A", "walkthrough_task-1_20260101000000.html", addr=_HARDEN_TARGET
+        )
+        wf, atts, _, _ = _make_workflow(resolver=resolver, existing_attachments=[own])
+        out = await wf.process_entity(_entity(gid="task-1", provider="GHL"), {})
+        assert out.status == "skipped"
+        assert out.reason == "already_attached"
+        atts.delete_async.assert_not_called()  # reap no-op; nothing foreign to reap
+        atts.upload_async.assert_not_called()
+
+
+class TestF2MixedCaseDedupe:
+    """F2 -- a single legacy deck embedding the target guid in MIXED CASE is recognized
+    as ONE prior (already_attached), never double-counted into a self-deleting dedupe."""
+
+    def _patch_freeze(self, monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        spy = AsyncMock(return_value=_deck_bytes(_HARDEN_TARGET))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        return spy
+
+    async def test_mixed_case_single_deck_survives_skip_no_self_delete(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The legacy deck's BYTES carry the SAME guid in two case-variants (lower +
+        # UPPER) -- harvest_routing_addresses returns two distinct strings that both
+        # fold to one guid. Pre-F2 this counted as 2 priors -> dedupe-down deleted the
+        # only real deck. Post-F2: ONE prior -> already_attached, deletes=0, survives.
+        freeze_spy = self._patch_freeze(monkeypatch)
+        resolver = _make_resolver(address=_HARDEN_TARGET)
+        legacy = _make_attachment(
+            "deck-legacy-mixed", "walkthrough_task-1_2018.html", addr=_HARDEN_TARGET
+        )
+        # Plant mixed-case bytes (lower + UPPER of the same guid) on this one deck.
+        legacy._raw = _deck_bytes(_HARDEN_TARGET, _HARDEN_TARGET.upper())
+        wf, atts, _, _ = _make_workflow(resolver=resolver, existing_attachments=[legacy])
+
+        out = await wf.process_entity(_entity(gid="task-1", provider="GHL"), {})
+
+        assert out.status == "skipped"
+        # CRITICAL: already_attached, NOT already_attached_deduped (no spurious dedupe).
+        assert out.reason == "already_attached"
+        assert atts.delete_async.await_count == 0  # deletes=0: the deck is NOT self-deleted
+        assert atts.upload_async.await_count == 0  # no re-mint
+        freeze_spy.assert_not_awaited()
+
+        # The single legacy deck SURVIVES and is still recognized as one prior.
+        after = await wf._existing_walkthrough_guids("task-1")
+        assert _HARDEN_TARGET_GUID in after
+        assert [a.gid for a in after[_HARDEN_TARGET_GUID]] == ["deck-legacy-mixed"]
+        print(
+            f"[F2] mixed-case single deck -> {out.reason} deletes=0 uploads=0 "
+            f"survivors={sorted(after)}"
+        )
+
+
+class TestF3GuardObservability:
+    """F3 -- the W1 anchor failure modes emit DISTINCT, LOUD reasons + levels: a
+    GuardViolationError / AmbiguousCardinalityError is no longer masked as a benign
+    anchor_unresolved WARNING. All still fail-closed (skip, no upload)."""
+
+    def _patch_freeze(self, monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        spy = AsyncMock(return_value=_deck_bytes(_W1_RESOLVED_A))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        return spy
+
+    async def _run_with_anchor_exc(
+        self, monkeypatch: pytest.MonkeyPatch, exc: Exception
+    ) -> tuple[Any, list[dict[str, Any]]]:
+        self._patch_freeze(monkeypatch)
+        resolver = _make_resolver(address=_W1_RESOLVED_A)
+        wf, atts, _, _ = _make_workflow(resolver=resolver, company_id_anchor=_raising_anchor(exc))
+        with _capture_workflow_logs() as captured:
+            out = await wf.process_entity(_entity(provider="GHL"), {})
+        atts.upload_async.assert_not_called()  # all arms remain fail-closed
+        return out, captured
+
+    async def test_guard_violation_distinct_reason_error_level(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from autom8_asana.resolution.gfr.errors import GuardViolationError
+
+        out, captured = await self._run_with_anchor_exc(
+            monkeypatch, GuardViolationError("the PHI-leak trap was reintroduced")
+        )
+        assert out.status == "skipped"
+        assert out.reason == "guard_violation"
+        entry = next(e for e in captured if e["event"] == "onboarding_walkthrough_skipped")
+        assert entry["reason"] == "guard_violation"
+        assert entry["log_level"] == "error"  # LOUD, not a routine warning
+        print(f"[F3] GuardViolationError -> reason={out.reason!r} level={entry['log_level']!r}")
+
+    async def test_ambiguous_cardinality_distinct_reason_error_level(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from autom8_asana.resolution.gfr.errors import AmbiguousCardinalityError
+
+        out, captured = await self._run_with_anchor_exc(
+            monkeypatch, AmbiguousCardinalityError(row_count=2)
+        )
+        assert out.status == "skipped"
+        assert out.reason == "ambiguous_anchor"
+        entry = next(e for e in captured if e["event"] == "onboarding_walkthrough_skipped")
+        assert entry["reason"] == "ambiguous_anchor"
+        assert entry["log_level"] == "error"
+        print(
+            f"[F3] AmbiguousCardinalityError -> reason={out.reason!r} level={entry['log_level']!r}"
+        )
+
+    async def test_benign_no_identity_path_stays_anchor_unresolved_warning(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The two-sided twin: a BENIGN UnresolvedError(no-identity-path) MUST stay the
+        # quiet anchor_unresolved WARNING -- F3 must not over-escalate the routine case.
+        from autom8_asana.resolution.gfr.errors import UnresolvedError
+
+        out, captured = await self._run_with_anchor_exc(
+            monkeypatch, UnresolvedError(fields=["company_id"], reason="no-identity-path")
+        )
+        assert out.status == "skipped"
+        assert out.reason == "anchor_unresolved"
+        entry = next(e for e in captured if e["event"] == "onboarding_walkthrough_skipped")
+        assert entry["reason"] == "anchor_unresolved"
+        assert entry["log_level"] == "warning"  # benign stays quiet
+        print(f"[F3] benign UnresolvedError -> reason={out.reason!r} level={entry['log_level']!r}")
+
+
+class TestF4UnwiredGuardInert:
+    """F4 -- an ENABLED-but-unwired deploy (query_engine=None) is surfaced LOUDLY at
+    validate_async (sweep INERT), distinct from a per-task skip, so a dark sweep is
+    detectable rather than silently attaching nothing."""
+
+    async def test_validate_async_flags_unwired_query_engine(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv(constants.WALKTHROUGH_ENABLED_ENV_VAR, "true")
+        wf = OnboardingWalkthroughWorkflow(
+            asana_client=MagicMock(),
+            resolver=_make_resolver(),
+            attachments_client=MagicMock(),
+            producer_dir=Path("/tmp/_no_producer"),
+            query_engine=None,  # ENABLED but UNWIRED -> whole sweep would be inert
+        )
+        with _capture_workflow_logs() as captured:
+            problems = await wf.validate_async()
+
+        assert problems, "unwired guard MUST fail pre-flight (not silently dark)"
+        assert any("INERT" in p and "query_engine" in p for p in problems)
+        inert = [e for e in captured if e["event"] == "onboarding_walkthrough_guard_inert"]
+        assert len(inert) == 1, "exactly one LOUD inert signal at pre-flight"
+        assert inert[0]["log_level"] == "error"
+        print(
+            f"[F4] unwired validate_async -> problems={len(problems)} level={inert[0]['log_level']!r}"
+        )
+
+    async def test_validate_async_clean_when_wired(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Two-sided: enabled AND wired (non-None query_engine) -> no inert problem.
+        monkeypatch.setenv(constants.WALKTHROUGH_ENABLED_ENV_VAR, "true")
+        wf, _atts, _r, _o = _make_workflow()  # builder wires a non-None query_engine
+        with _capture_workflow_logs() as captured:
+            problems = await wf.validate_async()
+        assert problems == [], "enabled + wired MUST pass pre-flight"
+        assert not [e for e in captured if e["event"] == "onboarding_walkthrough_guard_inert"]
+
+
+class TestF5BoundedHarvest:
+    """F5 -- the W2 prior byte-harvest is BOUNDED: an oversized prior is skipped (by
+    reported size up front, and by a hard mid-stream cap), and a single
+    failing/oversized prior returns None instead of aborting the task."""
+
+    def _patch_freeze(self, monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        spy = AsyncMock(return_value=_deck_bytes(_HARDEN_TARGET))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        return spy
+
+    async def test_oversize_prior_skipped_by_reported_size_no_download(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A prior whose reported size exceeds the cap is skipped BEFORE download (never
+        # pulled into memory) and logged. The task still mints the target normally.
+        self._patch_freeze(monkeypatch)
+        resolver = _make_resolver(address=_HARDEN_TARGET)
+        oversize = _make_attachment(
+            "deck-oversize", "walkthrough_task-1_20200101000000.html", addr=_HARDEN_FOREIGN
+        )
+        oversize.size = constants.MAX_PRIOR_DECK_BYTES + 1
+        wf, atts, _, _ = _make_workflow(resolver=resolver, existing_attachments=[oversize])
+
+        with _capture_workflow_logs() as captured:
+            out = await wf.process_entity(_entity(gid="task-1", provider="GHL"), {})
+
+        assert out.status == "succeeded"  # task completes, not aborted/OOM
+        # The oversized prior was NEVER downloaded (skipped by the size pre-check).
+        downloaded_gids = [c.args[0] for c in atts.download_async.await_args_list]
+        assert "deck-oversize" not in downloaded_gids
+        skip_logs = [
+            e for e in captured if e["event"] == "onboarding_walkthrough_prior_oversize_skipped"
+        ]
+        assert len(skip_logs) == 1
+        assert skip_logs[0]["log_level"] == "warning"
+        print(f"[F5] oversize prior (size={oversize.size}) skipped pre-download, task={out.status}")
+
+    async def test_capped_buffer_aborts_oversize_stream_returns_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Mid-stream guard: when the reported size is unknown/under-reported, the
+        # _CappedBuffer aborts a download that streams past the cap and the helper
+        # returns None (skip), never materializing an unbounded blob.
+        monkeypatch.setattr(constants, "MAX_PRIOR_DECK_BYTES", 64)  # tiny cap, no big alloc
+        wf, atts, _, _ = _make_workflow()
+
+        async def _flood(_gid: str, *, destination: Any) -> None:
+            destination.write(b"x" * 200)  # 200 > 64 cap -> _CappedBuffer trips
+
+        atts.download_async = AsyncMock(side_effect=_flood)
+        with _capture_workflow_logs() as captured:
+            raw = await wf._download_attachment_bytes("deck-flood")
+        assert raw is None  # oversized stream -> skip, not an unbounded buffer
+        trunc = [
+            e for e in captured if e["event"] == "onboarding_walkthrough_prior_oversize_truncated"
+        ]
+        assert len(trunc) == 1
+        print(f"[F5] streamed 200B past 64B cap -> raw={raw} (truncated+skipped)")
+
+    async def test_download_error_returns_none_does_not_abort(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A prior whose download RAISES returns None (logged) rather than propagating,
+        # so one bad prior never aborts the whole task's idempotency check.
+        self._patch_freeze(monkeypatch)
+        resolver = _make_resolver(address=_HARDEN_TARGET)
+        bad = _make_attachment(
+            "deck-bad", "walkthrough_task-1_20200101000000.html", addr=_HARDEN_FOREIGN
+        )
+        bad._raise_download = True
+        good = _make_attachment(
+            "deck-good", "walkthrough_task-1_20260101000000.html", addr=_HARDEN_TARGET
+        )
+        wf, atts, _, _ = _make_workflow(resolver=resolver, existing_attachments=[bad, good])
+
+        with _capture_workflow_logs() as captured:
+            out = await wf.process_entity(_entity(gid="task-1", provider="GHL"), {})
+
+        # The bad prior did NOT abort the task: the GOOD target prior is still
+        # recognized (already_attached), no crash, no re-mint.
+        assert out.status == "skipped"
+        assert out.reason == "already_attached"
+        assert atts.upload_async.await_count == 0
+        fail_logs = [
+            e for e in captured if e["event"] == "onboarding_walkthrough_prior_download_failed"
+        ]
+        assert len(fail_logs) == 1
+        print(f"[F5] one bad-download prior tolerated -> task={out.status}/{out.reason}, no abort")
