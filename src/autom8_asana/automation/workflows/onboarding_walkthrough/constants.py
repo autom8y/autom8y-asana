@@ -43,6 +43,19 @@ ONBOARDING_PROJECT_GID = "1201319387632570"
 # AttachmentReplacementMixin (it excludes by name) and accumulate duplicates.
 ATTACHMENT_GLOB = "walkthrough_*.html"
 
+# --- W2 prior-harvest size cap (F5: bounded byte-harvest) ---
+# The W2 idempotency check downloads each prior ``walkthrough_*.html`` to harvest
+# its embedded routing-address guid. A walkthrough deck is a single-file inlined
+# HTML -- tens to low-hundreds of KB, well under a megabyte even with inlined
+# images. This cap (8 MiB, generous headroom) bounds that harvest: a prior larger
+# than this is NOT a deck this workflow minted (a corrupt/foreign/oversized
+# attachment that merely matches the glob), so it is skipped with a logged reason
+# rather than pulled fully into memory. The cap is enforced BOTH up front (against
+# the attachment's reported ``size``) AND mid-stream (a hard wall during download,
+# in case ``size`` is absent or under-reports), so one oversized prior can never
+# exhaust memory or abort the whole task's idempotency check.
+MAX_PRIOR_DECK_BYTES = 8 * 1024 * 1024
+
 # --- The necessity rule (G-DENOM) ---
 # All 18 live Calendar Provider options. Deck assignment is PRODUCT-INPUT /
 # PROBE-GATED (D-2) except GHL. Do NOT guess the 17 placeholders to a deck.
