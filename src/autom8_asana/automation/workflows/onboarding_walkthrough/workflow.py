@@ -24,6 +24,7 @@ Per ADR-bridge-intermediate-base-class: extends ``BridgeWorkflowAction`` (reuses
 
 from __future__ import annotations
 
+import asyncio
 import fnmatch
 import io
 import os
@@ -154,8 +155,12 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         company_id_anchor: The W1 Source-B anchor function (DIP seam). Defaults to
             ``identity_guard.anchor_company_id`` (the real GFR-backed anchor);
             injectable so the guard is testable with a stub.
-        onboarding_project_gid: Asana onboarding project GID (defaults to the
-            N0-probed constant).
+        onboarding_project_gid: Asana onboarding project GID. Retained as the
+            preserved project-level enumeration fallback (the N=1 pilot path) and
+            the two-way door to the original single-project sweep.
+        calendar_integrations_project_gid: Asana Calendar-Integrations project GID
+            (W3). The batch sweep's ACTIVE-section enumeration target; defaults to
+            the R-1-census-confirmed constant, constructor-overridable.
         data_client: Optional asana-local DataSource (unused by this workflow;
             passed through so the base health-check is a no-op when None).
     """
@@ -173,6 +178,7 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         verifier: ByGuidVerifier | None = None,
         company_id_anchor: CompanyIdAnchor | None = None,
         onboarding_project_gid: str = constants.ONBOARDING_PROJECT_GID,
+        calendar_integrations_project_gid: str = constants.CALENDAR_INTEGRATIONS_PROJECT_GID,
         data_client: Any | None = None,
     ) -> None:
         super().__init__(asana_client, data_client, attachments_client)
@@ -184,6 +190,7 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
             company_id_anchor if company_id_anchor is not None else identity_guard.anchor_company_id
         )
         self._onboarding_project_gid = onboarding_project_gid
+        self._calendar_integrations_project_gid = calendar_integrations_project_gid
 
     @property
     def workflow_id(self) -> str:  # type: ignore[override]  # read-only property overrides base attr
@@ -262,13 +269,105 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         self,
         scope: EntityScope,
     ) -> list[dict[str, Any]]:
-        """Full enumeration: active onboarding-project tasks, gate inputs read.
+        """Full enumeration (W3): ACTIVE-section tasks of Calendar-Integrations.
 
         Implements the abstract hook called by the base ``enumerate_async`` for
-        the full (non-targeted) path.
+        the full (non-targeted) path. Re-points the sweep from the Onboarding
+        project default to the Calendar-Integrations project, resolving the
+        ACTIVE section BY NAME via ``resolve_section_gids`` -- never a hardcoded
+        section GID, and never the Offers ``OFFER_CLASSIFIER`` (the active-set
+        definition for THIS sweep is the section literally named "ACTIVE";
+        importing the Offers classifier would drag an Offers denominator into a
+        Calendar-Integrations sweep -- G-DENOM hygiene).
+
+        Resilience mirrors ``active_offer_enumeration``: a section-resolution
+        failure, an empty ACTIVE resolution, OR a partial section-fetch failure
+        falls back to the preserved project-level enumeration over the Onboarding
+        project (the N=1 pilot path, not regressed). Both project GIDs are
+        constructor-overridable (two-way door).
+        """
+        # Deferred import: keep the enumeration path free of any Offers-domain
+        # coupling (section_resolution carries NO OFFER_CLASSIFIER); mirrors the
+        # lazy-import discipline of active_offer_enumeration.
+        from autom8_asana.automation.workflows.section_resolution import (
+            resolve_section_gids,
+        )
+
+        try:
+            resolved = await resolve_section_gids(
+                self._asana_client.sections,
+                self._calendar_integrations_project_gid,
+                constants.ACTIVE_SECTION_NAMES,
+            )
+        except Exception:  # noqa: BLE001 -- boundary: section-resolution failure -> project fallback
+            logger.warning(
+                "onboarding_walkthrough_section_resolution_failed_fallback",
+                project_gid=self._calendar_integrations_project_gid,
+            )
+            return await self._enumerate_project_level(self._onboarding_project_gid)
+
+        if not resolved:
+            logger.warning(
+                "onboarding_walkthrough_section_resolution_empty_fallback",
+                project_gid=self._calendar_integrations_project_gid,
+            )
+            return await self._enumerate_project_level(self._onboarding_project_gid)
+
+        # Parallel section fetch with bounded concurrency (mirror bridge fan-out cap).
+        semaphore = asyncio.Semaphore(5)
+
+        async def _fetch_section(section_gid: str) -> list[Any]:
+            async with semaphore:
+                fetched: list[Any] = await self._asana_client.tasks.list_async(
+                    section=section_gid,
+                    opt_fields=["name", "completed", "custom_fields"],
+                    completed_since="now",
+                ).collect()
+                return fetched
+
+        results = await asyncio.gather(
+            *[_fetch_section(gid) for gid in resolved.values()],
+            return_exceptions=True,
+        )
+
+        # Any section fetch failure -> fall back entirely (no partial sweep).
+        if any(isinstance(r, Exception) for r in results):
+            logger.warning(
+                "onboarding_walkthrough_section_fetch_partial_failure_fallback",
+                project_gid=self._calendar_integrations_project_gid,
+                failed_count=sum(1 for r in results if isinstance(r, Exception)),
+            )
+            return await self._enumerate_project_level(self._onboarding_project_gid)
+
+        # Flatten, drop completed, dedup by GID, build entities via the shared
+        # gate-input reader (calendar_provider + office_phone off each task).
+        seen_gids: set[str] = set()
+        entities: list[dict[str, Any]] = []
+        for section_tasks in results:
+            assert isinstance(section_tasks, list)  # guarded by the early-exit above
+            for task in section_tasks:
+                if getattr(task, "completed", False) or task.gid in seen_gids:
+                    continue
+                seen_gids.add(task.gid)
+                entities.append(self._task_to_entity(task))
+
+        logger.info(
+            "onboarding_walkthrough_section_targeted_enumeration",
+            project_gid=self._calendar_integrations_project_gid,
+            sections_targeted=len(resolved),
+            tasks_enumerated=len(entities),
+        )
+        return entities
+
+    async def _enumerate_project_level(self, project_gid: str) -> list[dict[str, Any]]:
+        """Project-level enumeration -- the preserved Onboarding N=1 pilot path.
+
+        The verbatim pre-W3 ``enumerate_entities`` body, parameterized by project
+        GID so it serves BOTH as the section-resolution fallback and as the
+        constructor-overridable two-way door to the original single-project sweep.
         """
         page_iterator = self._asana_client.tasks.list_async(
-            project=self._onboarding_project_gid,
+            project=project_gid,
             opt_fields=["name", "completed", "custom_fields"],
             completed_since="now",
         )

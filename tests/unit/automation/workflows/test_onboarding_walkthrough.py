@@ -1758,3 +1758,197 @@ class TestF5BoundedHarvest:
         ]
         assert len(fail_logs) == 1
         print(f"[F5] one bad-download prior tolerated -> task={out.status}/{out.reason}, no abort")
+
+
+# --- W3: ACTIVE-section enumeration over Calendar-Integrations (NO OFFER_CLASSIFIER) ---
+
+
+def _collectable(items: list[Any]) -> MagicMock:
+    """A PageIterator-like mock whose async ``.collect()`` yields ``items``."""
+    obj = MagicMock()
+    obj.collect = AsyncMock(return_value=list(items))
+    return obj
+
+
+def _collectable_raises(exc: Exception | None = None) -> MagicMock:
+    """A PageIterator-like mock whose async ``.collect()`` raises (network/5xx)."""
+    obj = MagicMock()
+    obj.collect = AsyncMock(side_effect=exc or RuntimeError("section api down"))
+    return obj
+
+
+def _section_obj(name: str, gid: str) -> MagicMock:
+    # NOTE: MagicMock(name=...) sets the repr name, NOT a .name attribute -- set both
+    # attributes explicitly so resolve_section_gids reads the real section name.
+    s = MagicMock()
+    s.name = name
+    s.gid = gid
+    return s
+
+
+def _task_obj(gid: str, *, completed: bool = False, name: str = "Task") -> MagicMock:
+    t = MagicMock()
+    t.gid = gid
+    t.completed = completed
+    t.name = name
+    return t
+
+
+class TestW3Enumeration:
+    """W3 re-points enumerate_entities to Calendar-Integrations/ACTIVE by NAME."""
+
+    @staticmethod
+    def _wire(
+        wf: OnboardingWalkthroughWorkflow,
+        *,
+        sections: list[MagicMock] | None = None,
+        tasks_by_section: dict[str, list[MagicMock]] | None = None,
+        project_tasks: list[MagicMock] | None = None,
+        sections_raise: bool = False,
+        section_fetch_raises: bool = False,
+    ) -> None:
+        # Shadow the entity-builder so the unit-under-test is the section-targeting
+        # logic, not pydantic Business validation (covered elsewhere).
+        wf._task_to_entity = lambda task: {"gid": task.gid, "name": getattr(task, "name", None)}  # type: ignore[method-assign]
+
+        if sections_raise:
+            wf._asana_client.sections.list_for_project_async = MagicMock(
+                return_value=_collectable_raises()
+            )
+        else:
+            wf._asana_client.sections.list_for_project_async = MagicMock(
+                return_value=_collectable(sections or [])
+            )
+
+        def _list_async(**kwargs: Any) -> MagicMock:
+            if "section" in kwargs:
+                if section_fetch_raises:
+                    return _collectable_raises(RuntimeError("section fetch 5xx"))
+                return _collectable((tasks_by_section or {}).get(kwargs["section"], []))
+            return _collectable(project_tasks or [])
+
+        wf._asana_client.tasks.list_async = MagicMock(side_effect=_list_async)
+
+    def test_constructor_sets_calendar_project_gid_default(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        assert wf._calendar_integrations_project_gid == constants.CALENDAR_INTEGRATIONS_PROJECT_GID
+
+    async def test_targets_calendar_integrations_active_section(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        active = [_task_obj("t-active-1"), _task_obj("t-active-2")]
+        self._wire(
+            wf,
+            sections=[
+                _section_obj("ACTIVE", "sec-active"),
+                _section_obj("TEMPLATE", "sec-tmpl"),
+                _section_obj("REVIEW", "sec-review"),
+            ],
+            tasks_by_section={"sec-active": active},
+        )
+
+        entities = await wf.enumerate_entities(MagicMock())
+
+        assert {e["gid"] for e in entities} == {"t-active-1", "t-active-2"}
+        # Sections resolved against the Calendar-Integrations project (constructor default).
+        wf._asana_client.sections.list_for_project_async.assert_called_once_with(
+            constants.CALENDAR_INTEGRATIONS_PROJECT_GID
+        )
+        # ONLY the ACTIVE section was fetched -- not TEMPLATE/REVIEW.
+        section_calls = [
+            c.kwargs.get("section") for c in wf._asana_client.tasks.list_async.call_args_list
+        ]
+        assert section_calls == ["sec-active"]
+        print(f"[W3] enumerated ACTIVE-only gids={sorted(e['gid'] for e in entities)}")
+
+    async def test_completed_active_tasks_excluded(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        self._wire(
+            wf,
+            sections=[_section_obj("ACTIVE", "sec-active")],
+            tasks_by_section={"sec-active": [_task_obj("live"), _task_obj("done", completed=True)]},
+        )
+        entities = await wf.enumerate_entities(MagicMock())
+        assert {e["gid"] for e in entities} == {"live"}
+
+    async def test_enumeration_uses_overridable_calendar_project_gid(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        wf._calendar_integrations_project_gid = "override-proj-777"  # two-way door
+        self._wire(
+            wf,
+            sections=[_section_obj("ACTIVE", "sec-x")],
+            tasks_by_section={"sec-x": [_task_obj("ov-1")]},
+        )
+        await wf.enumerate_entities(MagicMock())
+        wf._asana_client.sections.list_for_project_async.assert_called_once_with(
+            "override-proj-777"
+        )
+
+    async def test_falls_back_to_onboarding_project_on_section_resolution_failure(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        self._wire(wf, sections_raise=True, project_tasks=[_task_obj("onb-1"), _task_obj("onb-2")])
+
+        entities = await wf.enumerate_entities(MagicMock())
+
+        assert {e["gid"] for e in entities} == {"onb-1", "onb-2"}
+        # Preserved N=1 pilot path: the fallback enumerates the ONBOARDING project.
+        project_calls = [
+            c.kwargs.get("project") for c in wf._asana_client.tasks.list_async.call_args_list
+        ]
+        assert project_calls == [constants.ONBOARDING_PROJECT_GID]
+        print("[W3] section-resolution failure -> Onboarding project-level fallback fired")
+
+    async def test_falls_back_on_empty_active_resolution(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        # Sections exist but NONE is named ACTIVE -> resolve_section_gids returns {} -> fallback.
+        self._wire(
+            wf,
+            sections=[_section_obj("TEMPLATE", "s1"), _section_obj("REVIEW", "s2")],
+            project_tasks=[_task_obj("onb-9")],
+        )
+        entities = await wf.enumerate_entities(MagicMock())
+        assert {e["gid"] for e in entities} == {"onb-9"}
+        project_calls = [
+            c.kwargs.get("project") for c in wf._asana_client.tasks.list_async.call_args_list
+        ]
+        assert project_calls == [constants.ONBOARDING_PROJECT_GID]
+
+    async def test_falls_back_on_partial_section_fetch_failure(self) -> None:
+        wf, _a, _r, _o = _make_workflow()
+        # ACTIVE resolves, but the section task-fetch raises -> no partial sweep, full fallback.
+        self._wire(
+            wf,
+            sections=[_section_obj("ACTIVE", "sec-active")],
+            section_fetch_raises=True,
+            project_tasks=[_task_obj("onb-fallback")],
+        )
+        entities = await wf.enumerate_entities(MagicMock())
+        assert {e["gid"] for e in entities} == {"onb-fallback"}
+
+    def test_enumeration_path_has_no_offer_classifier(self) -> None:
+        """Static guard (G-DENOM): the workflow never IMPORTS or USES the Offers
+        OFFER_CLASSIFIER nor the active_offer_enumeration module that carries it.
+
+        Parsed via AST so the guard bites on real imports/usage and is NOT tripped
+        by the explanatory prose that documents *why* the divergence exists.
+        """
+        import ast as _ast
+        import inspect as _inspect
+
+        import autom8_asana.automation.workflows.onboarding_walkthrough.workflow as wf_mod
+
+        tree = _ast.parse(_inspect.getsource(wf_mod))
+
+        imported: set[str] = set()
+        for node in _ast.walk(tree):
+            if isinstance(node, _ast.ImportFrom):
+                imported.add(node.module or "")
+                imported.update(alias.name for alias in node.names)
+            elif isinstance(node, _ast.Import):
+                imported.update(alias.name for alias in node.names)
+        names_used = {n.id for n in _ast.walk(tree) if isinstance(n, _ast.Name)}
+
+        assert "OFFER_CLASSIFIER" not in imported, "must not import OFFER_CLASSIFIER"
+        assert "OFFER_CLASSIFIER" not in names_used, "must not reference OFFER_CLASSIFIER in code"
+        assert not any("active_offer_enumeration" in m for m in imported), (
+            "enumeration must reuse section_resolution, NOT the Offers active_offer_enumeration"
+        )
