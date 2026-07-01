@@ -46,7 +46,7 @@ from autom8y_api_middleware import (
 from autom8y_auth import DEFAULT_EXCLUDE_PATHS
 from autom8y_log import get_logger
 from autom8y_telemetry import InstrumentationConfig, instrument_app
-from fastapi import FastAPI  # noqa: F401
+from fastapi import FastAPI
 from starlette.middleware import Middleware
 
 from .config import get_settings
