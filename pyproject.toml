@@ -285,6 +285,12 @@ ignore = [
 # T201: print() is intentional in smoke test and CI scripts (terminal progress/results)
 "run_smoke_test.py" = ["T201"]
 ".ci/**/*.py" = ["T201"]
+# SCAR-IDEM-001: idempotency.py:770 carries an inert # noqa: BLE001 that RUF100 flags as unused.
+# BLE001 does not fire at :770 because ruff exempts except-blocks whose handler calls
+# logger.exception() (traceback-preserving path). The noqa is kept deliberately: the
+# KEEP-FLOOR protects the blind-except BLOCK (762-780); if ruff ever removes the carve-out,
+# or the handler is edited off logger.exception(), the comment prevents a scar-line regression.
+"src/autom8_asana/api/middleware/idempotency.py" = ["RUF100"]
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = [
