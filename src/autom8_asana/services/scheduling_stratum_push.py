@@ -92,12 +92,16 @@ def build_stratum_entry(
     result: StratumResult,
     resolved_at: datetime | None,
 ) -> dict[str, Any]:
-    """Build ONE contract-shaped ``SchedulingStratumEntry`` (Phase-1 PR #218).
+    """Build ONE contract-shaped ``SchedulingStratumEntry`` (wire contract v2).
 
-    The field set is EXACTLY ``{guid, stratum, custom_ghl_id, ghl_calendar_id,
-    resolved_at}``.  The Phase-1 entry model is ``extra="forbid"``, so the
-    envelope-only fields (``snapshot_source`` / ``source_timestamp`` / the
-    server-assigned ``synced_at``) MUST NOT appear on an entry or the sync 422s.
+    The field set is EXACTLY the frozen v2 surface: the v1 keys
+    ``{guid, stratum, custom_ghl_id, ghl_calendar_id, resolved_at}`` PLUS the v2
+    additions ``{enrolled, canonical_destination_url, ghl_ownership}``
+    (docs/contracts/scheduling-posture-wire-v2.md).  The entry model is
+    ``extra="forbid"``, so the envelope-only fields (``snapshot_source`` /
+    ``source_timestamp`` / the server-assigned ``synced_at``) MUST NOT appear on an
+    entry or the sync 422s.  A de-enrolled office is emitted with
+    ``enrolled=False`` -- PRESENT, never omitted.
     """
     return {
         "guid": guid,
@@ -105,6 +109,9 @@ def build_stratum_entry(
         "custom_ghl_id": result.custom_ghl_id,
         "ghl_calendar_id": result.ghl_calendar_id,
         "resolved_at": resolved_at.isoformat() if resolved_at is not None else None,
+        "enrolled": result.enrolled,
+        "canonical_destination_url": result.canonical_destination_url,
+        "ghl_ownership": result.ghl_ownership,
     }
 
 
@@ -203,7 +210,14 @@ def resolve_office_entries(
     stamp = resolved_at if resolved_at is not None else datetime.now(UTC)
     entries: list[dict[str, Any]] = []
     for office in extracted_offices:
-        result = resolve_stratum(office.normalized_inputs, CASCADE_PRIORITY)
+        # Thread the producer-derived v2 axes (enrolled / ghl_ownership) from the
+        # extractor into the resolver so the full posture rides on one result.
+        result = resolve_stratum(
+            office.normalized_inputs,
+            CASCADE_PRIORITY,
+            enrolled=office.enrolled,
+            ghl_ownership=office.ghl_ownership,
+        )
         entries.append(build_stratum_entry(office.guid, result, stamp))
     return entries
 

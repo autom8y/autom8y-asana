@@ -1,10 +1,12 @@
 """Tests for the scheduling-stratum snapshot push (Phase-2 normalizer-seam).
 
-Locks the Phase-1 (PR #218) CONTRACT: the built entry/envelope field names match
-``SchedulingStratumEntry`` / ``SchedulingStratumSyncRequest`` exactly (validated
-against a local extra=forbid replica so a stray key is caught), the DEFAULT-OFF gate
-(dry-run unless explicitly enabled), the dry-run no-POST guarantee, and the live
-POST endpoint + per-office isolation in the resolve+push pipeline.
+Locks the FROZEN wire contract v2 (docs/contracts/scheduling-posture-wire-v2.md):
+the built entry/envelope field names match ``SchedulingStratumEntry`` /
+``SchedulingStratumSyncRequest`` exactly -- v1 keys PLUS the v2 additions
+``{enrolled, canonical_destination_url, ghl_ownership}`` -- validated against a local
+extra=forbid replica so a stray key is caught; the DEFAULT-OFF gate (dry-run unless
+explicitly enabled), the dry-run no-POST guarantee, and the live POST endpoint +
+per-office isolation in the resolve+push pipeline.
 """
 
 from __future__ import annotations
@@ -33,10 +35,10 @@ pytestmark = [pytest.mark.xdist_group("scheduling_normalizer")]
 _PUSH_HELPER = "autom8_asana.services.scheduling_stratum_push._push_to_data_service"
 
 
-# --- Local replica of the Phase-1 PR #218 contract (extra=forbid teeth) ----------
+# --- Local replica of the FROZEN wire contract v2 (extra=forbid teeth) -----------
 
 
-class _Pr218StratumEnum(StrEnum):
+class _WireStratumEnum(StrEnum):
     REVIEWWAVE = "reviewwave"
     ACUITY = "acuity"
     CALENDLY = "calendly"
@@ -48,29 +50,57 @@ class _Pr218StratumEnum(StrEnum):
     INACTIVE = "inactive"
 
 
-class _Pr218Entry(BaseModel):
+class _WireGhlOwnership(StrEnum):
+    CLIENT_OWNED = "client_owned"
+    INTERNAL_DURATION = "internal_duration"
+    NONE = "none"
+
+
+class _WireV2Entry(BaseModel):
+    """extra=forbid replica of the FROZEN wire contract v2 entry surface."""
+
     model_config = ConfigDict(extra="forbid")
     guid: str = Field(min_length=1, max_length=36)
-    stratum: _Pr218StratumEnum
+    stratum: _WireStratumEnum
     custom_ghl_id: str | None = Field(default=None, max_length=255)
     ghl_calendar_id: str | None = Field(default=None, max_length=255)
     resolved_at: datetime | None = None
+    # v2 additions (FORK-1 Option 2)
+    enrolled: bool
+    canonical_destination_url: str | None = None
+    ghl_ownership: _WireGhlOwnership
 
 
-class _Pr218SyncRequest(BaseModel):
+class _WireV2SyncRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     snapshot_source: str = "asana"
-    entries: list[_Pr218Entry]
+    entries: list[_WireV2Entry]
     source_timestamp: datetime
     entry_count: int = Field(ge=0)
 
 
-_ENTRY_FIELDS = {"guid", "stratum", "custom_ghl_id", "ghl_calendar_id", "resolved_at"}
+_ENTRY_FIELDS = {
+    "guid",
+    "stratum",
+    "custom_ghl_id",
+    "ghl_calendar_id",
+    "resolved_at",
+    "enrolled",
+    "canonical_destination_url",
+    "ghl_ownership",
+}
 _ENVELOPE_FIELDS = {"snapshot_source", "entries", "source_timestamp", "entry_count"}
 
 
 def _sample_result() -> StratumResult:
-    return StratumResult(stratum="ghl", custom_ghl_id="cal-1", ghl_calendar_id="https://x/cal-1")
+    return StratumResult(
+        stratum="ghl",
+        custom_ghl_id="cal-1",
+        ghl_calendar_id="https://x/cal-1",
+        enrolled=True,
+        canonical_destination_url="https://x/cal-1",
+        ghl_ownership="client_owned",
+    )
 
 
 # --- entry / envelope contract-match --------------------------------------------
@@ -80,7 +110,7 @@ def test_build_stratum_entry_field_names_match_pr218() -> None:
     entry = build_stratum_entry("guid-1", _sample_result(), datetime.now(UTC))
     assert set(entry) == _ENTRY_FIELDS
     # extra=forbid replica accepts it (no stray key, all types valid).
-    _Pr218Entry.model_validate(entry)
+    _WireV2Entry.model_validate(entry)
 
 
 def test_build_sync_payload_field_names_match_pr218() -> None:
@@ -90,7 +120,7 @@ def test_build_sync_payload_field_names_match_pr218() -> None:
     assert payload["snapshot_source"] == SNAPSHOT_SOURCE == "asana"
     assert payload["entry_count"] == 1
     # The whole envelope validates against the extra=forbid PR #218 replica.
-    _Pr218SyncRequest.model_validate(payload)
+    _WireV2SyncRequest.model_validate(payload)
 
 
 def test_envelope_only_keys_rejected_on_entry() -> None:
@@ -98,7 +128,7 @@ def test_envelope_only_keys_rejected_on_entry() -> None:
     entry = build_stratum_entry("guid-1", _sample_result(), datetime.now(UTC))
     contaminated = {**entry, "snapshot_source": "asana"}  # snapshot_source is envelope-only
     with pytest.raises(ValueError, match="snapshot_source"):
-        _Pr218Entry.model_validate(contaminated)
+        _WireV2Entry.model_validate(contaminated)
 
 
 def test_entry_count_integrity_witness() -> None:
@@ -125,7 +155,31 @@ def test_resolve_office_entries_resolves_strata() -> None:
     assert [e["stratum"] for e in entries] == ["reviewwave", "inactive"]
     assert [e["guid"] for e in entries] == ["g-rw", "g-inactive"]
     for e in entries:
-        _Pr218Entry.model_validate(e)
+        _WireV2Entry.model_validate(e)
+
+
+def test_resolve_office_entries_threads_enrolled_and_ownership() -> None:
+    """The extractor's v2 axes (enrolled / ghl_ownership) ride onto the built entry.
+
+    A de-enrolled office is PRESENT in the batch with ``enrolled=False`` -- never
+    omitted (the enrolled-bit HARD CONSTRAINT) -- and keeps its resolved category.
+    """
+    offices = [
+        ExtractedScheduling(
+            guid="g-off",
+            normalized_inputs={**{f: None for f in CASCADE_PRIORITY}, "sked_id": "sk-1"},
+            enrolled=False,
+            ghl_ownership="client_owned",
+        ),
+    ]
+    entries = resolve_office_entries(offices)
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry["enrolled"] is False  # de-enrolled but PRESENT
+    assert entry["stratum"] == "sked"  # orthogonal: category preserved
+    assert entry["canonical_destination_url"] == "https://portal.sked.life/new-patient?key=sk-1"
+    assert entry["ghl_ownership"] == "client_owned"
+    _WireV2Entry.model_validate(entry)
 
 
 # --- push gating + dry-run ------------------------------------------------------
