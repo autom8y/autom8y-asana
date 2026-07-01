@@ -331,7 +331,7 @@ async def _recover_impl(
     # One batch read serves every null cell across every column (a task's single
     # cache copy carries all of its CFs), so the read count is bounded by distinct
     # null-row gids, never by (rows x columns).
-    null_any = pl.lit(False)  # noqa: FBT003 -- polars boolean literal seed
+    null_any = pl.lit(False)  # polars boolean literal seed
     for name, _cf_name, _dtype in present_cols:
         null_any = null_any | pl.col(name).is_null()
     null_rows = merged_df.filter(null_any & pl.col("gid").is_not_null())
