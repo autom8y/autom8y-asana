@@ -32,7 +32,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
-from autom8y_core.errors import DataServiceUnavailableError
+from autom8y_core.errors import (
+    DataServiceError,
+    DataServiceUnavailableError,
+    DataServiceValidationError,
+)
 from autom8y_log import get_logger
 
 from autom8_asana.automation.workflows.base import WorkflowItemError
@@ -458,6 +462,48 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                     recoverable=True,
                 ),
             )
+        except DataServiceError as exc:
+            # FR-2 (resolve): a malformed / non-200 data-service body surfaces as the
+            # DataServiceError base (data family). NAMED failed reason (mirrors the DSU
+            # leg), never the generic terminal swallow. Subclass-before-base: the DSU
+            # leg above precedes this base leg.
+            logger.error(
+                "onboarding_walkthrough_resolve_data_error",
+                task_gid=gid,
+                office_phone=masked,
+                error=str(exc),
+            )
+            return BridgeOutcome(
+                gid=gid,
+                status="failed",
+                error=WorkflowItemError(
+                    item_id=gid,
+                    error_type="resolve_data_error",
+                    message=str(exc),
+                    recoverable=True,
+                ),
+            )
+        except ValueError as exc:
+            # FR-2 (resolve): the SDK composes the gated address via
+            # ``format_routing_address(business.guid)`` which raises ``ValueError`` on a
+            # non-canonical STORED guid (routing.py:105) -- the R1 data-shape candidate.
+            # Disjoint from the DataService hierarchy (order-free); non-recoverable.
+            logger.error(
+                "onboarding_walkthrough_resolve_invalid",
+                task_gid=gid,
+                office_phone=masked,
+                error=str(exc),
+            )
+            return BridgeOutcome(
+                gid=gid,
+                status="failed",
+                error=WorkflowItemError(
+                    item_id=gid,
+                    error_type="resolve_invalid_input",
+                    message=str(exc),
+                    recoverable=False,
+                ),
+            )
 
         if not gated_address:
             logger.warning(
@@ -536,6 +582,66 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                 error=str(exc),
             )
             return BridgeOutcome(gid=gid, status="skipped", reason="anchor_unresolved")
+        except DataServiceUnavailableError as exc:
+            # FR-2 (anchor): a transient infra fault (timeout/5xx/circuit) from the
+            # by-GUID anchor (truth_source.py:68, UNWRAPPED). The DataService family is
+            # DISJOINT from the GFR family above, so it is peeled off here as a NAMED
+            # ``failed`` (mirrors the resolve leg) -- never mistaken for the benign
+            # no-identity-path skip. Subclasses (this + anchor_invalid) precede the base.
+            logger.error(
+                "onboarding_walkthrough_anchor_unavailable",
+                task_gid=gid,
+                error=str(exc),
+            )
+            return BridgeOutcome(
+                gid=gid,
+                status="failed",
+                error=WorkflowItemError(
+                    item_id=gid,
+                    error_type="anchor_unavailable",
+                    message=str(exc),
+                    recoverable=True,
+                ),
+            )
+        except DataServiceValidationError as exc:
+            # FR-2 (anchor): a 4xx data-shape fault (e.g. INVALID_BUSINESS_GUID_FORMAT,
+            # data_service.py:763) -- the R1 data-shape candidate. Non-recoverable.
+            logger.error(
+                "onboarding_walkthrough_anchor_invalid",
+                task_gid=gid,
+                error=str(exc),
+            )
+            return BridgeOutcome(
+                gid=gid,
+                status="failed",
+                error=WorkflowItemError(
+                    item_id=gid,
+                    error_type="anchor_invalid",
+                    message=str(exc),
+                    recoverable=False,
+                ),
+            )
+        except DataServiceError as exc:
+            # FR-2 (anchor): the DataService base -- the safety net WITHIN the data
+            # family (a malformed body, or a future sibling reaching this path). NAMED
+            # ``failed``, never swallowed. Auth-family classes are NOT DataServiceError
+            # (siblings under TransportError) -> they deliberately fall through to the
+            # shared runner's logged terminal net where R2 self-identifies.
+            logger.error(
+                "onboarding_walkthrough_anchor_data_error",
+                task_gid=gid,
+                error=str(exc),
+            )
+            return BridgeOutcome(
+                gid=gid,
+                status="failed",
+                error=WorkflowItemError(
+                    item_id=gid,
+                    error_type="anchor_data_error",
+                    message=str(exc),
+                    recoverable=True,
+                ),
+            )
 
         # The certified Source-B tenant guid + the GFR truth-tier the anchor resolved
         # at (CACHE vs VERIFIED). Both are consumed below: the guid for the cross-tenant
