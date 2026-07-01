@@ -141,7 +141,7 @@ def emit_offer_warm_complete(entity_type: str) -> None:
             extra={"entity_type": entity_type, "metric": OFFER_WARM_COMPLETE_METRIC},
         )
     except (
-        Exception  # noqa: BLE001
+        Exception
     ):  # BROAD-CATCH: telemetry -- an AMP failure must never crash the warm cycle
         # Past the is_active gate an ATTEMPT failed (import / series-build /
         # resolve_credentials / SigV4 / 5xx / snappy). A bare debug-and-swallow
