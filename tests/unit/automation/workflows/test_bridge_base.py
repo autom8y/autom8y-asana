@@ -384,7 +384,7 @@ class TestBroadCatchObservability:
     async def test_broken_entity_logs_structured_error(self) -> None:
         """RED on pre-fix (failed:1 but ZERO logs -- reproduces 2026-07-01); GREEN on
         fixed (failed:1 AND exactly one ``bridge_entity_failed`` log carrying
-        ``task_gid`` + ``error_type='ValueError'`` + ``exc_info`` for the traceback)."""
+        ``task_gid`` + ``error_type='ValueError'`` + a scrubbed ``error_message``)."""
 
         class _BrokenBridge(_TestBridge):
             async def process_entity(
@@ -403,11 +403,49 @@ class TestBroadCatchObservability:
         entry = failed_logs[0]
         assert entry["task_gid"] == "neu-life-fixture"
         assert entry["error_type"] == "ValueError"  # names the escaping class (R1/R2 signal)
+        assert entry["error_message"] == "boom"  # scrubbed str(exc) (PII-safe here)
         assert entry["workflow_id"] == "test-bridge"  # fleet-shared line self-identifies
         assert entry["log_level"] == "error"
-        # capture_logs bypasses the processor chain, so ``exc_info`` is the raw
-        # exception -- in production ``format_exc_info`` renders it to a full traceback.
-        assert isinstance(entry["exc_info"], ValueError)
+        # ``exc_info`` is deliberately DROPPED (XR-003): a rendered traceback's final
+        # ``Type: str(exc)`` line would leak unmasked on the unredacted runtime surfaces.
+        assert "exc_info" not in entry
+
+    async def test_broken_entity_masks_pii_in_error_message(self) -> None:
+        """F3 (XR-003, BLOCKING): when a swallowed exception's ``str()`` embeds a
+        customer phone (mirrors autom8y_core ``BusinessNotFoundError`` "No business
+        found for phone: +1..."), the SHARED runner MUST scrub it at the log call-site
+        BEFORE emission. ``capture_logs`` bypasses the processor chain, so the mask is
+        observable ONLY because it is applied at the call-site (which it now is).
+
+        Teeth (two vectors, one guard): reverting the ``_mask_pii_in_string`` wrap OR
+        re-adding ``exc_info=exc`` reintroduces the raw phone and trips
+        ``raw_phone not in repr(entry)``.
+        """
+        raw_phone = "+17705753103"
+        masked_phone = "+1770***3103"
+
+        class _PhoneLeakBridge(_TestBridge):
+            async def process_entity(
+                self, entity: dict[str, Any], params: dict[str, Any]
+            ) -> BridgeOutcome:
+                msg = f"No business found for phone: {raw_phone}"
+                raise ValueError(msg)
+
+        bridge = self._bridge(_PhoneLeakBridge)
+        with _capture_bridge_logs() as captured:
+            result = await bridge.execute_async([{"gid": "pii-fixture"}], {})
+
+        assert result.failed == 1
+        failed_logs = [e for e in captured if e["event"] == "bridge_entity_failed"]
+        assert len(failed_logs) == 1
+        entry = failed_logs[0]
+        # the scrubbed field carries the MASKED form ...
+        assert entry["error_message"] == f"No business found for phone: {masked_phone}"
+        # ... and the raw E.164 number is absent from EVERY captured field/value
+        # (the message AND any residual exc_info the mask would not reach).
+        haystack = repr(entry)
+        assert raw_phone not in haystack
+        assert masked_phone in haystack
 
     async def test_clean_entity_emits_no_error_log(self) -> None:
         """Two-sided teeth: a succeeded entity emits ZERO bridge_entity_failed logs."""

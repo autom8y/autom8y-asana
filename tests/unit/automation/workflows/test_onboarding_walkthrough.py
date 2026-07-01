@@ -2359,6 +2359,23 @@ class TestFaultNamingTaxonomy:
         assert terminal[0]["error_type"] == "InvalidServiceKeyError"  # R2 self-identifies
         atts.upload_async.assert_not_called()
 
+    def test_auth_family_not_reparented_under_dataservice(self) -> None:
+        # F4 forward-watch (cheap invariant): the AUTH family (TokenAcquisitionError and
+        # its InvalidServiceKeyError subclass) must stay DISJOINT from the DATA family
+        # (DataServiceError). If a future autom8y_core release reparents auth under the
+        # data hierarchy, the workflow's ``except DataServiceError`` legs would silently
+        # reclassify a 401 as a recoverable R1-data fault -- masking the R2 auth signal
+        # the terminal net keys off. Pin the invariant so a reparent fails LOUDLY here in
+        # CI instead of silently in production.
+        from autom8y_core.errors import (
+            DataServiceError,
+            InvalidServiceKeyError,
+            TokenAcquisitionError,
+        )
+
+        assert not issubclass(InvalidServiceKeyError, DataServiceError)
+        assert not issubclass(TokenAcquisitionError, DataServiceError)
+
     # -- Regression guard (AC-2c): GFR-family dispositions unchanged --
 
     async def test_gfr_family_dispositions_unchanged(self) -> None:
