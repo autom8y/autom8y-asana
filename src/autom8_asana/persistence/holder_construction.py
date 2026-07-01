@@ -66,17 +66,17 @@ def _repopulate_from_imported_modules() -> None:
     # will re-populate HOLDER_REGISTRY. Since modules are cached in
     # sys.modules, Python re-executes only if the module was cleared.
     # We force re-registration via direct import of each Holder class.
-    from autom8_asana.models.business.business import (  # noqa: F401
+    from autom8_asana.models.business.business import (
         AssetEditHolder,
         DNAHolder,
         ReconciliationHolder,
         VideographyHolder,
     )
-    from autom8_asana.models.business.contact import ContactHolder  # noqa: F401
-    from autom8_asana.models.business.location import LocationHolder  # noqa: F401
-    from autom8_asana.models.business.offer import OfferHolder  # noqa: F401
-    from autom8_asana.models.business.process import ProcessHolder  # noqa: F401
-    from autom8_asana.models.business.unit import UnitHolder  # noqa: F401
+    from autom8_asana.models.business.contact import ContactHolder
+    from autom8_asana.models.business.location import LocationHolder
+    from autom8_asana.models.business.offer import OfferHolder
+    from autom8_asana.models.business.process import ProcessHolder
+    from autom8_asana.models.business.unit import UnitHolder
 
     # Explicitly register in case module caching prevented side-effect re-runs
     register_holder("contact_holder", ContactHolder)

@@ -1032,7 +1032,7 @@ def main() -> None:
             sys.exit(1)
 
 
-def _emit_freshness_io_error(fe: FreshnessError) -> None:  # noqa: F821
+def _emit_freshness_io_error(fe: FreshnessError) -> None:
     """Map FreshnessError.kind to AC-4.1/4.2/4.3 stderr lines."""
     if fe.kind == "auth":
         msg = (

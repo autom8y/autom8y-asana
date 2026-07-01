@@ -240,7 +240,7 @@ async def run_reconciliation_sweep(
             )
             continue
 
-        assert decision.override_payload is not None  # divergent => payload  # noqa: S101
+        assert decision.override_payload is not None  # divergent => payload
         try:
             if await post_override(decision.override_payload):
                 posted += 1

@@ -51,7 +51,7 @@ from starlette.middleware import Middleware
 
 from .config import get_settings
 from .errors import register_exception_handlers
-from .lifespan import lifespan  # noqa: F401
+from .lifespan import lifespan
 from .rate_limit import limiter
 from .routes import (
     admin_router,

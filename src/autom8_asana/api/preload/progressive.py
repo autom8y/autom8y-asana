@@ -194,7 +194,7 @@ def _invoke_cache_warmer_lambda_from_preload(function_arn: str, entity_types: li
                 "entity_types": entity_types,
             },
         )
-    except Exception as e:  # noqa: BLE001 — ADVISORY: Lambda invocation is fire-and-forget; failure degrades to no-op (Lambda will not be invoked)
+    except Exception as e:  # ADVISORY: Lambda invocation is fire-and-forget; failure degrades to no-op (Lambda will not be invoked)
         logger.exception(
             "preload_lambda_invoke_failed",
             extra={
@@ -698,7 +698,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
 
                         return True
 
-                except Exception as e:  # noqa: BLE001 — ADVISORY: per-project isolation; one project failure must not abort other projects in the phase
+                except Exception as e:  # ADVISORY: per-project isolation; one project failure must not abort other projects in the phase
                     logger.exception(
                         "progressive_preload_project_failed",
                         extra={
@@ -790,7 +790,7 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         # WarmupOrderingError is a safety-critical invariant violation
         # (SCAR-005/006). It must NEVER be caught by BROAD-CATCH handlers.
         raise
-    except Exception as e:  # noqa: BLE001 — ADVISORY: outer startup degrade; WarmupOrderingError is re-raised above and never reaches here
+    except Exception as e:  # ADVISORY: outer startup degrade; WarmupOrderingError is re-raised above and never reaches here
         logger.exception(
             "progressive_preload_failed",
             extra={

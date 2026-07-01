@@ -77,7 +77,7 @@ def get_workflow_registry() -> WorkflowRegistry:
     Per ADR-bridge-invocation-model: per-invocation instance,
     not a module-level singleton with shared mutable state.
     """
-    global _default_registry  # noqa: PLW0603
+    global _default_registry
     if _default_registry is None:
         _default_registry = WorkflowRegistry()
     return _default_registry
@@ -89,7 +89,7 @@ def reset_workflow_registry() -> None:
     Per LB-003 pattern: registered with SystemContext.register_reset()
     to ensure test cleanup.
     """
-    global _default_registry  # noqa: PLW0603
+    global _default_registry
     _default_registry = None
 
 

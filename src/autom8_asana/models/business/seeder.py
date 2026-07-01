@@ -11,7 +11,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from autom8y_api_schemas import LeadPhone, LeadPhoneField, OfficePhoneField  # noqa: TC002
+from autom8y_api_schemas import LeadPhone, LeadPhoneField, OfficePhoneField
 from autom8y_log import get_logger
 from pydantic import BaseModel, ConfigDict
 

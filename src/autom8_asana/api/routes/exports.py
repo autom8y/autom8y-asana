@@ -667,4 +667,4 @@ async def post_export_api_v1(
 
 # Re-export of ValidationError so downstream tests can catch the same type the
 # Pydantic v2 router uses.
-__all__.append("ValidationError")  # noqa: PLE0604 — module-level mutation acceptable here
+__all__.append("ValidationError")  # module-level mutation acceptable here

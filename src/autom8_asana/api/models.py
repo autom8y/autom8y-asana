@@ -78,7 +78,7 @@ _EXPORT_META_EXAMPLE: dict[str, Any] = {
 }
 
 
-def _exports_schema_extra(schema: dict[str, Any], model: type) -> None:  # noqa: ARG001
+def _exports_schema_extra(schema: dict[str, Any], model: type) -> None:
     """Inject field-level examples into the meta property.
 
     The meta field resolves to a $ref; Pydantic does not propagate Field(examples=...)
