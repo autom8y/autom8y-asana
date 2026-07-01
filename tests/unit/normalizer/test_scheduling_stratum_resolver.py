@@ -13,6 +13,10 @@ import pytest
 
 from autom8_asana.normalizer.scheduling_stratum import (
     CASCADE_PRIORITY,
+    GHL_OWNERSHIP_CLIENT_OWNED,
+    GHL_OWNERSHIP_INTERNAL_DURATION,
+    GHL_OWNERSHIP_NONE,
+    GHL_OWNERSHIP_VALUES,
     GHL_PREFIX,
     GHL_PREFIX_ALT,
     INACTIVE_STRATUM,
@@ -22,6 +26,7 @@ from autom8_asana.normalizer.scheduling_stratum import (
     StratumResult,
     build_ghl_url,
     derive_effective_ghl_id,
+    derive_ghl_ownership,
     format_sked_url,
     format_trackstat_url,
     resolve_stratum,
@@ -116,7 +121,11 @@ def test_ghl_coordinates_carried_for_non_ghl_stratum() -> None:
 
 
 def test_ghl_terminal_derives_url() -> None:
-    """custom_ghl_id as the sole signal -> ghl stratum + derived booking URL."""
+    """custom_ghl_id as the sole signal -> ghl stratum + derived booking URL.
+
+    The GHL winner's canonical destination URL IS the derived booking URL (the
+    same value carried on ``ghl_calendar_id``).
+    """
     inputs = _empty_inputs()
     inputs["custom_ghl_id"] = "cal-xyz"
     result = resolve_stratum(inputs, CASCADE_PRIORITY)
@@ -124,6 +133,7 @@ def test_ghl_terminal_derives_url() -> None:
         stratum="ghl",
         custom_ghl_id="cal-xyz",
         ghl_calendar_id=f"{GHL_PREFIX}/cal-xyz",
+        canonical_destination_url=f"{GHL_PREFIX}/cal-xyz",
     )
 
 
@@ -191,6 +201,164 @@ def test_derive_effective_ghl_both_empty_is_none() -> None:
 def test_derive_effective_ghl_no_fallback_arg() -> None:
     assert derive_effective_ghl_id("explicit") == "explicit"
     assert derive_effective_ghl_id(None) is None
+
+
+# --- wire contract v2: canonical destination URL (R-NEW-2) -----------------------
+
+
+@pytest.mark.parametrize(
+    ("winning_field", "raw_value", "expected_url"),
+    [
+        # DIRECT / already-a-URL providers forward the raw external destination.
+        (
+            "reviewwave_id",
+            "https://reviewwave.example/book/rw-1",
+            "https://reviewwave.example/book/rw-1",
+        ),
+        (
+            "acuity_cal_url",
+            "https://app.acuityscheduling.com/x",
+            "https://app.acuityscheduling.com/x",
+        ),
+        ("calendly_url", "https://calendly.com/office-a", "https://calendly.com/office-a"),
+        ("janeapp_url", "https://office.janeapp.com/", "https://office.janeapp.com/"),
+        ("ehr_cal_url", "https://ehr.example/portal", "https://ehr.example/portal"),
+    ],
+)
+def test_canonical_url_direct_providers_forward_raw(
+    winning_field: str, raw_value: str, expected_url: str
+) -> None:
+    """The URL-bearing / DIRECT providers forward their raw external destination."""
+    inputs = _empty_inputs()
+    inputs[winning_field] = raw_value
+    result = resolve_stratum(inputs, CASCADE_PRIORITY)
+    assert result.canonical_destination_url == expected_url
+
+
+def test_canonical_url_trackstat_uses_resident_formatter() -> None:
+    """A trackstat winner's canonical URL runs through ``format_trackstat_url``."""
+    inputs = _empty_inputs()
+    inputs["trackstat_id"] = "42"
+    result = resolve_stratum(inputs, CASCADE_PRIORITY)
+    assert result.stratum == "trackstat"
+    assert result.canonical_destination_url == format_trackstat_url("42")
+    assert result.canonical_destination_url == f"{TRACKSTAT_PREFIX}/embedded/book?clinic=42"
+
+
+def test_canonical_url_sked_uses_resident_formatter() -> None:
+    """A sked winner's canonical URL runs through ``format_sked_url``."""
+    inputs = _empty_inputs()
+    inputs["sked_id"] = "k1"
+    result = resolve_stratum(inputs, CASCADE_PRIORITY)
+    assert result.stratum == "sked"
+    assert result.canonical_destination_url == format_sked_url("k1")
+    assert result.canonical_destination_url == f"{SKED_PREFIX}?key=k1"
+
+
+def test_canonical_url_ghl_winner_builds_booking_url() -> None:
+    """A GHL winner's canonical URL is the derived booking URL."""
+    inputs = _empty_inputs()
+    inputs["custom_ghl_id"] = "cal-9"
+    result = resolve_stratum(inputs, CASCADE_PRIORITY)
+    assert result.stratum == "ghl"
+    assert result.canonical_destination_url == build_ghl_url("cal-9")
+
+
+def test_canonical_url_none_when_inactive() -> None:
+    """All-empty -> inactive -> no canonical destination URL resolves."""
+    result = resolve_stratum(_empty_inputs(), CASCADE_PRIORITY)
+    assert result.stratum == INACTIVE_STRATUM
+    assert result.canonical_destination_url is None
+
+
+def test_canonical_url_winner_is_cascade_winner_not_ghl_fallback() -> None:
+    """A non-GHL winner drives the canonical URL; the GHL coord is still carried.
+
+    Proves the canonical URL is the CASCADE winner's destination, distinct from the
+    always-carried fail-closed GHL coordinate.
+    """
+    inputs = _empty_inputs()
+    inputs["trackstat_id"] = "77"
+    inputs["custom_ghl_id"] = "cal-fallback"
+    result = resolve_stratum(inputs, CASCADE_PRIORITY)
+    assert result.stratum == "trackstat"
+    assert result.canonical_destination_url == format_trackstat_url("77")
+    # GHL fail-closed coordinate is still carried for the read route's fallback.
+    assert result.ghl_calendar_id == build_ghl_url("cal-fallback")
+    assert result.canonical_destination_url != result.ghl_calendar_id
+
+
+def test_canonical_url_strips_surrounding_whitespace() -> None:
+    """A winning value's surrounding whitespace is stripped before URL construction."""
+    inputs = _empty_inputs()
+    inputs["acuity_cal_url"] = "  https://app.acuityscheduling.com/pad  "
+    result = resolve_stratum(inputs, CASCADE_PRIORITY)
+    assert result.canonical_destination_url == "https://app.acuityscheduling.com/pad"
+
+
+# --- wire contract v2: ghl_ownership trichotomy (ESC-1 / obligation 4) -----------
+
+
+def test_ghl_ownership_client_owned_when_explicit_present() -> None:
+    assert derive_ghl_ownership("cal-explicit", "cal-duration") == GHL_OWNERSHIP_CLIENT_OWNED
+    assert derive_ghl_ownership("cal-explicit", None) == GHL_OWNERSHIP_CLIENT_OWNED
+
+
+def test_ghl_ownership_internal_duration_when_only_fallback() -> None:
+    assert derive_ghl_ownership(None, "cal-duration") == GHL_OWNERSHIP_INTERNAL_DURATION
+    assert derive_ghl_ownership("", "cal-duration") == GHL_OWNERSHIP_INTERNAL_DURATION
+    assert derive_ghl_ownership("   ", "cal-duration") == GHL_OWNERSHIP_INTERNAL_DURATION
+
+
+def test_ghl_ownership_none_when_neither() -> None:
+    assert derive_ghl_ownership(None, None) == GHL_OWNERSHIP_NONE
+    assert derive_ghl_ownership("", "  ") == GHL_OWNERSHIP_NONE
+
+
+def test_ghl_ownership_mirrors_effective_ghl_precedence() -> None:
+    """Ownership trichotomy tracks ``derive_effective_ghl_id``'s winning slot."""
+    # explicit wins -> the effective id is the explicit one -> client_owned
+    assert derive_effective_ghl_id("exp", "dur") == "exp"
+    assert derive_ghl_ownership("exp", "dur") == GHL_OWNERSHIP_CLIENT_OWNED
+    # fallback wins -> the effective id is the duration one -> internal_duration
+    assert derive_effective_ghl_id(None, "dur") == "dur"
+    assert derive_ghl_ownership(None, "dur") == GHL_OWNERSHIP_INTERNAL_DURATION
+
+
+def test_ghl_ownership_values_is_closed_trichotomy() -> None:
+    assert {
+        GHL_OWNERSHIP_CLIENT_OWNED,
+        GHL_OWNERSHIP_INTERNAL_DURATION,
+        GHL_OWNERSHIP_NONE,
+    } == GHL_OWNERSHIP_VALUES
+
+
+# --- wire contract v2: enrolled / ghl_ownership carry-through --------------------
+
+
+def test_resolver_carries_enrolled_and_ownership_through() -> None:
+    """The resolver passes the producer-derived v2 axes onto the result unchanged."""
+    inputs = _empty_inputs()
+    inputs["calendly_url"] = "https://calendly.com/x"
+    result = resolve_stratum(
+        inputs,
+        CASCADE_PRIORITY,
+        enrolled=False,
+        ghl_ownership=GHL_OWNERSHIP_CLIENT_OWNED,
+    )
+    assert result.enrolled is False
+    assert result.ghl_ownership == GHL_OWNERSHIP_CLIENT_OWNED
+    # Enrollment is ORTHOGONAL to the cascade: a de-enrolled office keeps its
+    # resolved provider category and canonical URL.
+    assert result.stratum == "calendly"
+    assert result.canonical_destination_url == "https://calendly.com/x"
+
+
+def test_resolver_v2_axes_default_to_legacy_faithful() -> None:
+    """A cascade-only caller gets enrolled=True (legacy ACTIVE) + ownership=none."""
+    result = resolve_stratum(_empty_inputs(), CASCADE_PRIORITY)
+    assert result.enrolled is True
+    assert result.ghl_ownership == GHL_OWNERSHIP_NONE
 
 
 # --- contract drift guards -------------------------------------------------------

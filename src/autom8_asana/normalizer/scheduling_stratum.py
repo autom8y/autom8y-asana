@@ -20,12 +20,21 @@ This module is import-pure and side-effect-free by construction:
 The cascade is DATA (:data:`CASCADE_PRIORITY`), not a hard-coded branch chain
 (defeats B3): the resolver takes the cascade as an argument and indexes the
 declarative :data:`SOURCE_TO_STRATUM` map -- no provider name ever appears in a
-branch condition.  The legacy active/inactive status gate is ABSENT (defeats B4):
-provider identity is resolved from the raw values only.  In the monolith each
-source-field getter was gated by an inactive-status check that nulled the value;
-that active/inactive decision is REPLACED by the enrollment plane (the autom8y-data
-enrollment record's fail-closed default + operator override) and is NOT this
-resolver's concern.  No follow-up booking classification (defeats B6).
+branch condition.  The legacy active/inactive status gate is ABSENT from the
+cascade walk (defeats B4): provider identity is resolved from the raw values
+only.  In the monolith each source-field getter was gated by an inactive-status
+check that nulled the value; that active/inactive decision is NOT conflated into
+this resolver's cascade.
+
+ENROLLMENT (FORK-1, wire contract v2).  The pure projection re-sources enrollment
+from the office-global Asana enrollment-status enum (the monolith ``CustomCalStatus``
+binary field) -- read at the EXTRACTOR
+(:mod:`~autom8_asana.normalizer.scheduling_extractor`), never here.  The retired 019
+operator-override plane no longer participates.  Enrollment is ORTHOGONAL to the
+cascade: the resolver CARRIES the producer-derived ``enrolled`` bit (and the
+``ghl_ownership`` axis) through onto :class:`StratumResult` without gating the
+cascade walk on it, so the two axes stay independent (a de-enrolled office keeps
+its resolved provider category).  No follow-up booking classification (defeats B6).
 """
 
 from __future__ import annotations
@@ -33,7 +42,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
 # ---------------------------------------------------------------------------
 # Ported provider URL prefixes (byte-faithful to the monolith CustomCalUrl model,
@@ -81,23 +90,65 @@ SOURCE_TO_STRATUM: dict[str, str] = {
 }
 
 #: All-eight-empty terminal.  No provider signal is present; the resolver reports
-#: ``inactive``.  Whether an inactive office is served the GHL fallback or held for
-#: re-enrollment is the enrollment plane's decision, not the resolver's.
+#: ``inactive``.  Whether an inactive office is served the GHL fallback is the
+#: data-side thin gate's decision, not the resolver's.
 INACTIVE_STRATUM = "inactive"
+
+# ---------------------------------------------------------------------------
+# GHL-ownership vocabulary (wire contract v2 / ESC-1).  A CLOSED trichotomy that
+# records WHICH GHL slot supplied the effective calendar id, so the downstream
+# consumer knows which Webflow embed to push (client-owned vs internal-duration).
+# ---------------------------------------------------------------------------
+
+#: The office's explicit ``custom_ghl_id`` won ``derive_effective_ghl_id``.
+GHL_OWNERSHIP_CLIENT_OWNED = "client_owned"
+#: The appointment-duration-keyed ``{duration}_min_ghl_id`` fallback won.
+GHL_OWNERSHIP_INTERNAL_DURATION = "internal_duration"
+#: Neither GHL slot supplied an id.
+GHL_OWNERSHIP_NONE = "none"
+
+#: The closed ownership value-set (drift guard target for the wire contract).
+GHL_OWNERSHIP_VALUES: frozenset[str] = frozenset(
+    {
+        GHL_OWNERSHIP_CLIENT_OWNED,
+        GHL_OWNERSHIP_INTERNAL_DURATION,
+        GHL_OWNERSHIP_NONE,
+    }
+)
 
 
 class StratumResult(NamedTuple):
-    """The resolved stratum plus the derived GHL fail-closed coordinates.
+    """The resolved posture: stratum + GHL coordinates + the wire-contract-v2 axes.
 
-    Field set is fixed to the Phase-1 snapshot-entry contract surface:
-    ``stratum`` + ``custom_ghl_id`` + ``ghl_calendar_id`` (the GHL coordinates are
-    carried independent of the winning stratum so the autom8y-data read route's
-    beyond-TTL GHL fail-closed fallback is always populated).
+    v1 surface (unchanged): ``stratum`` + ``custom_ghl_id`` + ``ghl_calendar_id``
+    (the GHL coordinates are carried independent of the winning stratum so the
+    autom8y-data read route's beyond-TTL GHL fail-closed fallback is always
+    populated).
+
+    v2 additions (FORK-1 Option 2, thick-wire / projection-complete):
+
+      * ``enrolled`` -- the producer-derived enrollment bit (from the Asana
+        enrollment-status enum, resolved at the extractor).  A de-enrolled office
+        STAYS PRESENT with ``enrolled=False`` -- never omitted from the snapshot.
+        Defaults ``True`` (the legacy ACTIVE default) so a cascade-only caller
+        that does not pass it fails to the legacy-faithful posture, not a crash.
+      * ``canonical_destination_url`` -- the cascade winner's booking URL, built
+        via the RESIDENT formatters (:func:`_build_canonical_url`); ``None`` when
+        no provider resolves.
+      * ``ghl_ownership`` -- the closed :data:`GHL_OWNERSHIP_VALUES` trichotomy
+        (from :func:`derive_ghl_ownership`); defaults :data:`GHL_OWNERSHIP_NONE`.
+
+    The two v2 axes ``enrolled`` / ``ghl_ownership`` are ORTHOGONAL to the cascade
+    and are supplied by the extractor (the only site with the Asana enrollment
+    status and the PRE-fold GHL provenance); the resolver carries them through.
     """
 
     stratum: str
     custom_ghl_id: str | None
     ghl_calendar_id: str | None
+    enrolled: bool = True
+    canonical_destination_url: str | None = None
+    ghl_ownership: str = GHL_OWNERSHIP_NONE
 
 
 def _is_empty(value: str | None) -> bool:
@@ -171,21 +222,97 @@ def derive_effective_ghl_id(
     return None
 
 
+def derive_ghl_ownership(
+    custom_ghl_id: str | None,
+    duration_fallback_id: str | None = None,
+) -> str:
+    """Classify GHL calendar ownership (wire contract v2 / ESC-1).
+
+    Mirrors :func:`derive_effective_ghl_id`'s explicit-wins-over-duration
+    precedence, reporting WHICH slot supplied the effective id:
+
+      * explicit ``custom_ghl_id`` non-empty -> :data:`GHL_OWNERSHIP_CLIENT_OWNED`;
+      * else duration fallback non-empty      -> :data:`GHL_OWNERSHIP_INTERNAL_DURATION`;
+      * neither                               -> :data:`GHL_OWNERSHIP_NONE`.
+
+    MUST be called with the RAW (pre-fold) signals -- the extractor invokes this
+    BEFORE folding the effective id into the ``custom_ghl_id`` slot, because the
+    fold erases the provenance the trichotomy needs.
+    """
+    if not _is_empty(custom_ghl_id):
+        return GHL_OWNERSHIP_CLIENT_OWNED
+    if not _is_empty(duration_fallback_id):
+        return GHL_OWNERSHIP_INTERNAL_DURATION
+    return GHL_OWNERSHIP_NONE
+
+
+#: Source fields whose winning value is FORMATTED into a canonical URL by a
+#: RESIDENT formatter (the raw stored value is an id, not a URL).  Every other
+#: non-GHL winner (reviewwave / acuity / calendly / janeapp / ehr) already carries
+#: an external destination URL and is forwarded raw -- byte-faithful to the monolith
+#: ``CustomCalUrl`` cascade model (``_resolve_from_cascade`` lines 203-216, where
+#: JaneApp/EHR are the DIRECT categories that forward the external destination).
+_URL_FORMATTERS: dict[str, Callable[[str], str]] = {
+    "trackstat_id": format_trackstat_url,
+    "sked_id": format_sked_url,
+}
+
+
+def _build_canonical_url(
+    winning_field: str | None,
+    winning_value: str | None,
+    effective_ghl_id: str | None,
+) -> str | None:
+    """Build the cascade winner's canonical destination URL (wire contract v2).
+
+    Mirrors the monolith ``CustomCalUrl`` cascade's per-category destination
+    (``_resolve_from_cascade``):
+
+      * no winner (inactive)             -> ``None``;
+      * ``custom_ghl_id`` (GHL winner)   -> :func:`build_ghl_url` of the effective id;
+      * ``trackstat_id`` / ``sked_id``   -> the RESIDENT formatter of the raw id;
+      * every other provider             -> the raw external destination forwarded
+        (reviewwave / acuity / calendly and the DIRECT janeapp / ehr categories).
+
+    Formatters are REUSED, never duplicated.
+    """
+    if winning_field is None or winning_value is None:
+        return None
+    if winning_field == "custom_ghl_id":
+        return build_ghl_url(effective_ghl_id) if effective_ghl_id else None
+    formatter = _URL_FORMATTERS.get(winning_field)
+    if formatter is not None:
+        return formatter(winning_value)
+    return winning_value
+
+
 def resolve_stratum(
     normalized_inputs: Mapping[str, str | None],
     cascade: Sequence[str],
+    *,
+    enrolled: bool = True,
+    ghl_ownership: str = GHL_OWNERSHIP_NONE,
 ) -> StratumResult:
-    """Resolve an office's scheduling stratum from its eight source values (PURE).
+    """Resolve an office's scheduling posture from its source values (PURE).
 
     First-non-empty-in-``cascade`` wins and selects the stratum via
-    :data:`SOURCE_TO_STRATUM`; all-empty yields :data:`INACTIVE_STRATUM`.  The GHL
-    fail-closed coordinates are derived from the ``custom_ghl_id`` slot and carried
-    on EVERY result (independent of the winning stratum) so the autom8y-data read
-    route can serve the beyond-TTL GHL fallback for any office.
+    :data:`SOURCE_TO_STRATUM`; all-empty yields :data:`INACTIVE_STRATUM`.  The
+    winner's ``canonical_destination_url`` is built via :func:`_build_canonical_url`
+    (RESIDENT formatters; ``None`` on the inactive terminal).  The GHL fail-closed
+    coordinates are derived from the ``custom_ghl_id`` slot and carried on EVERY
+    result (independent of the winning stratum) so the autom8y-data read route can
+    serve the beyond-TTL GHL fallback for any office.
 
     The ``custom_ghl_id`` slot is expected to already hold the *effective* GHL id
     (the extractor applies :func:`derive_effective_ghl_id` with the duration
     fallback before calling); this function does not re-derive it.
+
+    ``enrolled`` / ``ghl_ownership`` are the wire-contract-v2 axes.  They are
+    ORTHOGONAL to the cascade and supplied by the extractor (the only site with
+    the Asana enrollment status and the pre-fold GHL provenance); the resolver
+    carries them through unchanged.  Their defaults (``True`` /
+    :data:`GHL_OWNERSHIP_NONE`) are the legacy-faithful posture for a cascade-only
+    caller that omits them.
 
     Args:
         normalized_inputs: ``source_field_name -> value`` (value may be ``None`` or
@@ -193,26 +320,39 @@ def resolve_stratum(
         cascade: The priority-ordered source-field list to walk (normally
             :data:`CASCADE_PRIORITY`).  Each member MUST be a key of
             :data:`SOURCE_TO_STRATUM`.
+        enrolled: Producer-derived enrollment bit (default ``True`` = legacy ACTIVE).
+        ghl_ownership: Producer-derived ownership (default :data:`GHL_OWNERSHIP_NONE`).
 
     Returns:
-        A :class:`StratumResult` ``(stratum, custom_ghl_id, ghl_calendar_id)``.
+        A :class:`StratumResult`.
     """
     stratum = INACTIVE_STRATUM
+    winning_field: str | None = None
+    winning_value: str | None = None
     for source_field in cascade:
-        if not _is_empty(normalized_inputs.get(source_field)):
+        candidate = normalized_inputs.get(source_field)
+        if not _is_empty(candidate):
+            assert candidate is not None  # narrowed by _is_empty
             stratum = SOURCE_TO_STRATUM[source_field]
+            winning_field = source_field
+            winning_value = candidate.strip()
             break
 
     # GHL fail-closed coordinates -- always carried when an effective GHL id exists,
     # regardless of which stratum won (the read route serves these beyond TTL).
     effective_ghl = normalized_inputs.get("custom_ghl_id")
     if _is_empty(effective_ghl):
-        return StratumResult(stratum=stratum, custom_ghl_id=None, ghl_calendar_id=None)
+        custom_ghl_id = None
+    else:
+        assert effective_ghl is not None  # narrowed by _is_empty
+        custom_ghl_id = effective_ghl.strip()
+    ghl_calendar_id = build_ghl_url(custom_ghl_id) if custom_ghl_id else None
 
-    assert effective_ghl is not None  # narrowed by _is_empty
-    custom_ghl_id = effective_ghl.strip()
     return StratumResult(
         stratum=stratum,
         custom_ghl_id=custom_ghl_id,
-        ghl_calendar_id=build_ghl_url(custom_ghl_id),
+        ghl_calendar_id=ghl_calendar_id,
+        enrolled=enrolled,
+        canonical_destination_url=_build_canonical_url(winning_field, winning_value, custom_ghl_id),
+        ghl_ownership=ghl_ownership,
     )
