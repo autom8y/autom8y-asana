@@ -367,3 +367,55 @@ jobs:
             echo "::error::V1-subclassing hazard detected. See governance output."
             exit 1
           fi
+
+  lint-noqa-drift:
+    name: Lint noqa Drift Guard (RUF100)
+    # Closes L-001 (asana-readiness-hygiene): the RUF100 dead-noqa drift-guard
+    # (justfile:96 `lint-noqa-drift`) enforced ONLY in local `just check`, never in
+    # CI. A removed dead-noqa class could silently regrow via any PR that skips the
+    # local recipe (base rate: PR #176 removed 36). This satellite-local job wires the
+    # SAME invariant into PR-gating CI. A reusable-repo edit = FORK-LOCUS (fleet blast
+    # radius) → out of scope; this job is autom8y-asana-local and revert-safe: delete
+    # the block to revert cleanly (no `needs:`, no shared state, no other job depends).
+    #
+    # Minimal toolchain BY DESIGN: ruff is a standalone binary on PUBLIC PyPI
+    # (pyproject [[tool.uv.index]] default = pypi; ruff is NOT in [tool.uv.sources]),
+    # so NO CodeArtifact auth / AWS OIDC is needed — unlike the fuzz / isolated jobs
+    # which sync the full autom8y-* dependency tree. This removes the CodeArtifact
+    # get-authorization-token flake class (PR #121 / FINDING-3) from the gate so it
+    # CANNOT false-RED, and lets the job run least-privilege (contents: read only).
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1 (node24)
+        with:
+          persist-credentials: false   # zizmor artipacked hardening (mirrors fuzz/isolated jobs)
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: RUF100 drift-guard (fail on unused noqa in src/; KEEP-floor honored via pyproject)
+        # MUST run from the checkout root with the RELATIVE `src/` target: ruff resolves
+        # [tool.ruff.lint.per-file-ignores] relative to the pyproject dir, so the
+        # SCAR-IDEM-001 idempotency.py RUF100 exemption (pyproject:293) is honored ONLY
+        # when cwd == repo root + relative path. Absolute paths / `--config <abs>` break
+        # per-file-ignore matching (VERIFIED: fires RUF100 on idempotency.py:770 + a
+        # storm of otherwise-exempt TID251/E402/T201). GH Actions default
+        # working-directory IS the checkout root, so DO NOT add a working-directory:
+        # override and DO NOT rewrite `src/` to an absolute path.
+        #
+        # `--extend-select RUF100` (NOT `--select RUF100`): --select DISABLES the base
+        # ruleset (pyproject select = E,F,I,UP,B,G,LOG,TCH,TID,SIM,T201,ERA,S*,BLE001),
+        # making every real-rule noqa read as "unused" → 314 false positives (VERIFIED).
+        # --extend-select keeps the base ruleset LIVE and ADDS RUF100 → only genuinely
+        # orphaned noqas fire (VERIFIED: 0 on the clean tree).
+        #
+        # NO `--fix`: `ruff check` without `--fix` FAILS (exit non-zero) on drift and
+        # never auto-repairs. `just lint` (== `ruff check . --fix`) is untouched.
+        # ruff@0.15.4 == uv.lock resolved version (uv.lock:2438); keep in sync on bumps.
+        run: uvx ruff@0.15.4 check src/ --extend-select RUF100
+    # NOTE: gate ruff pin (0.15.4) is independent of the uv-managed project ruff — bump in lockstep to avoid local/CI RUF100 divergence.
