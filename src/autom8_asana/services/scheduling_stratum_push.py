@@ -210,7 +210,14 @@ def resolve_office_entries(
     stamp = resolved_at if resolved_at is not None else datetime.now(UTC)
     entries: list[dict[str, Any]] = []
     for office in extracted_offices:
-        result = resolve_stratum(office.normalized_inputs, CASCADE_PRIORITY)
+        # Thread the producer-derived v2 axes (enrolled / ghl_ownership) from the
+        # extractor into the resolver so the full posture rides on one result.
+        result = resolve_stratum(
+            office.normalized_inputs,
+            CASCADE_PRIORITY,
+            enrolled=office.enrolled,
+            ghl_ownership=office.ghl_ownership,
+        )
         entries.append(build_stratum_entry(office.guid, result, stamp))
     return entries
 

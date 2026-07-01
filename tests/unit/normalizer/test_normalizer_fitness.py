@@ -10,9 +10,15 @@ Brittleness register defeated:
   * TL-A1 / B1 / B2 / B5 -- resolver purity (no persistence / I/O / mutation /
     concurrency / identity-re-resolution).
   * B3 -- cascade is data, not a hard-coded branch chain.
-  * B4 -- no legacy active/inactive status field anywhere in the normalizer.
+  * B4 (FORK-1 re-sourced) -- enrollment (``custom_cal_status``) stays ORTHOGONAL
+    to the cascade + wire path: it is READ at the extractor ONLY (the pure
+    projection's re-sourced enrollment axis) and appears nowhere in the resolver,
+    the normalizer facade, or the push/wire path (enrollment rides as the derived
+    ``enrolled`` bit).
   * B6 -- no follow-up booking-type classification in the resolver.
-  * TL-A6 -- no legacy write-back target in the normalizer or the push path.
+  * TL-A6 -- no legacy write-back target (``custom_cal_url`` / ``sql_chiropractors``)
+    in the normalizer or the push path.  (``custom_cal_status`` is a legitimate READ
+    under FORK-1 and is governed by B4, not TL-A6.)
 """
 
 from __future__ import annotations
@@ -57,8 +63,10 @@ _PURITY_FORBIDDEN: dict[str, str] = {
 # B3 -- the cascade must never be a hard-coded provider branch chain.
 _B3_FORBIDDEN = r"if\b.*reviewwave_id"
 
-# B4 -- the legacy active/inactive status field, banned anywhere in the normalizer.
-_B4_FORBIDDEN = r"custom_cal_status"
+# B4 (FORK-1 re-sourced) -- the enrollment-status field.  ABSENT from the cascade
+# resolver / normalizer facade / push-wire path (orthogonal); PRESENT at the
+# extractor ONLY (the re-sourced enrollment axis).
+_B4_STATUS = r"custom_cal_status"
 
 # B6 -- follow-up booking classification, banned in the resolver.
 _B6_FORBIDDEN: dict[str, str] = {
@@ -67,10 +75,11 @@ _B6_FORBIDDEN: dict[str, str] = {
     "standard": r"\bStandard\b",
 }
 
-# TL-A6 -- legacy write-back targets, banned in the normalizer + push path.
+# TL-A6 -- legacy write-back targets, banned in the normalizer + push path.  Under
+# FORK-1 ``custom_cal_status`` is a legitimate READ (governed by B4, not here); the
+# genuine never-touched legacy write targets remain banned everywhere.
 _TLA6_FORBIDDEN: dict[str, str] = {
     "legacy-cal-url": r"custom_cal_url",
-    "legacy-cal-status": r"custom_cal_status",
     "monolith-sql": r"sql_chiropractors",
 }
 
@@ -94,11 +103,27 @@ def test_b3_no_hardcoded_cascade_branch_chain() -> None:
     assert not hits, f"B3: resolver must not branch on a provider name; found {hits}"
 
 
-@pytest.mark.parametrize("target", [_RESOLVER, _EXTRACTOR, _NORMALIZER_INIT])
-def test_b4_no_custom_cal_status_in_normalizer(target: Path) -> None:
-    """B4: the legacy active/inactive status field appears nowhere in the normalizer."""
-    hits = _matches(target, _B4_FORBIDDEN)
+@pytest.mark.parametrize("target", [_RESOLVER, _NORMALIZER_INIT, _PUSH])
+def test_b4_status_absent_from_cascade_and_wire(target: Path) -> None:
+    """B4: enrollment stays ORTHOGONAL to the cascade resolver + normalizer + wire.
+
+    FORK-1 re-sources enrollment from ``custom_cal_status`` at the EXTRACTOR only;
+    the cascade resolver, the normalizer facade, and the push/wire path never
+    reference it -- enrollment rides as the derived ``enrolled`` bit.
+    """
+    hits = _matches(target, _B4_STATUS)
     assert not hits, f"B4: {target.name} must not reference custom_cal_status; found {hits}"
+
+
+def test_b4_status_read_only_at_extractor() -> None:
+    """B4 (positive / two-sided): the extractor IS the sole enrollment-read site.
+
+    A vacuous 'absent everywhere' check would also pass if the extraction were
+    silently dropped.  Assert the extractor genuinely reads ``custom_cal_status``,
+    so the re-sourced enrollment axis is wired, not merely absent elsewhere.
+    """
+    hits = _matches(_EXTRACTOR, _B4_STATUS)
+    assert hits, "B4: the extractor MUST read custom_cal_status (the re-sourced enrollment axis)"
 
 
 @pytest.mark.parametrize(("name", "pattern"), sorted(_B6_FORBIDDEN.items()))
@@ -144,7 +169,7 @@ def test_fitness_checker_has_teeth(tmp_path: Path) -> None:
     all_patterns = [
         *_PURITY_FORBIDDEN.values(),
         _B3_FORBIDDEN,
-        _B4_FORBIDDEN,
+        _B4_STATUS,
         *_B6_FORBIDDEN.values(),
         *_TLA6_FORBIDDEN.values(),
     ]

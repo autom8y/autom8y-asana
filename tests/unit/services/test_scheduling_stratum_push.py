@@ -158,6 +158,30 @@ def test_resolve_office_entries_resolves_strata() -> None:
         _WireV2Entry.model_validate(e)
 
 
+def test_resolve_office_entries_threads_enrolled_and_ownership() -> None:
+    """The extractor's v2 axes (enrolled / ghl_ownership) ride onto the built entry.
+
+    A de-enrolled office is PRESENT in the batch with ``enrolled=False`` -- never
+    omitted (the enrolled-bit HARD CONSTRAINT) -- and keeps its resolved category.
+    """
+    offices = [
+        ExtractedScheduling(
+            guid="g-off",
+            normalized_inputs={**{f: None for f in CASCADE_PRIORITY}, "sked_id": "sk-1"},
+            enrolled=False,
+            ghl_ownership="client_owned",
+        ),
+    ]
+    entries = resolve_office_entries(offices)
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry["enrolled"] is False  # de-enrolled but PRESENT
+    assert entry["stratum"] == "sked"  # orthogonal: category preserved
+    assert entry["canonical_destination_url"].startswith("https://portal.sked.life")
+    assert entry["ghl_ownership"] == "client_owned"
+    _WireV2Entry.model_validate(entry)
+
+
 # --- push gating + dry-run ------------------------------------------------------
 
 
