@@ -224,7 +224,7 @@ class DurableTaskCacheReader:
                     body = gzip.decompress(body)
                 raw = json.loads(body)
                 return unwrap_task_data(raw)
-            except Exception as e:  # noqa: BLE001 -- classified just below
+            except Exception as e:  # classified just below
                 name = type(e).__name__
                 # NoSuchKey / 404 on the un-suffixed key just means "try the .gz"
                 # and, if that also misses, honest cache-miss (None). A malformed
