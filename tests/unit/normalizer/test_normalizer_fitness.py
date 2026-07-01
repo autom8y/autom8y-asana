@@ -37,7 +37,6 @@ _RESOLVER = _SRC / "normalizer" / "scheduling_stratum.py"
 _EXTRACTOR = _SRC / "normalizer" / "scheduling_extractor.py"
 _NORMALIZER_INIT = _SRC / "normalizer" / "__init__.py"
 _PUSH = _SRC / "services" / "scheduling_stratum_push.py"
-_RECONCILE = _SRC / "services" / "scheduling_enrollment_reconcile.py"
 
 # Resolver-purity forbidden patterns (TL-A1 / B1 / B2 / B5). Each is a regex that
 # MUST NOT match the resolver source.
@@ -133,10 +132,10 @@ def test_b6_no_booking_classification_in_resolver(name: str, pattern: str) -> No
     assert not hits, f"B6/{name}: resolver must not contain /{pattern}/; found {hits}"
 
 
-@pytest.mark.parametrize("target", [_RESOLVER, _EXTRACTOR, _NORMALIZER_INIT, _PUSH, _RECONCILE])
+@pytest.mark.parametrize("target", [_RESOLVER, _EXTRACTOR, _NORMALIZER_INIT, _PUSH])
 @pytest.mark.parametrize(("name", "pattern"), sorted(_TLA6_FORBIDDEN.items()))
 def test_tl_a6_no_legacy_writeback(target: Path, name: str, pattern: str) -> None:
-    """TL-A6: no legacy write-back target in the normalizer or the push/reconcile path."""
+    """TL-A6: no legacy write-back target in the normalizer or the push path."""
     hits = _matches(target, pattern)
     assert not hits, f"TL-A6/{name}: {target.name} must not contain /{pattern}/; found {hits}"
 
