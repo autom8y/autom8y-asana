@@ -24,6 +24,7 @@ from autom8_asana.automation.workflows.base import (
     WorkflowResult,
 )
 from autom8_asana.automation.workflows.mixins import AttachmentReplacementMixin
+from autom8_asana.clients.data._pii import mask_pii_in_string as _mask_pii_in_string
 
 if TYPE_CHECKING:
     # H-003: Protocol alignment with autom8y-client-sdk.
@@ -224,12 +225,40 @@ class BridgeWorkflowAction(AttachmentReplacementMixin, WorkflowAction):
                 except (
                     Exception  # noqa: BLE001
                 ) as exc:  # BROAD-CATCH: boundary -- per-entity isolation
+                    item_id = entity.get("gid", "unknown")
+                    # FR-1 swallow-close: no per-entity ``failed`` outcome may be
+                    # counted here without a corresponding structured line. Authored in
+                    # the SHARED runner so insights_export / conversation_audit /
+                    # payment_reconciliation all benefit (fleet-wide, G-PROPAGATE). The
+                    # catch is NOT narrowed -- per-entity isolation is preserved; this
+                    # is purely additive observability.
+                    #
+                    # XR-003 PII discipline: SDK exception classes embed raw customer
+                    # data in ``str(exc)`` (e.g. BusinessNotFoundError "No business found
+                    # for phone: +1...", DataServiceValidationError "...: {detail}"), so
+                    # the message is scrubbed with the repo's own mask BEFORE emission.
+                    # ``exc_info`` is deliberately DROPPED: structlog's ``format_exc_info``
+                    # renders the traceback's final ``Type: str(exc)`` line UNMASKED, and
+                    # the runtime surfaces that run this net (polling CLI / EventBridge
+                    # Lambdas) wire no redaction processor -- a rendered traceback would
+                    # leak on a shared fleet runner. ``error_type`` (the PII-safe class
+                    # name) carries the R1/R2 signal the post-deploy fault-naming keys off,
+                    # so the raw traceback is not needed. Field is ``error_message`` (not
+                    # ``message``) to avoid the reserved LogRecord attribute collision
+                    # under ``intercept_stdlib=True`` (autom8y_log._reserved).
+                    logger.error(
+                        "bridge_entity_failed",
+                        workflow_id=self.workflow_id,
+                        task_gid=item_id,
+                        error_type=type(exc).__name__,
+                        error_message=_mask_pii_in_string(str(exc)),
+                    )
                     return BridgeOutcome(
-                        gid=entity.get("gid", "unknown"),
+                        gid=item_id,
                         status="failed",
                         reason=None,
                         error=WorkflowItemError(
-                            item_id=entity.get("gid", "unknown"),
+                            item_id=item_id,
                             error_type="unexpected_error",
                             message=str(exc),
                             recoverable=True,
