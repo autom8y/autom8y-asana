@@ -224,12 +224,28 @@ class BridgeWorkflowAction(AttachmentReplacementMixin, WorkflowAction):
                 except (
                     Exception  # noqa: BLE001
                 ) as exc:  # BROAD-CATCH: boundary -- per-entity isolation
+                    item_id = entity.get("gid", "unknown")
+                    # FR-1 swallow-close: no per-entity ``failed`` outcome may be
+                    # counted here without a corresponding structured line. Authored in
+                    # the SHARED runner so insights_export / conversation_audit /
+                    # payment_reconciliation all benefit (fleet-wide, G-PROPAGATE). The
+                    # catch is NOT narrowed -- per-entity isolation is preserved; this
+                    # is purely additive observability. ``exc_info`` feeds structlog's
+                    # ``format_exc_info`` -> a full traceback naming the escaping class.
+                    logger.error(
+                        "bridge_entity_failed",
+                        workflow_id=self.workflow_id,
+                        task_gid=item_id,
+                        error_type=type(exc).__name__,
+                        message=str(exc),
+                        exc_info=exc,
+                    )
                     return BridgeOutcome(
-                        gid=entity.get("gid", "unknown"),
+                        gid=item_id,
                         status="failed",
                         reason=None,
                         error=WorkflowItemError(
-                            item_id=entity.get("gid", "unknown"),
+                            item_id=item_id,
                             error_type="unexpected_error",
                             message=str(exc),
                             recoverable=True,
