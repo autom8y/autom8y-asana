@@ -63,7 +63,6 @@ Example:
 from autom8_asana.models.business._bootstrap import bootstrap, register_all_models
 
 # Then export all entity classes (unchanged)
-# ruff: noqa: E402
 from autom8_asana.models.business.activity import (
     ACTIVITY_PRIORITY,
     CLASSIFIERS,
