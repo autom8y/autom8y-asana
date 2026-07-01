@@ -90,6 +90,11 @@ lint:
 typecheck:
     uv run mypy src/ --strict
 
+# Drift-guard: fail on any NEW unused noqa in src/ (non-fixing; does not auto-delete)
+[group('quality')]
+lint-noqa-drift:
+    uv run ruff check src/ --extend-select RUF100
+
 # === Testing ===
 
 # Run tests
@@ -135,7 +140,7 @@ fitness:
 
 # Full CI-equivalent check
 [group('quality')]
-check: fmt lint typecheck test
+check: fmt lint typecheck lint-noqa-drift test
 
 # === OpenAPI ===
 
