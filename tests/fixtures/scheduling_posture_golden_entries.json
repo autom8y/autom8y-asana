@@ -1,0 +1,22 @@
+[
+  {
+    "canonical_destination_url": "https://clinic.patienthealthcenters.org/embedded/book?clinic=clinic-42",
+    "custom_ghl_id": "cal-client-1",
+    "enrolled": true,
+    "ghl_calendar_id": "https://api.leadconnectorhq.com/widget/booking/cal-client-1",
+    "ghl_ownership": "client_owned",
+    "guid": "office-enrolled-001",
+    "resolved_at": "2026-07-01T00:00:00+00:00",
+    "stratum": "trackstat"
+  },
+  {
+    "canonical_destination_url": "https://calendly.com/office-two",
+    "custom_ghl_id": null,
+    "enrolled": false,
+    "ghl_calendar_id": null,
+    "ghl_ownership": "none",
+    "guid": "office-inactive-002",
+    "resolved_at": "2026-07-01T00:00:00+00:00",
+    "stratum": "calendly"
+  }
+]
