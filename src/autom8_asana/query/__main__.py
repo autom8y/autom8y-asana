@@ -470,7 +470,7 @@ def _get_output_stream(args: argparse.Namespace) -> IO[str]:
     """Get the output stream from parsed args."""
     output_path = getattr(args, "output", None)
     if output_path:
-        return open(output_path, "w")  # noqa: SIM115
+        return open(output_path, "w")
     return sys.stdout
 
 
