@@ -2245,3 +2245,157 @@ class TestBTM3VerifiedTierAnchor:
         # The by-GUID port was consulted on the poison and missed -> fail-closed.
         assert verifier.calls == [poison]
         print(f"[BTM-3] poisoned cache under VERIFIED -> {out.reason!r}, uploads=0 (narrowed)")
+
+
+# --- AC-2: autom8_data fault-naming taxonomy (resolve + anchor except-widening) ---
+
+
+class TestFaultNamingTaxonomy:
+    """AC-2: known autom8_data faults in the resolve/anchor legs become NAMED
+    ``failed`` reasons (not the generic terminal ``unexpected_error``); the auth
+    family deliberately falls through to the SHARED runner's now-logged terminal net
+    where its true class name self-identifies R2. GFR-family dispositions are
+    unchanged (regression guard on ladder ordering).
+
+    Every named leg returns a per-entity ``failed`` BEFORE FREEZE (no upload, no
+    producer subprocess), preserving INV-1 (customer-clean) and INV-3 (isolation).
+    """
+
+    # -- Resolve leg (B, workflow.py:440) --
+
+    async def test_resolve_valueerror_named_failed(self) -> None:
+        # AC-2a: ``format_routing_address`` raises ``ValueError`` on a non-canonical
+        # STORED guid (R1 candidate). It must become a NAMED failed reason, NOT escape
+        # to the terminal swallow (which would report error_type='unexpected_error').
+        resolver = _make_resolver(raises=ValueError("non-canonical stored guid"))
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+        out = await wf.process_entity(_entity(provider="GHL"), {})
+        assert out.status == "failed"
+        assert out.error is not None
+        assert out.error.error_type == "resolve_invalid_input"  # NAMED, not unexpected_error
+        assert out.error.recoverable is False
+        atts.upload_async.assert_not_called()
+
+    async def test_resolve_malformed_named_failed(self) -> None:
+        # AC-2a sibling: a malformed / non-200 data-service body raises the
+        # ``DataServiceError`` base -> resolve_data_error (recoverable).
+        from autom8y_core.errors import DataServiceError
+
+        resolver = _make_resolver(raises=DataServiceError("malformed body"))
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+        out = await wf.process_entity(_entity(provider="GHL"), {})
+        assert out.status == "failed"
+        assert out.error is not None
+        assert out.error.error_type == "resolve_data_error"
+        assert out.error.recoverable is True
+        atts.upload_async.assert_not_called()
+
+    # -- Anchor leg (C, workflow.py:490) --
+
+    async def test_anchor_unavailable_named_failed(self) -> None:
+        # AC-2b: a transient data-service fault in the by-GUID anchor becomes a NAMED
+        # failed reason (mirrors the resolve leg) -- alarmed, never a benign skip nor
+        # the terminal swallow.
+        from autom8y_core.errors import DataServiceUnavailableError
+
+        resolver = _make_resolver(address=_W1_RESOLVED_A)
+        wf, atts, _, _ = _make_workflow(
+            resolver=resolver,
+            company_id_anchor=_raising_anchor(
+                DataServiceUnavailableError(method="get_business_by_guid")
+            ),
+        )
+        out = await wf.process_entity(_entity(provider="GHL"), {})
+        assert out.status == "failed"
+        assert out.error is not None
+        assert out.error.error_type == "anchor_unavailable"
+        assert out.error.recoverable is True
+        atts.upload_async.assert_not_called()
+
+    async def test_anchor_invalid_named_failed(self) -> None:
+        # AC-2b sibling: a 4xx data-shape fault (INVALID_BUSINESS_GUID_FORMAT) raises
+        # ``DataServiceValidationError`` -> NAMED anchor_invalid (non-recoverable, R1).
+        from autom8y_core.errors import DataServiceValidationError
+
+        resolver = _make_resolver(address=_W1_RESOLVED_A)
+        wf, atts, _, _ = _make_workflow(
+            resolver=resolver,
+            company_id_anchor=_raising_anchor(
+                DataServiceValidationError(method="get_business_by_guid", status_code=400)
+            ),
+        )
+        out = await wf.process_entity(_entity(provider="GHL"), {})
+        assert out.status == "failed"
+        assert out.error is not None
+        assert out.error.error_type == "anchor_invalid"
+        assert out.error.recoverable is False
+        atts.upload_async.assert_not_called()
+
+    async def test_anchor_auth_reaches_terminal_named_R2(self) -> None:
+        # AC-2b teeth: the AUTH family (InvalidServiceKeyError) is NOT a DataServiceError
+        # (siblings under TransportError), so it is deliberately NOT caught by the data
+        # legs -> it falls through to the SHARED runner's terminal net, which now LOGS
+        # it. Its true class name self-identifies R2. Proven END-TO-END via
+        # ``execute_async`` so the terminal net is genuinely exercised.
+        from autom8y_core.errors import InvalidServiceKeyError
+
+        from autom8_asana.automation.workflows import bridge_base as _bb_mod
+
+        resolver = _make_resolver(address=_W1_RESOLVED_A)
+        wf, atts, _, _ = _make_workflow(
+            resolver=resolver,
+            company_id_anchor=_raising_anchor(InvalidServiceKeyError()),
+        )
+        # Clear the shared runner's logger bind cache so capture intercepts the terminal
+        # net line (bridge_base is a DIFFERENT module logger than the workflow).
+        proxy = _bb_mod.logger
+        if "bind" in getattr(proxy, "__dict__", {}):
+            del proxy.__dict__["bind"]
+        with structlog.testing.capture_logs() as captured:
+            result = await wf.execute_async([_entity(provider="GHL")], {})
+        assert result.failed == 1
+        terminal = [e for e in captured if e["event"] == "bridge_entity_failed"]
+        assert len(terminal) == 1
+        assert terminal[0]["error_type"] == "InvalidServiceKeyError"  # R2 self-identifies
+        atts.upload_async.assert_not_called()
+
+    # -- Regression guard (AC-2c): GFR-family dispositions unchanged --
+
+    async def test_gfr_family_dispositions_unchanged(self) -> None:
+        # AC-2c: widening the DataService family BELOW the GFR family must not perturb
+        # the GFR ladder ordering (subclasses-before-base). Each GFR-family raise keeps
+        # its EXISTING skip disposition; a resolved-but-foreign anchor still skips
+        # guid_anchor_mismatch.
+        from autom8_asana.resolution.gfr.errors import (
+            AmbiguousCardinalityError,
+            GuardViolationError,
+            UnresolvedError,
+        )
+
+        raising_cases = [
+            (GuardViolationError("identity-path drift"), "guard_violation"),
+            (AmbiguousCardinalityError(row_count=2), "ambiguous_anchor"),
+            (
+                UnresolvedError(fields=["company_id"], reason="no-identity-path"),
+                "anchor_unresolved",
+            ),
+        ]
+        for exc, expected_reason in raising_cases:
+            resolver = _make_resolver(address=_W1_RESOLVED_A)
+            wf, atts, _, _ = _make_workflow(
+                resolver=resolver, company_id_anchor=_raising_anchor(exc)
+            )
+            out = await wf.process_entity(_entity(provider="GHL"), {})
+            assert out.status == "skipped", f"{type(exc).__name__} must skip, got {out.status}"
+            assert out.reason == expected_reason
+            atts.upload_async.assert_not_called()
+
+        # A resolved-but-foreign anchor (guid mismatch) still skips guid_anchor_mismatch.
+        resolver = _make_resolver(address=_W1_RESOLVED_A)
+        wf, atts, _, _ = _make_workflow(
+            resolver=resolver, company_id_anchor=_stub_anchor(_W1_GUID_B)
+        )
+        out = await wf.process_entity(_entity(provider="GHL"), {})
+        assert out.status == "skipped"
+        assert out.reason == "guid_anchor_mismatch"
+        atts.upload_async.assert_not_called()

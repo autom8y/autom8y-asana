@@ -12,6 +12,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import structlog
 
 from autom8_asana.automation.workflows.base import (
     WorkflowItemError,
@@ -64,6 +65,22 @@ def _make_test_bridge(
         data_client=dc,
         attachments_client=mock_attachments,
     )
+
+
+def _capture_bridge_logs() -> Any:
+    """structlog capture over the shared bridge_base module logger.
+
+    Clears the BoundLoggerLazyProxy ``bind`` cache so ``capture_logs`` intercepts
+    even when an earlier test materialized the logger via
+    ``cache_logger_on_first_use`` (mirrors
+    test_onboarding_walkthrough._capture_workflow_logs).
+    """
+    from autom8_asana.automation.workflows import bridge_base as _bb_mod
+
+    proxy = _bb_mod.logger
+    if "bind" in getattr(proxy, "__dict__", {}):
+        del proxy.__dict__["bind"]
+    return structlog.testing.capture_logs()
 
 
 # --- BridgeOutcome Tests ---
@@ -339,3 +356,78 @@ class TestBuildResultMetadata:
         bridge = _make_test_bridge()
         outcomes = [BridgeOutcome(gid="e1", status="succeeded")]
         assert bridge._build_result_metadata(outcomes) == {}
+
+
+# --- FR-1: terminal broad-catch observability (the swallow-close) ---
+
+
+class TestBroadCatchObservability:
+    """FR-1: the SHARED bridge runner's terminal broad-catch must emit a structured
+    ERROR log on every swallowed per-entity failure -- closing the 2026-07-01
+    fleet-wide observability swallow. Two-sided: the log fires ONLY on the fault
+    path, never on a clean succeeded/skipped outcome.
+
+    Discriminating-canary MODE 2 (genuine guard-absence): the broken entity is a
+    broken INPUT fed to the REAL runner whose logger was genuinely absent -- NOT a
+    defect injected into working code.
+    """
+
+    def _bridge(self, cls: type[_TestBridge]) -> _TestBridge:
+        bridge = cls(
+            asana_client=MagicMock(),
+            data_client=MagicMock(),
+            attachments_client=MagicMock(),
+        )
+        bridge._data_client.is_healthy = AsyncMock()
+        return bridge
+
+    async def test_broken_entity_logs_structured_error(self) -> None:
+        """RED on pre-fix (failed:1 but ZERO logs -- reproduces 2026-07-01); GREEN on
+        fixed (failed:1 AND exactly one ``bridge_entity_failed`` log carrying
+        ``task_gid`` + ``error_type='ValueError'`` + ``exc_info`` for the traceback)."""
+
+        class _BrokenBridge(_TestBridge):
+            async def process_entity(
+                self, entity: dict[str, Any], params: dict[str, Any]
+            ) -> BridgeOutcome:
+                msg = "boom"
+                raise ValueError(msg)
+
+        bridge = self._bridge(_BrokenBridge)
+        with _capture_bridge_logs() as captured:
+            result = await bridge.execute_async([{"gid": "neu-life-fixture"}], {})
+
+        assert result.failed == 1
+        failed_logs = [e for e in captured if e["event"] == "bridge_entity_failed"]
+        assert len(failed_logs) == 1  # exactly one structured line per failed outcome
+        entry = failed_logs[0]
+        assert entry["task_gid"] == "neu-life-fixture"
+        assert entry["error_type"] == "ValueError"  # names the escaping class (R1/R2 signal)
+        assert entry["workflow_id"] == "test-bridge"  # fleet-shared line self-identifies
+        assert entry["log_level"] == "error"
+        # capture_logs bypasses the processor chain, so ``exc_info`` is the raw
+        # exception -- in production ``format_exc_info`` renders it to a full traceback.
+        assert isinstance(entry["exc_info"], ValueError)
+
+    async def test_clean_entity_emits_no_error_log(self) -> None:
+        """Two-sided teeth: a succeeded entity emits ZERO bridge_entity_failed logs."""
+        bridge = self._bridge(_TestBridge)  # default process_entity returns succeeded
+        with _capture_bridge_logs() as captured:
+            result = await bridge.execute_async([{"gid": "clean-1"}], {})
+        assert result.succeeded == 1
+        assert [e for e in captured if e["event"] == "bridge_entity_failed"] == []
+
+    async def test_skipped_entity_emits_no_error_log(self) -> None:
+        """Two-sided teeth: a skipped entity emits ZERO bridge_entity_failed logs."""
+
+        class _SkipBridge(_TestBridge):
+            async def process_entity(
+                self, entity: dict[str, Any], params: dict[str, Any]
+            ) -> BridgeOutcome:
+                return BridgeOutcome(gid=entity["gid"], status="skipped", reason="nothing_to_do")
+
+        bridge = self._bridge(_SkipBridge)
+        with _capture_bridge_logs() as captured:
+            result = await bridge.execute_async([{"gid": "skip-1"}], {})
+        assert result.skipped == 1
+        assert [e for e in captured if e["event"] == "bridge_entity_failed"] == []
