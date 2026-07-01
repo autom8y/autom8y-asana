@@ -163,10 +163,10 @@ def derive_effective_ghl_id(
     applies the precedence.  Passing ``None`` reduces to "explicit id only".
     """
     if not _is_empty(custom_ghl_id):
-        assert custom_ghl_id is not None  # narrowed by _is_empty  # noqa: S101
+        assert custom_ghl_id is not None  # narrowed by _is_empty
         return custom_ghl_id.strip()
     if not _is_empty(duration_fallback_id):
-        assert duration_fallback_id is not None  # narrowed by _is_empty  # noqa: S101
+        assert duration_fallback_id is not None  # narrowed by _is_empty
         return duration_fallback_id.strip()
     return None
 
@@ -209,7 +209,7 @@ def resolve_stratum(
     if _is_empty(effective_ghl):
         return StratumResult(stratum=stratum, custom_ghl_id=None, ghl_calendar_id=None)
 
-    assert effective_ghl is not None  # narrowed by _is_empty  # noqa: S101
+    assert effective_ghl is not None  # narrowed by _is_empty
     custom_ghl_id = effective_ghl.strip()
     return StratumResult(
         stratum=stratum,

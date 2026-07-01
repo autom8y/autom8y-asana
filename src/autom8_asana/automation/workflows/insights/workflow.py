@@ -714,7 +714,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         for spec in operator_specs:
             # operator specs always carry insight_name (asserted in tables.py)
             insight_name = spec.insight_name
-            assert insight_name is not None  # noqa: S101 -- spec invariant
+            assert insight_name is not None  # spec invariant
             try:
                 per_office = await self._data_client.get_operator_insights_batch_async(
                     insight_name=insight_name,
