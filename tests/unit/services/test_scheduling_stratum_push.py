@@ -177,7 +177,7 @@ def test_resolve_office_entries_threads_enrolled_and_ownership() -> None:
     entry = entries[0]
     assert entry["enrolled"] is False  # de-enrolled but PRESENT
     assert entry["stratum"] == "sked"  # orthogonal: category preserved
-    assert entry["canonical_destination_url"].startswith("https://portal.sked.life")
+    assert entry["canonical_destination_url"] == "https://portal.sked.life/new-patient?key=sk-1"
     assert entry["ghl_ownership"] == "client_owned"
     _WireV2Entry.model_validate(entry)
 
