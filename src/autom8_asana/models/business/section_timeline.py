@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
-from autom8y_api_schemas import OfficePhoneField  # noqa: TC002
+from autom8y_api_schemas import OfficePhoneField
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
