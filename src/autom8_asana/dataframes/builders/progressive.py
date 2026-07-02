@@ -191,6 +191,13 @@ class ProgressiveProjectBuilder:
 
         This is L3 of the three-layer defense-in-depth for the cascade
         warm-up ordering invariant (SCAR-005/006).
+
+        DELIBERATE: unlike the L1/L2 frame-warm ordering gates (which use
+        get_frame_warm_providers), L3 uses the UNFILTERED provider set.
+        This probe checks the unified task store's hierarchy index — which
+        is exactly the mechanism that satisfies FRAME-LESS providers (e.g.,
+        unit_holder ancestor hydration), so frame-less providers are
+        in-scope here even though they never frame-warm.
         """
         from autom8_asana.dataframes.cascade_utils import get_cascade_providers
 

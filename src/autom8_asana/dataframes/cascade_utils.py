@@ -34,7 +34,8 @@ def is_cascade_provider(entity_type: str) -> bool:
     """Check if an entity type provides cascade fields to other entities.
 
     Queries ``EntityDescriptor.cascading_field_provider`` — currently
-    True for ``business`` and ``unit``.
+    True for ``business``, ``unit``, and ``unit_holder`` (the frame-less
+    scheduling-posture provider, OFFER_SCHEMA 1.6.0).
 
     Args:
         entity_type: Snake-case entity type name (e.g., "business").
@@ -131,6 +132,33 @@ def cascade_provider_field_mapping(entity_type: str) -> dict[str, str]:
     return mapping
 
 
+def _provider_for_field_map() -> dict[str, str]:
+    """Build the shared provider lookup: asana_field_name -> provider entity type.
+
+    Single derivation source for the cascade dependency graph. BOTH the
+    warm-phase planner (:func:`cascade_warm_phases`) and the ordering
+    guards (:func:`get_cascade_providers` and its consumers) derive from
+    this map, so planner and gate can never disagree about who provides
+    a cascade field.
+
+    All imports are deferred to avoid circular deps.
+    """
+    from autom8_asana.core.entity_registry import get_registry
+    from autom8_asana.models.business.fields import get_cascading_field_registry
+
+    entity_registry = get_registry()
+    cascade_registry = get_cascading_field_registry()
+
+    provider_for_field: dict[str, str] = {}
+    for _norm_name, (owner_class, field_def) in cascade_registry.items():
+        # Find the entity descriptor for this owner class
+        for desc in entity_registry.all_descriptors():
+            if desc.cascading_field_provider and desc.get_model_class() is owner_class:
+                provider_for_field[field_def.name] = desc.name
+                break
+    return provider_for_field
+
+
 def cascade_warm_phases() -> list[list[str]]:
     """Compute topological warm phases from the cascade dependency graph.
 
@@ -142,25 +170,23 @@ def cascade_warm_phases() -> list[list[str]]:
     - ``DataFrameSchema.get_cascade_columns()`` to find consumers
     - ``get_cascading_field_registry()`` to find providers
 
+    Only FRAME-WARMABLE entities (``EntityDescriptor.warmable``) are
+    scheduled. Frame-less providers (e.g., the HOLDER-category
+    ``unit_holder``) never appear in any phase: their cascade data rides
+    the unified task store via ancestor hydration during the consumer's
+    own build, not a DataFrame warm. The pre-phase gate MUST therefore
+    demand only frame-warmable providers — see
+    :func:`get_frame_warm_providers` / :func:`assert_l2_pre_phase_gate`.
+
     Returns:
         List of phases, each a list of entity type names.
         E.g., ``[["business"], ["unit"], ["contact", "offer", ...]]``
     """
     from autom8_asana.core.entity_registry import get_registry
     from autom8_asana.dataframes.models.registry import SchemaRegistry
-    from autom8_asana.models.business.fields import get_cascading_field_registry
 
     entity_registry = get_registry()
-    cascade_registry = get_cascading_field_registry()
-
-    # Build provider lookup: asana_field_name -> provider_entity_type
-    provider_for_field: dict[str, str] = {}
-    for _norm_name, (owner_class, field_def) in cascade_registry.items():
-        # Find the entity descriptor for this owner class
-        for desc in entity_registry.all_descriptors():
-            if desc.cascading_field_provider and desc.get_model_class() is owner_class:
-                provider_for_field[field_def.name] = desc.name
-                break
+    provider_for_field = _provider_for_field_map()
 
     # Build dependency graph: entity_type -> set of entity types it depends on
     deps: dict[str, set[str]] = defaultdict(set)
@@ -226,12 +252,22 @@ def cascade_warm_order() -> list[str]:
 
 
 def get_cascade_providers(entity_type: str) -> set[str]:
-    """Return entity types that provide cascade fields to this entity.
+    """Return ALL entity types that provide cascade fields to this entity.
 
-    Builds the same dependency graph as :func:`cascade_warm_phases` but
-    returns only the providers for a single entity type. Used by L2/L3
-    warm-up ordering guards to verify that provider data is available
-    before a consumer entity is built.
+    Builds the same dependency graph as :func:`cascade_warm_phases` (via
+    the shared :func:`_provider_for_field_map`) but returns only the
+    providers for a single entity type. The result includes FRAME-LESS
+    providers (e.g., ``unit_holder``) whose data is satisfied by ancestor
+    hydration in the unified task store, NOT by a DataFrame warm.
+
+    Consumers:
+    - L3 per-build guard (hierarchy-store probe): uses this UNFILTERED
+      set — the store probe is exactly the satisfaction mechanism for
+      frame-less providers.
+    - L1/L2 frame-warm ordering gates: must NOT use this directly.
+      They demand frame-warm completion, so they use
+      :func:`get_frame_warm_providers` (else a frame-less provider
+      becomes an unsatisfiable demand — the #192 wedge).
 
     All imports are deferred to avoid circular deps.
 
@@ -244,18 +280,9 @@ def get_cascade_providers(entity_type: str) -> set[str]:
     """
     from autom8_asana.core.entity_registry import get_registry
     from autom8_asana.dataframes.models.registry import SchemaRegistry
-    from autom8_asana.models.business.fields import get_cascading_field_registry
 
     entity_registry = get_registry()
-    cascade_registry = get_cascading_field_registry()
-
-    # Build provider lookup: asana_field_name -> provider_entity_type
-    provider_for_field: dict[str, str] = {}
-    for _norm_name, (owner_class, field_def) in cascade_registry.items():
-        for desc in entity_registry.all_descriptors():
-            if desc.cascading_field_provider and desc.get_model_class() is owner_class:
-                provider_for_field[field_def.name] = desc.name
-                break
+    provider_for_field = _provider_for_field_map()
 
     # Find this entity's schema and extract cascade deps
     entity_desc = entity_registry.get(entity_type)
@@ -278,6 +305,84 @@ def get_cascade_providers(entity_type: str) -> set[str]:
     return providers
 
 
+def get_frame_warm_providers(entity_type: str) -> set[str]:
+    """Cascade providers of *entity_type* that are FRAME-WARMABLE.
+
+    Filters :func:`get_cascade_providers` through the SAME predicate the
+    warm-phase planner uses to schedule work —
+    ``EntityRegistry.warmable_entities()`` membership. By construction,
+    every provider this function returns is schedulable by
+    :func:`cascade_warm_phases`, so a gate demanding this set can always
+    be satisfied by running the planner's phases in order.
+
+    Frame-less providers (``warmable=False``, no DataFrame schema —
+    e.g., the HOLDER-category ``unit_holder``) are excluded: their
+    cascade data is consumed via the unified task store hydrated during
+    the CONSUMER's own build (``warm_ancestors``), so demanding their
+    frame-warm completion is structurally unsatisfiable.
+
+    Args:
+        entity_type: Snake-case entity type name (e.g., "offer").
+
+    Returns:
+        Subset of :func:`get_cascade_providers` restricted to
+        frame-warmable entities.
+    """
+    from autom8_asana.core.entity_registry import get_registry
+
+    providers = get_cascade_providers(entity_type)
+    if not providers:
+        return providers
+
+    frame_warmable = {d.name for d in get_registry().warmable_entities()}
+    return providers & frame_warmable
+
+
+def assert_l2_pre_phase_gate(
+    phase_idx: int,
+    phase_entity_types: list[str],
+    completed_entities: set[str],
+) -> None:
+    """L2 pre-phase gate: fail closed if a frame-warm provider is missing.
+
+    Before a preload phase runs, every entity in the phase must have all
+    of its FRAME-WARMABLE cascade providers already completed
+    (frame-warmed in an earlier phase). A missing frame-warm provider
+    means cascade fields would extract null (SCAR-005/006), so this
+    raises :class:`WarmupOrderingError` — which is NEVER caught by
+    BROAD-CATCH handlers.
+
+    The demand set is :func:`get_frame_warm_providers` — the planner's
+    own schedulability predicate — NOT the unfiltered
+    :func:`get_cascade_providers`. Frame-less providers (e.g.,
+    ``unit_holder``) are satisfied by ancestor hydration during the
+    consumer's build and never appear in any phase, so demanding them
+    here would wedge the preload permanently (the #192 defect).
+
+    This function lives beside :func:`cascade_warm_phases` deliberately:
+    planner and gate derive from the same module-local dependency graph
+    and the same warmability predicate, so they cannot drift.
+
+    Args:
+        phase_idx: Index of the phase about to run (for diagnostics).
+        phase_entity_types: Entity types scheduled in this phase.
+        completed_entities: Entity types whose phases have completed.
+
+    Raises:
+        WarmupOrderingError: If any entity in the phase has a
+            frame-warmable cascade provider not in *completed_entities*.
+    """
+    for entity_type in phase_entity_types:
+        missing_providers = get_frame_warm_providers(entity_type) - completed_entities
+        if missing_providers:
+            raise WarmupOrderingError(
+                f"L2 pre-phase gate: entity '{entity_type}' in phase "
+                f"{phase_idx} requires frame-warm cascade providers "
+                f"{missing_providers} which have not completed. "
+                f"Completed so far: {completed_entities}."
+            )
+
+
 def validate_cascade_ordering() -> None:
     """Validate that warm_priority ordering matches cascade dependency graph.
 
@@ -288,9 +393,13 @@ def validate_cascade_ordering() -> None:
     This is L1 of the three-layer defense-in-depth for the cascade
     warm-up ordering invariant (SCAR-005/006).
 
-    The check verifies that for every warmable entity, all of its cascade
-    providers appear EARLIER in the warm_priority ordering. A violation
-    means a misconfiguration that would cause null cascade fields.
+    The check verifies that for every warmable entity, all of its
+    FRAME-WARMABLE cascade providers (:func:`get_frame_warm_providers` —
+    the same predicate the planner and the L2 gate use) appear EARLIER
+    in the warm_priority ordering. A violation means a misconfiguration
+    that would cause null cascade fields. Frame-less providers are
+    outside the frame-warm ordering by definition (their data rides the
+    unified task store), so they carry no ordering constraint here.
 
     Raises:
         ValueError: If warm_priority ordering conflicts with cascade
@@ -305,15 +414,19 @@ def validate_cascade_ordering() -> None:
     warmable_order = [desc.name for desc in registry.warmable_entities()]
     warmable_index = {name: idx for idx, name in enumerate(warmable_order)}
 
-    # Check each entity's cascade providers appear earlier in the order
+    # Check each entity's frame-warm cascade providers appear earlier in
+    # the order. get_frame_warm_providers filters via the same
+    # warmable_entities() predicate that built warmable_index, so every
+    # provider it returns is indexable (defensive .get for patched
+    # registries in tests).
     violations: list[str] = []
     for entity_name in warmable_order:
-        providers = get_cascade_providers(entity_name)
+        providers = get_frame_warm_providers(entity_name)
         entity_idx = warmable_index[entity_name]
         for provider in providers:
-            if provider not in warmable_index:
+            provider_idx = warmable_index.get(provider)
+            if provider_idx is None:
                 continue
-            provider_idx = warmable_index[provider]
             if provider_idx >= entity_idx:
                 violations.append(
                     f"{entity_name} (priority_idx={entity_idx}) warms BEFORE "

@@ -94,6 +94,7 @@ def _build_patch_stack(  # noqa: PLR0913
     env_overrides: dict[str, str] | None = None,
     settings_overrides: dict[str, object] | None = None,
     cascade_providers: dict[str, dict[str, str]] | None = None,
+    real_warm_ordering: bool = False,
 ) -> contextlib.ExitStack:
     """Build patch stack for cascade preload tests.
 
@@ -104,6 +105,11 @@ def _build_patch_stack(  # noqa: PLR0913
             ``is_cascade_provider`` / ``cascade_provider_field_mapping``.
             E.g., ``{"business": {"office_phone": "Office Phone"}}``.
             Default: ``{"business": {"office_phone": "Office Phone"}}``.
+        real_warm_ordering: When True, cascade_warm_phases and
+            get_cascade_providers are NOT patched — the preload runs the
+            REAL warm-phase planner and the REAL L2 pre-phase gate against
+            the live entity/schema registries. Used by the L2 gate
+            two-sided tests (frame-less provider regression, PR #192).
     """
     env = {
         "ASANA_WORKSPACE_GID": "workspace-123",
@@ -165,26 +171,29 @@ def _build_patch_stack(  # noqa: PLR0913
             side_effect=_cascade_provider_field_mapping,
         )
     )
-    # Patch cascade_warm_phases so preload ordering doesn't hit real registries.
-    # Default: business first, then everything else.
-    stack.enter_context(
-        patch(
-            "autom8_asana.dataframes.cascade_utils.cascade_warm_phases",
-            return_value=[
-                ["business"],
-                ["unit", "offer", "contact", "asset_edit", "asset_edit_holder"],
-            ],
+    if not real_warm_ordering:
+        # Patch cascade_warm_phases so preload ordering doesn't hit real
+        # registries. Default: business first, then everything else.
+        stack.enter_context(
+            patch(
+                "autom8_asana.dataframes.cascade_utils.cascade_warm_phases",
+                return_value=[
+                    ["business"],
+                    ["unit", "offer", "contact", "asset_edit", "asset_edit_holder"],
+                ],
+            )
         )
-    )
-    # Patch get_cascade_providers to return empty set so the L2 pre-phase
-    # gate passes. These tests focus on fast-path/cascade validation behavior,
-    # not on warmup phase ordering which is tested elsewhere.
-    stack.enter_context(
-        patch(
-            "autom8_asana.dataframes.cascade_utils.get_cascade_providers",
-            return_value=set(),
+        # Patch get_cascade_providers to return empty set so the L2 pre-phase
+        # gate passes (assert_l2_pre_phase_gate -> get_frame_warm_providers
+        # resolves get_cascade_providers as a module global, so this patch
+        # reaches the gate). These tests focus on fast-path/cascade validation
+        # behavior, not on warmup phase ordering which is tested elsewhere.
+        stack.enter_context(
+            patch(
+                "autom8_asana.dataframes.cascade_utils.get_cascade_providers",
+                return_value=set(),
+            )
         )
-    )
 
     stack.enter_context(patch("autom8_asana.auth.bot_pat.get_bot_pat", return_value="test-pat"))
     stack.enter_context(
@@ -937,3 +946,99 @@ class TestCascadeValidationPassesSchema:
         mock_validate.assert_awaited_once()
         call_kwargs = mock_validate.call_args[1]
         assert call_kwargs["schema"] is unit_schema
+
+
+# ---------------------------------------------------------------------------
+# L2 pre-phase gate vs frame-less providers (PR #192 regression, two-sided)
+# ---------------------------------------------------------------------------
+
+
+def _make_gate_persistence() -> MagicMock:
+    persistence = MagicMock()
+    persistence.is_available = True
+    persistence.get_manifest_async = AsyncMock(return_value=None)
+    persistence.__aenter__ = AsyncMock(return_value=persistence)
+    persistence.__aexit__ = AsyncMock(return_value=None)
+    return persistence
+
+
+@pytest.mark.scar
+class TestL2GateFramelessProviderEndToEnd:
+    """End-to-end through _preload_dataframe_cache_progressive with the
+    REAL planner (cascade_warm_phases) and the REAL L2 gate — no ordering
+    patches. Guards the #192 wedge: the frame-less unit_holder provider
+    (OFFER_SCHEMA 1.6.0 scheduling-posture cascade) is never frame-warmed,
+    so the gate must not demand it; but a genuinely missing frame-warmable
+    provider must still be fatal.
+    """
+
+    async def test_green_offer_preloads_with_frameless_unit_holder(self) -> None:
+        """GREEN: offer's phase passes the real gate although unit_holder
+        (a real cascade provider of offer) never completes.
+
+        On the pre-fix gate this preload raised WarmupOrderingError on
+        EVERY run (observed live 2026-07-02T14:48:10Z) because the gate
+        demanded the unfiltered provider set {.., 'unit_holder'}.
+        """
+        from autom8_asana.api.preload.progressive import (
+            _preload_dataframe_cache_progressive,
+        )
+        from autom8_asana.dataframes.cascade_utils import get_cascade_providers
+
+        # Precondition: live registry state — offer really depends on the
+        # frame-less unit_holder (else this test is vacuous).
+        assert "unit_holder" in get_cascade_providers("offer")
+
+        registry = _make_entity_registry(
+            entity_types=[
+                ("business", "proj_business", "Business"),
+                ("unit", "proj_unit", "Business Units"),
+                ("offer", "proj_offer", "Offers"),
+            ]
+        )
+        app = _make_mock_app(registry)
+
+        df = pl.DataFrame(
+            {"gid": ["t-1"], "name": ["Acme"]},
+            schema={"gid": pl.Utf8, "name": pl.Utf8},
+        )
+        mock_df_storage = MagicMock()
+        mock_df_storage.load_dataframe = AsyncMock(return_value=(df, datetime.now(UTC)))
+
+        with _build_patch_stack(
+            _make_gate_persistence(),
+            mock_df_storage,
+            real_warm_ordering=True,
+        ):
+            # Must complete WITHOUT WarmupOrderingError. Per-project build
+            # failures are tolerated (BROAD-CATCH per project); only the
+            # gate raises through.
+            await _preload_dataframe_cache_progressive(app)
+
+    async def test_red_missing_frame_warmable_provider_still_fatal(self) -> None:
+        """RED: with business absent from the preload configs, unit's phase
+        hits the real gate and WarmupOrderingError propagates out of the
+        preload (fail-closed teeth kept)."""
+        from autom8_asana.api.preload.progressive import (
+            _preload_dataframe_cache_progressive,
+        )
+        from autom8_asana.dataframes.cascade_utils import WarmupOrderingError
+
+        registry = _make_entity_registry(
+            entity_types=[
+                ("unit", "proj_unit", "Business Units"),  # business missing
+            ]
+        )
+        app = _make_mock_app(registry)
+
+        df = pl.DataFrame({"gid": ["t-1"]}, schema={"gid": pl.Utf8})
+        mock_df_storage = MagicMock()
+        mock_df_storage.load_dataframe = AsyncMock(return_value=(df, datetime.now(UTC)))
+
+        with _build_patch_stack(
+            _make_gate_persistence(),
+            mock_df_storage,
+            real_warm_ordering=True,
+        ):
+            with pytest.raises(WarmupOrderingError, match="business"):
+                await _preload_dataframe_cache_progressive(app)
