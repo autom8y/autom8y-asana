@@ -324,14 +324,18 @@ class TestCascadingFieldRegistryAutoWire:
                 f"Descriptor {name!r} should not be a cascading field provider"
             )
 
-    def test_only_two_providers_exist(self) -> None:
-        """Only business and unit are cascading field providers."""
+    def test_cascading_field_providers(self) -> None:
+        """business, unit, and unit_holder are cascading field providers.
+
+        unit_holder became a provider in OFFER_SCHEMA 1.6.0: it owns the scheduling-
+        posture status + eight provider fields the offer frame reads cascade:.
+        """
         from autom8_asana.core.entity_registry import get_registry
 
         providers = [
             desc.name for desc in get_registry().all_descriptors() if desc.cascading_field_provider
         ]
-        assert sorted(providers) == ["business", "unit"]
+        assert sorted(providers) == ["business", "unit", "unit_holder"]
 
     def test_get_cascading_field_helper_works(self) -> None:
         """get_cascading_field() works with auto-wired registry."""

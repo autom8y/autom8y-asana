@@ -471,6 +471,62 @@ class UnitHolder(
     # Previous None value was incorrect - UnitHolder needs its own project mapping.
     PRIMARY_PROJECT_GID: ClassVar[str | None] = "1204433992667196"
 
+    # --- Cascading Field Definitions (scheduling-posture re-source, OFFER_SCHEMA 1.6.0) ---
+
+    class CascadingFields:
+        """Scheduling-posture fields that cascade from UnitHolder to descendants.
+
+        The office-global enrollment status (``Custom Cal Status``) and the eight
+        CASCADE_PRIORITY provider source fields live on the UNIT_HOLDER task (the
+        monolith ``UnitHolder`` -- ``custom_cal_status`` "must be called from a
+        UnitHolder object"), NOT on the Offer. OFFER_SCHEMA 1.5.0 mis-sourced them
+        ``cf:`` off the Offer's own manifest with snake_case names and every row
+        resolved null (degenerate push). 1.6.0 sources them ``cascade:`` so the
+        offer frame reads them off this ancestor at bulk warm time.
+
+        ``name`` is the EXACT live Asana custom-field display name (Title Case) --
+        the cascade name-match is ``lower()/strip()`` (cf_utils.get_custom_field_value),
+        so snake_case does NOT match. Values verified live on the
+        "…Business Units 🔎" (Units-project) UnitHolder task.
+
+        ``target_types=None`` (cascade to all descendants incl. Offer);
+        ``allow_override=False`` (DEFAULT -- the office-level UnitHolder value is
+        authoritative; a stray same-named field on a descendant never wins).
+        """
+
+        CUSTOM_CAL_STATUS = CascadingFieldDef(name="Custom Cal Status")
+        REVIEWWAVE_ID = CascadingFieldDef(name="ReviewWave ID")
+        ACUITY_CAL_URL = CascadingFieldDef(name="Acuity Cal URL")
+        CALENDLY_URL = CascadingFieldDef(name="Calendly URL")
+        JANEAPP_URL = CascadingFieldDef(name="JaneApp URL")
+        EHR_CAL_URL = CascadingFieldDef(name="EHR Cal URL")
+        TRACKSTAT_ID = CascadingFieldDef(name="TrackStat ID")
+        SKED_ID = CascadingFieldDef(name="Sked ID")
+        CUSTOM_GHL_ID = CascadingFieldDef(name="Custom GHL ID")
+
+        @classmethod
+        def all(cls) -> list[CascadingFieldDef]:
+            """Get all cascading field definitions."""
+            return [
+                cls.CUSTOM_CAL_STATUS,
+                cls.REVIEWWAVE_ID,
+                cls.ACUITY_CAL_URL,
+                cls.CALENDLY_URL,
+                cls.JANEAPP_URL,
+                cls.EHR_CAL_URL,
+                cls.TRACKSTAT_ID,
+                cls.SKED_ID,
+                cls.CUSTOM_GHL_ID,
+            ]
+
+        @classmethod
+        def get(cls, field_name: str) -> CascadingFieldDef | None:
+            """Get cascading field definition by name."""
+            for field_def in cls.all():
+                if field_def.name == field_name:
+                    return field_def
+            return None
+
 
 # Self-register UnitHolder with HOLDER_REGISTRY (R-009)
 from autom8_asana.core.registry import register_holder  # noqa: E402

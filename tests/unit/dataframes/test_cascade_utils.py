@@ -34,13 +34,14 @@ class TestGetCascadeColumns:
 
         assert BUSINESS_SCHEMA.get_cascade_columns() == []
 
-    def test_offer_schema_returns_six_cascade_columns(self) -> None:
+    def test_offer_schema_returns_fifteen_cascade_columns(self) -> None:
         from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
 
         cols = OFFER_SCHEMA.get_cascade_columns()
-        # Company ID added (schema 1.5.0): the office guid cascades from Business into
-        # the offer frame for the frame-first scheduling-posture extraction.
-        assert len(cols) == 6
+        # 6 original (Business/Unit) + 9 scheduling-posture (UnitHolder, schema 1.6.0):
+        # custom_cal_status + the 8 CASCADE_PRIORITY providers re-sourced cascade: off
+        # the UnitHolder ancestor at their real Title-Case Asana display names.
+        assert len(cols) == 15
         field_names = {c[1] for c in cols}
         assert field_names == {
             "Business Name",
@@ -49,6 +50,15 @@ class TestGetCascadeColumns:
             "MRR",
             "Weekly Ad Spend",
             "Company ID",
+            "Custom Cal Status",
+            "ReviewWave ID",
+            "Acuity Cal URL",
+            "Calendly URL",
+            "JaneApp URL",
+            "EHR Cal URL",
+            "TrackStat ID",
+            "Sked ID",
+            "Custom GHL ID",
         }
 
     def test_contact_schema_returns_two_cascade_columns(self) -> None:

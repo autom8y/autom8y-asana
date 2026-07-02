@@ -369,6 +369,144 @@ SEMANTIC_ANNOTATIONS: dict[str, dict[str, Any]] = {
         },
         "agent_discoverable": True,
     },
+    # --- 9.3c: scheduling-posture columns (Cascade, Source: UnitHolder; schema 1.6.0) ---
+    # The office-global enrollment status + the eight CASCADE_PRIORITY provider source
+    # fields live on the office-level UnitHolder ancestor (the monolith UnitHolder), NOT
+    # on the Offer. Schema 1.5.0 mis-sourced them cf:Offer (wrong level + snake name) and
+    # every row resolved null (degenerate push); 1.6.0 sources them cascade: off the
+    # UnitHolder at the real Title-Case Asana display names.
+    "offer.custom_cal_status": {
+        "business_meaning": (
+            "Office-global scheduling enrollment status (binary enum option name, e.g. "
+            "'Enabled'/'Inactive'). Cascades from the UnitHolder ancestor's 'Custom Cal "
+            "Status' custom field. Projects to the wire-contract-v2 'enrolled' bit "
+            "(INACTIVE alias -> enrolled=False; absent/other -> legacy ACTIVE default)."
+        ),
+        "data_type_semantic": "text",
+        "resolution_impact": (
+            "Not a resolution key column. The enrollment axis of the scheduling-posture "
+            "projection; a whole-universe null here is the degenerate-source value-floor "
+            "signal (assert_posture_signal_floor REFUSES the push)."
+        ),
+        "cascade_behavior": {
+            "source_entity": "UnitHolder",
+            "target_entities": ["Offer"],
+            "allow_override": False,
+        },
+        "agent_discoverable": True,
+    },
+    "offer.reviewwave_id": {
+        "business_meaning": (
+            "Scheduling source: ReviewWave booking id. Cascades from the UnitHolder "
+            "'ReviewWave ID' custom field. CASCADE_PRIORITY[0] provider source."
+        ),
+        "data_type_semantic": "text",
+        "resolution_impact": "Not a resolution key column. Scheduling destination provider input.",
+        "cascade_behavior": {
+            "source_entity": "UnitHolder",
+            "target_entities": ["Offer"],
+            "allow_override": False,
+        },
+        "agent_discoverable": True,
+    },
+    "offer.acuity_cal_url": {
+        "business_meaning": (
+            "Scheduling source: Acuity calendar URL. Cascades from the UnitHolder "
+            "'Acuity Cal URL' custom field. CASCADE_PRIORITY[1] provider source."
+        ),
+        "data_type_semantic": "text",
+        "resolution_impact": "Not a resolution key column. Scheduling destination provider input.",
+        "cascade_behavior": {
+            "source_entity": "UnitHolder",
+            "target_entities": ["Offer"],
+            "allow_override": False,
+        },
+        "agent_discoverable": True,
+    },
+    "offer.calendly_url": {
+        "business_meaning": (
+            "Scheduling source: Calendly URL. Cascades from the UnitHolder 'Calendly "
+            "URL' custom field. CASCADE_PRIORITY[2] provider source."
+        ),
+        "data_type_semantic": "text",
+        "resolution_impact": "Not a resolution key column. Scheduling destination provider input.",
+        "cascade_behavior": {
+            "source_entity": "UnitHolder",
+            "target_entities": ["Offer"],
+            "allow_override": False,
+        },
+        "agent_discoverable": True,
+    },
+    "offer.janeapp_url": {
+        "business_meaning": (
+            "Scheduling source: JaneApp URL. Cascades from the UnitHolder 'JaneApp URL' "
+            "custom field. CASCADE_PRIORITY[3] provider source."
+        ),
+        "data_type_semantic": "text",
+        "resolution_impact": "Not a resolution key column. Scheduling destination provider input.",
+        "cascade_behavior": {
+            "source_entity": "UnitHolder",
+            "target_entities": ["Offer"],
+            "allow_override": False,
+        },
+        "agent_discoverable": True,
+    },
+    "offer.ehr_cal_url": {
+        "business_meaning": (
+            "Scheduling source: EHR calendar URL. Cascades from the UnitHolder 'EHR Cal "
+            "URL' custom field. CASCADE_PRIORITY[4] provider source."
+        ),
+        "data_type_semantic": "text",
+        "resolution_impact": "Not a resolution key column. Scheduling destination provider input.",
+        "cascade_behavior": {
+            "source_entity": "UnitHolder",
+            "target_entities": ["Offer"],
+            "allow_override": False,
+        },
+        "agent_discoverable": True,
+    },
+    "offer.trackstat_id": {
+        "business_meaning": (
+            "Scheduling source: TrackStat id. Cascades from the UnitHolder 'TrackStat "
+            "ID' custom field. CASCADE_PRIORITY[5] provider source."
+        ),
+        "data_type_semantic": "text",
+        "resolution_impact": "Not a resolution key column. Scheduling destination provider input.",
+        "cascade_behavior": {
+            "source_entity": "UnitHolder",
+            "target_entities": ["Offer"],
+            "allow_override": False,
+        },
+        "agent_discoverable": True,
+    },
+    "offer.sked_id": {
+        "business_meaning": (
+            "Scheduling source: Sked id. Cascades from the UnitHolder 'Sked ID' custom "
+            "field. CASCADE_PRIORITY[6] provider source."
+        ),
+        "data_type_semantic": "text",
+        "resolution_impact": "Not a resolution key column. Scheduling destination provider input.",
+        "cascade_behavior": {
+            "source_entity": "UnitHolder",
+            "target_entities": ["Offer"],
+            "allow_override": False,
+        },
+        "agent_discoverable": True,
+    },
+    "offer.custom_ghl_id": {
+        "business_meaning": (
+            "Scheduling source: GHL calendar id (cascade terminal). Cascades from the "
+            "UnitHolder 'Custom GHL ID' custom field. CASCADE_PRIORITY[7] provider source."
+        ),
+        "data_type_semantic": "text",
+        "resolution_impact": "Not a resolution key column. Scheduling destination provider input (terminal).",
+        "cascade_behavior": {
+            "source_entity": "UnitHolder",
+            "target_entities": ["Offer"],
+            "allow_override": False,
+        },
+        "agent_discoverable": True,
+    },
     # --- 9.4: mrr (Cascade: MRR, Source: Unit) ---
     "offer.mrr": {
         "business_meaning": (

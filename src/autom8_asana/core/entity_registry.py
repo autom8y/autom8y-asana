@@ -762,6 +762,10 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         holder_attr="_unit_holder",
         name_pattern="units",
         emoji="package",
+        # OFFER_SCHEMA 1.6.0: UnitHolder owns the scheduling-posture cascading fields
+        # (Custom Cal Status + 8 providers); the offer frame reads them cascade: off
+        # this ancestor. UnitHolder.CascadingFields supplies the definitions.
+        cascading_field_provider=True,
     ),
     EntityDescriptor(
         name="location_holder",
