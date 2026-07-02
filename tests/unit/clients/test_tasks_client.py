@@ -66,7 +66,12 @@ class TestGetAsync:
     async def test_get_async_with_opt_fields(
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
-        """get_async passes opt_fields as comma-separated query param."""
+        """get_async passes opt_fields as comma-separated query param.
+
+        Caller-provided fields are preserved AND ``parent.gid`` is merged in (the
+        cascade-resolution minimum -- see the parent.gid regression test below).
+        Set-based merge makes order non-deterministic, so assert on the field set.
+        """
         mock_http.get.return_value = {
             "gid": "123",
             "name": "Test Task",
@@ -79,10 +84,48 @@ class TestGetAsync:
         assert result.gid == "123"
         assert result.name == "Test Task"
         assert result.notes == "Notes"
-        mock_http.get.assert_called_once_with(
-            "/tasks/123",
-            params={"opt_fields": "name,notes,completed"},
-        )
+        mock_http.get.assert_called_once()
+        call = mock_http.get.call_args
+        assert call.args[0] == "/tasks/123"
+        sent_fields = set(call.kwargs["params"]["opt_fields"].split(","))
+        assert sent_fields == {"name", "notes", "completed", "parent.gid"}
+
+    async def test_get_async_narrow_opt_fields_always_include_parent_gid(
+        self, tasks_client: TasksClient, mock_http: MockHTTPClient
+    ) -> None:
+        """Regression: a targeted get_async that omits parent.gid must still send it.
+
+        The onboarding-walkthrough targeted enumerate fetched a task with
+        ``opt_fields=["name","custom_fields"]``; because the TASK cache is keyed on
+        gid+EntryType.TASK (opt_fields-blind), that parent-less dict was cached and a
+        later full-fields GFR hydration read got the stale hit -> the upward walk saw
+        ``parent is None`` -> "Reached root without finding Business" (no-identity-path).
+        get_async must mirror list_async and always merge parent.gid (the documented
+        cascade-resolution minimum) so a narrow fetch never poisons the cache for a
+        later parent-chain traversal.
+        """
+        mock_http.get.return_value = {"gid": "1213653428400851", "name": "PLAY task"}
+
+        await tasks_client.get_async("1213653428400851", opt_fields=["name", "custom_fields"])
+
+        call = mock_http.get.call_args
+        sent_fields = set(call.kwargs["params"]["opt_fields"].split(","))
+        assert "parent.gid" in sent_fields
+        assert {"name", "custom_fields"} <= sent_fields
+
+    async def test_get_async_no_opt_fields_preserves_default_behavior(
+        self, tasks_client: TasksClient, mock_http: MockHTTPClient
+    ) -> None:
+        """A bare get_async(gid) (opt_fields=None) is unchanged: no opt_fields param.
+
+        The parent.gid merge is scoped to the explicitly-narrowed case; the default
+        (Asana-default fields) path must not be widened.
+        """
+        mock_http.get.return_value = {"gid": "123", "name": "Test Task"}
+
+        await tasks_client.get_async("123")
+
+        mock_http.get.assert_called_once_with("/tasks/123", params={})
 
 
 class TestGetSync:
