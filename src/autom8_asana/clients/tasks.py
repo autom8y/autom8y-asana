@@ -205,8 +205,20 @@ class TasksClient(BaseClient):
             extra={"task_gid": task_gid, "opt_fields_count": opt_fields_count},
         )
 
-        # Cache miss: fetch from API
-        params = self._build_opt_fields(opt_fields)
+        # Cache miss: fetch from API.
+        # Ensure parent.gid is always included when the caller specified a narrow
+        # opt_fields set (cascade-resolution minimum -- mirrors list_async, which
+        # resolves through _resolve_opt_fields at the list path). A targeted
+        # get_async that omits parent.gid caches a parent-less task under the
+        # opt_fields-blind TASK cache key; a later full-fields hydration read (the
+        # GFR upward walk) then gets that stale cache hit and cannot reach the
+        # Business root ("Reached root without finding Business" -> no-identity-path).
+        # Bare get_async(gid) (opt_fields=None) keeps its Asana default-fields
+        # behavior -- only the explicitly-narrowed case is widened.
+        resolved_opt_fields = (
+            self._resolve_opt_fields(opt_fields) if opt_fields is not None else None
+        )
+        params = self._build_opt_fields(resolved_opt_fields)
         data = await self._http.get(f"/tasks/{task_gid}", params=params)
 
         # Store in cache with entity-type TTL (delegates to TaskTTLResolver)
