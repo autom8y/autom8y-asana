@@ -131,6 +131,7 @@ async def freeze_walkthrough_deck(
     deck_template: str,
     gated_address: str,
     client_name: str,
+    title: str | None = None,
     out_filename: str,
     timeout_s: float = DEFAULT_TIMEOUT_S,
 ) -> bytes:
@@ -157,6 +158,10 @@ async def freeze_walkthrough_deck(
             never reconstructed here (G-PROPAGATE P3).
         client_name: Clinic/business display name (``--client``). Cosmetic to
             the deck; not security-bearing.
+        title: Customer-facing document title (``--title``), manifest-owned
+            (fault-13/S5: without it the producer defaults the frozen
+            ``<title>`` from ``--deck``). ``None`` omits the flag and relies on
+            the producer's customer-safe default.
         out_filename: Relative output filename. The producer writes to
             ``{producer_dir}/export/{out_filename}`` (never an absolute path).
         timeout_s: Subprocess wall-clock budget.
@@ -196,6 +201,10 @@ async def freeze_walkthrough_deck(
         "--out",
         out_filename,  # relative filename -> producer writes export/<out_filename>
     ]
+    if title is not None:
+        # Customer-facing <title> (fault-13/S5): manifest-owned, never the
+        # internal template path the producer would otherwise derive.
+        cmd.extend(["--title", title])
 
     # Native async subprocess (asyncio.create_subprocess_exec): the Python side
     # only awaits I/O on the child, consuming NO thread-pool slot -- so the

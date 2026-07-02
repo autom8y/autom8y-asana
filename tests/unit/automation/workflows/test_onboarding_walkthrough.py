@@ -69,6 +69,9 @@ from tests.unit.resolution.gfr.conftest import (
 SPIKE_ADDRESS = "b167331c-536f-4996-9b2d-2f696f35f556@appointments.contenteapp.com"
 PILOT_PHONE = "+15596996816"  # real Office Phone on pilot task 1214919448732981
 SPIKE_DECK = "email-forwarding-setup"  # the deck proven in the committed spike
+# Fault-13: the customer-plane display name the mocked BusinessRecord row carries
+# (the SAME row that yields the gated address; see _make_resolver).
+DEFAULT_BUSINESS_NAME = "Restore Neuro Rehab"
 
 # Producer worktree (CONFIG; overridable). Default = the dispatch producer path.
 _DEFAULT_PRODUCER_DIR = Path(
@@ -162,14 +165,35 @@ def _passthrough_anchor(resolver: MagicMock) -> AsyncMock:
 def _make_resolver(
     *,
     address: str | None = SPIKE_ADDRESS,
+    business_name: str = DEFAULT_BUSINESS_NAME,
     raises: Exception | None = None,
 ) -> MagicMock:
-    """Build a mocked sole-address-source resolver (autom8y-core SDK stand-in)."""
+    """Build a mocked sole business-row-source resolver (autom8y-core SDK stand-in).
+
+    Fault-13 widened the workflow's resolve seam to ``get_business_by_phone_async``
+    (the full ``BusinessRecord``: the SAME row yields the SDK-composed gated
+    address AND the customer-plane display name). Both seams are configured
+    coherently: the wide seam returns a record whose guid is the local-part of
+    ``address``; the narrow address leg stays configured for helpers that read
+    its ``return_value`` (``_passthrough_anchor``) and for pre-widening parity.
+    ``address=None`` models a resolve miss (record ``None``).
+    """
+    from autom8y_core.models.data_service import BusinessRecord
+
     resolver = MagicMock()
     if raises is not None:
+        resolver.get_business_by_phone_async = AsyncMock(side_effect=raises)
         resolver.resolve_routing_address_by_phone_async = AsyncMock(side_effect=raises)
-    else:
-        resolver.resolve_routing_address_by_phone_async = AsyncMock(return_value=address)
+        return resolver
+    record = None
+    if address is not None:
+        record = BusinessRecord(
+            guid=address.split("@", 1)[0],
+            office_phone=PILOT_PHONE,
+            business_name=business_name,
+        )
+    resolver.get_business_by_phone_async = AsyncMock(return_value=record)
+    resolver.resolve_routing_address_by_phone_async = AsyncMock(return_value=address)
     return resolver
 
 
@@ -374,7 +398,7 @@ class TestProviderAgnosticSelection:
         # Resolved provider-agnostically to the universal customer deck.
         assert freeze_spy.await_args is not None
         assert freeze_spy.await_args.kwargs["deck_template"] == "email-forwarding-setup"
-        resolver.resolve_routing_address_by_phone_async.assert_awaited_once()
+        resolver.get_business_by_phone_async.assert_awaited_once()
         atts.upload_async.assert_awaited_once()
 
     async def test_synthetic_future_provider_resolves_default_and_attaches(
@@ -396,7 +420,7 @@ class TestProviderAgnosticSelection:
         out = await wf.process_entity(_entity(provider=None), {})
         assert out.status == "skipped"
         assert out.reason == "provider_not_set"
-        resolver.resolve_routing_address_by_phone_async.assert_not_called()
+        resolver.get_business_by_phone_async.assert_not_called()
         atts.upload_async.assert_not_called()
 
     async def test_empty_provider_skips_provider_not_set(self) -> None:
@@ -404,7 +428,7 @@ class TestProviderAgnosticSelection:
         out = await wf.process_entity(_entity(provider="   "), {})
         assert out.status == "skipped"
         assert out.reason == "provider_not_set"
-        resolver.resolve_routing_address_by_phone_async.assert_not_called()
+        resolver.get_business_by_phone_async.assert_not_called()
         atts.upload_async.assert_not_called()
 
     # -- EXPLICIT EXCLUSION seam: an override of None opts a provider OUT (skip) --
@@ -419,7 +443,7 @@ class TestProviderAgnosticSelection:
         out = await wf.process_entity(_entity(provider="OptedOut"), {})
         assert out.status == "skipped"
         assert out.reason == "provider_excluded"
-        resolver.resolve_routing_address_by_phone_async.assert_not_called()
+        resolver.get_business_by_phone_async.assert_not_called()
         atts.upload_async.assert_not_called()
 
     # -- INTERNAL STAYS UNREACHABLE: no provider VALUE resolves to the internal deck --
@@ -449,7 +473,7 @@ class TestMissingOfficePhone:
         out = await wf.process_entity(_entity(provider="GHL", office_phone=None), {})
         assert out.status == "skipped"
         assert out.reason == "missing_office_phone"
-        resolver.resolve_routing_address_by_phone_async.assert_not_called()
+        resolver.get_business_by_phone_async.assert_not_called()
         atts.upload_async.assert_not_called()
 
     async def test_empty_phone_fails_closed(self) -> None:
@@ -500,10 +524,28 @@ class TestProducerFreezeReal:
             out_path.unlink(missing_ok=True)
 
     async def test_workflow_freeze_failure_no_upload(self) -> None:
-        # Resolver returns a non-canonical address -> the REAL producer refuses
-        # (ADDR-NON-CANONICAL) -> ProducerFreezeError -> failed, NO upload.
+        # Fault-13 rebind consequence: a non-canonical STORED guid on the resolved
+        # BusinessRecord can no longer reach the producer at all -- the workflow's
+        # SDK gate (format_routing_address) refuses it BEFORE any subprocess
+        # (resolve_invalid_input), so the producer's own ADDR-NON-CANONICAL
+        # refusal (covered by the direct-producer RED above and AC-G5'') is now a
+        # defense-in-depth layer behind an earlier fail-closed gate.
         resolver = _make_resolver(address="not-a-valid-address")
         wf, atts, _, _ = _make_workflow(resolver=resolver, producer_dir=_producer_dir())
+        out = await wf.process_entity(_entity(provider="GHL"), {})
+        assert out.status == "failed"
+        assert out.error is not None
+        assert out.error.error_type == "resolve_invalid_input"
+        atts.upload_async.assert_not_called()
+
+    async def test_workflow_maps_producer_freeze_error_no_upload(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The workflow-level mapping receipt: a ProducerFreezeError raised by the
+        # freeze leg becomes producer_freeze_failed with NO upload.
+        spy = AsyncMock(side_effect=ProducerFreezeError("simulated freeze failure"))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        wf, atts, _, _ = _make_workflow()
         out = await wf.process_entity(_entity(provider="GHL"), {})
         assert out.status == "failed"
         assert out.error is not None
@@ -719,9 +761,7 @@ class TestFullPathGreen:
 
         assert out.status == "succeeded"
         # Sole address source called exactly once with the pilot phone.
-        resolver.resolve_routing_address_by_phone_async.assert_awaited_once_with(
-            office_phone=PILOT_PHONE
-        )
+        resolver.get_business_by_phone_async.assert_awaited_once_with(office_phone=PILOT_PHONE)
         # upload_async called exactly once, correct shape.
         atts.upload_async.assert_awaited_once()
         kwargs = atts.upload_async.await_args.kwargs
@@ -811,6 +851,8 @@ class TestResolveContract:
         from autom8y_core.clients.data_service import DataServiceClient
 
         assert hasattr(DataServiceClient, "resolve_routing_address_by_phone_async")
+        # Fault-13: the widened seam (BusinessRecord row -> address + display name).
+        assert hasattr(DataServiceClient, "get_business_by_phone_async")
         major, minor = (int(p) for p in autom8y_core.__version__.split(".")[:2])
         assert (major, minor) >= (4, 9), (
             f"need autom8y-core >=4.9.0, got {autom8y_core.__version__}"
@@ -820,7 +862,7 @@ class TestResolveContract:
         from autom8y_core.errors import DataServiceUnavailableError
 
         resolver = _make_resolver(
-            raises=DataServiceUnavailableError(method="resolve_routing_address_by_phone_async")
+            raises=DataServiceUnavailableError(method="get_business_by_phone_async")
         )
         wf, atts, _, _ = _make_workflow(resolver=resolver)
         out = await wf.process_entity(_entity(provider="GHL"), {})
@@ -1036,7 +1078,7 @@ class TestT7ResolveAssertIntegration:
         from autom8y_core.errors import DataServiceUnavailableError
 
         resolver = _make_resolver(
-            raises=DataServiceUnavailableError(method="resolve_routing_address_by_phone_async")
+            raises=DataServiceUnavailableError(method="get_business_by_phone_async")
         )
         wf, atts, _, _ = _make_workflow(resolver=resolver)
         freeze_spy = AsyncMock(return_value=_deck_bytes(_T7_RESOLVED))
@@ -1061,9 +1103,7 @@ class TestT7ResolveAssertIntegration:
             out = await wf.process_entity(_entity(provider="GHL"), {"dry_run": True})
         assert out.status == "succeeded"
         assert out.reason == "dry_run"
-        resolver.resolve_routing_address_by_phone_async.assert_awaited_once_with(
-            office_phone=PILOT_PHONE
-        )
+        resolver.get_business_by_phone_async.assert_awaited_once_with(office_phone=PILOT_PHONE)
         atts.upload_async.assert_not_called()
 
     async def test_drifted_artifact_failcloses_end_to_end_dry_run(self) -> None:
@@ -2755,7 +2795,10 @@ class TestDeckAudienceLock:
     def test_pin_ghl_calendar_setup_is_internal(self) -> None:
         path = deck_manifests.MANIFEST_DIR / "ghl-calendar-setup.json"
         assert path.is_file(), "the ghl-calendar-setup audience manifest must exist"
-        assert json.loads(path.read_text(encoding="utf-8")) == {"audience": "internal"}
+        # The PIN is the audience classification (product ruling 2026-07-02).
+        # Fault-13/S5 added the manifest-owned customer-facing ``title`` field
+        # beside it -- permitted, but the audience byte stays pinned INTERNAL.
+        assert json.loads(path.read_text(encoding="utf-8"))["audience"] == "internal"
         # Consequence (with map-purity): the internal deck is neither the universal
         # default nor any override value -> no provider VALUE can select it.
         assert constants.WALKTHROUGH_DECK_DEFAULT != "ghl-calendar-setup"
@@ -2778,7 +2821,7 @@ class TestDeckAudienceLock:
         out = await wf.process_entity(_entity(provider="Direct"), {})
         assert out.status == "skipped"
         assert out.reason == "deck_audience_denied"
-        resolver.resolve_routing_address_by_phone_async.assert_not_called()
+        resolver.get_business_by_phone_async.assert_not_called()
         freeze_spy.assert_not_awaited()
         atts.upload_async.assert_not_called()
 
@@ -2832,7 +2875,7 @@ class TestDeckAudienceLock:
         assert entry["deck_template"] == deck
         assert entry["detail"] == expected_detail
         # NO external leg ran: no phone-derived resolve, no freeze, no attach mutation.
-        resolver.resolve_routing_address_by_phone_async.assert_not_called()
+        resolver.get_business_by_phone_async.assert_not_called()
         freeze_spy.assert_not_awaited()
         atts.upload_async.assert_not_called()
         atts.delete_async.assert_not_called()
@@ -2862,9 +2905,180 @@ class TestDeckAudienceLock:
         out = await wf.process_entity(_entity(provider="GHL"), {})
 
         assert out.status == "succeeded"
-        resolver.resolve_routing_address_by_phone_async.assert_awaited_once()
+        resolver.get_business_by_phone_async.assert_awaited_once()
         freeze_spy.assert_awaited_once()
         assert freeze_spy.await_args is not None
         assert freeze_spy.await_args.kwargs["deck_template"] == "email-forwarding-setup"
         atts.upload_async.assert_awaited_once()
         print("[LOCK] customer deck email-forwarding-setup proceeds: resolve=1 freeze=1 upload=1")
+
+
+# --- FAULT-13: customer-plane client_name provenance (PR-1 discriminating legs) ---
+#
+# Live receipt (2026-07-02, decks 1216243790085943 / 1216237303036469): the cover
+# "Prepared for" line bound the RAW INTERNAL Asana task name ("PLAY: Custom
+# Calendar Integration — {clinic}") because workflow._task_to_entity bound
+# client_name = task.name (operational plane) instead of the data-service
+# BusinessRecord.business_name (customer plane). Provenance rule under test:
+# customer-plane values come from customer-plane sources.
+
+# The EXACT live leak string (65 UTF-16 code units; the template's old
+# .slice(0, 64) cut it to "...New Yor" on the rendered cover).
+FAULT13_TASK_NAME = "PLAY: Custom Calendar Integration — Vitality Medicine of New York"
+FAULT13_BUSINESS_NAME = "Vitality Medicine of New York"
+
+
+def _dual_seam_resolver(
+    *,
+    address: str = SPIKE_ADDRESS,
+    business_name: str | None = FAULT13_BUSINESS_NAME,
+) -> MagicMock:
+    """A resolver mock exposing BOTH resolve seams, so these legs DISCRIMINATE.
+
+    * ``get_business_by_phone_async`` (the widened seam) returns the full
+      ``BusinessRecord`` whose ``business_name`` is the customer-plane source;
+    * ``resolve_routing_address_by_phone_async`` (the narrow pre-fix seam)
+      returns only the address string.
+
+    On the DEFECTIVE binding (client_name = task.name) the workflow freezes the
+    internal task name regardless of which seam it calls -> the assertions below
+    fire RED. On the corrected binding it freezes ``business_name`` from the SAME
+    row that produced the gated address -> GREEN. No assertion depends on WHICH
+    seam ran, only on WHAT reached the freeze.
+    """
+    from autom8y_core.models.data_service import BusinessRecord
+
+    resolver = MagicMock()
+    guid = address.split("@", 1)[0]
+    record = None
+    if business_name is not None:
+        record = BusinessRecord(
+            guid=guid,
+            office_phone=PILOT_PHONE,
+            business_name=business_name,
+        )
+    resolver.get_business_by_phone_async = AsyncMock(return_value=record)
+    resolver.resolve_routing_address_by_phone_async = AsyncMock(return_value=address)
+    return resolver
+
+
+class TestFault13ClientNameProvenance:
+    """Three-leg discriminating spec for the client_name provenance rebind.
+
+    (1) RED-on-main: the freeze binds BusinessRecord.business_name, NEVER the
+        internal task name (the exact live leak string is the fixture).
+    (2) RED-on-main: an unresolvable display name is a FAIL-CLOSED SKIP
+        (personalization_unresolved) BEFORE any producer subprocess -- never
+        the "Clinic" placeholder rendered as if it were personalization.
+    (3) Two-sided control (GREEN both sides): a clean display name still
+        freezes, uploads, and carries the display name to the producer.
+    """
+
+    @staticmethod
+    def _patch_freeze(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        spy = AsyncMock(return_value=_deck_bytes(SPIKE_ADDRESS))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        return spy
+
+    async def test_freeze_binds_business_display_name_not_task_name(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        freeze_spy = self._patch_freeze(monkeypatch)
+        resolver = _dual_seam_resolver(business_name=FAULT13_BUSINESS_NAME)
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+
+        entity = _entity(gid="task-f13", provider="GHL")
+        # The operational-plane value exactly as the live fault carried it.
+        entity["name"] = FAULT13_TASK_NAME
+        entity["client_name"] = FAULT13_TASK_NAME
+
+        out = await wf.process_entity(entity, {})
+
+        assert out.status == "succeeded"
+        freeze_spy.assert_awaited_once()
+        frozen_client = freeze_spy.await_args.kwargs["client_name"]
+        assert frozen_client == FAULT13_BUSINESS_NAME, (
+            f"customer cover would read 'Prepared for {frozen_client}' -- the freeze "
+            f"MUST bind BusinessRecord.business_name ({FAULT13_BUSINESS_NAME!r}), "
+            f"never the internal task name"
+        )
+        assert "PLAY" not in frozen_client
+        atts.upload_async.assert_awaited_once()
+
+    async def test_freeze_never_emits_clinic_placeholder(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # An empty/whitespace display name on the resolved row is UNRESOLVABLE
+        # personalization: fail-closed SKIP, no freeze, no upload -- never the
+        # "Clinic" generic rendered as if it were the clinic's name.
+        freeze_spy = self._patch_freeze(monkeypatch)
+        resolver = _dual_seam_resolver(business_name="   ")
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+
+        entity = _entity(gid="task-f13-placeholder", provider="GHL")
+        # No operational-plane fallback material either (the old chain's inputs).
+        entity["name"] = ""
+        entity["client_name"] = ""
+
+        out = await wf.process_entity(entity, {})
+
+        for call in freeze_spy.await_args_list:
+            assert call.kwargs.get("client_name") != "Clinic", (
+                "the 'Clinic' placeholder reached the freeze -- a generic rendered "
+                "as personalization on the customer cover"
+            )
+        assert out.status == "skipped"
+        assert out.reason == "personalization_unresolved"
+        freeze_spy.assert_not_awaited()
+        atts.upload_async.assert_not_called()
+
+    async def test_two_sided_clean_display_name_still_freezes_and_attaches(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # No-defect control (GREEN on both sides of the fix): a clean display
+        # name mints, freezes, and uploads.
+        freeze_spy = self._patch_freeze(monkeypatch)
+        resolver = _dual_seam_resolver(business_name="Neu Life Chiropractic")
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+
+        entity = _entity(gid="task-f13-clean", provider="GHL", name="Neu Life Chiropractic")
+
+        out = await wf.process_entity(entity, {})
+
+        assert out.status == "succeeded"
+        freeze_spy.assert_awaited_once()
+        assert freeze_spy.await_args.kwargs["client_name"] == "Neu Life Chiropractic"
+        # FAULT-13/S5: the customer-facing <title> is manifest-owned and threaded
+        # to the producer as --title (never the internal templates/ path).
+        assert freeze_spy.await_args.kwargs["title"] == "Gmail Forwarding Setup"
+        atts.upload_async.assert_awaited_once()
+
+
+class TestDeckTitleManifest:
+    """FAULT-13/S5: the manifest-owned customer-facing ``title`` field."""
+
+    def test_load_title_reads_customer_facing_title(self) -> None:
+        assert deck_manifests.load_title("email-forwarding-setup") == "Gmail Forwarding Setup"
+        assert deck_manifests.load_title("ghl-calendar-setup") == "GHL Calendar Setup"
+
+    def test_load_title_tolerant_none_arms(self) -> None:
+        # Missing manifest, path-shaped template name, empty name: all None
+        # (the producer's default-title path is itself customer-safe;
+        # AC-TITLE-DEFAULT pins that).
+        assert deck_manifests.load_title("deck-with-no-manifest") is None
+        assert deck_manifests.load_title("templates/email-forwarding-setup") is None
+        assert deck_manifests.load_title("") is None
+
+    def test_load_title_refuses_path_shaped_fragment(self, tmp_path: Path) -> None:
+        # A path-bearing title is the exact leak class this field exists to
+        # prevent -- refused (None), never threaded to --title.
+        import json as _json
+        from unittest.mock import patch as _patch
+
+        bad = tmp_path / "poisoned-deck.json"
+        bad.write_text(
+            _json.dumps({"audience": "customer", "title": "templates/poisoned-deck"}),
+            encoding="utf-8",
+        )
+        with _patch.object(deck_manifests, "MANIFEST_DIR", tmp_path):
+            assert deck_manifests.load_title("poisoned-deck") is None

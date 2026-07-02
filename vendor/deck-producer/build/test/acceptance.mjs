@@ -458,6 +458,174 @@ async function checkClientScriptBreakFreeze(d) {
 }
 
 /**
+ * Open a built deck OFFLINE and return its full RENDERED text (every TEXT node,
+ * skipping <script>/<style>/<template>) plus error/request counters. The FAULT-13
+ * legs assert on rendered CONTENT (the customer-visible plane), so they need the
+ * raw text, not the boolean summary probePersonalization returns.
+ */
+async function probeRenderedText(outPath, query = '') {
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext();
+  await context.setOffline(true); // HARD OFFLINE
+
+  const externalRequests = [];
+  context.on('request', (req) => {
+    const url = req.url();
+    if (!url.startsWith('file:') && !url.startsWith('data:') && !url.startsWith('blob:')) {
+      externalRequests.push(`${req.method()} ${url}`);
+    }
+  });
+  const pageErrors = [];
+  const page = await context.newPage();
+  page.on('pageerror', (e) => pageErrors.push(e.message));
+
+  try {
+    await page.goto(`file://${outPath}${query}`, { waitUntil: 'load', timeout: 30000 });
+  } catch (e) {
+    log(`    [nav note] ${e.message.split('\n')[0]}`);
+  }
+  await page.waitForTimeout(2500);
+
+  const rendered = await page.evaluate(() => {
+    let text = '';
+    const walk = (node) => {
+      for (const child of node.childNodes) {
+        if (child.nodeType === Node.TEXT_NODE) { text += child.nodeValue || ''; continue; }
+        if (child.nodeType !== Node.ELEMENT_NODE) continue;
+        const tag = child.tagName;
+        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'TEMPLATE') continue;
+        walk(child);
+      }
+    };
+    if (document.body) walk(document.body);
+    return text;
+  });
+
+  await browser.close();
+  return { rendered, externalRequests: externalRequests.length, pageErrors: pageErrors.length };
+}
+
+// The exact FAULT-13 live leak string: 65 UTF-16 code units — one past the old
+// .slice(0, 64) cap, which rendered the cover as "…Vitality Medicine of New Yor"
+// (silent mid-word amputation, no ellipsis) on the live attached deck.
+const FAULT13_LIVE_CLIENT = 'PLAY: Custom Calendar Integration — Vitality Medicine of New York';
+
+/**
+ * AC-G5-LEN (FAULT-13b) — boundary-length triple 63/64/65 chars plus the literal
+ * 65-char live leak string. Every fixture MUST survive the freeze->render seam
+ * WHOLE: the rendered DOM must contain the exact --client value (wrap, never
+ * silently truncate). RED on the pre-fix template: the 65-char fixtures lose
+ * their final char to .slice(0, 64).
+ */
+async function checkClientLengthBoundaries(d) {
+  const fixtures = [
+    ['63ch', 'A'.repeat(59) + ' Cli'],           // 63 — below the old cap
+    ['64ch', 'A'.repeat(59) + ' Clin'],          // 64 — exactly the old cap
+    ['65ch', 'A'.repeat(59) + ' Clini'],         // 65 — one past the old cap
+    ['live-65ch', FAULT13_LIVE_CLIENT],          // the exact live leak string
+  ];
+  for (const [tag, client] of fixtures) {
+    const out = `_len_${tag}_${d.out}`;
+    const outPath = join(EXPORT_DIR, out);
+    rmSync(outPath, { force: true });
+    buildDeck({ ...d, out }, ['--addr', EXPECTED_ADDR, '--client', client]);
+    const s = await probeRenderedText(outPath);
+    const whole = s.rendered.includes(client);
+    if (whole && s.pageErrors === 0) {
+      pass('AC-G5-LEN', `${d.out} [${tag}]: ${client.length}-unit --client rendered WHOLE (no silent cut)`);
+    } else {
+      fail('AC-G5-LEN', `${d.out} [${tag}]: ${client.length}-unit --client "${client}" NOT rendered whole `
+        + `(wholeInDom=${whole} pageErrors=${s.pageErrors}) — the cover silently truncates the customer-facing name`);
+    }
+    rmSync(outPath, { force: true });
+  }
+}
+
+/**
+ * AC-G5-LEN-CLAMP (teeth, two-sided) — a >140-grapheme --client MUST render with
+ * an HONEST visible cut: the first 139 graphemes followed by a trailing ellipsis,
+ * never the full run and never a silent cut. Proves the clamp BITES exactly on
+ * the over-length defect variant (the no-defect variants are AC-G5-LEN above).
+ */
+async function checkClientClampTeeth(d) {
+  const client = 'X'.repeat(150); // > 140 graphemes
+  const clamped = 'X'.repeat(139) + '…';
+  const out = `_clamp_${d.out}`;
+  const outPath = join(EXPORT_DIR, out);
+  rmSync(outPath, { force: true });
+  buildDeck({ ...d, out }, ['--addr', EXPECTED_ADDR, '--client', client]);
+  const s = await probeRenderedText(outPath);
+  const honestCut = s.rendered.includes(clamped);
+  const fullRunAbsent = !s.rendered.includes('X'.repeat(140));
+  if (honestCut && fullRunAbsent && s.pageErrors === 0) {
+    pass('AC-G5-LEN-CLAMP', `${d.out}: 150-grapheme --client clamped to 139+'…' (visible cut, full run absent)`);
+  } else {
+    fail('AC-G5-LEN-CLAMP', `${d.out}: over-length --client not honestly clamped `
+      + `(honestCut=${honestCut} fullRunAbsent=${fullRunAbsent} pageErrors=${s.pageErrors})`);
+  }
+  rmSync(outPath, { force: true });
+}
+
+/**
+ * AC-G5-UNI (FAULT-13b unicode axis) — an emoji + combining-accent fixture
+ * straddling the old index-64 cut MUST render whole with NO U+FFFD replacement
+ * character. RED on the pre-fix template: .slice(0, 64) operates on UTF-16 code
+ * units and splits the emoji's surrogate pair at the boundary, rendering a lone
+ * surrogate as U+FFFD on the customer cover.
+ */
+async function checkClientUnicode(d) {
+  // 63 code units, then an astral emoji (U+1F3E5 — its surrogate PAIR occupies
+  // indices 63-64, so the old cut lands INSIDE it), then an explicit combining
+  // acute (e + U+0301, NOT precomposed).
+  const client = 'A'.repeat(63) + '🏥 Cline\u0301 Clinic';
+  const out = `_uni_${d.out}`;
+  const outPath = join(EXPORT_DIR, out);
+  rmSync(outPath, { force: true });
+  buildDeck({ ...d, out }, ['--addr', EXPECTED_ADDR, '--client', client]);
+  const s = await probeRenderedText(outPath);
+  const noReplacementChar = !s.rendered.includes('�');
+  const whole = s.rendered.includes(client);
+  if (noReplacementChar && whole && s.pageErrors === 0) {
+    pass('AC-G5-UNI', `${d.out}: emoji/combining fixture straddling index 64 rendered whole, no U+FFFD`);
+  } else {
+    fail('AC-G5-UNI', `${d.out}: unicode boundary broken `
+      + `(noReplacementChar=${noReplacementChar} wholeInDom=${whole} pageErrors=${s.pageErrors}) — `
+      + `a lone surrogate / lost accent reached the customer cover`);
+  }
+  rmSync(outPath, { force: true });
+}
+
+/**
+ * AC-TITLE-DEFAULT (FAULT-13/S5) — freeze with the WORKFLOW's historical arg
+ * vector (--deck/--addr/--client/--out, NO --title) and assert the frozen
+ * <title> carries NO internal 'templates/' path fragment. RED pre-fix: the
+ * producer defaulted title to args.deck, shipping
+ * <title>templates/email-forwarding-setup</title> in every customer artifact's
+ * browser tab. (The smoke/acceptance surfaces always passed --title, which is
+ * exactly what MASKED this live defect.)
+ */
+function checkTitleDefault(d) {
+  const out = `_titledefault_${d.out}`;
+  const outPath = join(EXPORT_DIR, out);
+  rmSync(outPath, { force: true });
+  execFileSync(
+    'node',
+    [INLINE, '--deck', d.deck, '--addr', EXPECTED_ADDR, '--client', CLIENT, '--out', out],
+    { cwd: PROJECT_ROOT, encoding: 'utf8' }
+  );
+  const html = readFileSync(outPath, 'utf8');
+  const m = html.match(/<title>([^<]*)<\/title>/);
+  const title = m ? m[1] : '';
+  if (m && title.length > 0 && !title.includes('templates/')) {
+    pass('AC-TITLE-DEFAULT', `${d.out}: no---title freeze emits customer-safe <title>${title}</title>`);
+  } else {
+    fail('AC-TITLE-DEFAULT', `${d.out}: no---title freeze emitted <title>${title}</title> — `
+      + `an internal template path in the customer artifact's browser tab`);
+  }
+  rmSync(outPath, { force: true });
+}
+
+/**
  * AC-G5'' — fail-closed proof. Building with a deliberately BAD --addr (the gate
  * would RAISE on KNOWN_BAD_GUID; we pass the would-be address directly) MUST exit
  * non-zero with ADDR-NON-CANONICAL and write NO output (the AC-G9 fail-loud
@@ -898,13 +1066,17 @@ async function main() {
     await checkLiveOffline(d);       // AC-G1..G6, G8 (live ?addr personalization)
     await checkPersonalizedFreeze(d); // AC-G5' (render-then-freeze, NO ?addr, offline)
     await checkClientScriptBreakFreeze(d); // AC-CLIENT-BREAK (FINDING B: hostile --client)
+    await checkClientLengthBoundaries(d);  // AC-G5-LEN (FAULT-13b: 63/64/65 + live leak string)
+    await checkClientClampTeeth(d);        // AC-G5-LEN-CLAMP (>140 graphemes -> honest '…' cut)
+    await checkClientUnicode(d);           // AC-G5-UNI (surrogate/combining straddle, no U+FFFD)
+    checkTitleDefault(d);            // AC-TITLE-DEFAULT (no --title -> customer-safe <title>)
     checkFailClosed(d);              // AC-G5'' (bad --addr -> ADDR-NON-CANONICAL, no output)
     log('');
   }
 
   log('=== SUMMARY ===');
   if (failures === 0) {
-    log("ALL ACCEPTANCE ASSERTIONS PASS (AC-G1..G9, AC-G5', AC-G5'', AC-CLIENT-BREAK, MC-1-RED, MC-1-HOST, CLI-relay, CLI-revalidate).");
+    log("ALL ACCEPTANCE ASSERTIONS PASS (AC-G1..G9, AC-G5', AC-G5'', AC-CLIENT-BREAK, AC-G5-LEN, AC-G5-LEN-CLAMP, AC-G5-UNI, AC-TITLE-DEFAULT, MC-1-RED, MC-1-HOST, CLI-relay, CLI-revalidate).");
     process.exit(0);
   } else {
     log(`${failures} ACCEPTANCE ASSERTION(S) FAILED.`);
