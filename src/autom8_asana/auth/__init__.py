@@ -27,7 +27,12 @@ from .audit import (
     get_audit_logger,
     reset_audit_logger,
 )
-from .bot_pat import BotPATError, clear_bot_pat_cache, get_bot_pat
+from .bot_pat import (
+    BotPATError,
+    assert_no_plaintext_pat_in_caller,
+    clear_bot_pat_cache,
+    get_bot_pat,
+)
 from .jwt_validator import reset_auth_client, validate_service_token
 
 # Dual mode requires FastAPI - import conditionally to allow non-API usage
@@ -53,6 +58,9 @@ __all__ = [
     "BotPATError",
     "get_bot_pat",
     "clear_bot_pat_cache",
+    # Caller-image guard (H5/V6): iris/hermes read-route caller invokes this at
+    # container startup before minting the S2S JWT / calling GET /sections.
+    "assert_no_plaintext_pat_in_caller",
     # Audit logging
     "S2SAuditEntry",
     "S2SAuditLogger",
