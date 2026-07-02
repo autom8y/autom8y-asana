@@ -608,15 +608,19 @@ class TestSI15CascadeAnnotationCount:
     +1 (offer.company_id) for the frame-first scheduling-posture projection (1.5.0).
     """
 
-    def test_cascade_annotation_count_is_13(self) -> None:
-        """Count of annotations with cascade_behavior must be exactly 13."""
+    def test_cascade_annotation_count_is_22(self) -> None:
+        """Count of annotations with cascade_behavior must be exactly 22.
+
+        13 original + 9 scheduling-posture (offer, UnitHolder) for the schema-1.6.0
+        re-source (custom_cal_status + 8 CASCADE_PRIORITY providers).
+        """
         cascade_entries = [
             key
             for key, annotation in SEMANTIC_ANNOTATIONS.items()
             if "cascade_behavior" in annotation
         ]
-        assert len(cascade_entries) == 13, (
-            f"Expected exactly 13 cascade annotations, got {len(cascade_entries)}. "
+        assert len(cascade_entries) == 22, (
+            f"Expected exactly 22 cascade annotations, got {len(cascade_entries)}. "
             f"Entries: {sorted(cascade_entries)}"
         )
 
@@ -642,8 +646,8 @@ class TestSI16HD02AnnotationCount:
             f"Entries: {sorted(non_cascade_entries)}"
         )
 
-    def test_total_is_20(self) -> None:
-        """Total annotation count must be 13 + 7 = 20 (offer.company_id added, 1.5.0)."""
-        assert len(SEMANTIC_ANNOTATIONS) == 20, (
-            f"Expected 20 total annotations (13 cascade + 7 HD-02), got {len(SEMANTIC_ANNOTATIONS)}"
+    def test_total_is_29(self) -> None:
+        """Total annotation count must be 22 + 7 = 29 (9 scheduling-posture added, 1.6.0)."""
+        assert len(SEMANTIC_ANNOTATIONS) == 29, (
+            f"Expected 29 total annotations (22 cascade + 7 HD-02), got {len(SEMANTIC_ANNOTATIONS)}"
         )

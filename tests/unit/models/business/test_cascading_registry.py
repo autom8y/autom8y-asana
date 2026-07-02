@@ -56,10 +56,37 @@ class TestCascadingFieldRegistry:
             assert owner_class is Unit
             assert isinstance(field_def, CascadingFieldDef)
 
-    def test_registry_field_count(self) -> None:
-        """Registry contains expected total field count (4 Business + 5 Unit)."""
+    def test_registry_contains_unit_holder_scheduling_fields(self) -> None:
+        """Registry includes UnitHolder.CascadingFields (OFFER_SCHEMA 1.6.0 re-source).
+
+        The scheduling-posture status + eight provider fields live on the UnitHolder
+        (office) ancestor; the offer frame reads them cascade: off this owner. Owner
+        MUST be UnitHolder -- the level where the value is populated live.
+        """
+        from autom8_asana.models.business.unit import UnitHolder
+
         registry = get_cascading_field_registry()
-        assert len(registry) == 9
+        expected_unit_holder_fields = [
+            "custom cal status",
+            "reviewwave id",
+            "acuity cal url",
+            "calendly url",
+            "janeapp url",
+            "ehr cal url",
+            "trackstat id",
+            "sked id",
+            "custom ghl id",
+        ]
+        for field_name in expected_unit_holder_fields:
+            assert field_name in registry, f"Missing UnitHolder field: {field_name}"
+            owner_class, field_def = registry[field_name]
+            assert owner_class is UnitHolder
+            assert isinstance(field_def, CascadingFieldDef)
+
+    def test_registry_field_count(self) -> None:
+        """Registry total field count (4 Business + 5 Unit + 9 UnitHolder scheduling)."""
+        registry = get_cascading_field_registry()
+        assert len(registry) == 18
 
     def test_registry_is_cached(self) -> None:
         """Registry is built once and cached for subsequent calls."""

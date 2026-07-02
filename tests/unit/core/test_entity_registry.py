@@ -861,15 +861,22 @@ class TestDataFrameLayerPopulation:
             assert desc.schema_module_path is None, f"{name} should have no schema"
             assert desc.extractor_class_path is None, f"{name} should have no extractor"
             assert desc.row_model_class_path is None, f"{name} should have no row model"
-            assert desc.cascading_field_provider is False, (
-                f"{name} should not be a cascading provider"
-            )
+            # unit_holder is schema-less but IS a cascading provider (OFFER_SCHEMA 1.6.0:
+            # it owns the scheduling-posture fields the offer frame reads cascade:).
+            if name != "unit_holder":
+                assert desc.cascading_field_provider is False, (
+                    f"{name} should not be a cascading provider"
+                )
 
-    def test_cascading_field_provider_only_business_and_unit(self) -> None:
-        """Only business and unit have cascading_field_provider=True."""
+    def test_cascading_field_providers(self) -> None:
+        """business, unit, and unit_holder have cascading_field_provider=True.
+
+        unit_holder became a provider in OFFER_SCHEMA 1.6.0: it owns the scheduling-
+        posture status + eight provider fields that the offer frame reads cascade:.
+        """
         registry = get_registry()
         providers = [d.name for d in registry.all_descriptors() if d.cascading_field_provider]
-        assert sorted(providers) == ["business", "unit"]
+        assert sorted(providers) == ["business", "unit", "unit_holder"]
 
 
 # =============================================================================

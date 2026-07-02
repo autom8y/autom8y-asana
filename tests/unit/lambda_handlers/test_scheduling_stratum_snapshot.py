@@ -10,16 +10,20 @@ from __future__ import annotations
 
 import datetime as dt
 from typing import Any
+from unittest.mock import AsyncMock
 
 import polars as pl
 import pytest
 
 from autom8_asana.lambda_handlers import scheduling_stratum_snapshot as snap
 from autom8_asana.lambda_handlers.scheduling_stratum_snapshot import (
+    MIN_POSTURE_SIGNAL_ROWS,
     SnapshotRefusedError,
     assert_complete_office_set,
+    assert_posture_signal_floor,
     execute_snapshot_push,
     handler,
+    posture_signal_row_count,
     project_offer_frame,
     run_snapshot_push_async,
 )
@@ -329,6 +333,70 @@ def test_project_schema_lag_frame_refuses_not_fabricates() -> None:
         project_offer_frame(stale)
 
 
+# --- VALUE-FLOOR guard (degenerate-source completeness teeth) ---------------------
+
+
+def test_value_floor_refuses_all_null_posture_universe() -> None:
+    """RED (the exact 1.5.0 defect): company_id populated, EVERY posture column null.
+
+    company_id resolves (so assert_complete_office_set would PASS the non-empty SET),
+    but 0/N offices carry any scheduling-posture signal -> the value floor REFUSES,
+    preventing a degenerate whole-source overwrite of live posture.
+    """
+    df = _frame_df([{GUID_FIELD: "g1"}, {GUID_FIELD: "g2"}, {GUID_FIELD: "g3"}])
+    assert posture_signal_row_count(df) == 0
+    with pytest.raises(SnapshotRefusedError, match="degenerate posture source"):
+        assert_posture_signal_floor(df)
+
+
+def test_value_floor_passes_when_status_signal_present() -> None:
+    """GREEN: a single non-null custom_cal_status clears the floor (mixed frame passes)."""
+    df = _frame_df([{GUID_FIELD: "g1", CUSTOM_CAL_STATUS_FIELD: "Enabled"}, {GUID_FIELD: "g2"}])
+    assert posture_signal_row_count(df) >= MIN_POSTURE_SIGNAL_ROWS
+    assert_posture_signal_floor(df)  # does not raise
+
+
+def test_value_floor_passes_on_provider_only_signal() -> None:
+    """GREEN (all-GHL fleet): status null everywhere but a provider is set -> passes.
+
+    Distinguishes a degenerate source (NO signal anywhere) from a legitimate fleet whose
+    enrollment status happens to be null while a provider carries the destination.
+    """
+    df = _frame_df(
+        [{GUID_FIELD: "g1", CASCADE_PRIORITY[2]: "https://calendly/x"}, {GUID_FIELD: "g2"}]
+    )
+    assert posture_signal_row_count(df) == 1
+    assert_posture_signal_floor(df)  # does not raise
+
+
+def test_value_floor_not_triggered_on_empty_universe() -> None:
+    """A guid-less (empty) universe is the complete-set gate's remit, not the value floor."""
+    df = _frame_df([{GUID_FIELD: None}, {GUID_FIELD: "   "}])
+    assert posture_signal_row_count(df) == 0
+    assert_posture_signal_floor(df)  # does not raise (empty universe not floored)
+
+
+async def test_enumerate_degenerate_frame_raises_refused() -> None:
+    """END-TO-END: a degenerate (all-null posture) frame drives the ``refused`` outcome.
+
+    The value floor propagates SnapshotRefusedError through the enumerate closure so
+    execute_snapshot_push converts it to a ``refused`` run (pushes NOTHING).
+    """
+    df = _frame_df([{GUID_FIELD: "g1"}, {GUID_FIELD: "g2"}])
+    cache = _FakeCache(_FakeEntry(df))
+
+    async def _push(_offices: list[ExtractedScheduling]) -> StratumPushResult:
+        raise AssertionError("degenerate frame must REFUSE before any push")
+
+    result = await execute_snapshot_push(
+        gate=lambda: True,
+        enumerate_offices=lambda: snap._enumerate_offices_from_frame(cache, "proj"),
+        push=_push,
+    )
+    assert result.status == "refused"
+    assert result.entry_count == 0
+
+
 # --- _enumerate_offices_from_frame (full offer-frame source, frame-first) --------
 
 
@@ -404,3 +472,138 @@ async def test_run_snapshot_push_async_dark_is_skipped(monkeypatch: pytest.Monke
     monkeypatch.delenv("SCHEDULING_STRATUM_PUSH_ENABLED", raising=False)
     result = await run_snapshot_push_async(context=None)
     assert result.status == "skipped"
+
+
+# --- SA-token mint + authed push wiring (retire the AUTOM8Y_DATA_API_KEY fossil) ---
+#
+# The live push MUST carry a freshly-minted S2S JWT (ServiceTokenAuthProvider),
+# mirroring workflow_handler, NOT the legacy AUTOM8Y_DATA_API_KEY fossil -- an
+# 11-char single-segment stub the data side rejects with 401 AUTH-TEB-003
+# ("Token is malformed: Not enough segments").
+
+
+class _FakeProvider:
+    """Stand-in for ServiceTokenAuthProvider: get_secret -> JWT, close() tracked."""
+
+    instances: list[_FakeProvider] = []
+
+    def __init__(self, token: str = "hdr.pyld.sig") -> None:
+        self._token = token
+        self.closed = False
+        self.secret_keys: list[str] = []
+        _FakeProvider.instances.append(self)
+
+    def get_secret(self, key: str) -> str:
+        self.secret_keys.append(key)
+        return self._token
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _spy_live_push() -> AsyncMock:
+    return AsyncMock(
+        return_value=StratumPushResult(pushed=True, dry_run=False, entry_count=1, payload={})
+    )
+
+
+def test_mint_token_returns_none_when_creds_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No SERVICE_CLIENT_ID/SECRET -> ServiceTokenAuthProvider ValueError -> honest None.
+
+    The honest-skip signal is None (the caller then skips the POST), NEVER a fallback to
+    the legacy fossil. No network is touched: the provider raises at construction on
+    absent creds (resolve_secret_from_env ValueError), which the broad catch narrows to
+    None.
+    """
+    for var in (
+        "SERVICE_CLIENT_ID",
+        "SERVICE_CLIENT_ID_ARN",
+        "SERVICE_CLIENT_SECRET",
+        "SERVICE_CLIENT_SECRET_ARN",
+    ):
+        monkeypatch.delenv(var, raising=False)
+    assert snap._mint_stratum_push_token() is None
+
+
+def test_mint_token_returns_jwt_and_closes_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A successful exchange returns the JWT string and releases the provider (close)."""
+    _FakeProvider.instances.clear()
+    monkeypatch.setattr("autom8_asana.auth.service_token.ServiceTokenAuthProvider", _FakeProvider)
+    token = snap._mint_stratum_push_token()
+    assert token == "hdr.pyld.sig"
+    assert len(_FakeProvider.instances) == 1
+    assert _FakeProvider.instances[0].closed is True  # provider resources released
+
+
+def test_mint_token_none_when_provider_yields_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty token from the exchange normalizes to None (honest skip, not "")."""
+    _FakeProvider.instances.clear()
+    monkeypatch.setattr(
+        "autom8_asana.auth.service_token.ServiceTokenAuthProvider",
+        lambda: _FakeProvider(token=""),
+    )
+    assert snap._mint_stratum_push_token() is None
+    assert _FakeProvider.instances[0].closed is True  # closed even on the empty-token path
+
+
+async def test_live_push_injects_minted_sa_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LIVE path (gate on, dry_run None): mint the JWT and inject it as ``auth_token``."""
+    monkeypatch.setenv("SCHEDULING_STRATUM_PUSH_ENABLED", "true")
+    monkeypatch.setattr(snap, "_mint_stratum_push_token", lambda: "hdr.pyld.sig")
+    spy = _spy_live_push()
+    monkeypatch.setattr(snap, "resolve_and_push_snapshot", spy)
+
+    result = await snap._resolve_and_push_snapshot_authed([_office("g1")], dry_run=None)
+
+    spy.assert_awaited_once()
+    assert spy.await_args.kwargs["auth_token"] == "hdr.pyld.sig"  # minted JWT injected
+    assert result is not None and result.pushed is True
+
+
+async def test_mint_failure_honest_skip_no_post(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LIVE path, mint returns None: NO POST, pushed=False (never the fossil, never a crash)."""
+    monkeypatch.setenv("SCHEDULING_STRATUM_PUSH_ENABLED", "true")
+    monkeypatch.setattr(snap, "_mint_stratum_push_token", lambda: None)
+    spy = _spy_live_push()
+    monkeypatch.setattr(snap, "resolve_and_push_snapshot", spy)
+
+    result = await snap._resolve_and_push_snapshot_authed([_office("g1")], dry_run=None)
+
+    assert result is None  # honest skip -> execute_snapshot_push reports pushed=False
+    spy.assert_not_awaited()  # NEVER push with a garbage/fossil token
+
+
+async def test_dry_run_never_mints(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicit dry_run wins even with the gate ON: no mint, pass-through auth_token=None."""
+    monkeypatch.setenv("SCHEDULING_STRATUM_PUSH_ENABLED", "true")
+
+    def _no_mint() -> str:
+        raise AssertionError("dry-run must never mint a token")
+
+    monkeypatch.setattr(snap, "_mint_stratum_push_token", _no_mint)
+    spy = AsyncMock(
+        return_value=StratumPushResult(pushed=False, dry_run=True, entry_count=1, payload={})
+    )
+    monkeypatch.setattr(snap, "resolve_and_push_snapshot", spy)
+
+    result = await snap._resolve_and_push_snapshot_authed([_office("g1")], dry_run=True)
+
+    spy.assert_awaited_once()
+    assert spy.await_args.kwargs.get("auth_token") is None  # no token minted on the dry path
+    assert result is not None and result.dry_run is True
+
+
+async def test_gate_off_never_mints_returns_skipped_gate_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gate off: {skipped, gate_off} receipt with ZERO mint attempt (byte-identical DARK)."""
+    monkeypatch.delenv("SCHEDULING_STRATUM_PUSH_ENABLED", raising=False)
+
+    def _no_mint() -> str:
+        raise AssertionError("gate-off must never mint a token")
+
+    monkeypatch.setattr(snap, "_mint_stratum_push_token", _no_mint)
+    result = await run_snapshot_push_async(context=None)
+    assert result.status == "skipped"
+    assert result.reason == "gate_off"
+    assert result.entry_count == 0

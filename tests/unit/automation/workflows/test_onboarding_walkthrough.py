@@ -16,6 +16,7 @@ import asyncio
 import hashlib
 import inspect
 import io
+import json
 import os
 import re
 import shutil
@@ -30,6 +31,7 @@ import structlog
 from autom8_asana.automation.workflows.bridge_base import BridgeWorkflowAction
 from autom8_asana.automation.workflows.onboarding_walkthrough import (
     constants,
+    deck_manifests,
     identity_guard,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough import (
@@ -431,6 +433,189 @@ class TestProducerFreezeReal:
         assert out.error is not None
         assert out.error.error_type == "producer_freeze_failed"
         atts.upload_async.assert_not_called()
+
+
+# --- FAULT-9 / read-only Lambda fs: writability probe -> relocate -> spawn-from-copy ---
+
+
+_not_root = pytest.mark.skipif(os.geteuid() == 0, reason="chmod read-only does not bind for root")
+
+
+class TestProducerRelocation:
+    """Two-sided receipts for the fault-9 read-only-filesystem fallback.
+
+    Production receipt (2026-07-02T11:21:40Z, the producer's FIRST production
+    run): ``producer exit=1: [inline] UNEXPECTED FAILURE -- Error: ENOENT: no
+    such file or directory, mkdir '/app/vendor/deck-producer/export'``. The
+    producer hardcodes its export dir INSIDE its own tree (inline.mjs:45-48;
+    ``--out`` is only the filename) and Lambda's fs is read-only except /tmp.
+
+    The spawn is MOCKED here (no node required): the fake subprocess records
+    (cmd, cwd) and emits the export file exactly where the real producer would
+    (``{cwd}/export/{out}``, per inline.mjs:197 emit()), so the assertions
+    discriminate on WHERE the producer is spawned and WHAT tree it writes to.
+    """
+
+    def _make_producer_tree(self, root: Path) -> Path:
+        """A minimal stand-in producer tree (entrypoint + node_modules)."""
+        pdir = root / "producer"
+        (pdir / "build").mkdir(parents=True)
+        (pdir / "build" / "inline.mjs").write_text("// stand-in entrypoint\n")
+        (pdir / "node_modules").mkdir()
+        (pdir / "node_modules" / "dep.js").write_text("// dep\n")
+        return pdir
+
+    def _patch_spawn(self, monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
+        """Fake create_subprocess_exec: record (cmd, cwd), emit the export file."""
+        calls: list[dict[str, Any]] = []
+
+        async def _fake_exec(*cmd: str, cwd: Path, **_kwargs: Any) -> MagicMock:
+            calls.append({"cmd": list(cmd), "cwd": Path(cwd)})
+            out_name = cmd[cmd.index("--out") + 1]
+            addr = cmd[cmd.index("--addr") + 1]
+            export_dir = Path(cwd) / "export"
+            export_dir.mkdir(parents=True, exist_ok=True)  # inline.mjs:197 emit()
+            (export_dir / out_name).write_bytes(b"<html>" + addr.encode("utf-8") + b"</html>")
+            proc = MagicMock()
+            proc.communicate = AsyncMock(return_value=(b"", b""))
+            proc.returncode = 0
+            return proc
+
+        # producer.py resolves create_subprocess_exec off the global asyncio
+        # module at call time -- patching stdlib asyncio covers it directly.
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", _fake_exec)
+        return calls
+
+    def _patch_destination(self, monkeypatch: pytest.MonkeyPatch, root: Path) -> Path:
+        """Point the stable relocation destination at a test-scoped path."""
+        dest = root / "reloc" / "deck-producer"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(producer_module, "_relocation_destination", lambda: dest)
+        return dest
+
+    @_not_root
+    async def test_red_readonly_producer_dir_relocates_and_spawns_from_copy(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        pdir = self._make_producer_tree(tmp_path)
+        dest = self._patch_destination(monkeypatch, tmp_path)
+        calls = self._patch_spawn(monkeypatch)
+        pdir.chmod(0o555)  # model the Lambda read-only fs via dir mode
+        try:
+            # RED shape (the OLD path): the exact syscall the producer performs
+            # at emit() fails on the read-only tree -- the production fault class.
+            with pytest.raises(OSError):
+                (pdir / "export").mkdir()
+
+            frozen = await freeze_walkthrough_deck(
+                producer_dir=pdir,
+                deck_template=SPIKE_DECK,
+                gated_address=SPIKE_ADDRESS,
+                client_name="Unit Test Clinic",
+                out_filename="walkthrough_fault9_red.html",
+            )
+        finally:
+            pdir.chmod(0o755)
+
+        # GREEN (the NEW path): relocated, spawned FROM THE COPY.
+        assert len(calls) == 1
+        assert calls[0]["cwd"] == dest, "spawn cwd must point at the writable copy"
+        assert calls[0]["cwd"] != pdir
+        assert (dest / "build" / "inline.mjs").exists(), "entrypoint present in the copy"
+        assert (dest / "node_modules" / "dep.js").exists(), "node_modules present in the copy"
+        assert (dest / producer_module._COPY_COMPLETE_MARKER).exists()
+        assert SPIKE_ADDRESS.encode("utf-8") in frozen
+        # FR-8 discharged on the relocated path: no export residue in the copy.
+        assert not (dest / "export" / "walkthrough_fault9_red.html").exists()
+
+    async def test_green_writable_producer_dir_no_relocation(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        pdir = self._make_producer_tree(tmp_path)
+        dest = self._patch_destination(monkeypatch, tmp_path)
+        calls = self._patch_spawn(monkeypatch)
+
+        frozen = await freeze_walkthrough_deck(
+            producer_dir=pdir,
+            deck_template=SPIKE_DECK,
+            gated_address=SPIKE_ADDRESS,
+            client_name="Unit Test Clinic",
+            out_filename="walkthrough_fault9_green.html",
+        )
+
+        # ECS-shaped tree: spawn from the ORIGINAL dir; NO copy, NO sentinel.
+        assert len(calls) == 1
+        assert calls[0]["cwd"] == pdir
+        assert not dest.exists(), "no relocation copy may be performed on a writable tree"
+        assert SPIKE_ADDRESS.encode("utf-8") in frozen
+        # Existing contract intact: the export file remains for the workflow's
+        # own FR-8 cleanup (no relocated-path unlink on the writable path).
+        assert (pdir / "export" / "walkthrough_fault9_green.html").exists()
+        # The writability probe leaves no residue.
+        assert list((pdir / "export").glob(".writability-probe-*")) == []
+
+    @_not_root
+    async def test_warm_invokes_reuse_exactly_one_copy(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        pdir = self._make_producer_tree(tmp_path)
+        dest = self._patch_destination(monkeypatch, tmp_path)
+        calls = self._patch_spawn(monkeypatch)
+
+        copies: list[str] = []
+        real_copytree = shutil.copytree
+
+        # NB: shutil.copytree re-enters itself via the module-global name for
+        # subdirectories, so the spy must be signature-transparent and count
+        # ONLY top-level staging copies (the producer-tree copy events).
+        def _copytree_spy(*args: Any, **kwargs: Any) -> Any:
+            dst = str(args[1] if len(args) > 1 else kwargs["dst"])
+            if "-staging-" in Path(dst).name:
+                copies.append(dst)
+            return real_copytree(*args, **kwargs)
+
+        monkeypatch.setattr(shutil, "copytree", _copytree_spy)
+
+        pdir.chmod(0o555)
+        try:
+            for n in (1, 2):
+                await freeze_walkthrough_deck(
+                    producer_dir=pdir,
+                    deck_template=SPIKE_DECK,
+                    gated_address=SPIKE_ADDRESS,
+                    client_name="Unit Test Clinic",
+                    out_filename=f"walkthrough_fault9_warm_{n}.html",
+                )
+        finally:
+            pdir.chmod(0o755)
+
+        assert len(copies) == 1, "COPY-ONCE: the second (warm) invoke must reuse the copy"
+        assert [c["cwd"] for c in calls] == [dest, dest]
+
+    async def test_relocation_failure_maps_to_producer_freeze_error(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        pdir = self._make_producer_tree(tmp_path)
+        self._patch_destination(monkeypatch, tmp_path)
+        calls = self._patch_spawn(monkeypatch)
+        monkeypatch.setattr(producer_module, "_export_dir_writable", lambda _p: False)
+
+        def _copytree_boom(*_a: Any, **_k: Any) -> None:
+            raise OSError("no space left on device")
+
+        monkeypatch.setattr(shutil, "copytree", _copytree_boom)
+
+        # Error taxonomy intact: relocation failure surfaces as ProducerFreezeError
+        # (workflow maps it to producer_freeze_failed), never a bare OSError.
+        with pytest.raises(ProducerFreezeError, match="relocation failed"):
+            await freeze_walkthrough_deck(
+                producer_dir=pdir,
+                deck_template=SPIKE_DECK,
+                gated_address=SPIKE_ADDRESS,
+                client_name="Unit Test Clinic",
+                out_filename="walkthrough_fault9_relocfail.html",
+            )
+        assert calls == [], "no subprocess may be spawned when relocation fails"
 
 
 # --- T4 / AC-GATE GREEN + AC-SIBLING GREEN: full path (REAL freeze, MOCK attach) ---
@@ -2416,3 +2601,166 @@ class TestFaultNamingTaxonomy:
         assert out.status == "skipped"
         assert out.reason == "guid_anchor_mismatch"
         atts.upload_async.assert_not_called()
+
+
+# --- DECK-AUDIENCE LOCK (payload-correctness gate; product ruling 2026-07-02) ---
+#
+# Receipt: pre-lock, the map assigned GHL the INTERNAL-ONLY ghl-calendar-setup
+# deck and the sweep attached it to a live customer task at 2026-07-02T11:55:47Z
+# (walkthrough_1213653428400851_20260702115544.html). No gate ever verified deck
+# CONTENT against product intent. The lock closes that gap: owned audience
+# manifests (deck_manifests/{template}.json), completeness-pinned to the vendored
+# template set, plus a fail-closed 2b runtime gate on the RESOLVED deck_template.
+
+
+class TestDeckAudienceLock:
+    """Five-leg discriminating spec for the deck-audience lock (design-frozen).
+
+    (a) COMPLETENESS  -- manifest set == template-dir set, both directions;
+                         every manifest parses with a positive audience enum.
+    (b) MAP-PURITY    -- every mapped (non-None) deck is classified customer.
+    (c) PIN           -- ghl-calendar-setup is PINNED internal, which (with b)
+                         makes the pre-lock GHL->ghl-calendar-setup unbuildable.
+    (d) CONSTRUCTION  -- a poisoned map fails the (b) validator LOUDLY, naming
+                         the offending provider+deck.
+    (e) RUNTIME-BYPASS -- a bypassed/dynamic internal or unclassified selection
+                         is refused at 2b BEFORE any external leg; two-sided:
+                         the customer deck proceeds past the gate.
+    """
+
+    # -- (a) COMPLETENESS: templates <-> manifests, set-equal both directions --
+
+    def test_completeness_manifests_match_template_dirs_both_directions(self) -> None:
+        templates_dir = _VENDORED_PRODUCER_DIR / "templates"
+        assert templates_dir.is_dir(), "vendored producer templates dir must exist in-repo"
+        templates = {d.name for d in templates_dir.iterdir() if d.is_dir()}
+        manifests = {f.stem for f in deck_manifests.MANIFEST_DIR.glob("*.json")}
+        assert templates, "expected at least one producer template (harness sanity)"
+        unclassified = templates - manifests
+        orphans = manifests - templates
+        assert not unclassified, (
+            f"UNCLASSIFIED template dirs (add deck_manifests/{{name}}.json): {sorted(unclassified)}"
+        )
+        assert not orphans, (
+            f"ORPHAN manifests without a template dir (stale classification): {sorted(orphans)}"
+        )
+
+    def test_completeness_every_manifest_parses_with_positive_enum(self) -> None:
+        paths = sorted(deck_manifests.MANIFEST_DIR.glob("*.json"))
+        assert paths, "expected at least one audience manifest"
+        for path in paths:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            assert isinstance(data, dict), f"{path.name}: manifest body must be a JSON object"
+            audience = data.get("audience")
+            assert audience in {"customer", "internal"}, (
+                f"{path.name}: audience {audience!r} outside the positive enum "
+                f"{{'customer', 'internal'}} (no third value)"
+            )
+
+    # -- (b) MAP-PURITY: every mapped deck is customer-classified --
+
+    def test_map_purity_every_mapped_deck_is_customer(self) -> None:
+        deck_manifests.assert_map_customer_only(constants.WALKTHROUGH_DECK_MAP)
+        for provider, deck in constants.WALKTHROUGH_DECK_MAP.items():
+            if deck is not None:
+                assert deck_manifests.load_audience(deck) == "customer", (
+                    f"WALKTHROUGH_DECK_MAP[{provider!r}] = {deck!r} is not customer-classified"
+                )
+
+    # -- (c) PIN: ghl-calendar-setup is INTERNAL (product ruling 2026-07-02) --
+
+    def test_pin_ghl_calendar_setup_is_internal(self) -> None:
+        path = deck_manifests.MANIFEST_DIR / "ghl-calendar-setup.json"
+        assert path.is_file(), "the ghl-calendar-setup audience manifest must exist"
+        assert json.loads(path.read_text(encoding="utf-8")) == {"audience": "internal"}
+        # Consequence (with map-purity): no provider may map to the internal deck.
+        assert "ghl-calendar-setup" not in set(constants.WALKTHROUGH_DECK_MAP.values()), (
+            "the pre-lock defect reintroduced: a provider maps to the INTERNAL-ONLY "
+            "ghl-calendar-setup deck"
+        )
+
+    # -- (d) CONSTRUCTION-FAILS-LOUDLY: poisoned maps are rejected, named --
+
+    @pytest.mark.parametrize(
+        ("provider", "deck", "detail"),
+        [
+            # The EXACT pre-lock defect: GHL -> the internal deck.
+            ("GHL", "ghl-calendar-setup", "audience_internal"),
+            ("Acuity", "ghl-calendar-setup", "audience_internal"),
+            # Absence IS denial: a deck with NO manifest is equally unbuildable.
+            ("Calendly", "deck-with-no-manifest", "manifest_missing"),
+        ],
+    )
+    def test_construction_fails_loudly_naming_provider_and_deck(
+        self, provider: str, deck: str, detail: str
+    ) -> None:
+        poisoned = dict(constants.WALKTHROUGH_DECK_MAP)
+        poisoned[provider] = deck
+        with pytest.raises(deck_manifests.DeckAudienceError) as excinfo:
+            deck_manifests.assert_map_customer_only(poisoned)
+        message = str(excinfo.value)
+        assert provider in message, f"offending provider not named in: {message}"
+        assert deck in message, f"offending deck not named in: {message}"
+        assert excinfo.value.detail == detail
+
+    # -- (e) RUNTIME-BYPASS: the 2b gate refuses dynamic/bypassed selection --
+
+    def _patch_freeze(self, monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        spy = AsyncMock(return_value=_deck_bytes(SPIKE_ADDRESS))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        return spy
+
+    async def _drive_denied(
+        self, monkeypatch: pytest.MonkeyPatch, deck: str, expected_detail: str
+    ) -> None:
+        freeze_spy = self._patch_freeze(monkeypatch)
+        # Bypass the ratified map: dynamically point GHL at the given deck.
+        monkeypatch.setitem(constants.WALKTHROUGH_DECK_MAP, "GHL", deck)
+        wf, atts, resolver, _ = _make_workflow()
+        with _capture_workflow_logs() as captured:
+            out = await wf.process_entity(_entity(provider="GHL"), {})
+
+        assert out.status == "skipped"
+        assert out.reason == "deck_audience_denied"
+        entry = next(e for e in captured if e["event"] == "onboarding_walkthrough_skipped")
+        assert entry["reason"] == "deck_audience_denied"
+        assert entry["log_level"] == "error"  # structural drift, LOUD (guard_violation twin)
+        assert entry["deck_template"] == deck
+        assert entry["detail"] == expected_detail
+        # NO external leg ran: no phone-derived resolve, no freeze, no attach mutation.
+        resolver.resolve_routing_address_by_phone_async.assert_not_called()
+        freeze_spy.assert_not_awaited()
+        atts.upload_async.assert_not_called()
+        atts.delete_async.assert_not_called()
+        print(
+            f"[LOCK] deck={deck!r} -> {out.reason} detail={expected_detail} "
+            f"resolve=0 freeze=0 upload=0"
+        )
+
+    async def test_runtime_bypass_internal_deck_denied_before_any_external_leg(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        await self._drive_denied(monkeypatch, "ghl-calendar-setup", "audience_internal")
+
+    async def test_runtime_bypass_unclassified_deck_denied_default_deny(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        await self._drive_denied(monkeypatch, "deck-with-no-manifest", "manifest_missing")
+
+    async def test_runtime_two_sided_customer_deck_proceeds_past_gate(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The no-defect variant PASSES (canary has teeth): the ratified map
+        # (GHL -> email-forwarding-setup, customer) proceeds past 2b to the
+        # full resolve->freeze->upload path.
+        freeze_spy = self._patch_freeze(monkeypatch)
+        wf, atts, resolver, _ = _make_workflow()
+        out = await wf.process_entity(_entity(provider="GHL"), {})
+
+        assert out.status == "succeeded"
+        resolver.resolve_routing_address_by_phone_async.assert_awaited_once()
+        freeze_spy.assert_awaited_once()
+        assert freeze_spy.await_args is not None
+        assert freeze_spy.await_args.kwargs["deck_template"] == "email-forwarding-setup"
+        atts.upload_async.assert_awaited_once()
+        print("[LOCK] customer deck email-forwarding-setup proceeds: resolve=1 freeze=1 upload=1")
