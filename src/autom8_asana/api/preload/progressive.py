@@ -718,32 +718,32 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
         # Providers (business, unit) warm before consumers (offer, contact, ...).
         from autom8_asana.dataframes.cascade_utils import (
             WarmupOrderingError,
+            assert_l2_pre_phase_gate,
             cascade_warm_phases,
-            get_cascade_providers,
         )
 
         phases = cascade_warm_phases()
         config_map = {etype: gid for gid, etype in project_configs}
 
         # L2 (WS-4a): Track completed entity types for pre-phase gate.
-        # Before each phase, verify cascade providers are in completed set.
+        # Before each phase, verify FRAME-WARM cascade providers are in the
+        # completed set. The gate shares the planner's warmability predicate
+        # (assert_l2_pre_phase_gate -> get_frame_warm_providers), so
+        # frame-less providers (e.g. unit_holder, satisfied via ancestor
+        # hydration in the consumer's own build) are never demanded here.
         # WarmupOrderingError is NOT caught by BROAD-CATCH handlers.
         completed_entities: set[str] = set()
 
         for phase_idx, phase_types in enumerate(phases):
             phase_configs = [(config_map[et], et) for et in phase_types if et in config_map]
             if phase_configs:
-                # L2 pre-phase gate: verify all cascade providers for
-                # entities in this phase have already completed.
-                for _gid, et in phase_configs:
-                    missing_providers = get_cascade_providers(et) - completed_entities
-                    if missing_providers:
-                        raise WarmupOrderingError(
-                            f"L2 pre-phase gate: entity '{et}' in phase "
-                            f"{phase_idx} requires cascade providers "
-                            f"{missing_providers} which have not completed. "
-                            f"Completed so far: {completed_entities}."
-                        )
+                # L2 pre-phase gate: fail closed if any frame-warm cascade
+                # provider for this phase's entities has not completed.
+                assert_l2_pre_phase_gate(
+                    phase_idx,
+                    [et for _gid, et in phase_configs],
+                    completed_entities,
+                )
 
                 logger.info(
                     "progressive_preload_phase",

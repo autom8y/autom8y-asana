@@ -100,44 +100,38 @@ class TestWG02L2PrePhaseGate:
         assert len(providers) == 0
 
     def test_l2_gate_raises_warmup_ordering_error(self) -> None:
-        """WG-02c: Simulated L2 gate raises WarmupOrderingError on missing provider.
+        """WG-02c: The REAL L2 gate raises WarmupOrderingError on a missing
+        frame-warmable provider.
 
-        Reproduces the L2 logic: if an entity's cascade providers are not
-        in the completed set, WarmupOrderingError must be raised.
+        Exercises assert_l2_pre_phase_gate (the exact function the preload
+        calls) — not a re-implementation of its logic.
         """
         from autom8_asana.dataframes.cascade_utils import (
             WarmupOrderingError,
-            get_cascade_providers,
+            assert_l2_pre_phase_gate,
+            get_frame_warm_providers,
         )
 
-        # Simulate the L2 gate logic from progressive.py:668-676
-        completed_entities: set[str] = set()  # Nothing completed yet
-        entity_type = "unit"  # Unit depends on business
+        # Precondition: unit demands the frame-warmable business
+        assert "business" in get_frame_warm_providers("unit")
 
-        missing_providers = get_cascade_providers(entity_type) - completed_entities
-        assert len(missing_providers) > 0, "unit should have missing providers"
-
-        # The L2 gate would raise WarmupOrderingError here
-        with pytest.raises(WarmupOrderingError):
-            if missing_providers:
-                raise WarmupOrderingError(
-                    f"L2 pre-phase gate: entity '{entity_type}' requires "
-                    f"cascade providers {missing_providers} which have not "
-                    f"completed. Completed so far: {completed_entities}."
-                )
+        with pytest.raises(WarmupOrderingError, match="L2 pre-phase gate"):
+            assert_l2_pre_phase_gate(
+                phase_idx=0,
+                phase_entity_types=["unit"],
+                completed_entities=set(),  # Nothing completed yet
+            )
 
     def test_l2_gate_passes_when_providers_complete(self) -> None:
-        """WG-02d: L2 gate passes when all cascade providers are in completed set."""
-        from autom8_asana.dataframes.cascade_utils import get_cascade_providers
+        """WG-02d: L2 gate passes when all frame-warm providers completed."""
+        from autom8_asana.dataframes.cascade_utils import assert_l2_pre_phase_gate
 
-        # business has completed
-        completed_entities = {"business"}
-        entity_type = "unit"
-
-        missing_providers = get_cascade_providers(entity_type) - completed_entities
-        # All providers should be in completed_entities
-        assert len(missing_providers) == 0, (
-            f"unit's providers should all be completed, but missing: {missing_providers}"
+        # business has completed; unit's frame-warm demand is satisfied.
+        # Must not raise.
+        assert_l2_pre_phase_gate(
+            phase_idx=1,
+            phase_entity_types=["unit"],
+            completed_entities={"business"},
         )
 
 
