@@ -147,9 +147,7 @@ class TestFactoryConstructsClientWithWorkspaceGid:
             )
             return _SYNTHETIC_WORKSPACE_GID
 
-        result, asana_kwargs = _run_handler_capturing_asana_kwargs(
-            resolve_side_effect=_resolve
-        )
+        result, asana_kwargs = _run_handler_capturing_asana_kwargs(resolve_side_effect=_resolve)
 
         assert result["statusCode"] == 200, f"handler did not complete: {result.get('body')}"
         assert asana_kwargs.get("workspace_gid") == _SYNTHETIC_WORKSPACE_GID, (
