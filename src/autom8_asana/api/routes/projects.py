@@ -19,10 +19,11 @@ Per TDD-ASANA-SATELLITE:
 - List endpoints support cursor-based pagination
 """
 
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
-from fastapi import Query, status
+from fastapi import Depends, Query, Request, status
 
+from autom8_asana import AsanaClient
 from autom8_asana.api.dependencies import AsanaClientDualMode, RequestId
 from autom8_asana.api.error_responses import (
     authenticated_responses,
@@ -30,6 +31,7 @@ from autom8_asana.api.error_responses import (
     mutation_responses,
 )
 from autom8_asana.api.errors import raise_api_error
+from autom8_asana.api.exception_types import ApiServiceUnavailableError
 from autom8_asana.api.models import (
     AsanaResource,
     CreateProjectRequest,
@@ -41,12 +43,61 @@ from autom8_asana.api.models import (
     build_success_response,
 )
 from autom8_asana.api.routes._security import pat_router
+from autom8_asana.api.routes.internal import ServiceClaims, require_service_claims
+from autom8_asana.auth.bot_pat import BotPATError, get_bot_pat
+from autom8_asana.core.project_registry import UNIT_PROJECT
 
 router = pat_router(prefix="/api/v1/projects", tags=["projects"])
 
 # Default pagination limit
 DEFAULT_LIMIT = 100
 MAX_LIMIT = 100
+
+
+# ---------------------------------------------------------------------------
+# Scoped, token-safe section-read capability (FORK-R REUSE branch, TDD §3.1)
+# ---------------------------------------------------------------------------
+# H2 (BOLA/IDOR): the section-list capability is pinned to a single-project
+# allowlist. Only these project GIDs may have their sections listed through
+# this route; every other ``{gid}`` fails closed (404). This removes the
+# "any project" reach that made the route a wider BOLA/IDOR surface than the
+# one cutover project the read-capability exists to serve.
+SECTION_LIST_PROJECT_ALLOWLIST: frozenset[str] = frozenset({UNIT_PROJECT})
+
+
+async def get_s2s_section_client(
+    request: Request,
+    _claims: Annotated[ServiceClaims, Depends(require_service_claims)],
+) -> AsanaClient:
+    """Resolve a JWT-only (S2S) ``AsanaClient`` for the scoped section read.
+
+    Structurally excludes the FORBIDDEN plaintext-PAT mode (the
+    ``get_auth_context`` PAT branch at ``dependencies.py:139-148``):
+
+    - ``require_service_claims`` rejects PAT tokens (401 SERVICE_TOKEN_REQUIRED)
+      and requires a valid, short-lived S2S JWT (H1, H6).
+    - The Asana credential is the *brokered bot PAT* resolved server-side via
+      ``get_bot_pat()`` (``ASANA_PAT_ARN``). The caller's bearer token is never
+      used as an Asana credential and the caller never materializes the
+      plaintext PAT (H4, H5).
+
+    Mirrors the JWT-only guard used by ``intake_create.py`` so this capability
+    cannot fall back to caller-plaintext auth by construction.
+    """
+    # H5: fail closed if the brokered bot PAT cannot be resolved. Never leak an
+    # unhandled BotPATError (500) and never silently degrade to plaintext.
+    try:
+        bot_pat = get_bot_pat()
+    except BotPATError as exc:
+        raise ApiServiceUnavailableError(
+            "S2S_NOT_CONFIGURED",
+            "Service-to-service authentication is not available",
+        ) from exc
+    pool = getattr(request.app.state, "client_pool", None)
+    if pool is not None:
+        return cast("AsanaClient", await pool.get_or_create(bot_pat, is_s2s=True))
+    # Fallback: no pool (e.g. testing without lifespan).
+    return AsanaClient(token=bot_pat)
 
 
 # --- Core CRUD Endpoints ---
@@ -318,14 +369,14 @@ async def delete_project(
 
 @router.get(
     "/{gid}/sections",
-    summary="List sections in a project",
+    summary="List sections in the pinned cutover project (S2S, scoped)",
     response_description="Paginated list of sections",
     response_model=SuccessResponse[list[AsanaResource]],
     responses=entity_responses(),
 )
 async def list_sections(
     gid: GidStr,
-    client: AsanaClientDualMode,
+    client: Annotated[AsanaClient, Depends(get_s2s_section_client)],
     request_id: RequestId,
     limit: Annotated[
         int,
@@ -336,15 +387,25 @@ async def list_sections(
         Query(description="Pagination cursor from previous response"),
     ] = None,
 ) -> SuccessResponse[list[AsanaResource]]:
-    """List sections within a project with cursor-based pagination.
+    """List sections within the pinned cutover project (token-safe scoped read).
 
-    Sections are returned in display order. Use the ``sections`` endpoints
-    to create, rename, reorder, or delete individual sections.
+    This is the token-safe section-read capability (FORK-R REUSE branch). It is
+    hardened against the credential-topology risks gating SCAR-REG-001:
 
-    Requires Bearer token authentication (JWT or PAT).
+    - **H1 auth**: requires a valid, short-lived S2S JWT via
+      ``get_s2s_section_client`` → ``require_service_claims``. Unauthenticated
+      requests and PAT tokens fail closed (401); the forbidden plaintext-PAT
+      mode is impossible by construction.
+    - **H2 BOLA/IDOR**: ``{gid}`` must be in ``SECTION_LIST_PROJECT_ALLOWLIST``
+      (integer-validated by ``GidStr`` in production); any other project fails
+      closed (404).
+    - **H3 path/verb**: GET-only; the outbound Asana URL is built server-side
+      from the allowlisted ``{gid}`` (no caller-supplied URL; method-override
+      headers are not honored).
+    - **H4 log hygiene**: the bot PAT is brokered server-side and never logged.
 
     Args:
-        gid: Project GID.
+        gid: Project GID (must be allowlisted).
         limit: Items per page (1–100, default 100).
         offset: Pagination cursor from previous response.
 
@@ -352,12 +413,23 @@ async def list_sections(
         Paginated list of section resources in display order.
 
     Raises:
-        404: Project not found or not accessible.
+        404: Project GID is not in the scoped allowlist (or not found).
     """
+    # H2: BOLA/IDOR guard — fail closed for any non-allowlisted project GID.
+    # 404 (not 403) avoids confirming the existence of other projects.
+    if gid not in SECTION_LIST_PROJECT_ALLOWLIST:
+        raise_api_error(
+            request_id=request_id,
+            status_code=status.HTTP_404_NOT_FOUND,
+            code="RESOURCE_NOT_FOUND",
+            message="Sections are not available for the requested project.",
+        )
+
     params: dict[str, Any] = {"limit": min(limit, MAX_LIMIT)}
     if offset:
         params["offset"] = offset
 
+    # H3: outbound URL constructed server-side from the allowlisted gid.
     data, next_offset = await client._http.get_paginated(
         f"/projects/{gid}/sections",
         params=params,

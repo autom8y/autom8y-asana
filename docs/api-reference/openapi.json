@@ -4859,7 +4859,7 @@
     },
     "/api/v1/projects/{gid}/sections": {
       "get": {
-        "description": "List sections within a project with cursor-based pagination.\n\nSections are returned in display order. Use the ``sections`` endpoints\nto create, rename, reorder, or delete individual sections.\n\nRequires Bearer token authentication (JWT or PAT).\n\nArgs:\n    gid: Project GID.\n    limit: Items per page (1–100, default 100).\n    offset: Pagination cursor from previous response.\n\nReturns:\n    Paginated list of section resources in display order.\n\nRaises:\n    404: Project not found or not accessible.",
+        "description": "List sections within the pinned cutover project (token-safe scoped read).\n\nThis is the token-safe section-read capability (FORK-R REUSE branch). It is\nhardened against the credential-topology risks gating SCAR-REG-001:\n\n- **H1 auth**: requires a valid, short-lived S2S JWT via\n  ``get_s2s_section_client`` → ``require_service_claims``. Unauthenticated\n  requests and PAT tokens fail closed (401); the forbidden plaintext-PAT\n  mode is impossible by construction.\n- **H2 BOLA/IDOR**: ``{gid}`` must be in ``SECTION_LIST_PROJECT_ALLOWLIST``\n  (integer-validated by ``GidStr`` in production); any other project fails\n  closed (404).\n- **H3 path/verb**: GET-only; the outbound Asana URL is built server-side\n  from the allowlisted ``{gid}`` (no caller-supplied URL; method-override\n  headers are not honored).\n- **H4 log hygiene**: the bot PAT is brokered server-side and never logged.\n\nArgs:\n    gid: Project GID (must be allowlisted).\n    limit: Items per page (1–100, default 100).\n    offset: Pagination cursor from previous response.\n\nReturns:\n    Paginated list of section resources in display order.\n\nRaises:\n    404: Project GID is not in the scoped allowlist (or not found).",
         "operationId": "list_sections_api_v1_projects__gid__sections_get",
         "parameters": [
           {
@@ -4992,7 +4992,7 @@
             ]
           }
         ],
-        "summary": "List sections in a project",
+        "summary": "List sections in the pinned cutover project (S2S, scoped)",
         "tags": [
           "projects"
         ]

@@ -205,10 +205,11 @@ class RegistryFinding:
     Findings are surfaced, never silently resolved. ``kind`` enumerates the
     divergence classes the join detects:
 
-    - ``live_name_no_bucket``  (EC-REG-1): a live section name has no monolith
-      taxonomy bucket. The GID is routed to NEITHER set (omitted, not
-      default-routed) -- defaulting an unknown section is the SCAR-REG-001
-      silent-misroute class.
+    - ``live_name_no_bucket``  (Tier-3 unknown): a live section name in NEITHER
+      the local ``EXCLUDED_SECTION_NAMES`` NOR the monolith taxonomy. The GID is
+      routed to NEITHER set (omitted, not default-routed) and this is a BLOCKING
+      finding (see ``SectionRegistryResult.blocks_live_wiring``) -- defaulting an
+      unknown section is the SCAR-REG-001 silent-misroute class.
     - ``bucket_name_no_live``  (EC-REG-2): a monolith taxonomy name has no live
       GID. No GID to place -> a recorded gap, no set membership change.
     - ``double_membership``    (EC-REG-3 / OQ-3): a name resolves to a unit
@@ -245,6 +246,24 @@ class SectionRegistryResult:
     excluded_section_gids: frozenset[str]
     findings: tuple[RegistryFinding, ...]
 
+    @property
+    def blocking_findings(self) -> tuple[RegistryFinding, ...]:
+        """Findings that MUST halt live-wiring (Tier-3 unknown sections).
+
+        A ``live_name_no_bucket`` finding is a hard-stop: the section is known to
+        NEITHER the local exclusion set NOR the monolith taxonomy, so under the
+        DENYLIST processor (processes-by-default) it cannot be routed safely
+        without an operator disposition. Surfacing alone is insufficient — the
+        caller MUST NOT wire the result into the live registry while any
+        blocking finding is present.
+        """
+        return tuple(f for f in self.findings if f.kind == "live_name_no_bucket")
+
+    @property
+    def blocks_live_wiring(self) -> bool:
+        """True if any Tier-3 unknown-section finding forbids live-wiring."""
+        return bool(self.blocking_findings)
+
 
 def join_section_registry(
     name_to_gid: Mapping[str, str],
@@ -259,19 +278,32 @@ def join_section_registry(
     between the frozen placeholders and the live receipt cannot misroute a
     section (the SCAR-REG-001 defect class).
 
-    Behavior under divergence (OQ-3 resolution -- decided here, applied live
-    only after the W-IRIS receipt):
+    Routing precedence (§6.4 three-tier fail-closed; OQ-3 resolution -- decided
+    here, applied live only after the W-IRIS receipt):
 
-    - EC-REG-1 (live name, no monolith bucket): FAIL LOUD. Emit
-      ``live_name_no_bucket``; the GID is routed to NEITHER set.
+    - **Tier 1 (local authoritative exclusion):** ``name in
+      EXCLUDED_SECTION_NAMES`` is checked FIRST, independent of monolith
+      presence -> the live GID lands in ``excluded_section_gids``. This covers
+      local-only exclusions (e.g. "Next Steps", "Account Review") that the
+      monolith taxonomy never knew, which the previous scaffold routed to
+      NEITHER set (and thus PROCESSED under the DENYLIST processor -- the
+      SCAR-REG-001 silent-misroute class). If such a name ALSO carries a unit
+      bucket in the monolith (EC-REG-3 double membership), exclusion still WINS
+      and a ``double_membership`` finding is emitted (LBC-004: a section wrongly
+      excluded under-counts; one wrongly processed as a unit pollutes account
+      classification).
+    - **Tier 2 (monolith bucket):** for names not excluded in Tier 1, the
+      monolith ``ignore`` bucket -> excluded; a unit bucket
+      (``active``/``activating``/``inactive``) -> ``unit_section_gids``.
+    - **Tier 3 (genuine unknown):** a live name in NEITHER
+      ``EXCLUDED_SECTION_NAMES`` NOR the monolith taxonomy -> routed to NEITHER
+      set and surfaced as a ``live_name_no_bucket`` finding. This is a BLOCKING
+      finding (see ``SectionRegistryResult.blocks_live_wiring``): surface AND
+      halt -- the result MUST NOT be wired live until an operator dispositions
+      the unknown section. Defaulting an unknown section is the SCAR-REG-001
+      silent-misroute class.
     - EC-REG-2 (monolith name, no live GID): emit ``bucket_name_no_live``;
       no-op on the sets (no GID to place), recorded as a gap.
-    - EC-REG-3 (double membership): a name whose bucket is a unit bucket but
-      which is ALSO an excluded name -> ``ignore`` (exclusion) WINS. The GID
-      lands in ``excluded_section_gids`` and a ``double_membership`` finding is
-      emitted. Rationale (LBC-004): exclusion is the stronger, safety-
-      preserving assertion -- a section wrongly excluded under-counts; a
-      section wrongly included as a unit pollutes account classification.
     - R-REG-4 (taxonomy divergence): when ``monolith_ignore_names`` is supplied,
       each name that differs between it and the in-code ``EXCLUDED_SECTION_NAMES``
       is surfaced as a ``taxonomy_divergence`` finding -- NOT auto-reconciled.
@@ -304,46 +336,58 @@ def join_section_registry(
                 )
             )
 
-    # Route each live section by NAME -> bucket.
+    # Route each live section by NAME using the §6.4 three-tier fail-closed
+    # precedence. Tier-1 (local authoritative exclusion) is checked FIRST,
+    # independent of monolith presence, so a local-only exclusion (e.g.
+    # "Next Steps" / "Account Review" -- present in EXCLUDED_SECTION_NAMES but
+    # absent from the monolith taxonomy) fails closed toward exclusion instead
+    # of falling through the bucket-None route-to-neither (the SCAR-REG-001
+    # silent-misroute class under the DENYLIST processor).
     for name, gid in name_to_gid.items():
         bucket = name_to_bucket.get(name)
-        if bucket is None:
-            # EC-REG-1: live name absent from monolith taxonomy. Route to
-            # NEITHER set -- do not default-route an unknown section.
+        is_unit_bucket = bucket in _UNIT_BUCKETS
+
+        # Tier 1: local authoritative exclusion -- checked before the monolith
+        # bucket AND before the bucket-None route-to-neither.
+        if name in EXCLUDED_SECTION_NAMES:
+            excluded_gids.add(gid)
+            if is_unit_bucket:
+                # EC-REG-3 / OQ-3: the monolith classifies this excluded name as
+                # a unit bucket -> double membership; exclusion still WINS
+                # (LBC-004 conservative posture).
+                findings.append(
+                    RegistryFinding(
+                        kind="double_membership",
+                        section_name=name,
+                        detail=(
+                            f"section {name!r} maps to unit bucket {bucket!r} but "
+                            "is also a local exclusion; exclusion wins (LBC-004)"
+                        ),
+                    )
+                )
+            continue
+
+        # Tier 2: monolith bucket taxonomy.
+        if bucket == "ignore":
+            excluded_gids.add(gid)
+        elif is_unit_bucket:
+            unit_gids.add(gid)
+        else:
+            # Tier 3: genuine unknown -- a live name in NEITHER the local
+            # exclusion set NOR the monolith taxonomy. Route to NEITHER set and
+            # emit a BLOCKING live_name_no_bucket finding (surface AND halt): the
+            # result MUST NOT be wired live until an operator dispositions it.
             findings.append(
                 RegistryFinding(
                     kind="live_name_no_bucket",
                     section_name=name,
                     detail=(
-                        f"live section {name!r} (gid={gid}) has no monolith "
-                        "taxonomy bucket; omitted from both sets (not default-routed)"
+                        f"live section {name!r} (gid={gid}) is in neither "
+                        "EXCLUDED_SECTION_NAMES nor the monolith taxonomy; omitted "
+                        "from both sets and BLOCKS live-wiring (not default-routed)"
                     ),
                 )
             )
-            continue
-
-        is_excluded = (bucket == "ignore") or (name in EXCLUDED_SECTION_NAMES)
-        is_unit_bucket = bucket in _UNIT_BUCKETS
-
-        if is_excluded and is_unit_bucket:
-            # EC-REG-3 / OQ-3: double membership -> ignore (exclusion) WINS.
-            findings.append(
-                RegistryFinding(
-                    kind="double_membership",
-                    section_name=name,
-                    detail=(
-                        f"section {name!r} maps to unit bucket {bucket!r} but is "
-                        "also excluded; exclusion wins (LBC-004 conservative posture)"
-                    ),
-                )
-            )
-            excluded_gids.add(gid)
-        elif is_excluded:
-            excluded_gids.add(gid)
-        elif is_unit_bucket:
-            unit_gids.add(gid)
-        # Any other (unknown) bucket value would have failed the Bucket Literal
-        # at the type boundary; no silent default here.
 
     # R-REG-4: surface monolith-ignore vs in-code EXCLUDED_SECTION_NAMES drift.
     if monolith_ignore_names is not None:
