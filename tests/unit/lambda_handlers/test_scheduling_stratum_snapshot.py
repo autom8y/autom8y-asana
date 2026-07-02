@@ -17,10 +17,13 @@ import pytest
 
 from autom8_asana.lambda_handlers import scheduling_stratum_snapshot as snap
 from autom8_asana.lambda_handlers.scheduling_stratum_snapshot import (
+    MIN_POSTURE_SIGNAL_ROWS,
     SnapshotRefusedError,
     assert_complete_office_set,
+    assert_posture_signal_floor,
     execute_snapshot_push,
     handler,
+    posture_signal_row_count,
     project_offer_frame,
     run_snapshot_push_async,
 )
@@ -328,6 +331,70 @@ def test_project_schema_lag_frame_refuses_not_fabricates() -> None:
     # The refusing build detects the absent columns and REFUSES honestly.
     with pytest.raises(FrameSchemaLagError, match="pre-1.5.0"):
         project_offer_frame(stale)
+
+
+# --- VALUE-FLOOR guard (degenerate-source completeness teeth) ---------------------
+
+
+def test_value_floor_refuses_all_null_posture_universe() -> None:
+    """RED (the exact 1.5.0 defect): company_id populated, EVERY posture column null.
+
+    company_id resolves (so assert_complete_office_set would PASS the non-empty SET),
+    but 0/N offices carry any scheduling-posture signal -> the value floor REFUSES,
+    preventing a degenerate whole-source overwrite of live posture.
+    """
+    df = _frame_df([{GUID_FIELD: "g1"}, {GUID_FIELD: "g2"}, {GUID_FIELD: "g3"}])
+    assert posture_signal_row_count(df) == 0
+    with pytest.raises(SnapshotRefusedError, match="degenerate posture source"):
+        assert_posture_signal_floor(df)
+
+
+def test_value_floor_passes_when_status_signal_present() -> None:
+    """GREEN: a single non-null custom_cal_status clears the floor (mixed frame passes)."""
+    df = _frame_df([{GUID_FIELD: "g1", CUSTOM_CAL_STATUS_FIELD: "Enabled"}, {GUID_FIELD: "g2"}])
+    assert posture_signal_row_count(df) >= MIN_POSTURE_SIGNAL_ROWS
+    assert_posture_signal_floor(df)  # does not raise
+
+
+def test_value_floor_passes_on_provider_only_signal() -> None:
+    """GREEN (all-GHL fleet): status null everywhere but a provider is set -> passes.
+
+    Distinguishes a degenerate source (NO signal anywhere) from a legitimate fleet whose
+    enrollment status happens to be null while a provider carries the destination.
+    """
+    df = _frame_df(
+        [{GUID_FIELD: "g1", CASCADE_PRIORITY[2]: "https://calendly/x"}, {GUID_FIELD: "g2"}]
+    )
+    assert posture_signal_row_count(df) == 1
+    assert_posture_signal_floor(df)  # does not raise
+
+
+def test_value_floor_not_triggered_on_empty_universe() -> None:
+    """A guid-less (empty) universe is the complete-set gate's remit, not the value floor."""
+    df = _frame_df([{GUID_FIELD: None}, {GUID_FIELD: "   "}])
+    assert posture_signal_row_count(df) == 0
+    assert_posture_signal_floor(df)  # does not raise (empty universe not floored)
+
+
+async def test_enumerate_degenerate_frame_raises_refused() -> None:
+    """END-TO-END: a degenerate (all-null posture) frame drives the ``refused`` outcome.
+
+    The value floor propagates SnapshotRefusedError through the enumerate closure so
+    execute_snapshot_push converts it to a ``refused`` run (pushes NOTHING).
+    """
+    df = _frame_df([{GUID_FIELD: "g1"}, {GUID_FIELD: "g2"}])
+    cache = _FakeCache(_FakeEntry(df))
+
+    async def _push(_offices: list[ExtractedScheduling]) -> StratumPushResult:
+        raise AssertionError("degenerate frame must REFUSE before any push")
+
+    result = await execute_snapshot_push(
+        gate=lambda: True,
+        enumerate_offices=lambda: snap._enumerate_offices_from_frame(cache, "proj"),
+        push=_push,
+    )
+    assert result.status == "refused"
+    assert result.entry_count == 0
 
 
 # --- _enumerate_offices_from_frame (full offer-frame source, frame-first) --------

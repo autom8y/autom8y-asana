@@ -88,7 +88,7 @@ OFFER_COLUMNS: list[ColumnDef] = [
         description="Weekly advertising spend",
     ),
     # -----------------------------------------------------------------------
-    # Scheduling-posture projection columns (schema 1.5.0 -- warm-projection,
+    # Scheduling-posture projection columns (schema 1.6.0 -- warm-projection,
     # frame-first extraction; FORK-1 A∘D).
     #
     # The scheduling-stratum whole-snapshot push (lambda_handlers/
@@ -101,12 +101,27 @@ OFFER_COLUMNS: list[ColumnDef] = [
     #
     # All columns are nullable=True (purely ADDITIVE -- an office genuinely
     # lacking a field reads null, which the pure normalizer treats as absent).
-    # The eight provider fields + custom_cal_status are read off the Offer task's
-    # OWN custom-field manifest (cf:; NameNormalizer-robust by-name match, so the
-    # snake_case logical names below match whatever the live Asana display string
-    # is). company_id is the office guid, cascaded from the Business ancestor
-    # (same parent-chain mechanism as `office`/`office_phone`; registered
-    # CascadingFieldDef Business.CascadingFields.COMPANY_ID, target_types=None).
+    #
+    # SOURCE LEVEL (1.6.0 CORRECTION -- was the degenerate 1.5.0 defect):
+    # custom_cal_status + the eight provider fields do NOT live on the Offer task.
+    # They are custom fields on the office-level UNIT_HOLDER ancestor (the monolith
+    # ``UnitHolder`` -- ``apis/.../custom_field/models/enum/binary/custom_cal_status``
+    # "must be called from a UnitHolder object"; verified live: the Offer manifest
+    # carries none of them, the UnitHolder "…Business Units 🔎" task carries them
+    # POPULATED, e.g. Custom Cal Status='Enabled'). 1.5.0 sourced them ``cf:`` off
+    # the Offer's OWN manifest with snake_case names -- which matched NOTHING (both
+    # WRONG LEVEL and WRONG NAME), so every projected row resolved null and the push
+    # was degenerate (all enrolled=true / stratum='inactive'). They are therefore
+    # sourced ``cascade:`` (ancestor traversal, same mechanism as company_id/
+    # office_phone) keyed by the REAL Asana display names (Title Case). The cascade
+    # resolver traverses Offer -> OfferHolder -> Unit -> UnitHolder and reads the
+    # value off the UNIT_HOLDER (registered UnitHolder.CascadingFields, target_types
+    # None). The name match is lower()/strip() (cf_utils.get_custom_field_value), so
+    # the display name MUST be exact modulo case/outer-whitespace -- snake names do
+    # NOT match.
+    #
+    # company_id is the office guid, cascaded from the Business ancestor (registered
+    # Business.CascadingFields.COMPANY_ID); it already resolved correctly in 1.5.0.
     ColumnDef(
         name="company_id",
         dtype="Utf8",
@@ -118,63 +133,63 @@ OFFER_COLUMNS: list[ColumnDef] = [
         name="custom_cal_status",
         dtype="Utf8",
         nullable=True,
-        source="cf:custom_cal_status",  # Office-global enrollment status enum option name
+        source="cascade:Custom Cal Status",  # UnitHolder enrollment status enum option name
         description="Enrollment status (enum option name; projects to enrolled bit)",
     ),
     ColumnDef(
         name="reviewwave_id",
         dtype="Utf8",
         nullable=True,
-        source="cf:reviewwave_id",  # CASCADE_PRIORITY[0]
+        source="cascade:ReviewWave ID",  # CASCADE_PRIORITY[0] (UnitHolder)
         description="Scheduling source: reviewwave id",
     ),
     ColumnDef(
         name="acuity_cal_url",
         dtype="Utf8",
         nullable=True,
-        source="cf:acuity_cal_url",  # CASCADE_PRIORITY[1]
+        source="cascade:Acuity Cal URL",  # CASCADE_PRIORITY[1] (UnitHolder)
         description="Scheduling source: acuity calendar url",
     ),
     ColumnDef(
         name="calendly_url",
         dtype="Utf8",
         nullable=True,
-        source="cf:calendly_url",  # CASCADE_PRIORITY[2]
+        source="cascade:Calendly URL",  # CASCADE_PRIORITY[2] (UnitHolder)
         description="Scheduling source: calendly url",
     ),
     ColumnDef(
         name="janeapp_url",
         dtype="Utf8",
         nullable=True,
-        source="cf:janeapp_url",  # CASCADE_PRIORITY[3]
+        source="cascade:JaneApp URL",  # CASCADE_PRIORITY[3] (UnitHolder)
         description="Scheduling source: janeapp url",
     ),
     ColumnDef(
         name="ehr_cal_url",
         dtype="Utf8",
         nullable=True,
-        source="cf:ehr_cal_url",  # CASCADE_PRIORITY[4]
+        source="cascade:EHR Cal URL",  # CASCADE_PRIORITY[4] (UnitHolder)
         description="Scheduling source: ehr calendar url",
     ),
     ColumnDef(
         name="trackstat_id",
         dtype="Utf8",
         nullable=True,
-        source="cf:trackstat_id",  # CASCADE_PRIORITY[5]
+        source="cascade:TrackStat ID",  # CASCADE_PRIORITY[5] (UnitHolder)
         description="Scheduling source: trackstat id",
     ),
     ColumnDef(
         name="sked_id",
         dtype="Utf8",
         nullable=True,
-        source="cf:sked_id",  # CASCADE_PRIORITY[6]
+        source="cascade:Sked ID",  # CASCADE_PRIORITY[6] (UnitHolder)
         description="Scheduling source: sked id",
     ),
     ColumnDef(
         name="custom_ghl_id",
         dtype="Utf8",
         nullable=True,
-        source="cf:custom_ghl_id",  # CASCADE_PRIORITY[7]
+        source="cascade:Custom GHL ID",  # CASCADE_PRIORITY[7] (UnitHolder, cascade terminal)
         description="Scheduling source: GHL calendar id (cascade terminal)",
     ),
 ]
@@ -186,5 +201,5 @@ OFFER_SCHEMA = DataFrameSchema(
         *BASE_COLUMNS,
         *[c for c in OFFER_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
-    version="1.5.0",  # scheduling-posture projection columns (frame-first extraction)
+    version="1.6.0",  # re-source scheduling-posture columns cascade:UnitHolder (fix degenerate 1.5.0 cf:Offer)
 )

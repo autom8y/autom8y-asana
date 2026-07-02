@@ -12,7 +12,8 @@ FRAME-FIRST (FORK-1 A∘D, warm-projection). The active-office posture is projec
 ONE pure Polars pass over the ALREADY-WARMED offer frame (:func:`project_offer_frame`
 via the pure ``map_frame_row_to_inputs``): sub-second, ZERO per-office Asana reads
 (the measured 900s-Lambda-ceiling blocker is dissolved -- TDD-DELTA 2026-07-02). The
-posture columns are projected upstream at bulk frame-warm time (offer schema 1.5.0).
+posture columns are projected upstream at bulk frame-warm time (offer schema 1.6.0 --
+cascade:UnitHolder for the enrollment status + eight providers; see OFFER_SCHEMA).
 
 EXPLICIT COMPLETENESS CONTRACT (the load-bearing safety):
 
@@ -31,10 +32,17 @@ EXPLICIT COMPLETENESS CONTRACT (the load-bearing safety):
     empty deduped guid set): it returns a ``refused`` outcome and pushes NOTHING.
 
     SCHEMA-LAG: the SWR cache serves stale-while-revalidate, so the first post-deploy
-    read may serve a PRE-1.5.0 frame LACKING the projected posture columns. This is
+    read may serve a PRE-1.6.0 frame LACKING the projected posture columns. This is
     detected (:func:`missing_frame_columns`) and REFUSED honestly -- never fabricated
     or default-filled. The refusal's triggered refresh converges the frame; a
     subsequent run succeeds.
+
+    VALUE-FLOOR: the columns may be PRESENT (schema-lag passes) yet their CONTENT
+    degenerate -- every posture column resolved null (the 1.5.0 wrong-level / wrong-name
+    cascade defect: 0/545 offices carried any signal, but company_id resolved so the SET
+    gate passed). :func:`assert_posture_signal_floor` REFUSES a universe that carries a
+    posture signal on FEWER than :data:`MIN_POSTURE_SIGNAL_ROWS` offices, so an all-empty
+    projection never whole-source-overwrites live posture with empties.
 
     Contrast ``push_orchestrator._push_*_for_completed_entities``, which operate over
     ``completed_entities`` (a PARTIAL set) -- that shape MUST NOT be used here.
@@ -76,6 +84,7 @@ from autom8_asana.lambda_handlers.cloudwatch import emit_metric
 from autom8_asana.normalizer.scheduling_extractor import (
     CUSTOM_CAL_STATUS_FIELD,
     GUID_FIELD,
+    REQUIRED_FRAME_COLUMNS,
     FrameSchemaLagError,
     map_frame_row_to_inputs,
     missing_frame_columns,
@@ -105,6 +114,24 @@ DEFAULT_SNAPSHOT_CADENCE_HOURS = 6
 
 #: Env override for the documented cadence (consumed by the releaser-seam infra).
 SNAPSHOT_CADENCE_HOURS_ENV_VAR = "SCHEDULING_STRATUM_SNAPSHOT_CADENCE_HOURS"
+
+#: VALUE-FLOOR guard threshold (the degenerate-source completeness teeth). A healthy
+#: whole-source snapshot MUST carry a scheduling-posture SIGNAL on at least this many
+#: offices in the universe. The 1.5.0 defect (cascade/cf sources at the WRONG level or
+#: WRONG name) resolved EVERY posture column null, so 0/545 pushed offices carried any
+#: signal -- yet company_id resolved fine, so the completeness gate passed and a
+#: degenerate whole-source push overwrote live posture with empties. A legitimate
+#: fleet -- even an all-GHL one that leaves the eight alt-providers null -- still
+#: carries a non-null custom_cal_status (the office-global binary enrollment enum) on
+#: every enrolled office, so a real universe never floors to zero.
+MIN_POSTURE_SIGNAL_ROWS = 1
+
+#: The posture-signal columns the value floor inspects: custom_cal_status + the eight
+#: CASCADE_PRIORITY providers (i.e. every REQUIRED_FRAME_COLUMN except the identity
+#: guid). Derived from REQUIRED_FRAME_COLUMNS so it stays in lockstep with the schema.
+_POSTURE_SIGNAL_COLUMNS: tuple[str, ...] = tuple(
+    c for c in REQUIRED_FRAME_COLUMNS if c != GUID_FIELD
+)
 
 
 class SnapshotRefusedError(Exception):
@@ -288,6 +315,70 @@ def project_offer_frame(df: pl.DataFrame) -> tuple[list[ExtractedScheduling], li
     return extracted, drift_guids
 
 
+def posture_signal_row_count(df: pl.DataFrame) -> int:
+    """Count universe offices carrying ANY scheduling-posture signal (VALUE-FLOOR input).
+
+    The universe is the push universe (distinct-agnostic here: every non-null / non-blank
+    ``company_id`` row -- dedup happens later in :func:`project_offer_frame`). An office
+    carries a posture signal when its ``custom_cal_status`` OR any of the eight
+    CASCADE_PRIORITY provider columns is non-null. A frame missing the posture columns
+    entirely (pre-1.6.0 schema-lag) returns 0 here, but that case is caught earlier by
+    the schema-lag guard -- this counter is only consulted once the columns are present.
+    """
+    import polars as pl
+
+    signal_cols = [c for c in _POSTURE_SIGNAL_COLUMNS if c in df.columns]
+    if GUID_FIELD not in df.columns or not signal_cols:
+        return 0
+    universe = df.filter(
+        pl.col(GUID_FIELD).is_not_null()
+        & (pl.col(GUID_FIELD).cast(pl.Utf8).str.strip_chars() != "")
+    )
+    if universe.height == 0:
+        return 0
+    return universe.filter(pl.any_horizontal([pl.col(c).is_not_null() for c in signal_cols])).height
+
+
+def assert_posture_signal_floor(df: pl.DataFrame) -> None:
+    """VALUE-FLOOR guard: REFUSE a whole-source push whose projected posture is degenerate.
+
+    The completeness contract already refuses an incomplete / empty office SET
+    (:func:`assert_complete_office_set`), but a source that resolves every posture
+    column to null -- a wrong-level or mis-named cascade source, the 1.5.0 defect --
+    produces a FULL, non-empty office set whose CONTENT is empty (all enrolled=true /
+    stratum='inactive' / destination null). company_id still resolves, so the SET gate
+    passes; only a VALUE floor catches it.
+
+    Raises :class:`SnapshotRefusedError` when a NON-EMPTY universe carries a posture
+    signal on FEWER than :data:`MIN_POSTURE_SIGNAL_ROWS` offices. An empty universe is
+    NOT floored here (it is the ``assert_complete_office_set`` empty-set refusal's
+    remit); a legitimate fleet always clears the floor via ``custom_cal_status``.
+    """
+    import polars as pl
+
+    signal_cols = [c for c in _POSTURE_SIGNAL_COLUMNS if c in df.columns]
+    if GUID_FIELD not in df.columns or not signal_cols:
+        # Missing columns => schema-lag territory (handled upstream); nothing to floor.
+        return
+    universe_height = df.filter(
+        pl.col(GUID_FIELD).is_not_null()
+        & (pl.col(GUID_FIELD).cast(pl.Utf8).str.strip_chars() != "")
+    ).height
+    if universe_height == 0:
+        return  # empty universe => assert_complete_office_set refuses; not a value-floor case
+    signal_rows = posture_signal_row_count(df)
+    if signal_rows < MIN_POSTURE_SIGNAL_ROWS:
+        raise SnapshotRefusedError(
+            f"degenerate posture source (value floor): {signal_rows}/{universe_height} "
+            "universe offices carry ANY scheduling-posture signal (null custom_cal_status "
+            "AND all-null provider cascade across the WHOLE universe). The projection "
+            "source is degenerate -- almost certainly a wrong-level or mis-named cascade "
+            "source (cf. the 1.5.0 cf:Offer defect) rather than a genuinely all-unenrolled "
+            "fleet. Refusing to push a whole-source snapshot that would overwrite live "
+            "posture with empties."
+        )
+
+
 async def _enumerate_offices_from_frame(
     cache: Any, project_gid: str
 ) -> tuple[list[ExtractedScheduling], bool]:
@@ -313,11 +404,22 @@ async def _enumerate_offices_from_frame(
     try:
         extracted, drift_guids = project_offer_frame(df)
     except FrameSchemaLagError as exc:
-        # SCHEMA-LAG: a stale-while-revalidate cache served a PRE-1.5.0 frame. REFUSE
+        # SCHEMA-LAG: a stale-while-revalidate cache served a PRE-1.6.0 frame. REFUSE
         # honestly (never fabricate posture from a frame that cannot carry it).
         logger.warning("scheduling_stratum_snapshot_frame_schema_lag", extra={"reason": str(exc)})
         emit_metric("SchedulingStratumSnapshotSchemaLag", 1)
         raise SnapshotRefusedError(str(exc)) from exc
+
+    # VALUE-FLOOR: the columns are PRESENT (schema-lag passed) but their CONTENT may be
+    # degenerate (all-null posture -- the 1.5.0 wrong-level/wrong-name cascade defect).
+    # company_id resolves fine, so the office SET is complete and the SET gate would
+    # pass; only this value floor catches an all-empty projection before it whole-source
+    # overwrites live posture. Raises SnapshotRefusedError (caught by execute_snapshot_push).
+    try:
+        assert_posture_signal_floor(df)
+    except SnapshotRefusedError:
+        emit_metric("SchedulingStratumSnapshotDegenerateSource", 1)
+        raise
 
     if drift_guids:
         logger.warning(
@@ -515,13 +617,16 @@ def _documented_cadence_hours() -> int:
 
 __all__ = [
     "DEFAULT_SNAPSHOT_CADENCE_HOURS",
+    "MIN_POSTURE_SIGNAL_ROWS",
     "SNAPSHOT_CADENCE_HOURS_ENV_VAR",
     "SNAPSHOT_OFFER_ENTITY_TYPE",
     "SnapshotRefusedError",
     "SnapshotRunResult",
     "assert_complete_office_set",
+    "assert_posture_signal_floor",
     "execute_snapshot_push",
     "handler",
+    "posture_signal_row_count",
     "project_offer_frame",
     "run_snapshot_push_async",
 ]
