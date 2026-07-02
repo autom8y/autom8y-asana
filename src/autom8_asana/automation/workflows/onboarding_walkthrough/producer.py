@@ -150,7 +150,7 @@ async def freeze_walkthrough_deck(
             with a writable ``export/`` subdir. CONFIG -- never hardcoded. If the
             ``export/`` subdir is NOT writable (Lambda read-only fs), the tree is
             transparently relocated to a writable copy and spawned from there.
-        deck_template: Deck template folder name (e.g. ``"ghl-calendar-setup"``).
+        deck_template: Deck template folder name (e.g. ``"email-forwarding-setup"``).
             The invoker prepends ``templates/``.
         gated_address: The canonical ``{uuid}@appointments.contenteapp.com``
             address resolved by the SDK (B1). Passed verbatim as ``--addr``;

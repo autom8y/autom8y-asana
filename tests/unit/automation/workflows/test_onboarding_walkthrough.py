@@ -16,6 +16,7 @@ import asyncio
 import hashlib
 import inspect
 import io
+import json
 import os
 import re
 import shutil
@@ -30,6 +31,7 @@ import structlog
 from autom8_asana.automation.workflows.bridge_base import BridgeWorkflowAction
 from autom8_asana.automation.workflows.onboarding_walkthrough import (
     constants,
+    deck_manifests,
     identity_guard,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough import (
@@ -2599,3 +2601,166 @@ class TestFaultNamingTaxonomy:
         assert out.status == "skipped"
         assert out.reason == "guid_anchor_mismatch"
         atts.upload_async.assert_not_called()
+
+
+# --- DECK-AUDIENCE LOCK (payload-correctness gate; product ruling 2026-07-02) ---
+#
+# Receipt: pre-lock, the map assigned GHL the INTERNAL-ONLY ghl-calendar-setup
+# deck and the sweep attached it to a live customer task at 2026-07-02T11:55:47Z
+# (walkthrough_1213653428400851_20260702115544.html). No gate ever verified deck
+# CONTENT against product intent. The lock closes that gap: owned audience
+# manifests (deck_manifests/{template}.json), completeness-pinned to the vendored
+# template set, plus a fail-closed 2b runtime gate on the RESOLVED deck_template.
+
+
+class TestDeckAudienceLock:
+    """Five-leg discriminating spec for the deck-audience lock (design-frozen).
+
+    (a) COMPLETENESS  -- manifest set == template-dir set, both directions;
+                         every manifest parses with a positive audience enum.
+    (b) MAP-PURITY    -- every mapped (non-None) deck is classified customer.
+    (c) PIN           -- ghl-calendar-setup is PINNED internal, which (with b)
+                         makes the pre-lock GHL->ghl-calendar-setup unbuildable.
+    (d) CONSTRUCTION  -- a poisoned map fails the (b) validator LOUDLY, naming
+                         the offending provider+deck.
+    (e) RUNTIME-BYPASS -- a bypassed/dynamic internal or unclassified selection
+                         is refused at 2b BEFORE any external leg; two-sided:
+                         the customer deck proceeds past the gate.
+    """
+
+    # -- (a) COMPLETENESS: templates <-> manifests, set-equal both directions --
+
+    def test_completeness_manifests_match_template_dirs_both_directions(self) -> None:
+        templates_dir = _VENDORED_PRODUCER_DIR / "templates"
+        assert templates_dir.is_dir(), "vendored producer templates dir must exist in-repo"
+        templates = {d.name for d in templates_dir.iterdir() if d.is_dir()}
+        manifests = {f.stem for f in deck_manifests.MANIFEST_DIR.glob("*.json")}
+        assert templates, "expected at least one producer template (harness sanity)"
+        unclassified = templates - manifests
+        orphans = manifests - templates
+        assert not unclassified, (
+            f"UNCLASSIFIED template dirs (add deck_manifests/{{name}}.json): {sorted(unclassified)}"
+        )
+        assert not orphans, (
+            f"ORPHAN manifests without a template dir (stale classification): {sorted(orphans)}"
+        )
+
+    def test_completeness_every_manifest_parses_with_positive_enum(self) -> None:
+        paths = sorted(deck_manifests.MANIFEST_DIR.glob("*.json"))
+        assert paths, "expected at least one audience manifest"
+        for path in paths:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            assert isinstance(data, dict), f"{path.name}: manifest body must be a JSON object"
+            audience = data.get("audience")
+            assert audience in {"customer", "internal"}, (
+                f"{path.name}: audience {audience!r} outside the positive enum "
+                f"{{'customer', 'internal'}} (no third value)"
+            )
+
+    # -- (b) MAP-PURITY: every mapped deck is customer-classified --
+
+    def test_map_purity_every_mapped_deck_is_customer(self) -> None:
+        deck_manifests.assert_map_customer_only(constants.WALKTHROUGH_DECK_MAP)
+        for provider, deck in constants.WALKTHROUGH_DECK_MAP.items():
+            if deck is not None:
+                assert deck_manifests.load_audience(deck) == "customer", (
+                    f"WALKTHROUGH_DECK_MAP[{provider!r}] = {deck!r} is not customer-classified"
+                )
+
+    # -- (c) PIN: ghl-calendar-setup is INTERNAL (product ruling 2026-07-02) --
+
+    def test_pin_ghl_calendar_setup_is_internal(self) -> None:
+        path = deck_manifests.MANIFEST_DIR / "ghl-calendar-setup.json"
+        assert path.is_file(), "the ghl-calendar-setup audience manifest must exist"
+        assert json.loads(path.read_text(encoding="utf-8")) == {"audience": "internal"}
+        # Consequence (with map-purity): no provider may map to the internal deck.
+        assert "ghl-calendar-setup" not in set(constants.WALKTHROUGH_DECK_MAP.values()), (
+            "the pre-lock defect reintroduced: a provider maps to the INTERNAL-ONLY "
+            "ghl-calendar-setup deck"
+        )
+
+    # -- (d) CONSTRUCTION-FAILS-LOUDLY: poisoned maps are rejected, named --
+
+    @pytest.mark.parametrize(
+        ("provider", "deck", "detail"),
+        [
+            # The EXACT pre-lock defect: GHL -> the internal deck.
+            ("GHL", "ghl-calendar-setup", "audience_internal"),
+            ("Acuity", "ghl-calendar-setup", "audience_internal"),
+            # Absence IS denial: a deck with NO manifest is equally unbuildable.
+            ("Calendly", "deck-with-no-manifest", "manifest_missing"),
+        ],
+    )
+    def test_construction_fails_loudly_naming_provider_and_deck(
+        self, provider: str, deck: str, detail: str
+    ) -> None:
+        poisoned = dict(constants.WALKTHROUGH_DECK_MAP)
+        poisoned[provider] = deck
+        with pytest.raises(deck_manifests.DeckAudienceError) as excinfo:
+            deck_manifests.assert_map_customer_only(poisoned)
+        message = str(excinfo.value)
+        assert provider in message, f"offending provider not named in: {message}"
+        assert deck in message, f"offending deck not named in: {message}"
+        assert excinfo.value.detail == detail
+
+    # -- (e) RUNTIME-BYPASS: the 2b gate refuses dynamic/bypassed selection --
+
+    def _patch_freeze(self, monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        spy = AsyncMock(return_value=_deck_bytes(SPIKE_ADDRESS))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        return spy
+
+    async def _drive_denied(
+        self, monkeypatch: pytest.MonkeyPatch, deck: str, expected_detail: str
+    ) -> None:
+        freeze_spy = self._patch_freeze(monkeypatch)
+        # Bypass the ratified map: dynamically point GHL at the given deck.
+        monkeypatch.setitem(constants.WALKTHROUGH_DECK_MAP, "GHL", deck)
+        wf, atts, resolver, _ = _make_workflow()
+        with _capture_workflow_logs() as captured:
+            out = await wf.process_entity(_entity(provider="GHL"), {})
+
+        assert out.status == "skipped"
+        assert out.reason == "deck_audience_denied"
+        entry = next(e for e in captured if e["event"] == "onboarding_walkthrough_skipped")
+        assert entry["reason"] == "deck_audience_denied"
+        assert entry["log_level"] == "error"  # structural drift, LOUD (guard_violation twin)
+        assert entry["deck_template"] == deck
+        assert entry["detail"] == expected_detail
+        # NO external leg ran: no phone-derived resolve, no freeze, no attach mutation.
+        resolver.resolve_routing_address_by_phone_async.assert_not_called()
+        freeze_spy.assert_not_awaited()
+        atts.upload_async.assert_not_called()
+        atts.delete_async.assert_not_called()
+        print(
+            f"[LOCK] deck={deck!r} -> {out.reason} detail={expected_detail} "
+            f"resolve=0 freeze=0 upload=0"
+        )
+
+    async def test_runtime_bypass_internal_deck_denied_before_any_external_leg(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        await self._drive_denied(monkeypatch, "ghl-calendar-setup", "audience_internal")
+
+    async def test_runtime_bypass_unclassified_deck_denied_default_deny(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        await self._drive_denied(monkeypatch, "deck-with-no-manifest", "manifest_missing")
+
+    async def test_runtime_two_sided_customer_deck_proceeds_past_gate(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The no-defect variant PASSES (canary has teeth): the ratified map
+        # (GHL -> email-forwarding-setup, customer) proceeds past 2b to the
+        # full resolve->freeze->upload path.
+        freeze_spy = self._patch_freeze(monkeypatch)
+        wf, atts, resolver, _ = _make_workflow()
+        out = await wf.process_entity(_entity(provider="GHL"), {})
+
+        assert out.status == "succeeded"
+        resolver.resolve_routing_address_by_phone_async.assert_awaited_once()
+        freeze_spy.assert_awaited_once()
+        assert freeze_spy.await_args is not None
+        assert freeze_spy.await_args.kwargs["deck_template"] == "email-forwarding-setup"
+        atts.upload_async.assert_awaited_once()
+        print("[LOCK] customer deck email-forwarding-setup proceeds: resolve=1 freeze=1 upload=1")

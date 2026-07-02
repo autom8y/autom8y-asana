@@ -44,8 +44,15 @@ from autom8_asana.automation.workflows.bridge_base import (
     BridgeOutcome,
     BridgeWorkflowAction,
 )
-from autom8_asana.automation.workflows.onboarding_walkthrough import constants, identity_guard
+from autom8_asana.automation.workflows.onboarding_walkthrough import (
+    constants,
+    deck_manifests,
+    identity_guard,
+)
 from autom8_asana.automation.workflows.onboarding_walkthrough import producer as _producer
+from autom8_asana.automation.workflows.onboarding_walkthrough.deck_manifests import (
+    DeckAudienceError,
+)
 from autom8_asana.automation.workflows.onboarding_walkthrough.producer import (
     ProducerFreezeError,
 )
@@ -427,6 +434,29 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                 provider=provider,
             )
             return BridgeOutcome(gid=gid, status="skipped", reason="provider_unmapped")
+
+        # 2b. AUDIENCE -- the deck-audience lock (payload-correctness gate; product
+        #     ruling 2026-07-02). Gates the RESOLVED ``deck_template`` variable (not
+        #     the map), re-reading its manifest at call time, so a dynamic/bypassed
+        #     selection is still gated. Earliest-point placement fail-closes before
+        #     ANY external leg: no phone read, no resolver call, no GFR anchor, no
+        #     producer subprocess (mirrors the W1 guard's precedes-FREEZE discipline).
+        #     DEFAULT-DENY: a deck without a valid customer manifest is refused.
+        try:
+            deck_manifests.assert_customer_deck(deck_template)
+        except DeckAudienceError as exc:
+            # ERROR (not INFO): an internal deck reaching the attach path is
+            # structural drift -- same treatment as guard_violation. Fail-closed:
+            # skip, nothing attached, no partial state; a retry reproduces the
+            # refusal until the classification or the map is corrected.
+            logger.error(
+                "onboarding_walkthrough_skipped",
+                task_gid=gid,
+                reason="deck_audience_denied",
+                deck_template=deck_template,
+                detail=exc.detail,
+            )
+            return BridgeOutcome(gid=gid, status="skipped", reason="deck_audience_denied")
 
         # 3. PHONE -- fail-closed skip when office_phone is absent/empty.
         office_phone = entity.get("office_phone")
