@@ -5,19 +5,26 @@ Per PRD FR-2 / TDD §Data Model / ADR §4 (G-DENOM, positive enum gate):
 ``WALKTHROUGH_DECK_MAP`` enumerates ALL 18 live ``Calendar Provider`` enum
 options (N0 live probe against Asana task ``1214919448732981``, 2026-06-27).
 The value->deck assignment is **PRODUCT-INPUT / PROBE-GATED** and is NOT
-fabricated here: only ``GHL -> ghl-calendar-setup`` is semantically
-unambiguous. The other 17 providers are explicit ``None`` placeholders -- a
-provider mapped to ``None`` (or absent from the map) takes the no-op skip path
-by construction.
+fabricated here. The one product-ruled assignment is GHL: the operator's
+2026-07-02 ruling classifies ``ghl-calendar-setup`` as **INTERNAL-ONLY** (an
+internal ops/setup deck -- the earlier "semantically unambiguous" reading was
+WRONG and produced a live wrong-deck attach at 2026-07-02T11:55:47Z) and names
+``email-forwarding-setup`` as the customer-facing walkthrough deck. The other
+17 providers are explicit ``None`` placeholders -- a provider mapped to
+``None`` (or absent from the map) takes the no-op skip path by construction.
 
 ``WALKTHROUGH_TRIGGER_VALUES`` is **derived** from the map (a provider triggers
 a walkthrough iff it maps to a real deck). Deriving it guarantees the positive
 gate and the deck lookup can never disagree.
 
 The two producer deck templates that exist today are
-``templates/email-forwarding-setup`` and ``templates/ghl-calendar-setup``; the
-map values are the template *folder* names (the producer invoker prepends
-``templates/``).
+``templates/email-forwarding-setup`` (audience: customer) and
+``templates/ghl-calendar-setup`` (audience: internal); the map values are the
+template *folder* names (the producer invoker prepends ``templates/``). Every
+template dir is audience-classified by an owned manifest in
+``deck_manifests/`` (completeness-enforced by test), and the workflow's 2b
+AUDIENCE gate (the deck-audience lock) refuses any non-customer deck at the
+attach seam -- DEFAULT-DENY: absence of a manifest IS denial.
 """
 
 from __future__ import annotations
@@ -82,7 +89,9 @@ MAX_PRIOR_DECK_BYTES = 8 * 1024 * 1024
 
 # --- The necessity rule (G-DENOM) ---
 # All 18 live Calendar Provider options. Deck assignment is PRODUCT-INPUT /
-# PROBE-GATED (D-2) except GHL. Do NOT guess the 17 placeholders to a deck.
+# PROBE-GATED (D-2) except GHL (product-ruled 2026-07-02). Do NOT guess the 17
+# placeholders to a deck. Any mapped deck MUST be classified audience=customer
+# in deck_manifests/ (map-purity test) and is re-checked at runtime (2b gate).
 WALKTHROUGH_DECK_MAP: dict[str, str | None] = {
     "Acuity": None,  # PROBE-GATED / PRODUCT-INPUT
     "Calendly": None,  # PROBE-GATED / PRODUCT-INPUT
@@ -90,7 +99,10 @@ WALKTHROUGH_DECK_MAP: dict[str, str | None] = {
     "ChiroTouch Cloud": None,  # PROBE-GATED / PRODUCT-INPUT
     "Elation": None,  # PROBE-GATED / PRODUCT-INPUT
     "Genesis": None,  # PROBE-GATED / PRODUCT-INPUT
-    "GHL": "ghl-calendar-setup",  # CANDIDATE -- unambiguous; product-confirm before live send
+    # PRODUCT-RULED 2026-07-02: the GHL-specific deck (ghl-calendar-setup) is
+    # INTERNAL-ONLY; the customer-facing walkthrough is email-forwarding-setup.
+    # Enforced by the deck-audience lock (deck_manifests/ + the 2b runtime gate).
+    "GHL": "email-forwarding-setup",
     "Google": None,  # PROBE-GATED / PRODUCT-INPUT
     "JaneApp": None,  # PROBE-GATED / PRODUCT-INPUT (pilot task value D-5; deck UNDETERMINED D-2)
     "PromptEMR": None,  # PROBE-GATED / PRODUCT-INPUT
