@@ -92,8 +92,12 @@ def assert_customer_deck(deck_template: str) -> None:
 def assert_map_customer_only(deck_map: dict[str, str | None]) -> None:
     """Map-purity validator: every mapped (non-None) deck must be customer-classified.
 
-    Construction fails LOUDLY: the raised error names the offending provider AND
-    deck, so a wrong-audience map entry can never build quietly.
+    Applies to any ``provider -> deck`` mapping -- today the provider-agnostic
+    ``WALKTHROUGH_DECK_OVERRIDES`` seam (a ``None`` value is an EXPLICIT exclusion
+    and is skipped here). Construction fails LOUDLY: the raised error names the
+    offending provider AND deck, so a wrong-audience override can never build
+    quietly. Pair with ``assert_customer_deck(WALKTHROUGH_DECK_DEFAULT)`` to pin
+    the universal default deck itself.
 
     Raises:
         DeckAudienceError: naming the first offending ``provider -> deck`` entry.
@@ -109,7 +113,7 @@ def assert_map_customer_only(deck_map: dict[str, str | None]) -> None:
             deck,
             detail,
             message=(
-                f"WALKTHROUGH_DECK_MAP[{provider!r}] = {deck!r} is not a customer deck "
+                f"deck override [{provider!r}] = {deck!r} is not a customer deck "
                 f"({detail}); map a customer-classified deck or None"
             ),
         )
