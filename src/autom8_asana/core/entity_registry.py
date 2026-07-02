@@ -45,6 +45,7 @@ from autom8y_log import get_logger
 from autom8_asana.core.project_registry import (
     ACCOUNT_ERROR_PIPELINE_PROJECT,
     ACTIVATION_CONSULTATION_PROJECT,
+    CALENDAR_INTEGRATIONS_PROJECT,
     EXPANSION_PIPELINE_PROJECT,
     IMPLEMENTATION_PIPELINE_PROJECT,
     ONBOARDING_PIPELINE_PROJECT,
@@ -715,6 +716,22 @@ ENTITY_DESCRIPTORS: tuple[EntityDescriptor, ...] = (
         model_class_path="autom8_asana.models.business.hours.Hours",
         default_ttl_seconds=3600,
     ),
+    # Calendar-integration play tasks (FAULT-7 Gate-1 fix; ADR-fault7-gfr-anchor-
+    # onboarding-walkthrough-2026-07-02). TYPE-ONLY entry: it exists so Tier-1
+    # detection (ProjectTypeRegistry.lookup -> EntityRegistry.get_by_gid) can
+    # classify tasks whose sole membership is the Calendar Integrations project,
+    # letting the GFR entry gate pass. Deliberately NO dataframe schema/extractor/
+    # row model and NO model_class_path: GFR identity reads the BUSINESS frame,
+    # never a calendar frame. warmable stays False (never cache-warmed);
+    # body_parameterized stays False (statically registered GID).
+    EntityDescriptor(
+        name="calendar_integration",
+        pascal_name="CalendarIntegration",
+        display_name="Calendar Integrations",
+        entity_type=None,  # Set post-import via _bind_entity_types()
+        category=EntityCategory.LEAF,
+        primary_project_gid=CALENDAR_INTEGRATIONS_PROJECT,
+    ),
     # =========================================================================
     # Business-Level Holders
     # =========================================================================
@@ -999,6 +1016,8 @@ def _bind_entity_types() -> None:
         # Sprint 1 — asana-clean-break-leaf: PG-05 elevated; HC-6 check passed.
         "project": EntityType.PROJECT,
         "section": EntityType.SECTION,
+        # FAULT-7 Gate-1 fix (ADR-fault7-gfr-anchor-onboarding-walkthrough-2026-07-02).
+        "calendar_integration": EntityType.CALENDAR_INTEGRATION,
     }
 
     for desc in ENTITY_DESCRIPTORS:

@@ -51,6 +51,14 @@ RECONCILIATION_HOLDER_PROJECT = "1203404998225231"
 # Videography holder
 VIDEOGRAPHY_HOLDER_PROJECT = "1207984018149338"
 
+# Calendar Integrations (FAULT-7 Gate-1 fix; ADR-fault7-gfr-anchor-onboarding-
+# walkthrough-2026-07-02). Referenced by the entity_registry CALENDAR_INTEGRATION
+# descriptor (Tier-1 type detection) and the tier-3 consumer warm set below.
+# DELIBERATELY NOT in _REGISTRY: promoting it would widen get_project_gid /
+# all_entity_project_gids / parity (see the warm-set separation note below and
+# onboarding_walkthrough/constants.py). Single literal occurrence in this module.
+CALENDAR_INTEGRATIONS_PROJECT = "1209442849265632"
+
 # =============================================================================
 # Pipeline Projects (from lifecycle_stages.yaml)
 # =============================================================================
@@ -261,7 +269,7 @@ _CONSUMER_WARM_SET_TIER_3_LIGHT: tuple[str, ...] = (
     "1208231632857419",  # OptimizationNotifications (registry-absent: +5 of 11)
     "1205526136594283",  # QuestionOnPerformance (registry-absent: +6 of 11; isolated play)
     "1207507299545000",  # BackendOnboardABusiness (registry-absent: +7 of 11; isolated play)
-    "1209442849265632",  # CalendarIntegrations (registry-absent: +8 of 11; isolated play)
+    CALENDAR_INTEGRATIONS_PROJECT,  # CalendarIntegrations (registry-absent: +8 of 11; isolated play)
     "1209442727608287",  # AccessProcessing (registry-absent: +9 of 11)
     "1206330409791366",  # PauseABusinessUnit (registry-absent: +10 of 11; interrupted build / honest-empty -- ADR-2)
     "1208848470341588",  # CustomerHealth (registry-absent: +11 of 11; honest-empty -- ADR-1)
