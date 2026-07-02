@@ -23,10 +23,15 @@ Security:
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
+from typing import TYPE_CHECKING
 
 from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_log import get_logger
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 logger = get_logger("autom8_asana.auth")
 
@@ -99,8 +104,43 @@ def clear_bot_pat_cache() -> None:
     get_bot_pat.cache_clear()
 
 
+def assert_no_plaintext_pat_in_caller(*, env: Mapping[str, str] | None = None) -> None:
+    """Caller-startup guard (H5/V6): fail closed if a bare ``ASANA_PAT`` is set.
+
+    The token-safe read-route requires the *interactive caller* (e.g. the iris
+    read-route caller) to hold only a short-lived brokered identity — it must
+    resolve the PAT through ``ASANA_PAT_ARN`` server-side and NEVER carry the
+    plaintext PAT in its own environment. This guard is the caller-image
+    assertion: invoke it at caller startup so a misconfigured caller that boots
+    with a bare ``ASANA_PAT`` **halts** instead of silently degrading to a
+    plaintext-PAT posture.
+
+    It is intentionally NOT wired into the ECS server startup: the server
+    legitimately receives ``ASANA_PAT`` injected from Secrets Manager and
+    brokers it on callers' behalf. This guard is for the caller boundary only.
+
+    Args:
+        env: Environment mapping to inspect (defaults to ``os.environ``).
+            Injectable for testing.
+
+    Raises:
+        BotPATError: if a non-empty bare ``ASANA_PAT`` is present — the "silent
+            plaintext downgrade" the read-route forbids.
+    """
+    source: Mapping[str, str] = os.environ if env is None else env
+    if source.get("ASANA_PAT"):
+        logger.error("caller_holds_plaintext_pat")
+        raise BotPATError(
+            "Caller context holds a bare ASANA_PAT; the token-safe read-route "
+            "forbids the caller from materializing the plaintext PAT. Resolve "
+            "the secret via ASANA_PAT_ARN brokerage and use a short-lived S2S "
+            "identity instead."
+        )
+
+
 __all__ = [
     "BotPATError",
     "get_bot_pat",
     "clear_bot_pat_cache",
+    "assert_no_plaintext_pat_in_caller",
 ]

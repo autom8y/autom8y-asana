@@ -13,7 +13,12 @@ from unittest.mock import patch
 
 import pytest
 
-from autom8_asana.auth.bot_pat import BotPATError, clear_bot_pat_cache, get_bot_pat
+from autom8_asana.auth.bot_pat import (
+    BotPATError,
+    assert_no_plaintext_pat_in_caller,
+    clear_bot_pat_cache,
+    get_bot_pat,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -143,6 +148,71 @@ class TestBotPATError:
         # Assert
         assert isinstance(error, Exception)
         assert str(error) == "test message"
+
+
+class TestCallerPlaintextGuard:
+    """H5/V6 caller-startup guard: bare ASANA_PAT in a caller context halts.
+
+    Two-sided (RED-first): a caller that boots with a bare ``ASANA_PAT`` set is
+    the vulnerability the read-route forbids (RED); with the guard present that
+    caller startup HALTS (raises); a caller with no bare ``ASANA_PAT`` passes
+    (GREEN).
+    """
+
+    def test_bare_plaintext_pat_halts_caller_startup(self) -> None:
+        """Guard present + bare ASANA_PAT set -> startup halts (BotPATError)."""
+        env = {"ASANA_PAT": "0/plaintext_pat_present_in_caller_env_1234"}
+        with pytest.raises(BotPATError) as exc_info:
+            assert_no_plaintext_pat_in_caller(env=env)
+        assert "bare ASANA_PAT" in str(exc_info.value)
+
+    def test_bare_plaintext_pat_halts_even_with_arn_present(self) -> None:
+        """A bare ASANA_PAT is forbidden even alongside an ARN — no plaintext at
+        rest in the caller regardless of broker config."""
+        env = {
+            "ASANA_PAT": "0/plaintext_still_present_1234567890abcd",
+            "ASANA_PAT_ARN": "arn:aws:secretsmanager:us-east-1:123:secret:pat",
+        }
+        with pytest.raises(BotPATError):
+            assert_no_plaintext_pat_in_caller(env=env)
+
+    def test_no_plaintext_pat_passes(self) -> None:
+        """GREEN: caller resolving only via ARN (no bare ASANA_PAT) passes."""
+        env = {"ASANA_PAT_ARN": "arn:aws:secretsmanager:us-east-1:123:secret:pat"}
+        # Must not raise.
+        assert_no_plaintext_pat_in_caller(env=env)
+
+    def test_empty_plaintext_pat_passes(self) -> None:
+        """An empty ASANA_PAT is treated as unset (passes)."""
+        assert_no_plaintext_pat_in_caller(env={"ASANA_PAT": ""})
+
+    def test_error_message_carries_no_credential(self) -> None:
+        """The halt message names the variable but never echoes the value."""
+        secret = "0/super_secret_value_do_not_leak_abcdef123456"
+        try:
+            assert_no_plaintext_pat_in_caller(env={"ASANA_PAT": secret})
+        except BotPATError as exc:
+            assert secret not in str(exc)
+            assert "ASANA_PAT" in str(exc)
+
+
+class TestFailClosedResolver:
+    """H5/V6 resolver leg: absent-ARN interactive context fails closed.
+
+    Complements ``TestGetBotPatExtensionResolution``: when neither the ARN nor
+    a bare ASANA_PAT is resolvable, the resolver raises BotPATError rather than
+    silently degrading to a plaintext/empty read.
+    """
+
+    def test_absent_secret_source_raises_never_returns_empty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("ASANA_PAT_ARN", raising=False)
+        monkeypatch.delenv("ASANA_PAT", raising=False)
+        clear_bot_pat_cache()
+
+        with pytest.raises(BotPATError):
+            get_bot_pat()
 
 
 class TestGetBotPatExtensionResolution:
