@@ -409,8 +409,45 @@ class TestGlobalRegistry:
     def test_descriptor_count(self) -> None:
         """Registry has expected number of descriptors."""
         # Sprint 1 — asana-clean-break-leaf: +2 for project + section descriptors.
+        # FAULT-7 Gate-1 fix: +1 for the calendar_integration type-only descriptor
+        # (ADR-fault7-gfr-anchor-onboarding-walkthrough-2026-07-02).
         registry = get_registry()
-        assert len(registry.all_descriptors()) == 29
+        assert len(registry.all_descriptors()) == 30
+
+    def test_calendar_integration_registered_by_gid(self) -> None:
+        """GREEN-1 (FAULT-7): the calendar gid resolves the type-only descriptor.
+
+        Per ADR-fault7-gfr-anchor-onboarding-walkthrough-2026-07-02: the entry
+        is TYPE-ONLY — no DataFrame schema, no extractor, not warmable, not
+        body-parameterized. GFR identity reads the BUSINESS frame, never a
+        calendar frame.
+        """
+        from autom8_asana.core.project_registry import CALENDAR_INTEGRATIONS_PROJECT
+        from autom8_asana.core.types import EntityType
+
+        registry = get_registry()
+        desc = registry.get_by_gid(CALENDAR_INTEGRATIONS_PROJECT)
+        assert desc is not None
+        assert desc.name == "calendar_integration"
+        assert desc.entity_type is EntityType.CALENDAR_INTEGRATION
+        assert desc.warmable is False
+        assert desc.body_parameterized is False
+        assert desc.schema_module_path is None  # no DataFrame schema
+        assert desc.extractor_class_path is None
+        assert desc.model_class_path is None
+
+    def test_calendar_integration_lookup_via_project_type_registry(self) -> None:
+        """GREEN-1 (FAULT-7): the canonical front door classifies the gid.
+
+        ProjectTypeRegistry.lookup delegates to EntityRegistry.get_by_gid FIRST,
+        so the descriptor alone (no model-class bootstrap entry) must resolve
+        Tier-1 detection for the walkthrough's play tasks.
+        """
+        from autom8_asana.core.project_registry import CALENDAR_INTEGRATIONS_PROJECT
+        from autom8_asana.core.types import EntityType
+        from autom8_asana.models.business.registry import get_registry as get_ptr
+
+        assert get_ptr().lookup(CALENDAR_INTEGRATIONS_PROJECT) is EntityType.CALENDAR_INTEGRATION
 
     def test_warmable_count_and_order(self) -> None:
         """Warmable entities match expected count and priority order."""

@@ -58,5 +58,12 @@ class EntityType(Enum):
     PROJECT = "project"
     SECTION = "section"
 
+    # Calendar-integration play tasks (FAULT-7 Gate-1 fix; ADR-fault7-gfr-anchor-
+    # onboarding-walkthrough-2026-07-02). Tasks in the Calendar Integrations
+    # project (CALENDAR_INTEGRATIONS_PROJECT, project_registry.py) — the
+    # onboarding-walkthrough sweep's entry entities. Additive: verified zero
+    # exhaustive matches over EntityType exist at HEAD.
+    CALENDAR_INTEGRATION = "calendar_integration"
+
     # Fallback
     UNKNOWN = "unknown"
