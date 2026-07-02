@@ -55,6 +55,8 @@ class TestEntityType:
             "HOURS",
             "PROJECT",
             "SECTION",
+            # FAULT-7 Gate-1 fix (ADR-fault7-gfr-anchor-onboarding-walkthrough-2026-07-02).
+            "CALENDAR_INTEGRATION",
             "UNKNOWN",
         }
         actual = {e.name for e in EntityType}
