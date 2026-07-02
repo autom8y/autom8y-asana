@@ -7,6 +7,7 @@ to onboarding tasks whose Calendar Provider triggers a walkthrough.
 from __future__ import annotations
 
 from autom8_asana.automation.workflows.onboarding_walkthrough.constants import (
+    WALKTHROUGH_DECK_DEFAULT,
     WALKTHROUGH_DECK_MAP,
     WALKTHROUGH_ENABLED_ENV_VAR,
     WALKTHROUGH_TRIGGER_VALUES,
@@ -20,6 +21,7 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.workflow import (
 )
 
 __all__ = [
+    "WALKTHROUGH_DECK_DEFAULT",
     "WALKTHROUGH_DECK_MAP",
     "WALKTHROUGH_ENABLED_ENV_VAR",
     "WALKTHROUGH_TRIGGER_VALUES",

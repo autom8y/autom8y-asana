@@ -424,7 +424,10 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
             )
             return BridgeOutcome(gid=gid, status="skipped", reason="provider_not_triggering")
 
-        # 2. MAP -- a known provider whose deck is PROBE-GATED (None) -> no-op skip.
+        # 2. MAP -- resolve the deck. UNIVERSAL (operator ruling 2026-07-02): a known
+        #    provider resolves to the universal customer deck (email-forwarding-setup)
+        #    unless a per-provider D-2 override EXPLICITLY EXCLUDES it (override=None),
+        #    in which case it takes the no-op skip path by construction.
         deck_template = constants.WALKTHROUGH_DECK_MAP[provider]
         if deck_template is None:
             logger.info(

@@ -4,14 +4,18 @@ Per PRD FR-2 / TDD §Data Model / ADR §4 (G-DENOM, positive enum gate):
 
 ``WALKTHROUGH_DECK_MAP`` enumerates ALL 18 live ``Calendar Provider`` enum
 options (N0 live probe against Asana task ``1214919448732981``, 2026-06-27).
-The value->deck assignment is **PRODUCT-INPUT / PROBE-GATED** and is NOT
-fabricated here. The one product-ruled assignment is GHL: the operator's
-2026-07-02 ruling classifies ``ghl-calendar-setup`` as **INTERNAL-ONLY** (an
-internal ops/setup deck -- the earlier "semantically unambiguous" reading was
-WRONG and produced a live wrong-deck attach at 2026-07-02T11:55:47Z) and names
-``email-forwarding-setup`` as the customer-facing walkthrough deck. The other
-17 providers are explicit ``None`` placeholders -- a provider mapped to
-``None`` (or absent from the map) takes the no-op skip path by construction.
+OPERATOR RULING (2026-07-02): the onboarding walkthrough is **UNIVERSAL** --
+``email-forwarding-setup`` is the one customer-facing deck for EVERY ACTIVE
+calendar-integration task, attached REGARDLESS of the Calendar Provider value
+(the deck teaches the provider-agnostic appointments / email-forwarding flow;
+the rep gates the send -- no per-provider discrimination yet). Per-provider
+differentiation is DEFERRED (D-2), so the map is now DERIVED from a single named
+default (``WALKTHROUGH_DECK_DEFAULT``) plus a sparse per-provider OVERRIDE seam
+(``_PROVIDER_DECK_OVERRIDES``, EMPTY today) rather than 18 hand-assigned values
+-- "universal" is stated ONCE and cannot drift. An override of ``None``
+EXPLICITLY EXCLUDES a provider (no-op skip by construction); the internal
+``ghl-calendar-setup`` deck is UNREACHABLE here (the default is customer,
+overrides is empty, and the audience lock re-checks at build- and run-time).
 
 ``WALKTHROUGH_TRIGGER_VALUES`` is **derived** from the map (a provider triggers
 a walkthrough iff it maps to a real deck). Deriving it guarantees the positive
@@ -87,37 +91,63 @@ ATTACHMENT_GLOB = "walkthrough_*.html"
 # exhaust memory or abort the whole task's idempotency check.
 MAX_PRIOR_DECK_BYTES = 8 * 1024 * 1024
 
-# --- The necessity rule (G-DENOM) ---
-# All 18 live Calendar Provider options. Deck assignment is PRODUCT-INPUT /
-# PROBE-GATED (D-2) except GHL (product-ruled 2026-07-02). Do NOT guess the 17
-# placeholders to a deck. Any mapped deck MUST be classified audience=customer
-# in deck_manifests/ (map-purity test) and is re-checked at runtime (2b gate).
+# --- The universal deck (operator ruling 2026-07-02) ---
+# The one customer-facing walkthrough deck for ACTIVE calendar-integration. Any
+# resolvable provider with no explicit override resolves HERE (provider-agnostic:
+# the deck teaches the same appointments / email-forwarding flow for everyone).
+# MUST be classified audience=customer in deck_manifests/ -- enforced at build
+# time (map-purity test) AND re-read at the 2b runtime gate. NEVER the internal
+# ``ghl-calendar-setup`` deck.
+WALKTHROUGH_DECK_DEFAULT: str = "email-forwarding-setup"
+
+# --- Per-provider OVERRIDE seam (future D-2 differentiation; EMPTY today) ---
+# Overrides RELATIVE to WALKTHROUGH_DECK_DEFAULT. The ruling is universal, so this
+# is empty; a later D-2 differentiation edits ONLY this dict. Semantics:
+#   * provider ABSENT here  -> resolves to WALKTHROUGH_DECK_DEFAULT (universal);
+#   * provider -> "<deck>"   -> an ALTERNATE customer deck (still audience-gated);
+#   * provider -> None       -> EXPLICITLY EXCLUDED (no-op skip, provider_unmapped).
+# A non-customer deck placed here is rejected LOUDLY by the map-purity validator
+# (assert_map_customer_only) at build time and by the 2b gate at runtime, so no
+# override can ever reach the internal ``ghl-calendar-setup`` deck.
+_PROVIDER_DECK_OVERRIDES: dict[str, str | None] = {}
+
+# --- The necessity rule (G-DENOM): the closed enum of live Calendar Providers ---
+# All 18 options from the N0 probe. This is the positive gate: only a KNOWN live
+# provider value proceeds (a wholly-unknown value skips as provider_not_triggering).
+# Ordered so the derived map materializes deterministically (stable diffs).
+_ALL_PROVIDERS: tuple[str, ...] = (
+    "Acuity",
+    "Calendly",
+    "ChiroHD",
+    "ChiroTouch Cloud",
+    "Elation",
+    "Genesis",
+    "GHL",
+    "Google",
+    "JaneApp",
+    "PromptEMR",
+    "ReviewWave",
+    "SKED",
+    "SimplePractice",
+    "TrackStat",
+    "Unify",
+    "EHR → GCal",
+    "Practice Better",
+    "Outlook",
+)
+
+# The necessity rule, MATERIALIZED: every live provider -> its deck, DERIVED from
+# the universal default + the (empty) override seam. Universal today: every
+# provider maps to email-forwarding-setup. Any mapped (non-None) deck MUST be
+# audience=customer (map-purity test) and is re-checked at runtime (2b gate).
 WALKTHROUGH_DECK_MAP: dict[str, str | None] = {
-    "Acuity": None,  # PROBE-GATED / PRODUCT-INPUT
-    "Calendly": None,  # PROBE-GATED / PRODUCT-INPUT
-    "ChiroHD": None,  # PROBE-GATED / PRODUCT-INPUT
-    "ChiroTouch Cloud": None,  # PROBE-GATED / PRODUCT-INPUT
-    "Elation": None,  # PROBE-GATED / PRODUCT-INPUT
-    "Genesis": None,  # PROBE-GATED / PRODUCT-INPUT
-    # PRODUCT-RULED 2026-07-02: the GHL-specific deck (ghl-calendar-setup) is
-    # INTERNAL-ONLY; the customer-facing walkthrough is email-forwarding-setup.
-    # Enforced by the deck-audience lock (deck_manifests/ + the 2b runtime gate).
-    "GHL": "email-forwarding-setup",
-    "Google": None,  # PROBE-GATED / PRODUCT-INPUT
-    "JaneApp": None,  # PROBE-GATED / PRODUCT-INPUT (pilot task value D-5; deck UNDETERMINED D-2)
-    "PromptEMR": None,  # PROBE-GATED / PRODUCT-INPUT
-    "ReviewWave": None,  # PROBE-GATED / PRODUCT-INPUT
-    "SKED": None,  # PROBE-GATED / PRODUCT-INPUT
-    "SimplePractice": None,  # PROBE-GATED / PRODUCT-INPUT
-    "TrackStat": None,  # PROBE-GATED / PRODUCT-INPUT
-    "Unify": None,  # PROBE-GATED / PRODUCT-INPUT
-    "EHR → GCal": None,  # PROBE-GATED / PRODUCT-INPUT
-    "Practice Better": None,  # PROBE-GATED / PRODUCT-INPUT
-    "Outlook": None,  # PROBE-GATED / PRODUCT-INPUT
+    provider: _PROVIDER_DECK_OVERRIDES.get(provider, WALKTHROUGH_DECK_DEFAULT)
+    for provider in _ALL_PROVIDERS
 }
 
 # Trigger set = providers with a non-None deck. Derived, so the two constants
-# cannot drift (a provider is a trigger iff it maps to a real deck).
+# cannot drift (a provider is a trigger iff it maps to a real deck). Universal
+# today: every provider triggers (no override excludes one yet).
 WALKTHROUGH_TRIGGER_VALUES: frozenset[str] = frozenset(
     provider for provider, deck in WALKTHROUGH_DECK_MAP.items() if deck is not None
 )

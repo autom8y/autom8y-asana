@@ -353,15 +353,16 @@ class TestNecessityGate:
         resolver.resolve_routing_address_by_phone_async.assert_not_called()
         atts.upload_async.assert_not_called()
 
-    async def test_known_but_unmapped_provider_skips(self) -> None:
-        # "Acuity" is a real enum option mapped to None (PROBE-GATED) -> distinct
-        # reason from a wholly-unknown value; still a no-op skip.
-        wf, atts, resolver, _ = _make_workflow()
-        out = await wf.process_entity(_entity(provider="Acuity"), {})
-        assert out.status == "skipped"
-        assert out.reason == "provider_unmapped"
-        resolver.resolve_routing_address_by_phone_async.assert_not_called()
-        atts.upload_async.assert_not_called()
+    def test_known_provider_resolves_universal_customer_deck(self) -> None:
+        # OPERATOR RULING 2026-07-02 (UNIVERSAL): the walkthrough is provider-agnostic
+        # -- "Acuity" (a real non-GHL enum option that was PROBE-GATED->None pre-ruling)
+        # now resolves to the one universal customer deck, NOT a no-op skip. This
+        # supersedes the old GHL-only / denominator==1 "provider_unmapped" expectation.
+        deck = constants.WALKTHROUGH_DECK_MAP["Acuity"]
+        assert deck == constants.WALKTHROUGH_DECK_DEFAULT == "email-forwarding-setup"
+        # ...and it clears the audience gate (customer-classified), so it would proceed.
+        assert deck_manifests.load_audience(deck) == "customer"
+        deck_manifests.assert_customer_deck(deck)  # does not raise
 
 
 # --- T3 / AC-RESOLVE-skip RED: missing office_phone -> fail-closed skip ---
@@ -2764,3 +2765,34 @@ class TestDeckAudienceLock:
         assert freeze_spy.await_args.kwargs["deck_template"] == "email-forwarding-setup"
         atts.upload_async.assert_awaited_once()
         print("[LOCK] customer deck email-forwarding-setup proceeds: resolve=1 freeze=1 upload=1")
+
+    # -- UNIVERSAL (operator ruling 2026-07-02): NON-GHL providers resolve to the
+    #    one customer deck and clear the audience gate (provider-agnostic). --
+
+    @pytest.mark.parametrize("provider", ["Calendly", "JaneApp"])
+    def test_universal_non_ghl_provider_maps_to_customer_deck(self, provider: str) -> None:
+        # The resolved deck for a NON-GHL provider is the universal customer deck,
+        # and it clears the audience lock -- proof the ruling is provider-agnostic,
+        # not a GHL-only mapping. (Empty override seam => every provider is universal.)
+        deck = constants.WALKTHROUGH_DECK_MAP[provider]
+        assert deck == "email-forwarding-setup"
+        assert deck_manifests.load_audience(deck) == "customer"
+        deck_manifests.assert_customer_deck(deck)  # does not raise
+
+    async def test_runtime_universal_non_ghl_provider_proceeds_past_gate(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # End-to-end twin of the GHL two-sided test for a NON-GHL provider: JaneApp
+        # (no override) resolves to email-forwarding-setup, clears 2b, and drives the
+        # full resolve->freeze->upload path -- universality proven at runtime.
+        freeze_spy = self._patch_freeze(monkeypatch)
+        wf, atts, resolver, _ = _make_workflow()
+        out = await wf.process_entity(_entity(provider="JaneApp"), {})
+
+        assert out.status == "succeeded"
+        resolver.resolve_routing_address_by_phone_async.assert_awaited_once()
+        freeze_spy.assert_awaited_once()
+        assert freeze_spy.await_args is not None
+        assert freeze_spy.await_args.kwargs["deck_template"] == "email-forwarding-setup"
+        atts.upload_async.assert_awaited_once()
+        print("[LOCK] universal non-GHL (JaneApp) proceeds: resolve=1 freeze=1 upload=1")
