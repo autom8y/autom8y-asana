@@ -112,7 +112,7 @@ def _build_offer_df(
     n_rows: int = N_ROWS,
     null_office_phone_count: int = 0,
 ) -> pl.DataFrame:
-    """Build a realistic Offer DataFrame with all 23 schema columns."""
+    """Build a realistic Offer DataFrame with all 33 schema columns (incl. 1.5.0 posture)."""
     verticals = ["dental", "medical"] * 5
 
     office_phones: list[str | None] = [f"+1555010{i:04d}" for i in range(n_rows)]
@@ -146,11 +146,29 @@ def _build_offer_df(
             "cost": [f"{1500 + i * 100}.00" for i in range(n_rows)],
             "mrr": [2500.0 + i * 100 for i in range(n_rows)],
             "weekly_ad_spend": [350.0 + i * 25 for i in range(n_rows)],
+            # Scheduling-posture projection columns (schema 1.5.0)
+            "company_id": [f"guid-{i:04d}" for i in range(n_rows)],
+            "custom_cal_status": ["Active"] * n_rows,
+            "reviewwave_id": [None] * n_rows,
+            "acuity_cal_url": [None] * n_rows,
+            "calendly_url": [None] * n_rows,
+            "janeapp_url": [None] * n_rows,
+            "ehr_cal_url": [None] * n_rows,
+            "trackstat_id": [None] * n_rows,
+            "sked_id": [None] * n_rows,
+            "custom_ghl_id": [f"cal-{i:04d}" for i in range(n_rows)],
         },
         schema_overrides={
             "created": pl.Datetime("us", "UTC"),
             "last_modified": pl.Datetime("us", "UTC"),
             "completed_at": pl.Datetime("us", "UTC"),
+            "reviewwave_id": pl.Utf8,
+            "acuity_cal_url": pl.Utf8,
+            "calendly_url": pl.Utf8,
+            "janeapp_url": pl.Utf8,
+            "ehr_cal_url": pl.Utf8,
+            "trackstat_id": pl.Utf8,
+            "sked_id": pl.Utf8,
         },
     )
 

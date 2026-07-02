@@ -113,9 +113,13 @@ class TestAnnotationPresence:
         )
 
     def test_annotation_count_matches_scope(self) -> None:
-        """Verify we have annotations for all 19 column-schema combinations."""
-        assert len(SEMANTIC_ANNOTATIONS) == 19, (
-            f"Expected 19 annotations (12 cascade + 7 HD-02), got {len(SEMANTIC_ANNOTATIONS)}"
+        """Verify we have annotations for all 20 column-schema combinations.
+
+        +1 cascade annotation (offer.company_id) for the frame-first scheduling-posture
+        projection (schema 1.5.0): 13 cascade + 7 HD-02 = 20.
+        """
+        assert len(SEMANTIC_ANNOTATIONS) == 20, (
+            f"Expected 20 annotations (13 cascade + 7 HD-02), got {len(SEMANTIC_ANNOTATIONS)}"
         )
 
     def test_all_annotations_have_required_fields(self) -> None:

@@ -8,14 +8,33 @@ scheduled-entrypoint pattern (``cache_warmer`` client/cache setup +
 ``onboarding_walkthrough`` DARK-gate short-circuit), driving the pure
 ``resolve_and_push_snapshot`` pipeline.
 
+FRAME-FIRST (FORK-1 A∘D, warm-projection). The active-office posture is projected in
+ONE pure Polars pass over the ALREADY-WARMED offer frame (:func:`project_offer_frame`
+via the pure ``map_frame_row_to_inputs``): sub-second, ZERO per-office Asana reads
+(the measured 900s-Lambda-ceiling blocker is dissolved -- TDD-DELTA 2026-07-02). The
+posture columns are projected upstream at bulk frame-warm time (offer schema 1.5.0).
+
 EXPLICIT COMPLETENESS CONTRACT (the load-bearing safety):
 
-    This entry point iterates the FULL active-office set, NEVER a completed-entities
+    UNIVERSE (LOCKED): the posture universe is the set of DISTINCT NON-NULL
+    ``company_id`` guids in the warmed offer frame. guid-less offers DROP and fail
+    SAFE to GHL by absence (the honest posture). Multi-offer-per-guid collapses to ONE
+    deterministic representative (max ``last_modified``) supplying enrollment status
+    AND destination JOINTLY; a per-guid ``custom_cal_status`` disagreement is metered
+    as drift.
+
+    This entry point projects the FULL offer frame, NEVER a completed-entities
     partial. A partial batch fed to the data side's whole-source DELETE
     (``snapshot_replace``) would mass-wipe live enrolled offices -- strictly worse
     than a stale snapshot. :func:`assert_complete_office_set` REFUSES the push when
     the office set cannot be proven complete (an unreadable/absent offer frame, or an
-    empty batch): it returns a ``refused`` outcome and pushes NOTHING.
+    empty deduped guid set): it returns a ``refused`` outcome and pushes NOTHING.
+
+    SCHEMA-LAG: the SWR cache serves stale-while-revalidate, so the first post-deploy
+    read may serve a PRE-1.5.0 frame LACKING the projected posture columns. This is
+    detected (:func:`missing_frame_columns`) and REFUSED honestly -- never fabricated
+    or default-filled. The refusal's triggered refresh converges the frame; a
+    subsequent run succeeds.
 
     Contrast ``push_orchestrator._push_*_for_completed_entities``, which operate over
     ``completed_entities`` (a PARTIAL set) -- that shape MUST NOT be used here.
@@ -48,6 +67,13 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from autom8y_log import get_logger
 
 from autom8_asana.lambda_handlers.cloudwatch import emit_metric
+from autom8_asana.normalizer.scheduling_extractor import (
+    CUSTOM_CAL_STATUS_FIELD,
+    GUID_FIELD,
+    FrameSchemaLagError,
+    map_frame_row_to_inputs,
+    missing_frame_columns,
+)
 from autom8_asana.services.scheduling_stratum_push import (
     _is_stratum_push_enabled,
     resolve_and_push_snapshot,
@@ -56,6 +82,9 @@ from autom8_asana.services.scheduling_stratum_push import (
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
+    import polars as pl
+
+    from autom8_asana.normalizer.scheduling_extractor import ExtractedScheduling
     from autom8_asana.services.scheduling_stratum_push import StratumPushResult
 
 logger = get_logger(__name__)
@@ -128,23 +157,33 @@ def assert_complete_office_set(
 async def execute_snapshot_push(
     *,
     gate: Callable[[], bool],
-    enumerate_office_gids: Callable[[], Awaitable[tuple[list[str], bool]]],
-    push: Callable[[list[str]], Awaitable[StratumPushResult | None]],
+    enumerate_offices: Callable[[], Awaitable[tuple[list[ExtractedScheduling], bool]]],
+    push: Callable[[list[ExtractedScheduling]], Awaitable[StratumPushResult | None]],
 ) -> SnapshotRunResult:
     """Orchestrate one whole-snapshot push under the DARK gate + completeness contract.
 
     Injectable core (no live substrate) so the gate / completeness / push decisions
     are unit-testable. When ``gate()`` is falsy the enumeration is NEVER invoked -- no
     substrate construction, no Asana read (the DEFAULT-DARK guarantee).
+
+    ``enumerate_offices`` returns the frame-projected offices (one per distinct guid)
+    plus ``source_complete``. It may raise :class:`SnapshotRefusedError` directly on
+    SCHEMA-LAG (a pre-1.5.0 frame). :func:`assert_complete_office_set` gates the guid
+    set (REFUSE on incomplete source OR empty). Both refusal paths converge on the
+    ``refused`` outcome (byte-compatible with the gid-based predecessor).
     """
     if not gate():
         logger.info("scheduling_stratum_snapshot_skipped", extra={"reason": "gate_off"})
         emit_metric("SchedulingStratumSnapshotSkipped", 1, dimensions={"reason": "gate_off"})
         return SnapshotRunResult(status="skipped", reason="gate_off", entry_count=0)
 
-    office_gids, source_complete = await enumerate_office_gids()
     try:
-        complete_set = assert_complete_office_set(office_gids, source_complete=source_complete)
+        extracted, source_complete = await enumerate_offices()
+        # The completeness gate operates on the guid set (LOCKED semantics: REFUSE on
+        # !source_complete OR empty deduped guid set). The offices are already
+        # guid-deduped by the frame projection; assert_complete_office_set is the
+        # unchanged safety teeth (it never weakens -- only refuses).
+        assert_complete_office_set([o.guid for o in extracted], source_complete=source_complete)
     except SnapshotRefusedError as exc:
         logger.warning("scheduling_stratum_snapshot_refused", extra={"reason": str(exc)})
         emit_metric(
@@ -154,17 +193,17 @@ async def execute_snapshot_push(
         )
         return SnapshotRunResult(status="refused", reason=str(exc), entry_count=0)
 
-    result = await push(complete_set)
+    result = await push(extracted)
     entry_count = result.entry_count if result is not None else 0
     pushed = bool(result is not None and result.pushed)
     logger.info(
         "scheduling_stratum_snapshot_complete",
-        extra={"office_count": len(complete_set), "entry_count": entry_count, "pushed": pushed},
+        extra={"office_count": len(extracted), "entry_count": entry_count, "pushed": pushed},
     )
     emit_metric(
         "SchedulingStratumSnapshotPushed" if pushed else "SchedulingStratumSnapshotDryRun",
         1,
-        dimensions={"office_count": str(len(complete_set))},
+        dimensions={"office_count": str(len(extracted))},
     )
     return SnapshotRunResult(
         status="pushed" if pushed else "dry_run",
@@ -173,12 +212,86 @@ async def execute_snapshot_push(
     )
 
 
-async def _enumerate_active_office_gids(cache: Any, project_gid: str) -> tuple[list[str], bool]:
-    """Return ``(office_gids, source_complete)`` from the warmed offer DataFrame.
+def project_offer_frame(df: pl.DataFrame) -> tuple[list[ExtractedScheduling], list[str]]:
+    """PURE frame projection: dedup offers by office guid + project posture (frame-first).
 
-    The offer frame is a FULL-project snapshot (warmed as a whole), so its ``gid``
-    column IS the complete active-office set. Returns ``source_complete=False`` when
-    the frame is absent / unreadable -- the completeness gate then REFUSES the push.
+    UNIVERSE (LOCKED): the posture universe is the set of DISTINCT NON-NULL
+    ``company_id`` guids in the offer frame. guid-less (null/blank) offers DROP -- they
+    fail SAFE to GHL by absence (the honest posture; no fabricated identity). A
+    guid with multiple active offers collapses to ONE deterministic representative
+    (max ``last_modified``, tie-broken by ``gid``) supplying BOTH the enrollment status
+    AND the destination cascade JOINTLY -- a coherent single-offer posture, never
+    status from one offer mixed with a destination from another. A per-guid
+    disagreement on ``custom_cal_status`` across a guid's offers is surfaced as a drift
+    signal (returned for the caller to meter) but does NOT block the snapshot.
+
+    Args:
+        df: The warmed offer DataFrame (must carry the 1.5.0 posture columns).
+
+    Returns:
+        ``(extracted, drift_guids)`` -- the projected offices (one per distinct guid)
+        and the guids whose offers disagreed on ``custom_cal_status``.
+
+    Raises:
+        FrameSchemaLagError: if the frame lacks the 1.5.0 posture-projection columns.
+    """
+    import polars as pl
+
+    missing = missing_frame_columns(df.columns)
+    if missing:
+        raise FrameSchemaLagError(
+            f"offer frame lacks projected posture columns (frame schema pre-1.5.0): {missing} "
+            "(the read triggers a refresh; a subsequent run converges)"
+        )
+
+    # Universe: distinct non-null / non-blank company_id guids. guid-less offers DROP.
+    universe = df.filter(
+        pl.col(GUID_FIELD).is_not_null()
+        & (pl.col(GUID_FIELD).cast(pl.Utf8).str.strip_chars() != "")
+    )
+    if universe.height == 0:
+        return [], []
+
+    # Drift: guids whose offers carry >= 2 distinct NON-NULL custom_cal_status values.
+    drift_guids = (
+        universe.filter(pl.col(CUSTOM_CAL_STATUS_FIELD).is_not_null())
+        .group_by(GUID_FIELD)
+        .agg(pl.col(CUSTOM_CAL_STATUS_FIELD).n_unique().alias("_n_status"))
+        .filter(pl.col("_n_status") > 1)
+        .get_column(GUID_FIELD)
+        .to_list()
+    )
+
+    # Deterministic representative per guid: max last_modified, tie-broken by gid.
+    # Sort so the winner is FIRST within each guid, then keep the first per guid.
+    representatives = universe.sort(
+        ["last_modified", "gid"], descending=[True, True], nulls_last=True
+    ).unique(subset=[GUID_FIELD], keep="first", maintain_order=True)
+
+    extracted: list[ExtractedScheduling] = []
+    for row in representatives.iter_rows(named=True):
+        try:
+            extracted.append(map_frame_row_to_inputs(row))
+        except (FrameSchemaLagError, ValueError) as exc:
+            # Per-office isolation: a representative that cannot project is skipped,
+            # never aborting the whole snapshot (guid-null is already excluded above).
+            logger.warning(
+                "scheduling_stratum_frame_project_skip",
+                extra={"error": str(exc), "error_type": type(exc).__name__},
+            )
+    return extracted, drift_guids
+
+
+async def _enumerate_offices_from_frame(
+    cache: Any, project_gid: str
+) -> tuple[list[ExtractedScheduling], bool]:
+    """Return ``(extracted_offices, source_complete)`` by PROJECTING the warmed offer frame.
+
+    The offer frame is a FULL-project snapshot (warmed as a whole), so projecting its
+    posture columns yields the complete active-office posture set with ZERO Asana
+    reads. Returns ``source_complete=False`` when the frame is absent / unreadable --
+    the completeness gate then REFUSES. Raises :class:`SnapshotRefusedError` on
+    SCHEMA-LAG (a pre-1.5.0 frame) so the refusal carries the honest reason.
     """
     entry = await cache.get_async(project_gid, SNAPSHOT_OFFER_ENTITY_TYPE)
     if entry is None or getattr(entry, "dataframe", None) is None:
@@ -190,8 +303,23 @@ async def _enumerate_active_office_gids(cache: Any, project_gid: str) -> tuple[l
     if "gid" not in df.columns:
         logger.warning("scheduling_stratum_snapshot_offer_frame_no_gid_column")
         return [], False
-    gids = [str(g) for g in df["gid"].to_list() if g]
-    return gids, True
+
+    try:
+        extracted, drift_guids = project_offer_frame(df)
+    except FrameSchemaLagError as exc:
+        # SCHEMA-LAG: a stale-while-revalidate cache served a PRE-1.5.0 frame. REFUSE
+        # honestly (never fabricate posture from a frame that cannot carry it).
+        logger.warning("scheduling_stratum_snapshot_frame_schema_lag", extra={"reason": str(exc)})
+        emit_metric("SchedulingStratumSnapshotSchemaLag", 1)
+        raise SnapshotRefusedError(str(exc)) from exc
+
+    if drift_guids:
+        logger.warning(
+            "scheduling_stratum_snapshot_status_drift",
+            extra={"drift_guid_count": len(drift_guids)},
+        )
+        emit_metric("SchedulingStratumStatusDrift", len(drift_guids))
+    return extracted, True
 
 
 async def run_snapshot_push_async(
@@ -204,7 +332,7 @@ async def run_snapshot_push_async(
     ZERO substrate construction and ZERO Asana reads.
     """
 
-    async def _enumerate() -> tuple[list[str], bool]:
+    async def _enumerate() -> tuple[list[ExtractedScheduling], bool]:
         # Deferred imports (cold-start): only reached when the gate is ON.
         from autom8_asana.cache.dataframe.factory import (
             get_dataframe_cache,
@@ -235,36 +363,17 @@ async def run_snapshot_push_async(
         if not project_gid:
             logger.error("scheduling_stratum_snapshot_offer_project_unresolved")
             return [], False
-        return await _enumerate_active_office_gids(cache, project_gid)
+        return await _enumerate_offices_from_frame(cache, project_gid)
 
-    async def _push(office_gids: list[str]) -> StratumPushResult | None:
-        from autom8y_config.lambda_extension import resolve_secret_from_env
-
-        from autom8_asana import AsanaClient
-        from autom8_asana.auth.bot_pat import get_bot_pat
-        from autom8_asana.auth.service_token import ServiceTokenAuthProvider
-        from autom8_asana.clients.data.client import DataServiceClient
-        from autom8_asana.query.engine import QueryEngine
-        from autom8_asana.services.query_service import EntityQueryService
-
-        bot_pat = get_bot_pat()
-        workspace_gid = resolve_secret_from_env("ASANA_WORKSPACE_GID")
-        auth_provider = ServiceTokenAuthProvider()
-        async with (
-            AsanaClient(token=bot_pat, workspace_gid=workspace_gid) as client,
-            DataServiceClient(auth_provider=auth_provider) as data_client,
-        ):
-            query_engine = QueryEngine(provider=EntityQueryService(), data_client=data_client)
-            return await resolve_and_push_snapshot(
-                office_gids,
-                client=client,
-                query_engine=query_engine,
-                dry_run=dry_run,
-            )
+    async def _push(extracted_offices: list[ExtractedScheduling]) -> StratumPushResult | None:
+        # FRAME-FIRST: the offices are already projected from the warmed frame -- the
+        # push path issues ZERO Asana reads (no AsanaClient / QueryEngine). The
+        # data-service POST creds resolve from env inside push_stratum_snapshot.
+        return await resolve_and_push_snapshot(extracted_offices, dry_run=dry_run)
 
     return await execute_snapshot_push(
         gate=_is_stratum_push_enabled,
-        enumerate_office_gids=_enumerate,
+        enumerate_offices=_enumerate,
         push=_push,
     )
 
@@ -325,5 +434,6 @@ __all__ = [
     "assert_complete_office_set",
     "execute_snapshot_push",
     "handler",
+    "project_offer_frame",
     "run_snapshot_push_async",
 ]

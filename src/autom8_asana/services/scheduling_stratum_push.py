@@ -25,7 +25,6 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 from autom8y_log import get_logger
 from pydantic import BaseModel, ConfigDict
 
-from autom8_asana.normalizer.scheduling_extractor import extract_scheduling_inputs
 from autom8_asana.normalizer.scheduling_stratum import CASCADE_PRIORITY, resolve_stratum
 
 # Reuse the established data-service push seam (the shared HTTP helper that already
@@ -37,12 +36,10 @@ from autom8_asana.services.gid_push import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Sequence
+    from collections.abc import Sequence
 
-    from autom8_asana.client import AsanaClient
     from autom8_asana.normalizer.scheduling_extractor import ExtractedScheduling
     from autom8_asana.normalizer.scheduling_stratum import StratumResult
-    from autom8_asana.query.engine import QueryEngine
 
 logger = get_logger(__name__)
 
@@ -223,41 +220,28 @@ def resolve_office_entries(
 
 
 async def resolve_and_push_snapshot(
-    gids: Sequence[str],
+    extracted_offices: Sequence[ExtractedScheduling],
     *,
-    client: AsanaClient,
-    query_engine: QueryEngine,
     dry_run: bool | None = None,
-    extract_fn: Callable[..., Awaitable[ExtractedScheduling]] = extract_scheduling_inputs,
     data_service_url: str | None = None,
     auth_token: str | None = None,
 ) -> StratumPushResult:
-    """Iterate offices, resolve each stratum, and push the snapshot (or dry-run).
+    """Resolve pre-extracted offices into a snapshot batch and push it (or dry-run).
 
-    Per-office isolation: an extraction/resolution failure for one office is logged
-    and skipped, never aborting the whole snapshot.  ``extract_fn`` is injectable so
-    the pipeline is exercisable end-to-end without a live Asana call.
+    FRAME-FIRST (FORK-1 A∘D): the per-gid GFR loop is GONE from the push path. The
+    offices are projected UPSTREAM in one pure Polars pass over the ALREADY-WARMED
+    offer frame (``lambda_handlers/scheduling_stratum_snapshot.project_offer_frame``
+    via the pure :func:`~...scheduling_extractor.map_frame_row_to_inputs`), so this
+    path issues ZERO Asana reads -- it is a pure resolve/build/push over the projected
+    :class:`ExtractedScheduling` rows.
 
     Args:
-        gids: The active-office task gids (reuse the cache_warmer office iteration).
-        client: ``AsanaClient`` threaded to the per-office extractor.
-        query_engine: Substrate ``QueryEngine`` GFR reads through.
+        extracted_offices: The projected, guid-deduped offices (one per distinct guid).
         dry_run: Force dry-run; ``None`` defers to the gate (default-off => dry-run).
-        extract_fn: The per-office extractor (default the live GFR by-name extractor).
         data_service_url / auth_token: Optional overrides for the data-service POST.
     """
     now = datetime.now(UTC)
-    extracted: list[ExtractedScheduling] = []
-    for gid in gids:
-        try:
-            extracted.append(await extract_fn(gid, client=client, query_engine=query_engine))
-        except Exception as exc:  # noqa: BLE001 -- per-office isolation
-            logger.warning(
-                "scheduling_stratum_extract_error",
-                extra={"gid": gid, "error": str(exc), "error_type": type(exc).__name__},
-            )
-
-    entries = resolve_office_entries(extracted, resolved_at=now)
+    entries = resolve_office_entries(extracted_offices, resolved_at=now)
     return await push_stratum_snapshot(
         entries,
         now.isoformat(),

@@ -87,6 +87,96 @@ OFFER_COLUMNS: list[ColumnDef] = [
         source="cascade:Weekly Ad Spend",  # Cascades from Offer's ancestor Unit
         description="Weekly advertising spend",
     ),
+    # -----------------------------------------------------------------------
+    # Scheduling-posture projection columns (schema 1.5.0 -- warm-projection,
+    # frame-first extraction; FORK-1 A∘D).
+    #
+    # The scheduling-stratum whole-snapshot push (lambda_handlers/
+    # scheduling_stratum_snapshot.py) reconceived as a PURE Polars read over the
+    # ALREADY-WARMED offer frame: the office identity + the office-global
+    # enrollment status + the eight CASCADE_PRIORITY provider source fields are
+    # projected HERE, at bulk frame-warm time, so the snapshot Lambda does
+    # sub-second column reads with ZERO per-office Asana calls (the measured
+    # 900s-Lambda-ceiling blocker is dissolved -- see TDD-DELTA 2026-07-02).
+    #
+    # All columns are nullable=True (purely ADDITIVE -- an office genuinely
+    # lacking a field reads null, which the pure normalizer treats as absent).
+    # The eight provider fields + custom_cal_status are read off the Offer task's
+    # OWN custom-field manifest (cf:; NameNormalizer-robust by-name match, so the
+    # snake_case logical names below match whatever the live Asana display string
+    # is). company_id is the office guid, cascaded from the Business ancestor
+    # (same parent-chain mechanism as `office`/`office_phone`; registered
+    # CascadingFieldDef Business.CascadingFields.COMPANY_ID, target_types=None).
+    ColumnDef(
+        name="company_id",
+        dtype="Utf8",
+        nullable=True,
+        source="cascade:Company ID",  # Cascades from Business ancestor (office guid)
+        description="Office guid (cascades from Business Company ID)",
+    ),
+    ColumnDef(
+        name="custom_cal_status",
+        dtype="Utf8",
+        nullable=True,
+        source="cf:custom_cal_status",  # Office-global enrollment status enum option name
+        description="Enrollment status (enum option name; projects to enrolled bit)",
+    ),
+    ColumnDef(
+        name="reviewwave_id",
+        dtype="Utf8",
+        nullable=True,
+        source="cf:reviewwave_id",  # CASCADE_PRIORITY[0]
+        description="Scheduling source: reviewwave id",
+    ),
+    ColumnDef(
+        name="acuity_cal_url",
+        dtype="Utf8",
+        nullable=True,
+        source="cf:acuity_cal_url",  # CASCADE_PRIORITY[1]
+        description="Scheduling source: acuity calendar url",
+    ),
+    ColumnDef(
+        name="calendly_url",
+        dtype="Utf8",
+        nullable=True,
+        source="cf:calendly_url",  # CASCADE_PRIORITY[2]
+        description="Scheduling source: calendly url",
+    ),
+    ColumnDef(
+        name="janeapp_url",
+        dtype="Utf8",
+        nullable=True,
+        source="cf:janeapp_url",  # CASCADE_PRIORITY[3]
+        description="Scheduling source: janeapp url",
+    ),
+    ColumnDef(
+        name="ehr_cal_url",
+        dtype="Utf8",
+        nullable=True,
+        source="cf:ehr_cal_url",  # CASCADE_PRIORITY[4]
+        description="Scheduling source: ehr calendar url",
+    ),
+    ColumnDef(
+        name="trackstat_id",
+        dtype="Utf8",
+        nullable=True,
+        source="cf:trackstat_id",  # CASCADE_PRIORITY[5]
+        description="Scheduling source: trackstat id",
+    ),
+    ColumnDef(
+        name="sked_id",
+        dtype="Utf8",
+        nullable=True,
+        source="cf:sked_id",  # CASCADE_PRIORITY[6]
+        description="Scheduling source: sked id",
+    ),
+    ColumnDef(
+        name="custom_ghl_id",
+        dtype="Utf8",
+        nullable=True,
+        source="cf:custom_ghl_id",  # CASCADE_PRIORITY[7]
+        description="Scheduling source: GHL calendar id (cascade terminal)",
+    ),
 ]
 
 OFFER_SCHEMA = DataFrameSchema(
@@ -96,5 +186,5 @@ OFFER_SCHEMA = DataFrameSchema(
         *BASE_COLUMNS,
         *[c for c in OFFER_COLUMNS if c.name not in {col.name for col in BASE_COLUMNS}],
     ],
-    version="1.4.0",  # office column cascade-sourced from Business Name (GAP-A fix)
+    version="1.5.0",  # scheduling-posture projection columns (frame-first extraction)
 )

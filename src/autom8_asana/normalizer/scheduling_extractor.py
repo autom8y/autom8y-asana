@@ -43,6 +43,9 @@ from autom8_asana.normalizer.scheduling_stratum import (
 from autom8_asana.resolution.gfr import UnresolvedError, resolve_async
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable, Mapping
+    from typing import Any
+
     from autom8_asana.client import AsanaClient
     from autom8_asana.query.engine import QueryEngine
     from autom8_asana.resolution.gfr import ResolvedFields
@@ -68,6 +71,26 @@ CUSTOM_CAL_STATUS_FIELD = "custom_cal_status"
 _INACTIVE_STATUS_ALIASES: frozenset[str] = frozenset(
     {"inactive", "false", "disabled", "disable", "paused", "pause", "off", "0"}
 )
+
+#: The projected posture columns a 1.5.0 offer frame MUST carry for the frame-first
+#: extraction to read the posture WITHOUT any live Asana call: the office guid, the
+#: office-global enrollment status, and the eight CASCADE_PRIORITY provider sources.
+#: A pre-1.5.0 frame (the SWR cache may serve one stale-while-revalidate on the first
+#: post-deploy read) LACKS these columns -- detected by :func:`missing_frame_columns`
+#: and REFUSED honestly (never fabricated / default-filled). Cf. the offer schema
+#: ``dataframes/schemas/offer.py`` (schema_version 1.5.0).
+REQUIRED_FRAME_COLUMNS: tuple[str, ...] = (GUID_FIELD, CUSTOM_CAL_STATUS_FIELD, *CASCADE_PRIORITY)
+
+
+class FrameSchemaLagError(Exception):
+    """The offer frame lacks the 1.5.0 posture-projection columns (schema lag).
+
+    Raised by :func:`map_frame_row_to_inputs` (and mirrored by the handler's
+    frame-level guard) when a stale-while-revalidate cache serves a PRE-1.5.0 frame
+    on the first post-deploy read. The honest posture is to REFUSE -- never fabricate
+    posture fields from a frame that does not carry them. The read the refusal
+    triggers converges the frame; a subsequent run succeeds.
+    """
 
 
 def _normalize_status(value: str) -> str:
@@ -193,6 +216,90 @@ def map_resolved_to_inputs(
     )
 
 
+def missing_frame_columns(available: Iterable[str]) -> list[str]:
+    """Return the :data:`REQUIRED_FRAME_COLUMNS` absent from ``available`` (order-preserved).
+
+    The SCHEMA-LAG guard input: pass the warmed offer frame's column set. A non-empty
+    result means the frame is PRE-1.5.0 (the projected posture columns are absent) and
+    the snapshot MUST refuse rather than fabricate posture from a frame that cannot
+    carry it.
+    """
+    present = set(available)
+    return [c for c in REQUIRED_FRAME_COLUMNS if c not in present]
+
+
+def map_frame_row_to_inputs(
+    row: Mapping[str, Any],
+    *,
+    duration_fallback_id: str | None = None,
+) -> ExtractedScheduling:
+    """Project a WARMED offer-frame row dict onto the cascade inputs (PURE, frame-first).
+
+    The frame-first twin of :func:`map_resolved_to_inputs`: instead of a GFR
+    ``ResolvedFields`` row, it consumes one offer-frame row (e.g. a ``df.to_dicts()``
+    entry) whose keys are the 1.5.0 projected posture columns. Pure and synchronous --
+    NO Asana call -- so the whole snapshot is a sub-second Polars pass. REUSES the
+    established pure primitives (:func:`derive_enrolled`,
+    :func:`~...scheduling_stratum.derive_ghl_ownership`,
+    :func:`~...scheduling_stratum.derive_effective_ghl_id`, :data:`CASCADE_PRIORITY`)
+    UNCHANGED, so it is provably equivalent to the GFR-path reference for the same
+    office data (the wire-v2 axes {enrolled, canonical_destination_url, ghl_ownership}
+    are byte-identical).
+
+    SCHEMA-LAG guard (never fabricate): if the row lacks any
+    :data:`REQUIRED_FRAME_COLUMNS` key (a pre-1.5.0 frame served by the SWR cache),
+    raise :class:`FrameSchemaLagError` -- do NOT ``.get(col, None)`` a missing column
+    into a fabricated ACTIVE default. A column PRESENT with a null value is legitimate
+    absence (the office genuinely lacks that field) and maps to ``None``.
+
+    Args:
+        row: One offer-frame row mapping (all 1.5.0 posture columns present as keys).
+        duration_fallback_id: Optional ``{duration}_min_ghl_id`` fallback (additive
+            deferral -- the frame path does not yet project the duration family, so
+            callers pass ``None``; folded into ``custom_ghl_id`` when supplied).
+
+    Returns:
+        An :class:`ExtractedScheduling`.
+
+    Raises:
+        FrameSchemaLagError: if the row lacks a projected posture column (schema lag).
+        ValueError: if the row carries no usable ``company_id`` (no office identity).
+    """
+    missing = [c for c in REQUIRED_FRAME_COLUMNS if c not in row]
+    if missing:
+        raise FrameSchemaLagError(
+            f"offer frame row lacks projected posture columns (frame schema pre-1.5.0): {missing}"
+        )
+
+    guid = _coerce_text(row.get(GUID_FIELD))
+    if guid is None:
+        raise ValueError(f"scheduling frame adapter: no resolvable {GUID_FIELD} in frame row")
+
+    # Enrollment axis (R-NEW-1): a null column value -> None -> legacy ACTIVE default.
+    enrolled = derive_enrolled(_coerce_text(row.get(CUSTOM_CAL_STATUS_FIELD)))
+
+    normalized_inputs: dict[str, str | None] = {
+        field: _coerce_text(row.get(field)) for field in CASCADE_PRIORITY
+    }
+
+    # Ownership (ESC-1): derive from the RAW (pre-fold) provenance, then fold.
+    ghl_ownership = derive_ghl_ownership(
+        normalized_inputs.get("custom_ghl_id"),
+        duration_fallback_id,
+    )
+    normalized_inputs["custom_ghl_id"] = derive_effective_ghl_id(
+        normalized_inputs.get("custom_ghl_id"),
+        duration_fallback_id,
+    )
+
+    return ExtractedScheduling(
+        guid=guid,
+        normalized_inputs=normalized_inputs,
+        enrolled=enrolled,
+        ghl_ownership=ghl_ownership,
+    )
+
+
 async def extract_scheduling_inputs(
     gid: str,
     *,
@@ -246,8 +353,12 @@ async def extract_scheduling_inputs(
 __all__ = [
     "CUSTOM_CAL_STATUS_FIELD",
     "GUID_FIELD",
+    "REQUIRED_FRAME_COLUMNS",
     "ExtractedScheduling",
+    "FrameSchemaLagError",
     "derive_enrolled",
     "extract_scheduling_inputs",
+    "map_frame_row_to_inputs",
     "map_resolved_to_inputs",
+    "missing_frame_columns",
 ]

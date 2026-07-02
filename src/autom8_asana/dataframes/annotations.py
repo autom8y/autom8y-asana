@@ -336,6 +336,39 @@ SEMANTIC_ANNOTATIONS: dict[str, dict[str, Any]] = {
         },
         "agent_discoverable": True,
     },
+    # --- 9.3b: company_id (Cascade: Company ID, Source: Business) ---
+    "offer.company_id": {
+        "business_meaning": (
+            "Office guid (== chiropractors.guid). Cascades from the Business "
+            "ancestor's 'Company ID' custom field into the offer frame. This is "
+            "the office IDENTITY carried by the scheduling-posture wire contract "
+            "(the posture entry primary key), projected here (schema 1.5.0) so the "
+            "frame-first scheduling-stratum snapshot resolves the office identity "
+            "as a pure column read with ZERO Asana calls."
+        ),
+        "data_type_semantic": "text",
+        "resolution_impact": (
+            "Not a DynamicIndex resolution key column. It is the office-identity "
+            "guid for the scheduling-posture universe: the posture universe is the "
+            "set of DISTINCT NON-NULL company_id guids in the offer frame; a "
+            "null/blank company_id DROPS the offer from the posture snapshot (fail "
+            "SAFE to GHL by absence)."
+        ),
+        "cascade_behavior": {
+            "source_entity": "Business",
+            "target_entities": [
+                "Unit",
+                "Offer",
+                "Process",
+                "Contact",
+                "AssetEdit",
+                "AssetEditHolder",
+            ],
+            "allow_override": False,
+            "warm_priority": 1,
+        },
+        "agent_discoverable": True,
+    },
     # --- 9.4: mrr (Cascade: MRR, Source: Unit) ---
     "offer.mrr": {
         "business_meaning": (

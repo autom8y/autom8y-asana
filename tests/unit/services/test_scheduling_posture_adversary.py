@@ -92,32 +92,30 @@ def test_d_all_deenrolled_batch_is_not_shrunk_to_empty() -> None:
     assert all(e["enrolled"] is False for e in entries)
 
 
-# --- (f) ISOLATION: one failure never aborts the whole snapshot -----------------
+# --- (f) ISOLATION: the pure push path emits every provided office --------------
 
 
-async def test_f_per_office_failure_isolated_failed_office_absent() -> None:
-    """One office raising is skipped; the survivors emit and the failed guid is ABSENT."""
+async def test_f_push_path_emits_every_provided_office() -> None:
+    """The frame-first push path emits EVERY provided office (no drops in the pure pass).
 
-    async def flaky_extract(gid: str, **_kw: object) -> ExtractedScheduling:
-        if gid == "BOOM":
-            raise RuntimeError("extract boom")
-        return ExtractedScheduling(
-            guid=f"guid-{gid}",
+    Per-office isolation + guid-dedup + guid-less DROP now live UPSTREAM in the frame
+    projection (``project_offer_frame``; covered in the handler adversary). By the time
+    the push path runs, the offices are the clean deduped set: entry_count is preserved
+    (the whole-source DELETE integrity witness) and every guid is emitted.
+    """
+    offices = [
+        ExtractedScheduling(
+            guid="guid-O1",
             normalized_inputs={**{f: None for f in CASCADE_PRIORITY}, "acuity_cal_url": "ac"},
-        )
-
-    result = await resolve_and_push_snapshot(
-        ["O1", "BOOM", "O2"],
-        client=object(),
-        query_engine=object(),
-        dry_run=True,
-        extract_fn=flaky_extract,
-    )
-    # Two survivors emitted; the boom office is absent (not a null/placeholder entry).
+        ),
+        ExtractedScheduling(
+            guid="guid-O2",
+            normalized_inputs={**{f: None for f in CASCADE_PRIORITY}, "sked_id": "sk"},
+        ),
+    ]
+    result = await resolve_and_push_snapshot(offices, dry_run=True)
     assert result.entry_count == 2
-    emitted = {e["guid"] for e in result.payload["entries"]}
-    assert emitted == {"guid-O1", "guid-O2"}
-    assert "guid-BOOM" not in emitted
+    assert {e["guid"] for e in result.payload["entries"]} == {"guid-O1", "guid-O2"}
 
 
 # --- (h) DARK-GATE: no live POST reachable end-to-end ---------------------------
@@ -127,20 +125,16 @@ async def test_h_dark_gate_no_live_post_end_to_end(monkeypatch: pytest.MonkeyPat
     """Gate unset -> the whole resolve+push pipeline reaches NO live POST (dry-run)."""
     monkeypatch.delenv(push_mod.SCHEDULING_STRATUM_PUSH_ENABLED_ENV_VAR, raising=False)
 
-    async def fake_extract(gid: str, **_kw: object) -> ExtractedScheduling:
-        return ExtractedScheduling(
-            guid=f"guid-{gid}",
+    offices = [
+        ExtractedScheduling(
+            guid=f"guid-{g}",
             normalized_inputs={**{f: None for f in CASCADE_PRIORITY}, "custom_ghl_id": "cal-x"},
         )
-
+        for g in ("O1", "O2")
+    ]
     helper = AsyncMock(return_value=True)
     with patch(_PUSH_HELPER, new=helper):
-        result = await resolve_and_push_snapshot(
-            ["O1", "O2"],
-            client=object(),
-            query_engine=object(),
-            extract_fn=fake_extract,
-        )
+        result = await resolve_and_push_snapshot(offices)
     # dry-run defaulted from the OFF gate; the live POST helper was never awaited.
     assert result.dry_run is True
     assert result.pushed is False
@@ -157,21 +151,16 @@ async def test_h_dark_gate_holds_even_when_data_creds_present(
     """
     monkeypatch.delenv(push_mod.SCHEDULING_STRATUM_PUSH_ENABLED_ENV_VAR, raising=False)
 
-    async def fake_extract(gid: str, **_kw: object) -> ExtractedScheduling:
-        return ExtractedScheduling(
-            guid=f"guid-{gid}",
-            normalized_inputs={f: None for f in CASCADE_PRIORITY},
-        )
-
+    office = ExtractedScheduling(
+        guid="guid-O1",
+        normalized_inputs={f: None for f in CASCADE_PRIORITY},
+    )
     helper = AsyncMock(return_value=True)
     with patch(_PUSH_HELPER, new=helper):
         result = await resolve_and_push_snapshot(
-            ["O1"],
-            client=object(),
-            query_engine=object(),
+            [office],
             data_service_url="https://data.internal",
             auth_token="tok",  # noqa: S106 -- test stub, not a real secret
-            extract_fn=fake_extract,
         )
     assert result.dry_run is True
     helper.assert_not_awaited()
