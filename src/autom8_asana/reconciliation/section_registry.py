@@ -372,6 +372,19 @@ _VENDORED_NAME_TO_BUCKET: dict[str, Bucket] = {
 }
 
 
+class SectionRegistryError(RuntimeError):
+    """Fail-closed error raised when the live W-REG join cannot be safely wired.
+
+    Raised at module import when the receipt x taxonomy join reports any Tier-3
+    ``live_name_no_bucket`` blocking finding: a live section known to NEITHER the
+    local exclusion set NOR the vendored monolith taxonomy cannot be routed
+    without an operator disposition, and under the DENYLIST processor an omitted
+    section is PROCESSED-by-default (the silent-misroute class). Failing import
+    is fail-closed: the service will not start with a registry that would
+    silently misroute a live section.
+    """
+
+
 def _build_live_registry(
     name_to_gid: Mapping[str, str],
     name_to_bucket: Mapping[str, Bucket],
@@ -382,9 +395,18 @@ def _build_live_registry(
 
     This is THE live-frozenset-producing path: the module-level
     ``EXCLUDED_SECTION_GIDS`` / ``UNIT_SECTION_GIDS`` are its return value and
-    ``reconciliation.processor`` imports those constants, so any fail-closed
+    ``reconciliation.processor`` imports those constants, so the fail-closed
     guard placed here sits on the reachable live consumption path (not on a
     proof-only join). Routing is by NAME via ``join_section_registry``.
+
+    Fail-closed (N2a): if the join reports ``blocks_live_wiring`` (any Tier-3
+    ``live_name_no_bucket`` finding), raise ``SectionRegistryError`` so the
+    module fails to import rather than shipping a registry that would silently
+    process an undispositioned live section. Non-blocking findings (the R-REG-4
+    ``taxonomy_divergence`` record) are surfaced at INFO, never auto-reconciled.
+
+    Raises:
+        SectionRegistryError: if the join yields any blocking finding.
 
     Returns:
         ``(excluded_section_gids, unit_section_gids)`` from the join result.
@@ -394,6 +416,33 @@ def _build_live_registry(
         name_to_bucket,
         monolith_ignore_names=monolith_ignore_names,
     )
+
+    if result.blocks_live_wiring:
+        blocking_names = sorted(f.section_name for f in result.blocking_findings)
+        logger.error(
+            "section_registry_live_wiring_blocked",
+            extra={
+                "blocking_sections": blocking_names,
+                "impact": "undispositioned_live_sections_would_be_processed_by_default",
+            },
+        )
+        raise SectionRegistryError(
+            f"Live section registry join is blocked by {len(blocking_names)} "
+            f"unknown live section(s): {blocking_names}. A live section in neither "
+            "EXCLUDED_SECTION_NAMES nor the vendored monolith taxonomy cannot be "
+            "routed without an operator disposition; failing closed rather than "
+            "silently processing it (the denylist processes by default)."
+        )
+
+    if result.findings:
+        logger.info(
+            "section_registry_join_findings_surfaced",
+            extra={
+                "finding_kinds": sorted({f.kind for f in result.findings}),
+                "findings": [f"{f.kind}:{f.section_name}" for f in result.findings],
+            },
+        )
+
     return result.excluded_section_gids, result.unit_section_gids
 
 
