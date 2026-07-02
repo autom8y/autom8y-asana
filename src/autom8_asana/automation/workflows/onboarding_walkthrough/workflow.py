@@ -1,10 +1,14 @@
 """Onboarding walkthrough workflow -- personalized deck attach (3rd bridge sibling).
 
-Per PRD/TDD/ADR (seam A2 x B1): for an onboarding task whose ``Calendar Provider``
-enum value is in the positive trigger set, this workflow:
+Per PRD/TDD/ADR (seam A2 x B1), plus the provider-agnostic rulings (2026-07-02):
+for an onboarding task that carries ANY ``Calendar Provider`` value, this workflow:
 
-1. GATE   -- ``calendar_provider`` is a triggering value (G-DENOM positive gate).
-2. MAP    -- look up the deck template (None -> no-op skip).
+1. GATE   -- provider-readiness only: a present, non-empty ``calendar_provider``
+   (absent/blank -> ``provider_not_set`` skip). The value is METADATA, not a
+   closed-enum selection gate (that stale enum dropped ``Direct``; drift-proof now).
+2. RESOLVE -- the customer deck provider-agnostically:
+   ``WALKTHROUGH_DECK_OVERRIDES.get(provider, WALKTHROUGH_DECK_DEFAULT)`` (an
+   explicit override of ``None`` is an EXPLICIT exclusion -> ``provider_excluded``).
 3. PHONE  -- ``office_phone`` present, else fail-closed skip.
 4. RESOLVE -- the gated ``{guid}@appointments.contenteapp.com`` address via the
    in-process autom8y-core SDK ``resolve_routing_address_by_phone_async`` (B1,
@@ -413,27 +417,46 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         #     empty-prior task falls straight through to mint exactly one.
         existing_by_guid = await self._existing_walkthrough_guids(gid)
 
-        # 1. GATE -- positive necessity rule (G-DENOM). Unknown / absent / None
-        #    values fall through to a no-op skip by construction.
-        if provider is None or provider not in constants.WALKTHROUGH_DECK_MAP:
+        # 1. PROVIDER-READINESS GATE (provider-agnostic; rulings 2026-07-02). The
+        #    Calendar-Provider value is METADATA, not a selection gate: the live
+        #    Asana field is the source of truth and grows options (e.g. "Direct")
+        #    faster than any in-code enum can track (the 19-vs-18 drift this fix
+        #    kills). The REAL positive gates are ACTIVE-section membership (the
+        #    enumeration), resolvable identity (W1 GFR, fail-closed), and the deck-
+        #    audience lock (2b). Here we require only that the integration is
+        #    IDENTIFIED: a present, non-empty provider value. An absent/blank value
+        #    is a light readiness signal (the integration is not named yet) -> SKIP
+        #    (provider_not_set). MICRO-DECISION: empty currently SKIPS; the operator
+        #    can flip empty->also-onboard by mapping "" -> a deck in the overrides.
+        if provider is None or not str(provider).strip():
             logger.info(
                 "onboarding_walkthrough_skipped",
                 task_gid=gid,
-                reason="provider_not_triggering",
+                reason="provider_not_set",
                 provider=provider,
             )
-            return BridgeOutcome(gid=gid, status="skipped", reason="provider_not_triggering")
+            return BridgeOutcome(gid=gid, status="skipped", reason="provider_not_set")
 
-        # 2. MAP -- a known provider whose deck is PROBE-GATED (None) -> no-op skip.
-        deck_template = constants.WALKTHROUGH_DECK_MAP[provider]
+        # 2. RESOLVE the customer deck PROVIDER-AGNOSTICALLY: ANY non-empty provider
+        #    (Direct, an API provider, or a value added to Asana tomorrow) -> the
+        #    universal WALKTHROUGH_DECK_DEFAULT, unless an explicit override remaps
+        #    it to an ALTERNATE customer deck OR to None for an EXPLICIT exclusion
+        #    (skip). The overrides dict is empty today (the D-2 seam): no provider is
+        #    discriminated -- both the calendar-integration API class and the
+        #    custom/direct-integration class onboard via email-forwarding-setup.
+        deck_template = constants.WALKTHROUGH_DECK_OVERRIDES.get(
+            provider, constants.WALKTHROUGH_DECK_DEFAULT
+        )
         if deck_template is None:
+            # Explicit override exclusion (provider -> None): a deliberately
+            # opted-out provider, distinct from the not-yet-identified skip above.
             logger.info(
                 "onboarding_walkthrough_skipped",
                 task_gid=gid,
-                reason="provider_unmapped",
+                reason="provider_excluded",
                 provider=provider,
             )
-            return BridgeOutcome(gid=gid, status="skipped", reason="provider_unmapped")
+            return BridgeOutcome(gid=gid, status="skipped", reason="provider_excluded")
 
         # 2b. AUDIENCE -- the deck-audience lock (payload-correctness gate; product
         #     ruling 2026-07-02). Gates the RESOLVED ``deck_template`` variable (not

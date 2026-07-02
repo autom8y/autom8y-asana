@@ -1,30 +1,45 @@
-"""Necessity-rule constants for the onboarding walkthrough workflow.
+"""Selection constants for the onboarding walkthrough workflow.
 
-Per PRD FR-2 / TDD §Data Model / ADR §4 (G-DENOM, positive enum gate):
+**Provider-agnostic selection** (operator rulings, 2026-07-02). The
+``Calendar Provider`` custom field on the Calendar-Integrations project
+(``1209442849265632``) is a LIVE, operator-editable Asana field. Encoding its
+options as a closed in-code enum was a recurring drift class: the field grew a
+19th option, ``Direct``, that the stale 18-entry enum did not have, so the
+selection gate silently dropped ``Direct`` (Sand Lake Dental) and would drop
+ANY option added tomorrow (the 19-vs-18 drift). The fix removes the closed-enum
+SELECTION GATE entirely: the provider value is now METADATA, not a gate.
 
-``WALKTHROUGH_DECK_MAP`` enumerates ALL 18 live ``Calendar Provider`` enum
-options (N0 live probe against Asana task ``1214919448732981``, 2026-06-27).
-The value->deck assignment is **PRODUCT-INPUT / PROBE-GATED** and is NOT
-fabricated here. The one product-ruled assignment is GHL: the operator's
-2026-07-02 ruling classifies ``ghl-calendar-setup`` as **INTERNAL-ONLY** (an
-internal ops/setup deck -- the earlier "semantically unambiguous" reading was
-WRONG and produced a live wrong-deck attach at 2026-07-02T11:55:47Z) and names
-``email-forwarding-setup`` as the customer-facing walkthrough deck. The other
-17 providers are explicit ``None`` placeholders -- a provider mapped to
-``None`` (or absent from the map) takes the no-op skip path by construction.
+Two rulings drive this:
 
-``WALKTHROUGH_TRIGGER_VALUES`` is **derived** from the map (a provider triggers
-a walkthrough iff it maps to a real deck). Deriving it guarantees the positive
-gate and the deck lookup can never disagree.
+* The **universal-deck ruling** -- ``email-forwarding-setup`` (audience:
+  customer) is THE customer walkthrough deck for every ACTIVE calendar
+  integration; the rep gates the send. There is no per-provider deck
+  discrimination yet, so selection is provider-agnostic by default.
+* The **Direct ruling** -- ``Direct`` is the **custom-integration class**
+  (external direct-booking) which REQUIRES EmailNotificationForwarding so
+  contente receives appointment data back; it MUST onboard, exactly like the
+  **calendar-integration API-provider class** (Acuity/Calendly/GHL/...). BOTH
+  classes onboard via ``email-forwarding-setup``.
 
-The two producer deck templates that exist today are
+So the deck is resolved provider-agnostically as
+``WALKTHROUGH_DECK_OVERRIDES.get(provider, WALKTHROUGH_DECK_DEFAULT)``: ANY
+present provider value (``Direct``, an API provider, or a value added tomorrow)
+maps to the universal default customer deck. The REAL positive gates live
+elsewhere -- ACTIVE-section membership (the enumeration), resolvable identity
+(W1 GFR by-GUID, fail-closed), and the deck-audience lock (#191, the 2b runtime
+gate). The denominator is now **ACTIVE ∩ resolvable**, NOT "provider ∈ closed
+enum".
+
+The producer deck templates that exist today are
 ``templates/email-forwarding-setup`` (audience: customer) and
-``templates/ghl-calendar-setup`` (audience: internal); the map values are the
-template *folder* names (the producer invoker prepends ``templates/``). Every
-template dir is audience-classified by an owned manifest in
-``deck_manifests/`` (completeness-enforced by test), and the workflow's 2b
-AUDIENCE gate (the deck-audience lock) refuses any non-customer deck at the
-attach seam -- DEFAULT-DENY: absence of a manifest IS denial.
+``templates/ghl-calendar-setup`` (audience: internal, NEVER customer-facing);
+the deck values here are template *folder* names (the producer invoker prepends
+``templates/``). Every template dir is audience-classified by an owned manifest
+in ``deck_manifests/`` (completeness-enforced by test), and the workflow's 2b
+AUDIENCE gate refuses any non-customer deck at the attach seam -- DEFAULT-DENY:
+absence of a manifest IS denial. ``WALKTHROUGH_DECK_DEFAULT`` MUST stay a
+customer-classified deck (pinned by test) so the universal default can never
+silently become an internal deck.
 """
 
 from __future__ import annotations
@@ -87,37 +102,34 @@ ATTACHMENT_GLOB = "walkthrough_*.html"
 # exhaust memory or abort the whole task's idempotency check.
 MAX_PRIOR_DECK_BYTES = 8 * 1024 * 1024
 
-# --- The necessity rule (G-DENOM) ---
-# All 18 live Calendar Provider options. Deck assignment is PRODUCT-INPUT /
-# PROBE-GATED (D-2) except GHL (product-ruled 2026-07-02). Do NOT guess the 17
-# placeholders to a deck. Any mapped deck MUST be classified audience=customer
-# in deck_manifests/ (map-purity test) and is re-checked at runtime (2b gate).
-WALKTHROUGH_DECK_MAP: dict[str, str | None] = {
-    "Acuity": None,  # PROBE-GATED / PRODUCT-INPUT
-    "Calendly": None,  # PROBE-GATED / PRODUCT-INPUT
-    "ChiroHD": None,  # PROBE-GATED / PRODUCT-INPUT
-    "ChiroTouch Cloud": None,  # PROBE-GATED / PRODUCT-INPUT
-    "Elation": None,  # PROBE-GATED / PRODUCT-INPUT
-    "Genesis": None,  # PROBE-GATED / PRODUCT-INPUT
-    # PRODUCT-RULED 2026-07-02: the GHL-specific deck (ghl-calendar-setup) is
-    # INTERNAL-ONLY; the customer-facing walkthrough is email-forwarding-setup.
-    # Enforced by the deck-audience lock (deck_manifests/ + the 2b runtime gate).
-    "GHL": "email-forwarding-setup",
-    "Google": None,  # PROBE-GATED / PRODUCT-INPUT
-    "JaneApp": None,  # PROBE-GATED / PRODUCT-INPUT (pilot task value D-5; deck UNDETERMINED D-2)
-    "PromptEMR": None,  # PROBE-GATED / PRODUCT-INPUT
-    "ReviewWave": None,  # PROBE-GATED / PRODUCT-INPUT
-    "SKED": None,  # PROBE-GATED / PRODUCT-INPUT
-    "SimplePractice": None,  # PROBE-GATED / PRODUCT-INPUT
-    "TrackStat": None,  # PROBE-GATED / PRODUCT-INPUT
-    "Unify": None,  # PROBE-GATED / PRODUCT-INPUT
-    "EHR → GCal": None,  # PROBE-GATED / PRODUCT-INPUT
-    "Practice Better": None,  # PROBE-GATED / PRODUCT-INPUT
-    "Outlook": None,  # PROBE-GATED / PRODUCT-INPUT
-}
+# --- Provider-agnostic deck selection (rulings 2026-07-02) ---
+# The UNIVERSAL customer walkthrough deck. ANY present provider value resolves
+# here unless an explicit override says otherwise. MUST be audience=customer
+# (pinned by test + re-checked at runtime by the 2b deck-audience lock), so the
+# universal default can never silently become an internal deck.
+WALKTHROUGH_DECK_DEFAULT = "email-forwarding-setup"
 
-# Trigger set = providers with a non-None deck. Derived, so the two constants
-# cannot drift (a provider is a trigger iff it maps to a real deck).
-WALKTHROUGH_TRIGGER_VALUES: frozenset[str] = frozenset(
-    provider for provider, deck in WALKTHROUGH_DECK_MAP.items() if deck is not None
-)
+# The D-2 discrimination seam (EMPTY today -- provider-agnostic by default).
+# ``provider -> alternate customer deck`` remaps a specific provider to a
+# DIFFERENT customer deck; ``provider -> None`` is an EXPLICIT exclusion (that
+# provider SKIPS instead of onboarding). Resolution is
+# ``WALKTHROUGH_DECK_OVERRIDES.get(provider, WALKTHROUGH_DECK_DEFAULT)``: an
+# absent key falls to the universal default, a present key wins (deck or None).
+# Every non-None override MUST be audience=customer (map-purity test + 2b gate).
+# The code no longer GATES on any closed provider enum -- the live Asana field
+# is the source of truth; adding a provider option needs NO code change here.
+WALKTHROUGH_DECK_OVERRIDES: dict[str, str | None] = {}
+
+# The currently-KNOWN Calendar-Provider options on the live Asana field (census
+# 2026-07-02: 19 enabled options). This list is DOCUMENTATION ONLY -- the code
+# does NOT gate on it, MUST NOT gate on it, and does not need updating when the
+# operator adds an option. It exists to name the two onboarding classes; both
+# onboard via ``WALKTHROUGH_DECK_DEFAULT``:
+#   * calendar-integration API providers -- Acuity, Calendly, ChiroHD,
+#     ChiroTouch Cloud, Elation, Genesis, GHL, Google, JaneApp, PromptEMR,
+#     ReviewWave, SKED, SimplePractice, TrackStat, Unify, EHR → GCal,
+#     Practice Better, Outlook;
+#   * custom / direct-integration -- Direct (external direct-booking; the 19th
+#     option the stale 18-entry enum was MISSING, the drift this fix kills).
+# Selection is provider-agnostic: this list is deliberately NOT wired to any
+# runtime branch (drift-proof by construction).

@@ -331,37 +331,113 @@ class TestOptInKillSwitch:
         assert await wf.validate_async() == [], "explicit enable MUST proceed"  # GREEN leg
 
 
-# --- T2 / AC-GATE RED: wrong / absent / unmapped enum -> no-op skip ---
+# --- PROVIDER-AGNOSTIC SELECTION (rulings 2026-07-02) ---
+#
+# Receipt (the 19-vs-18 drift): the live Asana ``Calendar Provider`` field on
+# project 1209442849265632 carries 19 enabled options; the retired closed enum
+# had only 18 -- MISSING "Direct" (Sand Lake Dental, the custom-integration
+# class). The old gate ``provider not in WALKTHROUGH_DECK_MAP -> skip`` therefore
+# silently dropped "Direct" and would drop ANY option the operator adds. The fix:
+# the provider value is METADATA, not a selection gate. ANY non-empty provider ->
+# the universal WALKTHROUGH_DECK_DEFAULT (audience:customer); the REAL gates are
+# ACTIVE-section membership + resolvable identity (W1) + the deck-audience lock
+# (2b). Denominator is now ACTIVE ∩ resolvable, NOT provider ∈ closed-enum.
 
 
-class TestNecessityGate:
-    """Positive enum gate (G-DENOM): only triggering providers proceed."""
+class TestProviderAgnosticSelection:
+    """The provider value is metadata, not a closed-enum gate (ruling 2026-07-02).
 
-    async def test_unknown_provider_skips_no_side_effects(self) -> None:
+    Supersedes the #191/#193-era ``provider not in enum -> skip`` /
+    ``provider_unmapped`` assertions. Two-sided: a present provider (Direct, an
+    API provider, or a value added tomorrow) drives the full attach path; an
+    absent/blank provider is a readiness skip (``provider_not_set``).
+    """
+
+    @staticmethod
+    def _mock_freeze(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        # Determinism without Node: the mechanism (real freeze) is proven by the
+        # producer-real tests; here we prove SELECTION reaches freeze->upload.
+        spy = AsyncMock(return_value=_deck_bytes(SPIKE_ADDRESS))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        return spy
+
+    # -- CORE REGRESSION: "Direct" (the 19th option) now ATTACHES (two-sided:
+    #    the pre-fix probe proved it SKIPPED provider_not_triggering at HEAD) --
+
+    async def test_direct_provider_resolves_default_deck_and_attaches(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        freeze_spy = self._mock_freeze(monkeypatch)
         wf, atts, resolver, _ = _make_workflow()
-        out = await wf.process_entity(_entity(provider="UNKNOWN_PROVIDER_VALUE"), {})
-        assert out.status == "skipped"
-        assert out.reason == "provider_not_triggering"
-        resolver.resolve_routing_address_by_phone_async.assert_not_called()
-        atts.upload_async.assert_not_called()
+        out = await wf.process_entity(_entity(provider="Direct"), {})
+        assert out.status == "succeeded", "Direct MUST onboard (custom-integration class)"
+        # Resolved provider-agnostically to the universal customer deck.
+        assert freeze_spy.await_args is not None
+        assert freeze_spy.await_args.kwargs["deck_template"] == "email-forwarding-setup"
+        resolver.resolve_routing_address_by_phone_async.assert_awaited_once()
+        atts.upload_async.assert_awaited_once()
 
-    async def test_none_provider_skips_no_side_effects(self) -> None:
+    async def test_synthetic_future_provider_resolves_default_and_attaches(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Drift-proof by construction: a provider value that exists in NO in-code
+        # list still onboards (the live Asana field is the source of truth).
+        freeze_spy = self._mock_freeze(monkeypatch)
+        wf, atts, _resolver, _ = _make_workflow()
+        out = await wf.process_entity(_entity(provider="FutureProvider2027"), {})
+        assert out.status == "succeeded"
+        assert freeze_spy.await_args.kwargs["deck_template"] == constants.WALKTHROUGH_DECK_DEFAULT
+        atts.upload_async.assert_awaited_once()
+
+    # -- MICRO-DECISION: absent/blank provider is a readiness skip, no side effects --
+
+    async def test_none_provider_skips_provider_not_set(self) -> None:
         wf, atts, resolver, _ = _make_workflow()
         out = await wf.process_entity(_entity(provider=None), {})
         assert out.status == "skipped"
-        assert out.reason == "provider_not_triggering"
+        assert out.reason == "provider_not_set"
         resolver.resolve_routing_address_by_phone_async.assert_not_called()
         atts.upload_async.assert_not_called()
 
-    async def test_known_but_unmapped_provider_skips(self) -> None:
-        # "Acuity" is a real enum option mapped to None (PROBE-GATED) -> distinct
-        # reason from a wholly-unknown value; still a no-op skip.
+    async def test_empty_provider_skips_provider_not_set(self) -> None:
         wf, atts, resolver, _ = _make_workflow()
-        out = await wf.process_entity(_entity(provider="Acuity"), {})
+        out = await wf.process_entity(_entity(provider="   "), {})
         assert out.status == "skipped"
-        assert out.reason == "provider_unmapped"
+        assert out.reason == "provider_not_set"
         resolver.resolve_routing_address_by_phone_async.assert_not_called()
         atts.upload_async.assert_not_called()
+
+    # -- EXPLICIT EXCLUSION seam: an override of None opts a provider OUT (skip) --
+
+    async def test_explicit_override_none_excludes_provider(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The D-2 seam's other edge: overrides[provider] = None is a deliberate
+        # opt-OUT, distinct from the not-yet-identified provider_not_set skip.
+        monkeypatch.setitem(constants.WALKTHROUGH_DECK_OVERRIDES, "OptedOut", None)
+        wf, atts, resolver, _ = _make_workflow()
+        out = await wf.process_entity(_entity(provider="OptedOut"), {})
+        assert out.status == "skipped"
+        assert out.reason == "provider_excluded"
+        resolver.resolve_routing_address_by_phone_async.assert_not_called()
+        atts.upload_async.assert_not_called()
+
+    # -- INTERNAL STAYS UNREACHABLE: no provider VALUE resolves to the internal deck --
+
+    @pytest.mark.parametrize(
+        "provider", ["Direct", "GHL", "Acuity", "FutureProvider2027", "JaneApp"]
+    )
+    async def test_no_provider_value_reaches_internal_deck(
+        self, monkeypatch: pytest.MonkeyPatch, provider: str
+    ) -> None:
+        freeze_spy = self._mock_freeze(monkeypatch)
+        wf, _atts, _resolver, _ = _make_workflow()
+        out = await wf.process_entity(_entity(provider=provider), {})
+        assert out.status == "succeeded"
+        # The resolved deck is the universal customer deck, NEVER ghl-calendar-setup.
+        resolved_deck = freeze_spy.await_args.kwargs["deck_template"]
+        assert resolved_deck == "email-forwarding-setup"
+        assert resolved_deck != "ghl-calendar-setup"
 
 
 # --- T3 / AC-RESOLVE-skip RED: missing office_phone -> fail-closed skip ---
@@ -623,11 +699,11 @@ class TestProducerRelocation:
 
 @requires_producer
 class TestFullPathGreen:
-    async def test_full_path_uploads_then_deletes(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        # G-DENOM: production map keeps JaneApp None. Override the deck map IN THE
-        # TEST ONLY so JaneApp -> the spike-proven deck, exercising the mechanism
-        # end-to-end with the real pilot value + phone.
-        monkeypatch.setitem(constants.WALKTHROUGH_DECK_MAP, "JaneApp", SPIKE_DECK)
+    async def test_full_path_uploads_then_deletes(self) -> None:
+        # Provider-agnostic: JaneApp (an API-provider) resolves to the universal
+        # WALKTHROUGH_DECK_DEFAULT (== SPIKE_DECK) with NO map override, exercising
+        # the mechanism end-to-end with the real pilot value + phone.
+        assert constants.WALKTHROUGH_DECK_DEFAULT == SPIKE_DECK
 
         old_att = _make_attachment("old-gid", "walkthrough_task-1_20260101000000.html")
         resolver = _make_resolver(address=SPIKE_ADDRESS)
@@ -2657,14 +2733,21 @@ class TestDeckAudienceLock:
                 f"{{'customer', 'internal'}} (no third value)"
             )
 
-    # -- (b) MAP-PURITY: every mapped deck is customer-classified --
+    # -- (b) MAP-PURITY: the universal default AND every override is customer --
 
-    def test_map_purity_every_mapped_deck_is_customer(self) -> None:
-        deck_manifests.assert_map_customer_only(constants.WALKTHROUGH_DECK_MAP)
-        for provider, deck in constants.WALKTHROUGH_DECK_MAP.items():
+    def test_default_deck_is_customer_classified(self) -> None:
+        # The #191 audience lock, at the DEFAULT: the universal deck can never
+        # silently become an internal deck (provider-agnostic selection routes
+        # EVERY present provider here, so its audience is load-bearing).
+        assert deck_manifests.load_audience(constants.WALKTHROUGH_DECK_DEFAULT) == "customer"
+        deck_manifests.assert_customer_deck(constants.WALKTHROUGH_DECK_DEFAULT)  # does not raise
+
+    def test_map_purity_every_override_deck_is_customer(self) -> None:
+        deck_manifests.assert_map_customer_only(constants.WALKTHROUGH_DECK_OVERRIDES)
+        for provider, deck in constants.WALKTHROUGH_DECK_OVERRIDES.items():
             if deck is not None:
                 assert deck_manifests.load_audience(deck) == "customer", (
-                    f"WALKTHROUGH_DECK_MAP[{provider!r}] = {deck!r} is not customer-classified"
+                    f"WALKTHROUGH_DECK_OVERRIDES[{provider!r}] = {deck!r} is not customer"
                 )
 
     # -- (c) PIN: ghl-calendar-setup is INTERNAL (product ruling 2026-07-02) --
@@ -2673,18 +2756,38 @@ class TestDeckAudienceLock:
         path = deck_manifests.MANIFEST_DIR / "ghl-calendar-setup.json"
         assert path.is_file(), "the ghl-calendar-setup audience manifest must exist"
         assert json.loads(path.read_text(encoding="utf-8")) == {"audience": "internal"}
-        # Consequence (with map-purity): no provider may map to the internal deck.
-        assert "ghl-calendar-setup" not in set(constants.WALKTHROUGH_DECK_MAP.values()), (
-            "the pre-lock defect reintroduced: a provider maps to the INTERNAL-ONLY "
+        # Consequence (with map-purity): the internal deck is neither the universal
+        # default nor any override value -> no provider VALUE can select it.
+        assert constants.WALKTHROUGH_DECK_DEFAULT != "ghl-calendar-setup"
+        assert "ghl-calendar-setup" not in set(constants.WALKTHROUGH_DECK_OVERRIDES.values()), (
+            "the pre-lock defect reintroduced: an override maps to the INTERNAL-ONLY "
             "ghl-calendar-setup deck"
         )
 
-    # -- (d) CONSTRUCTION-FAILS-LOUDLY: poisoned maps are rejected, named --
+    # -- (c') MUTATION: the 2b gate still refuses an internal deck FORCED as default --
+
+    async def test_audience_lock_refuses_internal_deck_forced_as_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # If a future edit made the universal default an internal deck, the 2b
+        # runtime audience gate MUST still fail-close (the lock is on the RESOLVED
+        # deck, not the constant). Drive a present provider -> forced internal default.
+        freeze_spy = self._patch_freeze(monkeypatch)
+        monkeypatch.setattr(constants, "WALKTHROUGH_DECK_DEFAULT", "ghl-calendar-setup")
+        wf, atts, resolver, _ = _make_workflow()
+        out = await wf.process_entity(_entity(provider="Direct"), {})
+        assert out.status == "skipped"
+        assert out.reason == "deck_audience_denied"
+        resolver.resolve_routing_address_by_phone_async.assert_not_called()
+        freeze_spy.assert_not_awaited()
+        atts.upload_async.assert_not_called()
+
+    # -- (d) CONSTRUCTION-FAILS-LOUDLY: poisoned override maps are rejected, named --
 
     @pytest.mark.parametrize(
         ("provider", "deck", "detail"),
         [
-            # The EXACT pre-lock defect: GHL -> the internal deck.
+            # The EXACT pre-lock defect: a provider -> the internal deck.
             ("GHL", "ghl-calendar-setup", "audience_internal"),
             ("Acuity", "ghl-calendar-setup", "audience_internal"),
             # Absence IS denial: a deck with NO manifest is equally unbuildable.
@@ -2694,7 +2797,7 @@ class TestDeckAudienceLock:
     def test_construction_fails_loudly_naming_provider_and_deck(
         self, provider: str, deck: str, detail: str
     ) -> None:
-        poisoned = dict(constants.WALKTHROUGH_DECK_MAP)
+        poisoned = dict(constants.WALKTHROUGH_DECK_OVERRIDES)
         poisoned[provider] = deck
         with pytest.raises(deck_manifests.DeckAudienceError) as excinfo:
             deck_manifests.assert_map_customer_only(poisoned)
@@ -2714,8 +2817,9 @@ class TestDeckAudienceLock:
         self, monkeypatch: pytest.MonkeyPatch, deck: str, expected_detail: str
     ) -> None:
         freeze_spy = self._patch_freeze(monkeypatch)
-        # Bypass the ratified map: dynamically point GHL at the given deck.
-        monkeypatch.setitem(constants.WALKTHROUGH_DECK_MAP, "GHL", deck)
+        # Bypass the provider-agnostic default: dynamically override GHL to the
+        # given (internal / unclassified) deck so the 2b gate is exercised.
+        monkeypatch.setitem(constants.WALKTHROUGH_DECK_OVERRIDES, "GHL", deck)
         wf, atts, resolver, _ = _make_workflow()
         with _capture_workflow_logs() as captured:
             out = await wf.process_entity(_entity(provider="GHL"), {})
