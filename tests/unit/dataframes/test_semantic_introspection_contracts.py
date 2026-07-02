@@ -598,22 +598,25 @@ class TestSI14UnannotatedColumnsPlain:
 
 
 # ---------------------------------------------------------------------------
-# SI-15: 12 cascade column-schema combinations annotated
+# SI-15: 13 cascade column-schema combinations annotated
 # ---------------------------------------------------------------------------
 
 
 class TestSI15CascadeAnnotationCount:
-    """SI-15: Exactly 12 SEMANTIC_ANNOTATIONS entries have cascade_behavior."""
+    """SI-15: Exactly 13 SEMANTIC_ANNOTATIONS entries have cascade_behavior.
 
-    def test_cascade_annotation_count_is_12(self) -> None:
-        """Count of annotations with cascade_behavior must be exactly 12."""
+    +1 (offer.company_id) for the frame-first scheduling-posture projection (1.5.0).
+    """
+
+    def test_cascade_annotation_count_is_13(self) -> None:
+        """Count of annotations with cascade_behavior must be exactly 13."""
         cascade_entries = [
             key
             for key, annotation in SEMANTIC_ANNOTATIONS.items()
             if "cascade_behavior" in annotation
         ]
-        assert len(cascade_entries) == 12, (
-            f"Expected exactly 12 cascade annotations, got {len(cascade_entries)}. "
+        assert len(cascade_entries) == 13, (
+            f"Expected exactly 13 cascade annotations, got {len(cascade_entries)}. "
             f"Entries: {sorted(cascade_entries)}"
         )
 
@@ -639,8 +642,8 @@ class TestSI16HD02AnnotationCount:
             f"Entries: {sorted(non_cascade_entries)}"
         )
 
-    def test_total_is_19(self) -> None:
-        """Total annotation count must be 12 + 7 = 19."""
-        assert len(SEMANTIC_ANNOTATIONS) == 19, (
-            f"Expected 19 total annotations (12 cascade + 7 HD-02), got {len(SEMANTIC_ANNOTATIONS)}"
+    def test_total_is_20(self) -> None:
+        """Total annotation count must be 13 + 7 = 20 (offer.company_id added, 1.5.0)."""
+        assert len(SEMANTIC_ANNOTATIONS) == 20, (
+            f"Expected 20 total annotations (13 cascade + 7 HD-02), got {len(SEMANTIC_ANNOTATIONS)}"
         )

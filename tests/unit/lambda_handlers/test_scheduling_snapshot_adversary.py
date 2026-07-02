@@ -21,9 +21,18 @@ from autom8_asana.lambda_handlers.scheduling_stratum_snapshot import (
     execute_snapshot_push,
     handler,
 )
+from autom8_asana.normalizer.scheduling_extractor import ExtractedScheduling
+from autom8_asana.normalizer.scheduling_stratum import CASCADE_PRIORITY
 from autom8_asana.services.scheduling_stratum_push import StratumPushResult
 
 pytestmark = [pytest.mark.xdist_group("scheduling_normalizer")]
+
+
+def _office(guid: str) -> ExtractedScheduling:
+    return ExtractedScheduling(
+        guid=guid,
+        normalized_inputs={**{f: None for f in CASCADE_PRIORITY}, "reviewwave_id": "rw"},
+    )
 
 
 # --- (d2) PARTIAL-BATCH REFUSAL -------------------------------------------------
@@ -46,24 +55,47 @@ def test_d2_empty_batch_is_refused_not_pushed() -> None:
 async def test_d2_partial_source_pushes_nothing_end_to_end() -> None:
     """Through execute_snapshot_push: an incomplete source -> refused, push NEVER called.
 
-    This is the load-bearing safety: a partial office set never reaches the data
-    side's whole-source DELETE.
+    This is the load-bearing safety: even a NON-EMPTY office set never reaches the
+    data side's whole-source DELETE when source_complete is False.
     """
     push_called = False
 
-    async def _enumerate() -> tuple[list[str], bool]:
-        return ["only", "a", "partial"], False  # source_complete=False
+    async def _enumerate() -> tuple[list[ExtractedScheduling], bool]:
+        return [_office("only"), _office("a"), _office("partial")], False  # source_complete=False
 
-    async def _push(_gids: list[str]) -> StratumPushResult:
+    async def _push(_offices: list[ExtractedScheduling]) -> StratumPushResult:
         nonlocal push_called
         push_called = True
-        return StratumPushResult(pushed=True, dry_run=False, entry_count=len(_gids), payload={})
+        return StratumPushResult(pushed=True, dry_run=False, entry_count=len(_offices), payload={})
 
     result = await execute_snapshot_push(
-        gate=lambda: True, enumerate_office_gids=_enumerate, push=_push
+        gate=lambda: True, enumerate_offices=_enumerate, push=_push
     )
     assert result.status == "refused"
     assert result.entry_count == 0
+    assert push_called is False
+
+
+async def test_d2_schema_lag_frame_pushes_nothing_end_to_end() -> None:
+    """A SCHEMA-LAG refusal (pre-1.5.0 frame) also pushes NOTHING -- never fabricates.
+
+    A stale-while-revalidate cache serving a pre-1.5.0 frame must REFUSE rather than
+    project a fabricated (all-ACTIVE) posture into the whole-source DELETE.
+    """
+    push_called = False
+
+    async def _enumerate() -> tuple[list[ExtractedScheduling], bool]:
+        raise SnapshotRefusedError("frame schema pre-1.5.0: projected posture columns absent")
+
+    async def _push(_offices: list[ExtractedScheduling]) -> StratumPushResult:
+        nonlocal push_called
+        push_called = True
+        return StratumPushResult(pushed=True, dry_run=False, entry_count=len(_offices), payload={})
+
+    result = await execute_snapshot_push(
+        gate=lambda: True, enumerate_offices=_enumerate, push=_push
+    )
+    assert result.status == "refused"
     assert push_called is False
 
 

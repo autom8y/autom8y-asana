@@ -8,6 +8,7 @@ full-office enumeration off the warmed offer frame.
 
 from __future__ import annotations
 
+import datetime as dt
 from typing import Any
 
 import polars as pl
@@ -19,11 +20,46 @@ from autom8_asana.lambda_handlers.scheduling_stratum_snapshot import (
     assert_complete_office_set,
     execute_snapshot_push,
     handler,
+    project_offer_frame,
     run_snapshot_push_async,
 )
+from autom8_asana.normalizer.scheduling_extractor import (
+    CUSTOM_CAL_STATUS_FIELD,
+    GUID_FIELD,
+    REQUIRED_FRAME_COLUMNS,
+    ExtractedScheduling,
+    FrameSchemaLagError,
+)
+from autom8_asana.normalizer.scheduling_stratum import CASCADE_PRIORITY
 from autom8_asana.services.scheduling_stratum_push import StratumPushResult
 
 pytestmark = [pytest.mark.xdist_group("scheduling_normalizer")]
+
+
+def _office(guid: str, *, field: str = "reviewwave_id", value: str = "rw") -> ExtractedScheduling:
+    return ExtractedScheduling(
+        guid=guid,
+        normalized_inputs={**{f: None for f in CASCADE_PRIORITY}, field: value},
+    )
+
+
+def _frame_df(rows: list[dict[str, Any]]) -> pl.DataFrame:
+    """Build an offer-frame DataFrame with ALL 1.5.0 posture columns present as keys.
+
+    Any posture column omitted from a row dict defaults to None (a legitimately-null
+    projected column -- the office genuinely lacks that field), which is distinct from
+    a pre-1.5.0 frame that LACKS the column entirely (the schema-lag case).
+    """
+    complete: list[dict[str, Any]] = []
+    for i, row in enumerate(rows):
+        base: dict[str, Any] = {
+            "gid": row.get("gid", f"o{i}"),
+            "last_modified": row.get("last_modified", dt.datetime(2026, 1, 1, tzinfo=dt.UTC)),
+        }
+        for col in REQUIRED_FRAME_COLUMNS:
+            base[col] = row.get(col)
+        complete.append(base)
+    return pl.DataFrame(complete)
 
 
 # --- assert_complete_office_set (COMPLETENESS CONTRACT) --------------------------
@@ -63,28 +99,28 @@ def test_refuses_all_blank_gids() -> None:
 # --- execute_snapshot_push (gate + completeness + push orchestration) ------------
 
 
-async def _push_ok(office_gids: list[str]) -> StratumPushResult:
-    return StratumPushResult(pushed=True, dry_run=False, entry_count=len(office_gids), payload={})
+async def _push_ok(offices: list[ExtractedScheduling]) -> StratumPushResult:
+    return StratumPushResult(pushed=True, dry_run=False, entry_count=len(offices), payload={})
 
 
-async def _push_dry(office_gids: list[str]) -> StratumPushResult:
-    return StratumPushResult(pushed=False, dry_run=True, entry_count=len(office_gids), payload={})
+async def _push_dry(offices: list[ExtractedScheduling]) -> StratumPushResult:
+    return StratumPushResult(pushed=False, dry_run=True, entry_count=len(offices), payload={})
 
 
 async def test_gate_off_skips_without_enumerating() -> None:
     """DEFAULT-DARK: gate off -> skipped, and the enumeration is NEVER invoked."""
     enumerate_called = False
 
-    async def _enumerate() -> tuple[list[str], bool]:
+    async def _enumerate() -> tuple[list[ExtractedScheduling], bool]:
         nonlocal enumerate_called
         enumerate_called = True
-        return ["a"], True
+        return [_office("a")], True
 
-    async def _push(_gids: list[str]) -> StratumPushResult:
+    async def _push(_offices: list[ExtractedScheduling]) -> StratumPushResult:
         raise AssertionError("push must not run when the gate is off")
 
     result = await execute_snapshot_push(
-        gate=lambda: False, enumerate_office_gids=_enumerate, push=_push
+        gate=lambda: False, enumerate_offices=_enumerate, push=_push
     )
     assert result.status == "skipped"
     assert result.reason == "gate_off"
@@ -94,50 +130,206 @@ async def test_gate_off_skips_without_enumerating() -> None:
 async def test_incomplete_source_refuses_without_pushing() -> None:
     push_called = False
 
-    async def _enumerate() -> tuple[list[str], bool]:
-        return ["a", "b"], False  # source_complete=False
+    async def _enumerate() -> tuple[list[ExtractedScheduling], bool]:
+        return [_office("a"), _office("b")], False  # source_complete=False
 
-    async def _push(_gids: list[str]) -> StratumPushResult:
+    async def _push(_offices: list[ExtractedScheduling]) -> StratumPushResult:
         nonlocal push_called
         push_called = True
-        return await _push_ok(_gids)
+        return await _push_ok(_offices)
 
     result = await execute_snapshot_push(
-        gate=lambda: True, enumerate_office_gids=_enumerate, push=_push
+        gate=lambda: True, enumerate_offices=_enumerate, push=_push
     )
     assert result.status == "refused"
     assert push_called is False  # NEVER push a partial
 
 
-async def test_complete_source_pushes_full_set() -> None:
-    pushed_gids: list[str] = []
+async def test_schema_lag_refuses_without_pushing() -> None:
+    """A SCHEMA-LAG SnapshotRefusedError from enumerate -> refused, push NEVER called.
 
-    async def _enumerate() -> tuple[list[str], bool]:
-        return ["o1", "o2", "o3"], True
+    Byte-compatible with the incomplete-source refusal: the honest reason flows
+    through to the refused outcome and NOTHING is pushed.
+    """
+    push_called = False
 
-    async def _push(gids: list[str]) -> StratumPushResult:
-        pushed_gids.extend(gids)
-        return await _push_ok(gids)
+    async def _enumerate() -> tuple[list[ExtractedScheduling], bool]:
+        raise SnapshotRefusedError("frame schema pre-1.5.0: projected posture columns absent")
+
+    async def _push(_offices: list[ExtractedScheduling]) -> StratumPushResult:
+        nonlocal push_called
+        push_called = True
+        return await _push_ok(_offices)
 
     result = await execute_snapshot_push(
-        gate=lambda: True, enumerate_office_gids=_enumerate, push=_push
+        gate=lambda: True, enumerate_offices=_enumerate, push=_push
+    )
+    assert result.status == "refused"
+    assert result.reason is not None and "pre-1.5.0" in result.reason
+    assert push_called is False
+
+
+async def test_complete_source_pushes_full_set() -> None:
+    pushed_guids: list[str] = []
+
+    async def _enumerate() -> tuple[list[ExtractedScheduling], bool]:
+        return [_office("o1"), _office("o2"), _office("o3")], True
+
+    async def _push(offices: list[ExtractedScheduling]) -> StratumPushResult:
+        pushed_guids.extend(o.guid for o in offices)
+        return await _push_ok(offices)
+
+    result = await execute_snapshot_push(
+        gate=lambda: True, enumerate_offices=_enumerate, push=_push
     )
     assert result.status == "pushed"
     assert result.entry_count == 3
-    assert pushed_gids == ["o1", "o2", "o3"]
+    assert pushed_guids == ["o1", "o2", "o3"]
 
 
 async def test_dry_run_push_reports_dry_run_status() -> None:
-    async def _enumerate() -> tuple[list[str], bool]:
-        return ["o1"], True
+    async def _enumerate() -> tuple[list[ExtractedScheduling], bool]:
+        return [_office("o1")], True
 
     result = await execute_snapshot_push(
-        gate=lambda: True, enumerate_office_gids=_enumerate, push=_push_dry
+        gate=lambda: True, enumerate_offices=_enumerate, push=_push_dry
     )
     assert result.status == "dry_run"
 
 
-# --- _enumerate_active_office_gids (full offer-frame source) ---------------------
+# --- project_offer_frame (PURE frame-first projection) --------------------------
+
+
+def test_project_hit_path_all_columns_present() -> None:
+    """A 1.5.0 frame with all posture columns projects to a correct ExtractedScheduling.
+
+    Absent/unset custom_cal_status -> legacy ACTIVE default -> enrolled=True (never
+    fabricated; None is a legitimate null column).
+    """
+    df = _frame_df([{GUID_FIELD: "gA", "reviewwave_id": "rw"}])  # status None
+    extracted, drift = project_offer_frame(df)
+    assert len(extracted) == 1
+    assert extracted[0].guid == "gA"
+    assert extracted[0].enrolled is True  # absent status -> ACTIVE default
+    assert extracted[0].normalized_inputs["reviewwave_id"] == "rw"
+    assert drift == []
+
+
+def test_project_deenrolled_office_present_with_enrolled_false() -> None:
+    """A de-enrolled (INACTIVE) office is PRESENT with enrolled=False -- never omitted."""
+    df = _frame_df([{GUID_FIELD: "gOff", CUSTOM_CAL_STATUS_FIELD: "Inactive", "sked_id": "sk"}])
+    extracted, _ = project_offer_frame(df)
+    assert len(extracted) == 1
+    assert extracted[0].guid == "gOff"
+    assert extracted[0].enrolled is False
+
+
+def test_project_guidless_offer_dropped_fail_safe_by_absence() -> None:
+    """UNIVERSE: a guid-less (null/blank company_id) offer DROPS -- fail SAFE by absence."""
+    df = _frame_df(
+        [
+            {"gid": "o-null", GUID_FIELD: None, "reviewwave_id": "rw"},
+            {"gid": "o-blank", GUID_FIELD: "  ", "reviewwave_id": "rw"},
+            {"gid": "o-ok", GUID_FIELD: "gOk", "reviewwave_id": "rw"},
+        ]
+    )
+    extracted, _ = project_offer_frame(df)
+    assert [e.guid for e in extracted] == ["gOk"]  # only the resolvable guid survives
+
+
+def test_project_multi_offer_dedup_max_modified_at_representative() -> None:
+    """Multi-offer-per-guid -> representative by max last_modified (status+destination jointly).
+
+    The NEWER offer (Inactive + sked) wins BOTH the status and the destination; the
+    older offer (Active + reviewwave) does not leak into the representative.
+    """
+    df = _frame_df(
+        [
+            {
+                "gid": "old",
+                GUID_FIELD: "gDup",
+                CUSTOM_CAL_STATUS_FIELD: "Active",
+                "last_modified": dt.datetime(2026, 1, 1, tzinfo=dt.UTC),
+                "reviewwave_id": "rw-old",
+            },
+            {
+                "gid": "new",
+                GUID_FIELD: "gDup",
+                CUSTOM_CAL_STATUS_FIELD: "Inactive",
+                "last_modified": dt.datetime(2026, 6, 1, tzinfo=dt.UTC),
+                "sked_id": "sk-new",
+            },
+        ]
+    )
+    extracted, _ = project_offer_frame(df)
+    assert len(extracted) == 1  # one representative per distinct guid
+    rep = extracted[0]
+    assert rep.guid == "gDup"
+    assert rep.enrolled is False  # status from the NEWER offer (Inactive), jointly
+    assert rep.normalized_inputs["sked_id"] == "sk-new"  # destination from the newer offer
+    assert rep.normalized_inputs["reviewwave_id"] is None  # older offer did NOT leak in
+
+
+def test_project_status_drift_signalled_when_offers_disagree() -> None:
+    """A guid whose offers disagree on custom_cal_status is surfaced as drift."""
+    df = _frame_df(
+        [
+            {"gid": "a", GUID_FIELD: "gDrift", CUSTOM_CAL_STATUS_FIELD: "Active"},
+            {"gid": "b", GUID_FIELD: "gDrift", CUSTOM_CAL_STATUS_FIELD: "Inactive"},
+            {"gid": "c", GUID_FIELD: "gAgree", CUSTOM_CAL_STATUS_FIELD: "Active"},
+            {"gid": "d", GUID_FIELD: "gAgree", CUSTOM_CAL_STATUS_FIELD: "Active"},
+        ]
+    )
+    _, drift = project_offer_frame(df)
+    assert drift == ["gDrift"]  # gAgree does NOT drift (both Active)
+
+
+def test_project_no_drift_when_statuses_agree() -> None:
+    """Two-sided: agreeing statuses (incl. one null) produce NO drift signal."""
+    df = _frame_df(
+        [
+            {"gid": "a", GUID_FIELD: "g1", CUSTOM_CAL_STATUS_FIELD: "Active"},
+            {"gid": "b", GUID_FIELD: "g1", CUSTOM_CAL_STATUS_FIELD: None},
+        ]
+    )
+    _, drift = project_offer_frame(df)
+    assert drift == []
+
+
+def test_project_empty_universe_yields_empty() -> None:
+    """A frame with only guid-less offers projects to an empty set (the gate then REFUSES)."""
+    df = _frame_df([{GUID_FIELD: None}, {GUID_FIELD: "   "}])
+    extracted, drift = project_offer_frame(df)
+    assert extracted == []
+    assert drift == []
+
+
+def test_project_schema_lag_frame_refuses_not_fabricates() -> None:
+    """SCHEMA-LAG (two-sided): a pre-1.5.0 frame lacking posture columns REFUSES.
+
+    RED-on-fabricating / GREEN-on-refusing: a variant that ``.get(col, None)`` a
+    missing column would FABRICATE enrolled=True (ACTIVE default) from a frame that
+    cannot carry the status; the refusing build raises FrameSchemaLagError instead.
+    """
+    # A pre-1.5.0 frame: gid + last_modified only, NO posture-projection columns.
+    stale = pl.DataFrame({"gid": ["o1"], "last_modified": [dt.datetime(2026, 1, 1, tzinfo=dt.UTC)]})
+
+    # Fabricating variant (what NOT to do): silently defaults the absent columns and
+    # produces a bogus enrolled=True posture -- the danger the guard exists to stop.
+    def _fabricating(row: dict[str, Any]) -> bool:
+        from autom8_asana.normalizer.scheduling_extractor import derive_enrolled
+
+        return derive_enrolled(row.get(CUSTOM_CAL_STATUS_FIELD))  # .get -> None -> True
+
+    fabricated = _fabricating(stale.to_dicts()[0])
+    assert fabricated is True  # RED: the fabricating variant silently invents ACTIVE
+
+    # The refusing build detects the absent columns and REFUSES honestly.
+    with pytest.raises(FrameSchemaLagError, match="pre-1.5.0"):
+        project_offer_frame(stale)
+
+
+# --- _enumerate_offices_from_frame (full offer-frame source, frame-first) --------
 
 
 class _FakeEntry:
@@ -155,27 +347,45 @@ class _FakeCache:
         return self._entry
 
 
-async def test_enumerate_reads_full_gid_column() -> None:
-    df = pl.DataFrame({"gid": ["o1", "o2", "o3"], "name": ["a", "b", "c"]})
+async def test_enumerate_projects_offices_from_frame() -> None:
+    df = _frame_df(
+        [
+            {GUID_FIELD: "g1", "reviewwave_id": "rw"},
+            {GUID_FIELD: "g2", "sked_id": "sk"},
+        ]
+    )
     cache = _FakeCache(_FakeEntry(df))
-    gids, complete = await snap._enumerate_active_office_gids(cache, "PROJ")
+    extracted, complete = await snap._enumerate_offices_from_frame(cache, "PROJ")
     assert complete is True
-    assert gids == ["o1", "o2", "o3"]
+    assert {e.guid for e in extracted} == {"g1", "g2"}
     assert cache.requested == ("PROJ", "offer")  # reads the OFFER frame (full source)
 
 
 async def test_enumerate_absent_frame_is_incomplete() -> None:
     """No warmed offer frame -> source_complete=False -> the gate will REFUSE."""
-    gids, complete = await snap._enumerate_active_office_gids(_FakeCache(None), "PROJ")
-    assert gids == []
+    extracted, complete = await snap._enumerate_offices_from_frame(_FakeCache(None), "PROJ")
+    assert extracted == []
     assert complete is False
 
 
 async def test_enumerate_frame_without_gid_column_is_incomplete() -> None:
     df = pl.DataFrame({"name": ["a"]})
-    gids, complete = await snap._enumerate_active_office_gids(_FakeCache(_FakeEntry(df)), "PROJ")
-    assert gids == []
+    extracted, complete = await snap._enumerate_offices_from_frame(
+        _FakeCache(_FakeEntry(df)), "PROJ"
+    )
+    assert extracted == []
     assert complete is False
+
+
+async def test_enumerate_schema_lag_frame_raises_refused() -> None:
+    """A pre-1.5.0 frame (gid present, posture columns absent) -> SnapshotRefusedError.
+
+    The enumerate translates the frame-level FrameSchemaLagError into the honest
+    refused reason so execute_snapshot_push records it (never a 500).
+    """
+    stale = pl.DataFrame({"gid": ["o1"], "last_modified": [dt.datetime(2026, 1, 1, tzinfo=dt.UTC)]})
+    with pytest.raises(SnapshotRefusedError, match="pre-1.5.0"):
+        await snap._enumerate_offices_from_frame(_FakeCache(_FakeEntry(stale)), "PROJ")
 
 
 # --- handler (end-to-end DARK) --------------------------------------------------

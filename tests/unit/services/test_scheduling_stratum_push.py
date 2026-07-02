@@ -224,44 +224,42 @@ async def test_push_live_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     assert helper.await_args.kwargs["endpoint_path"] == "/api/v1/scheduling-stratum/sync"
 
 
-# --- resolve_and_push_snapshot pipeline -----------------------------------------
+# --- resolve_and_push_snapshot pipeline (frame-first: pre-extracted offices) ------
 
 
-async def test_resolve_and_push_dry_run_with_injected_extractor() -> None:
-    async def fake_extract(gid: str, **_kw: object) -> ExtractedScheduling:
-        return ExtractedScheduling(
-            guid=f"guid-{gid}",
-            normalized_inputs={**{f: None for f in CASCADE_PRIORITY}, "acuity_cal_url": "ac"},
-        )
+def _office(guid: str, *, field: str = "acuity_cal_url", value: str = "ac") -> ExtractedScheduling:
+    return ExtractedScheduling(
+        guid=guid,
+        normalized_inputs={**{f: None for f in CASCADE_PRIORITY}, field: value},
+    )
 
+
+async def test_resolve_and_push_dry_run_over_extracted_offices() -> None:
+    """FRAME-FIRST: the push path consumes pre-extracted offices (NO GFR loop, no client).
+
+    The per-gid GFR loop is DELETED from the push path; offices are projected upstream
+    from the warmed frame. This is a pure resolve/build/dry-run over the projected rows.
+    """
     result = await resolve_and_push_snapshot(
-        ["O1", "O2"],
-        client=object(),
-        query_engine=object(),
+        [_office("guid-O1"), _office("guid-O2")],
         dry_run=True,
-        extract_fn=fake_extract,
     )
     assert result.dry_run is True
     assert result.entry_count == 2
     assert all(e["stratum"] == "acuity" for e in result.payload["entries"])
 
 
-async def test_resolve_and_push_isolates_per_office_failure() -> None:
-    async def flaky_extract(gid: str, **_kw: object) -> ExtractedScheduling:
-        if gid == "BAD":
-            raise RuntimeError("extract boom")
-        return ExtractedScheduling(
-            guid=f"guid-{gid}",
-            normalized_inputs={**{f: None for f in CASCADE_PRIORITY}, "sked_id": "sk"},
-        )
+async def test_resolve_and_push_emits_all_provided_offices() -> None:
+    """The pure push path emits EVERY provided office (guid-dedup/isolation is upstream).
 
+    Per-office isolation + guid-dedup now live in the frame projection
+    (``project_offer_frame``); by the time the push path runs, the offices are the
+    clean deduped set and are all emitted (entry_count preserved for the whole-source
+    DELETE integrity witness).
+    """
     result = await resolve_and_push_snapshot(
-        ["O1", "BAD", "O2"],
-        client=object(),
-        query_engine=object(),
+        [_office("guid-O1"), _office("guid-O2", field="sked_id", value="sk")],
         dry_run=True,
-        extract_fn=flaky_extract,
     )
-    # The failed office is skipped, not fatal.
     assert result.entry_count == 2
     assert {e["guid"] for e in result.payload["entries"]} == {"guid-O1", "guid-O2"}

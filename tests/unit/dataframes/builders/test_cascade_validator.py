@@ -826,12 +826,18 @@ class TestOfferOfficeCascadeContract:
             f"Expected source='cascade:Business Name', got source={office_col.source!r}"
         )
 
-    def test_offer_schema_version_is_1_4_0(self) -> None:
-        """OFFER_SCHEMA version must be 1.4.0 after cascade contract addition."""
+    def test_offer_schema_version_is_1_5_0(self) -> None:
+        """OFFER_SCHEMA version must be 1.5.0 after the scheduling-posture projection.
+
+        Schema 1.5.0 adds the frame-first posture-projection columns (company_id via
+        cascade + custom_cal_status + the 8 CASCADE_PRIORITY provider sources). The
+        version bump forces the SWR cache to re-warm a 1.5.0 frame (a stale 1.4.0 hit
+        is rejected by schema-version validation), converging the frame-first read.
+        """
         from autom8_asana.dataframes.schemas.offer import OFFER_SCHEMA
 
-        assert OFFER_SCHEMA.version == "1.4.0", (
-            f"Expected version='1.4.0', got version={OFFER_SCHEMA.version!r}"
+        assert OFFER_SCHEMA.version == "1.5.0", (
+            f"Expected version='1.5.0', got version={OFFER_SCHEMA.version!r}"
         )
 
     def test_offer_office_in_cascade_columns(self) -> None:

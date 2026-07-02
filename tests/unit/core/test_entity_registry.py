@@ -1296,7 +1296,7 @@ EXPECTED_SCHEMA_COLUMN_COUNTS: list[tuple[str, int]] = [
     ("business", 18),  # 13 base + 5 business-specific
     ("unit", 22),  # 13 base + 9 unit-specific
     ("contact", 25),  # 13 base + 12 contact-specific
-    ("offer", 23),  # 13 base + 10 offer-specific
+    ("offer", 33),  # 13 base + 10 offer-specific + 10 scheduling-posture projection (1.5.0)
     ("asset_edit", 34),  # 13 base + 21 asset_edit-specific
     ("asset_edit_holder", 14),  # 13 base + 1 asset_edit_holder-specific
     ("process_sales", 16),  # 13 base + 3 process-specific

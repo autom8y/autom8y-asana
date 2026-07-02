@@ -156,13 +156,20 @@ class ContactRow(TaskRow):
 
 
 class OfferRow(TaskRow):
-    """Offer-specific row with 10 additional fields.
+    """Offer-specific row with 20 additional fields.
 
     Cascade fields (5):
         office, office_phone, vertical, mrr, weekly_ad_spend
 
     Custom fields (5):
         specialty, offer_id, platforms, language, cost
+
+    Scheduling-posture projection fields (10 -- schema 1.5.0, frame-first
+    extraction). The model is ``extra="forbid"``, so every projected schema
+    column MUST be declared here or DataFrame construction raises. All are
+    ``str | None`` (purely additive): the office guid (cascade from Business),
+    the office-global enrollment status, and the eight CASCADE_PRIORITY provider
+    source fields. See ``dataframes/schemas/offer.py`` for the source contract.
     """
 
     type: str = "Offer"
@@ -180,6 +187,18 @@ class OfferRow(TaskRow):
     platforms: list[str] = Field(default_factory=list)
     language: str | None = None
     cost: str | None = None
+
+    # Scheduling-posture projection fields (10 -- frame-first extraction)
+    company_id: str | None = None
+    custom_cal_status: str | None = None
+    reviewwave_id: str | None = None
+    acuity_cal_url: str | None = None
+    calendly_url: str | None = None
+    janeapp_url: str | None = None
+    ehr_cal_url: str | None = None
+    trackstat_id: str | None = None
+    sked_id: str | None = None
+    custom_ghl_id: str | None = None
 
 
 class ProcessRow(TaskRow):
