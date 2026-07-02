@@ -10,9 +10,12 @@ for an onboarding task that carries ANY ``Calendar Provider`` value, this workfl
    ``WALKTHROUGH_DECK_OVERRIDES.get(provider, WALKTHROUGH_DECK_DEFAULT)`` (an
    explicit override of ``None`` is an EXPLICIT exclusion -> ``provider_excluded``).
 3. PHONE  -- ``office_phone`` present, else fail-closed skip.
-4. RESOLVE -- the gated ``{guid}@appointments.contenteapp.com`` address via the
-   in-process autom8y-core SDK ``resolve_routing_address_by_phone_async`` (B1,
-   sole address source; injected as ``self._resolver``).
+4. RESOLVE -- the ``BusinessRecord`` row via the in-process autom8y-core SDK
+   ``get_business_by_phone_async`` (B1; injected as ``self._resolver``); the SAME
+   row yields the gated ``{guid}@appointments.contenteapp.com`` address (SDK
+   ``format_routing_address``, sole address source) AND the customer-plane
+   display name ``business_name`` (fault-13: never the Asana task name, never a
+   generic placeholder -- unresolvable name -> ``personalization_unresolved``).
 5. FREEZE -- render-then-freeze the personalized deck via the Node >=22 producer
    subprocess (A2, sole freezer; ``producer.freeze_walkthrough_deck``).
 6/7. UPLOAD-then-DELETE -- attach the frozen HTML, then delete the prior
@@ -41,6 +44,7 @@ from autom8y_core.errors import (
     DataServiceUnavailableError,
     DataServiceValidationError,
 )
+from autom8y_core.helpers.routing import format_routing_address
 from autom8y_log import get_logger
 
 from autom8_asana.automation.workflows.base import WorkflowItemError
@@ -75,6 +79,7 @@ from autom8_asana.resolution.gfr.errors import (
 
 if TYPE_CHECKING:
     from _typeshed import ReadableBuffer
+    from autom8y_core.models.data_service import BusinessRecord
 
     from autom8_asana.clients.attachments import AttachmentsClient
     from autom8_asana.core.scope import EntityScope
@@ -118,14 +123,20 @@ class _CappedBuffer(io.BytesIO):
 
 @runtime_checkable
 class RoutingAddressResolver(Protocol):
-    """Structural type for the sole address source (autom8y-core SDK).
+    """Structural type for the sole business-row source (autom8y-core SDK).
 
     The autom8y-core ``DataServiceClient`` (>=4.9.0) satisfies this protocol via
-    ``resolve_routing_address_by_phone_async``. Injected so the workflow never
-    hand-builds an address and tests can mock the resolve leg (no live call).
+    ``get_business_by_phone_async``. The seam is WIDENED (fault-13) to expose the
+    full ``BusinessRecord`` so the workflow derives BOTH the gated address (via
+    the SDK's ``format_routing_address``, G-PROPAGATE P3 -- never hand-built) AND
+    the customer-plane display name (``business_name``) from the SAME row. The
+    narrow address-only leg (``resolve_routing_address_by_phone_async``) is the
+    same SDK composition one call deeper; widening costs zero extra GETs and the
+    display name inherits the W1-certified identity guarantees of the row's guid.
+    Injected so tests can mock the resolve leg (no live call).
     """
 
-    async def resolve_routing_address_by_phone_async(self, office_phone: str) -> str | None: ...
+    async def get_business_by_phone_async(self, office_phone: str) -> BusinessRecord | None: ...
 
 
 class CompanyIdAnchor(Protocol):
@@ -493,11 +504,14 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
 
         masked = mask_phone_number(office_phone)
 
-        # 4. RESOLVE -- sole address source (B1). Never hand-built.
+        # 4. RESOLVE -- sole business-row source (B1). The seam is widened
+        #    (fault-13): the SAME data-service row yields BOTH the gated address
+        #    (SDK-composed via format_routing_address -- never hand-built,
+        #    G-PROPAGATE P3) AND the customer-plane display name, so the
+        #    personalization value is tenant-bound to the very guid W1 certifies.
         try:
-            gated_address = await self._resolver.resolve_routing_address_by_phone_async(
-                office_phone=office_phone
-            )
+            record = await self._resolver.get_business_by_phone_async(office_phone=office_phone)
+            gated_address = None if record is None else format_routing_address(record.guid)
         except DataServiceUnavailableError as exc:
             logger.error(
                 "onboarding_walkthrough_resolve_unavailable",
@@ -537,9 +551,9 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                 ),
             )
         except ValueError as exc:
-            # FR-2 (resolve): the SDK composes the gated address via
-            # ``format_routing_address(business.guid)`` which raises ``ValueError`` on a
-            # non-canonical STORED guid (routing.py:105) -- the R1 data-shape candidate.
+            # FR-2 (resolve): the SDK gate ``format_routing_address(record.guid)``
+            # raises ``ValueError`` on a non-canonical STORED guid (routing.py:105)
+            # -- the R1 data-shape candidate. Fires BEFORE any producer subprocess.
             # Disjoint from the DataService hierarchy (order-free); non-recoverable.
             logger.error(
                 "onboarding_walkthrough_resolve_invalid",
@@ -558,7 +572,7 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                 ),
             )
 
-        if not gated_address:
+        if record is None or not gated_address:
             logger.warning(
                 "onboarding_walkthrough_skipped",
                 task_gid=gid,
@@ -566,6 +580,24 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                 reason="address_unresolved",
             )
             return BridgeOutcome(gid=gid, status="skipped", reason="address_unresolved")
+
+        # 4a. PERSONALIZATION (fault-13): the customer-plane display name comes
+        #     from the SAME resolved row as the gated address -- NEVER from the
+        #     Asana task name (operational plane) and NEVER a generic placeholder
+        #     ("Clinic") rendered as if it were the clinic's name. Provenance
+        #     rule: customer-plane values come from customer-plane sources. An
+        #     unresolvable display name is a FAIL-CLOSED SKIP before any producer
+        #     subprocess (refuse-precedes-FREEZE, the W1/T7/G1 family discipline;
+        #     PR-2 formalizes this as the personalization gate).
+        client_name = (record.business_name or "").strip()
+        if not client_name:
+            logger.error(
+                "onboarding_walkthrough_skipped",
+                task_gid=gid,
+                office_phone=masked,
+                reason="personalization_unresolved",
+            )
+            return BridgeOutcome(gid=gid, status="skipped", reason="personalization_unresolved")
 
         # 4b. GFR-BY-GUID IDENTITY GUARD (W1, GATE-1) -- resolve-CORRECTNESS, UPSTREAM.
         #     Source A (address-embedded guid, from the PHONE resolve) vs Source B
@@ -761,7 +793,10 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         # guid -- the tenant changed). PROCEED to freeze->upload->delete-old: the
         # upload-first replacement reaps the foreign-guid prior via the glob delete.
 
-        client_name = entity.get("client_name") or entity.get("name") or "Clinic"
+        # ``client_name`` was bound at 4a from the SAME BusinessRecord row as the
+        # gated address (fault-13). The old fallback chain (task-name -> task-name
+        # -> "Clinic") is DELETED: the first two legs were both the operational-
+        # plane task name and the generic was a lie rendered as personalization.
         ts = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
         out_filename = f"walkthrough_{gid}_{ts}.html"
 
@@ -775,6 +810,7 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                 deck_template=deck_template,
                 gated_address=gated_address,
                 client_name=client_name,
+                title=deck_manifests.load_title(deck_template),
                 out_filename=out_filename,
             )
         except ProducerFreezeError as exc:
@@ -1120,12 +1156,14 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         from autom8_asana.models.business.business import Business
 
         business = Business.model_validate(task, from_attributes=True)
+        # FAULT-13: the raw task name (operational-plane PLAY nomenclature) is
+        # DELIBERATELY not carried here -- it leaked to the customer cover as
+        # "Prepared for PLAY: ...". The customer-plane display name is derived
+        # from the resolved BusinessRecord at step 4a, never from this entity.
         return {
             "gid": task.gid,
-            "name": task.name,
             "calendar_provider": business.calendar_provider,
             "office_phone": business.office_phone,
-            "client_name": task.name,
         }
 
     def _cleanup_export(self, out_filename: str) -> None:

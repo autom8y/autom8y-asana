@@ -95,7 +95,8 @@ class TestWiringGate:
     def test_factory_resolver_carries_phone_leg_not_the_data_client(self, monkeypatch) -> None:
         """The B1 resolver is the core-SDK client (from_env), NOT the asana-local
         data_client. Guards against the TDD-sketch bug where ``resolver=data_client``
-        wires a client lacking ``resolve_routing_address_by_phone_async``.
+        wires a client lacking ``get_business_by_phone_async`` (the fault-13
+        widened business-row seam).
         """
         monkeypatch.setenv(_PRODUCER_DIR_ENV, "/tmp/walkthrough-producer")
         from autom8_asana.lambda_handlers.onboarding_walkthrough import _create_workflow
@@ -114,7 +115,7 @@ class TestWiringGate:
         W1 anchor runs the VERIFIED tier, not the blind CACHE tier.
 
         The verifier is the SAME core-SDK client as the B1 resolver (it carries both
-        ``resolve_routing_address_by_phone_async`` and ``get_business_by_guid_async``),
+        ``get_business_by_phone_async`` and ``get_business_by_guid_async``),
         so no second client is constructed. If a future change drops ``verifier=`` from
         the factory, the anchor silently falls back to CACHE (cache-poisoning re-opens);
         this gate makes that regression a build failure.

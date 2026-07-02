@@ -7,9 +7,11 @@ injects the WIDER DI surface this workflow needs beyond the sibling bridges:
 
 * ``query_engine`` -- the REAL GFR-backed ``QueryEngine`` (W1 by-GUID identity
   substrate). G-PROPAGATE: never a reimplementation.
-* ``resolver`` -- the autom8y-core SDK ``DataServiceClient`` (B1 phone-leg address
-  source). This is a SEPARATE client from the generic factory's ``data_client``:
-  only the core-SDK client carries ``resolve_routing_address_by_phone_async``.
+* ``resolver`` -- the autom8y-core SDK ``DataServiceClient`` (B1 phone-leg
+  business-row source; fault-13 widened the seam to the full ``BusinessRecord``
+  so the address AND the customer-plane display name come from the SAME row).
+  This is a SEPARATE client from the generic factory's ``data_client``: only
+  the core-SDK client carries ``get_business_by_phone_async``.
 
 The YAML schedule-rule path (``config/rules/*.yaml``) cannot express that DI -- it
 routes a workflow through the rules-engine's generic factory, which knows nothing
@@ -56,10 +58,12 @@ def _create_workflow(asana_client: Any, data_client: Any) -> Any:
     ``DataServiceClient`` the generic factory builds) backs the ``query_engine``
     cross-service join surface. The B1 ``resolver`` is a SEPARATE client -- the
     autom8y-core SDK ``DataServiceClient``, which carries
-    ``resolve_routing_address_by_phone_async`` (data_service.py:438) that the
-    asana-local ``data_client`` does NOT expose. That same core-SDK client also
-    carries ``get_business_by_guid_async`` and is reused as the W1 ``verifier`` so
-    the identity anchor runs the VERIFIED tier (BTM-3 harden), not blind CACHE.
+    ``get_business_by_phone_async`` (data_service.py:343) that the asana-local
+    ``data_client`` does NOT expose (fault-13: the workflow reads the full
+    ``BusinessRecord`` -- gated address AND customer display name from ONE row).
+    That same core-SDK client also carries ``get_business_by_guid_async`` and is
+    reused as the W1 ``verifier`` so the identity anchor runs the VERIFIED tier
+    (BTM-3 harden), not blind CACHE.
     """
     from autom8y_core.clients.data_service import DataServiceClient as SdkResolver
 

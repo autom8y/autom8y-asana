@@ -223,13 +223,30 @@ def make_wf(
 ) -> OnboardingWalkthroughWorkflow:
     """Build the REAL workflow over the FakeAttachments + a phone->address resolver."""
     resolver = MagicMock()
+
+    def _record_for(address: str | None) -> Any:
+        # Fault-13 widened seam: the workflow reads the full BusinessRecord row
+        # (the SAME row yields the SDK-composed gated address AND the customer
+        # display name). Real-shaped mock: .guid drives format_routing_address.
+        if address is None:
+            return None
+        record = MagicMock()
+        record.guid = address.split("@", 1)[0]
+        record.business_name = "Adversary Probe Clinic"
+        return record
+
     if resolver_map is not None:
 
         async def _resolve(*, office_phone: str) -> str | None:
             return resolver_map.get(office_phone)
 
+        async def _resolve_record(*, office_phone: str) -> Any:
+            return _record_for(resolver_map.get(office_phone))
+
+        resolver.get_business_by_phone_async = AsyncMock(side_effect=_resolve_record)
         resolver.resolve_routing_address_by_phone_async = AsyncMock(side_effect=_resolve)
     else:
+        resolver.get_business_by_phone_async = AsyncMock(return_value=_record_for(resolved))
         resolver.resolve_routing_address_by_phone_async = AsyncMock(return_value=resolved)
 
     asana = MagicMock()

@@ -75,6 +75,40 @@ def load_audience(deck_template: str) -> str | None:
     return audience
 
 
+def load_title(deck_template: str) -> str | None:
+    """Return the deck's customer-facing ``title`` from its manifest, or ``None``.
+
+    Fault-13 (S5): the producer defaults the frozen artifact's ``<title>`` from
+    ``--deck`` when no ``--title`` is passed, which shipped the INTERNAL template
+    path (``templates/email-forwarding-setup``) as the browser-tab title of every
+    live customer deck. The customer-facing title is manifest-owned (beside the
+    audience classification -- the same audience-locked source of truth) and
+    threaded to the producer as ``--title``.
+
+    Tolerant read, same posture as ``load_audience``: a missing/unreadable
+    manifest, non-object body, or an absent/empty/non-string ``title`` yields
+    ``None`` (the producer's default-title path must itself be customer-safe;
+    AC-TITLE-DEFAULT pins that). A path-shaped fragment (contains ``/``) is
+    refused -- the exact leak class this field exists to prevent.
+    """
+    if not deck_template or Path(deck_template).name != deck_template:
+        return None
+    path = MANIFEST_DIR / f"{deck_template}.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    title = data.get("title")
+    if not isinstance(title, str):
+        return None
+    title = title.strip()
+    if not title or "/" in title:
+        return None
+    return title
+
+
 def assert_customer_deck(deck_template: str) -> None:
     """Fail-closed audience gate: raise unless ``deck_template`` is classified customer.
 

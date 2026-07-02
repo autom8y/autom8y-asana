@@ -560,6 +560,13 @@ def _make_walkthrough_workflow(
     )
 
     resolver = MagicMock()
+    # Fault-13 widened seam: the workflow reads the full BusinessRecord row (the
+    # SAME row yields the SDK-composed gated address AND the customer-plane
+    # display name). Real-shaped mock: .guid drives format_routing_address.
+    _record = MagicMock()
+    _record.guid = resolved_address.split("@", 1)[0]
+    _record.business_name = "Roundtrip Integration Clinic"
+    resolver.get_business_by_phone_async = AsyncMock(return_value=_record)
     resolver.resolve_routing_address_by_phone_async = AsyncMock(return_value=resolved_address)
 
     upload_mock = AsyncMock(return_value=MagicMock())

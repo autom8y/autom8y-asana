@@ -28,7 +28,7 @@
     <h1 style="font-family:var(--font-display);font-weight:700;font-size:124px;line-height:1.0;letter-spacing:-.03em;margin:0;">Gmail Forwarding<br>Setup</h1>
     <p data-merge-lede="1" style="font:400 38px/1.45 var(--font-sans);color:var(--cloud);margin:36px 0 0;max-width:1120px;">A step-by-step walkthrough for routing your calendar booking emails from Gmail straight into Contente — automatically, every time.</p>
     <sc-if value="{{ clientName }}" hint-placeholder-val="{{ false }}">
-      <p style="font:600 31px/1.4 var(--font-sans);color:var(--blue-300);margin:30px 0 0;">Prepared for {{ clientName }}</p>
+      <p style="font:600 31px/1.4 var(--font-sans);color:var(--blue-300);margin:30px 0 0;max-width:1120px;overflow-wrap:break-word;text-wrap:balance;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;">Prepared for {{ clientName }}</p>
     </sc-if>
   </div>
   <div style="position:relative;display:flex;gap:16px;">
@@ -340,7 +340,13 @@ class Component extends DCLogic {
     // No /i flag: the gate emits canonical lowercase; an uppercase UUID is refused.
     const okAddr = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}@appointments\.contenteapp\.com$/.test(cleanAddr);
     const routingAddress = okAddr ? cleanAddr : 'xxxx-xxxx@appointments.contenteapp.com';
-    const clientName = rawClient.replace(/[<>{}]/g, '').slice(0, 64);
+    // FAULT-13b: grapheme-safe visible-cut clamp — never a silent mid-word slice.
+    // Spread segments on code POINTS (no UTF-16 surrogate splits / lone-surrogate
+    // U+FFFD); 140 covers any real business_name; any residual cut is HONEST ('…').
+    const graphemes = [...rawClient.replace(/[<>{}]/g, '').trim()];
+    const clientName = graphemes.length > 140
+      ? graphemes.slice(0, 139).join('') + '…'
+      : graphemes.join('');
     return {
       routingAddress,
       clientName,

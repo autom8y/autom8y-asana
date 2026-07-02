@@ -24,7 +24,7 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 
@@ -221,7 +221,12 @@ async function main() {
     ? DECKS
     : [{
         deck: args.deck,
-        title: args.title || args.deck,
+        // FAULT-13/S5: the default <title> must be CUSTOMER-SAFE. Defaulting to
+        // args.deck shipped the internal path (<title>templates/email-forwarding-
+        // setup</title>) in every live customer artifact's browser tab. The deck
+        // FOLDER NAME (basename) is the safe floor; callers pass --title (the
+        // manifest-owned customer-facing title) for the real document title.
+        title: args.title || basename(args.deck || ''),
         out: args.out || 'deck.html',
         addr: args.addr,
         client: args.client,
