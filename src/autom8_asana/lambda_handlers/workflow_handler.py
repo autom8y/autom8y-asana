@@ -32,6 +32,7 @@ import traceback
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from autom8y_config.lambda_extension import resolve_secret_from_env
 from autom8y_log import get_logger
 from autom8y_telemetry.aws import (
     emit_business_metric,
@@ -150,7 +151,26 @@ def create_workflow_handler(
         # Inject scope-derived params (dry_run)
         params.update(scope.to_params())
 
-        asana_client = AsanaClient()
+        # BRIDGE-WORKSPACE-GID: resolve the workspace GID the same way the sibling
+        # scheduled handlers do (cache_warmer.py:447-449) so any workflow whose
+        # anchor step performs workspace-project discovery
+        # (registry.discover_async, registry.py:449-456) receives a client with
+        # ``default_workspace_gid`` set. resolve_secret_from_env reads the
+        # ``ASANA_WORKSPACE_GID_ARN`` form first (the Lambda secrets-extension
+        # delivery convention) and falls back to the bare var (local/ECS) --
+        # unlike the client's own ``get_workspace_gid`` fallback which reads only
+        # the bare env var and is therefore blind to the ``_ARN`` delivery.
+        #
+        # A missing var is graceful-None: workflows that do NOT need workspace
+        # discovery (insights-export, conversation-audit) construct exactly as
+        # before -- no sibling is forced to carry a GID it never uses, and the
+        # bare-token path (EnvAuthProvider) is preserved untouched.
+        try:
+            workspace_gid = resolve_secret_from_env("ASANA_WORKSPACE_GID")
+        except ValueError:
+            workspace_gid = None
+
+        asana_client = AsanaClient(workspace_gid=workspace_gid)
 
         if config.requires_data_client:
             from autom8_asana.auth.service_token import ServiceTokenAuthProvider
