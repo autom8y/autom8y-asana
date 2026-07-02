@@ -172,6 +172,16 @@ def create_workflow_handler(
 
         asana_client = AsanaClient(workspace_gid=workspace_gid)
 
+        # DATAFRAME-CACHE-INIT: API-lifespan parity (startup.py:30-32) -- the Lambda
+        # path has no lifespan hook, so the shared factory initializes the
+        # DataFrameCache singleton here, before workflow construction (mirroring
+        # cache_warmer.py:395-397). Idempotent on warm containers (factory singleton
+        # check); graceful-None when S3 is unconfigured, so siblings that never read
+        # frames construct exactly as before.
+        from autom8_asana.cache.dataframe.factory import initialize_dataframe_cache
+
+        initialize_dataframe_cache()
+
         if config.requires_data_client:
             from autom8_asana.auth.service_token import ServiceTokenAuthProvider
             from autom8_asana.clients.data.client import DataServiceClient
