@@ -767,8 +767,13 @@ class TestFullPathGreen:
         kwargs = atts.upload_async.await_args.kwargs
         assert kwargs["parent"] == "task-1"
         assert isinstance(kwargs["file"], io.BytesIO)
-        assert kwargs["name"].startswith("walkthrough_task-1_")
-        assert kwargs["name"].endswith(".html")
+        # S6 customer-safe convention (ADR-WALK-B1 amendment 2026-07-02): deck-title
+        # slug + clinic slug + date -- never the task gid or an opaque timestamp.
+        assert re.fullmatch(
+            r"walkthrough-gmail-forwarding-setup-restore-neuro-rehab-\d{4}-\d{2}-\d{2}\.html",
+            kwargs["name"],
+        ), kwargs["name"]
+        assert "task-1" not in kwargs["name"]
         assert kwargs["content_type"] == "text/html"
         # The frozen bytes carry the gated address (mechanism, not just exit 0).
         assert SPIKE_ADDRESS.encode("utf-8") in kwargs["file"].getvalue()
@@ -2325,8 +2330,10 @@ class TestCBN105SuccessAuditRecord:
         # A parseable timestamp.
         assert isinstance(record["attached_at"], str)
         datetime.fromisoformat(record["attached_at"])  # raises if not ISO-8601
-        # The existing operational fields survive the augmentation.
-        assert record["filename"].startswith("walkthrough_task-audit_")
+        # The existing operational fields survive the augmentation (S6: the
+        # customer-safe filename convention -- no task gid in the name).
+        assert record["filename"].startswith("walkthrough-gmail-forwarding-setup-")
+        assert "task-audit" not in record["filename"]
         assert isinstance(record["size_bytes"], int)
 
         # PII discipline (G-PROVE): the FULL guid and FULL routing address NEVER appear
@@ -3082,3 +3089,272 @@ class TestDeckTitleManifest:
         )
         with _patch.object(deck_manifests, "MANIFEST_DIR", tmp_path):
             assert deck_manifests.load_title("poisoned-deck") is None
+
+
+# --- FAULT-13 PR-2: the field-level customer-personalization gate (2c) + S6 ---
+#
+# PR-1 rebound client_name to the customer plane (BusinessRecord.business_name).
+# PR-2 formalizes refuse-precedes-FREEZE as an OWNED field-level gate
+# (personalization_gate.assert_customer_personalization, closed detail vocab),
+# the producer-side symmetric --client slot, the masked G12 audit field, and the
+# S6 customer-safe attachment-filename convention (ADR-WALK-B1 amendment
+# 2026-07-02: no Asana gids / opaque timestamps in a customer-visible filename).
+
+
+def _gate_module() -> Any:
+    """Lazy import so a pre-gate baseline (RED capture) fails ONLY these legs."""
+    from autom8_asana.automation.workflows.onboarding_walkthrough import (
+        personalization_gate,
+    )
+
+    return personalization_gate
+
+
+class TestPersonalizationGateUnit:
+    """The closed-vocabulary field gate: denies internal-plane values
+    (nomenclature_internal / placeholder / too_long), allows real display names
+    (two-sided), and masks the refused value (first 8 chars + ellipsis)."""
+
+    def test_denies_play_prefix_exact_live_string(self) -> None:
+        gate = _gate_module()
+        with pytest.raises(gate.PersonalizationError) as excinfo:
+            gate.assert_customer_personalization(FAULT13_TASK_NAME)
+        assert excinfo.value.detail == "nomenclature_internal"
+        # MASKED value only -- the full internal string never rides the exception.
+        assert excinfo.value.value_masked == FAULT13_TASK_NAME[:8] + "…"
+        assert FAULT13_TASK_NAME not in str(excinfo.value)
+
+    def test_denies_internal_prefix_family(self) -> None:
+        gate = _gate_module()
+        for value in (
+            "PLAY: Custom Calendar Integration",
+            "TASK- follow up",
+            "OB: onboarding sweep",
+            "TEST: fixture clinic",
+            "INTERNAL- ops deck",
+        ):
+            with pytest.raises(gate.PersonalizationError) as excinfo:
+                gate.assert_customer_personalization(value)
+            assert excinfo.value.detail == "nomenclature_internal", value
+        # Teeth: the prefix arm requires the [:\-] separator -- a clinic whose
+        # legal name merely STARTS with a marker word is not denied.
+        gate.assert_customer_personalization("Playa Vista Wellness")
+
+    def test_denies_placeholder_clinic_and_empty(self) -> None:
+        gate = _gate_module()
+        for value in ("Clinic", "clinic", "  Clinic  ", "", "   "):
+            with pytest.raises(gate.PersonalizationError) as excinfo:
+                gate.assert_customer_personalization(value)
+            assert excinfo.value.detail == "placeholder", repr(value)
+
+    def test_denies_embedded_gid_run(self) -> None:
+        gate = _gate_module()
+        with pytest.raises(gate.PersonalizationError) as excinfo:
+            gate.assert_customer_personalization("Vitality Medicine 1216243790085943")
+        assert excinfo.value.detail == "nomenclature_internal"
+        # Teeth: a 12-digit run is NOT gid-shaped -- the arm bites only at 13+.
+        gate.assert_customer_personalization("Wellness 123456789012")
+
+    def test_denies_templates_path_fragment(self) -> None:
+        gate = _gate_module()
+        with pytest.raises(gate.PersonalizationError) as excinfo:
+            gate.assert_customer_personalization("templates/email-forwarding-setup")
+        assert excinfo.value.detail == "nomenclature_internal"
+
+    def test_denies_allcaps_prefix_emdash_pattern(self) -> None:
+        gate = _gate_module()
+        with pytest.raises(gate.PersonalizationError) as excinfo:
+            gate.assert_customer_personalization("OB SETUP — Vitality Medicine")
+        assert excinfo.value.detail == "nomenclature_internal"
+        # Teeth: a mixed-case segment before the em-dash is NOT the internal
+        # ALL-CAPS-prefix pattern -- allowed.
+        gate.assert_customer_personalization("Salt — Lake Family Chiropractic")
+
+    def test_denies_over_length_and_allows_boundary(self) -> None:
+        gate = _gate_module()
+        with pytest.raises(gate.PersonalizationError) as excinfo:
+            gate.assert_customer_personalization("X" * 141)
+        assert excinfo.value.detail == "too_long"
+        # Two-sided boundary: exactly 140 (the PR-1 template clamp bound) passes.
+        gate.assert_customer_personalization("X" * 140)
+
+    def test_two_sided_allows_real_display_names(self) -> None:
+        gate = _gate_module()
+        for name in (
+            "Vitality Medicine of New York",
+            "Neu Life Chiropractic",
+            "Restore Neuro Rehab",
+            "North Star Family Chiropractic",
+        ):
+            gate.assert_customer_personalization(name)  # must NOT raise
+
+    def test_mask_is_first_eight_chars_plus_ellipsis(self) -> None:
+        gate = _gate_module()
+        assert gate.mask_personalization_value("Vitality Medicine of New York") == "Vitality…"
+        assert gate.mask_personalization_value("Clinic") == "Clinic"  # <=8: nothing to cut
+
+
+class TestPersonalizationGateCallSite:
+    """2c call-site: after the W1 anchor, before FREEZE -- fail-closed skip
+    (personalization_denied), ERROR log mirroring deck_audience_denied's shape,
+    MASKED value only, ZERO external legs after the denial."""
+
+    @staticmethod
+    def _patch_freeze(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        spy = AsyncMock(return_value=_deck_bytes(SPIKE_ADDRESS))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        return spy
+
+    async def test_denied_display_name_fail_closed_before_freeze(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A resolved row whose business_name ITSELF carries internal nomenclature
+        # (data-plane contamination PR-1's provenance rebind cannot catch) must
+        # SKIP fail-closed BEFORE any producer subprocess / upload / delete.
+        freeze_spy = self._patch_freeze(monkeypatch)
+        resolver = _dual_seam_resolver(business_name=FAULT13_TASK_NAME)
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+
+        out = await wf.process_entity(_entity(gid="task-2c", provider="GHL"), {})
+
+        assert out.status == "skipped"
+        assert out.reason == "personalization_denied"
+        # ZERO external legs after the denial (refuse-precedes-FREEZE family).
+        freeze_spy.assert_not_awaited()
+        atts.upload_async.assert_not_called()
+        atts.delete_async.assert_not_called()
+
+    async def test_denied_log_is_error_level_and_masked(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._patch_freeze(monkeypatch)
+        resolver = _dual_seam_resolver(business_name=FAULT13_TASK_NAME)
+        wf, _atts, _, _ = _make_workflow(resolver=resolver)
+
+        with _capture_workflow_logs() as captured:
+            out = await wf.process_entity(_entity(gid="task-2c-log", provider="GHL"), {})
+
+        assert out.reason == "personalization_denied"
+        record = next(e for e in captured if e.get("reason") == "personalization_denied")
+        # Mirrors deck_audience_denied's shape: an ERROR-level skip + closed detail.
+        assert record["event"] == "onboarding_walkthrough_skipped"
+        assert record["log_level"] == "error"
+        assert record["detail"] == "nomenclature_internal"
+        assert record["client_name"] == FAULT13_TASK_NAME[:8] + "…"
+        for value in record.values():
+            if isinstance(value, str):
+                assert FAULT13_TASK_NAME not in value, "unmasked internal value leaked"
+
+    async def test_two_sided_clean_display_name_passes_gate(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        freeze_spy = self._patch_freeze(monkeypatch)
+        resolver = _dual_seam_resolver(business_name="Neu Life Chiropractic")
+        wf, atts, _, _ = _make_workflow(resolver=resolver)
+
+        out = await wf.process_entity(_entity(gid="task-2c-clean", provider="GHL"), {})
+
+        assert out.status == "succeeded"
+        freeze_spy.assert_awaited_once()
+        atts.upload_async.assert_awaited_once()
+
+
+class TestG12MaskedClientNameAudit:
+    """G12 (PR-2): the C-BN1-05 success audit record carries the MASKED
+    client_name (first 8 chars + ellipsis) so the field-content plane becomes
+    post-hoc observable -- never the full display name in a log value."""
+
+    async def test_success_record_carries_masked_client_name_never_full(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        spy = AsyncMock(return_value=_deck_bytes(SPIKE_ADDRESS))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        resolver = _dual_seam_resolver(business_name="Vitality Medicine of New York")
+        wf, _atts, _, _ = _make_workflow(resolver=resolver)
+
+        with _capture_workflow_logs() as captured:
+            out = await wf.process_entity(_entity(gid="task-g12", provider="GHL"), {})
+
+        assert out.status == "succeeded"
+        record = next(e for e in captured if e["event"] == _AUDIT_EVENT)
+        assert record["client_name"] == "Vitality…"
+        for value in record.values():
+            if isinstance(value, str):
+                assert "Vitality Medicine of New York" not in value, (
+                    "full display name leaked into the audit record"
+                )
+
+
+class TestCustomerSafeFilenameConvention:
+    """S6 (ADR-WALK-B1 amendment 2026-07-02): customer-safe attachment names --
+    walkthrough-{deck-title-slug}-{clinic-slug}-{YYYY-MM-DD}.html; NO Asana gids,
+    NO opaque timestamps. Replacement deletion covers BOTH conventions; W2
+    idempotency is UNAFFECTED (keys the embedded routing-address guid, never
+    the name)."""
+
+    _NEW_NAME_RE = re.compile(
+        r"walkthrough-gmail-forwarding-setup-restore-neuro-rehab-\d{4}-\d{2}-\d{2}\.html"
+    )
+
+    @staticmethod
+    def _patch_freeze(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+        spy = AsyncMock(return_value=_deck_bytes(SPIKE_ADDRESS))
+        monkeypatch.setattr(producer_module, "freeze_walkthrough_deck", spy)
+        return spy
+
+    async def test_mint_uses_customer_safe_name_no_gid_no_timestamp(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        freeze_spy = self._patch_freeze(monkeypatch)
+        wf, atts, _, _ = _make_workflow()  # default resolver: "Restore Neuro Rehab"
+
+        out = await wf.process_entity(_entity(gid="task-s6", provider="GHL"), {})
+
+        assert out.status == "succeeded"
+        name = atts.upload_async.await_args.kwargs["name"]
+        assert self._NEW_NAME_RE.fullmatch(name), name
+        assert "task-s6" not in name  # the Asana task gid never reaches the filename
+        assert not re.search(r"\d{13,}", name)  # no gid-shaped digit run
+        assert not re.search(r"\d{14}", name)  # no legacy {ts} opaque timestamp
+        # The freeze wrote the SAME name (exclude_name / FR-8 cleanup coherence).
+        assert freeze_spy.await_args.kwargs["out_filename"] == name
+
+    async def test_replacement_deletes_both_legacy_and_new_convention_priors(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._patch_freeze(monkeypatch)
+        legacy = _make_attachment("prior-legacy", "walkthrough_task-s6_20260101000000.html")
+        new_style = _make_attachment(
+            "prior-new", "walkthrough-gmail-forwarding-setup-old-clinic-2026-01-01.html"
+        )
+        wf, atts, _, order = _make_workflow(existing_attachments=[legacy, new_style])
+
+        out = await wf.process_entity(_entity(gid="task-s6", provider="GHL"), {})
+
+        assert out.status == "succeeded"
+        atts.upload_async.assert_awaited_once()
+        deleted = {c.args[0] for c in atts.delete_async.await_args_list}
+        assert deleted == {"prior-legacy", "prior-new"}, (
+            "the replacement delete must reap BOTH the legacy walkthrough_*.html "
+            "names AND the new customer-safe convention (a live legacy deck must "
+            "stay reapable by every future replacement mint)"
+        )
+        assert order.index("upload") < order.index("delete")  # upload-first preserved
+
+    async def test_w2_idempotency_keys_embedded_guid_not_name(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # A prior under EITHER convention whose BYTES embed the target guid is
+        # recognized -> already_attached skip, no re-mint (W2 never keys the name).
+        freeze_spy = self._patch_freeze(monkeypatch)
+        for prior_name in (
+            "walkthrough-gmail-forwarding-setup-restore-neuro-rehab-2026-07-01.html",
+            "walkthrough_task-s6_20260101000000.html",
+        ):
+            prior = _make_attachment("prior-x", prior_name, addr=SPIKE_ADDRESS)
+            wf, atts, _, _ = _make_workflow(existing_attachments=[prior])
+            out = await wf.process_entity(_entity(gid="task-s6", provider="GHL"), {})
+            assert out.status == "skipped", prior_name
+            assert out.reason == "already_attached", prior_name
+            atts.upload_async.assert_not_called()
+        freeze_spy.assert_not_awaited()

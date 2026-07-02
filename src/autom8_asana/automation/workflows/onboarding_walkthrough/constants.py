@@ -84,14 +84,34 @@ CALENDAR_INTEGRATIONS_PROJECT_GID = "1209442849265632"
 # active-set definition local and explicit.
 ACTIVE_SECTION_NAMES: frozenset[str] = frozenset({"ACTIVE"})
 
-# --- Attachment naming (ADR-WALK-B1: unique-per-run, not a fixed name) ---
-# A fixed ``walkthrough.html`` would be excluded from its own deletion by the
-# AttachmentReplacementMixin (it excludes by name) and accumulate duplicates.
-ATTACHMENT_GLOB = "walkthrough_*.html"
+# --- Attachment naming (ADR-WALK-B1, AMENDED 2026-07-02 -- fault-13/S6) ---
+# ADR-WALK-B1 originally pinned unique-per-run ``walkthrough_{task_gid}_{ts}.html``
+# (a fixed name would be excluded from its own replacement deletion by the
+# AttachmentReplacementMixin, which excludes by name, and accumulate duplicates).
+#
+# AMENDMENT (fault-13/S6, 2026-07-02): that convention shipped TWO internal-plane
+# identifiers -- the Asana task gid and an opaque timestamp -- in a
+# customer-visible filename; a rep forwarding the deck leaked them. The minted
+# convention is now CUSTOMER-SAFE: the name reads walkthrough-, then the deck
+# title slug, the clinic slug, and a YYYY-MM-DD date, dot html
+# (no gids anywhere: the deck-title slug comes from the audience-locked manifest
+# title, the clinic slug from the 2c-gated display name -- the personalization
+# gate refuses embedded gid runs before any mint -- and the date is per-run
+# distinctness for the upload-first ``exclude_name``). W2 idempotency is
+# UNAFFECTED by the rename: it keys the EMBEDDED routing-address guid harvested
+# from the deck BYTES, never the filename. The legacy glob is retained MATCH-ONLY
+# (never minted again) so replacement deletion and the W2 prior-harvest still see
+# every deck minted before this amendment -- future mints must reap BOTH shapes.
+ATTACHMENT_PREFIX = "walkthrough-"
+ATTACHMENT_GLOB = "walkthrough-*.html"
+LEGACY_ATTACHMENT_GLOB = "walkthrough_*.html"
+# THE match set for the W2 0a harvest and the upload-first replacement delete:
+# every glob a prior walkthrough deck may match, new convention first.
+ATTACHMENT_GLOBS: tuple[str, ...] = (ATTACHMENT_GLOB, LEGACY_ATTACHMENT_GLOB)
 
 # --- W2 prior-harvest size cap (F5: bounded byte-harvest) ---
-# The W2 idempotency check downloads each prior ``walkthrough_*.html`` to harvest
-# its embedded routing-address guid. A walkthrough deck is a single-file inlined
+# The W2 idempotency check downloads each ATTACHMENT_GLOBS-matching prior deck
+# to harvest its embedded routing-address guid. A walkthrough deck is a single-file inlined
 # HTML -- tens to low-hundreds of KB, well under a megabyte even with inlined
 # images. This cap (8 MiB, generous headroom) bounds that harvest: a prior larger
 # than this is NOT a deck this workflow minted (a corrupt/foreign/oversized

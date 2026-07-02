@@ -35,6 +35,8 @@ import asyncio
 import fnmatch
 import io
 import os
+import re
+import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
@@ -56,10 +58,14 @@ from autom8_asana.automation.workflows.onboarding_walkthrough import (
     constants,
     deck_manifests,
     identity_guard,
+    personalization_gate,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough import producer as _producer
 from autom8_asana.automation.workflows.onboarding_walkthrough.deck_manifests import (
     DeckAudienceError,
+)
+from autom8_asana.automation.workflows.onboarding_walkthrough.personalization_gate import (
+    PersonalizationError,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.producer import (
     ProducerFreezeError,
@@ -119,6 +125,54 @@ class _CappedBuffer(io.BytesIO):
         if self._written > self._cap:
             raise _PriorTooLargeError(self._written)
         return super().write(buffer)
+
+
+def _slugify(value: str, *, max_len: int = 60) -> str:
+    """ASCII-fold + lowercase + hyphen-join (the S6 customer-safe filename slug).
+
+    NFKD-folds accents, drops non-ASCII, collapses every non-alphanumeric run to
+    a single ``-``. Bounded so a long display name cannot mint an unwieldy
+    filename. An empty result (e.g. a fully non-Latin name) is the caller's
+    omit-segment arm.
+    """
+    folded = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", folded.lower()).strip("-")
+    return slug[:max_len].rstrip("-")
+
+
+def _mint_attachment_filename(
+    *,
+    deck_title: str | None,
+    deck_template: str,
+    client_name: str,
+) -> str:
+    """Customer-safe attachment name (S6; ADR-WALK-B1 amendment 2026-07-02).
+
+    ``walkthrough-{deck-title-slug}-{clinic-slug}-{YYYY-MM-DD}.html`` -- NO Asana
+    gids, NO opaque timestamps: the legacy ``walkthrough_{task_gid}_{ts}.html``
+    shipped two internal-plane identifiers in a customer-visible filename (a
+    forwarded deck leaked them). The deck-title slug falls back to the template
+    folder name (itself customer-safe; the audience lock upstream guarantees a
+    customer deck). The clinic slug is gid-free by construction: the 2c
+    personalization gate refuses embedded gid runs before any mint. Uniqueness
+    needs only per-run distinctness for the upload-first ``exclude_name``;
+    idempotency NEVER keys the name (W2 keys the embedded routing-address guid).
+    """
+    title_slug = _slugify(deck_title or deck_template) or "deck"
+    clinic_slug = _slugify(client_name)
+    date_part = datetime.now(UTC).strftime("%Y-%m-%d")
+    segments = [seg for seg in (title_slug, clinic_slug) if seg]
+    return f"{constants.ATTACHMENT_PREFIX}{'-'.join(segments)}-{date_part}.html"
+
+
+def _matches_walkthrough_glob(name: str) -> bool:
+    """True when ``name`` matches ANY walkthrough naming convention (S6).
+
+    Covers BOTH the legacy ``walkthrough_*.html`` names and the customer-safe
+    ``walkthrough-*.html`` convention -- every live legacy deck must stay
+    visible to the W2 prior-harvest and reapable by replacement mints.
+    """
+    return any(fnmatch.fnmatch(name, pattern) for pattern in constants.ATTACHMENT_GLOBS)
 
 
 @runtime_checkable
@@ -793,12 +847,43 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         # guid -- the tenant changed). PROCEED to freeze->upload->delete-old: the
         # upload-first replacement reaps the foreign-guid prior via the glob delete.
 
-        # ``client_name`` was bound at 4a from the SAME BusinessRecord row as the
-        # gated address (fault-13). The old fallback chain (task-name -> task-name
-        # -> "Clinic") is DELETED: the first two legs were both the operational-
-        # plane task name and the generic was a lie rendered as personalization.
-        ts = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
-        out_filename = f"walkthrough_{gid}_{ts}.html"
+        # 2c. PERSONALIZATION GATE (fault-13, PR-2) -- the field-level CONTENT
+        #     gate. ``client_name`` was bound at 4a from the SAME BusinessRecord
+        #     row as the gated address; the old fallback chain (task-name ->
+        #     task-name -> "Clinic") is DELETED (PR-1). Provenance alone is not
+        #     sufficient: a data-plane row whose ``business_name`` ITSELF carries
+        #     internal nomenclature / placeholder / over-length material would
+        #     still freeze a defective cover. The gate refuses such values
+        #     fail-closed AFTER the W1 anchor and BEFORE FREEZE (the G1
+        #     ``deck_audience_denied`` discipline: no producer subprocess, no
+        #     upload, no delete). MASKED value only -- never the full string.
+        try:
+            personalization_gate.assert_customer_personalization(client_name)
+        except PersonalizationError as exc:
+            # ERROR (not INFO): internal-plane content reaching the freeze seam
+            # is the fault-13 class itself -- same treatment as
+            # deck_audience_denied. A retry reproduces the refusal until the
+            # data-service display name is corrected.
+            logger.error(
+                "onboarding_walkthrough_skipped",
+                task_gid=gid,
+                reason="personalization_denied",
+                client_name=exc.value_masked,
+                detail=exc.detail,
+            )
+            return BridgeOutcome(gid=gid, status="skipped", reason="personalization_denied")
+
+        # S6 (ADR-WALK-B1 amendment 2026-07-02): customer-safe attachment name --
+        # deck-title slug + clinic slug + date; never the task gid, never an
+        # opaque timestamp (both leaked internal-plane identifiers when a rep
+        # forwarded the deck). The manifest-owned title is minted once and
+        # threaded BOTH into the filename slug and to the producer as --title.
+        deck_title = deck_manifests.load_title(deck_template)
+        out_filename = _mint_attachment_filename(
+            deck_title=deck_title,
+            deck_template=deck_template,
+            client_name=client_name,
+        )
 
         # 5. FREEZE -- sole freezer (A2). Native async subprocess (no thread
         # offload): producer.freeze_walkthrough_deck uses
@@ -810,7 +895,7 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                 deck_template=deck_template,
                 gated_address=gated_address,
                 client_name=client_name,
-                title=deck_manifests.load_title(deck_template),
+                title=deck_title,
                 out_filename=out_filename,
             )
         except ProducerFreezeError as exc:
@@ -919,13 +1004,20 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
                 size_bytes=len(frozen_bytes),
                 company_id=identity_guard.mask_guid(anchored_company_id),
                 gated_address=_mask_addr(gated_address),
+                # G12 (fault-13, PR-2): the MASKED personalization value (first 8
+                # chars + ellipsis) -- the field-content plane is now post-hoc
+                # observable per attach, without spilling a display name in full.
+                client_name=personalization_gate.mask_personalization_value(client_name),
                 anchor_tier=anchor_result.tier.name,
                 attached_at=datetime.now(UTC).isoformat(),
             )
 
+            # S6: the replacement delete matches BOTH naming conventions (the
+            # legacy walkthrough_{gid}_{ts}.html AND the customer-safe names) --
+            # a live legacy deck must stay reapable by every future mint.
             await self._delete_old_attachments(
                 gid,
-                constants.ATTACHMENT_GLOB,
+                constants.ATTACHMENT_GLOBS,
                 exclude_name=out_filename,
             )
             return BridgeOutcome(gid=gid, status="succeeded")
@@ -937,8 +1029,10 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
     async def _existing_walkthrough_guids(self, task_gid: str) -> dict[str, list[Any]]:
         """Map embedded-guid -> prior walkthrough attachments (date-FREE, name-agnostic).
 
-        The W2 idempotency substrate (GATE-3): lists every ``walkthrough_*.html``
-        on the task, downloads each one's bytes, and harvests the EMBEDDED canonical
+        The W2 idempotency substrate (GATE-3): lists every walkthrough deck under
+        EITHER naming convention (legacy ``walkthrough_*.html`` or the S6
+        customer-safe ``walkthrough-*.html``), downloads each one's bytes, and
+        harvests the EMBEDDED canonical
         routing-address guid via the SAME ``harvest_routing_addresses`` oracle T7
         uses (one source of truth for what counts as a routing address). Keying on
         the embedded guid -- not the display name -- is what recognizes a LEGACY
@@ -952,7 +1046,7 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         Returns:
             ``{embedded_guid -> [attachment, ...]}`` for all prior walkthrough decks,
             with EACH attachment appearing AT MOST ONCE per guid (F2). Empty when the
-            task carries no ``walkthrough_*.html`` (the no-prior arm).
+            task carries no glob-matching walkthrough deck (the no-prior arm).
         """
         # ``by_gid``: guid -> {attachment.gid -> attachment}. Keying the inner level on
         # the attachment gid is the F2 fix: ``harvest_routing_addresses`` returns the
@@ -970,7 +1064,7 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         )
         async for att in page_iter:
             name = getattr(att, "name", None) or ""
-            if not fnmatch.fnmatch(name, constants.ATTACHMENT_GLOB):
+            if not _matches_walkthrough_glob(name):
                 continue
             size = getattr(att, "size", None)
             if isinstance(size, int) and size > constants.MAX_PRIOR_DECK_BYTES:
@@ -1109,8 +1203,8 @@ class OnboardingWalkthroughWorkflow(BridgeWorkflowAction):
         """Reap all but the NEWEST of a same-guid prior set (>1 prior arm).
 
         Keeps the newest (by ``created_at`` when present, else by name -- the
-        ``{ts}`` segment makes a newer same-task name sort later) and soft-fail
-        deletes the rest, mirroring ``_delete_old_attachments`` per-item swallow so
+        legacy ``{ts}`` / S6 date segment makes a newer same-task name sort later)
+        and soft-fail deletes the rest, mirroring ``_delete_old_attachments`` per-item swallow so
         one stuck delete never aborts the reap. Combined with the presence-gate's
         re-mint short-circuit, a persistent delete failure can leave at most a
         finite residue set this arm reaps -- never unbounded duplicate decks.

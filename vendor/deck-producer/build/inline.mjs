@@ -64,6 +64,16 @@ const DECKS = [
   },
 ];
 
+// FAULT-13/S9 (2026-07-02): the --client symmetric slot's renderable-value floor.
+// 140 matches the template covers' honest-render clamp bound exactly (counted in
+// CODE POINTS — JS spread semantics — the same count the workflow-side
+// personalization gate enforces in Python, where len(str) counts code points).
+const CLIENT_MAX_CODEPOINTS = 140;
+// C0 controls (incl. \t \n \r), DEL, and C1 controls: never renderable in the
+// cover's "Prepared for" line; refuse fail-closed rather than freeze garbage.
+// eslint-disable-next-line no-control-regex -- control chars ARE the target class
+const CLIENT_CONTROL_CHARS_RE = /[\u0000-\u001f\u007f-\u009f]/;
+
 function parseArgs(argv) {
   const args = { all: false };
   for (let i = 0; i < argv.length; i++) {
@@ -117,6 +127,35 @@ function buildDeck({ deck, title, out, addr, client }) {
       `come from the autom8y-core gate (format_routing_address); the producer never ` +
       `derives one.`
     );
+  }
+
+  // ── render-then-freeze pre-validation (FAULT-13/S9): the --client slot ──
+  // --addr has been fail-closed since Amendment A1; --client was ESCAPE-ONLY
+  // (escapeScriptContent neutralizes script breakout but accepted ANY value).
+  // Fault-13 (2026-07-02) proved the personalization line is trust-bearing, so
+  // the producer now refuses (exit non-zero, NO output) a --client it cannot
+  // render honestly: over the 140-code-point cover clamp bound, or carrying
+  // control characters. Provenance/nomenclature policy lives WORKFLOW-side
+  // (personalization_gate.py — the owned src tree); this slot is the symmetric
+  // producer-side floor. The recipient-side runtime ?client= override remains
+  // clamped at render (the S10 partial mitigation) — that path is not a freeze.
+  if (client !== undefined) {
+    const clientCodePoints = [...client].length;
+    if (clientCodePoints > CLIENT_MAX_CODEPOINTS) {
+      throw new BuildError(
+        'CLIENT-TOO-LONG',
+        `--client is ${clientCodePoints} code points (bound ${CLIENT_MAX_CODEPOINTS}); ` +
+        `refusing to freeze an over-length personalization value — the cover clamp ` +
+        `would cut it, so the caller must supply an honest display name.`
+      );
+    }
+    if (CLIENT_CONTROL_CHARS_RE.test(client)) {
+      throw new BuildError(
+        'CLIENT-CONTROL-CHARS',
+        `--client carries C0/C1 control characters; refusing to freeze a ` +
+        `non-renderable personalization value.`
+      );
+    }
   }
 
   // ── C-resolve ──

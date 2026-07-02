@@ -156,8 +156,17 @@ async def freeze_walkthrough_deck(
         gated_address: The canonical ``{uuid}@appointments.contenteapp.com``
             address resolved by the SDK (B1). Passed verbatim as ``--addr``;
             never reconstructed here (G-PROPAGATE P3).
-        client_name: Clinic/business display name (``--client``). Cosmetic to
-            the deck; not security-bearing.
+        client_name: Clinic/business display name (``--client``) -- the cover's
+            "Prepared for {client_name}" line, the artifact's TRUST-BEARING
+            first impression. Fault-13 (2026-07-02) FALSIFIED the prior claim
+            here ("Cosmetic to the deck; not security-bearing"): binding the
+            internal Asana task name to this field shipped operational
+            nomenclature on live customer decks. The value must come from the
+            customer plane (``BusinessRecord.business_name``) and pass the 2c
+            personalization gate before reaching this invoker; the producer
+            symmetrically refuses over-length / control-character values
+            fail-closed (CLIENT-TOO-LONG / CLIENT-CONTROL-CHARS, beside the
+            ADDR-NON-CANONICAL slot).
         title: Customer-facing document title (``--title``), manifest-owned
             (fault-13/S5: without it the producer defaults the frozen
             ``<title>`` from ``--deck``). ``None`` omits the flag and relies on
