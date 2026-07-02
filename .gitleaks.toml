@@ -41,6 +41,20 @@ regex = '''https://hooks\.slack\.com/services/T[A-Z0-9]{8,}/B[A-Z0-9]{8,}/[a-zA-
 keywords = ["hooks.slack.com"]
 tags = ["slack", "webhook"]
 
+# GATE-GAP-1 (TDD §5): native Asana Personal Access Token formats. Without this
+# rule the S3 gitleaks teeth are unsound for native PAT leaks — the default and
+# custom rules above cover client secrets / presigned URLs but not the raw
+# `1/{gid}:{hex}` and `2/{gid}/{sub}:{hex}` native token forms the read-route
+# brokers. Matches the two colon-suffixed native forms; the legacy `0/{hex}`
+# form is intentionally NOT matched here (it collides with synthetic test
+# fixtures and would blind the scan with false positives).
+[[rules]]
+id = "asana-native-pat"
+description = "Asana native Personal Access Token (1/gid:hex, 2/gid/sub:hex)"
+regex = '''\b[12]/[0-9]{6,}(?:/[0-9]{6,})?:[0-9a-f]{32,}\b'''
+keywords = ["1/", "2/"]
+tags = ["asana", "pat", "credential"]
+
 [allowlist]
 description = "Global allowlist for safe patterns"
 paths = [
