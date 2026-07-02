@@ -41,7 +41,7 @@ from autom8_asana.models.task import Task
 def mock_cache() -> MagicMock:
     """Create a mock cache provider."""
     cache = MagicMock()
-    cache.get.return_value = None
+    cache.get_versioned.return_value = None
     return cache
 
 
@@ -156,7 +156,7 @@ class TestGetCachedDetection:
             expected_project_gid="proj_456",
         )
         cache_entry = make_cache_entry(task_gid, expected_result)
-        mock_cache.get.return_value = cache_entry
+        mock_cache.get_versioned.return_value = cache_entry
 
         result = _get_cached_detection(task_gid, mock_cache)
 
@@ -166,11 +166,11 @@ class TestGetCachedDetection:
         assert result.tier_used == 4
         assert result.needs_healing is True
         assert result.expected_project_gid == "proj_456"
-        mock_cache.get.assert_called_once_with(task_gid, EntryType.DETECTION)
+        mock_cache.get_versioned.assert_called_once_with(task_gid, EntryType.DETECTION)
 
     def test_cache_miss_returns_none(self, mock_cache: MagicMock) -> None:
         """FR-CACHE-001: Cache miss returns None."""
-        mock_cache.get.return_value = None
+        mock_cache.get_versioned.return_value = None
 
         result = _get_cached_detection("task_123", mock_cache)
 
@@ -182,7 +182,7 @@ class TestGetCachedDetection:
         past = datetime.now(UTC) - timedelta(minutes=10)
         expected_result = make_detection_result()
         cache_entry = make_cache_entry("task_123", expected_result, cached_at=past, ttl=300)
-        mock_cache.get.return_value = cache_entry
+        mock_cache.get_versioned.return_value = cache_entry
 
         result = _get_cached_detection("task_123", mock_cache)
 
@@ -190,7 +190,7 @@ class TestGetCachedDetection:
 
     def test_cache_error_returns_none(self, mock_cache: MagicMock) -> None:
         """FR-DEGRADE-001: Cache lookup error returns None (graceful degradation)."""
-        mock_cache.get.side_effect = ConnectionError("Cache connection failed")
+        mock_cache.get_versioned.side_effect = ConnectionError("Cache connection failed")
 
         result = _get_cached_detection("task_123", mock_cache)
 
@@ -207,7 +207,7 @@ class TestGetCachedDetection:
         ]:
             expected_result = make_detection_result(entity_type=entity_type)
             cache_entry = make_cache_entry("task_123", expected_result)
-            mock_cache.get.return_value = cache_entry
+            mock_cache.get_versioned.return_value = cache_entry
 
             result = _get_cached_detection("task_123", mock_cache)
 
@@ -228,8 +228,8 @@ class TestCacheDetectionResult:
 
         _cache_detection_result(task, result, mock_cache)
 
-        mock_cache.set.assert_called_once()
-        call_args = mock_cache.set.call_args
+        mock_cache.set_versioned.assert_called_once()
+        call_args = mock_cache.set_versioned.call_args
         assert call_args[0][0] == "task_123"
         entry = call_args[0][1]
         assert entry.key == "task_123"
@@ -244,7 +244,7 @@ class TestCacheDetectionResult:
 
         _cache_detection_result(task, result, mock_cache)
 
-        entry = mock_cache.set.call_args[0][1]
+        entry = mock_cache.set_versioned.call_args[0][1]
         assert entry.version == expected_version
 
     def test_uses_current_time_when_no_modified_at(self, mock_cache: MagicMock) -> None:
@@ -256,7 +256,7 @@ class TestCacheDetectionResult:
         _cache_detection_result(task, result, mock_cache)
         after = datetime.now(UTC)
 
-        entry = mock_cache.set.call_args[0][1]
+        entry = mock_cache.set_versioned.call_args[0][1]
         assert before <= entry.version <= after
 
     def test_uses_correct_ttl(self, mock_cache: MagicMock) -> None:
@@ -266,7 +266,7 @@ class TestCacheDetectionResult:
 
         _cache_detection_result(task, result, mock_cache)
 
-        entry = mock_cache.set.call_args[0][1]
+        entry = mock_cache.set_versioned.call_args[0][1]
         assert entry.ttl == 300
 
     def test_skips_unknown_results(self, mock_cache: MagicMock) -> None:
@@ -276,7 +276,7 @@ class TestCacheDetectionResult:
 
         _cache_detection_result(task, result, mock_cache)
 
-        mock_cache.set.assert_not_called()
+        mock_cache.set_versioned.assert_not_called()
 
     def test_preserves_all_fields(self, mock_cache: MagicMock) -> None:
         """FR-ENTRY-003: All 5 DetectionResult fields are preserved."""
@@ -291,7 +291,7 @@ class TestCacheDetectionResult:
 
         _cache_detection_result(task, result, mock_cache)
 
-        entry = mock_cache.set.call_args[0][1]
+        entry = mock_cache.set_versioned.call_args[0][1]
         data = entry.data
         assert data["entity_type"] == "unit"
         assert data["confidence"] == 0.85
@@ -301,7 +301,7 @@ class TestCacheDetectionResult:
 
     def test_cache_error_does_not_raise(self, mock_cache: MagicMock) -> None:
         """FR-DEGRADE-002: Cache storage error does not raise."""
-        mock_cache.set.side_effect = ConnectionError("Cache write failed")
+        mock_cache.set_versioned.side_effect = ConnectionError("Cache write failed")
         task = make_task(gid="task_123")
         result = make_detection_result()
 
@@ -328,10 +328,10 @@ class TestSerializationRoundtrip:
 
         # Store
         _cache_detection_result(task, original, mock_cache)
-        entry = mock_cache.set.call_args[0][1]
+        entry = mock_cache.set_versioned.call_args[0][1]
 
         # Setup cache to return what was stored
-        mock_cache.get.return_value = entry
+        mock_cache.get_versioned.return_value = entry
 
         # Retrieve
         retrieved = _get_cached_detection("task_123", mock_cache)
@@ -349,8 +349,8 @@ class TestSerializationRoundtrip:
         original = make_detection_result(expected_project_gid=None)
 
         _cache_detection_result(task, original, mock_cache)
-        entry = mock_cache.set.call_args[0][1]
-        mock_cache.get.return_value = entry
+        entry = mock_cache.set_versioned.call_args[0][1]
+        mock_cache.get_versioned.return_value = entry
 
         retrieved = _get_cached_detection("task_123", mock_cache)
 
@@ -380,7 +380,7 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         task = make_task(gid="task_123", name="Random Name")
         cached_result = make_detection_result(entity_type=EntityType.BUSINESS)
         cache_entry = make_cache_entry(task.gid, cached_result)
-        mock_cache.get.return_value = cache_entry
+        mock_cache.get_versioned.return_value = cache_entry
 
         result = await detect_entity_type_async(
             task, mock_client_with_cache, allow_structure_inspection=True
@@ -399,7 +399,7 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     ) -> None:
         """FR-CACHE-002: Cache miss executes Tier 4 and stores result."""
         task = make_task(gid="task_123", name="Random Name")
-        mock_cache.get.return_value = None  # Cache miss
+        mock_cache.get_versioned.return_value = None  # Cache miss
 
         # Mock Tier 4 API call
         mock_client_with_cache.tasks.subtasks_async.return_value.collect = AsyncMock(
@@ -415,7 +415,7 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         # Verify API was called
         mock_client_with_cache.tasks.subtasks_async.assert_called_once_with(task.gid)
         # Verify cache was populated
-        mock_cache.set.assert_called_once()
+        mock_cache.set_versioned.assert_called_once()
 
     async def test_no_cache_check_for_tier1_success(
         self,
@@ -442,8 +442,8 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         assert result.entity_type == EntityType.BUSINESS
         assert result.tier_used == 1
         # No cache interaction should occur for Tier 1 success
-        mock_cache.get.assert_not_called()
-        mock_cache.set.assert_not_called()
+        mock_cache.get_versioned.assert_not_called()
+        mock_cache.set_versioned.assert_not_called()
 
     async def test_no_cache_check_for_tier2_success(
         self,
@@ -460,8 +460,8 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         assert result.entity_type == EntityType.CONTACT_HOLDER
         assert result.tier_used == 2
         # No cache interaction for Tier 2 success
-        mock_cache.get.assert_not_called()
-        mock_cache.set.assert_not_called()
+        mock_cache.get_versioned.assert_not_called()
+        mock_cache.set_versioned.assert_not_called()
 
     async def test_cache_check_failure_degrades_gracefully(
         self,
@@ -471,7 +471,7 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     ) -> None:
         """FR-DEGRADE-001: Cache check failure degrades gracefully."""
         task = make_task(gid="task_123", name="Random Name")
-        mock_cache.get.side_effect = ConnectionError("Cache connection failed")
+        mock_cache.get_versioned.side_effect = ConnectionError("Cache connection failed")
 
         # Mock Tier 4 API call (should proceed despite cache failure)
         mock_client_with_cache.tasks.subtasks_async.return_value.collect = AsyncMock(
@@ -494,8 +494,8 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     ) -> None:
         """FR-DEGRADE-002: Cache store failure degrades gracefully."""
         task = make_task(gid="task_123", name="Random Name")
-        mock_cache.get.return_value = None
-        mock_cache.set.side_effect = ConnectionError("Cache write failed")
+        mock_cache.get_versioned.return_value = None
+        mock_cache.set_versioned.side_effect = ConnectionError("Cache write failed")
 
         # Mock Tier 4 API call
         mock_client_with_cache.tasks.subtasks_async.return_value.collect = AsyncMock(
@@ -536,7 +536,7 @@ class TestDetectEntityTypeAsyncCacheIntegration:
     ) -> None:
         """FR-CACHE-005: Tier 4 None result (no match) not cached."""
         task = make_task(gid="task_123", name="Random Name")
-        mock_cache.get.return_value = None
+        mock_cache.get_versioned.return_value = None
 
         # Mock Tier 4 to return no match
         non_indicator_subtask = MagicMock()
@@ -553,7 +553,7 @@ class TestDetectEntityTypeAsyncCacheIntegration:
         assert result.entity_type == EntityType.UNKNOWN
         assert result.tier_used == 5
         # Cache should not be written for UNKNOWN
-        mock_cache.set.assert_not_called()
+        mock_cache.set_versioned.assert_not_called()
 
 
 # --- Test: Cache with structure_inspection disabled ---
@@ -578,5 +578,69 @@ class TestCacheWithStructureInspectionDisabled:
         assert result.entity_type == EntityType.UNKNOWN
         assert result.tier_used == 5
         # No cache interaction
-        mock_cache.get.assert_not_called()
-        mock_cache.set.assert_not_called()
+        mock_cache.get_versioned.assert_not_called()
+        mock_cache.set_versioned.assert_not_called()
+
+
+# --- Regression: real provider round-trip (the two-arg-call fault) ---
+
+
+class TestRealProviderRoundTrip:
+    """Regression for the live TypeError: ``InMemoryCacheProvider.get() takes 2
+    positional arguments but 3 were given`` (bridge_entity_failed, 2026-07-02).
+
+    The facade builds ``CacheEntry`` objects and reads ``entry.data`` /
+    ``entry.is_expired()`` -- the versioned provider contract. The bug called the
+    plain ``get(key)`` / ``set(key, value)`` methods with an extra ``EntryType``
+    positional, which raises ``TypeError`` against the REAL providers (both the
+    ``_defaults`` and the enhanced backend). Mock caches hid it because a
+    ``MagicMock`` swallows any signature. These tests exercise the ACTUAL provider
+    classes named in the receipt so the two-arg call can never regress silently.
+    """
+
+    @staticmethod
+    def _make_provider(name: str):
+        if name == "defaults":
+            from autom8_asana._defaults.cache import InMemoryCacheProvider
+
+            return InMemoryCacheProvider(default_ttl=300)
+        from autom8_asana.cache.backends.memory import EnhancedInMemoryCacheProvider
+
+        return EnhancedInMemoryCacheProvider(default_ttl=300)
+
+    @pytest.mark.parametrize("provider_name", ["defaults", "enhanced"])
+    def test_store_then_retrieve_round_trips(self, provider_name: str) -> None:
+        """Store via _cache_detection_result, retrieve via _get_cached_detection.
+
+        On the buggy two-arg call this raises TypeError at store/retrieve; the
+        versioned-API fix round-trips the DetectionResult intact.
+        """
+        provider = self._make_provider(provider_name)
+        task = make_task(gid="task_roundtrip", modified_at="2026-07-02T00:00:00Z")
+        result = make_detection_result(
+            entity_type=EntityType.BUSINESS,
+            confidence=0.91,
+            tier_used=4,
+            needs_healing=True,
+            expected_project_gid="proj_rt",
+        )
+
+        # Must not raise TypeError (the fault); must actually persist.
+        _cache_detection_result(task, result, provider)
+        retrieved = _get_cached_detection(task.gid, provider)
+
+        assert retrieved is not None
+        assert retrieved.entity_type == EntityType.BUSINESS
+        assert retrieved.confidence == 0.91
+        assert retrieved.tier_used == 4
+        assert retrieved.expected_project_gid == "proj_rt"
+
+    @pytest.mark.parametrize("provider_name", ["defaults", "enhanced"])
+    def test_get_on_cold_provider_returns_none_not_typeerror(self, provider_name: str) -> None:
+        """A cold lookup must be a clean miss (None), never a TypeError.
+
+        This is the exact call shape from facade.py:110 that produced the live
+        ``get() takes 2 positional arguments but 3 were given`` receipt.
+        """
+        provider = self._make_provider(provider_name)
+        assert _get_cached_detection("never_cached_gid", provider) is None

@@ -48,6 +48,7 @@ from autom8_asana.models.business.detection.types import (
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient
     from autom8_asana.models.task import Task
+    from autom8_asana.protocols.cache import CacheProvider
 
 __all__ = [
     "detect_by_project",
@@ -92,7 +93,7 @@ def _detection_cache_ttl() -> int:
 
 def _get_cached_detection(
     task_gid: str,
-    cache: object,
+    cache: CacheProvider,
 ) -> DetectionResult | None:
     """Retrieve cached detection result for task GID.
 
@@ -101,13 +102,13 @@ def _get_cached_detection(
 
     Args:
         task_gid: The task GID to look up.
-        cache: Cache provider instance (duck-typed for get method).
+        cache: Cache provider implementing the versioned CacheProvider protocol.
 
     Returns:
         DetectionResult if cache hit and valid, None otherwise.
     """
     try:
-        entry = cache.get(task_gid, EntryType.DETECTION)  # type: ignore[attr-defined]
+        entry = cache.get_versioned(task_gid, EntryType.DETECTION)
         if entry is None:
             return None
 
@@ -134,7 +135,7 @@ def _get_cached_detection(
 def _cache_detection_result(
     task: Task,
     result: DetectionResult,
-    cache: object,
+    cache: CacheProvider,
 ) -> None:
     """Cache a detection result for future lookups.
 
@@ -146,7 +147,7 @@ def _cache_detection_result(
     Args:
         task: The task that was detected.
         result: The DetectionResult to cache.
-        cache: Cache provider instance (duck-typed for set method).
+        cache: Cache provider implementing the versioned CacheProvider protocol.
     """
     # FR-CACHE-006: Don't cache UNKNOWN results
     if result.entity_type == EntityType.UNKNOWN:
@@ -184,7 +185,7 @@ def _cache_detection_result(
     )
 
     try:
-        cache.set(task.gid, entry)  # type: ignore[attr-defined]
+        cache.set_versioned(task.gid, entry)
     except (
         CACHE_TRANSIENT_ERRORS
     ):  # metrics -- per FR-DEGRADE-002, cache storage failures don't prevent detection
