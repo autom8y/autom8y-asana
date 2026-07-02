@@ -636,9 +636,7 @@ class TestRealProviderRoundTrip:
         assert retrieved.expected_project_gid == "proj_rt"
 
     @pytest.mark.parametrize("provider_name", ["defaults", "enhanced"])
-    def test_get_on_cold_provider_returns_none_not_typeerror(
-        self, provider_name: str
-    ) -> None:
+    def test_get_on_cold_provider_returns_none_not_typeerror(self, provider_name: str) -> None:
         """A cold lookup must be a clean miss (None), never a TypeError.
 
         This is the exact call shape from facade.py:110 that produced the live

@@ -106,9 +106,7 @@ class TestGetAsync:
         """
         mock_http.get.return_value = {"gid": "1213653428400851", "name": "PLAY task"}
 
-        await tasks_client.get_async(
-            "1213653428400851", opt_fields=["name", "custom_fields"]
-        )
+        await tasks_client.get_async("1213653428400851", opt_fields=["name", "custom_fields"])
 
         call = mock_http.get.call_args
         sent_fields = set(call.kwargs["params"]["opt_fields"].split(","))
