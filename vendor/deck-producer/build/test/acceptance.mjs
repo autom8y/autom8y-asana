@@ -542,10 +542,16 @@ async function checkClientLengthBoundaries(d) {
 }
 
 /**
- * AC-G5-LEN-CLAMP (teeth, two-sided) — a >140-grapheme --client MUST render with
+ * AC-G5-LEN-CLAMP (teeth, two-sided) — a >140-grapheme client MUST render with
  * an HONEST visible cut: the first 139 graphemes followed by a trailing ellipsis,
  * never the full run and never a silent cut. Proves the clamp BITES exactly on
  * the over-length defect variant (the no-defect variants are AC-G5-LEN above).
+ *
+ * FAULT-13/S9 (PR-2): the producer now REFUSES a >140 --client at BUILD time
+ * (AC-CLIENT-GATE below), so the clamp's remaining live surface is the
+ * recipient-side runtime ?client= override (S10). The over-length value is
+ * therefore driven through the LIVE query param on a plain build — the same
+ * render path AC-G5 exercises — keeping the render-side backstop proven.
  */
 async function checkClientClampTeeth(d) {
   const client = 'X'.repeat(150); // > 140 graphemes
@@ -553,15 +559,86 @@ async function checkClientClampTeeth(d) {
   const out = `_clamp_${d.out}`;
   const outPath = join(EXPORT_DIR, out);
   rmSync(outPath, { force: true });
-  buildDeck({ ...d, out }, ['--addr', EXPECTED_ADDR, '--client', client]);
-  const s = await probeRenderedText(outPath);
+  buildDeck({ ...d, out });
+  const s = await probeRenderedText(
+    outPath,
+    `?addr=${encodeURIComponent(EXPECTED_ADDR)}&client=${encodeURIComponent(client)}`
+  );
   const honestCut = s.rendered.includes(clamped);
   const fullRunAbsent = !s.rendered.includes('X'.repeat(140));
   if (honestCut && fullRunAbsent && s.pageErrors === 0) {
-    pass('AC-G5-LEN-CLAMP', `${d.out}: 150-grapheme --client clamped to 139+'…' (visible cut, full run absent)`);
+    pass('AC-G5-LEN-CLAMP', `${d.out}: 150-grapheme runtime ?client clamped to 139+'…' (visible cut, full run absent)`);
   } else {
-    fail('AC-G5-LEN-CLAMP', `${d.out}: over-length --client not honestly clamped `
+    fail('AC-G5-LEN-CLAMP', `${d.out}: over-length runtime ?client not honestly clamped `
       + `(honestCut=${honestCut} fullRunAbsent=${fullRunAbsent} pageErrors=${s.pageErrors})`);
+  }
+  rmSync(outPath, { force: true });
+}
+
+/**
+ * AC-CLIENT-GATE (FAULT-13/S9, two-sided) — the producer-side --client symmetric
+ * slot. Closes the asymmetry where --addr was fail-closed (ADDR-NON-CANONICAL)
+ * while --client accepted anything escapable:
+ *   (a) a >140-code-point --client MUST exit non-zero with CLIENT-TOO-LONG and
+ *       write NO output;
+ *   (b) a control-character --client MUST exit non-zero with
+ *       CLIENT-CONTROL-CHARS and write NO output;
+ *   (c) two-sided control: an exactly-140 --client still freezes (exit 0,
+ *       output written) — the gate bites ONLY past the bound.
+ */
+function checkClientGateFailClosed(d) {
+  const redArms = [
+    ['len-141', 'Y'.repeat(141), /CLIENT-TOO-LONG/],
+    ['ctrl-bel', 'Acme\u0007Clinic', /CLIENT-CONTROL-CHARS/],
+    ['ctrl-nl', 'Acme\nClinic', /CLIENT-CONTROL-CHARS/],
+  ];
+  for (const [tag, client, sentinel] of redArms) {
+    const out = `_clientgate_${tag}_${d.out}`;
+    const outPath = join(EXPORT_DIR, out);
+    rmSync(outPath, { force: true });
+    let exitCode = 0;
+    let stderr = '';
+    try {
+      execFileSync(
+        'node',
+        [INLINE, '--deck', d.deck, '--title', d.title, '--out', out, '--addr', EXPECTED_ADDR, '--client', client],
+        { cwd: PROJECT_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+      );
+    } catch (e) {
+      exitCode = e.status ?? 1;
+      stderr = (e.stderr || '') + (e.stdout || '');
+    }
+    const wroteOutput = existsSync(outPath);
+    const named = sentinel.test(stderr);
+    if (exitCode !== 0 && !wroteOutput && named) {
+      pass('AC-CLIENT-GATE', `${d.out} [${tag}]: bad --client fired RED (exit ${exitCode}, ${sentinel.source}, NO output)`);
+    } else {
+      fail('AC-CLIENT-GATE', `${d.out} [${tag}]: bad --client did NOT fail-close — `
+        + `exit=${exitCode} wroteOutput=${wroteOutput} named=${named}\n    stderr: ${stderr.slice(0, 300)}`);
+    }
+    rmSync(outPath, { force: true });
+  }
+  // (c) two-sided control: the exactly-140 boundary value still freezes.
+  const boundary = 'B'.repeat(140);
+  const out = `_clientgate_ok_${d.out}`;
+  const outPath = join(EXPORT_DIR, out);
+  rmSync(outPath, { force: true });
+  let ok = true;
+  let err = '';
+  try {
+    execFileSync(
+      'node',
+      [INLINE, '--deck', d.deck, '--title', d.title, '--out', out, '--addr', EXPECTED_ADDR, '--client', boundary],
+      { cwd: PROJECT_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+  } catch (e) {
+    ok = false;
+    err = ((e.stderr || '') + (e.stdout || '')).slice(0, 300);
+  }
+  if (ok && existsSync(outPath)) {
+    pass('AC-CLIENT-GATE', `${d.out} [boundary-140]: exactly-140 --client freezes (the gate bites ONLY past the bound)`);
+  } else {
+    fail('AC-CLIENT-GATE', `${d.out} [boundary-140]: exactly-140 --client refused / wrote no output — the gate over-bites\n    ${err}`);
   }
   rmSync(outPath, { force: true });
 }
@@ -1067,16 +1144,17 @@ async function main() {
     await checkPersonalizedFreeze(d); // AC-G5' (render-then-freeze, NO ?addr, offline)
     await checkClientScriptBreakFreeze(d); // AC-CLIENT-BREAK (FINDING B: hostile --client)
     await checkClientLengthBoundaries(d);  // AC-G5-LEN (FAULT-13b: 63/64/65 + live leak string)
-    await checkClientClampTeeth(d);        // AC-G5-LEN-CLAMP (>140 graphemes -> honest '…' cut)
+    await checkClientClampTeeth(d);        // AC-G5-LEN-CLAMP (runtime ?client >140 -> honest '…' cut)
     await checkClientUnicode(d);           // AC-G5-UNI (surrogate/combining straddle, no U+FFFD)
     checkTitleDefault(d);            // AC-TITLE-DEFAULT (no --title -> customer-safe <title>)
     checkFailClosed(d);              // AC-G5'' (bad --addr -> ADDR-NON-CANONICAL, no output)
+    checkClientGateFailClosed(d);    // AC-CLIENT-GATE (FAULT-13/S9: --client fail-closed slot)
     log('');
   }
 
   log('=== SUMMARY ===');
   if (failures === 0) {
-    log("ALL ACCEPTANCE ASSERTIONS PASS (AC-G1..G9, AC-G5', AC-G5'', AC-CLIENT-BREAK, AC-G5-LEN, AC-G5-LEN-CLAMP, AC-G5-UNI, AC-TITLE-DEFAULT, MC-1-RED, MC-1-HOST, CLI-relay, CLI-revalidate).");
+    log("ALL ACCEPTANCE ASSERTIONS PASS (AC-G1..G9, AC-G5', AC-G5'', AC-CLIENT-BREAK, AC-CLIENT-GATE, AC-G5-LEN, AC-G5-LEN-CLAMP, AC-G5-UNI, AC-TITLE-DEFAULT, MC-1-RED, MC-1-HOST, CLI-relay, CLI-revalidate).");
     process.exit(0);
   } else {
     log(`${failures} ACCEPTANCE ASSERTION(S) FAILED.`);

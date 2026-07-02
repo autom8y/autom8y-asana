@@ -36,7 +36,7 @@ class AttachmentReplacementMixin:
     async def _delete_old_attachments(
         self,
         task_gid: str,
-        pattern: str,
+        pattern: str | tuple[str, ...],
         exclude_name: str,
     ) -> None:
         """Delete old attachments matching *pattern*, excluding the new upload.
@@ -47,16 +47,21 @@ class AttachmentReplacementMixin:
 
         Args:
             task_gid: Task GID to list attachments for.
-            pattern: Glob pattern to match (e.g., ``"conversations_*.csv"``).
+            pattern: Glob pattern to match (e.g., ``"conversations_*.csv"``), or
+                a tuple of patterns -- an attachment matching ANY of them is
+                deleted (fault-13/S6: the walkthrough workflow must reap BOTH its
+                legacy ``walkthrough_*.html`` names and the customer-safe
+                convention that replaced them).
             exclude_name: Filename to exclude from deletion (the new upload).
         """
+        patterns = (pattern,) if isinstance(pattern, str) else pattern
         page_iter = self._attachments_client.list_for_task_async(
             task_gid,
             opt_fields=["name"],
         )
         async for attachment in page_iter:
             att_name = attachment.name or ""
-            if fnmatch.fnmatch(att_name, pattern) and att_name != exclude_name:
+            if any(fnmatch.fnmatch(att_name, p) for p in patterns) and att_name != exclude_name:
                 try:
                     await self._attachments_client.delete_async(attachment.gid)
                     logger.debug(
