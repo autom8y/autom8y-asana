@@ -15,6 +15,11 @@ canonical address form, so G-PROPAGATE P2 is honored.
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import shutil
+import stat
+import tempfile
+import uuid
 from pathlib import Path
 
 from autom8y_log import get_logger
@@ -33,6 +38,83 @@ _PRODUCER_ENTRYPOINT = "build/inline.mjs"
 # Lambda/ECS scale is a separate BUILD PRECONDITION (NFR-5 / CON-2), not
 # asserted here.
 DEFAULT_TIMEOUT_S = 60.0
+
+# Read-only-filesystem fallback (fault-9): stable name of the relocated producer
+# tree under the runtime's writable tmp root, and the completion marker that
+# distinguishes a COMPLETE copy from a partial one (warm invokes reuse the copy
+# iff the marker is present).
+_RELOCATED_TREE_NAME = "deck-producer"
+_COPY_COMPLETE_MARKER = ".producer-copy-complete"
+
+
+def _relocation_destination() -> Path:
+    """Stable per-runtime destination for the relocated producer tree."""
+    return Path(tempfile.gettempdir()) / _RELOCATED_TREE_NAME
+
+
+def _export_dir_writable(producer_dir: Path) -> bool:
+    """Probe whether the producer's ``export/`` dir can be created and written.
+
+    Mirrors exactly what the producer does at emit() (``build/inline.mjs:197``
+    ``mkdirSync(EXPORT_DIR, {recursive: true})`` then a write): attempt the
+    mkdir plus a touch. On a read-only filesystem (Lambda: everything except
+    ``/tmp``) the mkdir/touch raises -- the probe returns False BEFORE a
+    subprocess is burned on a doomed run. On a writable tree (ECS) the probe
+    passes and spawn behavior is unchanged (pre-creating ``export/`` is benign:
+    the producer's own mkdir is recursive/exist-ok).
+    """
+    export_dir = producer_dir / "export"
+    probe = export_dir / f".writability-probe-{uuid.uuid4().hex}"
+    try:
+        export_dir.mkdir(parents=True, exist_ok=True)
+        probe.touch()
+    except OSError:
+        return False
+    # Best-effort probe cleanup; writability is already proven.
+    with contextlib.suppress(OSError):
+        probe.unlink()
+    return True
+
+
+def _relocate_producer_tree(producer_dir: Path) -> Path:
+    """Copy the producer tree to a stable writable location (COPY-ONCE).
+
+    Lambda's filesystem is read-only except ``/tmp`` (production receipt
+    2026-07-02T11:21:40Z: ``ENOENT: no such file or directory, mkdir
+    '/app/vendor/deck-producer/export'``). Everything in the producer tree is
+    relative to its own root (``build/inline.mjs`` derives ``EXPORT_DIR`` from
+    ``__dirname``), so the copy preserves behavior byte-for-byte.
+
+    Copy-once discipline: the tree (~264 files incl. node_modules; ~1-2s, paid
+    ONCE per cold container) is copied on the first non-writable invocation;
+    warm invokes reuse it via the completion marker. Partial-copy guard: copy
+    to a unique staging name, stamp the marker INSIDE the staging tree, then
+    atomically rename into place -- the stable path either does not exist or
+    holds a complete, marker-stamped copy.
+    """
+    dest = _relocation_destination()
+    marker = dest / _COPY_COMPLETE_MARKER
+    if marker.exists():
+        return dest  # warm invoke: reuse the completed copy
+
+    staging = dest.with_name(f".{dest.name}-staging-{uuid.uuid4().hex}")
+    shutil.copytree(producer_dir, staging, symlinks=True, dirs_exist_ok=False)
+    # copytree mirrors the SOURCE root's mode onto the copy; a mode-read-only
+    # source root would make the copy unwritable too. The copy MUST be writable
+    # (that is its whole purpose): restore owner rwx on the copy root so the
+    # marker, the export/ dir, and the frozen output can be created.
+    staging.chmod(stat.S_IMODE(staging.stat().st_mode) | 0o700)
+    (staging / _COPY_COMPLETE_MARKER).touch()
+    try:
+        staging.rename(dest)
+    except OSError:
+        if marker.exists():
+            # Benign race: a concurrent invocation completed the rename first;
+            # discard our redundant staging copy and use theirs.
+            shutil.rmtree(staging, ignore_errors=True)
+        else:
+            raise
+    return dest
 
 
 class ProducerFreezeError(RuntimeError):
@@ -54,9 +136,20 @@ async def freeze_walkthrough_deck(
 ) -> bytes:
     """Shell ``node build/inline.mjs`` and return the frozen HTML bytes.
 
+    Read-only-filesystem fallback (fault-9): the producer hardcodes its export
+    dir INSIDE its own tree (``build/inline.mjs:45-48`` -- no env/arg override;
+    ``--out`` is only the filename), which ENOENTs on Lambda where everything
+    except ``/tmp`` is read-only. Before spawning, ``{producer_dir}/export`` is
+    probed for writability; if not writable the whole tree is relocated
+    (copy-once, ~1-2s on the first cold invocation only) to a stable writable
+    location and the producer is spawned from the copy. Writable trees (ECS)
+    take the original path unchanged.
+
     Args:
         producer_dir: Directory containing the Node producer (``build/inline.mjs``)
-            with a writable ``export/`` subdir. CONFIG -- never hardcoded.
+            with a writable ``export/`` subdir. CONFIG -- never hardcoded. If the
+            ``export/`` subdir is NOT writable (Lambda read-only fs), the tree is
+            transparently relocated to a writable copy and spawned from there.
         deck_template: Deck template folder name (e.g. ``"ghl-calendar-setup"``).
             The invoker prepends ``templates/``.
         gated_address: The canonical ``{uuid}@appointments.contenteapp.com``
@@ -76,6 +169,21 @@ async def freeze_walkthrough_deck(
             output, or the gated address being absent from the frozen output.
     """
     producer_dir = Path(producer_dir)
+
+    # Fault-9 writability gate: relocate ONLY when the export dir is not
+    # writable (Lambda). Writable trees (ECS) proceed exactly as before.
+    relocated = False
+    if not _export_dir_writable(producer_dir):
+        try:
+            producer_dir = _relocate_producer_tree(producer_dir)
+        except OSError as exc:
+            raise ProducerFreezeError(f"producer tree relocation failed: {exc}") from exc
+        relocated = True
+        logger.info(
+            "walkthrough_producer_relocated",
+            destination=str(producer_dir),
+        )
+
     cmd = [
         "node",
         _PRODUCER_ENTRYPOINT,
@@ -132,6 +240,14 @@ async def freeze_walkthrough_deck(
         raise ProducerFreezeError("producer exit 0 but no/empty output file")
 
     frozen = out_path.read_bytes()
+
+    if relocated:
+        # The workflow's FR-8 export cleanup targets the CONFIGURED producer
+        # dir and cannot see the relocated copy -- discharge the temp-file
+        # cleanup here (best-effort; Lambda /tmp is runtime-ephemeral anyway)
+        # so warm containers do not accumulate exports in /tmp.
+        with contextlib.suppress(OSError):
+            out_path.unlink()
 
     # Integrity re-validation (ADR-WALK-B3): the SDK-resolved gated address MUST
     # appear in the frozen output. A no-op/fallback renderer that exits 0 without
