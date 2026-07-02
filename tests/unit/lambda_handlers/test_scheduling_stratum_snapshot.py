@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 from typing import Any
+from unittest.mock import AsyncMock
 
 import polars as pl
 import pytest
@@ -404,3 +405,138 @@ async def test_run_snapshot_push_async_dark_is_skipped(monkeypatch: pytest.Monke
     monkeypatch.delenv("SCHEDULING_STRATUM_PUSH_ENABLED", raising=False)
     result = await run_snapshot_push_async(context=None)
     assert result.status == "skipped"
+
+
+# --- SA-token mint + authed push wiring (retire the AUTOM8Y_DATA_API_KEY fossil) ---
+#
+# The live push MUST carry a freshly-minted S2S JWT (ServiceTokenAuthProvider),
+# mirroring workflow_handler, NOT the legacy AUTOM8Y_DATA_API_KEY fossil -- an
+# 11-char single-segment stub the data side rejects with 401 AUTH-TEB-003
+# ("Token is malformed: Not enough segments").
+
+
+class _FakeProvider:
+    """Stand-in for ServiceTokenAuthProvider: get_secret -> JWT, close() tracked."""
+
+    instances: list[_FakeProvider] = []
+
+    def __init__(self, token: str = "hdr.pyld.sig") -> None:
+        self._token = token
+        self.closed = False
+        self.secret_keys: list[str] = []
+        _FakeProvider.instances.append(self)
+
+    def get_secret(self, key: str) -> str:
+        self.secret_keys.append(key)
+        return self._token
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _spy_live_push() -> AsyncMock:
+    return AsyncMock(
+        return_value=StratumPushResult(pushed=True, dry_run=False, entry_count=1, payload={})
+    )
+
+
+def test_mint_token_returns_none_when_creds_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No SERVICE_CLIENT_ID/SECRET -> ServiceTokenAuthProvider ValueError -> honest None.
+
+    The honest-skip signal is None (the caller then skips the POST), NEVER a fallback to
+    the legacy fossil. No network is touched: the provider raises at construction on
+    absent creds (resolve_secret_from_env ValueError), which the broad catch narrows to
+    None.
+    """
+    for var in (
+        "SERVICE_CLIENT_ID",
+        "SERVICE_CLIENT_ID_ARN",
+        "SERVICE_CLIENT_SECRET",
+        "SERVICE_CLIENT_SECRET_ARN",
+    ):
+        monkeypatch.delenv(var, raising=False)
+    assert snap._mint_stratum_push_token() is None
+
+
+def test_mint_token_returns_jwt_and_closes_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A successful exchange returns the JWT string and releases the provider (close)."""
+    _FakeProvider.instances.clear()
+    monkeypatch.setattr("autom8_asana.auth.service_token.ServiceTokenAuthProvider", _FakeProvider)
+    token = snap._mint_stratum_push_token()
+    assert token == "hdr.pyld.sig"
+    assert len(_FakeProvider.instances) == 1
+    assert _FakeProvider.instances[0].closed is True  # provider resources released
+
+
+def test_mint_token_none_when_provider_yields_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty token from the exchange normalizes to None (honest skip, not "")."""
+    _FakeProvider.instances.clear()
+    monkeypatch.setattr(
+        "autom8_asana.auth.service_token.ServiceTokenAuthProvider",
+        lambda: _FakeProvider(token=""),
+    )
+    assert snap._mint_stratum_push_token() is None
+    assert _FakeProvider.instances[0].closed is True  # closed even on the empty-token path
+
+
+async def test_live_push_injects_minted_sa_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LIVE path (gate on, dry_run None): mint the JWT and inject it as ``auth_token``."""
+    monkeypatch.setenv("SCHEDULING_STRATUM_PUSH_ENABLED", "true")
+    monkeypatch.setattr(snap, "_mint_stratum_push_token", lambda: "hdr.pyld.sig")
+    spy = _spy_live_push()
+    monkeypatch.setattr(snap, "resolve_and_push_snapshot", spy)
+
+    result = await snap._resolve_and_push_snapshot_authed([_office("g1")], dry_run=None)
+
+    spy.assert_awaited_once()
+    assert spy.await_args.kwargs["auth_token"] == "hdr.pyld.sig"  # minted JWT injected
+    assert result is not None and result.pushed is True
+
+
+async def test_mint_failure_honest_skip_no_post(monkeypatch: pytest.MonkeyPatch) -> None:
+    """LIVE path, mint returns None: NO POST, pushed=False (never the fossil, never a crash)."""
+    monkeypatch.setenv("SCHEDULING_STRATUM_PUSH_ENABLED", "true")
+    monkeypatch.setattr(snap, "_mint_stratum_push_token", lambda: None)
+    spy = _spy_live_push()
+    monkeypatch.setattr(snap, "resolve_and_push_snapshot", spy)
+
+    result = await snap._resolve_and_push_snapshot_authed([_office("g1")], dry_run=None)
+
+    assert result is None  # honest skip -> execute_snapshot_push reports pushed=False
+    spy.assert_not_awaited()  # NEVER push with a garbage/fossil token
+
+
+async def test_dry_run_never_mints(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicit dry_run wins even with the gate ON: no mint, pass-through auth_token=None."""
+    monkeypatch.setenv("SCHEDULING_STRATUM_PUSH_ENABLED", "true")
+
+    def _no_mint() -> str:
+        raise AssertionError("dry-run must never mint a token")
+
+    monkeypatch.setattr(snap, "_mint_stratum_push_token", _no_mint)
+    spy = AsyncMock(
+        return_value=StratumPushResult(pushed=False, dry_run=True, entry_count=1, payload={})
+    )
+    monkeypatch.setattr(snap, "resolve_and_push_snapshot", spy)
+
+    result = await snap._resolve_and_push_snapshot_authed([_office("g1")], dry_run=True)
+
+    spy.assert_awaited_once()
+    assert spy.await_args.kwargs.get("auth_token") is None  # no token minted on the dry path
+    assert result is not None and result.dry_run is True
+
+
+async def test_gate_off_never_mints_returns_skipped_gate_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Gate off: {skipped, gate_off} receipt with ZERO mint attempt (byte-identical DARK)."""
+    monkeypatch.delenv("SCHEDULING_STRATUM_PUSH_ENABLED", raising=False)
+
+    def _no_mint() -> str:
+        raise AssertionError("gate-off must never mint a token")
+
+    monkeypatch.setattr(snap, "_mint_stratum_push_token", _no_mint)
+    result = await run_snapshot_push_async(context=None)
+    assert result.status == "skipped"
+    assert result.reason == "gate_off"
+    assert result.entry_count == 0

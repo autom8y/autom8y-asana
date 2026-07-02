@@ -55,7 +55,13 @@ Environment Variables:
     SCHEDULING_STRATUM_PUSH_ENABLED: DEFAULT-OFF activation gate (this handler +
         the live POST). UNSET => DARK no-op.
     ASANA_PAT / ASANA_WORKSPACE_GID: Asana credentials (bot PAT path).
-    AUTOM8Y_DATA_URL (+ S2S auth env): data-service base URL / creds for the sync.
+    AUTOM8Y_DATA_URL: data-service base URL for the sync POST.
+    SERVICE_CLIENT_ID / SERVICE_CLIENT_SECRET: the current-generation S2S
+        client-credentials pair. On the LIVE push path the handler exchanges them
+        for a genuine service JWT (:class:`ServiceTokenAuthProvider`, mirroring
+        ``workflow_handler``) and injects it as the push ``auth_token`` -- NOT the
+        legacy ``AUTOM8Y_DATA_API_KEY`` fossil (an 11-char single-segment stub the
+        data side rejects with 401 AUTH-TEB-003 "Token is malformed").
     SCHEDULING_STRATUM_SNAPSHOT_CADENCE_HOURS: intended cadence (releaser-seam doc).
 """
 
@@ -322,6 +328,82 @@ async def _enumerate_offices_from_frame(
     return extracted, True
 
 
+def _mint_stratum_push_token() -> str | None:
+    """Mint the current-generation S2S JWT for the live stratum push, or None.
+
+    Exchanges ``SERVICE_CLIENT_ID`` + ``SERVICE_CLIENT_SECRET`` for a genuine
+    service JWT via :class:`~autom8_asana.auth.service_token.ServiceTokenAuthProvider`
+    (the same client-credentials path ``workflow_handler`` uses). Returns the bearer
+    string on success, or ``None`` on ANY failure -- missing/unresolvable creds,
+    auth-service error, or an empty token.
+
+    ``None`` is the honest-skip signal: the caller takes the no-push path rather than
+    fall back to ``gid_push._get_auth_token()``'s legacy ``AUTOM8Y_DATA_API_KEY``
+    fossil, whose live value is an 11-char single-segment stub the data side rejects
+    (401 AUTH-TEB-003 "Token is malformed: Not enough segments"). DELIBERATELY
+    broad-catch + degrade-to-skip -- UNLIKE ``workflow_handler`` (which raise-and-500s
+    a mint failure) -- because this whole-snapshot push is non-blocking by contract
+    (``services/scheduling_stratum_push``): a mint failure must be a skip, never a
+    500 and never an unauthenticated POST.
+    """
+    from autom8_asana.auth.service_token import ServiceTokenAuthProvider
+
+    try:
+        provider = ServiceTokenAuthProvider()
+        try:
+            token = provider.get_secret("scheduling-stratum-push")
+        finally:
+            provider.close()
+    except Exception as exc:  # noqa: BLE001 -- mint failure => honest skip, never the fossil
+        logger.warning(
+            "scheduling_stratum_snapshot_token_mint_failed",
+            extra={"error": str(exc), "error_type": type(exc).__name__},
+        )
+        return None
+    return token or None
+
+
+async def _resolve_and_push_snapshot_authed(
+    extracted_offices: list[ExtractedScheduling],
+    *,
+    dry_run: bool | None,
+) -> StratumPushResult | None:
+    """Push the projected snapshot with a freshly-minted S2S JWT (retire the fossil seam).
+
+    The effective-dry-run decision is mirrored EXACTLY from
+    :func:`~autom8_asana.services.scheduling_stratum_push.push_stratum_snapshot`, so
+    the mint fires on precisely the runs that will POST:
+
+      * DRY-RUN (no live POST) -- pass straight through with NO mint attempted; a
+        dry-run must never fail on a mint issue (it does not authenticate).
+      * LIVE POST -- mint via :func:`_mint_stratum_push_token` and inject it as
+        ``auth_token``. On ANY mint failure take the honest skip: surface
+        ``scheduling_stratum_push_skipped`` with a mint-failure reason and return
+        ``None`` (``pushed=False``) -- NEVER push with a garbage/fossil token, NEVER
+        crash the handler.
+
+    This is only reached when the DARK gate is ON (``execute_snapshot_push``
+    short-circuits to ``skipped`` before ``push`` when the gate is off), so the gate
+    is not re-litigated here -- only the live-vs-dry-run split governs the mint.
+    """
+    enabled = _is_stratum_push_enabled()
+    effective_dry_run = (not enabled) if dry_run is None else dry_run
+    if effective_dry_run:
+        return await resolve_and_push_snapshot(extracted_offices, dry_run=dry_run)
+
+    token = _mint_stratum_push_token()
+    if token is None:
+        logger.warning(
+            "scheduling_stratum_push_skipped",
+            extra={
+                "reason": "service_token_mint_failed",
+                "entry_count": len(extracted_offices),
+            },
+        )
+        return None
+    return await resolve_and_push_snapshot(extracted_offices, dry_run=dry_run, auth_token=token)
+
+
 async def run_snapshot_push_async(
     context: Any = None, *, dry_run: bool | None = None
 ) -> SnapshotRunResult:
@@ -367,9 +449,15 @@ async def run_snapshot_push_async(
 
     async def _push(extracted_offices: list[ExtractedScheduling]) -> StratumPushResult | None:
         # FRAME-FIRST: the offices are already projected from the warmed frame -- the
-        # push path issues ZERO Asana reads (no AsanaClient / QueryEngine). The
-        # data-service POST creds resolve from env inside push_stratum_snapshot.
-        return await resolve_and_push_snapshot(extracted_offices, dry_run=dry_run)
+        # push path issues ZERO Asana reads (no AsanaClient / QueryEngine).
+        # AUTH: route through _resolve_and_push_snapshot_authed so the LIVE POST
+        # carries a freshly-minted S2S JWT (ServiceTokenAuthProvider), NOT the legacy
+        # AUTOM8Y_DATA_API_KEY fossil (the 11-char single-segment stub the data side
+        # rejects with 401 AUTH-TEB-003). Only reached when the gate is ON
+        # (execute_snapshot_push short-circuits to skipped when it is off); a dry-run
+        # passes straight through without a mint, and a mint failure is an honest skip
+        # (pushed=False, no POST) -- never an unauthenticated POST, never a crash.
+        return await _resolve_and_push_snapshot_authed(extracted_offices, dry_run=dry_run)
 
     return await execute_snapshot_push(
         gate=_is_stratum_push_enabled,
