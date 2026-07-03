@@ -20,9 +20,31 @@ from autom8_asana.patterns import async_method
 
 logger = get_logger(__name__)
 
-# Minimum fields required for cascade resolution (per TDD-sdk-cascade-resolution).
-# parent.gid is always needed to traverse the hierarchy and resolve cascading fields.
-_MINIMUM_OPT_FIELDS: frozenset[str] = frozenset({"parent.gid"})
+# Minimum fields always merged into an explicitly-narrowed task fetch, so a
+# narrow-first get_async caches an object rich enough for every LATER reader of the
+# same gid. The TASK cache key is opt_fields-blind (FR-CLIENT-002): the field-shape
+# of the FIRST fetch of a gid is what every subsequent cache-hit reader receives.
+#
+#   - parent.gid: cascade / upward hierarchy traversal (GFR no-identity-path).
+#     Instance #1 of the narrow-cache-poisoning class (already cured).
+#   - memberships.project.gid / memberships.project.name: entity-type + ProcessType
+#     detection. tier-1 typing reads memberships[0].project.gid
+#     (models/business/detection/tier1.py::_extract_project_gid); ProcessType
+#     detection reads memberships[0].project.name (models/business/hydration.py,
+#     ADR-0094). Instance #2: without these, a narrow-first fetch cached a
+#     membership-less object, starving detection to entity-type-undetectable for
+#     every later reader of that gid within the process.
+#
+# Authored INDEPENDENTLY of DETECTION_MEMBERSHIP_OPT_FIELDS (the detection denominator
+# in models/business/fields.py) -- the fetch>=detector coherence property test asserts
+# that denominator is a subset of this supply set, so the two cannot silently drift.
+_MINIMUM_OPT_FIELDS: frozenset[str] = frozenset(
+    {
+        "parent.gid",
+        "memberships.project.gid",
+        "memberships.project.name",
+    }
+)
 
 if TYPE_CHECKING:
     from autom8_asana.client import AsanaClient

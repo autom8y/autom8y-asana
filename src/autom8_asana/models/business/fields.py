@@ -255,13 +255,34 @@ STANDARD_TASK_OPT_FIELDS: tuple[str, ...] = (
     "custom_fields.date_value",
 )
 
+# Membership subfields that entity detection ACTUALLY consumes off a fetched task.
+# This is the detection DENOMINATOR for the fetch>=detector coherence property
+# (the #195 planner>=gate pattern, applied to fetch-vs-detector):
+#   - memberships.project.gid  -> tier-1 entity typing
+#     (detection/tier1.py::_extract_project_gid reads memberships[0].project.gid)
+#   - memberships.project.name -> ProcessType detection, ADR-0094
+#     (models/business/hydration.py reads memberships[0].project.name)
+# The tasks client's _MINIMUM_OPT_FIELDS (the fetch-supply guarantee) MUST be a
+# superset of this set, else a narrow-first cache entry starves detection. That
+# invariant is asserted by test_min_opt_fields_detection_coherence.py.
+# NOTE: memberships.section.name is deliberately EXCLUDED -- it is a LIST/sweep and
+# explicit offer/unit-fetch consumer, not a get()-path detection input; adding it to
+# the get() minimum set would inflate every narrow cache entry beyond detection demand.
+DETECTION_MEMBERSHIP_OPT_FIELDS: frozenset[str] = frozenset(
+    {
+        "memberships.project.gid",
+        "memberships.project.name",
+    }
+)
+
 # Minimal field set for detection-only operations (subset of standard).
 # Per FR-DETECT-003: Smaller set for performance when custom_fields not needed.
+# Built from DETECTION_MEMBERSHIP_OPT_FIELDS so the membership denominator is
+# runtime-load-bearing (not test-only); sorted() keeps the tuple deterministic.
 DETECTION_OPT_FIELDS: tuple[str, ...] = (
     "name",
     "parent.gid",
-    "memberships.project.gid",
-    "memberships.project.name",
+    *sorted(DETECTION_MEMBERSHIP_OPT_FIELDS),
 )
 
 

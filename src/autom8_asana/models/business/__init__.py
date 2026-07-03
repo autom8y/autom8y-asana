@@ -93,6 +93,7 @@ from autom8_asana.models.business.detection import (
 )
 from autom8_asana.models.business.dna import DNA
 from autom8_asana.models.business.fields import (
+    DETECTION_MEMBERSHIP_OPT_FIELDS,
     DETECTION_OPT_FIELDS,
     STANDARD_TASK_OPT_FIELDS,
     CascadingFieldDef,
@@ -191,6 +192,7 @@ __all__ = [
     # Task opt_fields constants (per PRD-CACHE-PERF-HYDRATION)
     "STANDARD_TASK_OPT_FIELDS",
     "DETECTION_OPT_FIELDS",
+    "DETECTION_MEMBERSHIP_OPT_FIELDS",
     # Cascading field registry (TDD-CASCADING-FIELD-RESOLUTION-001)
     "CascadingFieldEntry",
     "get_cascading_field",

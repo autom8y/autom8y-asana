@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from autom8_asana.clients.tasks import TasksClient
+from autom8_asana.clients.tasks import _MINIMUM_OPT_FIELDS, TasksClient
 from autom8_asana.errors import SyncInAsyncContextError
 from autom8_asana.models import PageIterator, Task
 
@@ -68,8 +68,9 @@ class TestGetAsync:
     ) -> None:
         """get_async passes opt_fields as comma-separated query param.
 
-        Caller-provided fields are preserved AND ``parent.gid`` is merged in (the
-        cascade-resolution minimum -- see the parent.gid regression test below).
+        Caller-provided fields are preserved AND ``_MINIMUM_OPT_FIELDS`` is merged in
+        (the cache-coherence minimum: parent.gid for cascade + memberships.project.*
+        for detection -- see the narrow-fetch regression tests below).
         Set-based merge makes order non-deterministic, so assert on the field set.
         """
         mock_http.get.return_value = {
@@ -88,7 +89,7 @@ class TestGetAsync:
         call = mock_http.get.call_args
         assert call.args[0] == "/tasks/123"
         sent_fields = set(call.kwargs["params"]["opt_fields"].split(","))
-        assert sent_fields == {"name", "notes", "completed", "parent.gid"}
+        assert sent_fields == {"name", "notes", "completed"} | _MINIMUM_OPT_FIELDS
 
     async def test_get_async_narrow_opt_fields_always_include_parent_gid(
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
