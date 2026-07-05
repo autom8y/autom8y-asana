@@ -99,7 +99,21 @@ src/smoke_test_report.csv
 !**/.ledge/decisions/**
 !**/.ledge/shelf/
 !**/.ledge/shelf/**
+!**/.ledge/spikes/
+!**/.ledge/spikes/**
+!**/.ledge/proposals/
+!**/.ledge/proposals/**
+!**/.ledge/handoffs/
+!**/.ledge/handoffs/**
+# .knossos/worktrees/ — managed worktree pool; gitignored-by-construction.
 **/.knossos/
+**/.worktrees/
+.a8/
+.envrc
+.envrc.local
+.env/
+.env.keys
+secretspec.toml
 # KNOSSOS:END infra-ignores
 
 # Post-infra-ignores allow-list for canonical .ledge/ work-product directories.
