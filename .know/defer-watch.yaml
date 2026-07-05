@@ -225,3 +225,298 @@
     - tests/unit/services/test_universal_strategy_spans.py (worker_isolated marks)
     - .github/workflows/test.yml (isolated job, -m worker_isolated)
     - CI runs PR#72 shard 2/4 + PR#75 shard 1/4 (assert 0 == 1)
+
+- id: credential-topology-nightly-smoke-iam-read-grant
+  filed_at: 2026-07-02
+  filed_by: security-rite S5-INSCRIBE (asana-cutover-readiness · credential-topology enumeration)
+  parent_initiative: asana-cutover-readiness-credential-topology
+  scope: >
+    Nightly-Smoke S3 IAM read-grant face of the fleet credential-topology — one of
+    three faces enumerated at S1. NOT the priority tuple (the ASANA_PAT read-route is),
+    so watch-registered rather than designed this sprint (G-DEFER: no credential-crusade
+    scope-creep).
+  status: DEFERRED-watch-registered
+  blocker: out of scope for the ASANA_PAT-read-route priority tuple; SRE-owned prod-health surface
+  watch_for: Nightly Live Smoke persisting RED on the IAM read-grant path (distinct from the pre-existing pre-dd63e667 streak)
+  watch_trigger: 2026-08-01
+  deadline: 2026-10-01
+  escalation_target: /sre observability-engineer (IAM read-grant for the S3 smoke path)
+  retry_action: >
+    route via /sre; enumerate the Nightly-Smoke IAM read-grant tuple
+    (protocol × scope × auth_routing_field) as a peer of the ASANA_PAT row; reuse the S1-ENUM matrix shape.
+  evidence_anchors:
+    - .sos/wip/security/S1-ENUM-credential-topology-asana-pat.md (DEFER-candidate row)
+
+- id: credential-topology-fleet-schema-governance-permissions
+  filed_at: 2026-07-02
+  filed_by: security-rite S5-INSCRIBE (asana-cutover-readiness · credential-topology enumeration)
+  parent_initiative: asana-cutover-readiness-credential-topology
+  scope: >
+    fleet-schema-governance job missing an explicit `permissions:` block (→ write-all
+    default token) — the third credential-topology face. Recorded by eunomia S2
+    (ASSESS-l001) and re-surfaced here as a topology row. Watch-registered, not designed this sprint.
+  status: DEFERRED-watch-registered
+  blocker: out of scope for the ASANA_PAT-read-route priority tuple; CI-permissions governance surface
+  watch_for: any new workflow job added without an explicit least-privilege `permissions:` block
+  watch_trigger: 2026-08-01
+  deadline: 2026-10-01
+  escalation_target: /security security-reviewer — candidate for a workflow-permissions drift-guard mirroring the RUF100 ratchet
+  retry_action: >
+    add an explicit least-privilege `permissions:` block to fleet-schema-governance (and audit peer jobs);
+    consider a CI drift-guard that reds when any job omits `permissions:`.
+  evidence_anchors:
+    - .sos/wip/eunomia/ASSESS-l001-ci-drift-guard-closure.md (out-of-band note 1)
+    - .sos/wip/security/S1-ENUM-credential-topology-asana-pat.md (DEFER-candidate row)
+
+- id: asana-pat-thnc-sibling-secret-disposition
+  filed_at: 2026-07-02
+  filed_by: security-rite S5-INSCRIBE (asana-cutover-readiness · credential-topology enumeration)
+  parent_initiative: asana-cutover-readiness-credential-topology
+  scope: >
+    Sibling secret autom8y/asana/asana-pat-thnc (SM ...-DKwrub): a 2nd, DISTINCT-IDENTITY
+    human personal-access token (SM Description "personal identity, not the Automation Assistant
+    bot", created 2026-04-08). Enumerated describe-only at S1: NO in-repo consumer (grep-zero for
+    thnc/THNC), but LastAccessedDate 2026-06-09 (retrieved out-of-band) and rotation DISABLED.
+    Classified DEFER-watch — NOT investigated/consolidated/rotated this sprint (anti-crusade fence).
+  status: DEFERRED-watch-registered
+  blocker: purpose + consuming path are out-of-repo; disposition needs the human owner, not a code change
+  watch_for: any in-repo consumer of asana-pat-thnc appearing OR the secret being found plaintext-exposed
+  watch_trigger: 2026-08-01
+  deadline: 2026-10-01
+  escalation_target: /security (or the human owner) — classify purpose, decide rotate/retire; do NOT consolidate with the bot PAT
+  retry_action: >
+    describe-only classify: still needed, by what out-of-repo consumer? orphaned → retire; load-bearing → enable rotation.
+  evidence_anchors:
+    - .sos/wip/security/S1-ENUM-credential-topology-asana-pat.md (Row C, -thnc classification verdict)
+
+- id: asana-pat-rotation-disabled-indefinite-validity
+  filed_at: 2026-07-02
+  filed_by: security-rite S5-INSCRIBE (asana-cutover-readiness · credential-topology enumeration)
+  parent_initiative: asana-cutover-readiness-credential-topology
+  scope: >
+    autom8y/asana/asana-pat (SM ...qJ5AVX) has rotation DISABLED. Combined with full-workspace
+    PAT scope (already maximal), a leaked value is valid INDEFINITELY until manual revocation —
+    detection-latency is the only containment control (S1 Finding 1). Enabling rotation is a
+    separate credential-lifecycle initiative (fenced out of this design+gate sprint).
+  status: DEFERRED-watch-registered
+  blocker: enabling rotation touches credential lifecycle + all 3 Lambda consumers; separate initiative (anti-crusade fence)
+  watch_for: the read-route (option b/c) reaching construction — rotation becomes a natural single-point server-side add
+  watch_trigger: 2026-08-01
+  deadline: 2026-10-01
+  escalation_target: /security + credential-lifecycle owner (SM rotation config + consumer re-fetch)
+  retry_action: >
+    once the brokered read-route is constructed, add server-side rotation on the single ARN (zero caller changes for option b);
+    pair with anomalous-PAT-use alerting as the compensating control while rotation is absent.
+  evidence_anchors:
+    - .sos/wip/security/S1-ENUM-credential-topology-asana-pat.md (Finding 1)
+
+- id: gitleaks-native-asana-pat-rule-gap
+  filed_at: 2026-07-02
+  filed_by: security-rite S5-INSCRIBE (asana-cutover-readiness · credential-topology enumeration)
+  parent_initiative: asana-cutover-readiness-credential-topology
+  scope: >
+    The fleet leak-sweep (.gitleaks.toml, gitleaks 8.30.1) is BLIND to native Asana PAT formats
+    (1/gid:hex and 2/...:hex) — Asana coverage rides on the default asana-client-secret rule
+    (32-digit numeric client cred), which does NOT match the PAT shape (S3 GATE-GAP-1, independently
+    reproduced at S4). A leaked native PAT would pass the sweep GREEN today.
+  status: DEFERRED-watch-registered (ALSO a construction-time HARD-GATE for the read-route — see handoff)
+  blocker: none — a small additive .gitleaks.toml rule; sequenced with read-route construction so the GREEN teeth are sound
+  watch_for: the read-route construction (the native rule MUST land with it) OR any PAT-format change
+  watch_trigger: 2026-08-01
+  deadline: 2026-10-01
+  escalation_target: /security — add native-PAT rule to .gitleaks.toml (e.g. \b[12]/\d{6,}(?:/\d{6,})?:[0-9a-f]{32,}\b)
+  retry_action: >
+    add an Asana-PAT-native custom rule to .gitleaks.toml; re-fire the S3 two-sided canary against a native-shaped decoy to confirm RED.
+    Until then, Side-2 GREEN only proves numeric-client-secret absence, not native-PAT absence.
+  evidence_anchors:
+    - .sos/wip/security/S3-ADVERSARIAL-asana-pat-read-route.md (GATE-GAP-1)
+    - .sos/wip/security/S4-REVIEW-VERDICT-asana-pat-read-route.md (independently reproduced)
+
+- id: leaked-asana-pat-in-main-history-2025-12
+  filed_at: 2026-07-02
+  filed_by: 10x-dev /qa (qa-adversary) — surfaced by the new asana-native-pat gitleaks rule (PR #184)
+  parent_initiative: asana-cutover-readiness-credential-topology
+  scope: >
+    A REAL native Asana PAT (project 1200795353760666 — DISTINCT from the cutover project
+    1201081073731555) is committed in .claude/settings.local.json at commits 15cffee1d7
+    (2025-12-17) + 525431de02 (2025-12-22), reachable from origin/main history. At HEAD the
+    file is untracked + gitignored and the token absent from tracked files, but it persists in
+    shared git history. Detected by the new asana-native-pat gitleaks rule.
+  status: OPEN-HIGH-immediate (NOT truly deferred — action ASAP; watch-registered so it is not lost)
+  blocker: none — credential rotation is a user-sovereign security action
+  watch_for: rotation completion + a decision on history-scrub vs .gitleaksignore fingerprint
+  watch_trigger: 2026-07-03
+  deadline: 2026-07-09
+  escalation_target: /security + user — rotate/revoke the PAT for project 1200795353760666, then scrub history or add a post-rotation .gitleaksignore fingerprint
+  retry_action: >
+    rotate the Asana PAT; confirm the old value is dead; then BFG/filter-repo scrub the two commits
+    OR add a .gitleaksignore fingerprint (post-rotation only). NOTE CI gitleaks is non-blocking (|| true)
+    so it will not self-surface on this private repo.
+  evidence_anchors:
+    - "gitleaks detect --config .gitleaks.toml (git-mode, full history) -> 5 asana-native-pat findings"
+    - .claude/settings.local.json @ 15cffee1d7 + 525431de02 (untracked+gitignored at HEAD)
+
+- id: asana-service-client-id-bare-name-927
+  filed_at: 2026-07-02
+  filed_by: iris W-IRIS finding (confirmed via ECS describe) → routed sre/10x
+  parent_initiative: asana-cutover-readiness-credential-topology
+  scope: >
+    The deployed ECS autom8y-asana-service:592 carries `SERVICE_CLIENT_ID=asana` — a BARE name, not a
+    valid `sa_`-prefixed ServiceAccount id. A TEB self-mint with (`asana`, autom8y/auth/service-api-keys/asana-service)
+    is rejected 401 AUTH-TEB-001 (sa_id_prefix=asana). This is a plausible ROOT CAUSE of the metrics-export
+    SEAL / S2S dark-export regression (GitHub issue #927): the service's own self-directed S2S calls (e.g.
+    /metrics export) fail auth. iris's W-IRIS READ succeeded only by borrowing insights-export's valid
+    sa_cbeff… identity.
+  status: OPEN (separate from the W-REG crux — do NOT scope-creep; distinct sre/10x fix)
+  blocker: none — a service-config fix (provision a valid sa_-prefixed ServiceAccount id for the asana service)
+  watch_for: metrics-export SEAL going green after the SERVICE_CLIENT_ID fix; or #927 closure
+  watch_trigger: 2026-07-09
+  deadline: 2026-08-01
+  escalation_target: /sre + /10x — provision a valid ServiceAccount id for autom8y-asana-service; re-run the metrics SEAL
+  retry_action: >
+    set SERVICE_CLIENT_ID to a valid sa_-prefixed id (mint/register a ServiceAccount for the asana service) +
+    align autom8y/auth/service-api-keys/asana-service; confirm the service's self-mint succeeds; re-run the
+    Metrics-Smoke SEAL to green.
+  evidence_anchors:
+    - GitHub issue autom8y/autom8y#927 (metrics-export SEAL regression)
+    - .ledge/reviews/W-IRIS-section-gid-receipt-2026-07-02.md §7 (iris root-cause finding)
+    - "ECS autom8y-asana-service:592 env SERVICE_CLIENT_ID=asana (bare, not sa_-prefixed)"
+
+- id: wreg-section-registry-bare-keyerror-polish
+  filed_at: 2026-07-02
+  filed_by: review /qa Reco-2 (deferred at the releaser merge seam per FORK-RECOS — pure polish, non-blocking)
+  parent_initiative: asana-cutover-readiness-credential-topology
+  scope: >
+    section_registry.py:465-467 EXCLUDED_GID_TO_NAME dict-comprehension
+    ({_RECEIPT_NAME_TO_GID[name]: name for name in EXCLUDED_SECTION_NAMES}) raises a BARE KeyError on
+    excluded-name/receipt drift instead of a SectionRegistryError with operator guidance. Fail-loud is already
+    preserved (a drift halts loudly) — diagnostic polish only, ZERO behavioral impact. Folded OUT of PR #190
+    (merged squash 2d7d39d9) to keep the merge clean; the STRONG cert graded it LOW-non-blocking.
+  status: DEFERRED-low-polish
+  blocker: none — a ~3-line wrap (try/except KeyError → raise SectionRegistryError, mirroring the :429 fail-closed pattern)
+  watch_for: a future receipt/excluded-name drift OR a hygiene-pass-2 touch of section_registry.py
+  watch_trigger: 2026-08-01
+  deadline: 2026-10-01
+  escalation_target: /hygiene or /10x — wrap the :465-467 comprehension in SectionRegistryError with operator guidance
+  retry_action: >
+    wrap the EXCLUDED_GID_TO_NAME comprehension in try/except KeyError → raise SectionRegistryError with the missing
+    name + guidance (mirror section_registry.py:429). Zero behavioral change; diagnostic improvement only.
+  evidence_anchors:
+    - .ledge/handoffs/HANDOFF-review-to-operator-wreg-section-gid-2026-07-02.md §2 Reco-2
+    - "section_registry.py:465-467 (post-merge line anchor may shift)"
+
+- id: wreg-verified-realized-end-to-end-signal
+  filed_at: 2026-07-02
+  filed_by: sre N4 incident-commander (disjoint critic) — deployed-reachable ATTESTED, verified_realized HELD
+  parent_initiative: asana-cutover-readiness-credential-topology
+  scope: >
+    W-REG (SCAR-REG-001, squash 2d7d39d9) is CONVERGED + serving on live autom8y-asana-service rev 600
+    (steadyState, running==desired; import-gate-passed). deployed-reachable ATTESTED (MODERATE, station-disjoint SRE).
+    verified_realized is HELD: no post-deploy signal yet exercises the account-CLASSIFICATION path end-to-end on the
+    converged rev (N2=(c): zero asana runs post-14:01Z; Nightly is a pre-convergence S3/IAM/CodeArtifact infra flake,
+    NOT section-registry; CON-2 stale). verified_realized STRONG needs a FULLY rite-disjoint attester (eunomia) + an
+    end-to-end signal.
+  status: >
+    eunomia ATTESTED verified_realized = FLAG-ADVISORY (ATTESTED-WITH-FLAG, value A- realized-with-named-hold, 2026-07-02).
+    NOT a regression, NOT an incident — a witness gap, not a correctness gap.
+  blocker: >
+    the ONE held item = a POST-14:01Z-convergence in-anger witness of the GID→bucket semantic join. The classification
+    join was already proven CORRECT on rev-600 code at 13:57Z (correct buckets), but ~4min PRE-convergence.
+  watch_for: >
+    ★CORRECTED (axis-2 falsified the SRE Reconcile trigger — reconcile-drift-detection.yml runs a FROZEN a8 v1.3.4
+    binary on a CI runner, never touches the deployed autom8y-asana-service, never imports section_registry.py)★.
+    TRUE discharge (any one, all read-only non-sovereign): (1) a POST-convergence classification event in
+    /ecs/autom8y-asana-service CloudWatch (s3_get dataframes/1201081073731555/{unit|excluded}/sections/{gid}.parquet
+    OR a served /api/v1/sections/* routing a live GID) — byte-identical section_registry.py rev 600↔601 means the
+    warm-refresh re-fires it naturally; (2) a live GET /sections 200 (user-sovereign S2S mint); (3) an in-process
+    read-only classify dry-run against the loaded registry.
+  watch_trigger: 2026-07-02
+  deadline: 2026-07-09
+  escalation_target: /eunomia — re-attest to PASS-ADVISORY (STRONG) = the unqualified close, once the corrected signal is observed
+  retry_action: >
+    observe any one of the 3 corrected discharge signals above (NOT the CI-independent Reconcile run) → hand to
+    eunomia to re-attest verified_realized PASS-ADVISORY (STRONG) → the unqualified close of asana-cutover-readiness.
+    Likely already discharged passively given the byte-identical live code + warm-refresh cadence.
+
+- id: scar-tissue-scar-reg-001-doc-lag
+  filed_at: 2026-07-02
+  filed_by: eunomia N1 verification-auditor + N3 entropy-assessor (surfaced during verified_realized attestation)
+  parent_initiative: asana-cutover-readiness-credential-topology
+  scope: >
+    .know/scar-tissue.md still narrates SCAR-REG-001 as an OPEN production blocker (~L460 "Production blocker",
+    ~L541 "still a production blocker", ~L568 "must be replaced with verified GIDs") — but the code defect is CLOSED
+    (section_registry.py carries the 17 live-verified GIDs on main 2d7d39d9, deployed rev 600/601). Stale ledger.
+  status: DEFERRED-doc-hygiene (leading indicator of future misdiagnosis — stale OPEN-blocker entry)
+  blocker: none — a doc refresh of the 3 scar-tissue lines to reflect SCAR-REG-001 CLOSED (+ verified_realized ATTESTED-WITH-FLAG)
+  watch_for: the next /know corpus refresh or /hygiene pass touching .know/scar-tissue.md
+  watch_trigger: 2026-08-01
+  deadline: 2026-10-01
+  escalation_target: /know or /hygiene — refresh the SCAR-REG-001 scar-tissue entries to CLOSED
+  retry_action: >
+    update .know/scar-tissue.md L460/L541/L568 to reflect SCAR-REG-001 CLOSED (squash 2d7d39d9; 19 fabricated GIDs
+    replaced with the live W-IRIS-verified 17-map; deployed rev 600/601; verified_realized ATTESTED-WITH-FLAG).
+  evidence_anchors:
+    - .sos/wip/eunomia/VERDICT-wreg-verified-realized-2026-07-02.md (Premise-Refinement Note 5)
+    - "src/autom8_asana/reconciliation/section_registry.py:329-346 (live GIDs on main — the defect is closed)"
+  evidence_anchors:
+    - .ledge/handoffs/HANDOFF-sre-to-operator-wreg-deployed-reachable-2026-07-02.md §3/§4
+    - "ECS autom8y-asana-service:600 image autom8y/asana:2d7d39d, rolloutState=COMPLETED, steadyState (14:01Z)"
+    - "Satellite Receiver run 28594805892 success"
+
+- id: station-b-asana-residual-stash-adjudication-2026-07-05
+  filed_at: 2026-07-05
+  filed_by: principal-engineer (Station B durability-and-git-hygiene, asana tree)
+  parent_initiative: global-ledger-execution
+  parent_workstream: Station-B-durability-and-git-hygiene
+  scope: >
+    8-file residual git stash created to reach a clean tree for the Trap-2 checkout-main
+    without committing session-state (HARD INVARIANT 3) and without discarding potentially
+    meaningful deltas. Contents: 6 pure session/generated (.knossos/ACTIVE_RITE,
+    .knossos/ACTIVE_WORKFLOW.yaml, .knossos/sync/state.json,
+    .sos/wip/release/execution-ledger.md, .sos/wip/release/execution-ledger.yaml,
+    aegis-report.json) + 2 ambiguous (.knossos/KNOSSOS_MANIFEST.yaml, .know/aegis/baselines.json).
+  status: DEFERRED-pending-operator-adjudication
+  blocker: >
+    the 2 ambiguous files may carry a meaningful accepted-baseline / manifest state OR be
+    ari-sync churn — not committable blind (avoid baking a possibly-bad aegis baseline),
+    not discardable blind (the delta may be a real acceptance). Operator judgment required.
+  watch_for: operator decision keep/commit/drop on the named stash before any `git stash drop`
+  watch_trigger: 2026-07-12
+  deadline: 2026-08-01
+  escalation_target: operator (Station B coordinator) — adjudicate keep/commit/drop
+  retry_action: >
+    operator inspects `git stash show -p stash@{0}` on the asana tree; commit the 2 ambiguous
+    files if the delta is a real acceptance, else drop the stash. The 6 session-state files are
+    harness-regenerated and safe to drop.
+  evidence_anchors:
+    - "git stash message: station-b-asana residual: session-state + ambiguous manifest/baseline (operator adjudicates)"
+    - .ledge/reviews/RECEIPT-station-b-asana.md (Station B asana tree receipt)
+
+- id: station-b-asana-parked-divergent-harness-copies-2026-07-05
+  filed_at: 2026-07-05
+  filed_by: principal-engineer (Station B durability-and-git-hygiene, asana tree)
+  parent_initiative: global-ledger-execution
+  parent_workstream: Station-B-durability-and-git-hygiene
+  scope: >
+    3 present-divergent generated harness copies parked out of the worktree during the
+    untracking move-aside so `git checkout main` cannot silently overwrite their divergent
+    on-disk content: .claude/commands/radar.md, .gemini/commands/radar.toml, .mcp.json
+    (parked at scratchpad/asana-untrack-park/). A 4th nominal divergent
+    (.gemini/commands/rite-switching/hygiene.toml) had NO worktree copy to park (pre-drifted
+    absent); its HEAD version is intact and it regenerates via ari sync.
+  status: DEFERRED-pending-preservation-PR-merge
+  blocker: >
+    these paths are gitignored + regenerable; their divergent worktree content is transient
+    ari-sync output, not source-of-truth. Restoring them over main would dirty main (they are
+    tracked there at HEAD). Regeneration is the correct reconciliation, not a manual restore.
+  watch_for: preservation-PR (chore/preserve-cutover-and-windowed-mrr-receipts) merge
+  watch_trigger: 2026-07-12
+  deadline: 2026-08-01
+  escalation_target: operator / next hygiene pass — re-run `ari sync`
+  retry_action: >
+    post preservation-PR merge, re-run `ari sync` in the asana tree to rematerialize
+    .claude/commands/radar.md + .gemini/commands/radar.toml + .mcp.json (+ hygiene.toml) from
+    knossos templates; the scratchpad park is then discardable.
+  evidence_anchors:
+    - "scratchpad park: asana-untrack-park/ (3 divergent copies retained through Trap-2)"
+    - .ledge/reviews/RECEIPT-station-b-asana.md (Station B asana tree receipt, AMEND-2)
