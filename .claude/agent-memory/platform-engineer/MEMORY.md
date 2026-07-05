@@ -1,1 +1,6 @@
 - [Project Omniscience Sprint 2](project_omniscience_sprint2.md) -- Cascade monitoring impl spec delivered; Sprint 10 implementation target
+- [Asana Test Mechanics](project_asana_test_mechanics.md) -- worktree venv PYTHONPATH trick + 3 pre-existing origin/main lambda_handlers failures (don't misattribute)
+- [Walkthrough Anchor Blocker](project_walkthrough_anchor_blocker.md) -- why onboarding-walkthrough never reaches freeze: W1 GFR anchor entity-type-undetectable + CacheNotWarm (escalate, not a surface bug)
+- [Walkthrough Local Run](reference_walkthrough_local_run.md) -- env wiring + secret ARNs + node22 to run the walkthrough locally vs real services, no Asana side-effect
+- [Commit Hook Mechanics](feedback_commit_hook.md) -- subject <=50 chars; multi-line -m rejected → use git commit -F file
+- [Deploy Reachability Topology](reference_deploy_reachability_topology.md) -- deploy consumer = autom8y/autom8y "Satellite Receiver — asana" (NOT a8 repo); two in-band SEAL gates confirm convergence w/o live AWS

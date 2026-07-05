@@ -86,3 +86,7 @@
 ## Project Omniscience Sprint 12 (2026-03-27)
 
 - [Sprint 12 Composite Reasoning](project_omniscience_sprint12_composite_reasoning.md) -- Composition over monolith: agents orchestrate existing endpoints via GID-set passing, no new composite endpoints
+
+## ASANA_PAT Read-Route + W-REG (2026-07-02)
+
+- [ASANA_PAT read-route + W-REG design](project_asana_pat_read_route_wreg.md) -- design-locked TDD+ADR for token-safe read-route (FORK-R) + W-REG 19-GID join; processor is DENYLIST; W-REG scaffold has EXCLUDED_SECTION_NAMES precedence bug

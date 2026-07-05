@@ -7,15 +7,15 @@ Use the available agents and slash commands. Agents activate automatically when 
 <!-- KNOSSOS:START quick-start regenerate=true source=ACTIVE_RITE+agents -->
 ## Quick Start
 
-5-agent workflow (sre):
+5-agent workflow (data-analyst):
 
 | Agent | Role |
 | ----- | ---- |
-| **potnia** | Coordinates reliability engineering initiative phases |
-| **observability-engineer** | Designs observability strategy and establishes SLO/SLI baselines |
-| **incident-commander** | Coordinates reliability plans and creates incident runbooks |
-| **platform-engineer** | Implements infrastructure changes and reliability improvements |
-| **chaos-engineer** | Designs and executes chaos experiments to verify resilience |
+| **potnia** | Coordinates numerical-product build phases; holds GATE-1 and GATE-2 as phase-entry conditions, selects the complexity track (READOUT/METRIC/EMISSION), and triggers critic-substitution on lineage degeneracy |
+| **model-provenance-author** | Authors the authoritative definitions + provenance trail (G7), proves cross-method equivalence (G6), and rules + defends the denominator population (G2-ruling) — the merged authoritative-definition soul (domain workflow entry) |
+| **grain-integrity-engineer** | Constructs the numeric assembly at the declared unit-of-analysis grain — preserves grain keys or fails loud and asserts post-combination cardinality (G1); enforces the ruled denominator population (G2-enforcement) |
+| **integrity-guard-author** | Builds the edge-ordered runtime/CI guards (G3) and mints the typed non-null-coercible refusal (G4) — the SPINE build-half; never authors the oracle that grades whether its own guard bites (critic-never-author) |
+| **numerical-adversary** | Authors the two-sided golden + deliberately-broken day-one fixtures and proves the guard bit (teeth, not presence) — the SPINE prove-half; the rite-disjoint adversary, escalates to critic-substitution when in the producing lineage |
 
 Agents activate when your prompt matches their description.
 <!-- KNOSSOS:END quick-start -->
@@ -43,11 +43,11 @@ Agents cannot spawn other agents — only the main thread can dispatch sub-agent
 
 Prompts in `.gemini/agents/`:
 
-- `potnia.md` - Coordinates reliability engineering initiative phases
-- `observability-engineer.md` - Designs observability strategy and establishes SLO/SLI baselines
-- `incident-commander.md` - Coordinates reliability plans and creates incident runbooks
-- `platform-engineer.md` - Implements infrastructure changes and reliability improvements
-- `chaos-engineer.md` - Designs and executes chaos experiments to verify resilience
+- `potnia.md` - Coordinates numerical-product build phases; holds GATE-1 and GATE-2 as phase-entry conditions, selects the complexity track (READOUT/METRIC/EMISSION), and triggers critic-substitution on lineage degeneracy
+- `model-provenance-author.md` - Authors the authoritative definitions + provenance trail (G7), proves cross-method equivalence (G6), and rules + defends the denominator population (G2-ruling) — the merged authoritative-definition soul (domain workflow entry)
+- `grain-integrity-engineer.md` - Constructs the numeric assembly at the declared unit-of-analysis grain — preserves grain keys or fails loud and asserts post-combination cardinality (G1); enforces the ruled denominator population (G2-enforcement)
+- `integrity-guard-author.md` - Builds the edge-ordered runtime/CI guards (G3) and mints the typed non-null-coercible refusal (G4) — the SPINE build-half; never authors the oracle that grades whether its own guard bites (critic-never-author)
+- `numerical-adversary.md` - Authors the two-sided golden + deliberately-broken day-one fixtures and proves the guard bit (teeth, not presence) — the SPINE prove-half; the rite-disjoint adversary, escalates to critic-substitution when in the producing lineage
 
 ### Summonable Heroes
 Operational agents available on demand. Their commands handle the lifecycle:

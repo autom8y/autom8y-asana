@@ -40,6 +40,15 @@ Hand off work to a different agent with full context transfer. $ARGUMENTS
    - **Session complexity** (`complexity` from hook frontmatter) — tells the receiving agent the expected ceremony level
    - Determine FROM agent (from SESSION_CONTEXT last_agent or infer from current phase)
 
+> **Cross-rite charge (attestation plane).** When this handoff crosses a RITE
+> boundary and needs an anti-lie attestation envelope (not just within-agent
+> context transfer), author the charge with the `ari procession charge` emitter
+> (`RenderCharge`) rather than hand-writing the attestation prose:
+> `ari procession charge --slots=<file>`. The emitter REFUSES a fabricated
+> receipt — a premise declaring `evidence_kind: sha` must carry a valid-hex,
+> existence-verified `evidence_sha` anchor. This is a pointer to the
+> charge-authoring path, not a discipline-body to load.
+
 3. **Execute atomic handoff** via Moirai agent:
    Use the Task tool to invoke the moirai agent for state mutation:
    ```

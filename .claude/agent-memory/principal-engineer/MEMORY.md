@@ -28,3 +28,9 @@ Using `git stash` + `git checkout <ref> -- tests/` + `git stash pop` leaves behi
 
 Current healthy baseline with model_rebuild fix: ~11,123 passed, ~203 failed, 46 skipped, 0 errors.
 The "10,552 passed" baseline referenced in MEMORY.md predates the RF-008/009 adversarial test triage.
+
+## Linked Memory Files
+
+- [S2S route tests + ambient ASANA_PAT](feedback_s2s_route_tests_ambient_pat.md) — S2S route tests hitting the real broker make LIVE Asana calls when the dev shell has ASANA_PAT set; stub get_bot_pat for determinism
+- [Sections route in-place hardening](project_sections_route_inplace_hardening.md) — GET /sections is now JWT-only + single-project allowlist (PR #184); diverges from the ADR's additive-route note; blast radius to flag
+- [Worktree test PYTHONPATH shadow](feedback_worktree_test_pythonpath_shadow.md) — run tests/ruff/mypy against a worktree's code via the main .venv by setting PYTHONPATH=<wt>/src (shadows the editable install); avoids per-worktree uv sync
