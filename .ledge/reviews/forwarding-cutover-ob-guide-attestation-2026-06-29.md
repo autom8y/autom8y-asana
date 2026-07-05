@@ -181,3 +181,13 @@ One atomic commit on `feat/fcfv-sprint3-ob-guide-attestation` — exactly three 
 this attestation `.md`, the test additions (oracle + AC-1..AC-7), and the one `.gitignore`
 line. NOT pushed / NOT PR'd / NOT merged (operator-terminal). The frozen deck, `.venv`, and
 caches are gitignored and never staged.
+
+---
+
+## ⚠️ FAULT-13 ANNOTATION (2026-07-02/03)
+
+The TIER-2 headless personalized-render attested the ADDRESS personalization only, with a
+clean literal client fixture ("North Star Family Chiropractic") that never exercised the
+task-name binding — the fixture masked seam S1 (fault 13). Boundary-length + provenance
+legs now exist: AC-G5-LEN / AC-G5-LEN-CLAMP / AC-G5-UNI / AC-TITLE-DEFAULT (asana #196)
++ the field-level personalization gate with mutation-proven tests (#197).

@@ -189,3 +189,14 @@ Consequence: a phone-collision (latent `business.py:192 .first()`, no `ORDER BY`
 ---
 
 **Certified FV-3-PASS (STRONG)** by security-reviewer (N3), rite-disjoint critic of record, 2026-06-29. N=1, positively selected. Operator-terminal: live attach, broad rollout, all Tier-B levers. PT-02 HALT stands.
+
+---
+
+## ⚠️ FAULT-13 SCOPE CLARIFICATION (2026-07-02/03 — no verdict downgrade)
+
+Probe (4) "client_name injection — 6 hostile renders neutralized" covered the INJECTION
+axis only. Fault 13 bit the CONTENT/PROVENANCE axis of the same field (the internal task
+name flowed as the value), which was outside this certification's scope — consistent with
+the then-standing `producer.py` "cosmetic; not security-bearing" claim, falsified by fault
+13 and corrected at source in asana #197. Provenance is now gated fail-closed
+(`personalization_denied`) per `.ledge/decisions/fault13-personalization-ruling-2026-07-02.md`.

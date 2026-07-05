@@ -58,3 +58,16 @@ byte-exact-verified (qa MODERATE)
 - **T7** — the live phone-resolve fleet tenant-selection path (`workflow.py:221`, no runtime oracle; the EBI F-002 `.first()` collision substrate) → **sprint-5** (the runtime tenant-binding assertion is the headline pre-fleet-flip trigger). Out-of-N=1-scope (MC-2 #725 opt-in-OFF; resolver mocked).
 - The merge of `feat/fcfv-sprint3-ob-guide-attestation` to main (operator-terminal).
 - MC-2 #725 broad rollout · sprint-7 greenfield glue · compliance G-B..G-E · C-1/C-2 reproducibility.
+
+---
+
+## ⚠️ FAULT-13 ANNOTATION (2026-07-02/03)
+
+The "personalized onboarding walkthrough deck … REALIZED" claim was over-broad: fault 13
+(2026-07-02, operator-caught) showed the personalization line bound the RAW internal Asana
+task name (`workflow.py "client_name": task.name`), so "personalized" held only for the
+ADDRESS leg; the CRR-1 discharge here was right-CLINIC only. Remediated: asana #196
+(provenance rebind to `BusinessRecord.business_name` + fallback deleted, merge `8f41bcfc`)
++ #197 (fail-closed `personalization_gate`, merge `934dd7a0`); all 7 live decks restored
+2026-07-03 (7× C-BN1-05 with masked client_name). The right-CONTENT leg is now a standing
+CRR-1 requirement per `.ledge/decisions/fault13-personalization-ruling-2026-07-02.md` §3.
