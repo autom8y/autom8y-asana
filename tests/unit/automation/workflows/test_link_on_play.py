@@ -236,6 +236,31 @@ async def test_r3_name_not_play_convention_refuses(bad_name: str) -> None:
     client.stories.create_comment_async.assert_not_awaited()
 
 
+@pytest.mark.parametrize(
+    "bad_url",
+    [
+        pytest.param("https://evil.example/207688021de88a6d7231e1d08ea77a85/", id="R4_evil_domain"),
+        pytest.param(
+            "http://decks.cntently.com/207688021de88a6d7231e1d08ea77a85/", id="R5_http_scheme"
+        ),
+        pytest.param(
+            "https://deck@decks.cntently.com/207688021de88a6d7231e1d08ea77a85/", id="R6_userinfo"
+        ),
+    ],
+)
+async def test_deck_url_host_pin_refuses(bad_url: str) -> None:
+    """R4-R6 (N3 QA host-pin condition): a foreign host, an http scheme, or a
+    userinfo form is refused at URL validation (step 1) -- before preflight,
+    compose, or any post -- naming the offending host. Even a valid 32-hex slug
+    on a non-decks.cntently.com host cannot be composed into a posted comment."""
+    task = _make_task(_play_name(), [_active_membership()])
+    client = _make_client(task=task, stories=[])
+    with patch(_RESOLVE_PATH, new=AsyncMock(return_value=_resolved_active())):
+        with pytest.raises(LinkOnPlayRefused, match="host"):
+            await post_link_on_play(client, task_gid=TASK_GID, deck_url=bad_url, execute=True)
+    client.stories.create_comment_async.assert_not_awaited()
+
+
 # --- Unit (pure, cheap -- lock the invariants) ---
 
 

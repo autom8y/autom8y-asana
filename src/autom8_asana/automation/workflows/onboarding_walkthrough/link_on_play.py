@@ -55,6 +55,12 @@ from autom8_asana.client import AsanaClient
 
 POSTER_MARKER_PREFIX = "autom8y:link-on-play"
 
+# The ONLY host a deck URL may point at (N3 QA pre-merge condition). The URL must be
+# https AND its netloc must equal DECK_HOST EXACTLY -- an exact netloc match refuses
+# userinfo (user@host), an explicit port (host:port), and any foreign host in one
+# predicate, so an attacker-supplied URL can never be composed into a posted comment.
+DECK_HOST: str = "decks.cntently.com"
+
 # POSITIVE selection of the PLAY convention "PLAY: Custom Calendar Integration — {clinic}"
 # (personalization_gate.py:5). Prefix-anchored, case-sensitive (the internal
 # nomenclature is uppercase PLAY). A near-miss like "Playa Vista Dental" does NOT
@@ -89,8 +95,23 @@ class LinkOnPlayResult:
 
 
 def deck_slug_from_url(deck_url: str) -> str:
-    """Return the last non-empty path segment. Raise on a slug-less URL."""
-    path = urlsplit(deck_url).path.strip("/")
+    """Return the last non-empty path segment of a host-pinned https deck URL.
+
+    Fail-closed host pin (N3 QA condition): the URL MUST be ``https`` AND its
+    ``netloc`` MUST equal :data:`DECK_HOST` exactly, else refuse naming the
+    offending host. The exact netloc match refuses userinfo (``user@host``), an
+    explicit port (``host:port``), and any foreign host, so an attacker-supplied
+    URL can never be composed. A slug-less URL (empty last path segment) refuses.
+    This is the single URL-parsing chokepoint (``post_link_on_play`` step 1 and
+    ``compose_comment_text`` both route through it), so the pin covers every path.
+    """
+    parts = urlsplit(deck_url)
+    if parts.scheme != "https" or parts.netloc != DECK_HOST:
+        raise LinkOnPlayRefused(
+            f"deck-url host not allowed: scheme={parts.scheme!r} host={parts.netloc!r} "
+            f"(require https://{DECK_HOST})"
+        )
+    path = parts.path.strip("/")
     slug = path.rsplit("/", 1)[-1] if path else ""
     if not slug:
         raise LinkOnPlayRefused(f"deck-url has no slug path segment: {deck_url!r}")

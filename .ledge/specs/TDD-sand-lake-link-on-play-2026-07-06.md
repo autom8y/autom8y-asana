@@ -360,3 +360,26 @@ style of `tests/unit/automation/workflows/test_onboarding_walkthrough.py`).
 - [ ] `--dry-run` is the default; `--execute` is the only path that calls `create_comment`.
 - [ ] Live read-back receipt (operator/QA at N-later): after one `--execute` on task `1215823342887129`, the
       marker is present exactly once; a second `--execute` returns `skipped_existing`. (Client SEND stays operator's.)
+
+## §13 N3 QA amendment (2026-07-06) — deck-URL host pin
+
+GO-WITH-CONDITIONS at N3 (qa-adversary) surfaced ONE HIGH-severity pre-merge condition, executed-receipt
+proven: `deck_slug_from_url` had NO host validation, so `https://evil.example/<32-hex>/` (also `http://` and
+`user@host` userinfo forms) composed, passed the egress guard, and WOULD be posted.
+
+Fix (smallest sufficient set): a fail-closed **host pin** at the single URL-parsing chokepoint. New module
+constant `DECK_HOST = "decks.cntently.com"`; `deck_slug_from_url` now refuses unless `urlsplit(deck_url)` has
+`scheme == "https"` AND `netloc == DECK_HOST` **exactly** — the exact netloc match refuses userinfo, an
+explicit port, and any foreign host in one predicate — before the existing slug extraction. The refusal names
+the offending host.
+
+Tests added (two-sided teeth, anti-theater `create_comment_async.assert_not_awaited()`): R4 evil domain, R5
+http scheme, R6 userinfo — each proven RED without the pin (DID NOT RAISE) and GREEN with it. Test count 15 → 18.
+
+Note: the §2 verbatim `deck_slug_from_url` validated a non-empty slug only (no 32-hex check, despite the §3
+prose "32-hex validated"); this amendment adds host pinning, NOT 32-hex slug validation — the latter is kept
+out to avoid scope-creep and is not required to close the host condition.
+
+Named follow-ups (watch-registered, NOT in this scope — batch-lane preconditions): **S6** PLAY-name full-match
+(vs prefix), **S8** TOCTOU (task state may change between the preflight read and the post), **S9** retry
+re-list on the idempotency window.
