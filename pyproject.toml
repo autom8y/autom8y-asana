@@ -282,6 +282,7 @@ ignore = [
 "src/autom8_asana/metrics/__main__.py" = ["T201"]
 "src/autom8_asana/metrics/compute.py" = ["T201"]
 "src/autom8_asana/entrypoint.py" = ["T201"]
+"src/autom8_asana/automation/workflows/onboarding_walkthrough/link_on_play.py" = ["T201"]
 # T201: print() is intentional in smoke test and CI scripts (terminal progress/results)
 "run_smoke_test.py" = ["T201"]
 ".ci/**/*.py" = ["T201"]
