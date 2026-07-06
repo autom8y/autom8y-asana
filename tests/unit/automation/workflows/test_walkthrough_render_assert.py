@@ -271,8 +271,8 @@ def _visible_body(dom: str) -> str:
     text appearing here means the deck rendered runtime JS as content -- R1.
     """
     body = dom[dom.find("<body") :]
-    body = re.sub(r"<script\b.*?</script>", "", body, flags=re.S | re.I)
-    return re.sub(r"<style\b.*?</style>", "", body, flags=re.S | re.I)
+    body = re.sub(r"<script\b.*?</script[^>]*>", "", body, flags=re.S | re.I)
+    return re.sub(r"<style\b.*?</style[^>]*>", "", body, flags=re.S | re.I)
 
 
 def _corrupt(frozen: bytes) -> bytes:
