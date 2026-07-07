@@ -409,7 +409,9 @@ async def _business_gid_by_phone(asana_client: AsanaClient, office_phone: str) -
             "Businesses-project discriminator; refusing to pick a receiver silently. "
             f"gids={[m.get('gid') for m in matches]}"
         )
-    return matches[0].get("gid")
+    # Narrow the untyped-JSON access to str | None (mypy strict no-any-return).
+    gid = matches[0].get("gid")
+    return str(gid) if gid is not None else None
 
 
 async def resolve_ranked_cards(
