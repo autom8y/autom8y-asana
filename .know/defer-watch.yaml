@@ -344,17 +344,27 @@
     Disposition = PENDING-B1-redundancy-probe. Operator-plane offer_level_stats
     buildout may obviate the monolith rebind — the B1 probe decides. No
     retire/build ruling is written here (that is B1's leg).
-  status: PENDING-B1-redundancy-probe
+  status: RULED-DEFER-2026-07-07  # B1 probe RAN; RETIRE refuted → GENUINE-GAP → BUILD-lean, BLOCKED on T1+T2
+  ruling: >
+    B1 redundancy probe RAN 2026-07-07 (data-analyst rite; see
+    .ledge/decisions/ADR-seam2-disposition-b1-2026-07-07.md). RETIRE arm DECISIVELY REFUTED
+    (rite-disjoint adversary verdict GENUINE-GAP): operator-plane offer_level_stats emits
+    AD-PERFORMANCE only (spend/leads/roas at composite grain, library.py:1302-1316), NOT the
+    offer's own sale-revenue; ltv is a leads-cohort estimate; the 06-29 buildout #215 (dafbb136)
+    was authz-only; the sole payments-summing surface (reconciliation.collected) is office-grain
+    + operator-excluded. Operator-plane does NOT obviate the monolith rebind. BUILD is the
+    standing lean; NO code and NO B2 monolith HANDOFF until BOTH triggers clear.
   blocker: >
-    B1 data-analyst rite redundancy probe has not run. The probe asks: does the
-    operator-plane offer_level_stats surface make the LEADS-half rebind redundant
-    (RETIRE with receipts), or does a residual gap warrant the build (BUILD ->
-    HANDOFF to monolith)? PROBE-GATED HARD: no build and no guard-promotion before
-    the probe rules. The crusade shape (edge E1) enforces this gate.
+    T1 (PRIMARY): payments carry NO offer_id, attribution_method NULL for all 42,269 rows —
+    a payments->offer attribution ruling (model-provenance-author) does not exist; offer-entity
+    sale-revenue is not assemblable. T2: account_status (ACTIVE registry [SD-02]) = 0 rows in
+    every snapshot incl. 2026-07-06 — the ruled ACTIVE-62 denominator + $79,485 marquee are not
+    computable. G1 carried: naive office_phone join inflates payments 3.6x (10.2M→33.76M) — no
+    naive path is grain-legal. PROBE-GATED HARD (edge E1) still holds.
   unblock_signal: >
-    B1 data-analyst rite runs the redundancy probe and issues a retire-vs-build
-    ruling as a defer-watch disposition line (updating the status of this entry).
-  unblock_owner: crusade Track B (data-analyst rite, operator-gated per UV-P-6 ACTIVE_RITE resolution)
+    T1 attribution ruling authored AND T2 ACTIVE-registry populated at a fresh SHA → re-enter
+    Track B (re-probe or B2 monolith HANDOFF under the attribution ruling, G1 asserted).
+  unblock_owner: crusade Track B (data-analyst rite)
   watch_trigger: 2026-07-28
   deadline: 2026-09-29
   escalation_target: data-analyst rite Potnia (B1 redundancy probe; operator fires the rite sync)
