@@ -7,7 +7,7 @@ executed_at: 2026-07-07
 executor: janitor (hygiene rite)
 self_assessment_cap: MODERATE
 branch: chore/ledger-truth-convergence-a1
-head_sha: "PENDING-R4"
+head_sha: "85b82920"
 ---
 
 # RECEIPT — A1 Ledger-Truth Convergence
