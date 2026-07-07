@@ -192,7 +192,7 @@ cache_warmer Lambda post-warm
 |-----------|--------|------|
 | `tests/unit/reconciliation/test_processor.py` | `ReconciliationBatchProcessor` — P0-A column contract, P0-B exclusion logic, pipeline primary signal, offer secondary, vertical mismatch fallback, adversarial edge cases | 1640 lines |
 | `tests/unit/reconciliation/test_executor.py` | `execute_actions` dry_run and live paths, dependency injection validation | 320 lines |
-| `tests/unit/reconciliation/test_section_registry.py` | `_validate_gid_set`, live GID set validation, zero-warning assertion post-RESOLVED SCAR-REG-001 (`_looks_sequential` heuristic removed) | 301 lines |
+| `tests/unit/reconciliation/test_section_registry.py` | `_validate_gid_set`, live GID set validation, zero-warning assertion post-RESOLVED SCAR-REG-001 (`_looks_sequential` heuristic removed) | ~~301 lines~~ **172 lines** (W-REG `2d7d39d9` #190 rewrote this file; 301 was the pre-rewrite size) |
 | `tests/unit/reconciliation/test_contract.py` | Cross-module contract checks | 78 lines |
 | `tests/unit/reconciliation/test_adversarial.py` | Adversarial / edge inputs to processor | 245 lines |
 | `tests/unit/automation/workflows/payment_reconciliation/test_formatter.py` | `ExcelFormatEngine.render()`, `compose_excel()`, `_safe_sum`, `_sanitize_sheet_name` | 329 lines |
