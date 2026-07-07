@@ -1,0 +1,13 @@
+# Deliberately-stale fixture — fm5 shipped MISSING with trailing comment.
+# Purpose: fed to detect_telos_shipped_not_missing to assert DRIFT (RED).
+#
+# Simulates: in-place drift where the stale 'shipped: MISSING' value persists
+# alongside a trailing YAML inline comment.  The old end-anchored regex
+# (\s*$) would silently miss this variant; the hardened detector must bite it.
+telos:
+  initiative_slug: fm5-column-fidelity
+  attestation_status:
+    inception: INSCRIBED
+    shipped: MISSING  # stale comment survives
+    verified_realized: UNATTESTED
+    last_eunomia_advisory: null
