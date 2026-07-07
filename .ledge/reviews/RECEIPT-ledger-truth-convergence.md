@@ -7,7 +7,7 @@ executed_at: 2026-07-07
 executor: janitor (hygiene rite)
 self_assessment_cap: MODERATE
 branch: chore/ledger-truth-convergence-a1
-head_sha: "83abe412"
+head_sha: "9d595505"
 ---
 
 # RECEIPT — A1 Ledger-Truth Convergence
@@ -256,3 +256,84 @@ grep "NEXT = FORK-R construct" MEMORY.md                                      �
 | `telos/asana-realization-tail-convergence.md:99` | Historical context describing pre-fix state — CLEAN |
 
 **VERDICT (Round 2): zero open/blocker narrations remain in .know/**
+
+---
+
+## FIX-FORWARD — Round 3 Refuter Breach Resolution (2026-07-07)
+
+**Refuter:** adversarial refuter (hygiene rite) — third-pass delta critique
+**Fix commit:** `9d595505` on `chore/ledger-truth-convergence-a1-round2`
+**Attribution ruling:** per `.claude/skills/conventions/SKILL.md:43`, git commit messages carry user-only attribution.
+
+### Breach 1 (R3): RISK-008 OPEN-NARRATION — design-constraints.md:291
+
+| | Detail |
+|---|---|
+| **Defect** | RISK-008 narrated "No metric specifically for finalize failure. Recommended guard: add `metrics.increment(...)`" — FALSE: `emit_metric("IdempotencyFinalizeFailure")` exists at `idempotency.py:787-792`; landed `f795d7dc` #149 2026-06-24 |
+| **Fix** | Strikethrough + RESOLVED narration citing `f795d7dc` #149; corrected anchor from stale `:719` to `:762-830`; behavioral nature of fix noted (not observability-only) |
+
+### Breach 2 (R3): SCAR-IDEM-001 OPEN-NARRATION — scar-tissue.md:408
+
+| | Detail |
+|---|---|
+| **Defect** | Defensive-pattern section narrated "Known gap: observability-only fix; double-execution risk for S2S strict-once callers remains open per ADR-omniscience-idempotency Section 3.7" — FALSE: W-IDEM implements exactly that ADR section |
+| **Fix** | Strikethrough + RESOLVED narration citing `f795d7dc` #149; anchors corrected to `:762-780` (try-block), `:787-792` (R-IDEM-1), `:803-830` (R-IDEM-2) |
+
+### Breach 3 (R3): Agent-relevance constraint OPEN — scar-tissue.md:540
+
+| | Detail |
+|---|---|
+| **Defect** | Agent-relevance table: "S2S strict-once callers need error metric on finalize failure; current fix is observability-only" — FALSE for same reason |
+| **Fix** | Row updated to RESOLVED narration with `f795d7dc` #149 and current anchors |
+
+### Breach 4 (R3): Knowledge gap OPEN — scar-tissue.md:567
+
+| | Detail |
+|---|---|
+| **Defect** | Gap list item 8: "SCAR-IDEM-001 mitigation incomplete: double-execution risk for S2S strict-once callers; observability-only fix" — FALSE |
+| **Fix** | Strikethrough + RESOLVED citing `f795d7dc` #149 with anchors |
+
+### Breach 5 (R3): SCAR catalog row open — scar-tissue.md:92
+
+| | Detail |
+|---|---|
+| **Defect** | Catalog table row narrated finalize exception as open with stale anchor `:719`; at tip `:719` is replay-header code, not finalize try-block |
+| **Fix** | Strikethrough + RESOLVED; anchors corrected to `:762-830` |
+
+### Breach 6 (R3): LOC count false — feat/payment-reconciliation.md:195
+
+| | Detail |
+|---|---|
+| **Defect** | Table row states "301 lines" for `test_section_registry.py`; `wc -l` at HEAD = 172 (W-REG `2d7d39d9` #190 rewrote the file) |
+| **Fix** | Strikethrough + **172 lines** annotation |
+
+### Breach 7 (R3): VERIFY-BEFORE-PROD sweep miss — scar-tissue.md:436
+
+| | Detail |
+|---|---|
+| **Defect** | "20+ except Exception blocks annotated with ADVISORY or SCAR-IDEM-001: VERIFY-BEFORE-PROD" — `git grep -rn 'VERIFY-BEFORE-PROD' src/` → **0 hits**; count also wrong (17 ADVISORY lines, not "20+") |
+| **Fix** | Rewritten: 17 ADVISORY blocks; VERIFY-BEFORE-PROD token absent from src/ with explicit 0-hit evidence |
+
+### Breach 8 (R3, SECONDARY): Scar marker count + table — scar-tissue.md:469,480
+
+| | Detail |
+|---|---|
+| **Defect A** | Count "35 decorator invocations" at HEAD — actual `git grep -rn 'pytest.mark.scar' tests/` → **41** |
+| **Defect B** | Table: test_section_registry.py shows 15 markers — actual **7** (W-REG rewrote the file) |
+| **Fix** | Count corrected to 41 with strikethrough; table row updated from 15 to 7 |
+
+### Round 3 Widened Semantic Sweep
+
+Tokens swept: `SCAR-REG-001`, `placeholder GID`, `sequential placeholder`, `VERIFY-BEFORE-PROD`, `production API verification`, `unverified.*GID` (case-insensitive).
+
+| Token | Hits in .know/ | Classification |
+|---|---|---|
+| `SCAR-REG-001` | 18 hits | All RESOLVED-narration / factual-historical / tag-count — CLEAN |
+| `placeholder GID` | 1 hit (`payment-reconciliation.md:90`) | RESOLVED-narration (already struck) — CLEAN |
+| `sequential placeholder` | 0 hits | CLEAN |
+| `VERIFY-BEFORE-PROD` | 6 hits (all in struck-through text or RESOLVED narrations) | All within `~~...~~` strikethrough or RESOLVED sections — CLEAN |
+| `production API verification` | 0 unresolved hits | CLEAN |
+| `unverified.*GID` | 0 hits | CLEAN |
+| `SCAR-IDEM-001` open narrations | 0 after this round's fixes | CLEAN |
+
+**VERDICT (Round 3): zero open/blocker narrations remain in .know/**
