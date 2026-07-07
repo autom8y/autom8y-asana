@@ -1,0 +1,12 @@
+# Deliberately-stale fixture — FICTIONAL re-introduction of A1 disease.
+# Purpose: fed to detect_telos_shipped_must_be_missing to assert DRIFT (RED).
+#
+# Simulates: seam2 telos incorrectly shows shipped: LANDED despite 47826fe4 NOT
+# being an ancestor of main (seam2 has not landed yet).
+telos:
+  initiative_slug: seam2-consumer-realization
+  attestation_status:
+    inception: INSCRIBED
+    shipped: LANDED
+    verified_realized: UNATTESTED
+    last_eunomia_advisory: null
