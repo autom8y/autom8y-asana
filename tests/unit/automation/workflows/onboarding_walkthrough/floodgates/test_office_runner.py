@@ -51,6 +51,9 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.tenant_binding imp
 GUID = "1b271a63-33ff-4135-a92d-f1ef0eeea062"
 ADDR = "1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com"
 FOREIGN_GUID = "b167331c-536f-4996-9b2d-2f696f35f556"
+# Shares GUID's first-8 chars ("1b271a63") -> the SAME 8-char mask, but a DIFFERENT full guid:
+# the 32-bit mask-prefix collision the ★C-1 guard must catch on the full SHA-256 digest.
+COLLIDING_MASK_GUID = "1b271a63-0000-4000-8000-000000000000"
 SLUG = "207688021de88a6d7231e1d08ea77a85"
 PLAY_GID = "1215823342887129"
 CLINIC = "Sand Lake Dental"
@@ -83,6 +86,7 @@ def _seed_produced(store: StateStore, *, frozen_sha256: str, guid: str = GUID) -
     state = OfficeState(
         play_gid=PLAY_GID,
         office_guid_masked=_mask_guid(guid),
+        office_guid_sha256=hashlib.sha256(guid.encode()).hexdigest(),
         clinic=CLINIC,
         slug=SLUG,
         deck_url=DECK_URL,
@@ -232,6 +236,29 @@ class TestPhase1Produce:
                     store=store,
                     deploy_base=tmp_path / "deploy",
                 )
+        m["freeze"].assert_not_awaited()
+        m["mint"].assert_not_called()
+        assert store.load(PLAY_GID) is None  # nothing committed
+
+    async def test_produce_personalization_gate_refuses_control_char_before_freeze(
+        self, tmp_path
+    ) -> None:
+        """The owned personalization gate rejects an embedded control char (newline) in the
+        operator-confirmed clinic name BEFORE any freeze/mint/stage — the owned freeze floor
+        no longer leans on the vendored producer's CLIENT-CONTROL-CHARS gate alone."""
+        store = _store(tmp_path)
+        with ExitStack() as stack:
+            m = _produce_patches(stack)
+            with pytest.raises(PersonalizationError) as excinfo:
+                await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic="Sand Lake\nDental",
+                    phase="produce",
+                    store=store,
+                    deploy_base=tmp_path / "deploy",
+                )
+        assert excinfo.value.detail == "control_char"
         m["freeze"].assert_not_awaited()
         m["mint"].assert_not_called()
         assert store.load(PLAY_GID) is None  # nothing committed
@@ -429,6 +456,36 @@ class TestC1TaskBinding:
         _seed_produced(store, frozen_sha256=SERVED_SHA, guid=GUID)  # manifest office = GUID
         with ExitStack() as stack:
             m = _resume_patches(stack, resolved_guid=FOREIGN_GUID)  # live task resolves to another
+            with pytest.raises(TaskOfficeMismatch):
+                await run_office(
+                    _mock_client(),
+                    play_gid=PLAY_GID,
+                    clinic=CLINIC,
+                    phase="resume",
+                    store=store,
+                    deploy_base=tmp_path / "deploy",
+                    execute=True,
+                )
+        m["curl"].assert_not_awaited()  # refused before the parity curl
+        m["link"].assert_not_awaited()
+        m["template"].assert_not_awaited()
+        m["card"].assert_not_awaited()
+
+    async def test_c1_mask_prefix_collision_refuses_task_office_mismatch_no_post(
+        self, tmp_path
+    ) -> None:
+        """RED→GREEN (crown C-1): a foreign office whose live-resolved guid shares the manifest's
+        8-char MASK but differs in the FULL guid must be REFUSED. The 8-char mask is only 32 bits
+        and collides; the guard decides on the full SHA-256 identity digest, so a mask-prefix
+        collision still raises ``TaskOfficeMismatch`` and posts nothing. Pre-fix (mask-only
+        guard) this colliding guid SLIPPED THROUGH -> a foreign deck onto this office's PLAY."""
+        store = _store(tmp_path)
+        _seed_produced(store, frozen_sha256=SERVED_SHA, guid=GUID)  # manifest office = GUID
+        # The colliding guid genuinely shares the mask but is a different full identity.
+        assert _mask_guid(COLLIDING_MASK_GUID) == _mask_guid(GUID)
+        assert COLLIDING_MASK_GUID != GUID
+        with ExitStack() as stack:
+            m = _resume_patches(stack, resolved_guid=COLLIDING_MASK_GUID)
             with pytest.raises(TaskOfficeMismatch):
                 await run_office(
                     _mock_client(),

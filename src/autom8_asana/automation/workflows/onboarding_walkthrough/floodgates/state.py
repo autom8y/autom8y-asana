@@ -9,7 +9,11 @@ another's, and one office's corruption can never poison the wave.
 
 Atomicity: each ``save`` writes a sibling temp file then ``os.replace``s it into place, so
 a crash mid-write leaves the previous committed manifest intact (never a half-written one).
-The manifest records the slug MASK only (first-8), never the full guid at rest (§3.1).
+The manifest records the guid MASK (first-8) as a forensic breadcrumb AND a one-way SHA-256
+digest of the full guid — the ★C-1 manifest-integrity guard decides tenant identity on the
+full digest (the 8-char mask is 32 bits and collides), while neither field spills the full
+guid at rest (§3.1). A manifest lacking the digest (legacy / hand-edited) deserializes with
+an empty digest, which no real guid can match — so the guard fails closed.
 """
 
 from __future__ import annotations
@@ -40,7 +44,8 @@ class OfficeState:
     """One office's manifest record (keyed by ``play_gid``)."""
 
     play_gid: str
-    office_guid_masked: str  # first-8 + ellipsis; never the full guid at rest (§3.1)
+    office_guid_masked: str  # first-8 + ellipsis; a forensic log breadcrumb only (§3.1)
+    office_guid_sha256: str  # full-strength identity digest; the ★C-1 guard DECIDES on THIS
     clinic: str  # operator-confirmed customer-safe display name (personalization-gated)
     slug: str  # minted ONCE, pinned here (SLUG-1); re-runs REUSE, never re-mint
     deck_url: str  # https://decks.cntently.com/<slug>/
@@ -61,6 +66,9 @@ class OfficeState:
         return cls(
             play_gid=str(data["play_gid"]),
             office_guid_masked=str(data["office_guid_masked"]),
+            # Absent on a legacy / hand-edited manifest -> "" (no real digest matches), so the
+            # ★C-1 guard fails closed rather than deserialize-crashing.
+            office_guid_sha256=str(data.get("office_guid_sha256", "")),
             clinic=str(data["clinic"]),
             slug=str(data["slug"]),
             deck_url=str(data["deck_url"]),

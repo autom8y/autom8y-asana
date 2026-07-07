@@ -22,6 +22,7 @@ def _make_state(**overrides: object) -> OfficeState:
     base: dict[str, object] = dict(
         play_gid=PLAY_GID,
         office_guid_masked="1b271a63…",
+        office_guid_sha256="c" * 64,
         clinic="Sand Lake Dental",
         slug="207688021de88a6d7231e1d08ea77a85",
         deck_url="https://decks.cntently.com/207688021de88a6d7231e1d08ea77a85/",

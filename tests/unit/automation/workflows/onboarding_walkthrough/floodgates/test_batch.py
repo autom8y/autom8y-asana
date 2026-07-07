@@ -28,6 +28,7 @@ def _done_state(play_gid: str) -> OfficeState:
     return OfficeState(
         play_gid=play_gid,
         office_guid_masked="1b271a63…",
+        office_guid_sha256="d" * 64,
         clinic="Clinic",
         slug="a" * 32,
         deck_url=f"https://decks.cntently.com/{'a' * 32}/",
@@ -67,6 +68,41 @@ class TestPerOfficeIsolation:
         assert by_gid["C"].status == "ok"
         assert by_gid["B"].status == "failed"
         assert "boom on B" in (by_gid["B"].error or "")
+
+    async def test_corrupt_manifest_for_one_office_fails_isolated_wave_continues(
+        self, tmp_path
+    ) -> None:
+        """RED→GREEN: a corrupt / hand-edited manifest for ONE office raises at ``store.load``.
+        Because the load is INSIDE the per-office try, that office is recorded ``failed`` and
+        the healthy siblings still process (per-office isolation holds even for a manifest
+        deserialize failure — one office's corruption never poisons the wave). Pre-fix (load
+        OUTSIDE the try) the deserialize error aborted the WHOLE wave."""
+        store = _store(tmp_path)
+        # Corrupt B's manifest on disk (invalid JSON) -> store.load("B") raises inside the loop.
+        store.state_dir.mkdir(parents=True, exist_ok=True)
+        store.path_for("B").write_text("{ not valid json ", encoding="utf-8")
+
+        async def _run(_client, *, play_gid, **_kw):
+            return SimpleNamespace(play_gid=play_gid, phase=Phase.PRODUCED, outcome="produced")
+
+        with (
+            patch.object(
+                fbatch, "enumerate_active_play_gids", new=AsyncMock(return_value=["A", "B", "C"])
+            ),
+            patch.object(fbatch, "run_office", new=AsyncMock(side_effect=_run)),
+        ):
+            report = await run_batch(
+                MagicMock(),
+                phase="produce",
+                store=store,
+                deploy_base=tmp_path / "deploy",
+                clinic_map={"A": "Clinic A", "B": "Clinic B", "C": "Clinic C"},
+            )
+
+        by_gid = {o.play_gid: o for o in report.offices}
+        assert by_gid["A"].status == "ok"
+        assert by_gid["C"].status == "ok"
+        assert by_gid["B"].status == "failed"  # the corrupt manifest is isolated, not fatal
 
     async def test_done_office_is_skipped_not_rerun(self, tmp_path) -> None:
         """An office already at DONE is skipped without invoking the runner (idempotent wave)."""

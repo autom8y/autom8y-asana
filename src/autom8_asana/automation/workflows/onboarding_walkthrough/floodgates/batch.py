@@ -149,17 +149,22 @@ async def run_batch(
     play_gids = [office] if office is not None else await enumerate_active_play_gids(client)
     reports: list[OfficeReport] = []
     for gid in play_gids:
-        existing = store.load(gid)
-        if existing is not None and existing.phase is Phase.DONE:
-            reports.append(OfficeReport(gid, "skipped_done", outcome="already_done"))
-            continue
-        clinic = clinic_map.get(gid) or (existing.clinic if existing is not None else None)
-        if phase == "produce" and not clinic:
-            reports.append(
-                OfficeReport(gid, "skipped_no_clinic", error="no operator-confirmed clinic name")
-            )
-            continue
+        # ``store.load`` is INSIDE the try: a corrupt / hand-edited manifest raises on
+        # deserialize, and per-office isolation demands one office's corruption never poison
+        # the wave (state.py invariant) — record it as ``failed`` and CONTINUE, never abort.
         try:
+            existing = store.load(gid)
+            if existing is not None and existing.phase is Phase.DONE:
+                reports.append(OfficeReport(gid, "skipped_done", outcome="already_done"))
+                continue
+            clinic = clinic_map.get(gid) or (existing.clinic if existing is not None else None)
+            if phase == "produce" and not clinic:
+                reports.append(
+                    OfficeReport(
+                        gid, "skipped_no_clinic", error="no operator-confirmed clinic name"
+                    )
+                )
+                continue
             result = await run_office(
                 client,
                 play_gid=gid,
@@ -172,7 +177,7 @@ async def run_batch(
                 project_name=project_name,
                 execute=execute,
             )
-        except Exception as exc:  # noqa: BLE001 -- per-office isolation: one failure never halts the wave
+        except Exception as exc:  # noqa: BLE001 -- per-office isolation: one failure (incl. a corrupt-manifest load) never halts the wave
             logger.warning("floodgates_office_failed", play_gid=gid, error=str(exc))
             reports.append(OfficeReport(gid, "failed", error=str(exc)))
             continue

@@ -252,10 +252,12 @@ async def _run_produce(
         artifact.unlink(missing_ok=True)
 
     deck_url = f"https://{DECK_HOST}/{slug}/"
-    # 9. Commit PRODUCED (atomic per-office manifest; mask the guid at rest).
+    # 9. Commit PRODUCED (atomic per-office manifest; never the full guid at rest — record the
+    #    forensic mask AND the full-strength SHA-256 identity digest the ★C-1 guard decides on).
     state = OfficeState(
         play_gid=play_gid,
         office_guid_masked=_mask_guid(office_guid),
+        office_guid_sha256=hashlib.sha256(office_guid.encode()).hexdigest(),
         clinic=clinic,
         slug=slug,
         deck_url=deck_url,
@@ -310,11 +312,14 @@ async def _run_resume(
         )
 
     # ★ C-1 manifest-integrity guard: the manifest keyed to play_gid MUST describe the office
-    #   whose LIVE PLAY task is play_gid. Re-resolve the guid FROM the task and assert its mask
-    #   equals the recorded mask; a mismatch means this manifest belongs to another office
-    #   (mis-keyed / crash-swap) -> TaskOfficeMismatch (reuse #205), refuse BEFORE any curl/post.
+    #   whose LIVE PLAY task is play_gid. Re-resolve the guid FROM the task and DECIDE on the
+    #   full-strength SHA-256 identity digest (NOT the 8-char/32-bit mask — a mask prefix
+    #   collision would slip a foreign office's deck onto this PLAY). A mismatch means this
+    #   manifest belongs to another office (mis-keyed / crash-swap) -> TaskOfficeMismatch
+    #   (reuse #205), refuse BEFORE any curl/post. The mask rides the message as a log
+    #   breadcrumb only; the DECISION is the digest compare.
     task_office_guid = await _resolve_office_guid(client, task_gid=play_gid)
-    if _mask_guid(task_office_guid) != state.office_guid_masked:
+    if hashlib.sha256(task_office_guid.encode()).hexdigest() != state.office_guid_sha256:
         raise TaskOfficeMismatch(
             f"manifest for PLAY {play_gid} records office {state.office_guid_masked} but the live "
             f"task resolves to {_mask_guid(task_office_guid)}; refusing fail-closed — this "

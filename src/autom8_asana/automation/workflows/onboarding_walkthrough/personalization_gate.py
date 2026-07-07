@@ -21,6 +21,9 @@ detail vocabulary consumed by observability:
   pattern of internal task nomenclature;
 * ``"placeholder"`` -- the "Clinic" generic (a lie rendered as
   personalization) or an empty-after-strip value;
+* ``"control_char"`` -- an embedded newline / carriage-return (a header-
+  injection / Subject-line-corruption hazard; the owned mirror of the vendored
+  producer's CLIENT-CONTROL-CHARS floor);
 * ``"too_long"`` -- more than 140 code points, the PR-1 template clamp bound
   (refusing above the honest-render bound, never the old silent-slice bound).
 
@@ -51,8 +54,10 @@ MAX_PERSONALIZATION_LENGTH = 140
 #: first 8 chars + ellipsis).
 _MASK_VISIBLE_CHARS = 8
 
-#: The closed detail vocabulary (positive enumeration -- no fourth value).
-KNOWN_DETAILS: frozenset[str] = frozenset({"nomenclature_internal", "placeholder", "too_long"})
+#: The closed detail vocabulary (positive enumeration).
+KNOWN_DETAILS: frozenset[str] = frozenset(
+    {"nomenclature_internal", "placeholder", "too_long", "control_char"}
+)
 
 # Internal-plane nomenclature markers (the ``nomenclature_internal`` arm):
 # a recognized operational prefix word bound by ``:`` or ``-`` (the exact live
@@ -83,6 +88,7 @@ class PersonalizationError(Exception):
 
     * ``"nomenclature_internal"`` -- operational-plane material in the value;
     * ``"placeholder"`` -- the "Clinic" generic or empty-after-strip;
+    * ``"control_char"`` -- an embedded newline / carriage-return;
     * ``"too_long"`` -- above :data:`MAX_PERSONALIZATION_LENGTH` code points.
     """
 
@@ -108,9 +114,10 @@ def assert_customer_personalization(client_name: str) -> None:
     """Fail-closed content gate: raise unless ``client_name`` is customer-plane.
 
     Order of arms: the placeholder arms (empty / "Clinic") first, then the
-    nomenclature markers, then the length bound -- so a value that is BOTH
-    internal-shaped and over-length reports the more diagnostic
-    ``nomenclature_internal``.
+    embedded control-char reject, then the nomenclature markers, then the length
+    bound -- so a value that is BOTH internal-shaped and over-length reports the
+    more diagnostic ``nomenclature_internal``, and an embedded newline reports
+    the structural ``control_char`` regardless of the rest of the content.
 
     Args:
         client_name: the candidate customer-facing display name (the value the
@@ -123,6 +130,13 @@ def assert_customer_personalization(client_name: str) -> None:
     masked = mask_personalization_value(value)
     if not value or value.lower() == "clinic":
         raise PersonalizationError(masked, "placeholder")
+    # An embedded newline / carriage-return corrupts the carrier Subject/greeting line or
+    # smuggles a second header (a human-typed name never legitimately contains one). Refuse
+    # LOUD at the OWNED freeze floor -- do not lean on the vendored producer's
+    # CLIENT-CONTROL-CHARS gate alone. (Leading/trailing control chars were already removed
+    # by ``.strip()`` above; this catches the dangerous embedded case.)
+    if "\n" in value or "\r" in value:
+        raise PersonalizationError(masked, "control_char")
     if (
         _INTERNAL_PREFIX_RE.search(value)
         or _EMBEDDED_GID_RE.search(value)
