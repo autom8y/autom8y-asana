@@ -7,7 +7,7 @@ executed_at: 2026-07-07
 executor: janitor (hygiene rite)
 self_assessment_cap: MODERATE
 branch: chore/ledger-truth-convergence-a1
-head_sha: "d798bd6e"
+head_sha: "83abe412"
 ---
 
 # RECEIPT — A1 Ledger-Truth Convergence
@@ -194,7 +194,7 @@ grep "NEXT = FORK-R construct" MEMORY.md                                      �
 ## FIX-FORWARD — Round 2 Refuter Breach Resolution (2026-07-07)
 
 **Refuter:** adversarial refuter (hygiene rite) — second-pass delta critique
-**Fix commit:** `[ROUND-2-SHA]` on `chore/ledger-truth-convergence-a1`
+**Fix commit:** `83abe412` on `chore/ledger-truth-convergence-a1`
 **Attribution ruling:** per `.claude/skills/conventions/SKILL.md:43`, git commit messages carry user-only attribution.
 
 ### Breach 1 (R2): EC-007 OPEN-NARRATION — design-constraints.md:268
