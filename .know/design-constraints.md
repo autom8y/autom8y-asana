@@ -265,7 +265,7 @@ Cross-reference: RISK-015
 - **EC-004**: Consultation ProcessType blocked model landing.
 - **EC-005**: `autom8y_interop` partial migration blocked on upstream PRs.
 - **EC-006**: Exception narrowing in preload (I6 backlog) not yet run.
-- **EC-007**: Reconciliation section GIDs require production API verification before deployment.
+- **EC-007**: ~~Reconciliation section GIDs require production API verification before deployment.~~ **RESOLVED** `2d7d39d9` #190 (SCAR-REG-001 / W-REG): live W-IRIS GIDs wired (receipt: `.ledge/reviews/W-IRIS-section-gid-receipt-2026-07-02.md`); `SectionRegistryError` fail-closed gate replaces all `VERIFY-BEFORE-PROD` annotations; production API verification complete.
 - **EC-008: Deprecated Query Endpoint Frozen Until 2026-06-01.** `api/routes/query.py:7,541`. Today (2026-05-08) leaves ~24 days. Callers tracked via `deprecated_query_endpoint_used` metric.
 - **EC-009: ADR-0001 secretspec Profile Split — Implemented.** `metrics/__main__.py:19-49` references `[profiles.cli]`. Test `tests/unit/metrics/test_main.py::TestPreflightParity::test_inline_and_secretspec_enforce_same_required_vars` enforces parity.
 - **EC-010: Python Version Constraint — No Upper Bound.** `pyproject.toml:10`: `requires-python = ">=3.12"` (upper bound `<3.14` removed earlier). Linter config suppresses UP046/UP047 with stale comments citing `>=3.11` at `pyproject.toml:219-220`.

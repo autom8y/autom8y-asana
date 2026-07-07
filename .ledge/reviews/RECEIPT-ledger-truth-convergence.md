@@ -128,7 +128,7 @@ grep "NEXT = FORK-R construct" MEMORY.md                                      �
 ## FIX-FORWARD — Refuter Breach Resolution (2026-07-07)
 
 **Refuter:** adversarial refuter (hygiene rite)
-**Fix commit:** `d798bd6e` on `chore/ledger-truth-fix-forward` (rebases onto `chore/ledger-truth-convergence-a1` tip `80225b9f`)
+**Fix commit:** `d798bd6e` on `chore/ledger-truth-convergence-a1` (tip at `80225b9f` prior to fix-forward commits)
 **Attribution ruling:** per `.claude/skills/conventions/SKILL.md:43`, git commit messages carry user-only attribution. AI attribution lives in PR body only (`:44`). No Co-Authored-By in commit messages.
 
 ### Breach 1: REGISTER-FALSEHOOD — fm5-column-fidelity.md:42
@@ -158,14 +158,14 @@ grep "NEXT = FORK-R construct" MEMORY.md                                      �
 | `.know/design-constraints.md:284` (RISK-001 Severity: High) | "placeholder GIDs... Severity: High" — open | Strikethrough + RESOLVED annotation |
 | `.know/feat/payment-reconciliation.md:54` | "observability-only until SCAR-REG-001... is resolved" | Renarrated: GID blocker gone; dry_run config is now the only barrier |
 | `.know/feat/payment-reconciliation.md:84` | "Production Blocker" section header | Closed: strikethrough + RESOLVED `2d7d39d9` #190 inline |
-| `.know/feat/payment-reconciliation.md:192` | "_looks_sequential, startup warning behavior (SCAR-REG-001)" | Updated: `_looks_sequential` removed in fix; zero-warning assertion is now the test posture |
+| `.know/feat/payment-reconciliation.md:195` | "_looks_sequential, startup warning behavior (SCAR-REG-001)" | Updated: `_looks_sequential` removed in fix; zero-warning assertion is now the test posture |
 | `.know/feat/payment-reconciliation.md:207` | "No production reconciliation... until replaced" | Scope boundary renarrated; GID blocker closed |
 | `.know/feat/payment-reconciliation.md:227` | "Sequential placeholder GIDs block live deployment" | Closed: strikethrough + RESOLVED |
 | `.know/feat/payment-reconciliation.md:265` | `"production_blocker": "SCAR-REG-001"` | Changed to `null` |
 
 ### Completeness Sweep Result
 
-`git grep -n 'SCAR-REG-001' -- .know/` at tip `d798bd6e` — 15 hits classified:
+`git grep -n 'SCAR-REG-001' -- .know/` at tip `d798bd6e` — **corrected: 17 hits** (prior entry said 15; `payment-reconciliation.md:265` was listed but carries no token at that line; `telos/asana-realization-tail-convergence.md` contributes 2 separate hits at `:37` and `:99` and was collapsed into one row):
 
 | Hit | Classification |
 |---|---|
@@ -176,7 +176,6 @@ grep "NEXT = FORK-R construct" MEMORY.md                                      �
 | `payment-reconciliation.md:195` | Factual test-coverage description (historical ref) — CLEAN |
 | `payment-reconciliation.md:210` | RESOLVED-narration — CLEAN |
 | `payment-reconciliation.md:230` | RESOLVED-narration — CLEAN |
-| `payment-reconciliation.md:265` | `null` (was blocker) — CLEAN |
 | `scar-tissue.md:52` | Factual tag-count reference "(2 refs)" — CLEAN |
 | `scar-tissue.md:54` | Factual tag-count reference "(7 refs)" — CLEAN |
 | `scar-tissue.md:93` | RESOLVED-narration (original A1 fix) — CLEAN |
@@ -185,6 +184,75 @@ grep "NEXT = FORK-R construct" MEMORY.md                                      �
 | `scar-tissue.md:480` | Test-file count table (factual) — CLEAN |
 | `scar-tissue.md:541` | RESOLVED-narration — CLEAN |
 | `scar-tissue.md:568` | RESOLVED-narration (count corrected breach 2) — CLEAN |
-| `telos/asana-realization-tail-convergence.md:37,:99` | Historical context describing pre-fix state — CLEAN |
+| `telos/asana-realization-tail-convergence.md:37` | Historical context describing pre-fix state — CLEAN |
+| `telos/asana-realization-tail-convergence.md:99` | Historical context describing pre-fix state — CLEAN |
 
-**VERDICT: zero open/blocker narrations remain in .know/**
+**VERDICT (tip d798bd6e): zero open/blocker narrations remain in .know/**
+
+---
+
+## FIX-FORWARD — Round 2 Refuter Breach Resolution (2026-07-07)
+
+**Refuter:** adversarial refuter (hygiene rite) — second-pass delta critique
+**Fix commit:** `[ROUND-2-SHA]` on `chore/ledger-truth-convergence-a1`
+**Attribution ruling:** per `.claude/skills/conventions/SKILL.md:43`, git commit messages carry user-only attribution.
+
+### Breach 1 (R2): EC-007 OPEN-NARRATION — design-constraints.md:268
+
+| | Detail |
+|---|---|
+| **Defect** | EC-007 narrated the SCAR-REG-001 blocker as OPEN ("Reconciliation section GIDs require production API verification before deployment") — token-evading (no literal `SCAR-REG-001` string); RISK-001 and GAP-002 were closed but EC-007 was not |
+| **Evidence** | `2d7d39d9` #190 delivered the required production API verification; `.ledge/reviews/W-IRIS-section-gid-receipt-2026-07-02.md` is the live receipt (confirmed present in-repo via `find`) |
+| **Fix** | Strikethrough + RESOLVED marker citing `2d7d39d9` #190 (SCAR-REG-001 / W-REG) and the W-IRIS receipt path |
+
+### Breach 2 (R2): Stale wording — payment-reconciliation.md:93
+
+| | Detail |
+|---|---|
+| **Defect** | "(both RESOLVED)" referenced EC-007 as resolved before EC-007 was actually closed at design-constraints.md:268 — claim was forward-asserting truth that hadn't been stamped |
+| **Fix** | Updated to cite explicit file:line anchors: `EC-007` (`design-constraints.md:268`) and `RISK-001` (`design-constraints.md:284`) — both RESOLVED at `2d7d39d9` #190 |
+
+### Breach 3 (R2): Sweep count + table errors — RECEIPT FIX-FORWARD Completeness Sweep
+
+| | Detail |
+|---|---|
+| **Defect A** | Count stated "15 hits"; actual `git grep` at tip `d798bd6e` returns 17 hits |
+| **Defect B** | `payment-reconciliation.md:265` listed as a sweep hit — that line reads `"production_blocker": null` with no `SCAR-REG-001` token; it is not a grep match |
+| **Defect C** | `telos/asana-realization-tail-convergence.md:37,:99` collapsed two grep hits into one table row, hiding the count discrepancy |
+| **Defect D** | Branch wording `chore/ledger-truth-fix-forward` — commits sit on `chore/ledger-truth-convergence-a1` |
+| **Defect E** | Fix-forward breach-3 table listed `payment-reconciliation.md:192`; correct grep-confirmed line is `:195` |
+| **Fix** | Count corrected to 17; :265 row removed; telos split into two rows; branch wording corrected; :192→:195 |
+
+### Breach 4 (R2): Second '+335 LOC' instance — fm5-column-fidelity.md:66
+
+| | Detail |
+|---|---|
+| **Defect** | `attestation_status.shipped` comment retained `+335 LOC` while `:42` was already corrected in Round 1 to `332 insertions / 3 deletions (file 425 lines at HEAD)` |
+| **Fix** | Corrected to match `:42` wording: `332 insertions / 3 deletions (file 425 lines at HEAD)` |
+
+### Round 2 Completeness Sweep Result
+
+`git grep -n 'SCAR-REG-001' -- .know/` at Round-2 tip — **18 hits** (EC-007 fix at `design-constraints.md:268` adds one new RESOLVED-narration hit):
+
+| Hit | Classification |
+|---|---|
+| `design-constraints.md:233` | RESOLVED-narration (strikethrough) — CLEAN |
+| `design-constraints.md:268` | RESOLVED-narration (EC-007 — NEW in R2) — CLEAN |
+| `design-constraints.md:284` | RESOLVED-narration (strikethrough) — CLEAN |
+| `payment-reconciliation.md:54` | RESOLVED-narration — CLEAN |
+| `payment-reconciliation.md:84` | RESOLVED section header — CLEAN |
+| `payment-reconciliation.md:195` | Factual test-coverage description (historical ref) — CLEAN |
+| `payment-reconciliation.md:210` | RESOLVED-narration — CLEAN |
+| `payment-reconciliation.md:230` | RESOLVED-narration — CLEAN |
+| `scar-tissue.md:52` | Factual tag-count reference "(2 refs)" — CLEAN |
+| `scar-tissue.md:54` | Factual tag-count reference "(7 refs)" — CLEAN |
+| `scar-tissue.md:93` | RESOLVED-narration (original A1 fix) — CLEAN |
+| `scar-tissue.md:352` | RESOLVED-narration — CLEAN |
+| `scar-tissue.md:460` | RESOLVED-narration — CLEAN |
+| `scar-tissue.md:480` | Test-file count table (factual) — CLEAN |
+| `scar-tissue.md:541` | RESOLVED-narration — CLEAN |
+| `scar-tissue.md:568` | RESOLVED-narration — CLEAN |
+| `telos/asana-realization-tail-convergence.md:37` | Historical context describing pre-fix state — CLEAN |
+| `telos/asana-realization-tail-convergence.md:99` | Historical context describing pre-fix state — CLEAN |
+
+**VERDICT (Round 2): zero open/blocker narrations remain in .know/**

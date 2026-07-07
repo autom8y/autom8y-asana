@@ -90,7 +90,7 @@ pattern is detected. Four `VERIFY-BEFORE-PROD` annotations at lines 57, 79, 94, 
 `2d7d39d9` #190 (W-REG): 19 fabricated placeholder GIDs (4 excluded + 15 unit) replaced with live
 W-IRIS receipt values; 17 live sections wired via NAME-join. `_looks_sequential` heuristic removed
 (live GIDs have a legitimate consecutive run). `SectionRegistryError` fail-closed guard replaces all
-`VERIFY-BEFORE-PROD` annotations. See also `EC-007` and `RISK-001` in design-constraints.md (both RESOLVED).
+`VERIFY-BEFORE-PROD` annotations. See also `EC-007` (`design-constraints.md:268`) and `RISK-001` (`design-constraints.md:284`) — both RESOLVED at `2d7d39d9` #190.
 
 ### Excel Workbook Structure (Surface A)
 

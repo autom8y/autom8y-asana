@@ -63,7 +63,7 @@ telos:
 
   attestation_status:
     inception: INSCRIBED
-    shipped: LANDED  # a87ae1ca #161 merged 2026-06-26; field_contract_maps.py +335 LOC; contract_complete live in query/engine.py:263, query/models.py:489; A1 reconcile anchors re-verified at HEAD f3d8eec1 2026-07-07
+    shipped: LANDED  # a87ae1ca #161 merged 2026-06-26; field_contract_maps.py 332 insertions / 3 deletions (file 425 lines at HEAD); contract_complete live in query/engine.py:263, query/models.py:489; A1 reconcile anchors re-verified at HEAD f3d8eec1 2026-07-07
     verified_realized: UNATTESTED
     last_eunomia_advisory: null
 
