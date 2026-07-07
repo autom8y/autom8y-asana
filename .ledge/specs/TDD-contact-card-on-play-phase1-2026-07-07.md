@@ -623,3 +623,20 @@ and the installed `autom8y-core` 4.9.0.
 - **G-iv length constant** — `MAX_CONTACT_CARD_HTML_LENGTH = 32000` (non-zero
   placeholder). The exact ceiling (UV-P §13) discharges at the N5 sandbox bisect — a
   DOWNSTREAM station requiring a real post, which this build never makes.
+- **F-1 Call-1 AMENDED at B5 (major)** — the ratified get_gid_map Call-1 was FALSIFIED
+  live in production: the autom8y-core data-service `get_gid_map_async` returns `None`
+  for Sand Lake under EVERY vertical candidate (`{dentistry, dental, dentist, none}`);
+  live receipts show the PLAY identity leg reads clean (`phone='+14073550608'`,
+  `vertical='dentistry'`) but `BusinessRecord.default_vertical_key='none'` (literal
+  string), `default_vertical_id=None`, and `gid_map[(phone, v)]=None` for all `v`. The
+  gid-map dataset does not cover these offices (vertical keys aren't populated).
+  Call-1 is REPLACED with the N0-proven Asana-native bridge (`_business_gid_by_phone`:
+  workspace tasks/search by the Office Phone custom field → keep only members of the
+  "Businesses" project `1200653012566782`; refuse loudly via `ContactCardBusinessAmbiguous`
+  on >1 match; `None` → `no_holder`). Phase-1 is now **pure-Asana**: the
+  `DataServiceClient` dependency, `PhoneVerticalPair`, and the `vertical` requirement are
+  removed (identity leg = phone only); the S-B seam invariant is strengthened (no
+  autom8y-data dependency at Phase-1) and the local M2M-creds wall is removed. Two-sided
+  tests added (`TestBusinessBridge`: none→no_holder, multiple→loud refusal
+  no create_comment, one→proceeds) + a no-core-import guard. See ADR §4 F-1
+  amended-at-build note.

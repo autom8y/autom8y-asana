@@ -88,6 +88,23 @@ Entry state: at PLAY-comment build time the workflow already holds `office_phone
 (E.164) + `BusinessRecord.guid` from B1 (`workflow.py:566-568`). `get_gid_map`
 bridges the data-plane row to the Asana traversal root in one POST.
 
+> **⚠️ AMENDED-AT-BUILD (B5, 2026-07-07) — Call-1 only. Status: amended-at-build
+> (orchestrator α-ruling, operator-vetoable). The ratified ruling text above is
+> preserved.**
+> B5's fail-closed dry-run FALSIFIED the Call-1 premise live: `get_gid_map_async`
+> returns `None` for Sand Lake under EVERY vertical candidate (`BusinessRecord.
+> default_vertical_key='none'`, `default_vertical_id=None`); the gid-map dataset does
+> not cover these offices. **Call-1 (`get_gid_map`) is replaced with the N0-proven
+> Asana-native bridge**: search the workspace by the Office Phone custom field, keep only
+> members of the "Businesses" project (`1200653012566782`), refuse loudly on >1 match.
+> Calls 2-3 (subtasks → holder → children) are UNCHANGED. Consequence: Phase-1 is
+> **pure-Asana** — the `DataServiceClient` dependency and the `vertical` requirement are
+> removed, and the §3 seam invariant (autom8y-asana → autom8y-data unidirectional) is
+> STRENGTHENED to zero autom8y-data dependency at Phase-1. Evidence + implementation:
+> the B5 live receipts + `contact_synthesis._business_gid_by_phone` + `TestBusinessBridge`
+> two-sided tests; TDD Build-errata appendix "F-1 Call-1 AMENDED at B5". Rejected options
+> below are unaffected (they concerned the read path, not the identity bridge).
+
 Rejected options:
 - **(a-naive) `hydrate_async`**: 10-20+ calls fetching all 7 holders + recursive
   Unit/Offer/Process holders (`business.py:588-682`). Efferent over-fetch for a card
