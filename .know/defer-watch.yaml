@@ -225,3 +225,146 @@
     - tests/unit/services/test_universal_strategy_spans.py (worker_isolated marks)
     - .github/workflows/test.yml (isolated job, -m worker_isolated)
     - CI runs PR#72 shard 2/4 + PR#75 shard 1/4 (assert 0 == 1)
+
+# ─── HOT ENTRIES ADDED 2026-07-07 (A1 ledger-truth-convergence sprint) ────────
+# The entries below are hot items cited by the crusade frame / Station-B receipt
+# that were ABSENT from this file at that date. APPEND-ONLY per defer-watch
+# discipline. Do NOT modify the FIRED drift-audit-discipline-fleet-promotion
+# entry above (A3 discharges it, not A1).
+
+- id: station-b-asana-parked-divergent-harness-copies-2026-07-05
+  filed_at: 2026-07-05
+  filed_by: principal-engineer (Station B execution)
+  parent_initiative: global-ledger-execution
+  parent_workstream: Station-B-durability-and-git-hygiene
+  scope: >
+    3 present-divergent harness copies parked at scratchpad/asana-untrack-park/
+    (radar.md, radar.toml, .mcp.json) — NOT restored over main to avoid dirty
+    overwrite (AMEND-2). hygiene.toml pre-drifted absent (no worktree copy; HEAD
+    intact). All 4 regenerable via `ari sync` post preservation-PR merge.
+  status: DEFERRED-pending-preservation-pr-merge
+  blocker: >
+    Station-B draft PR #199 (chore/preserve-cutover-and-windowed-mrr-receipts)
+    is CONFLICTING (expected; not a merge candidate for asana — it is a durable
+    preservation receipt for the upstream repo). The divergent copies cannot be
+    restored over main without operator adjudication on whether the divergence
+    represents intentional drift or a sync artifact.
+  unblock_signal: >
+    Operator merges or closes PR #199 AND adjudicates which divergent copies to
+    accept; then `ari sync` rematerializes managed content from tracking HEAD.
+  unblock_owner: operator (Tom Tenuta) + 10x-dev or sre rite post-adjudication
+  watch_trigger: 2026-07-29
+  deadline: 2026-09-29
+  escalation_target: operator (adjudicate keep/restore/drop for each of the 3 divergent copies)
+  retry_action: >
+    Post PR #199 adjudication: `ari sync` to rematerialize managed harness
+    content; compare scratchpad park copies against HEAD; restore divergent files
+    that represent intentional operator edits; discard pure-sync artifacts.
+  evidence_anchors:
+    - .ledge/reviews/RECEIPT-station-b-asana.md:80 (P1 — parked-divergent row)
+    - .ledge/reviews/RECEIPT-station-b-asana.md:49 (Step 9 untracking mechanics)
+
+- id: station-b-asana-residual-stash-adjudication-2026-07-05
+  filed_at: 2026-07-05
+  filed_by: principal-engineer (Station B execution)
+  parent_initiative: global-ledger-execution
+  parent_workstream: Station-B-durability-and-git-hygiene
+  scope: >
+    8-file residual stash (stash@{0}) from Station B Step 10: 6 session/generated
+    files + 2 ambiguous (KNOSSOS_MANIFEST.yaml, aegis/baselines.json). Not
+    committed (session-state / possibly-bad baseline); not discarded (delta may
+    represent a real acceptance). Operator must adjudicate keep/commit/drop before
+    any `git stash drop`.
+  status: DEFERRED-pending-operator-adjudication
+  blocker: >
+    2 ambiguous files (KNOSSOS_MANIFEST.yaml, aegis/baselines.json) have unknown
+    delta status — operator must decide whether the stash delta represents a real
+    change acceptance or stale session state.
+  unblock_signal: >
+    Operator reviews stash contents (`git stash show -p stash@{0}`) and
+    adjudicates: commit the real acceptances, drop the session artifacts.
+  unblock_owner: operator (Tom Tenuta)
+  watch_trigger: 2026-07-29
+  deadline: 2026-09-29
+  escalation_target: operator — `git stash show -p stash@{0}` and adjudicate
+  retry_action: >
+    `git stash show -p stash@{0}` to review delta; commit KNOSSOS_MANIFEST /
+    aegis/baselines if delta is a real acceptance; `git stash drop stash@{0}`
+    to discard session artifacts. Do NOT drop without review.
+  evidence_anchors:
+    - .ledge/reviews/RECEIPT-station-b-asana.md:81 (P2 — residual-stash row)
+    - .ledge/reviews/RECEIPT-station-b-asana.md:59 (Step 10 stash receipt)
+
+- id: s4-warm-cadence-frame-age-watch-2026-07-07
+  filed_at: 2026-07-07
+  filed_by: janitor (hygiene rite, A1 ledger-truth-convergence sprint)
+  parent_initiative: asana-realization-tail-convergence
+  parent_workstream: Workstream-A-WATCH (not a build workstream)
+  scope: >
+    Offer-frame warm-cadence drift: dispatching session observed ~4h50m frame age
+    vs ~70min June baseline (the cold-frame 503 lineage per autom8y-asana scar
+    autom8y-asana-query503-coldframe). TELEMETRY UNVERIFIED (UV-P-3 per the
+    crusade frame — live frame-age not probeable at authoring altitude). Filed as
+    WATCH, NOT a workstream. Elevation trigger: chronic lkg_over_ceiling_served
+    and/or climbing frame age; do NOT build anything until telemetry is verified.
+  status: WATCH-telemetry-unverified
+  blocker: >
+    Live telemetry not probeable at A1 authoring altitude (metrics-CLI env
+    BLOCKED per UV-P-2). The 4h50m observation is from the dispatching session;
+    it may reflect a transient state. Do not escalate before telemetry verifies
+    chronic drift.
+  unblock_signal: >
+    Verified telemetry showing lkg_over_ceiling_served chronic (not transient) OR
+    frame age sustained above warm-cadence baseline (>2x cadence class) over a
+    multi-day window.
+  unblock_owner: sre rite or B1 pre-flight (metrics env unblock, UV-P-2)
+  watch_trigger: 2026-08-07
+  deadline: 2026-09-29
+  escalation_target: sre rite Potnia (cold-frame 503 lineage; SCAR-IDEM-001 class)
+  retry_action: >
+    Once metrics env unblocked (B1 pre-flight, UV-P-2): re-run warm-cadence
+    telemetry probe; compare current frame age against June baseline (~70min);
+    if chronic elevation confirmed, escalate to sre/10x-dev as a warm-cadence
+    degradation workstream (separate initiative, not under this crusade).
+  evidence_anchors:
+    - .sos/wip/frames/asana-realization-tail-convergence.md (WATCH section; UV-P-3)
+    - .know/telos/asana-realization-tail-convergence.md (risk-map row UV-P-3)
+
+- id: seam2-fork-disposition-2026-07-07
+  filed_at: 2026-07-07
+  filed_by: janitor (hygiene rite, A1 ledger-truth-convergence sprint)
+  parent_initiative: asana-realization-tail-convergence
+  parent_workstream: Workstream-B-offer-economics-grain-convergence
+  scope: >
+    seam2-consumer-realization deadline MISSED (2026-07-03, 4 days past as of
+    2026-07-07) with nothing landed on main. The fork: seam2 C1 LEADS-half
+    (grain-bridge ADR + TDD substrate; windowed-mrr canary 47826fe4 marooned on
+    chore/preserve-cutover-and-windowed-mrr-receipts, NOT ancestor of main) vs
+    operator-plane INSIGHTS-half already realized (2026-06-29 reorientation).
+    Disposition = PENDING-B1-redundancy-probe. Operator-plane offer_level_stats
+    buildout may obviate the monolith rebind — the B1 probe decides. No
+    retire/build ruling is written here (that is B1's leg).
+  status: PENDING-B1-redundancy-probe
+  blocker: >
+    B1 data-analyst rite redundancy probe has not run. The probe asks: does the
+    operator-plane offer_level_stats surface make the LEADS-half rebind redundant
+    (RETIRE with receipts), or does a residual gap warrant the build (BUILD ->
+    HANDOFF to monolith)? PROBE-GATED HARD: no build and no guard-promotion before
+    the probe rules. The crusade shape (edge E1) enforces this gate.
+  unblock_signal: >
+    B1 data-analyst rite runs the redundancy probe and issues a retire-vs-build
+    ruling as a defer-watch disposition line (updating the status of this entry).
+  unblock_owner: crusade Track B (data-analyst rite, operator-gated per UV-P-6 ACTIVE_RITE resolution)
+  watch_trigger: 2026-07-28
+  deadline: 2026-09-29
+  escalation_target: data-analyst rite Potnia (B1 redundancy probe; operator fires the rite sync)
+  retry_action: >
+    Operator runs rite sync to data-analyst rite; data-analyst Potnia executes
+    B1 redundancy probe against current operator-plane offer_level_stats surface;
+    issues retire-vs-build ruling; ruling lands as an update to this entry's
+    status + a separate defer-watch close receipt (or build-HANDOFF envelope if
+    probe rules BUILD).
+  evidence_anchors:
+    - .know/telos/seam2-consumer-realization.md:54 (missed deadline annotation)
+    - .know/telos/asana-realization-tail-convergence.md (Workstream-B; edge E1 gate)
+    - .sos/wip/frames/asana-realization-tail-convergence.md (Workstream B; PROBE-GATED)
