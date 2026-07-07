@@ -37,7 +37,12 @@ telos:
       never-selected column is a TYPED REFUSAL, never a silent narrow frame.
 
   shipped_definition:
-    code_or_artifact_landed: []  # MISSING — src/autom8_asana/dataframes/contracts/ does not exist at fa265ce1 (probe receipt in the ordering pin); the home arrives with #114
+    code_or_artifact_landed:  # LANDED a87ae1ca #161 (2026-07-07 A1 reconcile; anchors re-verified at HEAD f3d8eec1 / branch chore/ledger-truth-convergence-a1)
+      - "src/autom8_asana/dataframes/contracts/field_contract_maps.py:1"          # +335 lines; FieldContract SSOT home
+      - "src/autom8_asana/dataframes/contracts/__init__.py:15"                    # exports FieldContractMap and FieldRequirement
+      - "src/autom8_asana/query/engine.py:263"                                   # contract_complete derivation path (co-derived, DISTINCT sibling)
+      - "src/autom8_asana/query/models.py:489"                                   # RowsMeta.contract_complete field declaration
+      - "src/autom8_asana/dataframes/contracts/consumer_column_requirements.vendored.json:1"  # vendored consumer manifest
     user_visible_surface: >
       [OPERATOR-RATIFIED 2026-06-12 — interview R3-Q1: draft blessed as-is; amendable
       at /frame.] A consumer whose declared required column cannot be served receives a loud,
@@ -58,7 +63,7 @@ telos:
 
   attestation_status:
     inception: INSCRIBED
-    shipped: MISSING
+    shipped: LANDED  # a87ae1ca #161 merged 2026-06-26; field_contract_maps.py +335 LOC; contract_complete live in query/engine.py:263, query/models.py:489; A1 reconcile anchors re-verified at HEAD f3d8eec1 2026-07-07
     verified_realized: UNATTESTED
     last_eunomia_advisory: null
 

@@ -51,7 +51,7 @@ telos:
       - "C2 (payments/mrr): five-signal S3 flips deferred-not-observed → OBSERVED-LIVE — payments/mrr congruent with the warmed denominator (62-row offer class) and the unit sold-band; HARD-GATED on the unit-economics population work (existing substrate: worktree seam2-unit-econ, GLINT L1-1 — rebase onto fa265ce1 is the freeze-week prerequisite)."
       - "fallback-flip retired: legacy_fallback_enabled is a CODE default (src/autom8_asana/dataframes/storage.py:352, `legacy_fallback_enabled: bool = True`, re-verified at fa265ce1) — retirement is a code change + deploy, sequenced post-clear per CLEAR bundle §B.4.a; realized when the flag default flips and dual-read is retired without consumer regression."
     verification_method: in-anger-dogfood
-    verification_deadline: "2026-07-03"  # OPERATOR-RATIFIED 2026-06-12 (interview R3-Q2: realization-bound = clear+14d; clear co-signed 2026-06-19T09:02:05Z → 07-03)
+    verification_deadline: "2026-07-03"  # OPERATOR-RATIFIED 2026-06-12 (interview R3-Q2: realization-bound = clear+14d; clear co-signed 2026-06-19T09:02:05Z → 07-03). DEADLINE-MISSED: as of 2026-07-07 (A1 reconcile) this date is 4 days past with nothing landed on main. Disposition = PENDING-B1-redundancy-probe (crusade Track B, data-analyst rite, operator-gated). DO NOT silently re-date. Redundancy signal: operator-plane offer_level_stats buildout (2026-06-29 reorientation) may obviate the monolith rebind — the B1 probe decides retire-vs-build. No retire/build ruling authored here (that is B1's leg).
     rite_disjoint_attester: "eunomia (rite-disjoint per telos-integrity-ref §2 R1 binding; same attester pre-cast for the parent telos five-signal)"
 
   attestation_status:
