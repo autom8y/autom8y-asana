@@ -47,6 +47,8 @@ from __future__ import annotations
 
 import re
 
+from autom8y_core.helpers.routing import format_routing_address
+
 # The canonical routing-address form: a 36-char UUID (32 hex + 4 hyphens) at the
 # ``@appointments.contenteapp.com`` routing domain. Mirrors the harvest oracle in
 # tests/unit/automation/workflows/test_onboarding_walkthrough.py. The negative
@@ -153,3 +155,85 @@ def assert_exclusive_tenant_binding(*, frozen: bytes, gated_address: str) -> Non
         f"distinct_addresses={len(harvested)}, "
         f"foreign={[_mask_addr(a) for a in foreign]}"
     )
+
+
+class TemplateTenantMismatch(RuntimeError):
+    """Raised when a composed carrier-email text carries a routing address that is NOT
+    this office's own (a foreign-tenant leak), or when the office guid is malformed so
+    an own address cannot even be computed (fail-closed on a bad anchor).
+
+    The v3 carrier analogue of :class:`TenantBindingError`, applied to the
+    email-composition surface rather than the frozen deck bytes. NOT transient: a
+    foreign address / bad guid reproduces on re-run. Callers MUST fail closed (refuse
+    to post/send), never retry.
+    """
+
+
+class TaskOfficeMismatch(TemplateTenantMismatch):
+    """Raised when an explicitly-supplied ``office_guid`` does not equal the guid resolved
+    from the TASK it is being posted onto -- a ``(office_guid, task_gid)`` pairing that
+    binds one office's routing address to ANOTHER office's PLAY (the cross-tenant leak).
+
+    The task-ownership analogue of :class:`TemplateTenantMismatch`: where the parent guards
+    the composed-text-vs-guid consistency, this guards the guid-vs-task ownership. It is a
+    :class:`TemplateTenantMismatch` subclass so a caller catching the tenant-mismatch family
+    (and the CLI's fail-closed handler) already covers it. NOT transient: a mis-paired
+    ``(guid, task)`` reproduces on re-run. Callers MUST fail closed (refuse to post), never
+    retry -- in a batch loop this is a real client told to forward bookings into a foreign
+    tenant's inbox.
+    """
+
+
+def assert_template_tenant_match(*, composed_text: str, office_guid: str) -> None:
+    """Assert every routing address in ``composed_text`` is THIS office's own.
+
+    The carrier-email analogue of :func:`assert_exclusive_tenant_binding` MINUS the
+    presence half. The v3 template SHOULD carry the office's own routing address, but a
+    valid re-send MAY omit it -- so this is a SUBSET (no-foreign) predicate, not
+    set-equality. Harvest every ``{uuid}@appointments.contenteapp.com`` via
+    :data:`CANONICAL_ROUTING_ADDR_RE`; refuse fail-closed if any harvested address is
+    not ``format_routing_address(office_guid)`` -- the leak-by-containment crown-jewel.
+
+    Predicate: ``harvested - {own} == set()``. Presence of ``own`` is permitted
+    (expected); absence of any address is permitted (a valid re-send); presence of any
+    address != ``own`` is REFUSED.
+
+    Why SUBSET, not EQUALITY (the deliberate difference from the deck guard):
+    :func:`assert_exclusive_tenant_binding` requires ``harvested == {gated}`` --
+    presence AND exclusivity -- because the deck's whole purpose is to carry exactly
+    that address (a deck missing it is a broken product). The template email only SHOULD
+    carry it, so this guard keeps only the exclusivity/leak half; presence is a checklist
+    SHOULD (spec §5), not a guard MUST.
+
+    Args:
+        composed_text: the fully composed carrier-email text (post-compose).
+        office_guid: this office's guid (its Company ID). MUST be a canonical lowercase
+            UUID v4 -- ``format_routing_address`` raises ``ValueError`` on a malformed
+            guid, which this guard wraps as a fail-closed :class:`TemplateTenantMismatch`
+            (a bad anchor can never yield a tenant-matched send).
+
+    Raises:
+        TemplateTenantMismatch: on any foreign routing address (the leak arm), OR a
+            malformed office guid (the bad-anchor arm; the wrapped ``ValueError`` is
+            preserved as ``__cause__``).
+    """
+    try:
+        own = format_routing_address(office_guid)
+    except ValueError as exc:
+        # Bad-anchor arm: cannot compute this office's own address, so no send can be
+        # tenant-matched. Fail closed -- never fall open on a malformed guid.
+        raise TemplateTenantMismatch(
+            f"cannot compute own routing address: malformed office guid ({exc})"
+        ) from exc
+
+    # Case-fold at the guard boundary (mirrors ``assert_exclusive_tenant_binding``): a
+    # case-variant FOREIGN address (harvested via ``re.IGNORECASE``) is caught as a
+    # distinct member, while a case-variant of OWN collapses onto it and does not false-RED.
+    own_norm = own.lower()
+    harvested = {addr.lower() for addr in CANONICAL_ROUTING_ADDR_RE.findall(composed_text)}
+    foreign = sorted(harvested - {own_norm})
+    if foreign:
+        raise TemplateTenantMismatch(
+            "carrier-email tenant-binding violation: composed text carries a foreign "
+            f"routing address; foreign={[_mask_addr(a) for a in foreign]}"
+        )

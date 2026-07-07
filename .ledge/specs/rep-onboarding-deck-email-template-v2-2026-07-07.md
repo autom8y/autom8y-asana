@@ -1,6 +1,7 @@
 ---
 type: spec
-status: proposed
+status: superseded
+superseded_by: rep-onboarding-deck-email-template-v3-2026-07-07.md
 date: 2026-07-07
 initiative: client-onboarding-delivery
 artifact_class: rep-outbound-template
@@ -16,6 +17,18 @@ change_reason: >
 ---
 
 # Rep outbound: "Here's your setup walkthrough" — v2
+
+> **⚠️ SUPERSEDED (2026-07-07) by
+> [`rep-onboarding-deck-email-template-v3-2026-07-07.md`](rep-onboarding-deck-email-template-v3-2026-07-07.md).**
+> The send-day operator ratification REVERSED this v2's blanket carrier rule *"Nothing
+> in your email mentions an `@appointments.contenteapp.com` address"* (checklist item 3,
+> `:78-80` below). The client needs their own routing address to complete the one
+> forwarding step the walkthrough teaches, so v3 REQUIRES it — hardened by a two-sided
+> tenant-match guard (`assert_template_tenant_match`; the address MUST be provably THIS
+> office's own, never another tenant's). All other v2 rules (link-not-attachment,
+> contact-card receiver selection, P-NOVA sender constants) are preserved verbatim in v3.
+> See ADR-contact-synthesis-card-on-play-2026-07-07 §13 (v3 Carrier Ratification) and
+> `TDD-rep-template-v3-tenant-match-2026-07-07.md`. **Do not send from this v2.**
 
 > **v2 change summary (P-NOVA, 2026-07-07):**
 > - Sender is always **Nova / support@contenteapp.com** via Intercom — a constant, not

@@ -426,3 +426,86 @@ support@contenteapp.com). See `rep-onboarding-deck-email-template-v2-2026-07-07.
   scale-path is ever promoted. Suggested source: autom8y-asana batch/lambda infra owner.
 - **employees-table fields** — `preferred_name`, `active`, `role` vocabulary existence
   on autom8y-data's employees table (A2 Unknown 2). autom8y-data's to confirm at Phase-2.
+
+---
+
+## 13. Amendment — v3 Carrier Ratification (additive; operator-ruled 2026-07-07)
+
+> **Additive.** This section is appended; §§1–12 above are preserved verbatim,
+> including the P-NOVA ruling (§2) and the F-1..F-4 rulings. It amends only the
+> carrier-email doctrine that §2/§11 handed to the email template.
+
+### 13.1 What the operator ruled
+
+The first client send (Nova → Dr. Ziyad, 2026-07-07) deliberately **included** the
+client's own routing address `1b271a63-…@appointments.contenteapp.com` in the outbound
+email — which the v1/v2 carrier checklist explicitly FORBADE
+(`rep-onboarding-deck-email-template-v2-2026-07-07.md:78-80`: *"Nothing in your email
+mentions an `@appointments.contenteapp.com` address"*). The operator ruled the inclusion
+**correct**: Dr. Ziyad needs the address to complete the forwarding step the walkthrough
+teaches. The blanket no-address rule is REVERSED — **conditional on a tenant-match
+hardening.**
+
+### 13.2 The tenant-match invariant (load-bearing)
+
+The routing address that appears in the carrier email MUST be provably THIS office's
+own — never another tenant's (the leak-by-containment crown-jewel). This is proven by a
+**two-sided guard**, never by a checklist line alone:
+
+> `assert_template_tenant_match(composed_text, office_guid)` — harvest every
+> `{uuid}@appointments.contenteapp.com` via `CANONICAL_ROUTING_ADDR_RE`
+> (`tenant_binding.py:66`); refuse fail-closed if any ≠ `format_routing_address(office_guid)`
+> (`routing.py:75`). Predicate: `harvested − {own} == ∅` (no-foreign; **subset, not
+> equality** — presence is a SHOULD, absence is permitted, a foreign address is REFUSED).
+
+This is the same tenant-binding discipline `assert_exclusive_tenant_binding`
+(`tenant_binding.py:115`) already applies to the frozen deck bytes, now applied to the
+email-composition surface — minus the presence half (a valid re-send may omit the
+address; the deck never may). Full guard + two-sided teeth:
+`TDD-rep-template-v3-tenant-match-2026-07-07.md`.
+
+### 13.3 System-provides-the-address (anti-fat-finger)
+
+The routing address is SYSTEM-COMPOSED from the office guid, never hand-typed by the
+rep. The guid is the office's **Company ID** custom field
+(`business.py:263`, `dataframes/schemas/business.py:13` `source="cf:Company ID"`;
+≡ office guid per `offer.py:123-130`) — the same guid the deck and contact card use.
+`format_routing_address` raises `ValueError` on a malformed guid (`routing.py:98-108`),
+so a bad anchor can never yield a plausible-but-wrong address.
+
+### 13.4 Surface enumeration (which rule where)
+
+The v1/v2 blanket no-address refusal is **preserved** on the two surfaces that
+legitimately carry no routing address; the tenant-match guard REPLACES it on **only**
+the template surface:
+
+| Surface | v3 rule | Anchor |
+|---------|---------|--------|
+| LINK comment (`link_on_play.py` `_BODY_TEMPLATE:133`, egress `:225`) | blanket no-address STAYS | unchanged |
+| CARD comment (`contact_synthesis.py` `_egress_guard:291,299`) | blanket no-address STAYS | unchanged |
+| TEMPLATE comment (NEW `template_comment.py`) | tenant-match guard | §13.2 |
+
+Net build surface: **1 new guard + 1 new module + 1 new exception**; zero edits to any
+existing surface's invariant, and zero edits to §2 P-NOVA (Nova / support@contenteapp.com
+remain the sender constants).
+
+### 13.5 Fork carried to build (Pythia to ratify)
+
+**FORK-GUID-SOURCE** — office_guid provenance for the routing-address composition:
+- **Option A (recommended, lean):** the Business task's **Company ID** custom field,
+  pure-Asana (mirrors `contact_synthesis._office_phone_from_task:356` /
+  `_business_gid_by_phone:374`); keeps the template surface in the Phase-1 pure-Asana
+  seam. Premise: Company ID ≡ `BusinessRecord.guid`.
+- **Option B:** `get_business_by_phone_async(office_phone).guid` (`workflow.py:568`) —
+  the same authority the deck's frozen address uses; re-adds the autom8y-data dependency
+  contact_synthesis dropped.
+
+The guard contract is identical under either; only the anchor provenance differs.
+
+### 13.6 Supersession note
+
+§13 amends the carrier-doctrine leg of `rep-onboarding-deck-email-template-v2-2026-07-07.md`
+(v2 checklist item at `:78-80`). The template is re-issued as
+`rep-onboarding-deck-email-template-v3-2026-07-07.md` (supersedes v2). All non-carrier
+v2 rules (link-not-attachment, contact-card receiver selection, P-NOVA sender constants)
+are preserved verbatim in v3.

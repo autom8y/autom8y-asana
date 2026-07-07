@@ -127,12 +127,12 @@ def compose_marker(deck_slug: str) -> str:
 # pointer to the approved email template + a trailing marker line. The invariant U2
 # locks is narrow and exact: the body carries NO canonical routing address
 # (``{uuid}@appointments.contenteapp.com``) and no routing-domain literal, per the
-# egress guard. It is NOT "no mailbox at all" -- the v2 template pointer deliberately
+# egress guard. It is NOT "no mailbox at all" -- the v3 template pointer deliberately
 # names the ``support@contenteapp.com`` Nova sender constant (P-NOVA ruling), which is
 # an intentional non-routing address, not an egress leak.
 _BODY_TEMPLATE = (
     "Onboarding deck is live for this office. To send it to the client, use the "
-    "approved rep email template (rep-onboarding-deck-email-template-v2-2026-07-07.md; "
+    "approved rep email template (rep-onboarding-deck-email-template-v3-2026-07-07.md; "
     "sender is a constant — Nova / support@contenteapp.com via Intercom, not the rep) "
     "and paste this capability link:\n\n"
     "{deck_url}\n\n"
