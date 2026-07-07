@@ -169,6 +169,21 @@ class TemplateTenantMismatch(RuntimeError):
     """
 
 
+class TaskOfficeMismatch(TemplateTenantMismatch):
+    """Raised when an explicitly-supplied ``office_guid`` does not equal the guid resolved
+    from the TASK it is being posted onto -- a ``(office_guid, task_gid)`` pairing that
+    binds one office's routing address to ANOTHER office's PLAY (the cross-tenant leak).
+
+    The task-ownership analogue of :class:`TemplateTenantMismatch`: where the parent guards
+    the composed-text-vs-guid consistency, this guards the guid-vs-task ownership. It is a
+    :class:`TemplateTenantMismatch` subclass so a caller catching the tenant-mismatch family
+    (and the CLI's fail-closed handler) already covers it. NOT transient: a mis-paired
+    ``(guid, task)`` reproduces on re-run. Callers MUST fail closed (refuse to post), never
+    retry -- in a batch loop this is a real client told to forward bookings into a foreign
+    tenant's inbox.
+    """
+
+
 def assert_template_tenant_match(*, composed_text: str, office_guid: str) -> None:
     """Assert every routing address in ``composed_text`` is THIS office's own.
 

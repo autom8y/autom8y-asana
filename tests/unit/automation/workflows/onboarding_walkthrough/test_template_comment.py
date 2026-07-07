@@ -41,6 +41,7 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.template_comment i
     post_template_comment,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.tenant_binding import (
+    TaskOfficeMismatch,
     TemplateTenantMismatch,
     assert_template_tenant_match,
 )
@@ -105,6 +106,16 @@ def _make_client(*, stories=None, created_gid="NEW_STORY_GID", readback_text=Non
     client.stories.create_comment_async = AsyncMock(return_value=SimpleNamespace(gid=created_gid))
     client.stories.get_async = AsyncMock(return_value=SimpleNamespace(text=readback_text))
     return client
+
+
+def _patch_resolve(guid: str = SAND_LAKE_GUID):
+    """Patch the task->office-guid resolve to a fixed guid.
+
+    The poster now ALWAYS resolves the office guid from the TASK (the cross-tenant leak fix);
+    an explicit ``office_guid`` is verified against this resolved value. These fakes keep the
+    poster tests consistent: the task's true office is ``SAND_LAKE_GUID`` unless a test says
+    otherwise (the wrong-task RED faults precisely BECAUSE the supplied guid != this)."""
+    return patch.object(tc, "_resolve_office_guid", new=AsyncMock(return_value=guid))
 
 
 # =========================================================================== the guard
@@ -212,6 +223,23 @@ class TestCompose:
         assert TEMPLATE_MARKER_PREFIX == "autom8y:rep-template"
         assert TEMPLATE_MARKER_PREFIX not in {POSTER_MARKER_PREFIX, CONTACT_CARD_MARKER_PREFIX}
 
+    def test_compose_clinic_newline_refuses(self) -> None:
+        """A newline in ``clinic`` is rejected fail-closed at compose (a control char corrupts
+        the Subject/header line — QA surface 6, and could smuggle a second header); refuse
+        LOUD, never silently strip. These are human-typed names — a newline is never valid."""
+        with pytest.raises(TemplateCommentRefused, match="clinic"):
+            compose_template_comment(
+                office_guid=SAND_LAKE_GUID, deck_url=DECK_URL, clinic="Sand Lake\nBcc: evil@x"
+            )
+
+    def test_compose_recipient_carriage_return_refuses(self) -> None:
+        """A carriage-return in ``recipient`` is likewise rejected fail-closed at compose
+        (both \\n and \\r are refused — the header-injection surface)."""
+        with pytest.raises(TemplateCommentRefused, match="recipient"):
+            compose_template_comment(
+                office_guid=SAND_LAKE_GUID, deck_url=DECK_URL, recipient="Dr Ziyad\rBcc: evil@x"
+            )
+
 
 # =========================================================================== the poster
 # ``post_template_comment`` — dry-run default, ADD-only, guard upstream of the post.
@@ -223,9 +251,10 @@ class TestPoster:
         create_comment (assert_not_awaited). The resolved office guid + composed text are
         carried for the operator's dry-run print."""
         client = _make_client(stories=[])
-        result = await post_template_comment(
-            client, task_gid=TASK_GID, deck_url=DECK_URL, office_guid=SAND_LAKE_GUID
-        )
+        with _patch_resolve():
+            result = await post_template_comment(
+                client, task_gid=TASK_GID, deck_url=DECK_URL, office_guid=SAND_LAKE_GUID
+            )
         assert result.outcome == "dry_run_would_post"
         assert result.story_gid is None
         assert result.office_guid == SAND_LAKE_GUID
@@ -238,9 +267,14 @@ class TestPoster:
         """GREEN: valid target, no prior marker, execute -> posts once with the routing
         line + marker, then the read-back confirms the marker persisted."""
         client = _make_client(stories=[], readback_text=f"posted body\n{MARKER}")
-        result = await post_template_comment(
-            client, task_gid=TASK_GID, deck_url=DECK_URL, office_guid=SAND_LAKE_GUID, execute=True
-        )
+        with _patch_resolve():
+            result = await post_template_comment(
+                client,
+                task_gid=TASK_GID,
+                deck_url=DECK_URL,
+                office_guid=SAND_LAKE_GUID,
+                execute=True,
+            )
         assert result.outcome == "posted"
         assert result.story_gid == "NEW_STORY_GID"
         client.stories.create_comment_async.assert_awaited_once()
@@ -255,9 +289,14 @@ class TestPoster:
         no second post (mirrors link_on_play idempotency)."""
         existing = SimpleNamespace(gid="EXISTING_STORY_GID", text=f"earlier note\n\n{MARKER}")
         client = _make_client(stories=[existing])
-        result = await post_template_comment(
-            client, task_gid=TASK_GID, deck_url=DECK_URL, office_guid=SAND_LAKE_GUID, execute=True
-        )
+        with _patch_resolve():
+            result = await post_template_comment(
+                client,
+                task_gid=TASK_GID,
+                deck_url=DECK_URL,
+                office_guid=SAND_LAKE_GUID,
+                execute=True,
+            )
         assert result.outcome == "skipped_existing"
         assert result.story_gid == "EXISTING_STORY_GID"
         client.stories.create_comment_async.assert_not_awaited()
@@ -266,9 +305,14 @@ class TestPoster:
         """A prior marker for a DIFFERENT deck slug does not match -> this slug posts afresh."""
         other = SimpleNamespace(gid="OLD", text=compose_marker("0000000000000000000000000000abcd"))
         client = _make_client(stories=[other], readback_text=f"body {MARKER}")
-        result = await post_template_comment(
-            client, task_gid=TASK_GID, deck_url=DECK_URL, office_guid=SAND_LAKE_GUID, execute=True
-        )
+        with _patch_resolve():
+            result = await post_template_comment(
+                client,
+                task_gid=TASK_GID,
+                deck_url=DECK_URL,
+                office_guid=SAND_LAKE_GUID,
+                execute=True,
+            )
         assert result.outcome == "posted"
         client.stories.create_comment_async.assert_awaited_once()
 
@@ -278,7 +322,10 @@ class TestPoster:
         post. The guard is upstream of the mutation, exactly like link_on_play.py:225."""
         poisoned = f"Your routing email is: {OWN}\nstale: {FOREIGN}\n{MARKER}"
         client = _make_client(stories=[])
-        with patch.object(tc, "compose_template_comment", return_value=poisoned):
+        with (
+            _patch_resolve(),
+            patch.object(tc, "compose_template_comment", return_value=poisoned),
+        ):
             with pytest.raises(TemplateTenantMismatch, match="foreign"):
                 await post_template_comment(
                     client,
@@ -290,17 +337,19 @@ class TestPoster:
         client.stories.create_comment_async.assert_not_awaited()
 
     async def test_poster_malformed_guid_refuses_no_post(self) -> None:
-        """A malformed office guid at the poster boundary -> fail-closed as the guard's
-        refusal type (TemplateTenantMismatch), NO post."""
+        """A malformed TASK-resolved office guid -> compose's format_routing_address raises
+        ValueError -> the poster wraps it fail-closed as TemplateTenantMismatch ("malformed
+        office guid"), NO post. (Post-leak-fix the guid is ALWAYS task-resolved, so a corrupt
+        Company ID -- not a caller argument -- is the malformed-anchor source.)"""
         client = _make_client(stories=[])
-        with pytest.raises(TemplateTenantMismatch, match="malformed office guid"):
-            await post_template_comment(
-                client,
-                task_gid=TASK_GID,
-                deck_url=DECK_URL,
-                office_guid="not-a-uuid",
-                execute=True,
-            )
+        with _patch_resolve("not-a-uuid"):
+            with pytest.raises(TemplateTenantMismatch, match="malformed office guid"):
+                await post_template_comment(
+                    client,
+                    task_gid=TASK_GID,
+                    deck_url=DECK_URL,
+                    execute=True,
+                )
         client.stories.create_comment_async.assert_not_awaited()
 
     async def test_readback_absent_text_is_loud(self) -> None:
@@ -308,14 +357,15 @@ class TestPoster:
         (fail-closed on absent read-back; mirrors the contact-card C-1 discipline). The post
         already happened, so the refusal surfaces AFTER the single create_comment."""
         client = _make_client(stories=[], readback_text=None)
-        with pytest.raises(TemplateCommentRefused, match="read-back"):
-            await post_template_comment(
-                client,
-                task_gid=TASK_GID,
-                deck_url=DECK_URL,
-                office_guid=SAND_LAKE_GUID,
-                execute=True,
-            )
+        with _patch_resolve():
+            with pytest.raises(TemplateCommentRefused, match="read-back"):
+                await post_template_comment(
+                    client,
+                    task_gid=TASK_GID,
+                    deck_url=DECK_URL,
+                    office_guid=SAND_LAKE_GUID,
+                    execute=True,
+                )
         client.stories.create_comment_async.assert_awaited_once()
 
     async def test_bad_deck_host_refuses(self) -> None:
@@ -334,6 +384,62 @@ class TestPoster:
                 office_guid=SAND_LAKE_GUID,
                 execute=True,
             )
+        client.stories.create_comment_async.assert_not_awaited()
+
+    async def test_wrong_task_office_guid_mismatch_refuses_no_post(self) -> None:
+        """LOAD-BEARING RED (the QA-proven cross-tenant leak): an explicit ``office_guid``
+        that does NOT match the TASK-resolved guid -> ``TaskOfficeMismatch``, create_comment
+        NOT awaited. This is the leak: office-A's guid paired with office-B's PLAY. The task
+        resolves to its OWN guid (SAND_LAKE_GUID); the supplied FOREIGN_GUID != it -> refuse
+        fail-closed BEFORE any compose or post. Pre-fix (explicit-guid short-circuit) this
+        posted office-A's routing address onto office-B's PLAY (outcome=posted); post-fix the
+        explicit path can only VERIFY, so a mis-paired (guid, task) fails closed."""
+        client = _make_client(stories=[])
+        with _patch_resolve(SAND_LAKE_GUID):
+            with pytest.raises(TaskOfficeMismatch, match="does not belong to PLAY") as exc_info:
+                await post_template_comment(
+                    client,
+                    task_gid=TASK_GID,
+                    deck_url=DECK_URL,
+                    office_guid=FOREIGN_GUID,
+                    execute=True,
+                )
+        # It rides the tenant-mismatch family (the CLI + callers already catch that base).
+        assert isinstance(exc_info.value, TemplateTenantMismatch)
+        # forensic breadcrumb masks the guids — no full foreign-guid spill into logs/errors.
+        assert FOREIGN_GUID not in str(exc_info.value)
+        client.stories.create_comment_async.assert_not_awaited()
+
+    async def test_explicit_office_guid_matching_task_proceeds(self) -> None:
+        """GREEN (the verification path): explicit ``office_guid`` == the task-resolved guid ->
+        the VERIFY passes and the poster proceeds (dry-run composes the tenant-clean body). The
+        explicit path is a verification, never a bypass — the safe pairing is unchanged."""
+        client = _make_client(stories=[])
+        with _patch_resolve(SAND_LAKE_GUID):
+            result = await post_template_comment(
+                client, task_gid=TASK_GID, deck_url=DECK_URL, office_guid=SAND_LAKE_GUID
+            )
+        assert result.outcome == "dry_run_would_post"
+        assert result.office_guid == SAND_LAKE_GUID
+        assert f"booking inbox: {OWN}" in result.comment_text
+        client.stories.create_comment_async.assert_not_awaited()
+
+    async def test_clinic_newline_refuses_no_post(self) -> None:
+        """A clinic name carrying a newline -> compose refuses fail-closed
+        (TemplateCommentRefused) upstream of the post (control char would corrupt the
+        Subject/header line — QA surface 6). No create_comment. The tenant guard has already
+        passed, so this proves the control-char refusal is a distinct fail-closed leg."""
+        client = _make_client(stories=[])
+        with _patch_resolve(SAND_LAKE_GUID):
+            with pytest.raises(TemplateCommentRefused, match="clinic"):
+                await post_template_comment(
+                    client,
+                    task_gid=TASK_GID,
+                    deck_url=DECK_URL,
+                    office_guid=SAND_LAKE_GUID,
+                    clinic="Sand Lake\nBcc: attacker@evil.example",
+                    execute=True,
+                )
         client.stories.create_comment_async.assert_not_awaited()
 
 

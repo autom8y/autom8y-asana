@@ -23,8 +23,11 @@ Poster flow (every layer fails closed):
 
 1. **Host pin** -- reuse ``deck_slug_from_url`` (link_on_play): the deck URL must be
    ``https`` at ``DECK_HOST`` exactly, else refuse.
-2. **Guid resolve** (Option A) -- when ``office_guid`` is not supplied, resolve it from
-   the Business task's Company ID via the phone->Business bridge (pure-Asana).
+2. **Guid resolve** (Option A) -- ALWAYS resolve the office guid from THIS task's Business
+   Company ID via the phone->Business bridge (pure-Asana), so the routing address provably
+   belongs to this PLAY's office. An explicit ``office_guid`` is a VERIFICATION, not a
+   bypass: it must EQUAL the task-resolved guid or the poster refuses (``TaskOfficeMismatch``)
+   -- a mis-paired ``(office_guid, task)`` is the cross-tenant leak.
 3. **Compose** -- inject the system-composed routing line + a DISTINCT idempotency marker
    ``[autom8y:rep-template deck={slug}]`` (distinct from link-on-play's and
    contact-card's prefixes, so the three PLAY comments never collide).
@@ -60,6 +63,7 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.link_on_play impor
     deck_slug_from_url,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.tenant_binding import (
+    TaskOfficeMismatch,
     TemplateTenantMismatch,
     assert_template_tenant_match,
 )
@@ -145,6 +149,32 @@ def compose_marker(deck_slug: str) -> str:
     return f"[{TEMPLATE_MARKER_PREFIX} deck={deck_slug}]"
 
 
+def _reject_control_chars(field: str, value: str) -> None:
+    """Refuse a caller-supplied field carrying a newline/CR (fail-closed composition).
+
+    ``clinic`` and ``recipient`` compose into the Subject/greeting lines of the carrier
+    email; a ``\\n``/``\\r`` corrupts the header/Subject line (QA surface 6) or smuggles a
+    second header. These are human-typed names -- a newline is never valid -- so this refuses
+    LOUD rather than silently stripping. Sits alongside ``compose``'s other fail-closed
+    surfaces (``deck_slug_from_url`` -> ``LinkOnPlayRefused``; ``format_routing_address`` ->
+    ``ValueError``); raises the module's poster-refusal type so the CLI reports it cleanly.
+    """
+    if "\n" in value or "\r" in value:
+        raise TemplateCommentRefused(
+            f"{field} must not contain a newline or carriage-return character "
+            "(a control character in a caller-supplied name is never valid)."
+        )
+
+
+def _mask_guid(guid: str) -> str:
+    """Mask an office guid to its first 8 chars (forensic breadcrumb; no full-guid spill).
+
+    Mirrors ``tenant_binding._mask_addr``: enough to identify the implicated tenant against
+    the DB during an incident, without spilling a full (wrong-)tenant guid into logs/errors.
+    """
+    return f"{guid[:8]}…" if guid else "<empty>"
+
+
 def compose_template_comment(
     *,
     office_guid: str,
@@ -158,7 +188,9 @@ def compose_template_comment(
     ``format_routing_address`` (routing.py:75) -- which RAISES ``ValueError`` on a
     malformed guid, so a plausible-but-wrong address can never be emitted. The deck URL is
     host-pinned via ``deck_slug_from_url`` (raises ``LinkOnPlayRefused`` on a foreign host
-    or a slug-less URL). ``clinic`` and ``recipient`` default to their human-fill brackets.
+    or a slug-less URL). ``clinic`` and ``recipient`` default to their human-fill brackets
+    and are rejected fail-closed (``TemplateCommentRefused``) if either carries a newline/CR
+    (a control char would corrupt the Subject/header line -- QA surface 6).
 
     Args:
         office_guid: this office's guid (its Company ID). Canonical lowercase UUID v4.
@@ -169,6 +201,8 @@ def compose_template_comment(
     Returns:
         The composed carrier-email text with the trailing idempotency marker.
     """
+    _reject_control_chars("clinic", clinic)
+    _reject_control_chars("recipient", recipient)
     deck_slug = deck_slug_from_url(deck_url)
     routing_address = format_routing_address(office_guid)
     return _BODY_TEMPLATE.format(
@@ -264,16 +298,33 @@ async def post_template_comment(
 
     Reads precede any write; the sole production mutation is the ``create_comment`` at
     step 6, reached only when ``execute`` is True, no prior marker exists, and the guard
-    passed. Phase-1 is pure-Asana: when ``office_guid`` is omitted it is resolved from the
-    Business Company ID (Option A). Every guard fails closed.
+    passed. Phase-1 is pure-Asana: the office guid is ALWAYS resolved from THIS task's
+    Business Company ID (Option A) so the routing address provably belongs to this PLAY's
+    office. An explicitly-supplied ``office_guid`` is a VERIFICATION, not a bypass -- it must
+    equal the task-resolved guid or the poster refuses fail-closed with
+    :class:`TaskOfficeMismatch` (a mis-paired ``(office_guid, task_gid)`` is the cross-tenant
+    leak). Every guard fails closed.
     """
     # 1. Host pin + slug (reuses deck_slug_from_url; refuses a foreign host / slug-less URL).
     deck_slug = deck_slug_from_url(deck_url)
 
-    # 2. Resolve the office guid pure-Asana from the Business Company ID when not supplied
-    #    (FORK-GUID-SOURCE Option A). The rep/caller never hand-types a guid.
-    if office_guid is None:
-        office_guid = await _resolve_office_guid(asana_client, task_gid=task_gid)
+    # 2. Resolve the office guid FROM THE TASK (FORK-GUID-SOURCE Option A, pure-Asana). This
+    #    runs ALWAYS: the routing address must provably belong to THIS PLAY's own office, so
+    #    the guid is bound to the task, never trusted from a caller argument. When an explicit
+    #    ``office_guid`` is ALSO supplied it is a VERIFICATION, never a bypass -- it MUST equal
+    #    the task-resolved guid or we refuse fail-closed. (The prior explicit-guid short-circuit
+    #    let a mis-paired ``(office_guid, task_gid)`` in a batch loop post one office's routing
+    #    address onto ANOTHER office's PLAY -- the cross-tenant leak. Binding to the task closes
+    #    it: the resolve-from-task path is unchanged; the explicit path can now only VERIFY.)
+    task_office_guid = await _resolve_office_guid(asana_client, task_gid=task_gid)
+    if office_guid is not None and office_guid != task_office_guid:
+        raise TaskOfficeMismatch(
+            f"office_guid does not belong to PLAY {task_gid}: supplied {_mask_guid(office_guid)} "
+            f"but the task resolves to {_mask_guid(task_office_guid)}. Refusing fail-closed — "
+            "posting this address would tell the client to forward bookings into another "
+            "tenant's inbox."
+        )
+    office_guid = task_office_guid
 
     # 3. Compose the carrier body (system-composes the routing line).
     try:
