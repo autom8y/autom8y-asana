@@ -230,7 +230,7 @@ Cross-reference: RISK-015
 ## Abstraction Gap Mapping
 
 - **GAP-001**: Missing `CONSULTATION` variant in `ProcessType` enum. `services/intake_create_service.py:46-48`. Blocks Consultation flow until enum extended.
-- **GAP-002**: Reconciliation section GIDs are unverified placeholders. `reconciliation/section_registry.py:57,79,94,128` with `VERIFY-BEFORE-PROD (SCAR-REG-001)` annotations. 4 locations confirmed.
+- **GAP-002**: ~~Reconciliation section GIDs are unverified placeholders. `reconciliation/section_registry.py:57,79,94,128` with `VERIFY-BEFORE-PROD (SCAR-REG-001)` annotations. 4 locations confirmed.~~ **RESOLVED** `2d7d39d9` #190 (SCAR-REG-001): 19 fabricated placeholder GIDs replaced with live W-IRIS receipt values; 17 live sections wired; `SectionRegistryError` fail-closed gate added; `VERIFY-BEFORE-PROD` annotations removed.
 - **GAP-003**: `TieredCacheProvider` S3 cold tier is Phase 3 — not implemented. Redis-only in factory. EC-003.
 - **GAP-004**: `DataServiceClient` / `autom8y_interop` protocol gaps for reconciliation and export. `automation/workflows/protocols.py:32-61`. TENSION-006.
 - **GAP-005**: Metrics layer Phase 1, section scoping for "offer" only. `metrics/metric.py:28-30`.
@@ -281,7 +281,7 @@ Cross-reference: RISK-015
 
 ## Risk Zone Mapping
 
-- **RISK-001**: Reconciliation placeholder GIDs (SCAR-REG-001). 4 VERIFY-BEFORE-PROD annotations at `section_registry.py:57,79,94,128`. Severity: High.
+- **RISK-001**: ~~Reconciliation placeholder GIDs (SCAR-REG-001). 4 VERIFY-BEFORE-PROD annotations at `section_registry.py:57,79,94,128`. Severity: High.~~ **RESOLVED** `2d7d39d9` #190 (SCAR-REG-001): live W-IRIS GIDs wired; `SectionRegistryError` fail-closed guard replaces all `VERIFY-BEFORE-PROD` annotations. Risk class closed.
 - **RISK-002**: Phantom exclusion rate in reconciliation (TC-4). Severity: Medium.
 - **RISK-003**: Circular import structure — 3 misplaced `lambda_handlers/` modules + TYPE_CHECKING-guarded lazy imports. Severity: Medium.
 - **RISK-004**: `config.py` module-level computation at import time. Severity: Medium.

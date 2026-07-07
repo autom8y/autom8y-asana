@@ -38,8 +38,8 @@ telos:
 
   shipped_definition:
     code_or_artifact_landed:  # LANDED a87ae1ca #161 (2026-07-07 A1 reconcile; anchors re-verified at HEAD f3d8eec1 / branch chore/ledger-truth-convergence-a1)
-      - "src/autom8_asana/dataframes/contracts/field_contract_maps.py:1"          # +335 lines; FieldContract SSOT home
-      - "src/autom8_asana/dataframes/contracts/__init__.py:15"                    # exports FieldContractMap and FieldRequirement
+      - "src/autom8_asana/dataframes/contracts/field_contract_maps.py:1"          # 332 insertions / 3 deletions (file 425 lines at HEAD); FieldContract SSOT home
+      - "src/autom8_asana/dataframes/contracts/__init__.py:15"                    # re-exports DTYPE_MAP, FIELDCLASS_MAP, ConsumerRequirement, ConsumerRequirements, derive_required_columns + 6 further symbols (full __all__ at :29-41)
       - "src/autom8_asana/query/engine.py:263"                                   # contract_complete derivation path (co-derived, DISTINCT sibling)
       - "src/autom8_asana/query/models.py:489"                                   # RowsMeta.contract_complete field declaration
       - "src/autom8_asana/dataframes/contracts/consumer_column_requirements.vendored.json:1"  # vendored consumer manifest

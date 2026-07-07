@@ -51,7 +51,7 @@ Design decisions documented in source comments:
   rather than `services/` to avoid circular dependencies with service modules.
 
 Tradeoffs accepted:
-- Executor live path is wired but never triggered. Section-move reconciliation remains observability-only until SCAR-REG-001 (placeholder GIDs) is resolved.
+- Executor live path is wired but never triggered. Section-move reconciliation remains observability-only. ~~SCAR-REG-001 (placeholder GIDs) is resolved~~ **RESOLVED** `2d7d39d9` #190: live W-IRIS GIDs wired; `SectionRegistryError` fail-closed gate active; section-move remains observability-only by dry_run config, not by GID blocker.
 - `pipeline_summary` is computed ephemerally per warm cycle (not cached) per ADR-pipeline-stage-aggregation Option C.
 
 ## Conceptual Model
@@ -81,13 +81,16 @@ Four excluded sections (Templates, Next Steps, Account Review, Account Error):
 - **DO NOT** substitute `UNIT_CLASSIFIER.ignored` (contains only `{"Templates"}` — misses 3 of 4)
 - This is a load-bearing constraint: `LBC-004` in `.know/design-constraints.md`
 
-### SCAR-REG-001: Unverified Section GIDs (Production Blocker)
+### ~~SCAR-REG-001: Unverified Section GIDs (Production Blocker)~~ RESOLVED `2d7d39d9` #190
 
-All GIDs in `section_registry.py` are sequential placeholders (1201081073731600–1201081073731603
+~~All GIDs in `section_registry.py` are sequential placeholders (1201081073731600–1201081073731603
 for excluded; 1201081073731610–1201081073731624 for unit sections). `_validate_gid_set()` fires at
 module import time, emitting WARNING via `section_registry_gids_appear_fabricated` when sequential
-pattern is detected. Four `VERIFY-BEFORE-PROD` annotations at lines 57, 79, 94, 128. See also
-`EC-007` and `RISK-001` in design-constraints.md.
+pattern is detected. Four `VERIFY-BEFORE-PROD` annotations at lines 57, 79, 94, 128.~~ **RESOLVED**
+`2d7d39d9` #190 (W-REG): 19 fabricated placeholder GIDs (4 excluded + 15 unit) replaced with live
+W-IRIS receipt values; 17 live sections wired via NAME-join. `_looks_sequential` heuristic removed
+(live GIDs have a legitimate consecutive run). `SectionRegistryError` fail-closed guard replaces all
+`VERIFY-BEFORE-PROD` annotations. See also `EC-007` and `RISK-001` in design-constraints.md (both RESOLVED).
 
 ### Excel Workbook Structure (Surface A)
 
@@ -189,7 +192,7 @@ cache_warmer Lambda post-warm
 |-----------|--------|------|
 | `tests/unit/reconciliation/test_processor.py` | `ReconciliationBatchProcessor` — P0-A column contract, P0-B exclusion logic, pipeline primary signal, offer secondary, vertical mismatch fallback, adversarial edge cases | 1640 lines |
 | `tests/unit/reconciliation/test_executor.py` | `execute_actions` dry_run and live paths, dependency injection validation | 320 lines |
-| `tests/unit/reconciliation/test_section_registry.py` | `_validate_gid_set`, `_looks_sequential`, startup warning behavior (SCAR-REG-001) | 301 lines |
+| `tests/unit/reconciliation/test_section_registry.py` | `_validate_gid_set`, live GID set validation, zero-warning assertion post-RESOLVED SCAR-REG-001 (`_looks_sequential` heuristic removed) | 301 lines |
 | `tests/unit/reconciliation/test_contract.py` | Cross-module contract checks | 78 lines |
 | `tests/unit/reconciliation/test_adversarial.py` | Adversarial / edge inputs to processor | 245 lines |
 | `tests/unit/automation/workflows/payment_reconciliation/test_formatter.py` | `ExcelFormatEngine.render()`, `compose_excel()`, `_safe_sum`, `_sanitize_sheet_name` | 329 lines |
@@ -204,7 +207,7 @@ cache_warmer Lambda post-warm
 ### Scope Boundaries ("this feature does NOT")
 
 - **Does NOT execute section moves in production**: `dry_run=True` is hardcoded in `ReconciliationConfig` on every production call path. Live executor requires manual injection of `task_service`, `client`, `project_gid`, `section_name_to_gid`.
-- **Does NOT manage Asana section GIDs directly**: GIDs in `section_registry.py` are sequential placeholders (SCAR-REG-001). No production reconciliation against real GIDs is possible until they are replaced with verified values.
+- **Does NOT execute section moves without explicit live injection**: `dry_run=True` is hardcoded on every production call path. ~~GIDs in `section_registry.py` are sequential placeholders (SCAR-REG-001). No production reconciliation against real GIDs is possible until they are replaced with verified values.~~ **RESOLVED** `2d7d39d9` #190: live W-IRIS GIDs are now wired; the GID blocker is closed.
 - **Does NOT persist `pipeline_summary`**: The aggregation result is ephemeral, computed per-warm-cycle and never written to cache.
 - **Does NOT handle cross-project section name collisions**: `OFFER_ACTIVITY_VALID_UNIT_SECTIONS` maps to unit-project section names; offer sections come from a different Asana project — names are compared only after classification through `AccountActivity`, not by string equality.
 - **Does NOT have a REST API surface**: Both surfaces are Lambda-triggered; no route handlers.
@@ -224,7 +227,7 @@ cache_warmer Lambda post-warm
 
 ### Known Limitations and Constraints
 
-- **SCAR-REG-001** (RISK-001, EC-007): Sequential placeholder GIDs block live deployment. `VERIFY-BEFORE-PROD` at `section_registry.py:57,79,94,128`. Project GID for verification: `1201081073731555`. API: `GET /projects/1201081073731555/sections`.
+- ~~**SCAR-REG-001** (RISK-001, EC-007): Sequential placeholder GIDs block live deployment. `VERIFY-BEFORE-PROD` at `section_registry.py:57,79,94,128`. Project GID for verification: `1201081073731555`. API: `GET /projects/1201081073731555/sections`.~~ **RESOLVED** `2d7d39d9` #190: live W-IRIS GIDs wired; `SectionRegistryError` fail-closed gate active; RISK-001 and GAP-002 in design-constraints.md also closed.
 - **RISK-002**: Phantom exclusion rate. Root cause: pre-P0-A, processor used `section_name` (non-existent column) → all units fell to no-section path → 100% exclusion rate. Fixed. Anomaly detection at 50% threshold guards against regression.
 - **LBC-004**: `EXCLUDED_SECTION_NAMES` in `section_registry.py:109-120` is the authoritative 4-entry list. Do NOT substitute `UNIT_CLASSIFIER.ignored` (1 entry). This is a load-bearing constant (`LBC-004` in design-constraints).
 - **`_business_cache` scope**: Per-run dict on `PaymentReconciliationWorkflow` instance, keyed by `business_gid`. Not persisted across invocations. Used to avoid redundant `ResolutionContext` traversals within one Lambda execution.
@@ -262,7 +265,7 @@ cache_warmer Lambda post-warm
   "surfaces": ["excel-delivery", "section-move-shadow"],
   "source_files": 11,
   "test_files": 9,
-  "production_blocker": "SCAR-REG-001",
+  "production_blocker": null,
   "load_bearing_constants": ["LBC-004"],
   "design_constraints": ["RISK-001", "RISK-002", "EC-007"],
   "feature_flags": ["AUTOM8_RECONCILIATION_ENABLED", "ASANA_RECONCILIATION_SHADOW_ENABLED"],
