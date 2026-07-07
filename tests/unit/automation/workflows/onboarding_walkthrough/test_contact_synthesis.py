@@ -158,9 +158,37 @@ class TestGiiReadBack:
         with pytest.raises(ContactCardRenderError, match="marker"):
             await cs._assert_render_not_escaped("s1", compose_marker(DECK), asana)
 
+    async def test_red_html_text_falsy_raises_not_silent_pass(self) -> None:
+        """C-1 (B3 D-1): read-back with falsy html_text must FAIL-CLOSED, not silently
+        pass off the plain `text` marker. Before the fix the guard verified NOTHING when
+        html_text=None + marker present in text (render unverifiable)."""
+        story = _Story("s1", html_text=None, text=f"posted {compose_marker(DECK)}")
+        asana = _FakeAsana(_FakeStories(readback=story))
+        with pytest.raises(ContactCardRenderError, match="no html_text"):
+            await cs._assert_render_not_escaped("s1", compose_marker(DECK), asana)
+
+    async def test_red_html_text_empty_string_raises(self) -> None:
+        story = _Story("s1", html_text="", text=f"posted {compose_marker(DECK)}")
+        asana = _FakeAsana(_FakeStories(readback=story))
+        with pytest.raises(ContactCardRenderError, match="no html_text"):
+            await cs._assert_render_not_escaped("s1", compose_marker(DECK), asana)
+
     async def test_green1_live_table_with_marker_passes(self) -> None:
         marker = compose_marker(DECK)
         story = _Story("s1", html_text=f"<body><table>...</table>{marker}</body>", text="")
+        asana = _FakeAsana(_FakeStories(readback=story))
+        await cs._assert_render_not_escaped("s1", marker, asana)  # no raise
+
+    async def test_green_benign_augmentation_tolerated(self) -> None:
+        """C-1 preserves the width/data-attr augmentation tolerance (QA proved GREEN):
+        Asana augmenting <table>/<td> with width=... data-cell-widths must NOT trip the
+        guard — only the entity-escaped &lt;table form does."""
+        marker = compose_marker(DECK)
+        augmented = (
+            f'<body><table><tr><td width="120" data-cell-widths="120">x</td></tr>'
+            f"</table>{marker}</body>"
+        )
+        story = _Story("s1", html_text=augmented, text="")
         asana = _FakeAsana(_FakeStories(readback=story))
         await cs._assert_render_not_escaped("s1", marker, asana)  # no raise
 

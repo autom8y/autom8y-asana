@@ -302,10 +302,21 @@ async def _assert_render_not_escaped(
 
     The opt_fields include is load-bearing (build errata D2): WITHOUT ``html_text`` in
     opt_fields Asana omits it and this guard would false-trip. Raises
-    ``ContactCardRenderError`` on either failure (LOUD, never a warning-log; ADR §8 G-ii).
+    ``ContactCardRenderError`` on any failure (LOUD, never a warning-log; ADR §8 G-ii).
+
+    Fail-closed on ABSENT html_text (C-1 / B3 D-1): a falsy read-back ``html_text``
+    verifies NOTHING about the rendered card — passing off the plain ``text`` marker
+    would be a vacuous guard (the silent-wrong-outcome class this primitive exists to
+    make loud). Absent html_text is therefore a LOUD failure, checked FIRST.
     """
     story = await asana_client.stories.get_async(story_gid, opt_fields=["html_text", "text"])
-    html_text = story.html_text or ""
+    html_text = story.html_text
+    if not html_text:
+        raise ContactCardRenderError(
+            "read-back returned no html_text — render unverifiable (Asana may have "
+            "dropped it, or the comment posted as plain text only). The card render "
+            f"cannot be confirmed; refusing to attest. story_gid={story_gid}"
+        )
     if "&lt;table" in html_text or "&lt;ul" in html_text:
         raise ContactCardRenderError(
             "contact card html_text came back entity-escaped (contains '&lt;table' or "
