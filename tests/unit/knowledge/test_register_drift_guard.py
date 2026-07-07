@@ -18,8 +18,9 @@ Zero changes under .know/ or src/; the entire landing is under tests/.
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from tests.unit.knowledge.register_drift_checks import (
     INVARIANT_TABLE,

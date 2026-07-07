@@ -16,8 +16,10 @@ from __future__ import annotations
 import re
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Type alias
@@ -51,7 +53,7 @@ _STRIKETHROUGH_RE = re.compile(r"~~.+?~~")
 
 def detect_scar_narration_drift(
     text: str,
-    scar_ids: Optional[frozenset[str]] = None,
+    scar_ids: frozenset[str] | None = None,
 ) -> DriftResult:
     """
     For every line that:
@@ -209,7 +211,7 @@ def run_detector(detector_name: str, text: str) -> DriftResult:
 # ---------------------------------------------------------------------------
 
 
-def git_is_ancestor(sha: str, repo_root: Path) -> Optional[bool]:
+def git_is_ancestor(sha: str, repo_root: Path) -> bool | None:
     """
     Return True if `sha` is an ancestor of HEAD, False if not, None if the
     SHA is unreachable (shallow clone or branch-only checkout).
@@ -252,7 +254,7 @@ class InvariantRow:
     detector_name: str  # Key in _DETECTOR_MAP
     stale_fixture: str  # Filename under fixtures/drift/
     green_fixture: str  # Filename under fixtures/drift/
-    git_corroboration: Optional[GitCorroboration]
+    git_corroboration: GitCorroboration | None
     revalidate_when: str  # Human note on when to retire/update this row
 
 
