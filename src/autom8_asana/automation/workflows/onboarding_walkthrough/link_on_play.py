@@ -128,8 +128,9 @@ def compose_marker(deck_slug: str) -> str:
 # guid, no routing domain -- egress-clean by construction (locked by test U2).
 _BODY_TEMPLATE = (
     "Onboarding deck is live for this office. To send it to the client, use the "
-    "approved rep email template (rep-onboarding-deck-email-template-2026-07-06.md; "
-    "5 bracketed fields, no recipient inference) and paste this capability link:\n\n"
+    "approved rep email template (rep-onboarding-deck-email-template-v2-2026-07-07.md; "
+    "sender is a constant — Nova / support@contenteapp.com via Intercom, not the rep) "
+    "and paste this capability link:\n\n"
     "{deck_url}\n\n"
     "{marker}"
 )
