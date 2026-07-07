@@ -7,7 +7,7 @@ executed_at: 2026-07-07
 executor: janitor (hygiene rite)
 self_assessment_cap: MODERATE
 branch: chore/ledger-truth-convergence-a1
-head_sha: "verified at branch tip post-edit"
+head_sha: "d798bd6e"
 ---
 
 # RECEIPT — A1 Ledger-Truth Convergence
@@ -122,3 +122,69 @@ grep "NEXT = FORK-R construct" MEMORY.md                                      �
 ## Evidence Grade
 
 `[STRUCTURAL | MODERATE]` — in-lineage self-assessment; eunomia rite-disjoint attestation is the path to STRONG (PT-E, crusade close gate).
+
+---
+
+## FIX-FORWARD — Refuter Breach Resolution (2026-07-07)
+
+**Refuter:** adversarial refuter (hygiene rite)
+**Fix commit:** `d798bd6e` on `chore/ledger-truth-fix-forward` (rebases onto `chore/ledger-truth-convergence-a1` tip `80225b9f`)
+**Attribution ruling:** per `.claude/skills/conventions/SKILL.md:43`, git commit messages carry user-only attribution. AI attribution lives in PR body only (`:44`). No Co-Authored-By in commit messages.
+
+### Breach 1: REGISTER-FALSEHOOD — fm5-column-fidelity.md:42
+
+| | Detail |
+|---|---|
+| **Defect** | Comment annotated `contracts/__init__.py:15` as "exports FieldContractMap and FieldRequirement" — ZERO hits for either symbol in `src/` (verified: `git grep -n "FieldContractMap\|FieldRequirement" -- src/` → empty) |
+| **Root cause** | Fabricated symbol names; actual exports derive from `field_contract_maps.py` |
+| **Fix** | Comment replaced with grep-verified export list: `re-exports DTYPE_MAP, FIELDCLASS_MAP, ConsumerRequirement, ConsumerRequirements, derive_required_columns + 6 further symbols (full __all__ at :29-41)` |
+| **Receipt** | `contracts/__init__.py:15-41` read at HEAD `d798bd6e`; `__all__` lists 11 symbols, all grep-confirmed |
+| **Advisory also fixed** | `+335 lines` corrected to `332 insertions / 3 deletions (file 425 lines at HEAD)` per `wc -l field_contract_maps.py` → 425 |
+
+### Breach 2: COUNT-FALSEHOOD — scar-tissue.md:93,:568
+
+| | Detail |
+|---|---|
+| **Defect** | Both sites said "17 placeholder GIDs replaced" |
+| **Source of truth** | `git show 2d7d39d9` subject/body: "replace 19 fabricated section-GIDs" (4 excluded `...600-603` + 15 unit `...610-624`); 17 live sections wired via W-IRIS receipt |
+| **Fix** | Both sites corrected to: "19 fabricated placeholder GIDs (4 excluded + 15 unit) replaced; 17 live sections wired" |
+| **Receipt** | `git show 2d7d39d9` read in full at fix time; count verified from commit body |
+
+### Breach 3: RESIDUAL SCAR-REG-001 open/blocker narrations outside five-register fence
+
+| Site | Prior state | Fix applied |
+|---|---|---|
+| `.know/design-constraints.md:233` (GAP-002) | "unverified placeholders" — open | Strikethrough + RESOLVED `2d7d39d9` #190 |
+| `.know/design-constraints.md:284` (RISK-001 Severity: High) | "placeholder GIDs... Severity: High" — open | Strikethrough + RESOLVED annotation |
+| `.know/feat/payment-reconciliation.md:54` | "observability-only until SCAR-REG-001... is resolved" | Renarrated: GID blocker gone; dry_run config is now the only barrier |
+| `.know/feat/payment-reconciliation.md:84` | "Production Blocker" section header | Closed: strikethrough + RESOLVED `2d7d39d9` #190 inline |
+| `.know/feat/payment-reconciliation.md:192` | "_looks_sequential, startup warning behavior (SCAR-REG-001)" | Updated: `_looks_sequential` removed in fix; zero-warning assertion is now the test posture |
+| `.know/feat/payment-reconciliation.md:207` | "No production reconciliation... until replaced" | Scope boundary renarrated; GID blocker closed |
+| `.know/feat/payment-reconciliation.md:227` | "Sequential placeholder GIDs block live deployment" | Closed: strikethrough + RESOLVED |
+| `.know/feat/payment-reconciliation.md:265` | `"production_blocker": "SCAR-REG-001"` | Changed to `null` |
+
+### Completeness Sweep Result
+
+`git grep -n 'SCAR-REG-001' -- .know/` at tip `d798bd6e` — 15 hits classified:
+
+| Hit | Classification |
+|---|---|
+| `design-constraints.md:233` | RESOLVED-narration (strikethrough) — CLEAN |
+| `design-constraints.md:284` | RESOLVED-narration (strikethrough) — CLEAN |
+| `payment-reconciliation.md:54` | RESOLVED-narration — CLEAN |
+| `payment-reconciliation.md:84` | RESOLVED section header — CLEAN |
+| `payment-reconciliation.md:195` | Factual test-coverage description (historical ref) — CLEAN |
+| `payment-reconciliation.md:210` | RESOLVED-narration — CLEAN |
+| `payment-reconciliation.md:230` | RESOLVED-narration — CLEAN |
+| `payment-reconciliation.md:265` | `null` (was blocker) — CLEAN |
+| `scar-tissue.md:52` | Factual tag-count reference "(2 refs)" — CLEAN |
+| `scar-tissue.md:54` | Factual tag-count reference "(7 refs)" — CLEAN |
+| `scar-tissue.md:93` | RESOLVED-narration (original A1 fix) — CLEAN |
+| `scar-tissue.md:352` | RESOLVED-narration — CLEAN |
+| `scar-tissue.md:460` | RESOLVED-narration — CLEAN |
+| `scar-tissue.md:480` | Test-file count table (factual) — CLEAN |
+| `scar-tissue.md:541` | RESOLVED-narration — CLEAN |
+| `scar-tissue.md:568` | RESOLVED-narration (count corrected breach 2) — CLEAN |
+| `telos/asana-realization-tail-convergence.md:37,:99` | Historical context describing pre-fix state — CLEAN |
+
+**VERDICT: zero open/blocker narrations remain in .know/**
