@@ -50,9 +50,9 @@ change_reason: >
 v3 replaces the v2 carrier rule *"no `@appointments…` address in the email"* with a
 **three-clause routing-address contract**:
 
-1. **SHOULD-include.** The email SHOULD carry the client's own routing address on a
-   dedicated `Your routing email is:` line — it is the address the client forwards
-   their booking emails to, the one step the walkthrough exists to enable.
+1. **SHOULD-include.** The email SHOULD carry the client's own routing address inline
+   (after `booking inbox: `) — it is the address the client forwards their booking
+   emails to, the one step the walkthrough exists to enable.
 2. **MUST tenant-match.** Every `{uuid}@appointments.contenteapp.com` routing address
    present in the composed text MUST equal `format_routing_address(office_guid)` for
    THIS office's guid. (Present-and-own is the expected state; absent is also
@@ -76,11 +76,11 @@ legitimately carry no address (§4).
 > **System-provided (do NOT type these — anti-fat-finger):**
 > - **Deck link** — the hosted `https://decks.cntently.com/<slug>/` URL from this
 >   clinic's PLAY (the link-on-play comment carries it).
-> - **`Your routing email is:` line** — SYSTEM-COMPOSED from this office's guid via
->   `format_routing_address(office_guid)`. It arrives pre-filled in the
->   template-comment on the PLAY. If you do not see a system-composed routing line,
->   **do not invent one** — a missing line means the guard has not run; escalate,
->   never hand-type a routing address.
+> - **Routing address** — SYSTEM-COMPOSED from this office's guid via
+>   `format_routing_address(office_guid)`. It arrives pre-filled inline (after
+>   `booking inbox: `) in the template-comment on the PLAY. If you do not see a
+>   system-composed routing address, **do not invent one** — a missing address means
+>   the guard has not run; escalate, never hand-type a routing address.
 
 > **Sender constants (P-NOVA, do not change):**
 > Sign-off = **Nova**. Sending address = **support@contenteapp.com** via Intercom.
@@ -100,11 +100,9 @@ legitimately carry no address (§4).
 >
 > → **[DECK LINK]**
 >
-> It covers the one forwarding step that connects your inbound leads to your
-> calendar. For that step, forward your booking emails to your dedicated booking
-> inbox:
->
-> **Your routing email is:** [ROUTING EMAIL — system-composed]
+> For the step that connects your inbound booking notifications to the Contente
+> calendar system, please forward your booking emails to your dedicated booking
+> inbox: **[ROUTING EMAIL — system-composed]**
 >
 > Once that's set, new booking requests flow straight into your scheduling, and
 > we'll confirm it's live with a test booking.
@@ -129,7 +127,7 @@ Three PLAY-comment surfaces exist. v3 changes the rule for **exactly one**.
 |---------|----------------------|----------------------------|---------------|
 | **LINK comment** | `link_on_play.py` `_BODY_TEMPLATE` `:133-140`, `compose_comment_text:143` | No — deck URL + pointer to this template only | **BLANKET no-address STAYS** (`link_on_play.py:225` egress guard; U2 invariant). Unchanged. |
 | **CARD comment** | `contact_synthesis.py` `compose_card:265`, `_egress_guard:291` | No — contact names/emails only | **BLANKET no-address STAYS** (`contact_synthesis.py:299` G-iii). Unchanged. |
-| **TEMPLATE comment** *(new surface)* | NEW `template_comment.py` (build station) | **Yes, by design** — the `Your routing email is:` line | **TENANT-MATCH guard REPLACES the blanket refusal** for this surface only (TDD §Guard). |
+| **TEMPLATE comment** *(new surface)* | NEW `template_comment.py` (build station) | **Yes, by design** — the inline routing address (after `booking inbox: `) | **TENANT-MATCH guard REPLACES the blanket refusal** for this surface only (TDD §Guard). |
 
 The blanket "no routing address" refusal is correct **because those two surfaces
 carry none**. The template surface is the only one that carries the address by
@@ -143,9 +141,9 @@ surface's invariant is weakened.
 - ☐ The link **opens to [CLINIC]'s** guide (open it once; check the clinic name on
   the cover).
 - ☐ It's a **link, not an attachment**.
-- ☐ **The `Your routing email is:` line is present and is SYSTEM-COMPOSED** — it came
-  pre-filled on the PLAY template-comment; you did not type it. *(Replaces the v2
-  "no `@appointments…` address" item.)*
+- ☐ **The routing address is present and is SYSTEM-COMPOSED** — it came pre-filled
+  inline (after `booking inbox: `) on the PLAY template-comment; you did not type it.
+  *(Replaces the v2 "no `@appointments…` address" item.)*
 - ☐ **The routing address is THIS office's own.** Confirm the local-part (the part
   before `@`) matches this office's guid as shown on the PLAY template-comment. If it
   differs, or if two different `@appointments…` addresses appear, **STOP** — that is a
@@ -163,7 +161,7 @@ surface's invariant is weakened.
 - **Include the routing address** — the client cannot complete the forwarding step
   without it. Withholding it (v1/v2) meant the client had to hunt inside the deck for
   the one address the whole email exists to deliver. The send-day ratification made
-  the address a first-class, labelled line.
+  the address a first-class inline inclusion in the email body.
 - **System composes it, never the rep** — a hand-typed routing address is one
   transposed hex digit away from silently routing another clinic's bookings. The SDK
   helper `format_routing_address(office_guid)` (`routing.py:75`) derives it
@@ -193,7 +191,7 @@ system-side:
 2. Compose `own = format_routing_address(office_guid)` (`routing.py:75`). For Sand
    Lake this is `1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com`
    (live-verified, TDD §Evidence).
-3. Inject `own` into the `Your routing email is:` line of the composed comment text.
+3. Inject `own` inline (after `booking inbox: `) into the composed comment text.
 4. **Guard before posting:** harvest every routing address in the composed text and
    refuse fail-closed if any ≠ `own` (§1 clause 3). Only then post the comment.
 

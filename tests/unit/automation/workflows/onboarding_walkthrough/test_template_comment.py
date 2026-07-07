@@ -77,12 +77,9 @@ GOLDEN_SAND_LAKE = (
     "\n"
     "→ https://decks.cntently.com/207688021de88a6d7231e1d08ea77a85/\n"
     "\n"
-    "It covers the one forwarding step that connects your inbound leads to your "
-    "calendar. For that step, forward your booking emails to your dedicated booking "
-    "inbox:\n"
-    "\n"
-    "Your routing email is: 1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments."
-    "contenteapp.com\n"
+    "For the step that connects your inbound booking notifications to the Contente "
+    "calendar system, please forward your booking emails to your dedicated booking "
+    "inbox: 1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com\n"
     "\n"
     "Once that's set, new booking requests flow straight into your scheduling, and "
     "we'll confirm it's live with a test booking.\n"
@@ -172,10 +169,13 @@ class TestTenantMatchGuard:
 
 class TestCompose:
     def test_cs1_routing_line_url_marker_and_guard_passes(self) -> None:
-        """CS-1: compose injects the system-composed routing line (own), the deck URL, and
-        the DISTINCT rep-template marker — and the composed text passes the guard (GREEN-1)."""
+        """CS-1: compose injects the system-composed routing address (own) INLINE after
+        "booking inbox: ", the deck URL, and the DISTINCT rep-template marker. The v3 copy
+        simplification drops the old "Your routing email is:" label (regression guard); the
+        address still rides inline so the tenant-match guard harvests it and passes (GREEN-1)."""
         text = compose_template_comment(office_guid=SAND_LAKE_GUID, deck_url=DECK_URL)
-        assert f"Your routing email is: {OWN}" in text
+        assert f"booking inbox: {OWN}" in text
+        assert "Your routing email is:" not in text
         assert DECK_URL in text
         assert MARKER in text
         # the composed text is tenant-clean for THIS office (crown-jewel holds end-to-end)
@@ -196,7 +196,7 @@ class TestCompose:
         text = compose_template_comment(office_guid=SAND_LAKE_GUID, deck_url=DECK_URL)
         assert "[CLINIC]" in text
         assert "Hi [RECIPIENT]," in text
-        assert f"Your routing email is: {OWN}" in text
+        assert f"booking inbox: {OWN}" in text
 
     def test_compose_malformed_guid_raises_valueerror(self) -> None:
         """A malformed office guid cannot compose a routing line — format_routing_address
@@ -230,7 +230,7 @@ class TestPoster:
         assert result.story_gid is None
         assert result.office_guid == SAND_LAKE_GUID
         assert result.deck_slug == SLUG
-        assert f"Your routing email is: {OWN}" in result.comment_text
+        assert f"booking inbox: {OWN}" in result.comment_text
         assert MARKER in result.comment_text
         client.stories.create_comment_async.assert_not_awaited()
 
@@ -246,7 +246,7 @@ class TestPoster:
         client.stories.create_comment_async.assert_awaited_once()
         _, kwargs = client.stories.create_comment_async.await_args
         assert kwargs["task"] == TASK_GID
-        assert f"Your routing email is: {OWN}" in kwargs["text"]
+        assert f"booking inbox: {OWN}" in kwargs["text"]
         assert MARKER in kwargs["text"]
         client.stories.get_async.assert_awaited_once()
 
@@ -374,7 +374,7 @@ class TestOfficeGuidResolution:
                 client, task_gid=TASK_GID, deck_url=DECK_URL, execute=False
             )
         assert result.office_guid == SAND_LAKE_GUID
-        assert f"Your routing email is: {OWN}" in result.comment_text
+        assert f"booking inbox: {OWN}" in result.comment_text
         client.stories.create_comment_async.assert_not_awaited()
 
     async def test_no_office_phone_refuses_loudly(self) -> None:

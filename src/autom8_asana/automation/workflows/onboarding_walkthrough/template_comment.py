@@ -94,11 +94,9 @@ _BODY_TEMPLATE = (
     "\n"
     "→ {deck_url}\n"
     "\n"
-    "It covers the one forwarding step that connects your inbound leads to your "
-    "calendar. For that step, forward your booking emails to your dedicated booking "
-    "inbox:\n"
-    "\n"
-    "Your routing email is: {routing_address}\n"
+    "For the step that connects your inbound booking notifications to the Contente "
+    "calendar system, please forward your booking emails to your dedicated booking "
+    "inbox: {routing_address}\n"
     "\n"
     "Once that's set, new booking requests flow straight into your scheduling, and "
     "we'll confirm it's live with a test booking.\n"
@@ -156,7 +154,7 @@ def compose_template_comment(
 ) -> str:
     """Compose the exact v3 carrier body for ``office_guid`` + ``deck_url``.
 
-    The ``Your routing email is:`` line is SYSTEM-COMPOSED from the office guid via
+    The inline routing address is SYSTEM-COMPOSED from the office guid via
     ``format_routing_address`` (routing.py:75) -- which RAISES ``ValueError`` on a
     malformed guid, so a plausible-but-wrong address can never be emitted. The deck URL is
     host-pinned via ``deck_slug_from_url`` (raises ``LinkOnPlayRefused`` on a foreign host

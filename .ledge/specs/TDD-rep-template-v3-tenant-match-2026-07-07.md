@@ -87,7 +87,7 @@ workflow modules). Mirrors the `link_on_play` shape exactly:
 
 - `compose_template_comment(*, office_guid, deck_url, recipient="[RECIPIENT]") -> str`
   — builds the v3 email body (spec §3) with `own = format_routing_address(office_guid)`
-  injected on the `Your routing email is:` line + a DISTINCT idempotency marker
+  injected inline (after `booking inbox: `) + a DISTINCT idempotency marker
   `[autom8y:rep-template deck={slug}]` (marker-prefix distinct from
   `link_on_play.py:56` `autom8y:link-on-play` and `contact_synthesis.py:76`
   `autom8y:contact-card`, so all three PLAY comments never collide).
@@ -153,7 +153,7 @@ subset predicate is the unique shape that satisfies all six rows.
 
 | # | Case | Expected |
 |---|------|----------|
-| **CS-1** | `compose_template_comment(office_guid=1b271a63-…, deck_url=…/207688021…/)` | body contains `Your routing email is: OWN`; contains the deck URL; contains marker `[autom8y:rep-template deck=207688021de88a6d7231e1d08ea77a85]`; `assert_template_tenant_match` passes (GREEN-1). |
+| **CS-1** | `compose_template_comment(office_guid=1b271a63-…, deck_url=…/207688021…/)` | body contains `booking inbox: OWN` (address inline; the old `Your routing email is:` label is GONE); contains the deck URL; contains marker `[autom8y:rep-template deck=207688021de88a6d7231e1d08ea77a85]`; `assert_template_tenant_match` passes (GREEN-1). |
 | **CS-2** | `post_template_comment(..., execute=False)` (dry-run) | composes + prints; **no `create_comment`**; guard runs at step-4 position. |
 | **CS-3** | idempotency: PLAY already carries the `autom8y:rep-template deck={slug}` marker | outcome `skipped_existing`; no second comment (mirrors `link_on_play.py:235-245`). |
 | **CS-4** | a build/config drift injects a FOREIGN address into the body before post | `post_template_comment` raises `TemplateTenantMismatch`; **no post** (the guard is upstream of `create_comment`, exactly like `link_on_play.py:225` precedes `:249`). |
@@ -190,9 +190,7 @@ Thanks for getting Sand Lake Dental started. To bring your calendar integration 
 
 → https://decks.cntently.com/207688021de88a6d7231e1d08ea77a85/
 
-It covers the one forwarding step that connects your inbound leads to your calendar. For that step, forward your booking emails to your dedicated booking inbox:
-
-Your routing email is: 1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com
+For the step that connects your inbound booking notifications to the Contente calendar system, please forward your booking emails to your dedicated booking inbox: 1b271a63-33ff-4135-a92d-f1ef0eeea062@appointments.contenteapp.com
 
 Once that's set, new booking requests flow straight into your scheduling, and we'll confirm it's live with a test booking.
 
