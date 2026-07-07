@@ -10,6 +10,7 @@ Design rationale (RATIFIED FORK PT-A-FORK):
   Teeth live in pure-function-over-text detectors so that a broken fixture
   INPUT — never a broken production surface — produces the RED state.
 """
+
 from __future__ import annotations
 
 import re
@@ -46,6 +47,7 @@ _STRIKETHROUGH_RE = re.compile(r"~~.+?~~")
 # ---------------------------------------------------------------------------
 # Predicate 1 — SCAR narration drift
 # ---------------------------------------------------------------------------
+
 
 def detect_scar_narration_drift(
     text: str,
@@ -90,6 +92,7 @@ def detect_scar_narration_drift(
 # Predicate 2 — fm5 telos: shipped MUST NOT be MISSING
 # ---------------------------------------------------------------------------
 
+
 def detect_telos_shipped_not_missing(text: str) -> DriftResult:
     """
     The fm5-column-fidelity telos has attestation_status.shipped == LANDED.
@@ -119,6 +122,7 @@ def detect_telos_shipped_not_missing(text: str) -> DriftResult:
 # ---------------------------------------------------------------------------
 # Predicate 3 — seam2 telos: shipped MUST be MISSING
 # ---------------------------------------------------------------------------
+
 
 def detect_telos_shipped_must_be_missing(text: str) -> DriftResult:
     """
@@ -159,15 +163,13 @@ def detect_defer_watch_promotion_entry(text: str) -> DriftResult:
     violations: DriftResult = []
     if _PROMOTION_ID not in text:
         violations.append(
-            f"Entry id '{_PROMOTION_ID}' absent from defer-watch — "
-            "entry omitted or id tampered"
+            f"Entry id '{_PROMOTION_ID}' absent from defer-watch — entry omitted or id tampered"
         )
         # No point checking sub-fields if the entry is entirely absent.
         return violations
     if _PROMOTION_STATUS not in text:
         violations.append(
-            f"Entry status '{_PROMOTION_STATUS}' not found — "
-            "status field tampered or changed"
+            f"Entry status '{_PROMOTION_STATUS}' not found — status field tampered or changed"
         )
     if _PROMOTION_TRIGGER not in text:
         violations.append(
@@ -206,6 +208,7 @@ def run_detector(detector_name: str, text: str) -> DriftResult:
 # Git corroboration helper (guarded — SKIP, not FAIL, when SHA is unreachable)
 # ---------------------------------------------------------------------------
 
+
 def git_is_ancestor(sha: str, repo_root: Path) -> Optional[bool]:
     """
     Return True if `sha` is an ancestor of HEAD, False if not, None if the
@@ -235,6 +238,7 @@ def git_is_ancestor(sha: str, repo_root: Path) -> Optional[bool]:
 # INVARIANT_TABLE — one row per guarded claim
 # ---------------------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class GitCorroboration:
     landing_sha: str
@@ -244,12 +248,12 @@ class GitCorroboration:
 @dataclass(frozen=True)
 class InvariantRow:
     claim_id: str
-    register_path: str          # Relative to repo root
-    detector_name: str          # Key in _DETECTOR_MAP
-    stale_fixture: str          # Filename under fixtures/drift/
-    green_fixture: str          # Filename under fixtures/drift/
+    register_path: str  # Relative to repo root
+    detector_name: str  # Key in _DETECTOR_MAP
+    stale_fixture: str  # Filename under fixtures/drift/
+    green_fixture: str  # Filename under fixtures/drift/
     git_corroboration: Optional[GitCorroboration]
-    revalidate_when: str        # Human note on when to retire/update this row
+    revalidate_when: str  # Human note on when to retire/update this row
 
 
 INVARIANT_TABLE: list[InvariantRow] = [

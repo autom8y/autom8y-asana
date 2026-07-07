@@ -15,6 +15,7 @@ Two-sided contract (discriminating-canary doctrine):
 G-THEATER impossibility: `git diff origin/main..HEAD -- ':!tests/**'` is EMPTY.
 Zero changes under .know/ or src/; the entire landing is under tests/.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -41,6 +42,7 @@ pytestmark = pytest.mark.scar
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _read_fixture(name: str) -> str:
     path = _FIXTURE_DIR / name
     assert path.exists(), f"Fixture file missing: {path}"
@@ -49,16 +51,14 @@ def _read_fixture(name: str) -> str:
 
 def _read_register(row: InvariantRow) -> str:
     path = _REPO_ROOT / row.register_path
-    assert path.exists(), (
-        f"Register file missing from repo: {path}\n"
-        f"  (row: {row.claim_id})"
-    )
+    assert path.exists(), f"Register file missing from repo: {path}\n  (row: {row.claim_id})"
     return path.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
 # Meta-vacuity guard
 # ---------------------------------------------------------------------------
+
 
 def test_every_invariant_row_is_two_sided() -> None:
     """
@@ -83,6 +83,7 @@ def test_every_invariant_row_is_two_sided() -> None:
 # ---------------------------------------------------------------------------
 # Two-sided parametrized keystone
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.parametrize("row", INVARIANT_TABLE, ids=[r.claim_id for r in INVARIANT_TABLE])
 def test_stale_fixture_produces_drift(row: InvariantRow) -> None:
@@ -136,6 +137,7 @@ def test_real_register_produces_no_drift(row: InvariantRow) -> None:
 # Git corroboration (guarded — SKIP not FAIL when SHA is unreachable)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.parametrize(
     "row",
     [r for r in INVARIANT_TABLE if r.git_corroboration is not None],
@@ -179,8 +181,7 @@ def test_git_corroboration(row: InvariantRow) -> None:
         # If SHA is an ancestor, the work has landed → content must be clean.
         assert content_clean, (
             f"[{row.claim_id}] git says {gc.landing_sha!r} is an ancestor (work landed) "
-            f"but content detector finds drift:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+            f"but content detector finds drift:\n" + "\n".join(f"  - {v}" for v in violations)
         )
     # Note: for expected_ancestry=False (seam2), content detector should show MISSING
     # which is also clean (no violations). We don't need a separate assertion here
@@ -190,6 +191,7 @@ def test_git_corroboration(row: InvariantRow) -> None:
 # ---------------------------------------------------------------------------
 # Substance-not-shape: unfaithful positive control
 # ---------------------------------------------------------------------------
+
 
 def test_unfaithful_positive_control_is_rejected() -> None:
     """
@@ -217,6 +219,7 @@ def test_unfaithful_positive_control_is_rejected() -> None:
 # fm5 hardening: commented MISSING value must be caught (trailing-comment gap)
 # ---------------------------------------------------------------------------
 
+
 def test_fm5_shipped_missing_with_trailing_comment_is_caught() -> None:
     """
     Hardened fm5 detector: 'shipped: MISSING  # trailing comment' MUST return
@@ -240,6 +243,7 @@ def test_fm5_shipped_missing_with_trailing_comment_is_caught() -> None:
 # Scoped non-false-positive: different scar id must not trigger
 # ---------------------------------------------------------------------------
 
+
 def test_different_scar_id_does_not_trigger() -> None:
     """
     The predicate is scoped to enumerated resolved scar-IDs only.
@@ -261,6 +265,7 @@ def test_different_scar_id_does_not_trigger() -> None:
 # ---------------------------------------------------------------------------
 # Lane membership self-check
 # ---------------------------------------------------------------------------
+
 
 def test_scar_marker_not_excluded_from_ci() -> None:
     """
