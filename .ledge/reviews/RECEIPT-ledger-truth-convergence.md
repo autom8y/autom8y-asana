@@ -7,7 +7,7 @@ executed_at: 2026-07-07
 executor: janitor (hygiene rite)
 self_assessment_cap: MODERATE
 branch: chore/ledger-truth-convergence-a1
-head_sha: "85b82920"
+head_sha: "50dfe619"  # audited content tip; the round-5 receipt-correction commit is its direct child (metadata-only)
 ---
 
 # RECEIPT — A1 Ledger-Truth Convergence
@@ -262,7 +262,7 @@ grep "NEXT = FORK-R construct" MEMORY.md                                      �
 ## FIX-FORWARD — Round 3 Refuter Breach Resolution (2026-07-07)
 
 **Refuter:** adversarial refuter (hygiene rite) — third-pass delta critique
-**Fix commit:** `9d595505` on `chore/ledger-truth-convergence-a1-round2`
+**Fix commit:** `9d595505` on `chore/ledger-truth-convergence-a1-round2` (its birth branch; now an ancestor of `chore/ledger-truth-convergence-a1` via the round-5 fast-forward)
 **Attribution ruling:** per `.claude/skills/conventions/SKILL.md:43`, git commit messages carry user-only attribution.
 
 ### Breach 1 (R3): RISK-008 OPEN-NARRATION — design-constraints.md:291
@@ -364,10 +364,24 @@ Tokens swept after Round 4 fixes applied: `SCAR-REG-001`, `placeholder GID`, `se
 |---|---|---|
 | `SCAR-REG-001` | 18 hits | All RESOLVED-narration / factual-historical / tag-count — CLEAN |
 | `placeholder GID` | 8 hits | All within `~~...~~` strikethrough + RESOLVED narrations — CLEAN |
-| `sequential placeholder` | 4 hits | All within `~~...~~` strikethrough + RESOLVED narrations — CLEAN |
+| `sequential placeholder` | 6 hits case-insensitive / 4 case-sensitive (`git grep -in "sequential placeholder" -- .know/`; the +2 are capitalized "Sequential" at `scar-tissue.md:566`, `feat/payment-reconciliation.md:230`) | All 6 within `~~...~~` strikethrough + RESOLVED narrations — CLEAN |
 | `VERIFY-BEFORE-PROD` | 7 lines | 6 within `~~...~~` strikethrough or RESOLVED narrations; `scar-tissue.md:436` = factual-historical (reporting `git grep` → 0 hits in `src/`; documents token's absence) — CLEAN |
 | `production API verification` | 1 hit (`design-constraints.md:268`, RESOLVED narration) | RESOLVED-narration — CLEAN |
 | `unverified.*GID` | 4 hits (`scar-tissue.md:93,:460`; `design-constraints.md:233`; `feat/payment-reconciliation.md:84`) | All within `~~...~~` strikethrough + RESOLVED narrations — CLEAN |
 | `SCAR-IDEM-001` open narrations | 0 after Round 4 fixes | CLEAN |
 
 **VERDICT (Round 4): zero open/blocker narrations remain in .know/**
+
+## Round 5 — Receipt-integrity correction + branch-topology heal (2026-07-07, session main thread)
+
+Trivial-mechanical scope. Every count below is pasted from verbatim command output, not hand-summarized.
+
+| Defect (round-4 refuter / PT-A1 re-gate blocker) | Correction | Receipt |
+|---|---|---|
+| Sweep row claimed `sequential placeholder \| 4 hits` under the table's declared case-insensitive method; actual is 6 | Row corrected to 6 case-insensitive / 4 case-sensitive with the exact command inline | `git grep -in "sequential placeholder" 50dfe619 -- .know/` -> 6 lines: `payment-reconciliation.md:86,:210,:230`; `scar-tissue.md:93,:460,:566` — all inside `~~...~~`+RESOLVED narrations (no semantic breach) |
+| Rounds 3-4 commits (`85b82920`, `50dfe619`) stranded on `chore/ledger-truth-convergence-a1-round3`; frontmatter (branch, head_sha) tuple false against the PR branch | `chore/ledger-truth-convergence-a1` fast-forwarded `3ee045e3..50dfe619` (ancestry pre-verified); PR #204 tip now `50dfe619`; frontmatter `head_sha` set to `50dfe619` | `git push origin 50dfe619:refs/heads/chore/ledger-truth-convergence-a1` (fast-forward); `gh pr view 204` -> tip `50dfe619` |
+| Stray branches `...-a1-round2` (`68102dd6`) and `...-a1-round3` (`50dfe619`) remain on origin | Both verified fully-merged ancestors of the a1 tip; left for OPERATOR deletion (outward-destructive action, not taken autonomously) | `git merge-base --is-ancestor` -> ancestor, both |
+
+All other sweep-table rows re-verified verbatim this round at `50dfe619`: `SCAR-REG-001` 18 · `placeholder GID` 8 · `VERIFY-BEFORE-PROD` 7 · `production API verification` 1 · `unverified.*GID` 4 — each matches its claimed count.
+
+**VERDICT (Round 5): sweep table matches verbatim grep output; branch topology healed; frontmatter tuple true.**
