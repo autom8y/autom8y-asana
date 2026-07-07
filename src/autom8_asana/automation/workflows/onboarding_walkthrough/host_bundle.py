@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import re
+import secrets
 import sys
 from pathlib import Path
 
@@ -73,6 +74,31 @@ class HostBundleError(Exception):
 
 class BundleParityError(HostBundleError):
     """Served/staged bytes do not hash-match the frozen artifact (drift REJECTED)."""
+
+
+def mint_slug() -> str:
+    """Mint a fresh capability slug: 32 lowercase hex chars (128-bit CSPRNG token).
+
+    The net-new SLUG-1 mint the repo lacked (``stage_deck_bundle`` only ever *consumed*
+    a pre-minted ``--slug``; no module minted one). ``secrets.token_hex(16)`` draws 16
+    CSPRNG bytes and renders them as 32 lowercase hex chars -- exactly the :data:`_SLUG_RE`
+    shape the deploy-root staging gate refuses anything else against, and structurally
+    disjoint from every identity encoding (guid dashes, mailbox ``@``, client name).
+
+    The minted slug MUST be pinned in the office manifest and REUSED on any re-run: a
+    re-mint would orphan the already-deployed deck at the prior slug (SLUG-1 hazard).
+
+    Returns:
+        A fresh 32-lowercase-hex capability slug.
+
+    Raises:
+        HostBundleError: defensive -- if a future stdlib change ever yielded a
+            non-``_SLUG_RE`` token, fail closed rather than emit a mis-shaped slug.
+    """
+    slug = secrets.token_hex(16)
+    if not _SLUG_RE.fullmatch(slug):  # pragma: no cover - token_hex(16) is 32 lowercase hex
+        raise HostBundleError(f"minted slug failed shape validation: {slug!r}")
+    return slug
 
 
 def sha256_file(path: Path) -> str:
