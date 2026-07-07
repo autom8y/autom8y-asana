@@ -143,7 +143,7 @@ RFC 8791 implementation. **4 eligible endpoints**:
 5. Key finalized with same fingerprint: replay stored response with `X-Idempotent-Replayed: true`
 6. New key: claim → execute → finalize → echo `Idempotency-Key` header
 
-**DynamoDB key schema**: `pk = {service}#{key}`, `sk = {METHOD}#{path_template}`, `ttl = epoch + 86400s`. Body: `asyncio.to_thread()` wraps synchronous boto3 client. Finalize failure risk: SCAR-IDEM-001 — if `finalize()` fails, key is not persisted; client retry re-executes mutation.
+**DynamoDB key schema**: `pk = {service}#{key}`, `sk = {METHOD}#{path_template}`, `ttl = epoch + 86400s`. Body: `asyncio.to_thread()` wraps synchronous boto3 client. ~~Finalize failure risk: SCAR-IDEM-001 — if `finalize()` fails, key is not persisted; client retry re-executes mutation.~~ **RESOLVED** `f795d7dc` #149 (W-IDEM, 2026-06-24): finalize bool is now read; raise coerced to `finalized=False`; S2S strict-once callers receive hard 500 at `idempotency.py:803-830` (R-IDEM-2). See `scar-tissue.md:408`.
 
 **Graceful degradation**: DynamoDB unavailable at construction → `NoopIdempotencyStore` (passthrough). Store failure at claim/get time → execute with `X-Idempotent-Degraded: true` header.
 
@@ -222,7 +222,7 @@ All error responses include `request_id` from `request.state.request_id`. `raise
 3. **Router registration order** — `intake_resolve_router` BEFORE `resolver_router`; `fleet_query_router_*` and `exports_router_*` BEFORE `query_router` (LBC-011, TENSION-009; FastAPI matches first registration)
 4. **`_PooledClientWrapper.aclose()` is no-op** — prevents FastAPI dependency teardown from closing pooled client state
 5. **Cascade ordering fail-fast** — `validate_cascade_ordering()` at step 13 raises `ValueError` on `warm_priority` graph conflict; `WarmupOrderingError` in preload is NEVER caught by `BROAD-CATCH` handlers
-6. **Idempotency finalize failure risk** — SCAR-IDEM-001: if `finalize()` throws, key is NOT persisted; client retry will re-execute mutation (acceptable for idempotent callers; risk for strict-once S2S)
+6. ~~**Idempotency finalize failure risk** — SCAR-IDEM-001: if `finalize()` throws, key is NOT persisted; client retry will re-execute mutation (acceptable for idempotent callers; risk for strict-once S2S)~~ **RESOLVED** `f795d7dc` #149: finalize bool checked; S2S callers receive hard 500 (`IDEMPOTENCY_KEY_NOT_PERSISTED`) at `idempotency.py:803-830` (R-IDEM-2). Double-execution risk for S2S closed.
 7. **PAT route exclusions** — PAT route tree paths MUST be in `jwt_auth_config.exclude_paths` (SCAR-WS8); omission causes JWT middleware to reject valid PAT requests
 8. **`ExportOptions.extra="allow"`** — P1-C-02 BINDING; must NOT change to `"forbid"` (TENSION-010; Phase 2 `predicate_join_semantics` escape valve)
 
@@ -234,7 +234,7 @@ All error responses include `request_id` from `request.state.request_id`. `raise
 | SCAR-011/011b | `api/routes/health.py` | `/health` vs `/ready` confusion causes ECS health check misconfiguration |
 | SCAR-015 | `api/routes/section_timelines.py` (resolved) | Per-request Asana I/O exceeded ALB 60s at ~3,800 offers |
 | SCAR-022 | `Dockerfile` | `uv sync --frozen --no-sources` incompatible with uv >=0.15.4; resolved by constraint |
-| SCAR-IDEM-001 | `api/middleware/idempotency.py:719` | `finalize()` exception silently swallowed; retry re-executes mutation |
+| ~~SCAR-IDEM-001~~ | ~~`api/middleware/idempotency.py:719`~~ | ~~`finalize()` exception silently swallowed; retry re-executes mutation~~ **RESOLVED** `f795d7dc` #149 (W-IDEM, 2026-06-24): finalize bool read; `emit_metric("IdempotencyFinalizeFailure")` at `:787-792`; S2S hard 500 at `:803-830` (R-IDEM-2). Stale anchor `:719` was replay-header code. |
 | SCAR-WS8 | `api/main.py:389` (active) | PAT route trees require explicit `jwt_auth_config.exclude_paths` entries |
 
 ### Design Tensions

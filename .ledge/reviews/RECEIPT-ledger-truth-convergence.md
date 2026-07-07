@@ -7,7 +7,7 @@ executed_at: 2026-07-07
 executor: janitor (hygiene rite)
 self_assessment_cap: MODERATE
 branch: chore/ledger-truth-convergence-a1
-head_sha: "9d595505"
+head_sha: "PENDING-R4"
 ---
 
 # RECEIPT — A1 Ledger-Truth Convergence
@@ -331,9 +331,43 @@ Tokens swept: `SCAR-REG-001`, `placeholder GID`, `sequential placeholder`, `VERI
 | `SCAR-REG-001` | 18 hits | All RESOLVED-narration / factual-historical / tag-count — CLEAN |
 | `placeholder GID` | 1 hit (`payment-reconciliation.md:90`) | RESOLVED-narration (already struck) — CLEAN |
 | `sequential placeholder` | 0 hits | CLEAN |
-| `VERIFY-BEFORE-PROD` | 6 hits (all in struck-through text or RESOLVED narrations) | All within `~~...~~` strikethrough or RESOLVED sections — CLEAN |
+| `VERIFY-BEFORE-PROD` | ~~6 hits (all in struck-through text or RESOLVED narrations)~~ **CORRECTION (Round 4): 7 lines** — sweep missed `scar-tissue.md:436` (factual-historical: reporting 0-hit evidence from `git grep`; neither struck nor RESOLVED narration, but not an open risk) | CLEAN after classification |
 | `production API verification` | 0 unresolved hits | CLEAN |
-| `unverified.*GID` | 0 hits | CLEAN |
-| `SCAR-IDEM-001` open narrations | 0 after this round's fixes | CLEAN |
+| `unverified.*GID` | ~~0 hits~~ **CORRECTION (Round 4): 4 hits** (`scar-tissue.md:93`, `scar-tissue.md:460`, `design-constraints.md:233`, `feat/payment-reconciliation.md:84`) — all within `~~...~~` strikethrough + RESOLVED narrations | RESOLVED-narration — CLEAN |
+| `SCAR-IDEM-001` open narrations | ~~0 after this round's fixes~~ **CORRECTION (Round 4): 4+ surviving open narrations** (`fastapi-server.md:146,:225,:237`; `exports-route.md:235`) — fixed in Round 4 | CLEAN after Round 4 fixes |
 
-**VERDICT (Round 3): zero open/blocker narrations remain in .know/**
+~~**VERDICT (Round 3): zero open/blocker narrations remain in .know/**~~ **RETRACTED** — Round 4 adversarial review found 4 surviving SCAR-IDEM-001 open narrations; see Round 4 FIX-FORWARD below.
+
+---
+
+### Round 4 FIX-FORWARD (delta-scope per critique-iteration-protocol)
+
+Breaches surfaced by adversarial refuter at tip `68102dd6`:
+
+| Breach | Location | Defect | Fix |
+|---|---|---|---|
+| B-R4-1 | `feat/fastapi-server.md:237` | Active Scars table asserts SCAR-IDEM-001 OPEN with stale anchor `:719` | Strikethrough row + RESOLVED citing `f795d7dc`; anchor corrected to `:787-792,:803-830` |
+| B-R4-2 | `feat/fastapi-server.md:225` | Critical Invariants #6 narrates SCAR-IDEM-001 as open risk | Strikethrough + RESOLVED citing `f795d7dc` R-IDEM-2 |
+| B-R4-3 | `feat/fastapi-server.md:146` | DynamoDB key schema sentence narrates open finalize failure risk | Strikethrough + RESOLVED citing `f795d7dc` |
+| B-R4-4 | `exports-route.md:235` | Idempotency finalize exception section narrated open with stale anchor `:719` | Strikethrough + RESOLVED citing `f795d7dc` |
+| B-R4-5 | `design-constraints.md:253` | LBC-009 "SCAR-IDEM-001 carries double-execution risk at line 384"; anchors `:277,:339,:384,:404` all off-by-one | RESOLVED stamp added to SCAR-IDEM-001 sentence; anchors corrected to `:278,:340,:385,:405` |
+| B-R4-6 | RECEIPT:337 | "SCAR-IDEM-001 open narrations — 0 after this round's fixes — CLEAN" — false; 4+ survived | Corrected with CORRECTION marker + retracted verdict |
+| B-R4-7 | RECEIPT:334 | "VERIFY-BEFORE-PROD — 6 hits" — sweep missed `scar-tissue.md:436`; actual 7 lines | Corrected count; `scar-tissue.md:436` classified factual-historical |
+| B-R4-8 | RECEIPT:336 | "unverified.*GID — 0 hits" — actual 4 hits (all struck/RESOLVED) | Corrected count; all classified RESOLVED-narration |
+| B-R4-9 | RECEIPT:339 | VERDICT "zero open/blocker narrations remain" — false | Retracted; Round 4 fixes close the remaining narrations |
+
+### Round 4 Widened Semantic Sweep (post-fix)
+
+Tokens swept after Round 4 fixes applied: `SCAR-REG-001`, `placeholder GID`, `sequential placeholder`, `VERIFY-BEFORE-PROD`, `production API verification`, `unverified.*GID` (case-insensitive).
+
+| Token | Hits in .know/ | Classification |
+|---|---|---|
+| `SCAR-REG-001` | 18 hits | All RESOLVED-narration / factual-historical / tag-count — CLEAN |
+| `placeholder GID` | 8 hits | All within `~~...~~` strikethrough + RESOLVED narrations — CLEAN |
+| `sequential placeholder` | 4 hits | All within `~~...~~` strikethrough + RESOLVED narrations — CLEAN |
+| `VERIFY-BEFORE-PROD` | 7 lines | 6 within `~~...~~` strikethrough or RESOLVED narrations; `scar-tissue.md:436` = factual-historical (reporting `git grep` → 0 hits in `src/`; documents token's absence) — CLEAN |
+| `production API verification` | 1 hit (`design-constraints.md:268`, RESOLVED narration) | RESOLVED-narration — CLEAN |
+| `unverified.*GID` | 4 hits (`scar-tissue.md:93,:460`; `design-constraints.md:233`; `feat/payment-reconciliation.md:84`) | All within `~~...~~` strikethrough + RESOLVED narrations — CLEAN |
+| `SCAR-IDEM-001` open narrations | 0 after Round 4 fixes | CLEAN |
+
+**VERDICT (Round 4): zero open/blocker narrations remain in .know/**
