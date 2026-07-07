@@ -378,3 +378,85 @@
     - .know/telos/seam2-consumer-realization.md:54 (missed deadline annotation)
     - .know/telos/asana-realization-tail-convergence.md (Workstream-B; edge E1 gate)
     - .sos/wip/frames/asana-realization-tail-convergence.md (Workstream B; PROBE-GATED)
+
+- id: cred-t21-leaked-asana-pat-rotation-2026-07-07
+  filed_at: 2026-07-07
+  filed_by: security rite (C1 credential-topology closure)
+  parent_initiative: asana-realization-tail-convergence
+  parent_workstream: Workstream-C-credential-topology-closure
+  severity: Critical
+  scope: >
+    T21 leaked native ASANA_PAT present in autom8y-asana MAIN git history
+    (commits a578ca85, 525431de, 15cffee1; .claude/settings.local.json). ABSENT +
+    gitignored at HEAD (.gitignore:79). Exposure = HISTORY + clone/fork/secret-scan.
+    Token referenced only redacted in committed payload. Discharges predicate leg (d).
+  status: OPERATOR-PENDING-ROTATION  # RECEIPT authored; token STAYS LIVE until operator rotates (SOVEREIGN)
+  owner: operator (SOVEREIGN — rotation in AWS SM autom8y/asana/asana-pat ...qJ5AVX, rotation DISABLED)
+  ruling: >
+    Rotate-first-then-scrub. Rotation invalidates every history copy immediately. History-scrub
+    is SECONDARY (rewrites shared history, high blast radius, operator decision). Full runbook +
+    receipt: .ledge/reviews/RECEIPT-credential-topology-closure-c1-2026-07-07.md (R-C1-T21).
+  unblock_signal: operator rotates the PAT (old token 401s) + updates SM version + consumers; optional history-scrub + local-plaintext shred
+  unblock_owner: operator (SOVEREIGN); eunomia banks the durable attestation at PT-E
+  evidence_anchors:
+    - .ledge/reviews/RECEIPT-station-b-asana.md:83 (P4/T21 route to Station E)
+    - .ledge/reviews/RECEIPT-credential-topology-closure-c1-2026-07-07.md (R-C1-T21 + sovereign runbook)
+
+- id: cred-927-s2s-selfmint-401-metrics-seal-2026-07-07
+  filed_at: 2026-07-07
+  filed_by: security rite (C1 credential-topology closure)
+  parent_initiative: asana-realization-tail-convergence
+  parent_workstream: Workstream-C-credential-topology-closure
+  severity: Moderate
+  scope: >
+    SERVICE_CLIENT_ID=asana (bare, not sa_-prefixed) -> S2S self-mint 401 AUTH-TEB-001 ->
+    metrics-export SEAL RED every Satellite Receiver run. Route-functionality intact; regression
+    isolated to observability-export. if:failure() auto-files a fresh issue per red run ->
+    OPEN duplicate-storm autom8y/autom8y#927 -> #962 (latest #962, run 28888584626, 2026-07-07).
+  status: ESCALATED  # to sre/infra; do NOT close until env fix deploys + SEAL green
+  owner: sre/infra
+  ruling: >
+    (a) set a valid sa_-prefixed ServiceAccount on the ECS autom8y-asana-service env, re-verify
+    SEAL green; (b) dedup the if:failure() auto-filer (close the #927..#962 family). Discharges
+    predicate leg (d) via ESCALATION. Receipt: RECEIPT-credential-topology-closure-c1 (R-C1-927).
+  unblock_signal: ECS env identity corrected + a GREEN-CONTROL metrics-smoke run + #927..#962 family closed
+  unblock_owner: sre/infra rite
+  evidence_anchors:
+    - .ledge/reviews/RECEIPT-credential-topology-closure-c1-2026-07-07.md (R-C1-927)
+
+- id: cred-future4-retirement-sequencer-2026-07-07
+  filed_at: 2026-07-07
+  filed_by: security rite (C1 credential-topology closure)
+  parent_initiative: asana-realization-tail-convergence
+  parent_workstream: Workstream-C-credential-topology-closure
+  severity: Important-STRUCTURAL
+  scope: >
+    No fleet credential-retirement SSOT/sequencer. Trigger FIRED — bypass-holders 15->16
+    (migration-033 + uncoordinated fossil-key retirements). Dual-mode: lockout DoS +
+    bypass-sprawl EoP. R-C1-T21 is a concrete instance ('stays live until E' == no coordinated
+    retirement path). Discharges predicate leg (d) via ESCALATION.
+  status: ROUTED  # cross-rite HANDOFF to strategy/ecosystem (leadership decision, NOT a build)
+  owner: strategy/ecosystem (leadership — sequencer owner needed)
+  unblock_signal: strategy names a sequencer owner + retirement ordering primitive; bypass-holder set (16) audited down
+  unblock_owner: strategy/ecosystem rite
+  evidence_anchors:
+    - .ledge/handoffs/HANDOFF-security-to-strategy-future4-credential-sequencer-2026-07-07.md
+    - .ledge/reviews/RECEIPT-credential-topology-closure-c1-2026-07-07.md (R-C1-FUTURE4)
+
+- id: cred-gate-gap-1-gitleaks-blind-asana-pat-2026-07-07
+  filed_at: 2026-07-07
+  filed_by: security rite (C1 credential-topology closure)
+  parent_initiative: asana-realization-tail-convergence
+  parent_workstream: Workstream-C-credential-topology-closure
+  severity: Important
+  scope: >
+    Recurrence-prevention gap: .gitleaks.toml is BLIND to the native Asana PAT shape
+    (1/<user_gid>:<hex>) AND CI gitleaks ran non-blocking (|| true) — the T21 leak was never
+    caught in-band. BUILDABLE in-repo (NOT sovereign): add the native-Asana-PAT rule + make the
+    CI gitleaks step blocking. Mirrors the A2 register-drift guard 'make it unrepeatable' pattern.
+  status: OPEN-BUILDABLE  # offered as a Track-C hardening; not yet built
+  owner: security rite / operator (in-repo build, CI-affecting)
+  unblock_signal: .gitleaks.toml carries the native-Asana-PAT rule AND CI gitleaks is blocking (two-sided fixture proves it bites)
+  unblock_owner: security rite (buildable this session on operator go)
+  evidence_anchors:
+    - .ledge/reviews/RECEIPT-credential-topology-closure-c1-2026-07-07.md (GATE-GAP-1)
