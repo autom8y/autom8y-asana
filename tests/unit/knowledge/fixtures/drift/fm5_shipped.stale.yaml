@@ -1,0 +1,11 @@
+# Deliberately-stale fixture — FICTIONAL re-introduction of A1 disease.
+# Purpose: fed to detect_telos_shipped_not_missing to assert DRIFT (RED).
+#
+# Simulates: fm5 telos incorrectly shows shipped: MISSING despite a87ae1ca landing.
+telos:
+  initiative_slug: fm5-column-fidelity
+  attestation_status:
+    inception: INSCRIBED
+    shipped: MISSING
+    verified_realized: UNATTESTED
+    last_eunomia_advisory: null

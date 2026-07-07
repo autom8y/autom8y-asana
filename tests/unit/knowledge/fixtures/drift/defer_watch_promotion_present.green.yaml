@@ -1,0 +1,25 @@
+# Truthful green fixture — faithful copy of the fleet-promotion entry.
+# Purpose: fed to detect_defer_watch_promotion_entry to assert NO_DRIFT (GREEN).
+# Source: .know/defer-watch.yaml at origin/main HEAD e95a9de6.
+
+- id: drift-audit-discipline-fleet-promotion
+  filed_at: 2026-04-29
+  filed_by: janitor (hygiene rite)
+  parent_initiative: actual-blockers-2026-04-29
+  scope: >
+    promote drift-audit-discipline skill from repo-local
+    (.claude/skills/drift-audit-discipline/SKILL.md) to knossos-altitude
+    for fleet availability (knossos/rites/shared/mena/drift-audit-discipline/)
+  status: DEFERRED-pending-cross-repo-coordination
+  blocker: >
+    satellite-primitive-promotion protocol requires cross-repo orchestration
+    with knossos repo; hygiene-rite authority boundary grants repo-local
+    skill modification but routes cross-repo promotion via
+    satellite-primitive-promotion skill
+  watch_trigger: 2026-05-29
+  deadline: 2026-09-29
+  escalation_target: ecosystem rite Potnia
+  retry_action: >
+    invoke satellite-primitive-promotion to lift drift-audit-discipline skill
+    from autom8y-asana repo-local to knossos canonical shared-mena altitude;
+    verify no content divergence has accrued during promotion window
