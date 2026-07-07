@@ -59,6 +59,7 @@ if TYPE_CHECKING:
 __all__ = [
     "CONTACT_CARD_MARKER_PREFIX",
     "MAX_CONTACT_CARD_HTML_LENGTH",
+    "ContactCardBusinessAmbiguous",
     "ContactCardEgressRefused",
     "ContactCardRenderError",
     "ContactCardResult",
@@ -89,6 +90,18 @@ _ROUTING_DOMAIN_LITERAL = "appointments.contenteapp.com"
 # Extract any http(s) URL host for the DECK_HOST pin over composed card text.
 _URL_RE = re.compile(r"https?://([^\s/\"'<>]+)", re.IGNORECASE)
 
+# --- Business lookup (F-1 Call-1, AMENDED at B5 — Asana-native bridge) ---
+# B5 falsified the ratified get_gid_map Call-1 in production: the data-service gid_map
+# returns None for Sand Lake under EVERY vertical candidate (BusinessRecord
+# default_vertical_key='none'), i.e. the dataset does not cover these offices. The
+# proven-live path is the N0 pre-flight bridge (8/8 ACTIVE offices): search the workspace
+# by the Office Phone custom field, then keep only results that are members of the
+# "Businesses" project (the deterministic discriminator — Offer/Process/Commission rows
+# also carry the phone). Org-stable gids, per the codebase idiom (cf.
+# Contact.PRIMARY_PROJECT_GID, CALENDAR_INTEGRATIONS_PROJECT_GID).
+_OFFICE_PHONE_FIELD_GID = "1181686411188348"  # "Office Phone" custom-field definition
+_BUSINESSES_PROJECT_GID = "1200653012566782"  # "Businesses" project (N0-proven discriminator)
+
 
 class ContactCardRenderError(RuntimeError):
     """Raised when the Asana read-back reveals entity-escaped ``html_text`` (G-ii).
@@ -101,6 +114,14 @@ class ContactCardEgressRefused(RuntimeError):
     """Raised when the composed card carries a routing address / foreign host (G-iii).
 
     NOT transient: the offending field reproduces on re-run. Callers must fail closed.
+    """
+
+
+class ContactCardBusinessAmbiguous(RuntimeError):
+    """Raised when >1 Business task matches the office phone after the Businesses-project
+    discriminator (F-1 bridge). Refuse loudly rather than pick a receiver silently — the
+    QA multi-holder note applies: an ambiguous business must never post a card off a
+    guessed match. NOT transient; callers must fail closed.
     """
 
 
@@ -332,55 +353,83 @@ async def _assert_render_not_escaped(
 # --------------------------------------------------------------------- ~3-call traversal
 
 
-def _office_identity_from_task(task: Any) -> tuple[str | None, str | None]:
-    """Read (office_phone, vertical) from a PLAY task's custom fields."""
-    phone: str | None = None
-    vertical: str | None = None
+def _office_phone_from_task(task: Any) -> str | None:
+    """Read the Office Phone from a PLAY task's custom fields (identity leg = phone only)."""
     for cf in getattr(task, "custom_fields", None) or []:
         cf = cf if isinstance(cf, dict) else {}
         if cf.get("name") == "Office Phone":
-            phone = cf.get("display_value")
-        elif cf.get("name") == "Vertical":
-            vertical = cf.get("display_value")
-    return phone, vertical
+            return cf.get("display_value")
+    return None
 
 
-async def _read_office_identity(
-    asana_client: AsanaClient, play_gid: str
-) -> tuple[str | None, str | None]:
-    """Fetch the PLAY task and extract its Office Phone + Vertical custom fields."""
+async def _read_office_phone(asana_client: AsanaClient, play_gid: str) -> str | None:
+    """Fetch the PLAY task and extract its Office Phone custom field."""
     task = await asana_client.tasks.get_async(
         play_gid,
         opt_fields=["custom_fields.name", "custom_fields.display_value"],
     )
-    return _office_identity_from_task(task)
+    return _office_phone_from_task(task)
+
+
+async def _business_gid_by_phone(asana_client: AsanaClient, office_phone: str) -> str | None:
+    """Resolve office_phone -> Business task_gid via the N0-proven Asana-native bridge.
+
+    F-1 Call-1 (AMENDED at B5): search the workspace by the Office Phone custom field,
+    then keep ONLY results that are members of the "Businesses" project (deterministic
+    discriminator — Offer/Process/Commission rows also carry the phone). Returns the
+    single Business gid, or ``None`` if no Business matches. Raises
+    ``ContactCardBusinessAmbiguous`` if >1 match after the discriminator (never picks a
+    receiver silently). This drops the DataServiceClient / M2M-creds dependency; the seam
+    invariant is strengthened (Phase-1 is now pure-Asana).
+    """
+    workspace_gid = asana_client.default_workspace_gid
+    if not workspace_gid:
+        raise ContactCardBusinessAmbiguous(
+            "no workspace configured for the Business lookup; cannot resolve office_phone "
+            f"{office_phone!r} — refusing rather than guessing a workspace"
+        )
+    data = await asana_client._http.get(
+        f"/workspaces/{workspace_gid}/tasks/search",
+        params={
+            f"custom_fields.{_OFFICE_PHONE_FIELD_GID}.value": office_phone,
+            "opt_fields": "name,projects.gid",
+        },
+    )
+    results = data.get("data", []) if isinstance(data, dict) else (data or [])
+    matches = [
+        t
+        for t in results
+        if any((p or {}).get("gid") == _BUSINESSES_PROJECT_GID for p in (t.get("projects") or []))
+    ]
+    if not matches:
+        return None
+    if len(matches) > 1:
+        raise ContactCardBusinessAmbiguous(
+            f"{len(matches)} Business tasks match office_phone={office_phone!r} after the "
+            "Businesses-project discriminator; refusing to pick a receiver silently. "
+            f"gids={[m.get('gid') for m in matches]}"
+        )
+    return matches[0].get("gid")
 
 
 async def resolve_ranked_cards(
     asana_client: AsanaClient,
-    data_client: Any,
     office_phone: str,
-    vertical: str,
 ) -> tuple[bool, list[ContactCard]]:
-    """The ~3-call live traversal (ADR §4 F-1; build errata D1-D4).
+    """The ~3-call live traversal (ADR §4 F-1, AMENDED at B5; build errata D1-D4).
 
     Returns ``(holder_found, ranked_cards)``:
       * ``(False, [])``  -> business/holder not locatable -> ``no_holder``
       * ``(True, [])``   -> holder found, zero contact subtasks -> ``no_contacts``
       * ``(True, cards)``-> ranked (unfiltered) cards for the caller to G-vi filter
 
-    Call 1 maps (phone, vertical) -> Business task_gid via the autom8y-core data service
-    (build errata: ``get_gid_map_async`` takes ``PhoneVerticalPair`` objects and returns
-    ``dict[(phone,vertical) -> gid|None]`` — a gid string, not an object with
-    ``.task_gid``). Calls 2-3 traverse Business -> "Contacts" holder -> Contact children.
-    ``Business.hydrate_async`` (10-20+ calls) is deliberately avoided.
+    Call 1 resolves office_phone -> Business task_gid via the Asana-native bridge
+    (``_business_gid_by_phone``; the ratified get_gid_map path was falsified live at B5).
+    Calls 2-3 traverse Business -> "Contacts" holder -> Contact children.
+    ``Business.hydrate_async`` (10-20+ calls) is deliberately avoided. May raise
+    ``ContactCardBusinessAmbiguous`` on a multi-Business match.
     """
-    from autom8y_core.models import PhoneVerticalPair
-
-    gid_map = await data_client.get_gid_map_async(
-        [PhoneVerticalPair(phone=office_phone, vertical=vertical)]
-    )
-    business_gid = gid_map.get((office_phone, vertical))
+    business_gid = await _business_gid_by_phone(asana_client, office_phone)
     if not business_gid:
         return False, []
 
@@ -416,16 +465,15 @@ async def post_contact_card(
     *,
     play_gid: str,
     deck_slug: str,
-    data_client: Any,
     office_phone: str | None = None,
-    vertical: str | None = None,
     execute: bool = False,
 ) -> ContactCardResult:
     """Compose (and, with ``execute``, post) a ranked contact card onto a PLAY task.
 
     Reads precede any write; the sole mutation is the ``create_comment`` reached only
     when ``execute`` is True, no prior marker exists, and >=1 usable contact survives
-    G-vi. Every guard fails closed.
+    G-vi. Every guard fails closed. Phase-1 is pure-Asana (no DataServiceClient): the
+    identity leg needs the office phone only (F-1 Call-1 amended at B5).
     """
     marker = compose_marker(deck_slug)
 
@@ -444,15 +492,13 @@ async def post_contact_card(
             deck_slug=deck_slug,
         )
 
-    # Derive office identity from the PLAY task when not supplied by the caller.
-    if office_phone is None or vertical is None:
-        office_phone, vertical = await _read_office_identity(asana_client, play_gid)
-    if not office_phone or not vertical:
+    # Derive the office phone from the PLAY task when not supplied by the caller.
+    if office_phone is None:
+        office_phone = await _read_office_phone(asana_client, play_gid)
+    if not office_phone:
         return ContactCardResult(outcome="no_holder", deck_slug=deck_slug)
 
-    holder_found, raw_cards = await resolve_ranked_cards(
-        asana_client, data_client, office_phone, vertical
-    )
+    holder_found, raw_cards = await resolve_ranked_cards(asana_client, office_phone)
     if not holder_found:
         return ContactCardResult(outcome="no_holder", deck_slug=deck_slug)
     if not raw_cards:
@@ -540,20 +586,21 @@ def main(argv: list[str] | None = None) -> int:
     execute = args.execute
 
     async def _run() -> ContactCardResult:
-        from autom8y_core.clients.data_service import DataServiceClient
-
-        async with AsanaClient() as asana_client, DataServiceClient() as data_client:
+        async with AsanaClient() as asana_client:
             return await post_contact_card(
                 asana_client,
                 play_gid=args.play_gid,
                 deck_slug=args.deck_slug,
-                data_client=data_client,
                 execute=execute,
             )
 
     try:
         result = asyncio.run(_run())
-    except (ContactCardEgressRefused, ContactCardRenderError) as refused:
+    except (
+        ContactCardEgressRefused,
+        ContactCardRenderError,
+        ContactCardBusinessAmbiguous,
+    ) as refused:
         print(f"REFUSED: {refused}", file=sys.stderr)
         return 2
 

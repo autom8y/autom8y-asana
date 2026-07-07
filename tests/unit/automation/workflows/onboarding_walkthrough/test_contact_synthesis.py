@@ -17,6 +17,7 @@ import pytest
 
 from autom8_asana.automation.workflows.onboarding_walkthrough import contact_synthesis as cs
 from autom8_asana.automation.workflows.onboarding_walkthrough.contact_synthesis import (
+    ContactCardBusinessAmbiguous,
     ContactCardEgressRefused,
     ContactCardRenderError,
     compose_card,
@@ -95,7 +96,7 @@ class _FakeAsana:
 
 
 def _patch_resolve(monkeypatch, *, holder_found, cards):
-    async def _fake(asana_client, data_client, office_phone, vertical):
+    async def _fake(asana_client, office_phone):
         return holder_found, cards
 
     monkeypatch.setattr(cs, "resolve_ranked_cards", _fake)
@@ -107,9 +108,7 @@ async def _run(asana, *, execute=False, cards=None, holder_found=True, monkeypat
         asana,
         play_gid="PLAY-1",
         deck_slug=DECK,
-        data_client=object(),
         office_phone="+14073550608",
-        vertical="dentistry",
         execute=execute,
     )
 
@@ -392,14 +391,81 @@ class TestDegradePaths:
         assert compose_marker(DECK) in result.comment_html
 
 
-# ----------------------------------------------------------- traversal D1-D4 mechanics
+# ------------------------------- Call-1 Asana-native bridge (F-1 amended at B5) -------
+
+# The Businesses-project discriminator gid the bridge filters on (contact_synthesis
+# module constant). Kept in sync via the assertion below.
+BUSINESSES_GID = cs._BUSINESSES_PROJECT_GID
+PHONE_FIELD = cs._OFFICE_PHONE_FIELD_GID
+
+
+class _FakeHttp:
+    """Minimal stand-in for AsanaClient._http capturing the search call + returning a
+    canned tasks/search payload."""
+
+    def __init__(self, results):
+        self._results = results
+        self.calls: list[dict] = []
+
+    async def get(self, path, params=None):
+        self.calls.append({"path": path, "params": params or {}})
+        return {"data": self._results}
+
+
+def _biz_search_asana(results, *, tasks=None, workspace="WS-1"):
+    a = types.SimpleNamespace()
+    a.default_workspace_gid = workspace
+    a._http = _FakeHttp(results)
+    a.tasks = tasks
+    a.stories = None
+    return a
+
+
+class TestBusinessBridge:
+    async def test_bridge_single_businesses_match_returns_gid(self) -> None:
+        results = [
+            {"gid": "PLAY-x", "name": "PLAY: ...", "projects": [{"gid": "cal-int"}]},
+            {"gid": "biz-1", "name": "Sand Lake Dental", "projects": [{"gid": BUSINESSES_GID}]},
+            {"gid": "offer-1", "name": "$79 Consult", "projects": [{"gid": "offers"}]},
+        ]
+        asana = _biz_search_asana(results)
+        gid = await cs._business_gid_by_phone(asana, "+14073550608")
+        assert gid == "biz-1"
+        # search hit the workspace tasks/search with the Office Phone custom-field filter
+        call = asana._http.calls[0]
+        assert call["path"].endswith("/workspaces/WS-1/tasks/search")
+        assert f"custom_fields.{PHONE_FIELD}.value" in call["params"]
+
+    async def test_bridge_no_businesses_match_returns_none(self) -> None:
+        """None after the discriminator -> None -> caller maps to no_holder (as today)."""
+        results = [
+            {"gid": "offer-1", "name": "$79 Consult", "projects": [{"gid": "offers"}]},
+            {"gid": "comm-1", "name": "Outreach Commission", "projects": [{"gid": "commission"}]},
+        ]
+        gid = await cs._business_gid_by_phone(_biz_search_asana(results), "+14073550608")
+        assert gid is None
+
+    async def test_bridge_multiple_businesses_match_refuses_loudly(self) -> None:
+        """>1 Business after the discriminator -> LOUD refusal, never a silent pick
+        (QA multi-holder note)."""
+        results = [
+            {"gid": "biz-1", "name": "A", "projects": [{"gid": BUSINESSES_GID}]},
+            {"gid": "biz-2", "name": "B", "projects": [{"gid": BUSINESSES_GID}]},
+        ]
+        with pytest.raises(ContactCardBusinessAmbiguous, match="refusing to pick"):
+            await cs._business_gid_by_phone(_biz_search_asana(results), "+14073550608")
+
+    async def test_bridge_no_workspace_refuses(self) -> None:
+        asana = _biz_search_asana([], workspace=None)
+        with pytest.raises(ContactCardBusinessAmbiguous, match="no workspace"):
+            await cs._business_gid_by_phone(asana, "+14073550608")
 
 
 class TestTraversal:
     async def test_resolve_ranked_cards_full_path(self) -> None:
-        """D1/D3/D4 + get_gid_map correction: (phone,vertical) -> business -> holder ->
-        ranked cards, via subtasks_async(...).collect(), detect_entity_type().entity_type,
-        and _populate_children."""
+        """D1/D3/D4 + Asana-native Call-1: phone -> Business (search + Businesses
+        discriminator) -> holder -> ranked cards, via subtasks_async(...).collect(),
+        detect_entity_type().entity_type, and _populate_children."""
         holder_task = Task(
             gid="holder-1",
             name="Sand Lake Contacts \U0001f9d1",
@@ -423,28 +489,40 @@ class TestTraversal:
                 assert include_detection_fields is True  # D1
                 return _Collectable(self._map[gid])
 
-        class _Data:
-            async def get_gid_map_async(self, pairs):
-                # get_gid_map correction: returns dict[(phone,vertical) -> gid_str]
-                p = pairs[0]
-                return {(p.phone, p.vertical): "biz-1"}
-
-        asana = types.SimpleNamespace(tasks=_Tasks(), stories=None)
-        found, cards = await cs.resolve_ranked_cards(asana, _Data(), "+14073550608", "dentistry")
+        search_results = [
+            {"gid": "biz-1", "name": "Sand Lake Dental", "projects": [{"gid": BUSINESSES_GID}]},
+        ]
+        asana = _biz_search_asana(search_results, tasks=_Tasks())
+        found, cards = await cs.resolve_ranked_cards(asana, "+14073550608")
         assert found is True
         assert [c.full_name for c in cards] == ["Dr. Ziyad Maali"]
         assert cards[0].contact_email == "z@sandlake.com"
         assert cards[0].provenance is Provenance.ASANA
+        # No DataServiceClient / PhoneVerticalPair involved — pure Asana.
 
     async def test_resolve_no_business_is_no_holder(self) -> None:
-        class _Data:
-            async def get_gid_map_async(self, pairs):
-                p = pairs[0]
-                return {(p.phone, p.vertical): None}
-
-        asana = types.SimpleNamespace(tasks=None, stories=None)
-        found, cards = await cs.resolve_ranked_cards(asana, _Data(), "+14073550608", "dentistry")
+        # search returns rows but none in the Businesses project -> no business -> no_holder
+        results = [{"gid": "offer-1", "name": "$79", "projects": [{"gid": "offers"}]}]
+        asana = _biz_search_asana(results)
+        found, cards = await cs.resolve_ranked_cards(asana, "+14073550608")
         assert found is False and cards == []
+
+
+def test_contact_synthesis_has_no_data_service_dependency() -> None:
+    """F-1 amended at B5: Phase-1 is pure-Asana. The module must not IMPORT the
+    autom8y-core data service (DataServiceClient / PhoneVerticalPair) — seam invariant
+    strengthened. Checks import statements + namespace, not doc prose (the amendment
+    docstrings legitimately name the removed path)."""
+    import inspect
+
+    # No data-service symbols bound in the module namespace.
+    assert not hasattr(cs, "DataServiceClient")
+    assert not hasattr(cs, "PhoneVerticalPair")
+    # No import statement pulls autom8y_core into this module (docstrings are exempt).
+    for line in inspect.getsource(cs).splitlines():
+        stripped = line.strip()
+        if stripped.startswith(("import ", "from ")):
+            assert "autom8y_core" not in stripped, f"unexpected core import: {stripped}"
 
 
 # --------------------------------------------------------------------------- CLI
