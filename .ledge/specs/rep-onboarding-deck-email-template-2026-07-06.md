@@ -1,6 +1,7 @@
 ---
 type: spec
-status: draft
+status: superseded
+superseded_by: rep-onboarding-deck-email-template-v2-2026-07-07.md
 artifact_class: rep-outbound-template
 initiative: client-onboarding-delivery (WS-LINK arm-3 substrate)
 date: 2026-07-06
@@ -9,6 +10,16 @@ purpose: >
   Minimal rep effort (5 slots); ZERO inference about the receiving individual — the rep
   determines the recipient from their own account-contact knowledge. Carrier-safety baked in.
 ---
+
+> ## ⛔ SUPERSEDED — 2026-07-07
+> This template is **superseded by
+> [`rep-onboarding-deck-email-template-v2-2026-07-07.md`](rep-onboarding-deck-email-template-v2-2026-07-07.md)**.
+> The P-NOVA operator ruling (ADR-contact-synthesis-card-on-play-2026-07-07) established
+> that the assigned rep is **NOT** the sender: the sender is a constant
+> (**Nova / support@contenteapp.com / Intercom**, human sign-in, manual sends). v1's
+> `[SEND FROM]` rule ("send from the address the clinic recognizes") is FALSIFIED. Use v2.
+> New offices receive v2-language template comments going forward. Do not follow the
+> `[SEND FROM]`/`[REP-NAME]` bracket instructions below.
 
 # Rep outbound: "Here's your setup walkthrough" — fill 5 brackets, send (~30s)
 
