@@ -1,17 +1,26 @@
-"""Tests for TASK-cache Option-B superset hydration (FG-BUG fix).
+"""Tests for TASK-cache union hydration (FG-BUG fix + QA #212 regression close).
 
-Per HANDOFF-thermia-to-10xdev-taskcache-fix-2026-07-07: the opt_fields-blind TASK
-cache silently narrowed a gid to the FIRST fetch's field-shape. A targeted
-get_async(gid, ["name", ...]) cached a custom_fields-less task under the blind
-cache key; a later custom_fields read then got that narrow cache hit and saw
-custom_fields as absent (None/[]). Option B fixes this by hydrating every cache
-MISS with the SUPERSET (STANDARD_TASK_OPT_FIELDS), so a stored entry satisfies
-ANY later projection of the same gid.
+Per HANDOFF-thermia-to-10xdev-taskcache-fix-2026-07-07 (corrected under QA #212
+NO-GO): the opt_fields-blind TASK cache silently narrowed a gid to the FIRST
+fetch's field-shape. A targeted get_async(gid, ["name", ...]) cached a
+custom_fields-less task under the blind cache key; a later custom_fields read
+then got that narrow cache hit and saw custom_fields as absent (None/[]).
+
+The fix hydrates every cache MISS with a TRUE SUPERSET of BOTH the caller's
+projection AND STANDARD_TASK_OPT_FIELDS (caller-projection UNION STANDARD), so a
+stored entry satisfies ANY later projection of the same gid AND does not drop the
+caller's own fields. STANDARD alone is NOT a superset of every caller's request --
+it drops modified_at/due_on/completed/tags/etc. that BASE_OPT_FIELDS
+(freshness/hierarchy_warmer/progressive watermarks) and field_write callers need;
+fetching STANDARD alone regressed those callers to None (the #212 NO-GO).
 
 These tests exercise the REAL TasksClient + its real in-process cache (the
 MockCacheProvider persists across calls). Only the HTTP transport is mocked --
 the fakes-only unit tests are what HID this class, so these assert call count +
-params against the actual cache behavior.
+params against the actual cache behavior. The C2 regression tests use an
+opt_fields-HONORING HTTP mock (returns only requested fields) so a
+STANDARD-drops-modified_at regression surfaces instead of being hidden by a
+complete-dict stub.
 """
 
 from __future__ import annotations
@@ -22,6 +31,7 @@ import pytest
 
 from autom8_asana.cache.models.entry import EntryType
 from autom8_asana.clients.tasks import TasksClient
+from autom8_asana.dataframes.builders.fields import BASE_OPT_FIELDS
 from autom8_asana.models.business import STANDARD_TASK_OPT_FIELDS
 
 if TYPE_CHECKING:
@@ -116,13 +126,18 @@ class TestSupersetHydration:
             TASK_GID, opt_fields=["name", "memberships.project.gid"]
         )
 
-        # Assert: exactly one HTTP call, and it carried the FULL superset (not the
-        # caller's narrow projection). This is the structural heart of Option B.
+        # Assert: exactly one HTTP call carrying a TRUE superset of BOTH the caller's
+        # projection AND STANDARD (the union). STANDARD subset => custom_fields.* is
+        # present (FG-BUG closed); caller subset => the caller's fields are not dropped.
         mock_http.get.assert_called_once()
         requested = _requested_opt_fields(mock_http.get.call_args)
         assert set(STANDARD_TASK_OPT_FIELDS).issubset(requested), (
-            "miss-path fetch must request the full STANDARD_TASK_OPT_FIELDS superset; "
+            "miss-path fetch must include the full STANDARD_TASK_OPT_FIELDS set; "
             f"got {sorted(requested)}"
+        )
+        assert {"name", "memberships.project.gid"}.issubset(requested), (
+            "miss-path fetch must also include the CALLER's projection (union, not "
+            f"STANDARD-alone); got {sorted(requested)}"
         )
         assert first.gid == TASK_GID
 
@@ -181,6 +196,75 @@ class TestSupersetHydration:
         assert len(cache_provider.set_versioned_calls) == 1
         _, stored = cache_provider.set_versioned_calls[0]
         assert stored.data["custom_fields"] == []
+
+
+class TestUnionHydrationDoesNotDropCallerFields:
+    """C2 regression close (QA #212): the miss fetch must be a TRUE superset of the
+    CALLER's projection, not STANDARD alone. STANDARD drops modified_at/due_on/
+    completed/tags/etc.; a STANDARD-only fetch regresses BASE_OPT_FIELDS and
+    field_write callers to None on a guaranteed-miss refetch.
+
+    These use an opt_fields-HONORING HTTP mock (returns only the requested fields),
+    modelling real Asana projection -- so a STANDARD-only regression surfaces as a
+    missing field instead of being hidden by a complete-dict stub.
+    """
+
+    async def test_base_opt_fields_miss_returns_modified_at(
+        self,
+        tasks_client: TasksClient,
+        cache_provider: MockCacheProvider,
+        mock_http: MagicMock,
+    ) -> None:
+        """A BASE_OPT_FIELDS-projection miss must return modified_at populated.
+
+        modified_at is in BASE_OPT_FIELDS but NOT in STANDARD_TASK_OPT_FIELDS. Under
+        the correct union hydration the fetch carries modified_at, so the watermark
+        readers (freshness/hierarchy_warmer/progressive) get a real value.
+
+        RED on the STANDARD-only HEAD: the fetch omitted modified_at -> the honoring
+        mock returns it as absent -> modified_at is None (watermark corruption).
+        GREEN after: modified_at is populated.
+        """
+        assert "modified_at" in set(BASE_OPT_FIELDS)
+        assert "modified_at" not in set(STANDARD_TASK_OPT_FIELDS)
+
+        real_modified_at = "2026-07-07T18:30:00.000Z"
+
+        def _honor_opt_fields(path: str, params: dict[str, Any]) -> dict[str, Any]:
+            """Return ONLY the requested fields (models Asana opt_fields projection)."""
+            requested = (
+                set(params.get("opt_fields", "").split(",")) if params.get("opt_fields") else set()
+            )
+            full = {
+                "gid": TASK_GID,
+                "resource_type": "task",
+                "name": "Watermark Task",
+                "modified_at": real_modified_at,
+                "tags": [{"gid": "t1", "name": "hot"}],
+                "custom_fields": [],
+                "memberships": [{"project": {"gid": "9990001112223", "name": "Units"}}],
+            }
+            # Always echo gid + resource_type (Asana returns these unconditionally);
+            # every OTHER field is only present if it was requested.
+            projected: dict[str, Any] = {"gid": full["gid"], "resource_type": full["resource_type"]}
+            for field, value in full.items():
+                top = field.split(".")[0]
+                if top in requested:
+                    projected[field] = value
+            return projected
+
+        mock_http.get.side_effect = _honor_opt_fields
+
+        result = await tasks_client.get_async(TASK_GID, raw=True, opt_fields=list(BASE_OPT_FIELDS))
+
+        # The caller's BASE projection field is present and populated (not None).
+        assert result.get("modified_at") == real_modified_at, (
+            "union hydration must carry the caller's modified_at; STANDARD-only drops it "
+            "and corrupts the watermark"
+        )
+        # And FG-BUG stays closed: custom_fields was fetched (STANDARD subset of union).
+        requested = _requested_opt_fields(mock_http.get.call_args)
+        assert "custom_fields" in requested
 
 
 class TestListSubtasksDoNotPoisonTaskCache:

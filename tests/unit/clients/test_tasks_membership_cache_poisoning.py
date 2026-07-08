@@ -149,11 +149,12 @@ class TestMembershipCachePoisoning:
 class TestBareGetHydratesSuperset:
     """Bare get_async(gid) (opt_fields=None) now hydrates the superset (Option B).
 
-    Supersedes the R4 "bare-None path UNTOUCHED" contract: Option-B superset hydration
-    (HANDOFF-thermia-to-10xdev-taskcache-fix-2026-07-07) widens EVERY cache MISS --
-    including the bare-None path -- to STANDARD_TASK_OPT_FIELDS, because a bare get is
-    the caller most likely to poison the opt_fields-blind TASK cache with Asana's
-    minimal default fields.
+    Supersedes the R4 "bare-None path UNTOUCHED" contract: union hydration
+    (HANDOFF-thermia-to-10xdev-taskcache-fix-2026-07-07, corrected under QA #212 NO-GO)
+    widens EVERY cache MISS to caller-projection UNION STANDARD_TASK_OPT_FIELDS. For the
+    bare-None path the caller projection resolves to STANDARD, so the union collapses to
+    exactly STANDARD -- a bare get is the caller most likely to poison the
+    opt_fields-blind TASK cache with Asana's minimal default fields.
     """
 
     async def test_bare_get_async_hydrates_superset(
