@@ -13,6 +13,8 @@ from autom8y_log import get_logger
 from autom8_asana.core.errors import CACHE_TRANSIENT_ERRORS
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from autom8_asana.cache.models.entry import CacheEntry, EntryType
     from autom8_asana.config import AsanaConfig
     from autom8_asana.protocols.auth import AuthProvider
@@ -120,12 +122,67 @@ class BaseClient:
             )
             return None
 
+    def _cache_get_covering(
+        self,
+        key: str,
+        entry_type: EntryType,
+        requested_opt_fields: Sequence[str],
+    ) -> tuple[CacheEntry | None, CacheEntry | None]:
+        """Check cache for an entry COVERING the requested projection (PHE).
+
+        Per ADR-taskcache-projection-coverage-2026-07-08: wraps ``_cache_get``
+        and gates the hit on ``projection_covers``. When an entry exists but
+        does NOT cover the requested projection, returns a miss (None) plus a
+        structured ``cache_coverage_miss`` log, so callers' existing miss
+        paths fire unchanged; the stale entry is exposed as the second tuple
+        element so the caller's re-hydration union can include the stored
+        projection (the anti-thrash term).
+
+        An EMPTY requested projection declares no field demand and is served
+        by any live entry (a KNOWN entry trivially covers the empty set; an
+        UNKNOWN entry cannot starve a demand that was never declared -- gating
+        it would degrade default-projection readers to permanent re-fetch).
+
+        Args:
+            key: Cache key (typically entity GID).
+            entry_type: Type of cache entry.
+            requested_opt_fields: The RESOLVED requested projection.
+
+        Returns:
+            Tuple of (covered_entry, existing_entry):
+            - (entry, entry) on a covering hit,
+            - (None, entry) on a coverage-miss (entry exists, not covering),
+            - (None, None) when no live entry exists.
+        """
+        entry = self._cache_get(key, entry_type)
+        if entry is None:
+            return None, None
+        if not requested_opt_fields:
+            return entry, entry
+
+        from autom8_asana.cache.models.coverage import projection_covers, stored_projection
+
+        if projection_covers(entry, requested_opt_fields):
+            return entry, entry
+
+        stored = stored_projection(entry)
+        # The amplification tripwire (TDD SS2.4): every coverage-miss is loud.
+        logger.info(
+            "cache_coverage_miss",
+            gid=key,
+            entry_type=entry_type.value,
+            missing_fields=sorted(set(requested_opt_fields) - (stored or frozenset())),
+            stored_count=len(stored) if stored is not None else 0,
+        )
+        return None, entry
+
     def _cache_set(
         self,
         key: str,
         data: dict[str, Any],
         entry_type: EntryType,
         ttl: int | None = None,
+        opt_fields: Sequence[str] | None = None,
     ) -> None:
         """Store data in cache (graceful degradation).
 
@@ -137,6 +194,11 @@ class BaseClient:
             data: Data to cache (typically API response dict).
             entry_type: Type of cache entry.
             ttl: Time-to-live in seconds. If None, uses default from config.
+            opt_fields: The projection this data was hydrated at (PHE). When
+                provided, stamps ``opt_fields_used`` + ``completeness_level``
+                entry metadata (the ``create_completeness_metadata`` keys) so
+                the coverage predicate can gate later hits. None = UNKNOWN
+                (entry coverage-misses once and heals).
         """
         if self._cache is None:
             return
@@ -152,12 +214,23 @@ class BaseClient:
             if ttl is None:
                 ttl = self._config.cache.ttl.default_ttl
 
+            # PHE: persist the hydration projection as entry metadata (the
+            # authority slot -- survives _extend_ttl's metadata spread).
+            metadata: dict[str, Any] = {}
+            if opt_fields is not None:
+                from autom8_asana.cache.models.completeness import (
+                    create_completeness_metadata,
+                )
+
+                metadata = create_completeness_metadata(sorted(set(opt_fields)))
+
             entry = CacheEntry(
                 key=key,
                 data=data,
                 entry_type=entry_type,
                 version=version,
                 ttl=ttl,
+                metadata=metadata,
             )
             self._cache.set_versioned(key, entry)
 

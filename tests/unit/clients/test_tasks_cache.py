@@ -88,7 +88,16 @@ def make_cache_entry(
     name: str = "Cached Task",
     ttl: int = 300,
 ) -> CacheEntry:
-    """Create a cache entry."""
+    """Create a cache entry.
+
+    PHE (ADR-taskcache-projection-coverage-2026-07-08): the hit path now gates
+    serves on stored projection coverage, so pre-populated entries stamp a
+    STANDARD projection (what the miss path's union hydration writes) to model
+    a projection-honest entry. Metadata-less (UNKNOWN) entries deliberately
+    miss-once -- that behavior is pinned by the PHE canary suite.
+    """
+    from autom8_asana.models.business import STANDARD_TASK_OPT_FIELDS
+
     return CacheEntry(
         key=gid,
         data=make_task_data(gid=gid, name=name),
@@ -96,6 +105,10 @@ def make_cache_entry(
         version=datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC),
         cached_at=datetime.now(UTC),
         ttl=ttl,
+        metadata={
+            "opt_fields_used": sorted(STANDARD_TASK_OPT_FIELDS),
+            "completeness_level": "standard",
+        },
     )
 
 
@@ -421,23 +434,46 @@ class TestEntityTypeTTLFromConfig:
 class TestOptFields:
     """Tests for opt_fields parameter handling with cache."""
 
-    async def test_cache_hit_ignores_opt_fields(
+    async def test_cache_hit_serves_covered_opt_fields(
         self,
         tasks_client: TasksClient,
         cache_provider: MockCacheProvider,
         mock_http: MockHTTPClient,
     ) -> None:
-        """Cache hit returns cached data regardless of opt_fields."""
-        # Arrange: Pre-populate cache
+        """PHE contract (supersedes 'cache hit ignores opt_fields'): a hit is
+        served WITHOUT HTTP iff the resolved request is covered by the entry's
+        stored projection. 'name' is inside the stamped STANDARD projection."""
+        # Arrange: Pre-populate cache (STANDARD-stamped entry)
         cache_entry = make_cache_entry(gid=TASK_GID, name="Cached Task")
         cache_provider._cache[f"{TASK_GID}:{EntryType.TASK.value}"] = cache_entry
 
         # Act
-        result = await tasks_client.get_async(TASK_GID, opt_fields=["name", "notes"])
+        result = await tasks_client.get_async(TASK_GID, opt_fields=["name"])
 
         # Assert: Got cached data without HTTP call
         assert result.name == "Cached Task"
         mock_http.get.assert_not_called()
+
+    async def test_cache_hit_uncovered_opt_fields_refetches(
+        self,
+        tasks_client: TasksClient,
+        cache_provider: MockCacheProvider,
+        mock_http: MockHTTPClient,
+    ) -> None:
+        """PHE contract: a request OUTSIDE the stored projection ('notes' is not
+        in STANDARD) is a coverage-miss -- re-fetch, never a narrowed serve."""
+        cache_entry = make_cache_entry(gid=TASK_GID, name="Cached Task")
+        cache_provider._cache[f"{TASK_GID}:{EntryType.TASK.value}"] = cache_entry
+        mock_http.get.return_value = make_task_data(
+            gid=TASK_GID, name="API Task", notes="Some notes"
+        )
+
+        result = await tasks_client.get_async(TASK_GID, opt_fields=["name", "notes"])
+
+        mock_http.get.assert_called_once()
+        params = mock_http.get.call_args[1]["params"]
+        assert "notes" in params["opt_fields"]
+        assert result.name == "API Task"
 
     async def test_cache_miss_passes_opt_fields_to_api(
         self,
