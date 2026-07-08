@@ -6,9 +6,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from autom8_asana.clients.tasks import _MINIMUM_OPT_FIELDS, TasksClient
+from autom8_asana.clients.tasks import TasksClient
 from autom8_asana.errors import SyncInAsyncContextError
 from autom8_asana.models import PageIterator, Task
+from autom8_asana.models.business import STANDARD_TASK_OPT_FIELDS
 
 if TYPE_CHECKING:
     from autom8_asana.config import AsanaConfig
@@ -61,17 +62,27 @@ class TestGetAsync:
         else:
             assert result.gid == "123"
             assert result.name == "Test Task"
-        mock_http.get.assert_called_once_with("/tasks/123", params={})
+        # Option-B superset hydration (HANDOFF-thermia-to-10xdev-taskcache-fix-2026-07-07):
+        # a cache MISS -- including a bare get(gid) -- now fetches the full
+        # STANDARD_TASK_OPT_FIELDS superset so the opt_fields-blind TASK cache entry
+        # satisfies any later projection. (Previously asserted params={}, which encoded
+        # the narrow-cache-poisoning bug: a bare get cached an Asana-minimal task.)
+        call = mock_http.get.call_args
+        assert call.args[0] == "/tasks/123"
+        sent_fields = set(call.kwargs["params"]["opt_fields"].split(","))
+        assert sent_fields == set(STANDARD_TASK_OPT_FIELDS)
 
     async def test_get_async_with_opt_fields(
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
-        """get_async passes opt_fields as comma-separated query param.
+        """get_async cache MISS fetches the STANDARD_TASK_OPT_FIELDS superset.
 
-        Caller-provided fields are preserved AND ``_MINIMUM_OPT_FIELDS`` is merged in
-        (the cache-coherence minimum: parent.gid for cascade + memberships.project.*
-        for detection -- see the narrow-fetch regression tests below).
-        Set-based merge makes order non-deterministic, so assert on the field set.
+        Option-B superset hydration (HANDOFF-thermia-to-10xdev-taskcache-fix-2026-07-07):
+        regardless of the caller's projection, the miss-path fetch requests the full
+        superset so the opt_fields-blind TASK cache entry satisfies any later reader of
+        the same gid. (Previously this asserted the caller's fields merged with
+        _MINIMUM_OPT_FIELDS -- the narrow behavior that starved later custom_fields reads.)
+        The caller still receives its projection; only the cache stores the superset.
         """
         mock_http.get.return_value = {
             "gid": "123",
@@ -89,7 +100,7 @@ class TestGetAsync:
         call = mock_http.get.call_args
         assert call.args[0] == "/tasks/123"
         sent_fields = set(call.kwargs["params"]["opt_fields"].split(","))
-        assert sent_fields == {"name", "notes", "completed"} | _MINIMUM_OPT_FIELDS
+        assert sent_fields == set(STANDARD_TASK_OPT_FIELDS)
 
     async def test_get_async_narrow_opt_fields_always_include_parent_gid(
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
@@ -114,19 +125,26 @@ class TestGetAsync:
         assert "parent.gid" in sent_fields
         assert {"name", "custom_fields"} <= sent_fields
 
-    async def test_get_async_no_opt_fields_preserves_default_behavior(
+    async def test_get_async_no_opt_fields_hydrates_superset(
         self, tasks_client: TasksClient, mock_http: MockHTTPClient
     ) -> None:
-        """A bare get_async(gid) (opt_fields=None) is unchanged: no opt_fields param.
+        """A bare get_async(gid) (opt_fields=None) cache MISS fetches the superset.
 
-        The parent.gid merge is scoped to the explicitly-narrowed case; the default
-        (Asana-default fields) path must not be widened.
+        Option-B superset hydration (HANDOFF-thermia-to-10xdev-taskcache-fix-2026-07-07):
+        a bare get is the caller most likely to poison the opt_fields-blind TASK cache
+        with Asana's minimal default fields, so under Option B it too fetches the full
+        STANDARD_TASK_OPT_FIELDS superset. (Previously asserted params={} -- the
+        Asana-default narrow behavior that this fix intentionally supersedes.)
         """
         mock_http.get.return_value = {"gid": "123", "name": "Test Task"}
 
         await tasks_client.get_async("123")
 
-        mock_http.get.assert_called_once_with("/tasks/123", params={})
+        mock_http.get.assert_called_once()
+        call = mock_http.get.call_args
+        assert call.args[0] == "/tasks/123"
+        sent_fields = set(call.kwargs["params"]["opt_fields"].split(","))
+        assert sent_fields == set(STANDARD_TASK_OPT_FIELDS)
 
 
 class TestGetSync:
@@ -166,7 +184,12 @@ class TestGetSync:
         else:
             assert result.gid == "456"
             assert result.name == "Sync Task"
-            mock_http.get.assert_called_once_with("/tasks/456", params={})
+            # Option-B superset hydration: a bare get MISS fetches the full
+            # STANDARD_TASK_OPT_FIELDS superset (was params={} under the narrow behavior).
+            call = mock_http.get.call_args
+            assert call.args[0] == "/tasks/456"
+            sent_fields = set(call.kwargs["params"]["opt_fields"].split(","))
+            assert sent_fields == set(STANDARD_TASK_OPT_FIELDS)
 
     async def test_get_sync_fails_in_async_context(self, tasks_client: TasksClient) -> None:
         """get() raises SyncInAsyncContextError when called from async."""

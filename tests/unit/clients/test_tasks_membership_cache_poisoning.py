@@ -146,20 +146,27 @@ class TestMembershipCachePoisoning:
         assert "memberships.project.name" in sent
 
 
-class TestBareGetOptFieldsUnchanged:
-    """Bare get_async(gid) (opt_fields=None) semantics are UNTOUCHED (R4)."""
+class TestBareGetHydratesSuperset:
+    """Bare get_async(gid) (opt_fields=None) now hydrates the superset (Option B).
 
-    async def test_bare_get_async_sends_no_opt_fields_param(
+    Supersedes the R4 "bare-None path UNTOUCHED" contract: Option-B superset hydration
+    (HANDOFF-thermia-to-10xdev-taskcache-fix-2026-07-07) widens EVERY cache MISS --
+    including the bare-None path -- to STANDARD_TASK_OPT_FIELDS, because a bare get is
+    the caller most likely to poison the opt_fields-blind TASK cache with Asana's
+    minimal default fields.
+    """
+
+    async def test_bare_get_async_hydrates_superset(
         self,
         mock_http: MagicMock,
         config: AsanaConfig,
         auth_provider: MagicMock,
         cache_provider: Any,
     ) -> None:
-        """opt_fields=None -> no opt_fields query param -> Asana returns its defaults.
+        """opt_fields=None -> the miss-path fetch carries STANDARD_TASK_OPT_FIELDS.
 
-        Passes on both pre-fix main and the fix; guards against a minimum-set widening
-        leaking into the bare-None path.
+        (Previously asserted no opt_fields param -- the pre-Option-B narrow behavior
+        that let a bare get cache an Asana-minimal, custom_fields-less task.)
         """
         mock_http.get.return_value = {
             "gid": PLAY_GID,
@@ -172,7 +179,8 @@ class TestBareGetOptFieldsUnchanged:
         await tasks.get_async(PLAY_GID)
 
         params = mock_http.get.call_args.kwargs["params"]
-        assert "opt_fields" not in params
+        sent_fields = set(params["opt_fields"].split(","))
+        assert sent_fields == set(STANDARD_TASK_OPT_FIELDS)
 
     async def test_cache_miss_records_task_entry(
         self,
