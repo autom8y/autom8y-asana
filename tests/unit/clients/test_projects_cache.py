@@ -370,15 +370,23 @@ class TestGidValidation:
 class TestOptFields:
     """Tests for opt_fields parameter handling with cache."""
 
-    async def test_cache_hit_ignores_opt_fields(
+    async def test_cache_hit_serves_covered_opt_fields(
         self,
         projects_client: ProjectsClient,
         cache_provider: MockCacheProvider,
         mock_http: MockHTTPClient,
     ) -> None:
-        """Cache hit returns cached data regardless of opt_fields."""
-        # Arrange: Pre-populate cache
+        """PHE contract (supersedes 'cache hit ignores opt_fields'): the hit
+        serves WITHOUT HTTP iff the requested projection is covered by the
+        entry's stored projection (ADR-taskcache-projection-coverage)."""
+        from dataclasses import replace as dc_replace
+
+        # Arrange: Pre-populate cache with a projection-stamped entry
         cache_entry = make_cache_entry(gid=PROJECT_GID, name="Cached Project")
+        cache_entry = dc_replace(
+            cache_entry,
+            metadata={"opt_fields_used": ["name", "notes"], "completeness_level": "standard"},
+        )
         cache_provider._cache[f"{PROJECT_GID}:{EntryType.PROJECT.value}"] = cache_entry
 
         # Act
