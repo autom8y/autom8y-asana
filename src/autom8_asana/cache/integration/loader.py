@@ -30,6 +30,7 @@ async def load_task_entry(
     freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
     project_gid: str | None = None,
     ttl: int | None = 300,
+    opt_fields: list[str] | None = None,
 ) -> tuple[CacheEntry | None, bool]:
     """Load a cache entry for a task, fetching if needed.
 
@@ -49,6 +50,11 @@ async def load_task_entry(
             Defaults to EVENTUAL.
         project_gid: Project GID (required for STRUC entry type).
         ttl: Time-to-live in seconds for cached entry. Defaults to 300.
+        opt_fields: The projection ``fetcher`` fetches at (PHE,
+            ADR-taskcache-projection-coverage-2026-07-08). When provided,
+            the written entry carries projection metadata so covering reads
+            HIT. Default None = coverage-UNKNOWN (fail-safe: the entry
+            misses once on its first projected read and heals).
 
     Returns:
         Tuple of (CacheEntry or None, was_cache_hit: bool).
@@ -91,7 +97,7 @@ async def load_task_entry(
     version_str = data.get("modified_at")
     version = _parse_version(version_str) if version_str else datetime.now(UTC)
 
-    # Create new cache entry
+    # Create new cache entry (stamp the fetch projection when known -- PHE)
     entry = CacheEntry(
         key=task_gid,
         data=data,
@@ -100,6 +106,7 @@ async def load_task_entry(
         cached_at=datetime.now(UTC),
         ttl=ttl,
         project_gid=project_gid,
+        metadata=_projection_metadata(opt_fields),
     )
 
     # Store in cache
@@ -117,6 +124,7 @@ async def load_task_entries(
     freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
     project_gid: str | None = None,
     ttl: int | None = 300,
+    opt_fields: dict[EntryType, list[str]] | None = None,
 ) -> dict[EntryType, tuple[CacheEntry | None, bool]]:
     """Load multiple cache entries for a task concurrently.
 
@@ -133,6 +141,8 @@ async def load_task_entries(
         freshness: STRICT or EVENTUAL freshness mode.
         project_gid: Project GID (required for STRUC entry type).
         ttl: Time-to-live in seconds. Defaults to 300.
+        opt_fields: Optional dict mapping EntryType to the projection its
+            fetcher fetches at (PHE). Missing types = coverage-UNKNOWN.
 
     Returns:
         Dict mapping EntryType to tuple of (CacheEntry or None, was_cache_hit).
@@ -173,6 +183,7 @@ async def load_task_entries(
             freshness=freshness,
             project_gid=project_gid,
             ttl=ttl,
+            opt_fields=(opt_fields or {}).get(entry_type),
         )
         return entry_type, entry, hit
 
@@ -200,6 +211,7 @@ async def load_batch_entries(
     current_versions: dict[str, str] | None = None,
     freshness: FreshnessIntent = FreshnessIntent.EVENTUAL,
     ttl: int | None = 300,
+    opt_fields: list[str] | None = None,
 ) -> dict[str, tuple[CacheEntry | None, bool]]:
     """Load cache entries for multiple tasks, using batch API for misses.
 
@@ -219,6 +231,9 @@ async def load_batch_entries(
             Required for STRICT freshness mode.
         freshness: STRICT or EVENTUAL freshness mode.
         ttl: Time-to-live in seconds. Defaults to 300.
+        opt_fields: The projection ``batch_fetcher`` fetches at (PHE). When
+            provided, written entries carry projection metadata. Default
+            None = coverage-UNKNOWN (fail-safe: miss-once-and-heal).
 
     Returns:
         Dict mapping GID to tuple of (CacheEntry or None, was_cache_hit).
@@ -289,6 +304,7 @@ async def load_batch_entries(
                 version=version,
                 cached_at=datetime.now(UTC),
                 ttl=ttl,
+                metadata=_projection_metadata(opt_fields),
             )
 
             entries_to_cache[gid] = entry
@@ -299,6 +315,20 @@ async def load_batch_entries(
             cache.set_batch(entries_to_cache)
 
     return results
+
+
+def _projection_metadata(opt_fields: list[str] | None) -> dict[str, Any]:
+    """Build PHE projection metadata for a loader-written entry.
+
+    Per ADR-taskcache-projection-coverage-2026-07-08 fork (c): loader writers
+    thread the fetcher's projection when known. None/empty => no stamp
+    (coverage-UNKNOWN, fail-safe: miss-once-and-heal).
+    """
+    if not opt_fields:
+        return {}
+    from autom8_asana.cache.models.completeness import create_completeness_metadata
+
+    return create_completeness_metadata(sorted(set(opt_fields)))
 
 
 def _parse_version(version_str: str) -> datetime:

@@ -67,6 +67,22 @@ DECK_HOST: str = "decks.cntently.com"
 # match: the "PLAY:" separator + phrase is required, not the substring "Play".
 PLAY_NAME_RE = re.compile(r"^\s*PLAY:\s*Custom Calendar Integration\b")
 
+# The fail-closed preflight projection (SS5): PLAY name + ACTIVE-section
+# membership by canonical resolved gid. Hoisted to a module constant (no
+# behavior change) per TDD-taskcache-projection-coverage-2026-07-08 SS6.3:
+# every in-repo get_async caller projection is a REGISTERED constant so the
+# projection-coverage registry test can pin that it is served covered after
+# first hydration. This is the projection the TASK-cache starvation defect
+# poisoned (memberships.section.* is deliberately outside
+# STANDARD_TASK_OPT_FIELDS).
+_PREFLIGHT_OPT_FIELDS: list[str] = [
+    "name",
+    "memberships.project.gid",
+    "memberships.project.name",
+    "memberships.section.gid",
+    "memberships.section.name",
+]
+
 
 class LinkOnPlayRefused(RuntimeError):
     """Fail-closed refusal (preflight mismatch OR egress-guard match).
@@ -157,13 +173,7 @@ async def _preflight(client: AsanaClient, task_gid: str) -> tuple[str, str]:
     """
     task = await client.tasks.get_async(
         task_gid,
-        opt_fields=[
-            "name",
-            "memberships.project.gid",
-            "memberships.project.name",
-            "memberships.section.gid",
-            "memberships.section.name",
-        ],
+        opt_fields=list(_PREFLIGHT_OPT_FIELDS),
     )
     # (a) name convention.
     if not task.name or not PLAY_NAME_RE.search(task.name):

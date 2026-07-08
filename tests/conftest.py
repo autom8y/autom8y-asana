@@ -65,6 +65,27 @@ os.environ["AUTOM8Y_ENV"] = "test"
 # This must be set BEFORE any AuthSettings instantiation.
 os.environ.setdefault("AUTH__JWKS_URL", "http://localhost:8000/.well-known/jwks.json")
 
+# F-2 guardrail (ADR-taskcache-projection-coverage-2026-07-08 fork e): the
+# default AsanaConfig path now BINDS the ASANA_CACHE_* knobs that
+# CacheConfig.from_env reads. A leaked export in the test/CI environment would
+# silently flip the whole suite's cache posture -- refuse LOUD instead.
+# Tests exercising the knobs must set them via monkeypatch (test-scoped).
+# Scoped to the BINDING knobs only: the fleet env legitimately exports legacy
+# ASANA_CACHE_S3_* vars, which CacheSettings ignores (extra="ignore") -- P0
+# census finding, dispositioned safe (see DW-8).
+_BINDING_CACHE_ENV_KNOBS = (
+    "ASANA_CACHE_ENABLED",
+    "ASANA_CACHE_PROVIDER",
+    "ASANA_CACHE_TTL_DEFAULT",
+)
+_leaked_cache_env = sorted(k for k in _BINDING_CACHE_ENV_KNOBS if k in os.environ)
+if _leaked_cache_env:
+    raise RuntimeError(
+        "Test environment leaks binding ASANA_CACHE_* exports "
+        f"({', '.join(_leaked_cache_env)}); these now BIND on the default "
+        "AsanaClient path (F-2). Unset them before running the suite."
+    )
+
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest

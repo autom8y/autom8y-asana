@@ -95,14 +95,19 @@ class ProjectsClient(BaseClient):
         Raises:
             GidValidationError: If project_gid is invalid.
         """
+        from autom8_asana.cache.models.coverage import stored_projection
         from autom8_asana.cache.models.entry import EntryType
         from autom8_asana.persistence.validation import validate_gid
 
         # Step 1: Validate GID
         validate_gid(project_gid, "project_gid")
 
-        # Step 2: Check cache first
-        cached_entry = self._cache_get(project_gid, EntryType.PROJECT)
+        # Step 2: Check cache first -- PHE coverage gate
+        # (ADR-taskcache-projection-coverage-2026-07-08 fork d): serve only a
+        # projection-covering entry; an empty request declares no demand.
+        cached_entry, existing_entry = self._cache_get_covering(
+            project_gid, EntryType.PROJECT, opt_fields or []
+        )
         if cached_entry is not None:
             # Step 3: Cache hit - return cached data
             data = cached_entry.data
@@ -110,13 +115,24 @@ class ProjectsClient(BaseClient):
                 return data
             return Project.model_validate(data)
 
-        # Step 4: Cache miss - fetch from API
-        params = self._build_opt_fields(opt_fields)
+        # Step 4: Cache miss - fetch requested UNION stored projection (the
+        # anti-thrash widening term; no STANDARD analogue for siblings)
+        fetch_opt_fields = sorted(
+            set(opt_fields or [])
+            | ((stored_projection(existing_entry) if existing_entry is not None else None) or set())
+        )
+        params = self._build_opt_fields(fetch_opt_fields)
         data = await self._http.get(f"/projects/{project_gid}", params=params)
 
-        # Step 5: Store in cache (15 min TTL)
+        # Step 5: Store in cache (15 min TTL) with the projection stamp
         cache_ttl = get_settings().cache.ttl_project
-        self._cache_set(project_gid, data, EntryType.PROJECT, ttl=cache_ttl)
+        self._cache_set(
+            project_gid,
+            data,
+            EntryType.PROJECT,
+            ttl=cache_ttl,
+            opt_fields=fetch_opt_fields or None,
+        )
 
         # Step 6: Return model or raw dict
         if raw:

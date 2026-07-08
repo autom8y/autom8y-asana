@@ -813,6 +813,17 @@ class CacheConfig:
             provider=cache_settings.provider,
         )
         config._ttl = TTLSettings(default_ttl=cache_settings.ttl_default)
+        # F-2 bind guardrail (ADR-taskcache-projection-coverage-2026-07-08
+        # fork e): from_env is now the DEFAULT AsanaConfig path, so any
+        # env-driven behavior flip must be loud at startup.
+        logger.info(
+            "cache_config_bound_from_env",
+            extra={
+                "enabled": config.enabled,
+                "provider": config.provider or "auto",
+                "ttl_default": cache_settings.ttl_default,
+            },
+        )
         return config
 
 
@@ -852,7 +863,13 @@ class AsanaConfig:
     timeout: TimeoutConfig = field(default_factory=TimeoutConfig)
     connection_pool: ConnectionPoolConfig = field(default_factory=ConnectionPoolConfig)
     circuit_breaker: CircuitBreakerConfig = field(default_factory=CircuitBreakerConfig)
-    cache: CacheConfig = field(default_factory=CacheConfig)
+    # F-2 (ADR-taskcache-projection-coverage-2026-07-08 fork e): the default
+    # path BINDS the documented ASANA_CACHE_* env knobs. ASANA_CACHE_ENABLED=
+    # false is the zero-code-mutation operator kill-switch for the cache (and
+    # the PHE coverage machinery). Explicit AsanaConfig(cache=...) bypasses
+    # this default_factory; explicit AsanaClient(cache_provider=...) still
+    # wins over both (factory precedence unchanged).
+    cache: CacheConfig = field(default_factory=CacheConfig.from_env)
     dataframe: DataFrameConfig = field(default_factory=DataFrameConfig)
     automation: AutomationConfig = field(default_factory=AutomationConfig)
 
