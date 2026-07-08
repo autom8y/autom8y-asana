@@ -181,10 +181,11 @@ class TestPhase1Produce:
         assert result.outcome == "produced"
         assert result.slug == SLUG
         assert result.deck_url == DECK_URL
-        # The reserved lever is SURFACED, not executed.
-        assert result.wrangler_command is not None
-        assert "wrangler pages deploy" in result.wrangler_command
-        assert str(tmp_path / "deploy" / PLAY_GID) in result.wrangler_command
+        # The reserved lever is SURFACED, not executed — and targets the WAVE-SHARED root
+        # (no per-office nesting: per-office deploys orphaned every prior office's deck).
+        assert result.wrangler_command == (
+            f"wrangler pages deploy {tmp_path / 'deploy'} --project-name=contente-decks"
+        )
         # No post, no curl (the HALT).
         m["link"].assert_not_awaited()
         m["template"].assert_not_awaited()
@@ -206,10 +207,11 @@ class TestPhase1Produce:
                 store=store,
                 deploy_base=deploy_base,
             )
-        # Real stage_deck_bundle wrote the served bytes verbatim under <deploy>/<play>/<slug>/.
-        served = deploy_base / PLAY_GID / SLUG / "index.html"
+        # Real stage_deck_bundle wrote the served bytes verbatim under the WAVE-SHARED
+        # <deploy>/<slug>/ (no per-office nesting — TDD §8 accumulating root).
+        served = deploy_base / SLUG / "index.html"
         assert served.is_file()
-        assert (deploy_base / PLAY_GID / "_headers").is_file()
+        assert (deploy_base / "_headers").is_file()
         # Manifest committed: PRODUCED, slug pinned, frozen sha == sha of the staged bytes.
         state = store.load(PLAY_GID)
         assert state is not None
@@ -290,6 +292,45 @@ class TestPhase1Produce:
         assert second.outcome == "already_produced"
         assert m["mint"].call_count == 1  # minted once, never re-minted
         assert m["freeze"].await_count == 1  # not re-frozen on the idempotent re-run
+
+    async def test_two_office_wave_accumulates_into_shared_root(self, tmp_path) -> None:
+        """WAVE-SHARED root (TDD §8): two offices produce into ONE deploy_base — both slug
+        dirs accumulate as siblings, ONE ``_headers``, and both surfaced commands are the
+        IDENTICAL shared-root command (per-office nesting would have orphaned office A's
+        deck the moment office B deployed: Pages serves latest-deployment-only)."""
+        store = _store(tmp_path)
+        deploy_base = tmp_path / "deploy"
+        slug_b = "fedcba9876543210aabbccddeeff0011"
+        play_b = "1215823342887130"
+        with ExitStack() as stack:
+            _produce_patches(stack)
+            # Re-patch mint on top: office A gets SLUG, office B gets slug_b.
+            stack.enter_context(patch.object(orunner, "mint_slug", side_effect=[SLUG, slug_b]))
+            first = await run_office(
+                _mock_client(),
+                play_gid=PLAY_GID,
+                clinic=CLINIC,
+                phase="produce",
+                store=store,
+                deploy_base=deploy_base,
+            )
+            second = await run_office(
+                _mock_client(),
+                play_gid=play_b,
+                clinic="Total Wellness Center",
+                phase="produce",
+                store=store,
+                deploy_base=deploy_base,
+            )
+        # Both decks accumulated as SIBLINGS in the one shared root; office A untouched.
+        assert (deploy_base / SLUG / "index.html").is_file()
+        assert (deploy_base / slug_b / "index.html").is_file()
+        assert {p.name for p in deploy_base.iterdir()} == {"_headers", SLUG, slug_b}
+        # ONE identical shared-root command surfaced by both (deck-host default project).
+        assert first.wrangler_command == second.wrangler_command
+        assert first.wrangler_command == (
+            f"wrangler pages deploy {deploy_base} --project-name=deck-host"
+        )
 
 
 # ============================================================ Phase-2 resume (post seam)
