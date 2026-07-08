@@ -1297,6 +1297,19 @@ class TestPhase1Constants:
         assert _DISPLAY_LABELS["period_end"] == "End"
         assert _DISPLAY_LABELS["period_len"] == "Days"
 
+    def test_display_labels_honest_cps_naming(self):
+        """GAP-2 'Two metrics, honestly named' (ratified 2026-07-08).
+
+        ecps = spend/effective_scheds (status FILTER) -> 'Effective CPS'
+        (the previous 'Expected CPS' label was drifted); xcps =
+        spend/solid_scheds (probabilistic show-weight denominator,
+        ADR-SOLID-SCHEDS-002) -> 'Expected CPS'.
+        """
+        assert _DISPLAY_LABELS["ecps"] == "Effective CPS"
+        assert _DISPLAY_LABELS["xcps"] == "Expected CPS"
+        # The honest-naming invariant: the two siblings NEVER share a label.
+        assert _DISPLAY_LABELS["ecps"] != _DISPLAY_LABELS["xcps"]
+
     def test_to_title_case_uses_display_labels(self):
         """_to_title_case prefers _DISPLAY_LABELS over title-casing."""
         for key, label in _DISPLAY_LABELS.items():
@@ -1314,7 +1327,20 @@ class TestPhase1Constants:
         assert "cpl" in _COLUMN_TOOLTIPS
         assert "roas" in _COLUMN_TOOLTIPS
         assert "booking_rate" in _COLUMN_TOOLTIPS
-        assert len(_COLUMN_TOOLTIPS) == 10
+        assert len(_COLUMN_TOOLTIPS) == 12  # +ecps +xcps (GAP-2 2026-07-08)
+
+    def test_column_tooltips_honest_cps_semantics(self):
+        """GAP-2: cps tooltip drift fixed; ecps/xcps tooltips are distinct.
+
+        Modern cps is cost per SCHEDULED appointment (autom8y-data
+        library.py cps = spend/scheds), NOT cost per show (legacy drift).
+        """
+        assert _COLUMN_TOOLTIPS["cps"].startswith("Cost Per Schedule")
+        assert "Cost Per Show" not in _COLUMN_TOOLTIPS["cps"]
+        assert _COLUMN_TOOLTIPS["ecps"].startswith("Effective CPS")
+        assert "effective schedules" in _COLUMN_TOOLTIPS["ecps"]
+        assert _COLUMN_TOOLTIPS["xcps"].startswith("Expected CPS")
+        assert "probability-weighted" in _COLUMN_TOOLTIPS["xcps"]
 
     # --- _SECTION_SUBTITLES ---
 
@@ -2511,12 +2537,12 @@ class TestPhase6QA:
     # -----------------------------------------------------------------------
 
     def test_display_labels_count(self):
-        """_DISPLAY_LABELS has exactly 27 entries per spec."""
-        assert len(_DISPLAY_LABELS) == 27
+        """_DISPLAY_LABELS has exactly 28 entries (27 + xcps, GAP-2 2026-07-08)."""
+        assert len(_DISPLAY_LABELS) == 28
 
     def test_column_tooltips_count(self):
-        """_COLUMN_TOOLTIPS has exactly 10 entries per spec."""
-        assert len(_COLUMN_TOOLTIPS) == 10
+        """_COLUMN_TOOLTIPS has exactly 12 entries (10 + ecps + xcps, GAP-2)."""
+        assert len(_COLUMN_TOOLTIPS) == 12
 
     def test_section_subtitles_count(self):
         """_SECTION_SUBTITLES has exactly 12 entries (one per TABLE_ORDER)."""
