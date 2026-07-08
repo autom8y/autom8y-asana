@@ -141,23 +141,62 @@ class TestSanitizeStatusEntries:
             assert _sanitize_status_entries([_entry() | {"phone": None}]) == []
             assert _sanitize_status_entries([{"vertical": "x", "pipeline_type": "unit"}]) == []
 
-    def test_pii_masked_sample_in_log(self) -> None:
-        """The logged sample goes through mask_pii_in_string, not raw."""
+    def test_rejected_phone_never_logged_raw(self) -> None:
+        """XR-003: NO substring of a rejected phone reaches the log call.
+
+        This is deliberately NOT a mask_pii_in_string test: that masker only
+        matches E.164-ish shapes (``\\+\\d{10,15}``), and the values rejected
+        here are precisely the ones that FAILED that shape -- masking them is
+        a guaranteed no-op. The contract is therefore structural: the warning
+        carries a shape descriptor ONLY, and the raw value (or its digits)
+        must not appear ANYWHERE in the logged payload. Fixtures are the
+        real-world formatted/plus-less shapes the QA lens proved unmaskable.
+        """
+        for raw_phone in ["(415) 555-2671", "415-555-2671", "07911 123456", "5551234567"]:
+            with (
+                patch(f"{_GID_PUSH_MODULE}.emit_metric"),
+                patch(f"{_GID_PUSH_MODULE}.logger") as mock_logger,
+            ):
+                assert _sanitize_status_entries([_entry(phone=raw_phone)]) == []
+
+            warn_calls = [
+                c
+                for c in mock_logger.warning.call_args_list
+                if c.args[0] == "status_push_rows_skipped"
+            ]
+            assert len(warn_calls) == 1
+            extra = warn_calls[0].kwargs["extra"]
+
+            # The whole logged payload, flattened: the raw phone and even its
+            # bare digit string must be absent.
+            flattened = repr(extra)
+            digits = "".join(ch for ch in raw_phone if ch.isdigit())
+            assert raw_phone not in flattened, f"raw phone {raw_phone!r} leaked into log"
+            assert digits not in flattened, f"phone digits of {raw_phone!r} leaked into log"
+
+            # The shape descriptor carries triage structure, not the value.
+            shape = extra["sample_shape"]
+            assert shape == {
+                "type": "str",
+                "length": len(raw_phone),
+                "has_plus": raw_phone.startswith("+"),
+                "digit_count": len(digits),
+            }
+
+    def test_non_string_phone_shape_carries_type_only(self) -> None:
+        """A non-str rejected phone logs only its type name -- nothing else."""
         with (
             patch(f"{_GID_PUSH_MODULE}.emit_metric"),
             patch(f"{_GID_PUSH_MODULE}.logger") as mock_logger,
-            patch(
-                f"{_GID_PUSH_MODULE}.mask_pii_in_string",
-                return_value="[masked]",
-            ) as mock_mask,
         ):
-            _sanitize_status_entries([_entry(phone="555-1234")])
+            assert _sanitize_status_entries([_entry() | {"phone": 4155552671}]) == []
 
-        mock_mask.assert_called_once_with("555-1234")
         warn_calls = [
             c for c in mock_logger.warning.call_args_list if c.args[0] == "status_push_rows_skipped"
         ]
-        assert warn_calls[0].kwargs["extra"]["sample"] == "[masked]"
+        extra = warn_calls[0].kwargs["extra"]
+        assert extra["sample_shape"] == {"type": "int"}
+        assert "4155552671" not in repr(extra)
 
 
 class TestPushStatusSanitizeIntegration:

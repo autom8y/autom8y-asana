@@ -562,6 +562,27 @@ def extract_status_from_dataframe(
     return entries
 
 
+def _phone_shape_descriptor(value: Any) -> dict[str, Any]:
+    """PII-safe shape summary of a REJECTED phone value -- NEVER the raw string.
+
+    The values that reach this helper are precisely the ones that FAILED the
+    E.164 gate, i.e. the population ``mask_pii_in_string`` (pattern
+    ``\\+\\d{10,15}``) can NOT match -- so masking would be a silent no-op and
+    formatted/plus-less customer numbers (``(415) 555-2671``, ``415-555-2671``)
+    would land raw in CloudWatch, violating the XR-003 redaction contract.
+    Log STRUCTURE only: type/length/plus-prefix/digit-count is enough to triage
+    the upstream defect class without ever carrying the number.
+    """
+    if not isinstance(value, str):
+        return {"type": type(value).__name__}
+    return {
+        "type": "str",
+        "length": len(value),
+        "has_plus": value.startswith("+"),
+        "digit_count": sum(ch.isdigit() for ch in value),
+    }
+
+
 def _sanitize_status_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Per-row guards for the account-status snapshot (sprint-C6, L1 + L3).
 
@@ -599,14 +620,14 @@ def _sanitize_status_entries(entries: list[dict[str, Any]]) -> list[dict[str, An
     seen_grains: set[tuple[Any, Any, Any]] = set()
     invalid_phone_count = 0
     dup_grain_count = 0
-    first_bad_phone: str | None = None
+    first_bad_phone_shape: dict[str, Any] | None = None
 
     for entry in entries:
         phone = entry.get("phone")
         if not isinstance(phone, str) or not phone_pattern.match(phone):
             invalid_phone_count += 1
-            if first_bad_phone is None:
-                first_bad_phone = str(phone)
+            if first_bad_phone_shape is None:
+                first_bad_phone_shape = _phone_shape_descriptor(phone)
             continue
 
         grain = (phone, entry.get("vertical"), entry.get("pipeline_type"))
@@ -623,9 +644,10 @@ def _sanitize_status_entries(entries: list[dict[str, Any]]) -> list[dict[str, An
                 "invalid_phone_count": invalid_phone_count,
                 "dup_grain_count": dup_grain_count,
                 "kept_count": len(sanitized),
-                "sample": (
-                    mask_pii_in_string(first_bad_phone) if first_bad_phone is not None else None
-                ),
+                # PII-safe by construction: shape descriptor ONLY, never the
+                # raw (or "masked") value -- see _phone_shape_descriptor for
+                # why mask_pii_in_string is a no-op on exactly this population.
+                "sample_shape": first_bad_phone_shape,
             },
         )
         if invalid_phone_count:
