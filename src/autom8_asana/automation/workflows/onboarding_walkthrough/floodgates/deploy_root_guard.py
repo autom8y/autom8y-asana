@@ -6,8 +6,12 @@ load-bearing once the deploy root is shared and accumulating (Option B, stage-IN
 
 * **Anything in the root gets PUBLISHED** — a stray file or a non-capability-shaped dir
   becomes a guessable public path on the deck host. The allowlist here is therefore
-  exhaustive: ``_headers`` + directories matching ``^[0-9a-f]{32}$`` (each holding
-  ``index.html``), NOTHING else. The dead legacy base32 slug shape is refused by design
+  exhaustive AND recursive-exact: ``_headers`` + non-symlink directories matching
+  ``^[0-9a-f]{32}$`` (each holding EXACTLY ``index.html``, nothing else), NOTHING else.
+  A nested stray (``<slug>/draft.html``, ``<slug>/.DS_Store``, ``<slug>/assets/``) would
+  be published verbatim at ``https://<host>/<slug>/<name>`` — unreviewed,
+  parity-unverified bytes at a live capability path — so it refuses exactly like a
+  root-level stray. The dead legacy base32 slug shape is refused by design
   (CH-01: ``od67utt5…`` is SUPERSEDED-DEAD; a base32 dir in the root is a staging error).
 * **Anything MISSING from the root gets 404'd** — a partial-root deploy orphans every
   LIVE client deck it omits. The no-orphan predicate demands the staged root be a
@@ -68,43 +72,62 @@ def default_manifest_path(deploy_root: Path) -> Path:
 
 
 def assert_root_hygiene(deploy_root: Path) -> None:
-    """Fail-closed allowlist: the root holds ONLY ``_headers`` + 32-lowercase-hex slug dirs.
+    """Fail-closed allowlist: ONLY ``_headers`` + 32-lowercase-hex slug dirs, RECURSIVE-EXACT.
 
-    Each slug dir must contain ``index.html`` (an empty/partial slug dir would deploy a
-    404-at-the-capability-URL). ANY other entry — stray file, non-hex dir, 31-hex,
-    uppercase, the dead base32 legacy shape — refuses LOUDLY: ``wrangler pages deploy``
-    would publish it verbatim at a guessable non-capability path.
+    Each slug dir must contain EXACTLY ``index.html`` (an empty/partial slug dir would
+    deploy a 404-at-the-capability-URL; anything BEYOND ``index.html`` — a nested stray
+    file like ``draft-internal.html``/``index.html.bak``/``.DS_Store`` or a nested subdir
+    like ``assets/`` — would be PUBLISHED verbatim at ``<slug>/<name>``: unreviewed,
+    parity-unverified bytes at a live capability path). ANY other root entry — stray
+    file, non-hex dir, 31-hex, uppercase, a 32-hex-named SYMLINK (its target tree would
+    be published), the dead base32 legacy shape — refuses LOUDLY: ``wrangler pages
+    deploy`` would publish it verbatim at a guessable non-capability path.
 
     Raises:
-        DeployRootRefused: missing root, stray entries, or a slug dir without index.html.
+        DeployRootRefused: missing root, stray entries, a slug dir without index.html,
+            or a slug dir holding anything beyond index.html.
     """
     if not deploy_root.is_dir():
         _refuse("deploy_root_missing", f"deploy root missing or not a directory: {deploy_root}")
 
     strays: list[str] = []
     slugless: list[str] = []
+    nonexact: list[str] = []
     for child in sorted(deploy_root.iterdir()):
         name = child.name
         if name == _HEADERS_NAME and child.is_file():
             continue
-        if child.is_dir() and _SLUG_DIR_RE.fullmatch(name):
+        if child.is_dir() and not child.is_symlink() and _SLUG_DIR_RE.fullmatch(name):
+            contents = sorted(entry.name for entry in child.iterdir())
             if not (child / "index.html").is_file():
                 slugless.append(name)
+            elif contents != ["index.html"]:
+                extras = [entry for entry in contents if entry != "index.html"]
+                nonexact.append(f"{name}/{{{', '.join(extras)}}}")
             continue
         strays.append(name)
     if strays:
         _refuse(
             "root_hygiene_stray",
             f"root-hygiene REFUSED for {deploy_root}: non-allowlisted entr(y/ies) {strays!r} — "
-            "the allowlist is `_headers` + dirs matching ^[0-9a-f]{32}$; anything else would "
-            "be PUBLISHED by `wrangler pages deploy` at a guessable non-capability path "
-            "(the dead base32 legacy shape is refused by design, CH-01)",
+            "the allowlist is `_headers` + non-symlink dirs matching ^[0-9a-f]{32}$; anything "
+            "else would be PUBLISHED by `wrangler pages deploy` at a guessable non-capability "
+            "path (the dead base32 legacy shape is refused by design, CH-01; a 32-hex-named "
+            "symlink would publish its TARGET tree)",
         )
     if slugless:
         _refuse(
             "slug_dir_missing_index",
             f"root-hygiene REFUSED for {deploy_root}: slug dir(s) {slugless!r} lack index.html "
             "— deploying would 404 those capability URLs",
+        )
+    if nonexact:
+        _refuse(
+            "slug_dir_contents_not_exact",
+            f"root-hygiene REFUSED for {deploy_root}: slug dir(s) {nonexact!r} hold entries "
+            "beyond index.html — slug dirs must hold EXACTLY index.html; `wrangler pages "
+            "deploy` would PUBLISH every nested byte live at <slug>/<name> (unreviewed, "
+            "parity-unverified content at a live capability path)",
         )
 
 

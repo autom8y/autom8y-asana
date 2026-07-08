@@ -119,6 +119,55 @@ class TestRootHygieneAllowlist:
         with pytest.raises(DeployRootRefused, match="root-hygiene REFUSED"):
             assert_root_hygiene(root)
 
+    # ------------------------------------------------ recursive-exact slug-dir contents
+    # `wrangler pages deploy` publishes slug-dir contents WHOLESALE at <slug>/<name>, so
+    # a nested stray is the same hazard class as a root-level stray (unreviewed,
+    # parity-unverified bytes at a live capability path — the stale-deck-variant /
+    # silent-wrong-outcome class). The allowlist must be recursive-exact: EXACTLY
+    # index.html per slug dir, nothing else.
+
+    @pytest.mark.parametrize(
+        "nested_name",
+        [
+            "draft-internal.html",  # a stale/unreviewed deck variant, served live
+            "index.html.bak",  # editor backup — the PREVIOUS deck bytes, served live
+            ".DS_Store",  # Finder metadata (root-level .DS_Store already refused;
+            # nested must not be the inconsistent-posture hole)
+        ],
+    )
+    def test_nested_stray_file_inside_slug_dir_refused(
+        self, tmp_path: Path, nested_name: str
+    ) -> None:
+        root = _make_root(tmp_path, [SLUG_A])
+        (root / SLUG_A / nested_name).write_text("stale variant", encoding="utf-8")
+        with pytest.raises(DeployRootRefused, match="EXACTLY index.html"):
+            assert_root_hygiene(root)
+
+    def test_nested_subdir_inside_slug_dir_refused(self, tmp_path: Path) -> None:
+        """A nested subdir (e.g. ``assets/``) gets published wholesale — refused."""
+        root = _make_root(tmp_path, [SLUG_A])
+        (root / SLUG_A / "assets").mkdir()
+        (root / SLUG_A / "assets" / "app.js").write_text("evil()", encoding="utf-8")
+        with pytest.raises(DeployRootRefused, match="EXACTLY index.html"):
+            assert_root_hygiene(root)
+
+    def test_slug_dirs_holding_exactly_index_html_pass(self, tmp_path: Path) -> None:
+        """Positive control for the recursive-exact check: the staged shape
+        (``stage_deck_bundle`` writes exactly ``<slug>/index.html``) stays GREEN."""
+        root = _make_root(tmp_path, [SLUG_A, SLUG_B])
+        assert_root_hygiene(root)  # no raise
+
+    def test_symlinked_slug_dir_refused(self, tmp_path: Path) -> None:
+        """A 32-hex-NAMED symlink to an external directory passes ``is_dir()`` + the regex
+        but would publish its TARGET tree — refused as a stray (never followed)."""
+        root = _make_root(tmp_path, [SLUG_A])
+        target = tmp_path / "external-tree"
+        target.mkdir()
+        (target / "index.html").write_text("outside bytes", encoding="utf-8")
+        (root / SLUG_B).symlink_to(target, target_is_directory=True)
+        with pytest.raises(DeployRootRefused, match="root-hygiene REFUSED"):
+            assert_root_hygiene(root)
+
 
 # ============================================================ _headers byte-parity
 
