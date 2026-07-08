@@ -1,6 +1,6 @@
 ---
 domain: scar-tissue
-generated_at: "2026-05-08T00:00Z"
+generated_at: "2026-07-08T00:00:00Z"
 expires_after: "7d"
 source_scope:
   - "./src/**/*.py"
@@ -8,11 +8,11 @@ source_scope:
   - "./pyproject.toml"
   - "./.github/workflows/**"
 generator: theoros
-source_hash: "8980bcd7"
+source_hash: "f3d8eec1"
 confidence: 0.95
 format_version: "1.0"
 update_mode: "incremental"
-incremental_cycle: 1
+incremental_cycle: 2
 max_incremental_cycles: 3
 land_sources:
   - ".sos/land/scar-tissue.md"
@@ -42,6 +42,16 @@ land_hash: "a15a024ce204de3301b612526c5b1b59e4841fa3d3d70f2226e1b430cd73da1e"
 > - TestAC006 lock-overhead budget widened 1ms->2ms under contention (commit `f37802f2`)
 > - @pytest.mark.scar count: 35 (unchanged from `20ef7952`)
 > - test_import_safety.py (SCAR-CW-001 CP-01): still absent
+
+> **ADVERSARIAL-CHALLENGE REFRESH 2026-07-08 (source_hash f3d8eec1, cell asana-scar-sd02):**
+> SCAR-SD02 added: status push is structurally dead code in prod (entity-warm lane paused Trap-4
+> since 2026-06-08; prod frames warm via ECS preload / SWR / prematerialize lanes, none of which
+> call push_status_to_data_service). The prior "4h push cadence" premise is documented as
+> FACTUALLY-FALSE in config.py:269-274: `0 */4` is the DISABLED ASR consumer-READ schedule, not
+> an asana push lane. SCAR-CW-001 fix-location paths are stale (subdirectory structure dissolved).
+> Repair for SD-02 is PENDING-MERGE(C-6) only — NOT on main at HEAD.
+> **SUPERSEDED-BY**: this refresh supersedes the absence of SD-02 knowledge in the prior catalog.
+> Prior catalog fully preserved; no existing SCARs modified except Knowledge Gaps extended.
 
 ## Failure Catalog
 
@@ -102,6 +112,7 @@ DEF-005 (2 refs), DEF-002 (2 refs), SCAR-006 (1 ref).
 | SCAR-ARTIPACKED-001 | zizmor artipacked: actions:read + cross-workflow download-artifact + persist-credentials=true checkout leaks git extraheader credential into uploaded artifacts | Security | `8980bcd7`; `persist-credentials: false` on fuzz job checkout |
 | Env Var Naming | `AUTOM8_DATA_API_KEY` typo (missing Y) — production API auth failures | Authentication | `clients/data/config.py:231` |
 | CSI-001 | **DISCHARGED** `docs/api-reference/openapi.json` hand-edited to add 13 M-02 examples not derivable from Pydantic source | Documentation / Spec Drift | DISCHARGED 2026-04-29 via T-08 (`4d4097c3`), PR #38 (`80256049`) |
+| SCAR-SD02 | Status push is structurally dead code in prod — wired only into entity-warm Lambda lane (paused Trap-4 since 2026-06-08); prod warm paths (ECS progressive preload, SWR, prematerialize lanes) never call it; `account_status` table has 0 rows / `synced_at` NULL since table creation (2026-03-28) | Data Model / Push Seam | PENDING-MERGE(C-6) `fix/sd02-status-push-live-seam` — no fix on main at HEAD |
 
 ### New Candidates Not Yet Assigned SCAR IDs
 
@@ -325,6 +336,7 @@ not_.comparison  Input should be a valid dictionary or instance of Comparison
 | Build Tooling | SCAR-LP-001 | 1 |
 | Epistemic / Drift | SCAR-P6-001 | 1 |
 | Test Infrastructure | SCAR-W1E-LOADGROUP-001 | 1 |
+| Push Seam / Dead Code | SCAR-SD02 | 1 |
 
 Three categories explicitly searched and returned no results: schema migration failures, distributed coordination failures, network partition handling.
 
@@ -367,6 +379,7 @@ Three categories explicitly searched and returned no results: schema migration f
 | SCAR-W1E-LOADGROUP-001 (dist mode) | `pyproject.toml:105` (`addopts = "--dist=loadgroup"`) | Yes — active at HEAD |
 | SCAR-CONSUMER-GATE-001 | `.github/workflows/test.yml:135-147` (fail-loud guard) | Yes — commit `8980bcd7` |
 | SCAR-ARTIPACKED-001 | `.github/workflows/test.yml:95,201` (`persist-credentials: false`) | Yes — commit `8980bcd7` |
+| SCAR-SD02 (repair — PENDING-MERGE) | `src/autom8_asana/lambda_handlers/cache_warmer.py:1087` (call site in entity-warm lane — the only push call in prod); fix pending on branch `fix/sd02-status-push-live-seam` (sprint C-6) | PENDING-MERGE(C-6) — not at HEAD |
 
 ---
 
@@ -462,6 +475,16 @@ PRs #28-#37 closed all 5 layers. CP-01 (`tests/unit/lambda_handlers/test_import_
 - SCAR-DISCRIMINATOR-001: No defensive guard, no regression test; fix deferred to hygiene-pass-2
 - SCAR-CW-001: CP-01 lazy-load regression test pending; eunomia Phase 4 carry-forward
 
+### SCAR-SD02 — Status Push Enable-Time Landmines (No Fix on Main at HEAD)
+
+The push seam is dead code in prod today (entity-warm lane paused, Trap-4). Before the repair lands (sprint C-6 `fix/sd02-status-push-live-seam`), three landmines must be resolved:
+
+1. **E.164 validation (L1)**: `push_status_to_data_service` (`gid_push.py:557`) sends `entries[]` whose `phone` values come from `extract_status_from_dataframe` (`gid_push.py:446-554`). The receiver has `extra="forbid"` on `AccountStatusEntry`; one non-E.164-conformant `office_phone` in the snapshot 422s the ENTIRE batch. Pre-enable: sweep `office_phone` population against `OfficePhoneField` / `PhoneTextField` (`models/business/descriptors.py:472-498`). [UV-P: E.164 sweep outcome | METHOD: requires iris live-probe of account_status population | REASON: phone values not inspectable from code alone]
+2. **Lambda env secrets (L2)**: `push_status_to_data_service` resolves `AUTOM8Y_DATA_URL` (`gid_push.py:152`) and `AUTOM8Y_DATA_API_KEY` via `resolve_secret_from_env` (`gid_push.py:166`). Without these in the Lambda env, the push skips silently (StatusPushSkipped{url_absent} / StatusPushSkipped{invalid_key}). Pre-enable: confirm Lambda-env secret wiring via operator check (see SPIKE-sd02-empty-registry-diagnosis-2026-07-08.md §4-R2).
+3. **PIPELINE_TYPE_BY_PROJECT_GID coverage (L3)**: `PIPELINE_TYPE_BY_PROJECT_GID` (`gid_push.py:413-424`) maps 10 project GIDs to pipeline types. Only the `unit` project (`1201081073731555`) maps to an entity in the default warm set (`cache_warmer.py:719-721`: `["unit","business","offer","contact","asset_edit","asset_edit_holder"]`). Of the 9 remaining GIDs, none are default entity-type keys; offer project `1143843662099250` is absent from the map. Only `unit` rows can land per the current wiring. Unit-tested only (`gid_push.py:413-424`); no integration test confirms end-to-end coverage. **SUPERSEDED-BY SCAR-SD02 landmine note**: prior absence of this constraint in scar-tissue.md was because SD-02 was undiscovered; this documents the as-wired narrowing as a PENDING-MERGE latent.
+
+**Status at HEAD (f3d8eec1)**: All three landmines are latent / pre-deploy. Repair PENDING-MERGE(C-6).
+
 ---
 
 ## Scar Test Cluster Status
@@ -505,6 +528,7 @@ Selectable: `pytest -m scar`
 - **Test infrastructure scale friction**: xdist crashes (SCAR-W1E-LOADGROUP-001 — now fixed via `--dist=loadgroup` + xdist_group markers); fixture explosion (HYG-004 parametrize-promote).
 - **Cross-fleet CI silent-bypass** (SCAR-CONSUMER-GATE-001): autom8y-ads PR #34 + autom8y-asana PR #59 — N=2 fleet pattern; fail-loud guard now standard.
 - **Pattern 6 (stale-checkout drift)** (SCAR-P6-001): now also manifests at PLAN-AUTHORING altitude, not just SCAN altitude.
+- **Dark-seam × dark-consumer × unarmed-alarm alignment** (SCAR-SD02, postmortem class CF-4/CF-5/CF-6): the same structural pattern as the 2026-06-18 dark-subsystem — a live seam never executes because its lane is paused; the consumer that would surface the absence has its schedule DISABLED; the alarm suite is AUTHORED/UN-DEPLOYED/UN-ARMED ([UV-P: exact IaC path `terraform/services/asana/observability_alarms.tf:8-21` | METHOD: cited from SPIKE-sd02-empty-registry-diagnosis-2026-07-08 §1 H2 | REASON: alarm IaC lives in the autom8y monorepo, outside this repo's read scope]). Non-blocking skip/fail paths never paged because nothing was listening. PENDING-MERGE(C-6). [KNOW-CANDIDATE] Novel pattern class not previously documented in scar-tissue.md.
 
 ### One-Time Events
 
@@ -550,6 +574,7 @@ Selectable: `pytest -m scar`
 | SCAR-ARTIPACKED-001 | platform-engineer | Any job combining actions:read + actions/checkout + cross-workflow download-artifact must set persist-credentials: false; zizmor artipacked rule detects regressions |
 | Env Var Naming | principal-engineer | All ecosystem env vars use `AUTOM8Y_` prefix (not `AUTOM8_`) |
 | Metrics CLI Under-count | observability-engineer | `autom8-query` CLI parquet loading silently drops sections — verify bucket mapping before trusting CLI output |
+| SCAR-SD02 | platform-engineer, principal-engineer | Status push (SD-02) is wired ONLY into the entity-warm Lambda lane (paused Trap-4 since 2026-06-08); prod never calls it; `account_status` table has 0 rows. Repair PENDING-MERGE(C-6). Pre-enable landmines: (L1) E.164 phone sweep before enable, (L2) Lambda env must carry AUTOM8Y_DATA_URL + AUTOM8Y_DATA_API_KEY, (L3) only unit-project rows reach the push per current PIPELINE_TYPE_BY_PROJECT_GID wiring — decide scope before re-arming. |
 
 12 scars still untagged: SCAR-003, 004, 007, 016-019, 020, 022, 024, 025.
 
@@ -571,6 +596,8 @@ Selectable: `pytest -m scar`
 12. **SCAR-LP-001 production-CI pending**: defer-watch entry `lockfile-propagator-prod-ci-confirmation` open until 2026-07-29
 13. **SCAR-CW-001 CP-01 regression test pending**: `tests/unit/lambda_handlers/test_import_safety.py` not yet authored
 14. **SCAR-LOG-001 active**: `autom8y-log>=0.5.6` unchanged; no stdlib shim; defer-watch `DEFER-WS4-T3-2026-04-29` deadline 2026-Q3
+15. **SCAR-SD02 repair PENDING-MERGE(C-6)**: `fix/sd02-status-push-live-seam` not yet on main; `account_status` table has 0 rows / `synced_at` NULL since 2026-03-28. Three enable-time landmines (L1 E.164 sweep, L2 Lambda env secrets, L3 PIPELINE_TYPE_BY_PROJECT_GID coverage) must be resolved before re-arming the entity-warm lane.
+16. **SCAR-CW-001 fix paths stale at HEAD**: fix-location mapping (lines 363-364) cites `src/autom8_asana/lambda_handlers/cache_warmer/facade.py:76` and `lambda_handlers/cache_warmer/discovery.py` — paths do not exist at HEAD (f3d8eec1). Lambda handlers are flat files; `facade.py` is at `src/autom8_asana/models/business/detection/facade.py`, `discovery.py` at `src/autom8_asana/services/discovery.py`. NOT corrected in place: the semantic mapping of SCAR-CW-001 layers 4-5 onto the current flat handler files is unresolved. [UV-P: correct fix-location paths for SCAR-CW-001 layers 4-5 | METHOD: file-read at HEAD | REASON: subdirectory structure dissolved between SCAR-CW-001 era and HEAD; layer→file mapping cannot be asserted without re-deriving the cold-start taxonomy]
 
 ```metadata
 domain: scar-tissue
