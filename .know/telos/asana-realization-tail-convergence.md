@@ -89,9 +89,9 @@ telos:
 
   attestation_status:
     inception: RATIFIED       # operator (Tom Tenuta) countersigned 2026-07-07 as-drafted (Gate-A CLOSED)
-    shipped: MISSING                        # nothing landed
-    verified_realized: UNATTESTED
-    last_eunomia_advisory: null
+    shipped: LANDED           # four legs on main: A1 e95a9de6 (register-truth) · A2 134bb31c (guard) · B1 d494aa9d (seam2 RULED-DEFER) · C1 d7a136c3 (credential receipts); A3 promoted to knossos shared-mena
+    verified_realized: ATTESTED-WITH-FLAG   # PT-E eunomia rite-disjoint 2026-07-07 @ d7a136c3 — four register legs realized (register-truth GREEN, two-sided guard teeth-proven + real keystone 19-passed uncached, seam2 RULED-DEFER, credential receipts w/ owners); FLAGGED: (1) leaked-PAT LIVE exposure OPEN — leg(d) discharged-via-receipt, rotation SOVEREIGN-pending (Critical); (2) PT-C-WITNESS STRONG rung absent (PAT not rotated -> no rotation to witness); (3) FLAG-b1 seam2 detector comment-tolerance teeth-gap (REMEDIATE candidate). Self-caps MODERATE; STRONG needs the live rotation witness. Advisory NON-BLOCKING.
+    last_eunomia_advisory: ".sos/wip/eunomia/VERDICT-realization-tail-convergence-pte-2026-07-07.md (PT-E, FLAG-ADVISORY, MODERATE)"
 
   receipt_grammar:
     per_item_file_line_anchors:
