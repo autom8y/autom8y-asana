@@ -37,6 +37,7 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.host_bundle import
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from pathlib import Path
 
 logger = get_logger(__name__)
@@ -47,6 +48,7 @@ __all__ = [
     "assert_headers_parity",
     "assert_manifest_superset",
     "assert_root_hygiene",
+    "assert_wave_slugs_staged",
     "default_manifest_path",
 ]
 
@@ -200,6 +202,39 @@ def assert_manifest_superset(deploy_root: Path, *, manifest_path: Path | None = 
             "manifest_orphans",
             f"no-orphan REFUSED: ledger slug(s) {orphans!r} (status != revoked) absent from "
             f"deploy root {deploy_root} — deploying would 404 LIVE client deck(s)",
+        )
+
+
+def assert_wave_slugs_staged(deploy_root: Path, slugs_by_office: Mapping[str, str]) -> None:
+    """Wave-level cross-check: every staged-ok office's PINNED slug dir must be in the root.
+
+    Closes the ledger-blind ``already_produced`` window: an office already at ``PRODUCED``
+    re-surfaces the wave command WITHOUT re-staging, so if ``--deploy-base`` points at a
+    root that lacks that office's slug dir AND the slug is not yet in the committed
+    deck-host ledger (the ledger update is an operator lever), the no-orphan predicate
+    cannot see the omission — the surfaced deploy would ship WITHOUT that deck. This
+    predicate refuses instead: every office the wave reports as staged-ok must have
+    ``<deploy_root>/<slug>/index.html`` present before the command is surfaced.
+
+    Args:
+        deploy_root: The wave-shared root the command would deploy.
+        slugs_by_office: ``{play_gid: pinned_slug}`` for every staged-ok office of the wave.
+
+    Raises:
+        DeployRootRefused: any pinned slug dir absent from the root.
+    """
+    missing = {
+        office: slug
+        for office, slug in sorted(slugs_by_office.items())
+        if not (deploy_root / slug / "index.html").is_file()
+    }
+    if missing:
+        _refuse(
+            "wave_slug_missing",
+            f"wave-slug cross-check REFUSED: staged-ok office(s) {missing!r} have no "
+            f"<slug>/index.html under deploy root {deploy_root} — the wave command would "
+            "deploy WITHOUT those decks (ledger-blind already_produced window); re-run "
+            "--phase produce against the accumulating deck-host root",
         )
 
 

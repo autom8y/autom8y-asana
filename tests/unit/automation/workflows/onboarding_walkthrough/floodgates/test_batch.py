@@ -194,14 +194,27 @@ def _make_shared_root(tmp_path: Path, slugs: list[str]) -> Path:
     return root
 
 
-def _produced(play_gid: str, deploy_root: Path) -> SimpleNamespace:
-    """A fake produce-phase OfficeRunResult carrying the SHARED-root wrangler command."""
-    return SimpleNamespace(
+def _produced(
+    play_gid: str,
+    deploy_root: Path,
+    *,
+    slug: str | None = None,
+    outcome: str = "produced",
+) -> SimpleNamespace:
+    """A fake produce-phase OfficeRunResult carrying the SHARED-root wrangler command.
+
+    ``slug`` opts the fake into the wave-slug cross-check (the real ``OfficeRunResult``
+    always carries the pinned slug); slug-less fakes exercise the other guard legs.
+    """
+    ns = SimpleNamespace(
         play_gid=play_gid,
         phase=Phase.PRODUCED,
-        outcome="produced",
+        outcome=outcome,
         wrangler_command=f"wrangler pages deploy {deploy_root} --project-name=deck-host",
     )
+    if slug is not None:
+        ns.slug = slug
+    return ns
 
 
 class TestWaveDeployGate:
@@ -337,6 +350,68 @@ class TestWaveDeployGate:
             )
         assert report.deploy_refusal is None
         assert report.wrangler_command is not None
+
+    async def test_already_produced_office_absent_from_root_refuses_wave(self, tmp_path) -> None:
+        """The ledger-blind ``already_produced`` window: office B is at PRODUCED so the
+        runner re-surfaces the command WITHOUT re-staging, the root lacks B's slug dir,
+        and B's slug is NOT yet in the committed ledger (the ledger update is an operator
+        lever) — the no-orphan predicate is blind, but the wave-slug cross-check refuses
+        BEFORE the command is surfaced (a deploy here would ship without B's deck)."""
+        store = _store(tmp_path)
+        root = _make_shared_root(tmp_path, [SLUG_A])  # ledger + root carry ONLY A's slug
+
+        async def _run(_client, *, play_gid, deploy_base, **_kw):
+            if play_gid == "A":
+                return _produced("A", deploy_base, slug=SLUG_A)
+            return _produced("B", deploy_base, slug=SLUG_B, outcome="already_produced")
+
+        with (
+            patch.object(
+                fbatch, "enumerate_active_play_gids", new=AsyncMock(return_value=["A", "B"])
+            ),
+            patch.object(fbatch, "run_office", new=AsyncMock(side_effect=_run)),
+        ):
+            report = await run_batch(
+                MagicMock(),
+                phase="produce",
+                store=store,
+                deploy_base=root,
+                clinic_map={"A": "Clinic A", "B": "Clinic B"},
+            )
+        assert report.wrangler_command is None
+        assert report.deploy_refusal is not None
+        assert "wave-slug cross-check REFUSED" in report.deploy_refusal
+        assert SLUG_B in report.deploy_refusal
+        for office in report.ok:
+            assert office.result is not None
+            assert office.result.wrangler_command is None  # stripped, fail-closed
+
+    async def test_already_produced_office_present_in_root_surfaces(self, tmp_path) -> None:
+        """Positive control: both pinned slugs staged in the shared root — the wave-slug
+        cross-check passes and the ONE wave command surfaces."""
+        store = _store(tmp_path)
+        root = _make_shared_root(tmp_path, [SLUG_A, SLUG_B])
+
+        async def _run(_client, *, play_gid, deploy_base, **_kw):
+            if play_gid == "A":
+                return _produced("A", deploy_base, slug=SLUG_A)
+            return _produced("B", deploy_base, slug=SLUG_B, outcome="already_produced")
+
+        with (
+            patch.object(
+                fbatch, "enumerate_active_play_gids", new=AsyncMock(return_value=["A", "B"])
+            ),
+            patch.object(fbatch, "run_office", new=AsyncMock(side_effect=_run)),
+        ):
+            report = await run_batch(
+                MagicMock(),
+                phase="produce",
+                store=store,
+                deploy_base=root,
+                clinic_map={"A": "Clinic A", "B": "Clinic B"},
+            )
+        assert report.deploy_refusal is None
+        assert report.wrangler_command == (f"wrangler pages deploy {root} --project-name=deck-host")
 
     async def test_no_staged_offices_means_no_guard_no_command(self, tmp_path) -> None:
         """A wave with nothing staged (all skipped) surfaces nothing and refuses nothing —

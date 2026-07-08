@@ -29,6 +29,7 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.deploy_
     assert_headers_parity,
     assert_manifest_superset,
     assert_root_hygiene,
+    assert_wave_slugs_staged,
     default_manifest_path,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.host_bundle import (
@@ -281,6 +282,37 @@ class TestManifestSupersetNoOrphan:
     def test_default_manifest_path_shape(self, tmp_path: Path) -> None:
         root = tmp_path / "deck-host" / "public"
         assert default_manifest_path(root) == root / ".." / "config" / "deck-manifest.json"
+
+
+# ============================================================ wave-slug cross-check
+
+
+class TestWaveSlugsStaged:
+    """The ledger-blind ``already_produced`` window: an office at PRODUCED re-surfaces the
+    wave command WITHOUT re-staging, and a slug not yet in the committed ledger is
+    invisible to the no-orphan predicate — this cross-check refuses the surface instead."""
+
+    def test_all_pinned_slugs_present_passes(self, tmp_path: Path) -> None:
+        root = _make_root(tmp_path, [SLUG_A, SLUG_B])
+        assert_wave_slugs_staged(root, {"office-a": SLUG_A, "office-b": SLUG_B})  # no raise
+
+    def test_missing_pinned_slug_refused_naming_office_and_slug(self, tmp_path: Path) -> None:
+        root = _make_root(tmp_path, [SLUG_A])  # office-b's pinned slug is NOT staged
+        with pytest.raises(DeployRootRefused, match="wave-slug cross-check REFUSED") as excinfo:
+            assert_wave_slugs_staged(root, {"office-a": SLUG_A, "office-b": SLUG_B})
+        assert "office-b" in str(excinfo.value)
+        assert SLUG_B in str(excinfo.value)
+
+    def test_slug_dir_present_but_empty_refused(self, tmp_path: Path) -> None:
+        """The dir alone is not the deck — ``<slug>/index.html`` is what deploys."""
+        root = _make_root(tmp_path, [SLUG_A])
+        (root / SLUG_B).mkdir()
+        with pytest.raises(DeployRootRefused, match="wave-slug cross-check REFUSED"):
+            assert_wave_slugs_staged(root, {"office-b": SLUG_B})
+
+    def test_empty_wave_mapping_passes(self, tmp_path: Path) -> None:
+        root = _make_root(tmp_path, [SLUG_A])
+        assert_wave_slugs_staged(root, {})  # nothing pinned -> nothing to cross-check
 
 
 # ============================================================ composite gate

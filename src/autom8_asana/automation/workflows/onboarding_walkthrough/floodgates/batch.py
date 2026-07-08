@@ -44,6 +44,7 @@ from autom8_asana.automation.workflows.onboarding_walkthrough.constants import (
 from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.deploy_root_guard import (
     DeployRootRefused,
     assert_deploy_root_ready,
+    assert_wave_slugs_staged,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.office_runner import (
     OfficeRunResult,
@@ -167,10 +168,11 @@ async def run_batch(
 
     Produce phase surfaces ONE wave-level ``wrangler`` command (all offices stage into the
     SHARED ``deploy_base``), and only after ``assert_deploy_root_ready`` passes — root
-    hygiene, ``_headers`` byte-parity, and the no-orphan predicate against the committed
-    deck-host ledger (``deck_manifest`` overrides the default
-    ``<deploy_base>/../config/deck-manifest.json``). Any guard refusal is recorded LOUDLY on
-    the report and NO wrangler command is surfaced (fail-closed).
+    hygiene (recursive-exact), ``_headers`` byte-parity, and the no-orphan predicate
+    against the committed deck-host ledger (``deck_manifest`` overrides the default
+    ``<deploy_base>/../config/deck-manifest.json``) — plus the wave-slug cross-check
+    (every staged-ok office's pinned slug dir present in the root). Any guard refusal is
+    recorded LOUDLY on the report and NO wrangler command is surfaced (fail-closed).
     """
     play_gids = [office] if office is not None else await enumerate_active_play_gids(client)
     reports: list[OfficeReport] = []
@@ -221,7 +223,11 @@ def _gate_wave_deploy_command(
     """Surface the ONE wave-level wrangler command iff the deploy-root guard passes.
 
     The guard (root-hygiene allowlist + ``_headers`` byte-parity + manifest-superset
-    no-orphan predicate) runs BEFORE any command is surfaced. On refusal the report
+    no-orphan predicate + wave-slug cross-check) runs BEFORE any command is surfaced. The
+    wave-slug cross-check closes the ledger-blind ``already_produced`` window: every
+    staged-ok office's PINNED slug dir must be present in the shared root (an office at
+    ``PRODUCED`` re-surfaces the command without re-staging, and a slug not yet in the
+    committed ledger is invisible to the no-orphan predicate). On refusal the report
     carries ``deploy_refusal``, every per-office ``wrangler_command`` is stripped
     (fail-closed: no copy of the lever survives a refused wave), and the CLI exits red.
     """
@@ -232,8 +238,14 @@ def _gate_wave_deploy_command(
     ]
     if not staged:
         return  # nothing staged this wave -> nothing to surface, nothing to guard.
+    staged_slugs: dict[str, str] = {}
+    for o in staged:
+        slug = getattr(o.result, "slug", None)
+        if isinstance(slug, str) and slug:
+            staged_slugs[o.play_gid] = slug
     try:
         assert_deploy_root_ready(Path(deploy_base), manifest_path=deck_manifest)
+        assert_wave_slugs_staged(Path(deploy_base), staged_slugs)
     except DeployRootRefused as exc:
         logger.error("floodgates_wave_deploy_refused", deploy_base=str(deploy_base), error=str(exc))
         report.deploy_refusal = str(exc)
