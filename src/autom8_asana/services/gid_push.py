@@ -50,6 +50,14 @@ SKIP_REASON_URL_ABSENT = "url_absent"
 SKIP_REASON_INVALID_KEY = "invalid_key"
 SKIP_REASON_THREE_WAY_DENOMINATOR_NULL = "three_way_denominator_null"
 
+# StatusPushRowsSkipped skip_class dimension values (closed enum). Per-row
+# snapshot guards (sprint-C6): a single defective row must be dropped
+# individually with visibility -- NEVER allowed to 422 (invalid phone vs the
+# receiver's E.164 OfficePhoneField) or roll back (intra-snapshot duplicate of
+# the uq_phone_vertical_pipeline grain) the ENTIRE snapshot INSERT.
+SKIP_CLASS_INVALID_PHONE = "invalid_phone"
+SKIP_CLASS_DUP_GRAIN = "dup_grain"
+
 
 def _emit_status_push_skipped(skip_reason: str) -> None:
     """Emit StatusPushSkipped{skip_reason} to the shared bridge namespace.
@@ -554,6 +562,112 @@ def extract_status_from_dataframe(
     return entries
 
 
+def _phone_shape_descriptor(value: Any) -> dict[str, Any]:
+    """PII-safe shape summary of a REJECTED phone value -- NEVER the raw string.
+
+    The values that reach this helper are precisely the ones that FAILED the
+    E.164 gate, i.e. the population ``mask_pii_in_string`` (pattern
+    ``\\+\\d{10,15}``) can NOT match -- so masking would be a silent no-op and
+    formatted/plus-less customer numbers (``(415) 555-2671``, ``415-555-2671``)
+    would land raw in CloudWatch, violating the XR-003 redaction contract.
+    Log STRUCTURE only: type/length/plus-prefix/digit-count is enough to triage
+    the upstream defect class without ever carrying the number.
+    """
+    if not isinstance(value, str):
+        return {"type": type(value).__name__}
+    return {
+        "type": "str",
+        "length": len(value),
+        "has_plus": value.startswith("+"),
+        "digit_count": sum(ch.isdigit() for ch in value),
+    }
+
+
+def _sanitize_status_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Per-row guards for the account-status snapshot (sprint-C6, L1 + L3).
+
+    The receiver is a transactional snapshot-replace with ``extra="forbid"``
+    entry validation and a ``uq_phone_vertical_pipeline`` UNIQUE constraint, so
+    ONE defective row would otherwise reject or roll back the WHOLE snapshot:
+
+    * **L1 -- E.164 per-row skip**: a ``phone`` not matching
+      ``E164_PHONE_PATTERN`` (imported from ``autom8y_api_schemas`` -- the SAME
+      pattern the receiver's ``OfficePhoneField`` enforces, so drift is
+      impossible) drops the ROW, never the snapshot.
+    * **L3 -- dup-grain dedupe**: entries sharing a
+      ``(phone, vertical, pipeline_type)`` grain (mirrors
+      ``uq_phone_vertical_pipeline``) keep the FIRST occurrence (deterministic
+      given the stable entity/row iteration order) and drop later ones -- an
+      intra-snapshot duplicate would roll back the entire receiver INSERT.
+
+    Anything dropped is surfaced via ``status_push_rows_skipped`` (WARNING) +
+    ``StatusPushRowsSkipped{skip_class}`` counters. Never raises; pure
+    function of ``entries``.
+
+    Args:
+        entries: Candidate status entry dicts.
+
+    Returns:
+        The sanitized entry list (possibly empty).
+    """
+    import re
+
+    from autom8y_api_schemas.fields import E164_PHONE_PATTERN
+
+    phone_pattern = re.compile(E164_PHONE_PATTERN)
+
+    sanitized: list[dict[str, Any]] = []
+    seen_grains: set[tuple[Any, Any, Any]] = set()
+    invalid_phone_count = 0
+    dup_grain_count = 0
+    first_bad_phone_shape: dict[str, Any] | None = None
+
+    for entry in entries:
+        phone = entry.get("phone")
+        if not isinstance(phone, str) or not phone_pattern.match(phone):
+            invalid_phone_count += 1
+            if first_bad_phone_shape is None:
+                first_bad_phone_shape = _phone_shape_descriptor(phone)
+            continue
+
+        grain = (phone, entry.get("vertical"), entry.get("pipeline_type"))
+        if grain in seen_grains:
+            dup_grain_count += 1
+            continue
+        seen_grains.add(grain)
+        sanitized.append(entry)
+
+    if invalid_phone_count or dup_grain_count:
+        logger.warning(
+            "status_push_rows_skipped",
+            extra={
+                "invalid_phone_count": invalid_phone_count,
+                "dup_grain_count": dup_grain_count,
+                "kept_count": len(sanitized),
+                # PII-safe by construction: shape descriptor ONLY, never the
+                # raw (or "masked") value -- see _phone_shape_descriptor for
+                # why mask_pii_in_string is a no-op on exactly this population.
+                "sample_shape": first_bad_phone_shape,
+            },
+        )
+        if invalid_phone_count:
+            emit_metric(
+                "StatusPushRowsSkipped",
+                invalid_phone_count,
+                dimensions={"skip_class": SKIP_CLASS_INVALID_PHONE},
+                namespace=_BRIDGE_FLEET_NAMESPACE,
+            )
+        if dup_grain_count:
+            emit_metric(
+                "StatusPushRowsSkipped",
+                dup_grain_count,
+                dimensions={"skip_class": SKIP_CLASS_DUP_GRAIN},
+                namespace=_BRIDGE_FLEET_NAMESPACE,
+            )
+
+    return sanitized
+
+
 async def push_status_to_data_service(
     entries: list[dict[str, Any]],
     source_timestamp: str,
@@ -601,6 +715,13 @@ async def push_status_to_data_service(
         )
         _emit_status_push_skipped(SKIP_REASON_INVALID_KEY)
         return False
+
+    # Per-row guards (sprint-C6): drop E.164-invalid phones + intra-snapshot
+    # duplicate grains BEFORE the empty-entries check, so a defective row can
+    # never fail the whole snapshot. If sanitization empties the list, the
+    # no_entries_to_push skip below still applies -- but the
+    # status_push_rows_skipped warning has already made it non-silent.
+    entries = _sanitize_status_entries(entries)
 
     if not entries:
         logger.info(
