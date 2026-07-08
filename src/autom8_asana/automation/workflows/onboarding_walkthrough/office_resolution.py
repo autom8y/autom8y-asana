@@ -29,12 +29,14 @@ literal. At-most-one BUSINESS ancestor is asserted (LOUD ``BusinessResolutionAmb
 rather than a silent first-match, mirroring ``contact_synthesis.py:406-410``). Depth-
 exhaustion and no-business-ancestor raise DISTINCT codes.
 
-Cache pinning (FORK-2): the walk's ``tasks.get_async(opt_fields=[... projects.gid,
-custom_fields ...])`` reads are subject to the cross-reader projection-coverage starvation
-(DEFECT-taskcache-cross-reader-section-starvation-2026-07-08). Until SIBLING-1's hit-path
-coverage check lands fleet-wide, the resolver's CALLERS construct
-``AsanaClient(cache_provider=NullCacheProvider())``. This module makes no cache-provider
-decision of its own; it walks whatever client it is handed.
+Cache pinning (FORK-2) -- RETIRED (ITEM-6 unpin, 2026-07-08): the cross-reader
+projection-coverage starvation this contract guarded against is CLOSED at the substrate by
+PHE (#217, ``cache/models/coverage.py`` + the ``clients/tasks.py`` hit-path gate) -- a
+coverage-miss now re-fetches instead of serving a narrowed entry, so callers NO LONGER need
+to pin ``NullCacheProvider()``. This module still makes no cache-provider decision of its
+own; it walks whatever client it is handed. Rollback lever: ``ASANA_CACHE_ENABLED=false``
+(bound at the default path since #217). Watch: DEFER-WATCH-1 (method="phone" rate) and the
+``cache_coverage_miss`` counter.
 
 Ships BUSINESS-only with a private ``project_gid`` seam (FORK-1); the
 ``EntityType|EntityCategory`` target generalization is NOT built speculatively (YAGNI until
