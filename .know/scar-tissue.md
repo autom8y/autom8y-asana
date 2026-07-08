@@ -40,7 +40,7 @@ land_hash: "a15a024ce204de3301b612526c5b1b59e4841fa3d3d70f2226e1b430cd73da1e"
 > - xdist strategy shifted: --dist=load -> --dist=loadgroup (pyproject.toml:105)
 > - autom8y-core lower bound lifted: >=4.0.0 -> >=4.2.0 (commit `f6864435`)
 > - TestAC006 lock-overhead budget widened 1ms->2ms under contention (commit `f37802f2`)
-> - @pytest.mark.scar count: 35 (unchanged from `20ef7952`)
+> - @pytest.mark.scar count: ~~35 (unchanged from `20ef7952`)~~ **41 at HEAD** (W-REG `2d7d39d9` #190 rewrote test_section_registry.py, changing its marker count from 15 to 7; other files added markers since `8980bcd7`)
 > - test_import_safety.py (SCAR-CW-001 CP-01): still absent
 
 ## Failure Catalog
@@ -89,8 +89,8 @@ DEF-005 (2 refs), DEF-002 (2 refs), SCAR-006 (1 ref).
 | SCAR-029 | GID not stripped before Pydantic normalization — leading/trailing whitespace failed validation | Security | `api/routes/webhooks.py:375-381` |
 | SCAR-030 | Section names from non-live source — ALL CAPS invariant not enforced | Data Model | Historical |
 | SCAR-S3-LOOP | Permanent S3 error codes fed to circuit-breaker retry loop — infinite retry storm | Cache Coherence | `core/retry.py:198` |
-| SCAR-IDEM-001 | Idempotency `finalize()` exception silently swallowed — double-execution risk on retry | Data Model | `api/middleware/idempotency.py:719` |
-| SCAR-REG-001 | Section registry GIDs are sequential placeholders — unverified against live Asana API | Startup | `reconciliation/section_registry.py:94,128` |
+| SCAR-IDEM-001 | ~~Idempotency `finalize()` exception silently swallowed — double-execution risk on retry~~ **RESOLVED** `f795d7dc` #149 (W-IDEM, 2026-06-24): finalize bool READ; raise→`finalized=False`; `emit_metric("IdempotencyFinalizeFailure")` at `:787-792` (R-IDEM-1); S2S callers → hard 500 at `:803-830` (R-IDEM-2). Stale anchor `:719` = replay-header at tip; fix is at `:762-780`. | Data Model (RESOLVED) | `api/middleware/idempotency.py:762-830` (fix); `:719` (past-tense defect narration) |
+| SCAR-REG-001 | ~~Section registry GIDs are sequential placeholders — unverified against live Asana API~~ **RESOLVED** 2026-07-07: W-REG `2d7d39d9` #190 replaced 19 fabricated placeholder GIDs (4 excluded + 15 unit) with live W-IRIS receipt values; 17 live sections wired. `section_registry.py` is now 475 lines with a NAME-join (not GID-match) + fail-closed `SectionRegistryError` gate (`section_registry.py:375-429`). The misroute defect class is closed. | Startup (RESOLVED) | `reconciliation/section_registry.py:66,153` (past-tense defect narration); fix: `section_registry.py:375` `SectionRegistryError`, `:429` `raise SectionRegistryError` |
 | SCAR-WS8 | PAT route trees not consistently listed in `jwt_auth_config.exclude_paths` — JWT middleware rejects PAT requests | Security | `api/main.py:389`; regression test `test_exports_auth_exclusion.py` confirmed |
 | SCAR-DISCRIMINATOR-001 | `_predicate_discriminator` dict-only guard — `NotGroup(not_=AndGroup(...))` fails Pydantic validation when constructed via model-instance kwargs | Data Model / Type Contract | Discovered 2026-04-29; no fix at `8980bcd7` (P3 — no production path) |
 | SCAR-LOG-001 | `autom8y-log` SDK returns structlog family (interface-disjoint from stdlib `logging.Logger`) — satellite migration breaks test and public attribute contracts | SDK Interface Gap | WS-4 T3 terminal 2026-04-29; no upstream fix; defer until autom8y-log ships stdlib shim — GLINT-001 |
@@ -349,7 +349,7 @@ Three categories explicitly searched and returned no results: schema migration f
 | SCAR-020 / SCAR-023 (PhoneTextField applied) | `src/autom8_asana/models/business/business.py:267` | Yes |
 | SCAR-022 / DEF-009 | `Dockerfile` (`--no-sources` flag, commit `2229f4a3`) | Yes |
 | SCAR-IDEM-001 | `src/autom8_asana/api/middleware/idempotency.py:719` | Yes |
-| SCAR-REG-001 | `src/autom8_asana/reconciliation/section_registry.py:94,128` | Yes |
+| SCAR-REG-001 | ~~`src/autom8_asana/reconciliation/section_registry.py:94,128`~~ **RESOLVED** `2d7d39d9` #190 — anchors were stale placeholder-GID rows; fix anchors: `section_registry.py:375` (`SectionRegistryError`), `:429` (`raise SectionRegistryError`), `:66,:153` (past-tense defect narration) | Yes — RESOLVED |
 | SCAR-WS8 / DEF-08 | `src/autom8_asana/api/main.py:389` (`/api/v1/exports/*` in exclude_paths) | Yes |
 | SCAR-DISCRIMINATOR-001 (bug) | `src/autom8_asana/query/models.py:97-112` (`_predicate_discriminator`) | Yes — confirmed no fix at `8980bcd7` |
 | SCAR-DISCRIMINATOR-001 (type decl) | `src/autom8_asana/query/models.py:129-135` (`PredicateNode`) | Yes |
@@ -405,7 +405,7 @@ Order-critical fix at `src/autom8_asana/persistence/session.py:995-1001`: access
 
 ### Idempotency Finalize Observability (SCAR-IDEM-001)
 
-Exception on `finalize()` promoted to `logger.exception` with `impact` field at `src/autom8_asana/api/middleware/idempotency.py:719-728`. **Known gap**: observability-only fix; double-execution risk for S2S strict-once callers remains open per `ADR-omniscience-idempotency Section 3.7`. Regression: `tests/unit/api/middleware/test_idempotency_finalize_scar.py` (SCAR-IDEM-001-A, -B, -C — all `@pytest.mark.scar`).
+~~Exception on `finalize()` promoted to `logger.exception` with `impact` field at `src/autom8_asana/api/middleware/idempotency.py:719-728`. **Known gap**: observability-only fix; double-execution risk for S2S strict-once callers remains open per `ADR-omniscience-idempotency Section 3.7`.~~ **RESOLVED** `f795d7dc` #149 (W-IDEM, 2026-06-24): the ADR-omniscience-idempotency Section 3.7 fix is fully landed. Finalize try-block at `:762-780`; R-IDEM-1 `emit_metric("IdempotencyFinalizeFailure")` at `:787-792`; R-IDEM-2 hard 500 for S2S strict-once callers (`X-Idempotent-Not-Persisted`, `IDEMPOTENCY_KEY_NOT_PERSISTED` body) at `:803-830`. The fix is behavioral (500 retraction), not observability-only. Regression: `tests/unit/api/middleware/test_idempotency_finalize_scar.py` (SCAR-IDEM-001-A, -B, -C — all `@pytest.mark.scar`). Stale anchor `:719-728` = replay-header code at tip.
 
 ### JWT Exclude-Paths Sync (SCAR-WS8 / DEF-08)
 
@@ -433,7 +433,7 @@ Explicit `ls /tmp/candidate-wheel/*.whl` existence check after `actions/download
 
 ### BROAD-CATCH Classification
 
-20+ `except Exception` blocks annotated with `ADVISORY` or `SCAR-IDEM-001: VERIFY-BEFORE-PROD` comments to distinguish intentional vs. defensive catches.
+17 `except Exception` blocks annotated with `ADVISORY` comments (verified: `git grep -rn 'ADVISORY' src/` → 17 hits at HEAD; `git grep -rn 'VERIFY-BEFORE-PROD' src/` → **0 hits**). The `SCAR-IDEM-001: VERIFY-BEFORE-PROD` annotation class no longer exists in `src/` — the token was either removed or never landed. Intentional vs. defensive catches distinguished by the `ADVISORY` prefix alone.
 
 ### SCAR-DISCRIMINATOR-001 — No Defensive Pattern Yet
 
@@ -457,7 +457,7 @@ PRs #28-#37 closed all 5 layers. CP-01 (`tests/unit/lambda_handlers/test_import_
 - SCAR-008: No isolated regression test for snapshot ordering
 - SCAR-013: `_SCHEMA_VERSIONING_AVAILABLE = False` import-fallback path has no unit coverage
 - SCAR-026: HYG-002 partial adoption (136 spec= calls); systematic all-mocks audit not complete
-- SCAR-REG-001: Production blocker — sequential placeholder GIDs unverified against live Asana API
+- ~~SCAR-REG-001: Production blocker — sequential placeholder GIDs unverified against live Asana API~~ **RESOLVED** `2d7d39d9` #190 (W-REG): live W-IRIS receipt GIDs now wired via NAME-join + `SectionRegistryError` fail-closed gate (`section_registry.py:375,:429`)
 - Metrics CLI Under-count: No defensive guard; 4 root-cause questions open
 - SCAR-DISCRIMINATOR-001: No defensive guard, no regression test; fix deferred to hygiene-pass-2
 - SCAR-CW-001: CP-01 lazy-load regression test pending; eunomia Phase 4 carry-forward
@@ -466,9 +466,7 @@ PRs #28-#37 closed all 5 layers. CP-01 (`tests/unit/lambda_handlers/test_import_
 
 ## Scar Test Cluster Status
 
-**Formal `@pytest.mark.scar` cluster**: 35 decorator invocations across 11 files at `8980bcd7`.
-Unchanged from `20ef7952`. The 7 files modified in PRs #57-#59 received only ruff I001
-import-order style fixes (no semantic marker changes) or xdist_group additions (not scar markers).
+**Formal `@pytest.mark.scar` cluster**: ~~35 decorator invocations across 11 files at `8980bcd7`. Unchanged from `20ef7952`. The 7 files modified in PRs #57-#59 received only ruff I001 import-order style fixes (no semantic marker changes) or xdist_group additions (not scar markers).~~ **Count updated (2026-07-07):** `git grep -rn 'pytest.mark.scar' tests/` → **41 markers** at HEAD (W-REG `2d7d39d9` #190 rewrote `test_section_registry.py` — count changed). Source hash pinned at `8980bcd7` remains the original baseline; HEAD count is 41.
 Marker registered in `pyproject.toml`:
 ```
 "scar: scar-tissue regression tests (selectable via `pytest -m scar`); see .know/scar-tissue.md"
@@ -477,7 +475,7 @@ Selectable: `pytest -m scar`
 
 | File | SCAR Coverage | Markers |
 |---|---|---|
-| `tests/unit/reconciliation/test_section_registry.py` | SCAR-REG-001 | 15 |
+| `tests/unit/reconciliation/test_section_registry.py` | SCAR-REG-001 | ~~15~~ **7** (W-REG `2d7d39d9` rewrote this file to 172 lines; prior count of 15 was the pre-rewrite file at `8980bcd7` baseline) |
 | `tests/unit/dataframes/test_warmup_ordering_guard.py` | SCAR-005/006 | 5 |
 | `tests/unit/dataframes/test_cascade_ordering_assertion.py` | SCAR-005/006 | 3 |
 | `tests/unit/api/middleware/test_idempotency_finalize_scar.py` | SCAR-IDEM-001 | 3 |
@@ -537,8 +535,8 @@ Selectable: `pytest -m scar`
 | SCAR-029 | principal-engineer | Validate GIDs with `str.strip()` before Pydantic normalization |
 | SCAR-030 | principal-engineer | Section names must come from live Asana API (ALL CAPS invariant) |
 | SCAR-S3-LOOP | platform-engineer | Permanent S3 errors must not be fed to circuit breaker |
-| SCAR-IDEM-001 | principal-engineer | S2S strict-once callers need error metric on finalize failure; current fix is observability-only |
-| SCAR-REG-001 | platform-engineer | Section GIDs require live API verification before production — still a production blocker |
+| SCAR-IDEM-001 | principal-engineer | **RESOLVED** `f795d7dc` #149 (W-IDEM, 2026-06-24) — `emit_metric("IdempotencyFinalizeFailure")` at `:787-792` (R-IDEM-1); S2S strict-once callers → hard 500 at `:803-830` (R-IDEM-2). Fix is behavioral, not observability-only. |
+| SCAR-REG-001 | platform-engineer | **RESOLVED** `2d7d39d9` #190 — live GIDs wired via W-IRIS receipt NAME-join; `SectionRegistryError` fails closed on any undispositioned live section (`section_registry.py:375,:429`). Constraint carried: every new live section must be represented in the vendored taxonomy or the module refuses to start. |
 | SCAR-WS8 | principal-engineer | Every new PAT-tagged router requires corresponding `jwt_auth_config.exclude_paths` entry |
 | SCAR-DISCRIMINATOR-001 | principal-engineer, qa-adversary | When constructing `NotGroup` or nested predicate nodes, use raw dicts (not model instances); test nested-not paths explicitly |
 | SCAR-LOG-001 | principal-engineer | Do NOT migrate `_defaults/log.py`-class modules to `autom8y_log.get_logger(...)` until stdlib shim ships; retain `import logging` + TID251 exemption — GLINT-001 |
@@ -564,8 +562,8 @@ Selectable: `pytest -m scar`
 5. **SCAR-004, SCAR-008 isolation tests absent**
 6. **SCAR-013 import-fallback path untested**
 7. **SCAR-026 mock-spec audit incomplete**: HYG-002 partial; systematic all-mocks audit pending
-8. **SCAR-IDEM-001 mitigation incomplete**: double-execution risk for S2S strict-once callers; observability-only fix
-9. **SCAR-REG-001 production blocker**: Sequential placeholder GIDs at `section_registry.py:100-107,132-138` must be replaced with verified GIDs
+8. ~~**SCAR-IDEM-001 mitigation incomplete**: double-execution risk for S2S strict-once callers; observability-only fix~~ **RESOLVED** `f795d7dc` #149 (W-IDEM, 2026-06-24): behavioral 500 retraction for S2S callers at `:803-830` (R-IDEM-2) + `emit_metric("IdempotencyFinalizeFailure")` at `:787-792` (R-IDEM-1)
+9. ~~**SCAR-REG-001 production blocker**: Sequential placeholder GIDs at `section_registry.py:100-107,132-138` must be replaced with verified GIDs~~ **RESOLVED** `2d7d39d9` #190: W-REG replaced all 19 fabricated placeholder GIDs (4 excluded + 15 unit) with live W-IRIS receipt values; 17 live sections wired; file is now 475 lines; `SectionRegistryError` fail-closed gate at `:375,:429`; stale line anchors `:100-107,:132-138` no longer exist
 10. **xdist `--dist=loadgroup` active**: Prior gap item (--dist=load PASS-WITH-FLAGS-CARRIED) resolved. New watch: verify no new xdist_group grouping gaps emerge as test suite grows under loadgroup strategy
 11. **SCAR-DISCRIMINATOR-001 unguarded**: No regression test, no defensive pattern; fix deferred to hygiene-pass-2
 12. **SCAR-LP-001 production-CI pending**: defer-watch entry `lockfile-propagator-prod-ci-confirmation` open until 2026-07-29

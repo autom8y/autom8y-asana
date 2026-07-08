@@ -480,13 +480,34 @@
 
 </x-dc>
 <script type="text/x-dc" data-dc-script>
+// --- N-1 boot capture-then-strip (runs ONCE at component compile/adopt, before
+// any renderVals call) ---------------------------------------------------------
+// Capture identity params from the load URL into a stable module-scope store, then
+// strip ONLY addr+client from the browser URL so the mailbox does not linger in
+// history / copy-paste / share. _snthumb, any other param, and the #hash are
+// preserved; the strip is a no-op when no identity params are present (dev/preview).
+const __dcMerge = (() => {
+  const p = new URLSearchParams(location.search);
+  return { addr: (p.get('addr') || '').trim(), client: (p.get('client') || '').trim() };
+})();
+try {
+  const u = new URL(location.href);
+  if (u.searchParams.has('addr') || u.searchParams.has('client')) {
+    u.searchParams.delete('addr');
+    u.searchParams.delete('client');
+    history.replaceState(null, '', u.pathname + (u.search ? u.search : '') + u.hash);
+  }
+} catch (e) {}
+
 class Component extends DCLogic {
   renderVals() {
-    // --- Merge seam: personalize from URL params, fall back to the placeholder ---
-    // ?addr=<appointments address>  ?client=<client name>
-    const p = new URLSearchParams(location.search);
-    const rawAddr = (p.get('addr') || '').trim();
-    const rawClient = (p.get('client') || '').trim();
+    // --- Merge seam: render from the boot-captured store (N-1 capture-then-strip),
+    // with main's strip-then-strict-validate (MC-1). Identity (?addr, ?client) was captured
+    // once at boot into __dcMerge and stripped from the URL; render from the store so
+    // personalization survives post-strip re-renders. Conflict-resolved at cherry-pick onto
+    // main: keep main's strict UUIDv4 validation, source from __dcMerge (no validation regression).
+    const rawAddr = __dcMerge.addr;
+    const rawClient = __dcMerge.client;
     // MC-1 — strip injection chars first (parity with clientName below), THEN validate.
     const cleanAddr = rawAddr.replace(/[<>{}]/g, '');
     // Exact-host + canonical lowercase UUIDv4 local-part — mirror of autom8y-core
