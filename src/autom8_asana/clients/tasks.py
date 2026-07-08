@@ -239,9 +239,16 @@ class TasksClient(BaseClient):
             # Requested-prefix loud canary on TRUSTED hits (defense-in-depth,
             # warn-only -- can never cost a false miss): after the predicate
             # passes, a requested family whose top-level prefix is absent as a
-            # key in served data indicates a LYING writer (metadata stamping
-            # fields it did not fetch). UV-P: rests on the Asana top-level
-            # key-presence axiom, live-probed by the qa-adversary P2 leg.
+            # key in served data MAY indicate a LYING writer (metadata stamping
+            # fields it did not fetch). AXIOM PARTIALLY FALSIFIED LIVE
+            # (qa-adversary G9, 2026-07-08): Asana OMITS the key entirely for
+            # unset omitted-unless-set fields (opt_fields=["external"] returns
+            # NO "external" key, while null-valued start_on IS returned as
+            # key:null). So a missing prefix here is AMBIGUOUS -- lying writer
+            # OR legitimately-unset omitted field -- which is why this stays
+            # warn-only and MUST NOT be promoted to a miss/refusal without a
+            # per-family always-materializes allowlist (rejected absent
+            # telemetry; see ADR fork open-forks).
             missing_prefixes = {f.split(".", 1)[0] for f in resolved_opt_fields} - set(data.keys())
             if missing_prefixes:
                 logger.warning(
