@@ -7,9 +7,12 @@ already-proven onboarding primitives around the operator-gated Cloudflare deploy
   positive-select the PLAY -> resolve the office guid pure-Asana (task-bound) -> compose
   the gated routing address -> gate the operator-confirmed clinic name (fault-13) ->
   freeze the deck (Node producer) -> assert exclusive tenant-binding -> mint + PIN the
-  capability slug (once; SLUG-1) -> host-stage into a per-office deploy root -> commit the
-  manifest at ``PRODUCED`` -> **SURFACE the exact ``wrangler pages deploy`` command and
-  HALT**. The reserved CF lever is printed, NEVER executed.
+  capability slug (once; SLUG-1) -> host-stage into the WAVE-SHARED deploy root (every
+  office of a wave accumulates into ONE root; slug dirs are collision-free by
+  ``_SLUG_RE`` and ``stage_deck_bundle`` is accumulation-proven) -> commit the manifest
+  at ``PRODUCED`` -> **SURFACE the exact ``wrangler pages deploy`` command and HALT**.
+  The reserved CF lever is printed, NEVER executed — and the batch surfaces it ONCE per
+  wave, only after the fail-closed deploy-root guard passes (deploy_root_guard).
 * **Phase 2 ``resume``** (after the operator confirms the deck is live): a ★C-1
   manifest-integrity guard (the manifest keyed to this PLAY MUST describe the office the
   live task resolves to, else ``TaskOfficeMismatch``) -> served byte-parity gate (served
@@ -134,14 +137,20 @@ def _default_producer_dir() -> Path:
     return Path(__file__).resolve().parents[6] / "vendor" / "deck-producer"
 
 
-def _surface_wrangler_command(office_deploy_root: Path, project_name: str | None) -> str:
+#: The Cloudflare Pages project the accumulating deploy root targets (SVR: deck-host
+#: checkout ``wrangler.toml`` — ``name = "deck-host"``, ``pages_build_output_dir = "public"``).
+DECK_HOST_PAGES_PROJECT = "deck-host"
+
+
+def _surface_wrangler_command(deploy_root: Path, project_name: str | None) -> str:
     """The exact reserved-lever command to SURFACE (never execute).
 
-    Run by the operator in the CF-authed env (memory scar: ``direnv exec ~/life``). The
-    project name is operator-domain; a placeholder is surfaced when it is not supplied.
+    Run by the operator in the CF-authed env (memory scar: ``direnv exec ~/life``).
+    ``deploy_root`` is the WAVE-SHARED root, so the command is identical for every office
+    of a wave — the batch surfaces it exactly ONCE per wave, post-guard.
     """
-    project = project_name or "<your-decks-pages-project>"
-    return f"wrangler pages deploy {office_deploy_root} --project-name={project}"
+    project = project_name or DECK_HOST_PAGES_PROJECT
+    return f"wrangler pages deploy {deploy_root} --project-name={project}"
 
 
 async def _fetch_served_bytes(deck_url: str, *, timeout_s: float = 30.0) -> bytes:
@@ -194,7 +203,11 @@ async def _run_produce(
     deck_template: str,
     project_name: str | None,
 ) -> OfficeRunResult:
-    office_deploy_root = deploy_base / play_gid
+    # WAVE-SHARED root (TDD §8): every office of a wave stages into deploy_base itself —
+    # slug dirs are collision-free (_SLUG_RE) and accumulation is BUILD-GATE-proven, so a
+    # single `wrangler pages deploy <deploy_base>` carries the whole wave (per-office
+    # nesting orphaned every PRIOR office's deck: Pages serves latest-deployment-only).
+    deploy_root = deploy_base
     existing = store.load(play_gid)
     if existing is not None and existing.phase in (
         Phase.PRODUCED,
@@ -209,8 +222,8 @@ async def _run_produce(
             outcome="already_produced",
             slug=existing.slug,
             deck_url=existing.deck_url,
-            deploy_root=str(office_deploy_root),
-            wrangler_command=_surface_wrangler_command(office_deploy_root, project_name),
+            deploy_root=str(deploy_root),
+            wrangler_command=_surface_wrangler_command(deploy_root, project_name),
             posts=dict(existing.posts),
         )
 
@@ -236,7 +249,8 @@ async def _run_produce(
     assert_exclusive_tenant_binding(frozen=frozen_bytes, gated_address=gated_address)
     # 7. Mint the slug ONCE (reuse a pinned one from a prior partial run — SLUG-1).
     slug = existing.slug if (existing is not None and existing.slug) else mint_slug()
-    # 8. Host-stage into the per-office deploy root (audience gate + write-back parity).
+    # 8. Host-stage into the WAVE-SHARED deploy root (audience gate + write-back parity;
+    #    sibling slug dirs accumulate untouched — accumulation-proven).
     frozen_sha256 = hashlib.sha256(frozen_bytes).hexdigest()
     with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as tf:
         tf.write(frozen_bytes)
@@ -246,7 +260,7 @@ async def _run_produce(
             deck_template=deck_template,
             frozen_artifact=artifact,
             slug=slug,
-            deploy_root=office_deploy_root,
+            deploy_root=deploy_root,
         )
     finally:
         artifact.unlink(missing_ok=True)
@@ -271,7 +285,7 @@ async def _run_produce(
         "floodgates_office_produced",
         play_gid=play_gid,
         slug=slug,
-        deploy_root=str(office_deploy_root),
+        deploy_root=str(deploy_root),
     )
     return OfficeRunResult(
         play_gid=play_gid,
@@ -279,8 +293,8 @@ async def _run_produce(
         outcome="produced",
         slug=slug,
         deck_url=deck_url,
-        deploy_root=str(office_deploy_root),
-        wrangler_command=_surface_wrangler_command(office_deploy_root, project_name),
+        deploy_root=str(deploy_root),
+        wrangler_command=_surface_wrangler_command(deploy_root, project_name),
         posts=dict(state.posts),
     )
 
@@ -293,7 +307,7 @@ async def _run_resume(
     deploy_base: Path,
     execute: bool,
 ) -> OfficeRunResult:
-    office_deploy_root = str(deploy_base / play_gid)
+    deploy_root = str(deploy_base)  # WAVE-SHARED root (TDD §8; no per-office nesting)
     state = store.load(play_gid)
     if state is None or state.phase is Phase.PENDING:
         raise FloodgatesRefused(
@@ -306,7 +320,7 @@ async def _run_resume(
             outcome="already_done",
             slug=state.slug,
             deck_url=state.deck_url,
-            deploy_root=office_deploy_root,
+            deploy_root=deploy_root,
             wrangler_command=None,
             posts=dict(state.posts),
         )
@@ -371,7 +385,7 @@ async def _run_resume(
         outcome="posted" if execute else "dry_run",
         slug=state.slug,
         deck_url=state.deck_url,
-        deploy_root=office_deploy_root,
+        deploy_root=deploy_root,
         wrangler_command=None,
         posts=dict(state.posts),
     )

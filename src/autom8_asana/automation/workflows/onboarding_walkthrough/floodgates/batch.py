@@ -7,6 +7,12 @@ call ``run_office`` per office, aggregating a green/red report. The load-bearing
 fleet halt), and a DONE office is skipped. ``--office`` scopes to ONE office (the isolation
 door the operator points at a single misbehaving office during a wave).
 
+Produce waves stage every office into ONE wave-shared ``--deploy-base`` root (TDD §8:
+point it at the deck-host checkout's ``public/`` for cross-wave accumulation) and surface
+a SINGLE wave-level ``wrangler pages deploy`` command — only after the fail-closed
+deploy-root guard (root-hygiene allowlist, ``_headers`` byte-parity, no-orphan
+manifest-superset predicate) passes. A guard refusal is LOUD and surfaces NO command.
+
 CLI (design §2.2):
 
     # Phase-1: stage + SURFACE the reserved wrangler command, then HALT (no Asana writes).
@@ -34,6 +40,11 @@ from autom8y_log import get_logger
 from autom8_asana.automation.workflows.onboarding_walkthrough import constants
 from autom8_asana.automation.workflows.onboarding_walkthrough.constants import (
     WALKTHROUGH_DECK_DEFAULT,
+)
+from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.deploy_root_guard import (
+    DeployRootRefused,
+    assert_deploy_root_ready,
+    assert_wave_slugs_staged,
 )
 from autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.office_runner import (
     OfficeRunResult,
@@ -74,9 +85,17 @@ class OfficeReport:
 
 @dataclass
 class BatchReport:
-    """The aggregate outcome of a batch run (per-office isolation preserved)."""
+    """The aggregate outcome of a batch run (per-office isolation preserved).
+
+    ``wrangler_command`` is the ONE wave-level reserved-lever command (produce phase,
+    surfaced only after the fail-closed deploy-root guard passes). ``deploy_refusal``
+    carries the guard's LOUD refusal when it does not — in that case NO wrangler command
+    is surfaced anywhere (per-office copies are stripped too).
+    """
 
     offices: list[OfficeReport] = field(default_factory=list)
+    wrangler_command: str | None = None
+    deploy_refusal: str | None = None
 
     @property
     def ok(self) -> list[OfficeReport]:
@@ -137,6 +156,7 @@ async def run_batch(
     producer_dir: Path | None = None,
     deck_template: str = WALKTHROUGH_DECK_DEFAULT,
     project_name: str | None = None,
+    deck_manifest: Path | None = None,
     execute: bool = False,
 ) -> BatchReport:
     """Run the requested phase across ACTIVE offices (or a single ``--office``), isolating
@@ -145,6 +165,14 @@ async def run_batch(
     A DONE office is skipped; a ``produce`` office lacking an operator-confirmed clinic name
     is skipped (never freeze an un-named deck); any per-office exception is caught, recorded,
     and the wave CONTINUES (one office's failure never halts the batch).
+
+    Produce phase surfaces ONE wave-level ``wrangler`` command (all offices stage into the
+    SHARED ``deploy_base``), and only after ``assert_deploy_root_ready`` passes — root
+    hygiene (recursive-exact), ``_headers`` byte-parity, and the no-orphan predicate
+    against the committed deck-host ledger (``deck_manifest`` overrides the default
+    ``<deploy_base>/../config/deck-manifest.json``) — plus the wave-slug cross-check
+    (every staged-ok office's pinned slug dir present in the root). Any guard refusal is
+    recorded LOUDLY on the report and NO wrangler command is surfaced (fail-closed).
     """
     play_gids = [office] if office is not None else await enumerate_active_play_gids(client)
     reports: list[OfficeReport] = []
@@ -182,38 +210,93 @@ async def run_batch(
             reports.append(OfficeReport(gid, "failed", error=str(exc)))
             continue
         reports.append(OfficeReport(gid, "ok", outcome=result.outcome, result=result))
-    return BatchReport(offices=reports)
+
+    report = BatchReport(offices=reports)
+    if phase == "produce":
+        _gate_wave_deploy_command(report, deploy_base=deploy_base, deck_manifest=deck_manifest)
+    return report
+
+
+def _gate_wave_deploy_command(
+    report: BatchReport, *, deploy_base: Path, deck_manifest: Path | None
+) -> None:
+    """Surface the ONE wave-level wrangler command iff the deploy-root guard passes.
+
+    The guard (root-hygiene allowlist + ``_headers`` byte-parity + manifest-superset
+    no-orphan predicate + wave-slug cross-check) runs BEFORE any command is surfaced. The
+    wave-slug cross-check closes the ledger-blind ``already_produced`` window: every
+    staged-ok office's PINNED slug dir must be present in the shared root (an office at
+    ``PRODUCED`` re-surfaces the command without re-staging, and a slug not yet in the
+    committed ledger is invisible to the no-orphan predicate). On refusal the report
+    carries ``deploy_refusal``, every per-office ``wrangler_command`` is stripped
+    (fail-closed: no copy of the lever survives a refused wave), and the CLI exits red.
+    """
+    staged = [
+        o
+        for o in report.offices
+        if o.status == "ok" and o.result is not None and getattr(o.result, "wrangler_command", None)
+    ]
+    if not staged:
+        return  # nothing staged this wave -> nothing to surface, nothing to guard.
+    staged_slugs: dict[str, str] = {}
+    for o in staged:
+        slug = getattr(o.result, "slug", None)
+        if isinstance(slug, str) and slug:
+            staged_slugs[o.play_gid] = slug
+    try:
+        assert_deploy_root_ready(Path(deploy_base), manifest_path=deck_manifest)
+        assert_wave_slugs_staged(Path(deploy_base), staged_slugs)
+    except DeployRootRefused as exc:
+        logger.error("floodgates_wave_deploy_refused", deploy_base=str(deploy_base), error=str(exc))
+        report.deploy_refusal = str(exc)
+        for o in staged:
+            if o.result is not None:
+                o.result.wrangler_command = None
+        return
+    # All offices of a wave share the root, so their surfaced commands are identical;
+    # the wave-level command is that single command, surfaced exactly ONCE.
+    report.wrangler_command = staged[0].result.wrangler_command if staged[0].result else None
 
 
 # ------------------------------------------------------------------------------------ CLI
 
 
-def _halt_banner(result: OfficeRunResult) -> str:
-    """The Phase-1 HALT banner: surface the reserved CF deploy lever, never fire it."""
+def _wave_halt_banner(report: BatchReport, *, deploy_base: Path) -> str:
+    """The Phase-1 HALT banner: ONE reserved CF deploy lever for the WHOLE wave."""
+    staged = [o.play_gid for o in report.ok if o.result is not None]
     return (
-        f"\n[HALT — reserved operator lever] Deck staged for PLAY {result.play_gid} at "
-        f"{result.deploy_root}\n"
-        "  Fire the CF deploy in the CF-authed env (memory scar: direnv exec ~/life):\n"
-        f"    {result.wrangler_command}\n"
-        "  Then confirm the deck renders live and re-run Phase-2:\n"
+        f"\n[HALT — reserved operator lever] {len(staged)} deck(s) staged into the wave-shared "
+        f"root {deploy_base}\n"
+        "  Fire ONE CF deploy for the whole wave in the CF-authed env "
+        "(memory scar: direnv exec ~/life):\n"
+        f"    {report.wrangler_command}\n"
+        "  Then confirm the decks render live and re-run Phase-2 per office:\n"
         "    python -m autom8_asana.automation.workflows.onboarding_walkthrough.floodgates.batch"
-        f" --phase resume --office {result.play_gid} --execute\n"
+        " --phase resume --office <play_gid> --execute\n"
     )
 
 
-def _write_report(report: BatchReport, *, phase: str) -> None:
+def _wave_refusal_banner(report: BatchReport, *, deploy_base: Path) -> str:
+    """The LOUD fail-closed banner: the deploy-root guard refused; NO command is surfaced."""
+    return (
+        f"\n[REFUSED — no deploy command surfaced] wave-shared root {deploy_base} failed the "
+        "fail-closed deploy-root guard:\n"
+        f"  {report.deploy_refusal}\n"
+        "  Reconcile the deploy root / deck-host ledger, then re-run --phase produce.\n"
+    )
+
+
+def _write_report(report: BatchReport, *, phase: str, deploy_base: Path) -> None:
     for office in report.offices:
         line = f"[{office.status}] {office.play_gid} outcome={office.outcome}"
         if office.error:
             line += f" — {office.error}"
         sys.stdout.write(line + "\n")
-        if (
-            phase == "produce"
-            and office.status == "ok"
-            and office.result is not None
-            and office.result.wrangler_command
-        ):
-            sys.stdout.write(_halt_banner(office.result))
+    if phase == "produce":
+        if report.wrangler_command:
+            sys.stdout.write(_wave_halt_banner(report, deploy_base=deploy_base))
+        elif report.deploy_refusal:
+            sys.stdout.write(_wave_refusal_banner(report, deploy_base=deploy_base))
     sys.stdout.write(
         f"\nsummary: {len(report.ok)} ok, {len(report.skipped)} skipped, "
         f"{len(report.failed)} failed\n"
@@ -249,7 +332,26 @@ def main(argv: list[str] | None = None) -> int:
         help="JSON object {play_gid: clinic} of operator-confirmed names for a full-wave produce.",
     )
     parser.add_argument("--state-dir", type=Path, default=Path(".sos/floodgates/state"))
-    parser.add_argument("--deploy-base", type=Path, default=Path(".sos/floodgates/deploy"))
+    parser.add_argument(
+        "--deploy-base",
+        type=Path,
+        default=Path(".sos/floodgates/deploy"),
+        help=(
+            "the WAVE-SHARED accumulating deploy root — point it at the deck-host checkout's "
+            "public/ for cross-wave accumulation (TDD §8). The wave-level wrangler command is "
+            "surfaced only after the fail-closed deploy-root guard passes."
+        ),
+    )
+    parser.add_argument(
+        "--deck-manifest",
+        type=Path,
+        default=None,
+        help=(
+            "explicit deck-host ledger path for the no-orphan predicate; default "
+            "<deploy-base>/../config/deck-manifest.json. A missing/unreadable ledger REFUSES "
+            "the deploy surface (fail-closed)."
+        ),
+    )
     parser.add_argument("--producer-dir", type=Path, default=None)
     parser.add_argument(
         "--project-name",
@@ -283,12 +385,14 @@ def main(argv: list[str] | None = None) -> int:
                 office=args.office,
                 producer_dir=args.producer_dir,
                 project_name=args.project_name,
+                deck_manifest=args.deck_manifest,
                 execute=args.execute,
             )
 
     report = asyncio.run(_run())
-    _write_report(report, phase=args.phase)
-    return 1 if report.failed else 0
+    _write_report(report, phase=args.phase, deploy_base=args.deploy_base)
+    # A wave-level deploy refusal is RED: staged offices exist but no command was surfaced.
+    return 1 if (report.failed or report.deploy_refusal) else 0
 
 
 if __name__ == "__main__":
