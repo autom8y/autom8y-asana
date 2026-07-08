@@ -96,7 +96,9 @@ class _FakeAsana:
 
 
 def _patch_resolve(monkeypatch, *, holder_found, cards):
-    async def _fake(asana_client, office_phone):
+    # FORK-5: resolve_ranked_cards now takes an optional task_gid (hierarchy walk PRIMARY);
+    # post_contact_card threads play_gid through it. The fake accepts both.
+    async def _fake(asana_client, office_phone=None, *, task_gid=None):
         return holder_found, cards
 
     monkeypatch.setattr(cs, "resolve_ranked_cards", _fake)

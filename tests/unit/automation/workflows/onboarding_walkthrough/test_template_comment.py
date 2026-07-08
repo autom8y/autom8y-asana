@@ -444,11 +444,91 @@ class TestPoster:
 
 
 # ============================================================= FORK-GUID-SOURCE Option A
-# office_guid sourced from the Business task's Company ID custom field, pure-Asana,
-# reusing the proven contact_synthesis phone->Business bridge (never re-minted).
+# office_guid sourced from the Business task's Company ID custom field, pure-Asana.
+# entity-resolution-primitive: the hierarchy ancestor walk is now PRIMARY; the proven
+# contact_synthesis phone->Business bridge is the labeled AUTOMATIC fallback (only when the
+# walk finds no Business ancestor). These tests exercise BOTH paths.
+
+from autom8_asana.automation.workflows.onboarding_walkthrough.office_resolution import (  # noqa: E402
+    BusinessResolution,
+)
+
+
+def _walk_none():
+    """Patch the hierarchy walk to find NO Business ancestor -> the phone fallback fires.
+
+    ``_resolve_office_guid`` calls ``office_resolution.resolve_business_gid``; returning a
+    business_gid=None resolution drives the fallback leg (spec §4 SITE 1) that these Option-A
+    phone-bridge tests assert."""
+    return patch.object(
+        tc.office_resolution,
+        "resolve_business_gid",
+        new=AsyncMock(
+            return_value=BusinessResolution(
+                business_gid=None, company_id=None, method="hierarchy", ancestor_depth=None
+            )
+        ),
+    )
+
+
+def _walk_resolves(*, business_gid: str = "BIZ-HIER", company_id: str = SAND_LAKE_GUID):
+    """Patch the hierarchy walk to resolve a Business ancestor with a Company ID (PRIMARY)."""
+    return patch.object(
+        tc.office_resolution,
+        "resolve_business_gid",
+        new=AsyncMock(
+            return_value=BusinessResolution(
+                business_gid=business_gid,
+                company_id=company_id,
+                method="hierarchy",
+                ancestor_depth=2,
+            )
+        ),
+    )
 
 
 class TestOfficeGuidResolution:
+    async def test_hierarchy_walk_primary_resolves_company_id(self) -> None:
+        """PRIMARY (entity-resolution-primitive): the ancestor walk resolves the office guid
+        directly from the matched Business node's Company ID -- the phone bridge is NOT
+        consulted (immune to the office-phone aliasing that HELD TWC). This is SITE 1's
+        walk-first repoint (template_comment.py:245-area)."""
+        client = _make_client(stories=[])
+        phone_probe = AsyncMock(return_value="+13036277995")
+        with (
+            _walk_resolves(company_id=SAND_LAKE_GUID),
+            patch.object(tc, "_business_gid_by_phone", new=phone_probe),
+        ):
+            result = await post_template_comment(
+                client, task_gid=TASK_GID, deck_url=DECK_URL, execute=False
+            )
+        assert result.office_guid == SAND_LAKE_GUID
+        assert f"booking inbox: {OWN}" in result.comment_text
+        phone_probe.assert_not_awaited()  # walk was authoritative; no phone fallback
+        client.stories.create_comment_async.assert_not_awaited()
+
+    async def test_hierarchy_business_missing_company_id_refuses(self) -> None:
+        """PRIMARY walk resolves a Business but it carries no Company ID -> LOUD refuse
+        (spec §7 step 1), identical to the phone path's terminal check."""
+        client = _make_client(stories=[])
+        with (
+            patch.object(
+                tc.office_resolution,
+                "resolve_business_gid",
+                new=AsyncMock(
+                    return_value=BusinessResolution(
+                        business_gid="BIZ-HIER",
+                        company_id=None,
+                        method="hierarchy",
+                        ancestor_depth=2,
+                    )
+                ),
+            ),
+            pytest.raises(TemplateCommentRefused, match="Company ID"),
+        ):
+            await post_template_comment(client, task_gid=TASK_GID, deck_url=DECK_URL, execute=True)
+        client.stories.create_comment_async.assert_not_awaited()
+
     def test_company_id_from_task_reads_custom_field(self) -> None:
         """_company_id_from_task reads the 'Company ID' custom field's display_value
         (mirrors contact_synthesis._office_phone_from_task)."""
@@ -465,14 +545,17 @@ class TestOfficeGuidResolution:
         assert tc._company_id_from_task(task) is None
 
     async def test_office_guid_resolved_from_company_id_bridge(self) -> None:
-        """office_guid=None -> resolve pure-Asana: PLAY -> office phone -> Business (proven
-        bridge) -> Company ID custom field. The resolved guid composes the routing line."""
+        """FALLBACK (walk finds no Business ancestor): resolve pure-Asana via the phone
+        bridge -> PLAY -> office phone -> Business -> Company ID custom field. The resolved
+        guid composes the routing line. This is the labeled AUTOMATIC fallback (method=phone)
+        that survives the entity-resolution-primitive repoint."""
         business_task = SimpleNamespace(
             custom_fields=[{"name": "Company ID", "display_value": SAND_LAKE_GUID}]
         )
         client = _make_client(stories=[])
         client.tasks.get_async = AsyncMock(return_value=business_task)
         with (
+            _walk_none(),
             patch.object(tc, "_read_office_phone", new=AsyncMock(return_value="+14073550608")),
             patch.object(tc, "_business_gid_by_phone", new=AsyncMock(return_value="biz-1")),
         ):
@@ -484,10 +567,12 @@ class TestOfficeGuidResolution:
         client.stories.create_comment_async.assert_not_awaited()
 
     async def test_no_office_phone_refuses_loudly(self) -> None:
-        """No Office Phone on the PLAY -> cannot resolve the guid -> LOUD refuse (spec §2:
-        escalate, never hand-type a routing address); no post."""
+        """Walk finds no Business ancestor AND no Office Phone on the PLAY -> cannot resolve
+        the guid by either path -> LOUD refuse (spec §2: escalate, never hand-type a routing
+        address); no post."""
         client = _make_client(stories=[])
         with (
+            _walk_none(),
             patch.object(tc, "_read_office_phone", new=AsyncMock(return_value=None)),
             pytest.raises(TemplateCommentRefused, match="[Oo]ffice [Pp]hone"),
         ):
@@ -495,12 +580,13 @@ class TestOfficeGuidResolution:
         client.stories.create_comment_async.assert_not_awaited()
 
     async def test_no_company_id_on_business_refuses(self) -> None:
-        """The Business task carries no Company ID -> cannot compose a tenant-matched
-        routing address -> LOUD refuse; no post."""
+        """FALLBACK: the phone-bridge Business task carries no Company ID -> cannot compose a
+        tenant-matched routing address -> LOUD refuse; no post."""
         business_task = SimpleNamespace(custom_fields=[{"name": "Owner", "display_value": "x"}])
         client = _make_client(stories=[])
         client.tasks.get_async = AsyncMock(return_value=business_task)
         with (
+            _walk_none(),
             patch.object(tc, "_read_office_phone", new=AsyncMock(return_value="+14073550608")),
             patch.object(tc, "_business_gid_by_phone", new=AsyncMock(return_value="biz-1")),
             pytest.raises(TemplateCommentRefused, match="Company ID"),

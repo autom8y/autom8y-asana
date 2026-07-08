@@ -44,6 +44,7 @@ import sys
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+from autom8_asana.automation.workflows.onboarding_walkthrough import office_resolution
 from autom8_asana.automation.workflows.onboarding_walkthrough.link_on_play import DECK_HOST
 from autom8_asana.automation.workflows.onboarding_walkthrough.tenant_binding import (
     CANONICAL_ROUTING_ADDR_RE,
@@ -416,7 +417,9 @@ async def _business_gid_by_phone(asana_client: AsanaClient, office_phone: str) -
 
 async def resolve_ranked_cards(
     asana_client: AsanaClient,
-    office_phone: str,
+    office_phone: str | None = None,
+    *,
+    task_gid: str | None = None,
 ) -> tuple[bool, list[ContactCard]]:
     """The ~3-call live traversal (ADR §4 F-1, AMENDED at B5; build errata D1-D4).
 
@@ -425,13 +428,22 @@ async def resolve_ranked_cards(
       * ``(True, [])``   -> holder found, zero contact subtasks -> ``no_contacts``
       * ``(True, cards)``-> ranked (unfiltered) cards for the caller to G-vi filter
 
-    Call 1 resolves office_phone -> Business task_gid via the Asana-native bridge
-    (``_business_gid_by_phone``; the ratified get_gid_map path was falsified live at B5).
-    Calls 2-3 traverse Business -> "Contacts" holder -> Contact children.
-    ``Business.hydrate_async`` (10-20+ calls) is deliberately avoided. May raise
-    ``ContactCardBusinessAmbiguous`` on a multi-Business match.
+    Call 1 resolves the owning Business (FORK-5, entity-resolution-primitive): the
+    hierarchy walk is PRIMARY when ``task_gid`` is supplied (walk PLAY -> first
+    ``BUSINESS_PROJECT`` ancestor -> its gid; immune to office-phone aliasing), and the
+    ``office_phone`` bridge (``_business_gid_by_phone``; the ratified get_gid_map path was
+    falsified live at B5) is the deprecation-window FALLBACK when the walk finds no Business
+    ancestor OR no ``task_gid`` is supplied. Calls 2-3 traverse Business -> "Contacts"
+    holder -> Contact children. ``Business.hydrate_async`` (10-20+ calls) is deliberately
+    avoided. May raise ``ContactCardBusinessAmbiguous`` on a multi-Business phone match
+    (fallback path) or ``BusinessResolutionAmbiguous`` on a multi-Business ancestor (walk).
     """
-    business_gid = await _business_gid_by_phone(asana_client, office_phone)
+    business_gid: str | None = None
+    if task_gid is not None:
+        resolution = await office_resolution.resolve_business_gid(asana_client, task_gid=task_gid)
+        business_gid = resolution.business_gid
+    if business_gid is None and office_phone:
+        business_gid = await _business_gid_by_phone(asana_client, office_phone)
     if not business_gid:
         return False, []
 
@@ -494,13 +506,16 @@ async def post_contact_card(
             deck_slug=deck_slug,
         )
 
-    # Derive the office phone from the PLAY task when not supplied by the caller.
+    # Derive the office phone from the PLAY task (the deprecation-window fallback input)
+    # when not supplied by the caller. With the hierarchy walk PRIMARY (threaded via
+    # play_gid), office_phone is now a pure override / fallback -- a missing phone is no
+    # longer terminal on its own, so we do not return no_holder here before the walk runs.
     if office_phone is None:
         office_phone = await _read_office_phone(asana_client, play_gid)
-    if not office_phone:
-        return ContactCardResult(outcome="no_holder", deck_slug=deck_slug)
 
-    holder_found, raw_cards = await resolve_ranked_cards(asana_client, office_phone)
+    holder_found, raw_cards = await resolve_ranked_cards(
+        asana_client, office_phone, task_gid=play_gid
+    )
     if not holder_found:
         return ContactCardResult(outcome="no_holder", deck_slug=deck_slug)
     if not raw_cards:

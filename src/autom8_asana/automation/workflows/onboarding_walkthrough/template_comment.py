@@ -53,6 +53,7 @@ from typing import Any
 
 from autom8y_core.helpers.routing import format_routing_address
 
+from autom8_asana.automation.workflows.onboarding_walkthrough import office_resolution
 from autom8_asana.automation.workflows.onboarding_walkthrough.contact_synthesis import (
     ContactCardBusinessAmbiguous,
     _business_gid_by_phone,
@@ -230,12 +231,32 @@ def _company_id_from_task(task: Any) -> str | None:
 
 
 async def _resolve_office_guid(asana_client: AsanaClient, *, task_gid: str) -> str:
-    """Resolve the office guid pure-Asana from the Business Company ID (Option A).
+    """Resolve the office guid pure-Asana, hierarchy PRIMARY + phone AUTOMATIC fallback.
 
-    PLAY -> Office Phone custom field -> Business task (the proven ``contact_synthesis``
-    phone->Business bridge, reused not re-minted) -> Company ID custom field. Every miss is
-    a LOUD refusal (spec §2: a missing routing line means escalate, never hand-type).
+    PRIMARY (entity-resolution-primitive, ADR-entity-resolution-primitive-2026-07-08): walk
+    PLAY -> first ``BUSINESS_PROJECT`` ancestor -> that Business's Company ID custom field.
+    The walk is store-independent (self-warms a fresh local ``HierarchyIndex`` via live
+    ``parent.gid`` reads) and immune to the office-phone aliasing that HELD Total Wellness
+    Center fail-closed. FALLBACK (only when the walk finds no Business ancestor -- an orphan
+    / mis-parented PLAY): the proven ``contact_synthesis`` phone->Business bridge, reused not
+    re-minted. Every miss remains a LOUD refusal (spec §2: a missing routing line means
+    escalate, never hand-type). The ``BusinessResolutionAmbiguous`` LOUD refuse on >1
+    Business ancestor rides the caller's refusal family (the CLI catches ``RuntimeError``
+    subclasses).
     """
+    resolution = await office_resolution.resolve_business_gid(asana_client, task_gid=task_gid)
+    if resolution.business_gid is not None:
+        # Hierarchy PRIMARY: the walk already read the Company ID off the matched Business
+        # node in the same fetch. A resolved Business with no Company ID is a LOUD refuse
+        # (spec §7 step 1), identical to the phone-path's terminal check.
+        if resolution.company_id:
+            return resolution.company_id
+        raise TemplateCommentRefused(
+            f"Business {resolution.business_gid} carries no Company ID custom field: cannot "
+            "compose a tenant-matched routing address (spec §7 step 1)."
+        )
+
+    # FALLBACK (walk found no Business ancestor): the office-phone bridge (method="phone").
     office_phone = await _read_office_phone(asana_client, task_gid)
     if not office_phone:
         raise TemplateCommentRefused(
