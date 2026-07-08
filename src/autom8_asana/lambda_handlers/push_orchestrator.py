@@ -146,8 +146,45 @@ async def _push_account_status_for_completed_entities(
         invocation_id: Lambda invocation ID for log correlation.
     """
     from autom8_asana.services.gid_push import (
+        PIPELINE_TYPE_BY_PROJECT_GID,
         extract_status_from_dataframe,
         push_status_to_data_service,
+    )
+
+    # SD-02 warm-set vs pipeline-map reconciliation (sprint-C6): of the warmed
+    # entity set, only entities whose project GID appears in
+    # PIPELINE_TYPE_BY_PROJECT_GID can EVER contribute registry rows -- the
+    # rest are a silent narrowing of what "the account's status" covers.
+    # Surface it (WARNING + metric), do not silently accept it. With today's
+    # map and the default warm set this fires every run with mapped=["unit"]
+    # -- that is the honest signal, by design. Expanding the map is a product
+    # decision routed to a DEFER (watch-trigger: StatusPushUnmappedEntities > 0
+    # sustained after C-2 lands), NOT this sprint. Living in the shared
+    # orchestrator means the Lambda lane inherits this if ever re-armed.
+    mapped: list[str] = []
+    unmapped: list[str] = []
+    for _entity_type in completed_entities:
+        _project_gid = get_project_gid(_entity_type)
+        if not _project_gid:
+            continue
+        if PIPELINE_TYPE_BY_PROJECT_GID.get(_project_gid):
+            mapped.append(_entity_type)
+        else:
+            unmapped.append(_entity_type)
+    if unmapped:
+        logger.warning(
+            "status_push_registry_coverage",
+            extra={
+                "mapped": mapped,
+                "unmapped": unmapped,
+                "narrowing": ("registry narrows to pipeline_types of mapped projects only"),
+                "invocation_id": invocation_id,
+            },
+        )
+    emit_metric(
+        "StatusPushUnmappedEntities",
+        len(unmapped),
+        namespace="Autom8y/AsanaBridgeFleet",
     )
 
     all_entries: list[dict[str, Any]] = []
