@@ -290,6 +290,8 @@ class TestT4MultiBusinessRefusesLoud:
             await resolve_business_gid(client, task_gid="PLAY")
         assert "BIZ_A" in str(exc_info.value)
         assert "BIZ_B" in str(exc_info.value)
+        # structured candidate set (not just the message string) — programmatic consumers
+        assert set(exc_info.value.candidates) == {"BIZ_A", "BIZ_B"}
 
 
 # ============================================================ T-5 NEGATIVE (refusal codes)

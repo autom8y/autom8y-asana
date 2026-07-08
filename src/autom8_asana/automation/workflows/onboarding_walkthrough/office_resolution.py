@@ -15,10 +15,13 @@ ancestor; the parent chain is the ownership relation, immune to phone aliasing.
 **Store-independence is the primary architecture** (the load-bearing constraint). The
 walkthrough runs plain ``AsanaClient()`` with NO ``UnifiedTaskStore``, and
 ``HierarchyIndex.get_ancestor_chain`` returns ``[]`` for an unregistered gid
-(hierarchy.py:175). So the resolver **self-warms**: it fetches each node live via
-``tasks.get_async(raw=True)`` and registers it into a **fresh local ``HierarchyIndex()``**
--- the SAME SDK primitive ``HierarchyIndex`` wraps (hierarchy.py:87-90) -- so cycle-detection
-and the depth bound come free (reuse, not re-mint of traversal).
+(hierarchy.py:175) -- the warm-index walk is structurally unavailable here. So the resolver
+does a **direct bounded ``parent.gid`` traversal**: it fetches each ancestor live via
+``tasks.get_async(raw=True)`` and follows ``parent.gid`` upward, bounded by ``max_depth``
+(which also bounds any parent cycle). What it REUSES rather than re-mints is the identity
+substrate -- the registry-typed discriminator (``get_registry().get_by_gid``), the
+``BUSINESS_PROJECT`` constant, and the raw Asana node shape -- NOT a phone bridge or a
+data-service dependency.
 
 The discriminator is **registry-typed**: ``get_registry().get_by_gid(project_gid)``
 (entity_registry.py:299) with ``BUSINESS_PROJECT`` (project_registry.py:21) as the fallback
@@ -43,7 +46,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
-from autom8_asana.cache.policies.hierarchy import HierarchyIndex
 from autom8_asana.core.entity_registry import get_registry
 from autom8_asana.core.project_registry import BUSINESS_PROJECT
 
@@ -97,8 +99,13 @@ class BusinessResolutionAmbiguous(RuntimeError):
 
     NEVER pick a receiver silently -- refuse LOUD with the full candidate set. Mirrors
     ``contact_synthesis.ContactCardBusinessAmbiguous`` (:406-410). NOT transient; callers
-    must fail closed.
+    must fail closed. Carries the candidate gid set as a structured ``.candidates`` tuple
+    (TDD §2.1) so a programmatic consumer need not parse the message string.
     """
+
+    def __init__(self, message: str, *, candidates: tuple[str, ...] = ()) -> None:
+        super().__init__(message)
+        self.candidates: tuple[str, ...] = tuple(candidates)
 
 
 class BusinessResolutionMissingNoBusiness(RuntimeError):
@@ -217,8 +224,9 @@ async def resolve_business_gid(
 ) -> BusinessResolution:
     """Authoritative walk: task -> first ancestor in ``project_gid`` -> that node.
 
-    Self-warms a fresh local ``HierarchyIndex`` from live ``parent.gid`` reads (store-
-    optional by construction). Returns ``method="hierarchy"`` on success. On no-business-
+    Direct bounded ``parent.gid`` traversal from live reads (store-independent by
+    construction; the warm-index ``get_ancestor_chain`` needs a ``UnifiedTaskStore`` the
+    walkthrough lacks). Returns ``method="hierarchy"`` on success. On no-business-
     ancestor, the CALLER decides fallback-vs-refuse (this fn does not silently phone-
     fallback) -- it returns ``business_gid=None``.
 
@@ -241,7 +249,6 @@ async def resolve_business_gid(
             pending (distinct from no-business-ancestor; FORK-3).
         DivergentOfficeResolution: ``phone_crosscheck`` on and the phone bridge disagreed.
     """
-    idx = HierarchyIndex()
     cur: str | None = task_gid
     depth = 0
     parent_gid: str | None = None
@@ -252,10 +259,11 @@ async def resolve_business_gid(
     while cur is not None and depth <= max_depth:
         raw = await asana_client.tasks.get_async(cur, opt_fields=_WALK_OPT_FIELDS, raw=True)
         node = _as_node_dict(raw)
-        # Feed the SDK tracker so cycle-detection + the depth bound apply (reuse, not
-        # re-mint). register() needs a "gid" key; ensure it is present for the tracker.
+        # Direct bounded traversal: the shipped HierarchyIndex.get_ancestor_chain needs a warm
+        # UnifiedTaskStore the walkthrough never constructs (hierarchy.py:175 returns [] for an
+        # unregistered gid), so we walk parent.gid directly. ``max_depth`` bounds any cycle.
+        # Ensure a "gid" key is present for the match read below.
         node.setdefault("gid", cur)
-        idx.register(node)
 
         if _matches_project(node, project_gid):
             node_gid = node.get("gid")
@@ -269,10 +277,12 @@ async def resolve_business_gid(
         depth += 1
 
     if len(matches) > 1:
+        candidate_gids = tuple(g for g, _, _ in matches)
         raise BusinessResolutionAmbiguous(
             f"{len(matches)} ancestors of PLAY {task_gid} are members of project "
             f"{project_gid}; refusing to pick a receiver silently. "
-            f"candidates={[g for g, _, _ in matches]}"
+            f"candidates={list(candidate_gids)}",
+            candidates=candidate_gids,
         )
 
     if len(matches) == 1:
