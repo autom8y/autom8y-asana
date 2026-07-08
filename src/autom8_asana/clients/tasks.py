@@ -214,6 +214,20 @@ class TasksClient(BaseClient):
                 extra={"task_gid": task_gid},
             )
             data = cached_entry.data
+            # Completeness canary (thermia observability-plan): every TASK entry
+            # written via this client's miss path now carries custom_fields (the
+            # union hydration always includes STANDARD's custom_fields.*). A hit that
+            # lacks it MAY indicate opt_fields-blind poisoning (the FG-BUG class) OR a
+            # legitimate narrow cross-writer that _cache_set a TASK entry via a path
+            # other than get()'s miss (e.g. a warmer/batch that stored a narrow
+            # projection). It is a SIGNAL to investigate, not a proof of regression.
+            # O(1), no cost on the passing path.
+            if "custom_fields" not in data:
+                logger.warning(
+                    "TASK cache hit missing custom_fields "
+                    "(possible opt_fields-blind poisoning OR a narrow cross-writer)",
+                    extra={"task_gid": task_gid, "cached_keys": sorted(data.keys())},
+                )
             if raw:
                 return data
             task = Task.model_validate(data)
@@ -227,20 +241,29 @@ class TasksClient(BaseClient):
             extra={"task_gid": task_gid, "opt_fields_count": opt_fields_count},
         )
 
-        # Cache miss: fetch from API.
-        # Ensure parent.gid is always included when the caller specified a narrow
-        # opt_fields set (cascade-resolution minimum -- mirrors list_async, which
-        # resolves through _resolve_opt_fields at the list path). A targeted
-        # get_async that omits parent.gid caches a parent-less task under the
-        # opt_fields-blind TASK cache key; a later full-fields hydration read (the
-        # GFR upward walk) then gets that stale cache hit and cannot reach the
-        # Business root ("Reached root without finding Business" -> no-identity-path).
-        # Bare get_async(gid) (opt_fields=None) keeps its Asana default-fields
-        # behavior -- only the explicitly-narrowed case is widened.
-        resolved_opt_fields = (
-            self._resolve_opt_fields(opt_fields) if opt_fields is not None else None
-        )
-        params = self._build_opt_fields(resolved_opt_fields)
+        # Cache miss: fetch a TRUE SUPERSET of BOTH the caller's projection AND the
+        # cache-coherence standard set. The TASK cache key is opt_fields-blind
+        # (FR-CLIENT-002): the field-shape of the FIRST fetch of a gid is what every
+        # subsequent cache-hit reader receives.
+        #
+        # Option B (thermia-ruled, HANDOFF-thermia-to-10xdev-taskcache-fix-2026-07-07)
+        # as corrected under QA #212 NO-GO: hydrate the miss with
+        #   caller-projection  UNION  STANDARD_TASK_OPT_FIELDS
+        # NOT STANDARD alone. STANDARD is NOT a superset of every caller's request --
+        # it drops modified_at/due_on/completed/tags/assignee/notes/etc. that
+        # BASE_OPT_FIELDS (freshness/hierarchy_warmer/progressive watermarks) and
+        # field_write_service._TASK_OPT_FIELDS (_refetch_updated echo) require. Fetching
+        # STANDARD alone would satisfy the FG-BUG (custom_fields present) but regress
+        # those callers to None on a guaranteed-miss refetch. The UNION satisfies the
+        # thermodynamicist's invariant literally ("a cache read at projection P returns
+        # a value satisfying P, or a miss -- never a silently-narrowed task") for EVERY
+        # P, AND keeps FG-BUG closed (STANDARD subset of union => custom_fields.* always
+        # present). _resolve_opt_fields restores the caller-projection + parent.gid /
+        # memberships cascade minimum that origin/main's miss path carried; for a bare
+        # get (opt_fields=None) it returns STANDARD, so the union collapses to STANDARD.
+        resolved_opt_fields = self._resolve_opt_fields(opt_fields)
+        superset_opt_fields = sorted(set(resolved_opt_fields) | set(STANDARD_TASK_OPT_FIELDS))
+        params = self._build_opt_fields(superset_opt_fields)
         data = await self._http.get(f"/tasks/{task_gid}", params=params)
 
         # Store in cache with entity-type TTL (delegates to TaskTTLResolver)

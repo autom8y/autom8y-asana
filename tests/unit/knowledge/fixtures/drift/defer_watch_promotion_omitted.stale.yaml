@@ -1,0 +1,16 @@
+# Deliberately-stale fixture — FICTIONAL re-introduction of A1 disease.
+# Purpose: fed to detect_defer_watch_promotion_entry to assert DRIFT (RED).
+#
+# Simulates: the drift-audit-discipline-fleet-promotion entry has been omitted
+# (tampered, deleted, or never written).
+
+- id: some-other-defer-entry
+  filed_at: 2026-04-15
+  status: DEFERRED-pending-review
+  watch_trigger: 2026-05-15
+  escalation_target: platform rite Potnia
+
+- id: another-unrelated-entry
+  filed_at: 2026-06-01
+  status: RESOLVED
+  watch_trigger: 2026-07-01
