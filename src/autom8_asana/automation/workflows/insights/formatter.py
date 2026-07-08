@@ -71,7 +71,12 @@ _DISPLAY_LABELS: dict[str, str] = {
     "n_distinct_ads": "Distinct Ads",
     "cpl": "CPL",
     "cps": "CPS",
-    "ecps": "Expected CPS",
+    # GAP-2 "Two metrics, honestly named" (ratified 2026-07-08): ecps is the
+    # STATUS-FILTER metric spend/effective_scheds -> "Effective CPS" (the old
+    # "Expected CPS" label was drifted); xcps is the NET-NEW probabilistic
+    # show-weight metric spend/solid_scheds -> "Expected CPS".
+    "ecps": "Effective CPS",
+    "xcps": "Expected CPS",
     "cpc": "CPC",
     "ltv": "LTV",
     "ctr": "CTR",
@@ -100,7 +105,11 @@ _DISPLAY_LABELS: dict[str, str] = {
 # Tooltip definitions for column headers.
 _COLUMN_TOOLTIPS: dict[str, str] = {
     "cpl": "Cost Per Lead: Total spend \u00f7 total leads",
-    "cps": "Cost Per Show: Total spend \u00f7 scheduled appointments",
+    # Legacy drift fixed (GAP-2 2026-07-08): modern cps is cost per SCHEDULED
+    # appointment (autom8y-data library.py cps = spend/scheds), not per show.
+    "cps": "Cost Per Schedule: Total spend \u00f7 scheduled appointments",
+    "ecps": "Effective CPS: Spend \u00f7 effective schedules (excludes no-shows and non-converted)",
+    "xcps": "Expected CPS: Spend \u00f7 probability-weighted expected shows",
     "booking_rate": "Booking Rate: Scheduled appointments \u00f7 total leads",
     "roas": "Return on Ad Spend: Revenue \u00f7 ad spend",
     "ctr": "Click-Through Rate: Clicks \u00f7 impressions",
