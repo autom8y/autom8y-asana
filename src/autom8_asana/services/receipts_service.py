@@ -23,13 +23,21 @@ client-facing message. The provider adds no PII (the consumer already redacts).
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from autom8y_log import get_logger
 
 from autom8_asana.api.routes.receipts_models import ReceiptKind, ReceiptPostResponse
-from autom8_asana.core.project_registry import BUSINESS_PROJECT
+from autom8_asana.core.project_registry import BUSINESS_PROJECT, CALENDAR_INTEGRATIONS_PROJECT
+from autom8_asana.domain.forwarding_stage import (
+    RECEIPT_KIND_TO_STAGE,
+    ForwardingStage,
+    StageDisposition,
+    StageRankTable,
+    StageTransitionValidator,
+)
 
 if TYPE_CHECKING:
     from autom8_asana import AsanaClient
@@ -42,7 +50,81 @@ logger = get_logger(__name__)
 # hierarchy walk and _business_gid_by_phone use).
 _BUSINESSES_PROJECT_GID = BUSINESS_PROJECT  # "1200653012566782"
 
+# The Forwarding-Stage single-select field lives on the Calendar Integrations
+# task, NOT the Business task (§2 architectural crux). Advancing the stage needs
+# a SECOND resolution (company_id -> CI task) filtered to this project.
+_CALENDAR_INTEGRATIONS_PROJECT_GID = CALENDAR_INTEGRATIONS_PROJECT  # "1209442849265632"
+
 _MARKER_PREFIX = "RCPT"
+
+
+@dataclass(frozen=True)
+class _UnknownStage:
+    """Sentinel for a CI-task option GID that is NOT in the config option map.
+
+    Deliberately NOT a ``ForwardingStage`` so ``StageTransitionValidator.evaluate``
+    fail-CLOSES (its ``isinstance(current, ForwardingStage)`` guard rejects it as
+    an unknown/unmapped option) rather than guessing an advance. Carries the raw
+    GID for the LOUD log line.
+    """
+
+    option_gid: str
+
+
+@dataclass(frozen=True)
+class ForwardingStageWriteConfig:
+    """Config for the config-gated Forwarding-Stage write leg (ADR-FS-004/005).
+
+    All values are operator-sourced (see ApiSettings.forwarding_stage_*). The
+    write leg is INERT (a NO-OP, byte-identical to the comment-only baseline)
+    unless ``enabled`` is True AND ``field_gid`` is non-empty AND
+    ``option_gids`` is populated -- the dark-posture gate.
+
+    ``option_gids`` maps a ForwardingStage value ("Verified") -> Asana enum-option
+    GID; it is the ONLY place option GIDs live (never hardcoded in code).
+    ``inactive_disposition`` is the data-driven Inactive ruling (default PARKED).
+    """
+
+    enabled: bool = False
+    field_gid: str = ""
+    option_gids: dict[str, str] = field(default_factory=dict)
+    inactive_disposition: StageDisposition = StageDisposition.PARKED
+
+    @property
+    def is_active(self) -> bool:
+        """True iff the write leg should attempt an advance (all gates satisfied)."""
+        return bool(self.enabled and self.field_gid and self.option_gids)
+
+    @classmethod
+    def from_settings(
+        cls,
+        *,
+        enabled: bool,
+        field_gid: str,
+        option_gids: dict[str, str],
+        disposition: dict[str, str],
+    ) -> ForwardingStageWriteConfig:
+        """Build from the raw ApiSettings values (fail-safe on a bad disposition).
+
+        An unrecognized ``Inactive`` disposition string falls back to the safe
+        PARKED default rather than raising -- a config typo must not crash the
+        receipts route (the comment leg is correctness-critical).
+        """
+        raw = (disposition or {}).get("Inactive", StageDisposition.PARKED.value)
+        try:
+            inactive = StageDisposition(raw)
+        except ValueError:
+            logger.warning(
+                "forwarding_stage_disposition_invalid",
+                extra={"raw": raw, "fallback": StageDisposition.PARKED.value},
+            )
+            inactive = StageDisposition.PARKED
+        return cls(
+            enabled=enabled,
+            field_gid=field_gid,
+            option_gids=dict(option_gids or {}),
+            inactive_disposition=inactive,
+        )
 
 
 class ReceiptResolutionError(RuntimeError):
@@ -102,12 +184,38 @@ def _bucket_for(kind: str) -> str:
     return ""
 
 
-class ReceiptsService:
-    """Resolve -> dedup -> post orchestration for a single receipt."""
+def _stage_display(current: ForwardingStage | _UnknownStage | None) -> str | None:
+    """Log-safe rendering of a read current stage (handles the unknown sentinel)."""
+    if current is None:
+        return None
+    if isinstance(current, ForwardingStage):
+        return current.value
+    return f"unknown:{current.option_gid}"
 
-    def __init__(self, client: AsanaClient, *, company_id_field_gid: str) -> None:
+
+class ReceiptsService:
+    """Resolve -> dedup -> post orchestration for a single receipt.
+
+    Optionally (config-gated, default OFF) also advances the Forwarding-Stage
+    field on the clinic's Calendar Integrations task after the comment is
+    threaded (ADR-FS-004). The stage-advance leg is best-effort and no-throw: it
+    NEVER fails the receipt route (the comment is the correctness-critical leg).
+    """
+
+    def __init__(
+        self,
+        client: AsanaClient,
+        *,
+        company_id_field_gid: str,
+        stage_write_config: ForwardingStageWriteConfig | None = None,
+    ) -> None:
         self._client = client
         self._company_id_field_gid = company_id_field_gid
+        self._stage_cfg = stage_write_config or ForwardingStageWriteConfig()
+        self._stage_validator = StageTransitionValidator(
+            StageRankTable(),
+            inactive_disposition=self._stage_cfg.inactive_disposition,
+        )
 
     async def _resolve_business_gid(self, company_id: str) -> str:
         """Resolve ``company_id`` -> the single Business ``task_gid`` (fail-closed).
@@ -183,6 +291,11 @@ class ReceiptsService:
                 "forwarding_receipt_skipped_duplicate",
                 extra={"business_gid": business_gid, "kind": kind},
             )
+            # Even on a duplicate comment, converge the stage (idempotent: the
+            # validator NO-OPs when the field already reflects the event). This
+            # keeps the board correct if a comment landed but a prior advance was
+            # skipped (e.g. the switch was flipped ON between deliveries).
+            await self._advance_stage(company_id, kind)
             return ReceiptPostResponse(
                 business_gid=business_gid,
                 story_gid=existing.gid,
@@ -194,8 +307,164 @@ class ReceiptsService:
             "forwarding_receipt_posted",
             extra={"business_gid": business_gid, "story_gid": story.gid, "kind": kind},
         )
+        # Config-gated stage-advance leg (default OFF = INERT). Best-effort and
+        # no-throw: a stage-advance failure NEVER fails the receipt (the comment
+        # already succeeded). See _advance_stage.
+        await self._advance_stage(company_id, kind)
         return ReceiptPostResponse(
             business_gid=business_gid,
             story_gid=story.gid,
             outcome="posted",
         )
+
+    # ------------------------------------------------------------------
+    # Forwarding-Stage write leg (config-gated, best-effort, no-throw).
+    # ------------------------------------------------------------------
+
+    async def _advance_stage(self, company_id: str, kind: str) -> None:
+        """Advance the Forwarding-Stage field on the clinic's CI task (ADR-FS-004).
+
+        The whole leg is wrapped no-throw: ANY exception is logged and swallowed
+        so the receipt's comment outcome always stands (R-2). The dark-posture
+        gate short-circuits FIRST: when the write config is not fully active, this
+        is a pure NO-OP with ZERO Asana calls -- byte-identical to the comment-only
+        baseline (T-W1).
+        """
+        if not self._stage_cfg.is_active:
+            return
+
+        try:
+            proposed = RECEIPT_KIND_TO_STAGE.get(kind)
+            if proposed is None:  # pragma: no cover -- kind already 422'd upstream
+                return
+
+            option_gid = self._stage_cfg.option_gids.get(proposed.value)
+            if not option_gid:
+                # The target stage has no configured option GID -> cannot PUT.
+                # NO-OP (do not guess an option), log for operator visibility.
+                logger.info(
+                    "forwarding_stage_option_unconfigured",
+                    extra={"company_id": company_id, "proposed": proposed.value},
+                )
+                return
+
+            ci_gid = await self._resolve_ci_task_gid(company_id)
+            if ci_gid is None:
+                # 0 or >1 CI matches -> best-effort skip (never guess a receiver).
+                return
+
+            current = await self._read_current_stage(ci_gid)
+            decision = self._stage_validator.evaluate(current, proposed)  # type: ignore[arg-type]
+
+            if decision.is_refusal:
+                # LOUD: the machine tried to regress or read an unknown option.
+                logger.warning(
+                    decision.outcome.value,  # stage_regression_refused | stage_unknown_refused
+                    extra={
+                        "company_id": company_id,
+                        "ci_gid": ci_gid,
+                        "current": _stage_display(current),
+                        "proposed": proposed.value,
+                        "reason": decision.reason,
+                    },
+                )
+                return
+
+            if not decision.should_write:
+                # NO-OP (idempotent same-stage). Nothing to write.
+                logger.info(
+                    "forwarding_stage_noop",
+                    extra={"company_id": company_id, "ci_gid": ci_gid, "stage": proposed.value},
+                )
+                return
+
+            await self._client.tasks.update_async(
+                ci_gid,
+                custom_fields={self._stage_cfg.field_gid: option_gid},
+            )
+            logger.info(
+                "forwarding_stage_advanced",
+                extra={
+                    "company_id": company_id,
+                    "ci_gid": ci_gid,
+                    "from_stage": _stage_display(current),
+                    "to_stage": proposed.value,
+                    "outcome": decision.outcome.value,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001 -- best-effort leg, never fail the receipt
+            logger.warning(
+                "forwarding_stage_advance_failed",
+                extra={"company_id": company_id, "kind": kind, "error": str(exc)},
+            )
+
+    async def _resolve_ci_task_gid(self, company_id: str) -> str | None:
+        """Resolve ``company_id`` -> the single Calendar Integrations task gid.
+
+        The SECOND resolution (§2): the same LIVE ``tasks/search`` idiom as
+        ``_resolve_business_gid`` but filtered to the Calendar Integrations
+        project instead of the Businesses project (keying on the SAME Company ID
+        cascade value). Best-effort: returns ``None`` on 0 or >1 matches (never
+        guesses a receiver), logging for operator visibility. Guest-PAT scope
+        honored (task/project-scope ``tasks/search``; no workspace-level call).
+        """
+        workspace_gid = self._client.default_workspace_gid
+        if not workspace_gid:
+            logger.info(
+                "stage_ci_task_no_workspace",
+                extra={"company_id": company_id},
+            )
+            return None
+
+        data = await self._client.http.get(
+            f"/workspaces/{workspace_gid}/tasks/search",
+            params={
+                f"custom_fields.{self._company_id_field_gid}.value": company_id,
+                "opt_fields": "name,projects.gid",
+            },
+        )
+        results = data.get("data", []) if isinstance(data, dict) else (data or [])
+        matches = [
+            t
+            for t in results
+            if any(
+                (p or {}).get("gid") == _CALENDAR_INTEGRATIONS_PROJECT_GID
+                for p in (t.get("projects") or [])
+            )
+        ]
+        if len(matches) != 1:
+            logger.info(
+                "stage_ci_task_not_resolved",
+                extra={"company_id": company_id, "match_count": len(matches)},
+            )
+            return None
+        gid = matches[0].get("gid")
+        return str(gid) if gid is not None else None
+
+    async def _read_current_stage(self, ci_gid: str) -> ForwardingStage | _UnknownStage | None:
+        """Read the CI task's current Forwarding-Stage value.
+
+        Returns ``None`` when the field is unset (a fresh clinic), a
+        :class:`ForwardingStage` when the read option GID maps into the config
+        option map, or an :class:`_UnknownStage` sentinel when the task carries an
+        option GID ABSENT from the config map -- so the validator fail-CLOSES
+        rather than guessing an advance (T-M5 / T-W6 fail-closed).
+        """
+        raw = await self._client.tasks.get_async(ci_gid, raw=True, opt_fields=["custom_fields"])
+        custom_fields = (raw or {}).get("custom_fields") or []
+        for cf in custom_fields:
+            if (cf or {}).get("gid") != self._stage_cfg.field_gid:
+                continue
+            enum_value = (cf or {}).get("enum_value")
+            if not enum_value:
+                return None  # field present but unset
+            option_gid = enum_value.get("gid")
+            if not option_gid:
+                return None
+            # Invert the config map: option GID -> stage value.
+            for stage_value, cfg_gid in self._stage_cfg.option_gids.items():
+                if cfg_gid == option_gid:
+                    return ForwardingStage(stage_value)
+            # Present option GID not in our config map -> unknown; fail closed.
+            return _UnknownStage(option_gid)
+        return None  # field not on the task at all
