@@ -101,7 +101,12 @@ def assert_root_hygiene(deploy_root: Path) -> None:
             continue
         if child.is_dir() and not child.is_symlink() and _SLUG_DIR_RE.fullmatch(name):
             contents = sorted(entry.name for entry in child.iterdir())
-            if not (child / "index.html").is_file():
+            # A symlinked index.html LEAF would pass is_file() (path-following) and
+            # publish its TARGET's bytes at the capability URL — refuse like any
+            # other unreviewed-bytes vector (QA residual closed 2026-07-09).
+            if (child / "index.html").is_symlink():
+                nonexact.append(f"{name}/{{index.html -> symlink}}")
+            elif not (child / "index.html").is_file():
                 slugless.append(name)
             elif contents != ["index.html"]:
                 extras = [entry for entry in contents if entry != "index.html"]
