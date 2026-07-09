@@ -169,6 +169,18 @@ class TestRootHygieneAllowlist:
         with pytest.raises(DeployRootRefused, match="root-hygiene REFUSED"):
             assert_root_hygiene(root)
 
+    def test_symlinked_index_html_leaf_refused(self, tmp_path: Path) -> None:
+        """A real slug DIR whose index.html is a SYMLINK to an external file passes
+        ``is_file()`` (path-following at the leaf) but would publish the TARGET's bytes
+        at the capability URL — refused (QA residual closed 2026-07-09)."""
+        root = _make_root(tmp_path, [SLUG_A])
+        outside = tmp_path / "outside.html"
+        outside.write_text("outside bytes", encoding="utf-8")
+        (root / SLUG_B).mkdir()
+        (root / SLUG_B / "index.html").symlink_to(outside)
+        with pytest.raises(DeployRootRefused, match="root-hygiene REFUSED"):
+            assert_root_hygiene(root)
+
 
 # ============================================================ _headers byte-parity
 
