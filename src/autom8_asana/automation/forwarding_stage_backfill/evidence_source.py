@@ -176,8 +176,9 @@ class CloudWatchInsightsEvidenceSource:
         total = 0
         for row in rows:
             fields = _row_fields(row)
-            inbox = fields.get("inbox")
-            if not inbox:
+            try:
+                inbox = parse_inbox_or_raise(fields)
+            except MalformedLogRecordError:
                 malformed += 1
                 logger.warning("backfill_booking_row_no_inbox", extra={"row": fields})
                 continue
@@ -200,8 +201,9 @@ class CloudWatchInsightsEvidenceSource:
         malformed = 0
         for row in rows:
             fields = _row_fields(row)
-            inbox = fields.get("inbox")
-            if not inbox:
+            try:
+                inbox = parse_inbox_or_raise(fields)
+            except MalformedLogRecordError:
                 malformed += 1
                 logger.warning("backfill_confirmation_row_no_inbox", extra={"row": fields})
                 continue

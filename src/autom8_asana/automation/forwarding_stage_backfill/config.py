@@ -8,20 +8,32 @@ monolith log-format change is therefore a config edit, and the pure derivation
 stays testable against a FAKE evidence source with no AWS.
 
 The ``INBOX_CAPTURE_REGEX`` is the join's load-bearing precondition: it MUST
-capture the mailbox local-part exactly as ``resolve_office`` does
-(``to_address.split("@")[0]`` after a zero-width strip) so the derived key
-equals the Company-ID custom-field value the CI-task resolution searches on --
-otherwise every resolution 0-matches into UNRESOLVED (DEPENDENCY-MAP
-UT-OI2-GUID; asserted by T-B6).
+capture the mailbox local-part exactly as ``resolve_office_stage`` does in the
+``autom8y`` repo at
+``services/email-booking-intake/src/email_booking_intake/pipeline/stages/resolve_office.py:83-88``
+(``cleaned = to_address.replace("\u200b", "")`` then
+``parts = cleaned.split("@")`` then ``guid = parts[0].strip()`` -- a
+zero-width-space strip, THEN split-on-``@``, THEN a further ``.strip()`` of
+the local-part) so the derived key equals the Company-ID custom-field value
+the CI-task resolution searches on -- otherwise every resolution 0-matches
+into UNRESOLVED (DEPENDENCY-MAP UT-OI2-GUID; asserted by T-B6).
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass
 
 # ---------------------------------------------------------------------------
 # Ruled defaults (the design station's rulings, overridable via CLI/env).
 # ---------------------------------------------------------------------------
+
+#: The placeholder-token shape: a bare ``<UPPER_SNAKE_CASE>`` grammar surface
+#: the build station has not yet pinned (e.g. ``<INBOX_CAPTURE_REGEX>``).
+#: Deliberately narrower than "contains '<'" so a VALID CloudWatch Insights
+#: named-capture group (``(?<inbox>...)``, lowercase, embedded inside a larger
+#: regex) is never false-positived as an unpinned placeholder.
+_PLACEHOLDER_TOKEN_RE = re.compile(r"<[A-Z][A-Z0-9_]*>")
 
 #: Lookback window (DD-2). 21d is the coverage/freshness knee: long enough to
 #: capture biweekly/low-volume/monthly-ish clinics (7d misses them -> false
@@ -107,12 +119,6 @@ class BackfillConfig:
     #: Calibrated by the build station; the capture group is named ``inbox``.
     inbox_capture_regex: str = "<INBOX_CAPTURE_REGEX>"
 
-    #: Regexes/predicates for which the build station has NOT yet pinned live
-    #: values (still bearing the ``<...>`` placeholder). The evidence source
-    #: refuses to run against unpinned grammar so a PLAN is never built on a
-    #: placeholder query (fail-closed calibration guard).
-    _placeholder_marker: str = field(default="<", init=False, repr=False)
-
     @property
     def is_calibrated(self) -> bool:
         """True iff every live-grammar surface has been pinned (no placeholders).
@@ -120,9 +126,15 @@ class BackfillConfig:
         A backfill run against an uncalibrated config would parse nothing and
         report ``no clinics`` -- a silent lie. The evidence source asserts this
         before issuing any query.
+
+        Detects the ``<UPPER_SNAKE_CASE>`` placeholder-token SHAPE
+        (:data:`_PLACEHOLDER_TOKEN_RE`), not a bare ``"<"`` substring check --
+        a bare check would false-positive on a VALID CloudWatch Insights
+        named-capture group such as ``(?<inbox>...)``, which is legitimate
+        calibrated grammar, not an unpinned placeholder.
         """
-        return all(
-            self._placeholder_marker not in value
+        return not any(
+            _PLACEHOLDER_TOKEN_RE.search(value)
             for value in (
                 self.booking_predicate,
                 self.forwarding_confirmation_predicate,
