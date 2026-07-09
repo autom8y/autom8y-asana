@@ -12,11 +12,18 @@ now resolves via the entity tree -- Company-ID search to the Business
 PLAY task multi-homed into Calendar Integrations. The fake client here models
 that tree (search rows + a parent-gid -> subtask-rows map).
 
+Duplicate-Company-ID union (remediation, 2026-07-09): hop 1 legitimately
+returns MULTIPLE Business cards when a practice card and practitioner card(s)
+share one Company ID (the data model's NORMAL shape -- the Total Wellness
+BLOCK). The resolver descends the UNION of all matched subtrees and
+adjudicates exactly-one/zero/ambiguous on the DISTINCT PLAY set.
+
 Two-sided where a guard exists: happy two-hop, direct depth-1 member,
 zero-member (the membership-filter teeth), multi-member ambiguous refuse,
-depth cap, truncation loud-abort, 0/>1 Business matches, no-workspace; and for
-the stage read: unset field, mapped option, unmapped option (fail-closed
-sentinel).
+depth cap, truncation loud-abort, 0 Business matches, duplicate-Company-ID
+union (one-PLAY resolve / each-holds-one ambiguous / zero unresolved /
+same-PLAY dedupe), no-workspace; and for the stage read: unset field, mapped
+option, unmapped option (fail-closed sentinel).
 """
 
 from __future__ import annotations
@@ -241,15 +248,90 @@ class TestResolveCiTaskGid:
         assert client.get_urls == [f"/workspaces/{client.default_workspace_gid}/tasks/search"]
 
     @pytest.mark.asyncio
-    async def test_ambiguous_business_matches_returns_none(self) -> None:
-        """RED side: >1 Business carrying the company_id -> refuse, never pick."""
+    async def test_duplicate_business_single_play_union_resolves(self) -> None:
+        """Duplicate-Company-ID fixture A (the Total Wellness shape): TWO
+        Business cards share the Company ID (practice + practitioner -- the
+        data model's NORMAL shape); only ONE subtree holds a CI PLAY. The
+        union descend resolves to that PLAY.
+
+        RED side (the two-sided teeth): with the union logic reverted to the
+        len!=1 hop-1 refuse, the duplicate Business cards fail-close to None
+        and this test fires RED (the exact rite-disjoint QA BLOCK).
+        """
+        client = _tree_client(
+            search_rows=[_business_row("biz-practice"), _business_row("biz-practitioner")],
+            subtasks={
+                "biz-practice": [_node(HOLDER_GID)],
+                HOLDER_GID: [_node(CI_TASK_GID, in_ci=True)],
+                CI_TASK_GID: [],
+                "biz-practitioner": [_node("practitioner-holder")],
+                "practitioner-holder": [],
+            },
+        )
+        gid = await resolve_ci_task_gid(
+            client, COMPANY_ID, company_id_field_gid=COMPANY_ID_FIELD_GID
+        )
+        assert gid == CI_TASK_GID
+
+    @pytest.mark.asyncio
+    async def test_duplicate_business_each_subtree_play_ambiguous_refused(self) -> None:
+        """Duplicate-Company-ID fixture B: two Businesses, EACH subtree holds
+        a DISTINCT CI PLAY -> two distinct receivers in the union -> ambiguous
+        refuse (fail-closed at the PLAY level, never pick)."""
         client = _tree_client(
             search_rows=[_business_row("biz-a"), _business_row("biz-b")],
+            subtasks={
+                "biz-a": [_node("holder-a")],
+                "holder-a": [_node("ci-a", in_ci=True)],
+                "ci-a": [],
+                "biz-b": [_node("holder-b")],
+                "holder-b": [_node("ci-b", in_ci=True)],
+                "ci-b": [],
+            },
         )
         gid = await resolve_ci_task_gid(
             client, COMPANY_ID, company_id_field_gid=COMPANY_ID_FIELD_GID
         )
         assert gid is None
+
+    @pytest.mark.asyncio
+    async def test_duplicate_business_zero_plays_unresolved(self) -> None:
+        """Duplicate-Company-ID fixture C: two Businesses, zero CI PLAYs
+        anywhere in the union -> UNRESOLVED (None), never a guess."""
+        client = _tree_client(
+            search_rows=[_business_row("biz-a"), _business_row("biz-b")],
+            subtasks={
+                "biz-a": [_node("holder-a")],
+                "holder-a": [],
+                "biz-b": [],
+            },
+        )
+        gid = await resolve_ci_task_gid(
+            client, COMPANY_ID, company_id_field_gid=COMPANY_ID_FIELD_GID
+        )
+        assert gid is None
+
+    @pytest.mark.asyncio
+    async def test_duplicate_business_same_play_both_subtrees_dedupes_resolves(self) -> None:
+        """Distinct-set teeth: the SAME PLAY reachable from BOTH subtrees is
+        ONE distinct receiver, not an ambiguity -> resolves.
+
+        RED side: adjudicating on the raw collected list (no dedupe) would
+        count the PLAY twice and refuse as ambiguous."""
+        client = _tree_client(
+            search_rows=[_business_row("biz-a"), _business_row("biz-b")],
+            subtasks={
+                "biz-a": [_node("holder-a")],
+                "holder-a": [_node(CI_TASK_GID, in_ci=True)],
+                "biz-b": [_node("holder-b")],
+                "holder-b": [_node(CI_TASK_GID, in_ci=True)],
+                CI_TASK_GID: [],
+            },
+        )
+        gid = await resolve_ci_task_gid(
+            client, COMPANY_ID, company_id_field_gid=COMPANY_ID_FIELD_GID
+        )
+        assert gid == CI_TASK_GID
 
     @pytest.mark.asyncio
     async def test_no_workspace_returns_none_no_call(self) -> None:

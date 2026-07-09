@@ -18,6 +18,15 @@ Calendar Integrations), filtered by PROJECT MEMBERSHIP, never by name. The
 public contract is unchanged: same signature, ``None`` on zero/ambiguous
 (fail-closed).
 
+Duplicate-Company-ID union (remediation, 2026-07-09): hop 1 may legitimately
+match MULTIPLE Business cards -- a practice card plus practitioner card(s)
+sharing the practice Company ID is the data model's NORMAL shape, not an error
+(rite-disjoint QA BLOCK: the len!=1 refuse left Total Wellness unresolved).
+The resolver therefore descends the UNION of every matched Business subtree
+and adjudicates exactly-one/zero/ambiguous on the DISTINCT PLAY set: the PLAY
+level is where ambiguity matters; the Business-level duplicate is tolerated by
+design.
+
 Purity note: these functions take the ``AsanaClient`` + the resolved GIDs/maps
 as EXPLICIT parameters (rather than reaching through ``self``), so they carry no
 service state and are directly testable. The Forwarding-Stage single-select
@@ -132,68 +141,14 @@ async def _list_subtasks(
     return rows
 
 
-async def resolve_ci_task_gid(
-    client: AsanaClient,
-    company_id: str,
-    *,
-    company_id_field_gid: str,
-) -> str | None:
-    """Resolve ``company_id`` -> the single Calendar Integrations task gid.
+async def _collect_ci_member_gids(client: AsanaClient, business_gid: str) -> set[str]:
+    """Membership-filtered descend of ONE Business subtree (depth cap 2).
 
-    The SECOND resolution (§2), via the ruled ENTITY-DESCEND join (the prior
-    Company-ID-search-filtered-to-CI-project join is FALSIFIED: the Company ID
-    field is NOT on the Calendar Integrations project, so it matched nothing):
-
-    1. Resolve ``company_id`` -> the single Business (dna_holder) task via the
-       PROVEN LIVE ``tasks/search`` on the Company ID custom field, filtered to
-       the Businesses project (the ``_resolve_business_gid`` idiom).
-    2. DESCEND the entity tree in reverse (like the resolver goes UP, go DOWN):
-       list the Business task's subtasks (depth 1: the "{Clinic} PLAYS/REQUESTS"
-       holder by convention), then each child's subtasks (depth 2: the PLAY
-       tasks, multi-homed into Calendar Integrations), collecting every
-       descendant whose project memberships include the Calendar Integrations
-       project. Depth-1 children that are themselves CI members are ALSO
-       collected (robustness when a clinic links the PLAY directly).
-    3. Exactly ONE collected match -> its gid. Zero -> ``None`` (fail-closed,
-       never guesses a receiver). More than one -> ambiguous refuse (``None``,
-       counted in the log line).
-
-    Bounded: depth is structurally capped at ``_DESCEND_DEPTH_CAP`` (2) and each
-    listing is one page capped at ``_SUBTASK_PAGE_CAP`` with a LOUD
-    :class:`SubtaskPageCapExceeded` abort on a full page. Guest-PAT scope
-    honored (task/project-scope ``tasks/search`` + ``/tasks/{gid}/subtasks``; no
-    workspace-level listing). 429s back off on ``Retry-After`` in the transport.
+    Returns every CI-project-member descendant gid. The page-cap abort
+    (:class:`SubtaskPageCapExceeded`) propagates PER SUBTREE -- a truncated
+    child set under ANY matched Business poisons the whole resolution (never
+    resolve against a possibly-incomplete union).
     """
-    workspace_gid = client.default_workspace_gid
-    if not workspace_gid:
-        logger.info(
-            "stage_ci_task_no_workspace",
-            extra={"company_id": company_id},
-        )
-        return None
-
-    # ── 1. company_id -> Business (dna_holder) card: the PROVEN half ───────
-    data = await client.http.get(
-        f"/workspaces/{workspace_gid}/tasks/search",
-        params={
-            f"custom_fields.{company_id_field_gid}.value": company_id,
-            "opt_fields": "name,projects.gid",
-        },
-    )
-    businesses = [
-        t
-        for t in _rows(data)
-        if any((p or {}).get("gid") == _BUSINESSES_PROJECT_GID for p in (t.get("projects") or []))
-    ]
-    if len(businesses) != 1 or businesses[0].get("gid") is None:
-        logger.info(
-            "stage_ci_business_not_resolved",
-            extra={"company_id": company_id, "match_count": len(businesses)},
-        )
-        return None
-    business_gid = str(businesses[0]["gid"])
-
-    # ── 2. DESCEND (membership-filtered, depth-capped at 2) ────────────────
     matches: set[str] = set()
     children = await _list_subtasks(client, business_gid, depth=1)
     for child in children:
@@ -209,14 +164,100 @@ async def resolve_ci_task_gid(
             grandchild_gid = grandchild.get("gid")
             if grandchild_gid is not None and _is_ci_member(grandchild):
                 matches.add(str(grandchild_gid))
+    return matches
 
-    # ── 3. exactly-one or fail-closed ───────────────────────────────────────
+
+async def resolve_ci_task_gid(
+    client: AsanaClient,
+    company_id: str,
+    *,
+    company_id_field_gid: str,
+) -> str | None:
+    """Resolve ``company_id`` -> the single Calendar Integrations task gid.
+
+    The SECOND resolution (§2), via the ruled ENTITY-DESCEND join (the prior
+    Company-ID-search-filtered-to-CI-project join is FALSIFIED: the Company ID
+    field is NOT on the Calendar Integrations project, so it matched nothing):
+
+    1. Resolve ``company_id`` -> the Business (dna_holder) card(s) via the
+       PROVEN LIVE ``tasks/search`` on the Company ID custom field, filtered to
+       the Businesses project (the ``_resolve_business_gid`` idiom). MULTIPLE
+       matches are the data model's NORMAL shape (a practice card plus
+       practitioner card(s) sharing the practice Company ID) and are tolerated:
+       every matched card seeds the descend. Zero matches -> ``None``.
+    2. DESCEND the entity tree in reverse (like the resolver goes UP, go DOWN),
+       over the UNION of all matched Business subtrees: list each Business
+       task's subtasks (depth 1: the "{Clinic} PLAYS/REQUESTS" holder by
+       convention), then each child's subtasks (depth 2: the PLAY tasks,
+       multi-homed into Calendar Integrations), collecting every descendant
+       whose project memberships include the Calendar Integrations project.
+       Depth-1 children that are themselves CI members are ALSO collected
+       (robustness when a clinic links the PLAY directly). Collected gids are
+       deduped -- adjudication is over the DISTINCT PLAY set.
+    3. Exactly ONE distinct match -> its gid. Zero -> ``None`` (fail-closed,
+       never guesses a receiver). More than one distinct -> ambiguous refuse
+       (``None``, counted in the log line). Ambiguity is adjudicated at the
+       PLAY level, never at the Business level.
+
+    Bounded: depth is structurally capped at ``_DESCEND_DEPTH_CAP`` (2) and each
+    listing is one page capped at ``_SUBTASK_PAGE_CAP`` with a LOUD
+    :class:`SubtaskPageCapExceeded` abort on a full page. Guest-PAT scope
+    honored (task/project-scope ``tasks/search`` + ``/tasks/{gid}/subtasks``; no
+    workspace-level listing). 429s back off on ``Retry-After`` in the transport.
+    """
+    workspace_gid = client.default_workspace_gid
+    if not workspace_gid:
+        logger.info(
+            "stage_ci_task_no_workspace",
+            extra={"company_id": company_id},
+        )
+        return None
+
+    # ── 1. company_id -> Business (dna_holder) card(s): the PROVEN half ─────
+    data = await client.http.get(
+        f"/workspaces/{workspace_gid}/tasks/search",
+        params={
+            f"custom_fields.{company_id_field_gid}.value": company_id,
+            "opt_fields": "name,projects.gid",
+        },
+    )
+    businesses = [
+        t
+        for t in _rows(data)
+        if any((p or {}).get("gid") == _BUSINESSES_PROJECT_GID for p in (t.get("projects") or []))
+    ]
+    business_gids = sorted({str(t["gid"]) for t in businesses if t.get("gid") is not None})
+    if not business_gids:
+        logger.info(
+            "stage_ci_business_not_resolved",
+            extra={"company_id": company_id, "match_count": len(businesses)},
+        )
+        return None
+    if len(business_gids) > 1:
+        # Duplicate-Company-ID class (practice + practitioner cards sharing one
+        # Company ID): the data model's NORMAL shape, tolerated by design.
+        # Distinct log event so the multi-business union descend is countable.
+        logger.info(
+            "stage_ci_business_multi_union_descend",
+            extra={
+                "company_id": company_id,
+                "business_count": len(business_gids),
+                "business_gids": business_gids,
+            },
+        )
+
+    # ── 2. DESCEND the UNION (membership-filtered, depth-capped at 2) ───────
+    matches: set[str] = set()
+    for business_gid in business_gids:
+        matches |= await _collect_ci_member_gids(client, business_gid)
+
+    # ── 3. exactly-one DISTINCT PLAY or fail-closed ─────────────────────────
     if len(matches) > 1:
         logger.warning(
             "stage_ci_task_ambiguous",
             extra={
                 "company_id": company_id,
-                "business_gid": business_gid,
+                "business_gids": business_gids,
                 "match_count": len(matches),
             },
         )
@@ -224,7 +265,7 @@ async def resolve_ci_task_gid(
     if not matches:
         logger.info(
             "stage_ci_task_not_resolved",
-            extra={"company_id": company_id, "business_gid": business_gid, "match_count": 0},
+            extra={"company_id": company_id, "business_gids": business_gids, "match_count": 0},
         )
         return None
     return next(iter(matches))
