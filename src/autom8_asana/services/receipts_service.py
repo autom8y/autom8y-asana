@@ -30,13 +30,22 @@ from typing import TYPE_CHECKING
 from autom8y_log import get_logger
 
 from autom8_asana.api.routes.receipts_models import ReceiptKind, ReceiptPostResponse
-from autom8_asana.core.project_registry import BUSINESS_PROJECT, CALENDAR_INTEGRATIONS_PROJECT
+from autom8_asana.core.project_registry import BUSINESS_PROJECT
 from autom8_asana.domain.forwarding_stage import (
     RECEIPT_KIND_TO_STAGE,
     ForwardingStage,
     StageDisposition,
     StageRankTable,
     StageTransitionValidator,
+)
+from autom8_asana.services.ci_task_resolution import (
+    UnknownStage as _UnknownStage,
+)
+from autom8_asana.services.ci_task_resolution import (
+    read_current_stage as _read_current_stage_impl,
+)
+from autom8_asana.services.ci_task_resolution import (
+    resolve_ci_task_gid as _resolve_ci_task_gid_impl,
 )
 
 if TYPE_CHECKING:
@@ -50,25 +59,17 @@ logger = get_logger(__name__)
 # hierarchy walk and _business_gid_by_phone use).
 _BUSINESSES_PROJECT_GID = BUSINESS_PROJECT  # "1200653012566782"
 
-# The Forwarding-Stage single-select field lives on the Calendar Integrations
-# task, NOT the Business task (§2 architectural crux). Advancing the stage needs
-# a SECOND resolution (company_id -> CI task) filtered to this project.
-_CALENDAR_INTEGRATIONS_PROJECT_GID = CALENDAR_INTEGRATIONS_PROJECT  # "1209442849265632"
+# The Calendar-Integrations second-resolution (company_id -> CI task, where the
+# Forwarding-Stage field lives) is extracted to ``services.ci_task_resolution``
+# and shared with the S4 backfill; the project-GID constant now lives there.
 
 _MARKER_PREFIX = "RCPT"
 
 
-@dataclass(frozen=True)
-class _UnknownStage:
-    """Sentinel for a CI-task option GID that is NOT in the config option map.
-
-    Deliberately NOT a ``ForwardingStage`` so ``StageTransitionValidator.evaluate``
-    fail-CLOSES (its ``isinstance(current, ForwardingStage)`` guard rejects it as
-    an unknown/unmapped option) rather than guessing an advance. Carries the raw
-    GID for the LOUD log line.
-    """
-
-    option_gid: str
+# ``_UnknownStage`` is the CI-task current-stage sentinel, extracted to
+# ``services.ci_task_resolution`` (shared with the S4 backfill). Imported above
+# under its original private name so every internal reference + the S1 receipts
+# tests continue to see ``_UnknownStage`` unchanged (behaviour-preserving).
 
 
 @dataclass(frozen=True)
@@ -392,7 +393,7 @@ class ReceiptsService:
                     "outcome": decision.outcome.value,
                 },
             )
-        except Exception as exc:  # noqa: BLE001 -- best-effort leg, never fail the receipt
+        except Exception as exc:
             logger.warning(
                 "forwarding_stage_advance_failed",
                 extra={"company_id": company_id, "kind": kind, "error": str(exc)},
@@ -401,70 +402,28 @@ class ReceiptsService:
     async def _resolve_ci_task_gid(self, company_id: str) -> str | None:
         """Resolve ``company_id`` -> the single Calendar Integrations task gid.
 
-        The SECOND resolution (§2): the same LIVE ``tasks/search`` idiom as
-        ``_resolve_business_gid`` but filtered to the Calendar Integrations
-        project instead of the Businesses project (keying on the SAME Company ID
-        cascade value). Best-effort: returns ``None`` on 0 or >1 matches (never
-        guesses a receiver), logging for operator visibility. Guest-PAT scope
-        honored (task/project-scope ``tasks/search``; no workspace-level call).
+        Delegates to the extracted :func:`ci_task_resolution.resolve_ci_task_gid`
+        (behaviour-preserving; the resolver is shared with the S4 backfill so
+        neither has to import the other's service). See that function for the
+        SECOND-resolution semantics (fail-closed on 0/>1 matches, guest-PAT scope).
         """
-        workspace_gid = self._client.default_workspace_gid
-        if not workspace_gid:
-            logger.info(
-                "stage_ci_task_no_workspace",
-                extra={"company_id": company_id},
-            )
-            return None
-
-        data = await self._client.http.get(
-            f"/workspaces/{workspace_gid}/tasks/search",
-            params={
-                f"custom_fields.{self._company_id_field_gid}.value": company_id,
-                "opt_fields": "name,projects.gid",
-            },
+        return await _resolve_ci_task_gid_impl(
+            self._client,
+            company_id,
+            company_id_field_gid=self._company_id_field_gid,
         )
-        results = data.get("data", []) if isinstance(data, dict) else (data or [])
-        matches = [
-            t
-            for t in results
-            if any(
-                (p or {}).get("gid") == _CALENDAR_INTEGRATIONS_PROJECT_GID
-                for p in (t.get("projects") or [])
-            )
-        ]
-        if len(matches) != 1:
-            logger.info(
-                "stage_ci_task_not_resolved",
-                extra={"company_id": company_id, "match_count": len(matches)},
-            )
-            return None
-        gid = matches[0].get("gid")
-        return str(gid) if gid is not None else None
 
     async def _read_current_stage(self, ci_gid: str) -> ForwardingStage | _UnknownStage | None:
         """Read the CI task's current Forwarding-Stage value.
 
-        Returns ``None`` when the field is unset (a fresh clinic), a
-        :class:`ForwardingStage` when the read option GID maps into the config
-        option map, or an :class:`_UnknownStage` sentinel when the task carries an
-        option GID ABSENT from the config map -- so the validator fail-CLOSES
-        rather than guessing an advance (T-M5 / T-W6 fail-closed).
+        Delegates to the extracted :func:`ci_task_resolution.read_current_stage`
+        (behaviour-preserving). Returns ``None`` (unset), a :class:`ForwardingStage`
+        (mapped option), or an :class:`_UnknownStage` sentinel (unmapped option ->
+        validator fail-closes).
         """
-        raw = await self._client.tasks.get_async(ci_gid, raw=True, opt_fields=["custom_fields"])
-        custom_fields = (raw or {}).get("custom_fields") or []
-        for cf in custom_fields:
-            if (cf or {}).get("gid") != self._stage_cfg.field_gid:
-                continue
-            enum_value = (cf or {}).get("enum_value")
-            if not enum_value:
-                return None  # field present but unset
-            option_gid = enum_value.get("gid")
-            if not option_gid:
-                return None
-            # Invert the config map: option GID -> stage value.
-            for stage_value, cfg_gid in self._stage_cfg.option_gids.items():
-                if cfg_gid == option_gid:
-                    return ForwardingStage(stage_value)
-            # Present option GID not in our config map -> unknown; fail closed.
-            return _UnknownStage(option_gid)
-        return None  # field not on the task at all
+        return await _read_current_stage_impl(
+            self._client,
+            ci_gid,
+            field_gid=self._stage_cfg.field_gid,
+            option_gids=self._stage_cfg.option_gids,
+        )
