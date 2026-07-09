@@ -279,6 +279,7 @@ ignore = [
 "src/autom8_asana/_defaults/log.py" = ["TID251"]
 # T201: print() is intentional in CLI/script entrypoints (structured output to stdout/stderr)
 "src/autom8_asana/automation/polling/cli.py" = ["T201"]
+"src/autom8_asana/automation/forwarding_stage_backfill/cli.py" = ["T201"]
 "src/autom8_asana/metrics/__main__.py" = ["T201"]
 "src/autom8_asana/metrics/compute.py" = ["T201"]
 "src/autom8_asana/entrypoint.py" = ["T201"]
