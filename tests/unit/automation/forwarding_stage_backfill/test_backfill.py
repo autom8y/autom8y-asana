@@ -707,6 +707,82 @@ class TestCacheProofVerification:
         assert client.tasks.get_async.await_count == 2
 
     @pytest.mark.asyncio
+    async def test_tb17b_verify_read_routes_through_verify_client_not_main(self) -> None:
+        """T-B17b (the verify-routing SEAM; QA Q-4): inject TWO DISTINCT client
+        doubles and prove the reads split across the seam --
+
+          (a) the VALIDATE / pre-write read hits the MAIN client, and
+          (b) the K2 post-write verification read hits the VERIFY client --
+
+        with read-count receipts on BOTH doubles. This is the ONLY guard against
+        the F-1 mutation survivor: rerouting ``_stamp``'s verification read from
+        ``self._verify_client`` to ``self._client`` (K2 functionally dead at the
+        production wiring seam -- the exact Total-Wellness run1 stale-cache
+        incident class) leaves the entire shipped suite GREEN. T-B16/T-B17 pass a
+        single client (verify_client defaults to the main client) so they cannot
+        see the reroute; T-B18 (test_cli.py) proves cache divergence at the
+        read layer but never exercises ``_stamp``'s routing. This test does.
+
+        Under the F-1 mutation (``self._verify_client`` -> ``self._client`` at the
+        K2 read) the MAIN client's ``tasks.get_async`` is awaited TWICE (VALIDATE
+        + verification) and the VERIFY client's is awaited ZERO times -- both
+        receipt assertions below FAIL. Proven RED-on-mutation own-hands.
+        """
+        # The MAIN client: fully wired for resolution (http.get) + VALIDATE read
+        # (tasks.get_async) + the PUT (tasks.update_async).
+        main_client = _fake_client(
+            ci_matches={FLOWING_INBOX: [_ci_row("ci-1")]},
+            current_by_gid={"ci-1": STAGE_OPTION_GIDS["Sent"]},
+        )
+
+        # The DISTINCT verify client: a separate double whose ONLY wired surface
+        # is tasks.get_async. It returns the FRESH stamped stage (Flowing) so the
+        # post-write compare is a clean 'ok' -- but the load-bearing assertion is
+        # WHICH client was read, independent of the value. Its http.get / update
+        # are booby-trapped: if the seam mistakenly routes resolution or the PUT
+        # through the verify client, those raise loudly.
+        async def _verify_get_async(ci_gid: str, *, raw: bool, opt_fields: list[str]) -> Any:
+            return _ci_raw(STAGE_OPTION_GIDS["Flowing"])
+
+        verify_client = MagicMock()
+        verify_client.default_workspace_gid = "1140000000000002"
+        verify_client.tasks.get_async = AsyncMock(side_effect=_verify_get_async)
+        verify_client.http.get = AsyncMock(
+            side_effect=AssertionError("verify client must NOT be used for resolution")
+        )
+        verify_client.tasks.update_async = AsyncMock(
+            side_effect=AssertionError("verify client must NOT be used for the PUT")
+        )
+
+        orch = _orchestrator(
+            booking=_booking_result(**{FLOWING_INBOX: 50}),
+            client=main_client,
+            verify_client=verify_client,
+        )
+        plan = await orch.run(mode=BackfillMode.APPLY, window_days=21)
+
+        (row,) = plan.rows
+        assert row.action == BackfillAction.STAMP.value
+        assert row.asana_response_status == "ok"
+
+        # (a) The VALIDATE / pre-write read hit the MAIN client EXACTLY ONCE.
+        #     Under F-1 the main read count is 2 (VALIDATE + the misrouted
+        #     verification read) -> this FAILS.
+        assert main_client.tasks.get_async.await_count == 1
+        # The PUT ran on the MAIN client (never the verify client).
+        main_client.tasks.update_async.assert_awaited_once()
+
+        # (b) The K2 post-write verification read hit the VERIFY client EXACTLY
+        #     ONCE, carrying the resolved CI gid. Under F-1 the verify read count
+        #     is 0 -> this FAILS.
+        assert verify_client.tasks.get_async.await_count == 1
+        (verify_call,) = verify_client.tasks.get_async.await_args_list
+        assert verify_call.args[0] == "ci-1"  # the verification read targeted the CI task
+        # The verify client was NEVER used for resolution or the PUT.
+        verify_client.http.get.assert_not_called()
+        verify_client.tasks.update_async.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_tb17_verify_mismatch_surfaces_loudly_no_reput(self) -> None:
         """T-B17: the verify read observes a stage != proposed (write did not land
         / stale value) -> asana_response_status == 'verify_mismatch', a LOUD

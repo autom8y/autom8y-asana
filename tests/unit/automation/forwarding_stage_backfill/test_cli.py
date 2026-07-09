@@ -301,5 +301,92 @@ class TestCacheProofVerificationAtCacheAltitude:
         assert null_client._http_calls["n"] == 2  # every read re-hit HTTP
 
 
+# ---------------------------------------------------------------------------
+# T-C4: the CLI wiring seam -- _run constructs the verify client cache-disabled.
+# ---------------------------------------------------------------------------
+
+
+class TestRunConstructsVerifyClientCacheDisabled:
+    """T-C4 (the production wiring seam; QA Q-4 companion): ``_run`` constructs a
+    DISTINCT verify client with a NullCacheProvider and passes it to the
+    orchestrator as ``verify_client``.
+
+    The routing-seam test (test_backfill.py::T-B17b) proves ``_stamp`` reads
+    through whatever ``verify_client`` it is given; THIS test proves the CLI hands
+    it a cache-disabled client (the K2 cure's other half). Without both, the K2
+    cure could be dead either at the routing seam OR at the construction seam.
+
+    RED side: a ``_run`` that drops the NullCacheProvider (constructs the verify
+    client with the default cache) or that never passes a distinct verify_client
+    (passes the main client, or omits the kwarg -> defaults to the main client)
+    FAILS the cache-provider / distinctness assertions below.
+    """
+
+    @pytest.mark.asyncio
+    async def test_tc4_run_wires_null_cache_verify_client(self) -> None:
+        from autom8_asana.automation.forwarding_stage_backfill import cli as cli_mod
+
+        # A sentinel NullCacheProvider instance so we can assert it reached the
+        # verify client's construction (and ONLY the verify client's).
+        null_cache_sentinel = object()
+
+        # Distinguish the two AsanaClient constructions: the MAIN client is built
+        # bare (no cache_provider kwarg); the VERIFY client is built WITH
+        # cache_provider=<NullCacheProvider sentinel>. Each returns an async-CM
+        # double whose identity we can trace into the orchestrator kwargs.
+        main_cm = MagicMock(name="main_client")
+        verify_cm = MagicMock(name="verify_client")
+
+        def _fake_asana_client(*args: object, **kwargs: object) -> MagicMock:
+            cm = verify_cm if "cache_provider" in kwargs else main_cm
+            ctx = MagicMock()
+            ctx.__aenter__ = AsyncMock(return_value=cm)
+            ctx.__aexit__ = AsyncMock(return_value=False)
+            # Stash the construction kwargs on the yielded double for assertions.
+            cm._ctor_kwargs = kwargs  # type: ignore[attr-defined]
+            return ctx
+
+        captured: dict[str, object] = {}
+
+        class _FakeOrchestrator:
+            def __init__(self, **kwargs: object) -> None:
+                captured.update(kwargs)
+
+            async def run(self, *, mode: object, window_days: int) -> MagicMock:
+                plan = MagicMock()
+                plan.mode = "plan"
+                return plan
+
+        # ``_run`` imports AsanaClient + NullCacheProvider LOCALLY (call-time), so
+        # they are patched at their SOURCE modules, not on ``cli_mod``. The
+        # orchestrator + evidence + config helpers ARE module-level in cli.py.
+        with (
+            patch("autom8_asana.AsanaClient", side_effect=_fake_asana_client),
+            patch("autom8_asana._defaults.NullCacheProvider", return_value=null_cache_sentinel),
+            patch.object(cli_mod, "ForwardingStageBackfill", _FakeOrchestrator),
+            patch.object(cli_mod, "CloudWatchInsightsEvidenceSource", return_value=MagicMock()),
+            patch.object(
+                cli_mod,
+                "build_write_config",
+                return_value=BackfillWriteConfig(
+                    enabled=True, field_gid=FORWARDING_FIELD_GID, option_gids=STAGE_OPTION_GIDS
+                ),
+            ),
+            patch.object(cli_mod, "_company_id_field_gid", return_value="x"),
+            patch.object(cli_mod, "_emit"),
+        ):
+            rc = await cli_mod._run(BackfillMode.PLAN, lookback_days=21, out_path=None)
+
+        assert rc == 0
+        # The orchestrator received a DISTINCT verify client (not the main one).
+        assert captured["client"] is main_cm
+        assert captured["verify_client"] is verify_cm
+        assert captured["verify_client"] is not captured["client"]
+        # The verify client was constructed CACHE-DISABLED (NullCacheProvider).
+        assert verify_cm._ctor_kwargs["cache_provider"] is null_cache_sentinel
+        # The main client was constructed WITHOUT a cache override (default cache).
+        assert "cache_provider" not in main_cm._ctor_kwargs
+
+
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(pytest.main([__file__, "-v"]))
