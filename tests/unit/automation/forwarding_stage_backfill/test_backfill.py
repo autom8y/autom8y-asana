@@ -46,6 +46,7 @@ from autom8_asana.domain.forwarding_stage_backfill import BookingSignal, Confirm
 # ---------------------------------------------------------------------------
 
 CI_PROJECT_GID = "1209442849265632"  # CALENDAR_INTEGRATIONS_PROJECT
+BUSINESSES_PROJECT_GID = "1200653012566782"  # BUSINESS_PROJECT
 COMPANY_ID_FIELD_GID = "1200000000000099"
 FORWARDING_FIELD_GID = "1216419441591239"
 
@@ -105,6 +106,11 @@ def _ci_raw(option_gid: str | None) -> dict[str, Any]:
     }
 
 
+def _business_row(gid: str) -> dict[str, Any]:
+    """A tasks/search row that is a member of the Businesses project (dna_holder)."""
+    return {"gid": gid, "name": "Business", "projects": [{"gid": BUSINESSES_PROJECT_GID}]}
+
+
 def _fake_client(
     *,
     ci_matches: dict[str, list[dict[str, Any]]] | None = None,
@@ -112,7 +118,11 @@ def _fake_client(
 ) -> MagicMock:
     """Fake AsanaClient wired for resolution (http.get) + read (get_async) + PUT.
 
-    ``ci_matches`` maps company_id -> the tasks/search rows returned for it.
+    ``ci_matches`` maps company_id -> the CI-candidate rows, modelled per the
+    ruled ENTITY-DESCEND join: a resolvable company_id search-returns its single
+    Business (dna_holder) row, and the candidate rows hang UNDER that Business as
+    subtasks (the membership-filtered descend then collects the CI members). An
+    absent company_id search-returns [] (no Business card -> unresolved).
     ``current_by_gid`` maps ci_task_gid -> the current option GID (or None unset).
     """
     ci_matches = ci_matches or {}
@@ -120,11 +130,22 @@ def _fake_client(
     client = MagicMock()
     client.default_workspace_gid = "1140000000000001"
 
-    async def _get(url: str, *, params: dict[str, Any]) -> list[dict[str, Any]]:
-        # The resolver keys on custom_fields.{field}.value == company_id.
-        key = f"custom_fields.{COMPANY_ID_FIELD_GID}.value"
-        company_id = params.get(key)
-        return ci_matches.get(company_id, [])
+    # company_id -> its Business card gid; Business gid -> depth-1 subtask rows.
+    business_gid_by_company = {cid: f"biz-{cid}" for cid in ci_matches}
+    subtasks_by_parent = {f"biz-{cid}": rows for cid, rows in ci_matches.items()}
+
+    async def _get(url: str, *, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        params = params or {}
+        if url.endswith("/tasks/search"):
+            # The resolver keys on custom_fields.{field}.value == company_id.
+            key = f"custom_fields.{COMPANY_ID_FIELD_GID}.value"
+            company_id = params.get(key)
+            biz = business_gid_by_company.get(str(company_id))
+            return [_business_row(biz)] if biz else []
+        if url.startswith("/tasks/") and url.endswith("/subtasks"):
+            parent_gid = url.split("/")[2]
+            return subtasks_by_parent.get(parent_gid, [])
+        raise AssertionError(f"unexpected GET in fake client: {url}")
 
     client.http.get = AsyncMock(side_effect=_get)
 
