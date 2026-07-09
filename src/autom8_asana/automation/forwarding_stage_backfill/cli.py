@@ -222,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         return asyncio.run(_run(mode, lookback_days=args.lookback_days, out_path=args.out))
-    except Exception as exc:  # BROAD-CATCH: boundary -- CLI entry point  # noqa: BLE001
+    except Exception as exc:  # BROAD-CATCH: boundary -- CLI entry point
         print(f"Backfill error: {exc}", file=sys.stderr)
         logger.exception("backfill_cli_failed")
         return 1
