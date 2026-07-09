@@ -8,11 +8,15 @@ monolith log-format change is therefore a config edit, and the pure derivation
 stays testable against a FAKE evidence source with no AWS.
 
 The ``INBOX_CAPTURE_REGEX`` is the join's load-bearing precondition: it MUST
-capture the mailbox local-part exactly as ``resolve_office`` does
-(``to_address.split("@")[0]`` after a zero-width strip) so the derived key
-equals the Company-ID custom-field value the CI-task resolution searches on --
-otherwise every resolution 0-matches into UNRESOLVED (DEPENDENCY-MAP
-UT-OI2-GUID; asserted by T-B6).
+capture the mailbox local-part exactly as ``resolve_office_stage`` does in the
+``autom8y`` repo at
+``services/email-booking-intake/src/email_booking_intake/pipeline/stages/resolve_office.py:83-88``
+(``cleaned = to_address.replace("\u200b", "")`` then
+``parts = cleaned.split("@")`` then ``guid = parts[0].strip()`` -- a
+zero-width-space strip, THEN split-on-``@``, THEN a further ``.strip()`` of
+the local-part) so the derived key equals the Company-ID custom-field value
+the CI-task resolution searches on -- otherwise every resolution 0-matches
+into UNRESOLVED (DEPENDENCY-MAP UT-OI2-GUID; asserted by T-B6).
 """
 
 from __future__ import annotations
