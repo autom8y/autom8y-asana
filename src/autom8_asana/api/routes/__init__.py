@@ -45,6 +45,7 @@ from .matching import router as matching_router
 from .projects import router as projects_router
 from .query import query_introspection_router
 from .query import router as query_router
+from .receipts import router as receipts_router
 from .resolver import router as resolver_router
 from .section_timelines import router as section_timelines_router
 from .sections import router as sections_router
@@ -71,6 +72,7 @@ __all__ = [
     "projects_router",
     "query_introspection_router",
     "query_router",
+    "receipts_router",
     "resolver_router",
     "section_timelines_router",
     "sections_router",

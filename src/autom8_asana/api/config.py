@@ -71,6 +71,22 @@ class ApiSettings(Autom8yBaseSettings):
         description="Enable debug mode (more verbose logging, stack traces)",
     )
 
+    # EBI OI-2 receipts route: the "Company ID" custom-field DEFINITION gid used
+    # to key the live ``tasks/search`` reverse lookup (analogous to the
+    # hard-coded ``_OFFICE_PHONE_FIELD_GID`` in contact_synthesis.py). Sourced at
+    # deploy time from the workspace custom-field registry -- NOT guessed. When
+    # empty, the receipts route fail-CLOSES (503 COMPANY_ID_FIELD_UNCONFIGURED)
+    # rather than guessing a receiver, per the LB-NO-RERESOLVE / never-silent-drop
+    # discipline. Env var: ASANA_API_COMPANY_ID_FIELD_GID.
+    company_id_field_gid: str = Field(
+        default="",
+        description=(
+            "Asana 'Company ID' custom-field definition GID for the receipts-route "
+            "reverse lookup. Empty ⇒ route fail-closes with 503 "
+            "COMPANY_ID_FIELD_UNCONFIGURED (OI-2b activation prerequisite)."
+        ),
+    )
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS origins string to list.

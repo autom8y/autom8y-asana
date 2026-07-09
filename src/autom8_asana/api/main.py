@@ -70,6 +70,7 @@ from .routes import (
     projects_router,
     query_introspection_router,
     query_router,
+    receipts_router,
     resolver_router,
     section_timelines_router,
     sections_router,
@@ -122,6 +123,7 @@ _S2S_TAGS: frozenset[str] = frozenset(
         "intake-custom-fields",
         "intake-create",
         "matching",
+        "receipts",
     }
 )
 
@@ -464,6 +466,7 @@ def create_app() -> FastAPI:
             RouterMount(router=section_timelines_router),
             RouterMount(router=intake_custom_fields_router),
             RouterMount(router=intake_create_router),
+            RouterMount(router=receipts_router),
             RouterMount(router=matching_router),
         ],
         lifespan=lifespan,
