@@ -128,7 +128,7 @@ class TestMainRouting:
         """
         captured = {}
 
-        async def _fake_run(mode, *, lookback_days, out_path):  # noqa: ANN001
+        async def _fake_run(mode, *, lookback_days, out_path):
             captured["mode"] = mode
             return 0
 
@@ -147,7 +147,7 @@ class TestMainRouting:
         """
         captured = {}
 
-        async def _fake_run(mode, *, lookback_days, out_path):  # noqa: ANN001
+        async def _fake_run(mode, *, lookback_days, out_path):
             captured["mode"] = mode
             return 0
 
@@ -163,7 +163,7 @@ class TestMainRouting:
         """--lookback-days overrides the DD-2 default and reaches the run."""
         captured = {}
 
-        async def _fake_run(mode, *, lookback_days, out_path):  # noqa: ANN001
+        async def _fake_run(mode, *, lookback_days, out_path):
             captured["lookback_days"] = lookback_days
             return 0
 
@@ -186,7 +186,7 @@ class TestMainRouting:
         assert exc.value.code != 0
 
 
-def _empty_booking():  # noqa: ANN202
+def _empty_booking():
     from autom8_asana.automation.forwarding_stage_backfill.evidence_source import (
         BookingGatherResult,
     )
@@ -194,7 +194,7 @@ def _empty_booking():  # noqa: ANN202
     return BookingGatherResult(signals={}, row_count=0, cap_hit=False, booking_mail_total=0)
 
 
-def _empty_confirmation():  # noqa: ANN202
+def _empty_confirmation():
     from autom8_asana.automation.forwarding_stage_backfill.evidence_source import (
         ConfirmationGatherResult,
     )

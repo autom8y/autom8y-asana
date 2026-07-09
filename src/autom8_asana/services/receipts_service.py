@@ -393,7 +393,7 @@ class ReceiptsService:
                     "outcome": decision.outcome.value,
                 },
             )
-        except Exception as exc:  # noqa: BLE001 -- best-effort leg, never fail the receipt
+        except Exception as exc:
             logger.warning(
                 "forwarding_stage_advance_failed",
                 extra={"company_id": company_id, "kind": kind, "error": str(exc)},
