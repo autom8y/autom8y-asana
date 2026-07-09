@@ -618,3 +618,437 @@ class TestRetryDegradation:
         assert resp.json()["error"]["code"] == "COMPANY_ID_FIELD_UNCONFIGURED"
         mock_client.http.get.assert_not_called()
         mock_client.stories.create_comment_async.assert_not_called()
+
+
+# ===========================================================================
+# 7.5 Forwarding-Stage WRITE surface (S1 / ADR-FS-004) -- T-W1..T-W6
+#
+# The receipts route optionally advances the "Forwarding Stage" single-select on
+# the clinic's Calendar Integrations task after threading the comment. Default
+# OFF = INERT (byte-identical to the comment-only baseline). Every guard is
+# two-sided: the defect variant fires RED, the no-defect variant GREEN.
+# ===========================================================================
+
+# CI-task (Calendar Integrations) constants for the SECOND resolution.
+CI_PROJECT_GID = "1209442849265632"  # CALENDAR_INTEGRATIONS_PROJECT (project_registry.py:60)
+CI_TASK_GID = "1209000000000007"
+FORWARDING_FIELD_GID = "1216419441591239"  # operator-seeded field def (test value)
+
+# stage value -> option GID (the operator-supplied config map; test values).
+STAGE_OPTION_GIDS = {
+    "Sent": "1216419441591240",
+    "Approved": "1216419441591241",
+    "Verified": "1216419441591242",
+    "Stalled": "1216419441591243",
+    "Flowing": "1216419441591244",
+    "Live": "1216419441591245",
+    "Inactive": "1216419441591246",
+}
+
+
+def _ci_task(gid: str = CI_TASK_GID) -> dict[str, Any]:
+    """A tasks/search row that is a member of the Calendar Integrations project."""
+    return {"gid": gid, "name": "PLAY: CI Task", "projects": [{"gid": CI_PROJECT_GID}]}
+
+
+def _ci_task_raw(current_option_gid: str | None) -> dict[str, Any]:
+    """A tasks.get(raw=True) payload carrying the Forwarding-Stage custom field.
+
+    ``current_option_gid=None`` models an unset field; a GID models a set value.
+    """
+    enum_value = {"gid": current_option_gid} if current_option_gid else None
+    return {
+        "gid": CI_TASK_GID,
+        "custom_fields": [
+            {"gid": "9999999999", "name": "Some Other Field", "enum_value": None},
+            {
+                "gid": FORWARDING_FIELD_GID,
+                "name": "Forwarding Stage",
+                "enum_value": enum_value,
+            },
+        ],
+    }
+
+
+def _make_stage_aware_client(
+    *,
+    search_rows: list[dict[str, Any]],
+    current_option_gid: str | None,
+    existing_stories: list[MagicMock] | None = None,
+    ci_get_raises: Exception | None = None,
+    update_raises: Exception | None = None,
+) -> MagicMock:
+    """A fake AsanaClient wired for BOTH the comment leg and the stage-advance leg.
+
+    ``http.get`` returns the SAME ``search_rows`` for every tasks/search call --
+    faithful to Asana, which returns every task carrying the Company ID value; the
+    service filters each resolution to its own project (Businesses vs Calendar
+    Integrations). Include a Business row AND a CI row to satisfy both.
+    ``tasks.get_async`` returns the CI-task raw payload (the current stage read);
+    ``tasks.update_async`` is the PUT.
+    """
+    mock_client = MagicMock()
+    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.default_workspace_gid = "1140000000000001"
+
+    mock_client.http.get = AsyncMock(return_value=search_rows)
+
+    mock_client.stories.list_for_task_async = MagicMock(
+        return_value=_make_collect_mock(existing_stories or []),
+    )
+    mock_client.stories.create_comment_async = AsyncMock(
+        return_value=_make_story(NEW_STORY_GID, "posted"),
+    )
+
+    # tasks.get_async(ci_gid, raw=True, opt_fields=[...]) -> raw dict
+    if ci_get_raises is not None:
+        mock_client.tasks.get_async = AsyncMock(side_effect=ci_get_raises)
+    else:
+        mock_client.tasks.get_async = AsyncMock(
+            return_value=_ci_task_raw(current_option_gid),
+        )
+    # tasks.update_async(ci_gid, custom_fields={...}) -> Task (ignored)
+    if update_raises is not None:
+        mock_client.tasks.update_async = AsyncMock(side_effect=update_raises)
+    else:
+        mock_client.tasks.update_async = AsyncMock(return_value=MagicMock())
+
+    return mock_client
+
+
+def _enable_stage_write(monkeypatch, *, disposition: dict[str, str] | None = None) -> None:
+    """Flip the master switch ON and configure the field + option-GID map."""
+    import json
+
+    monkeypatch.setenv("ASANA_API_FORWARDING_STAGE_WRITE_ENABLED", "true")
+    monkeypatch.setenv("ASANA_API_FORWARDING_STAGE_FIELD_GID", FORWARDING_FIELD_GID)
+    monkeypatch.setenv("ASANA_API_FORWARDING_STAGE_OPTION_GIDS", json.dumps(STAGE_OPTION_GIDS))
+    if disposition is not None:
+        monkeypatch.setenv("ASANA_API_FORWARDING_STAGE_DISPOSITION", json.dumps(disposition))
+    get_settings.cache_clear()
+
+
+class TestStageWriteSurface:
+    def test_w1_inert_default_is_byte_identical(self, client: TestClient) -> None:
+        """T-W1: switch OFF (default) -> comment posts, NO stage read/PUT.
+
+        The dark-posture teeth: with the master switch OFF the write leg is a pure
+        NO-OP. The response is identical to the comment-only baseline and NEITHER
+        tasks.get_async NOR tasks.update_async is ever awaited.
+
+        RED side: a leg that fired a PUT regardless of the flag would trip
+        update_async.assert_not_called().
+        """
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID), _ci_task()],
+            current_option_gid=None,
+        )
+        resp = _post(client, mock_client, RECEIPT_BODY)
+
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["business_gid"] == BUSINESS_GID
+        assert data["outcome"] == "posted"
+        # No stage-advance activity at all (INERT).
+        mock_client.tasks.get_async.assert_not_called()
+        mock_client.tasks.update_async.assert_not_called()
+
+    def test_w1b_flag_off_but_fully_configured_still_inert(
+        self, client: TestClient, monkeypatch
+    ) -> None:
+        """T-W1b: field GID + option map configured but the FLAG is OFF -> INERT.
+
+        This is the discriminating teeth on the master switch SPECIFICALLY: with
+        the field GID and the option-GID map fully populated (so the other two
+        gates are satisfied), the write leg STILL does nothing because the master
+        switch is off. This proves the flag is independently load-bearing -- not
+        merely masked by an empty option map.
+
+        RED side: removing the `is_active` flag gate (advancing whenever the field
+        + map are present, ignoring the switch) would trip
+        tasks.get_async.assert_not_called().
+        """
+        import json
+
+        monkeypatch.setenv("ASANA_API_FORWARDING_STAGE_WRITE_ENABLED", "false")  # OFF
+        monkeypatch.setenv("ASANA_API_FORWARDING_STAGE_FIELD_GID", FORWARDING_FIELD_GID)
+        monkeypatch.setenv("ASANA_API_FORWARDING_STAGE_OPTION_GIDS", json.dumps(STAGE_OPTION_GIDS))
+        get_settings.cache_clear()
+
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID), _ci_task()],
+            current_option_gid=None,
+        )
+        resp = _post(client, mock_client, RECEIPT_BODY)
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["outcome"] == "posted"
+        # The flag alone keeps it INERT despite full field/option config.
+        mock_client.tasks.get_async.assert_not_called()
+        mock_client.tasks.update_async.assert_not_called()
+
+    def test_w1c_flag_on_but_field_gid_empty_is_noop(self, client: TestClient, monkeypatch) -> None:
+        """T-W1c: flag ON but field GID empty -> NO-OP (comment still succeeds).
+
+        The unconfigured-field gate: with the switch ON but no field GID, the write
+        leg is a NO-OP (never a 503 -- the comment already succeeded). Proves the
+        field-GID gate is independently load-bearing.
+        """
+        import json
+
+        monkeypatch.setenv("ASANA_API_FORWARDING_STAGE_WRITE_ENABLED", "true")  # ON
+        monkeypatch.setenv("ASANA_API_FORWARDING_STAGE_FIELD_GID", "")  # but empty
+        monkeypatch.setenv("ASANA_API_FORWARDING_STAGE_OPTION_GIDS", json.dumps(STAGE_OPTION_GIDS))
+        get_settings.cache_clear()
+
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID), _ci_task()],
+            current_option_gid=None,
+        )
+        resp = _post(client, mock_client, RECEIPT_BODY)
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["outcome"] == "posted"
+        mock_client.tasks.update_async.assert_not_called()
+
+    def test_w2_configured_path_advances(self, client: TestClient, monkeypatch) -> None:
+        """T-W2: switch ON + resolvable CI task + fresh field -> PUT Verified option.
+
+        RED side: a leg that did NOT PUT (or PUT the wrong option) would fail the
+        exact-args assertion below. The 'verified' receipt maps to the Verified
+        stage; the PUT targets the CI task with the Verified option GID.
+        """
+        _enable_stage_write(monkeypatch)
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID), _ci_task()],
+            current_option_gid=None,  # fresh clinic -> advance allowed
+        )
+        resp = _post(client, mock_client, RECEIPT_BODY)  # kind='verified'
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["outcome"] == "posted"
+        mock_client.tasks.update_async.assert_awaited_once_with(
+            CI_TASK_GID,
+            custom_fields={FORWARDING_FIELD_GID: STAGE_OPTION_GIDS["Verified"]},
+        )
+
+    def test_w3_idempotent_repost_no_duplicate_advance(
+        self, client: TestClient, monkeypatch
+    ) -> None:
+        """T-W3: a receipt whose stage is already set -> validator NO_OP, ZERO PUT.
+
+        The current CI field already reads Verified; a 'verified' receipt maps to
+        Verified -> NO_OP -> no PUT (idempotent re-post).
+
+        RED side: a leg missing the current-read + validator guard would PUT again
+        (a duplicate advance) and trip update_async.assert_not_called().
+        """
+        _enable_stage_write(monkeypatch)
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID), _ci_task()],
+            current_option_gid=STAGE_OPTION_GIDS["Verified"],  # already Verified
+        )
+        resp = _post(client, mock_client, RECEIPT_BODY)  # kind='verified'
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["outcome"] == "posted"
+        mock_client.tasks.get_async.assert_awaited_once()  # it DID read
+        mock_client.tasks.update_async.assert_not_called()  # but did NOT re-PUT
+
+    def test_w4_regression_via_receipt_refused(self, client: TestClient, monkeypatch) -> None:
+        """T-W4: field at Live, a late 'verified' receipt -> REFUSE, no PUT.
+
+        The machine-never-regresses teeth at the route altitude: the CI field
+        already reads Live; a stale 'verified' receipt maps to Verified (rank 2 <
+        Live rank 4) -> REFUSE_REGRESSION -> no PUT.
+
+        RED side: a leg without the monotonic validator would PUT Verified over
+        Live (dragging the board backward) and trip update_async.assert_not_called().
+        The comment still succeeds (best-effort advance).
+        """
+        _enable_stage_write(monkeypatch)
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID), _ci_task()],
+            current_option_gid=STAGE_OPTION_GIDS["Live"],  # already Live
+        )
+        resp = _post(client, mock_client, RECEIPT_BODY)  # stale kind='verified'
+
+        assert resp.status_code == 200  # comment still posts
+        assert resp.json()["data"]["outcome"] == "posted"
+        mock_client.tasks.update_async.assert_not_called()
+
+    def test_w5_ci_unresolved_is_best_effort_comment_succeeds(
+        self, client: TestClient, monkeypatch
+    ) -> None:
+        """T-W5: 0 CI matches -> stage advance skipped, comment STILL 200.
+
+        The best-effort teeth: when the second resolution finds no Calendar
+        Integrations task (only a Business row in the search), the advance is
+        skipped and logged -- but the receipt route returns the comment outcome
+        (200), NEVER a 5xx.
+
+        RED side: a leg that raised on a 0-match CI resolution (instead of
+        skipping) would turn this into a 503 and fail the 200 assertion.
+        """
+        _enable_stage_write(monkeypatch)
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID)],  # NO CI row -> 0 CI matches
+            current_option_gid=None,
+        )
+        resp = _post(client, mock_client, RECEIPT_BODY)
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["outcome"] == "posted"
+        mock_client.stories.create_comment_async.assert_awaited_once()
+        mock_client.tasks.update_async.assert_not_called()  # skipped, never guessed
+
+    def test_w5b_stage_advance_error_never_fails_receipt(
+        self, client: TestClient, monkeypatch
+    ) -> None:
+        """T-W5b: a PUT that raises is swallowed -> receipt route still 200.
+
+        The no-throw wrapper teeth: even if tasks.update_async raises (an Asana
+        5xx on the write leg), the comment already succeeded, so the route returns
+        200. The stage-advance failure is logged and swallowed.
+
+        RED side: an unwrapped advance leg would propagate the exception to the
+        route's broad handler -> 503, failing the 200 assertion.
+        """
+        _enable_stage_write(monkeypatch)
+
+        class FakeAsanaError(Exception):
+            pass
+
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID), _ci_task()],
+            current_option_gid=None,
+            update_raises=FakeAsanaError("Asana 500 on PUT"),
+        )
+        resp = _post(client, mock_client, RECEIPT_BODY)
+
+        assert resp.status_code == 200  # comment stands; advance error swallowed
+        assert resp.json()["data"]["outcome"] == "posted"
+
+    def test_w6_unknown_current_option_fails_closed_no_put(
+        self, client: TestClient, monkeypatch
+    ) -> None:
+        """T-W6: CI field reads an option GID NOT in the config map -> no PUT.
+
+        Fail-closed teeth at the route altitude: the current field carries an
+        option GID absent from the operator config map (an out-of-band value). The
+        service maps it to an _UnknownStage sentinel -> validator REFUSE_UNKNOWN ->
+        no PUT (never guess an advance off an unknown value).
+
+        RED side: a leg that treated an unmapped current as 'unset' (fail-open)
+        would advance and PUT -- tripping update_async.assert_not_called().
+        """
+        _enable_stage_write(monkeypatch)
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID), _ci_task()],
+            current_option_gid="9090909090909090",  # NOT in STAGE_OPTION_GIDS
+        )
+        resp = _post(client, mock_client, RECEIPT_BODY)
+
+        assert resp.status_code == 200
+        mock_client.tasks.get_async.assert_awaited_once()
+        mock_client.tasks.update_async.assert_not_called()
+
+    def test_w7_stall_overlay_advances_on_nudge(self, client: TestClient, monkeypatch) -> None:
+        """T-W7: a nudge on a Verified clinic -> PUT the Stalled option (overlay).
+
+        The nudge->Stalled reconciliation at the route altitude: a 'nudge' receipt
+        maps to Stalled; from a Verified current that is a legitimate overlay ->
+        PUT the Stalled option GID.
+
+        RED side: a leg that refused the Stalled overlay (or mapped nudge to the
+        wrong stage) would not PUT the Stalled option.
+        """
+        _enable_stage_write(monkeypatch)
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID), _ci_task()],
+            current_option_gid=STAGE_OPTION_GIDS["Verified"],
+        )
+        resp = _post(
+            client,
+            mock_client,
+            {"company_id": COMPANY_ID, "kind": "nudge", "body": "silent 26h"},
+        )
+
+        assert resp.status_code == 200
+        mock_client.tasks.update_async.assert_awaited_once_with(
+            CI_TASK_GID,
+            custom_fields={FORWARDING_FIELD_GID: STAGE_OPTION_GIDS["Stalled"]},
+        )
+
+    def test_w8_inactive_parked_refuses_advance(self, client: TestClient, monkeypatch) -> None:
+        """T-W8: an Inactive clinic (disposition=parked) -> no PUT (data-driven).
+
+        The Inactive-disposition teeth at the route altitude: the CI field reads
+        Inactive; with the default (parked) disposition the machine refuses to
+        auto-advance -> no PUT. The comment still succeeds.
+        """
+        _enable_stage_write(monkeypatch, disposition={"Inactive": "parked"})
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID), _ci_task()],
+            current_option_gid=STAGE_OPTION_GIDS["Inactive"],
+        )
+        resp = _post(client, mock_client, RECEIPT_BODY)
+
+        assert resp.status_code == 200
+        mock_client.tasks.update_async.assert_not_called()
+
+    def test_w8b_inactive_ignored_advances_data_driven(
+        self, client: TestClient, monkeypatch
+    ) -> None:
+        """T-W8b: the SAME Inactive clinic, disposition=ignored -> PUT proceeds.
+
+        The DATA-DRIVEN proof at the route altitude: identical task state, ONLY
+        the config disposition differs (ignored vs parked in T-W8), and the
+        outcome inverts -- the advance now PUTs. The Inactive ruling is config,
+        never code (ADR-FS-005 / operator sovereign ruling 2026-07-09).
+        """
+        _enable_stage_write(monkeypatch, disposition={"Inactive": "ignored"})
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID), _ci_task()],
+            current_option_gid=STAGE_OPTION_GIDS["Inactive"],
+        )
+        resp = _post(client, mock_client, RECEIPT_BODY)  # kind='verified'
+
+        assert resp.status_code == 200
+        mock_client.tasks.update_async.assert_awaited_once_with(
+            CI_TASK_GID,
+            custom_fields={FORWARDING_FIELD_GID: STAGE_OPTION_GIDS["Verified"]},
+        )
+
+    def test_w9_guest_pat_scope_no_workspace_field_listing(
+        self, client: TestClient, monkeypatch
+    ) -> None:
+        """T-W9: the write leg NEVER calls a workspace-level custom_fields listing.
+
+        Guest-PAT scope teeth: the field GID + option GIDs arrive via config; the
+        write leg only uses tasks/search (http.get), tasks.get_async, and
+        tasks.update_async (all task/project scope). A workspace-level
+        custom_fields listing (which 402s for the guest PAT) is NEVER attempted --
+        the fake has no such method configured, and asserting the absence of any
+        custom_fields client attribute access proves the scope discipline.
+        """
+        _enable_stage_write(monkeypatch)
+        mock_client = _make_stage_aware_client(
+            search_rows=[_business_task(BUSINESS_GID), _ci_task()],
+            current_option_gid=None,
+        )
+        # A workspace-level listing would go through a custom_fields client; assert
+        # the service never reaches for one. We attach a tripwire that records any
+        # access to a `custom_fields` attribute on the client.
+        tripwire = MagicMock()
+        mock_client.custom_fields = tripwire
+
+        resp = _post(client, mock_client, RECEIPT_BODY)
+
+        assert resp.status_code == 200
+        # The only task-scope calls were made; no custom_fields client method used.
+        tripwire.assert_not_called()
+        assert not tripwire.method_calls
+        # Positive: the task-scope PUT did fire.
+        mock_client.tasks.update_async.assert_awaited_once()

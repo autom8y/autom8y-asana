@@ -87,6 +87,61 @@ class ApiSettings(Autom8yBaseSettings):
         ),
     )
 
+    # ------------------------------------------------------------------
+    # EBI S1 -- Forwarding-Stage WRITE surface (config-gated, default OFF/INERT).
+    #
+    # An accepted receipt ALSO advances the operator-seeded "Forwarding Stage"
+    # single-select custom field on the clinic's Calendar Integrations task
+    # (ADR-FS-004). This is DARK by default: with the master switch OFF (or the
+    # field GID empty, or the option-GID map unpopulated) the receipts route
+    # behaves BYTE-IDENTICALLY to the comment-only baseline -- no second
+    # resolution, no read, no PUT. The GID VALUES and the switch flip are
+    # operator-terminal (the operator owns the workspace field definition); this
+    # code only CONSUMES them, never invents or applies them.
+    # ------------------------------------------------------------------
+
+    forwarding_stage_write_enabled: bool = Field(
+        default=False,
+        description=(
+            "Master switch for the Forwarding-Stage write leg. OFF (default) ⇒ the "
+            "receipts route is comment-only and byte-identical to the pre-S1 "
+            "baseline (INERT dark posture). Env: ASANA_API_FORWARDING_STAGE_WRITE_ENABLED."
+        ),
+    )
+
+    forwarding_stage_field_gid: str = Field(
+        default="",
+        description=(
+            "Asana 'Forwarding Stage' single-select custom-field DEFINITION GID "
+            "(operator-seeded; = 1216419441591239 in the Contente workspace) on "
+            "the Calendar Integrations project. Empty ⇒ write leg is a NO-OP (the "
+            "comment already succeeded; never a 503). "
+            "Env: ASANA_API_FORWARDING_STAGE_FIELD_GID."
+        ),
+    )
+
+    forwarding_stage_option_gids: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Map of ForwardingStage value (e.g. 'Verified') -> Asana enum-option "
+            "GID. Operator-supplied JSON; the ONLY place option GIDs live (never "
+            "hardcoded in code). Unpopulated ⇒ write leg is a NO-OP. "
+            "Env (JSON): ASANA_API_FORWARDING_STAGE_OPTION_GIDS."
+        ),
+    )
+
+    forwarding_stage_disposition: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Data-driven disposition of surplus stages (ADR-FS-005). Currently "
+            "keys 'Inactive' -> one of {'parked','terminal','ignored'}. Absent ⇒ "
+            "safe default 'parked' (machine refuses to auto-advance an Inactive "
+            "clinic; a human must re-activate). The operator ruling on Inactive is "
+            "exactly this one-line config edit, never a code change. "
+            "Env (JSON): ASANA_API_FORWARDING_STAGE_DISPOSITION."
+        ),
+    )
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Parse CORS origins string to list.

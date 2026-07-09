@@ -70,6 +70,7 @@ from autom8_asana.services.receipts_service import (
     CompanyAmbiguous,
     CompanyIdFieldUnconfigured,
     CompanyNotResolved,
+    ForwardingStageWriteConfig,
     NoWorkspaceConfigured,
     ReceiptsService,
 )
@@ -145,10 +146,23 @@ async def post_receipt(
 
     settings = get_settings()
 
-    # 2. Orchestrate: resolve -> dedup -> post.
+    # 2. Orchestrate: resolve -> dedup -> post (+ config-gated stage advance).
+    #    The stage-write config is built from settings; when the master switch is
+    #    OFF (default) the write leg is INERT and the route behaves identically to
+    #    the comment-only baseline (ADR-FS-004 / T-W1).
+    stage_write_config = ForwardingStageWriteConfig.from_settings(
+        enabled=settings.forwarding_stage_write_enabled,
+        field_gid=settings.forwarding_stage_field_gid,
+        option_gids=settings.forwarding_stage_option_gids,
+        disposition=settings.forwarding_stage_disposition,
+    )
     try:
         async with AsanaClient(token=auth_context.asana_pat) as client:
-            service = ReceiptsService(client, company_id_field_gid=settings.company_id_field_gid)
+            service = ReceiptsService(
+                client,
+                company_id_field_gid=settings.company_id_field_gid,
+                stage_write_config=stage_write_config,
+            )
             result = await service.thread_receipt(
                 company_id=body.company_id,
                 kind=body.kind,
