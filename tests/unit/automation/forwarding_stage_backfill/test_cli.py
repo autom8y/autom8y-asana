@@ -202,5 +202,104 @@ def _empty_confirmation():
     return ConfirmationGatherResult(signals={}, row_count=0, cap_hit=False)
 
 
+# ---------------------------------------------------------------------------
+# T-B18: the decisive CACHE-altitude two-sided proof for CURE 2 (K2).
+# ---------------------------------------------------------------------------
+
+# A numeric CI-task gid (the SDK's validate_gid rejects non-numeric gids).
+_CI_GID = "1200000000000001"
+_WORKSPACE_GID = "1140000000000001"
+_SENT_OPT = "1216419441591240"
+_FLOWING_OPT = "1216419441591244"
+_VERIFY_OPTION_GIDS = {"Sent": _SENT_OPT, "Flowing": _FLOWING_OPT}
+
+
+def _task_raw(option_gid: str) -> dict[str, str | list[dict[str, object]]]:
+    """A raw task payload carrying the Forwarding-Stage single-select value."""
+    return {
+        "gid": _CI_GID,
+        "custom_fields": [
+            {
+                "gid": FORWARDING_FIELD_GID,
+                "name": "Forwarding Stage",
+                "enum_value": {"gid": option_gid},
+            }
+        ],
+    }
+
+
+def _stage_serving_client(cache_provider: object) -> MagicMock:
+    """A REAL AsanaClient (offline: explicit token + workspace) whose _http.get
+    serves the PRE-write stage on the first fetch and the POST-write stage on
+    every later fetch. The cache provider decides whether a re-read is served the
+    stale first-fetch value (InMemory: first-fetch-wins) or re-hits HTTP (Null).
+    """
+    from autom8_asana import AsanaClient
+
+    client = AsanaClient(
+        token="test-token", workspace_gid=_WORKSPACE_GID, cache_provider=cache_provider
+    )
+    calls = {"n": 0}
+
+    async def _http_get(url: str, params: dict[str, object] | None = None) -> dict[str, object]:
+        calls["n"] += 1
+        # First HTTP fetch = the PRE-write stage (Sent); the write then lands and
+        # every LATER HTTP fetch = the POST-write stage (Flowing).
+        return _task_raw(_SENT_OPT if calls["n"] == 1 else _FLOWING_OPT)
+
+    client._http.get = AsyncMock(side_effect=_http_get)
+    client._http_calls = calls  # type: ignore[attr-defined]  # test-only probe handle
+    return client
+
+
+class TestCacheProofVerificationAtCacheAltitude:
+    """T-B18: the CURE-2 two-sided proof at the REAL cache layer (not the fixture).
+
+    The K2 incident: a post-write verification read served through the SDK's
+    InMemory cache (opt_fields-blind, first-fetch-wins) returned the STALE
+    pre-write stage -> false-RED. The cure re-reads through a NullCacheProvider
+    client. This test primes the cache with the pre-write stage, lands the write
+    (HTTP now serves the post-write stage), and proves the two clients DIVERGE:
+    the InMemory client re-reads STALE, the Null client re-reads FRESH.
+
+    Asserts anchor to the rendered ForwardingStage tokens (never a bare-domain
+    substring), per the CodeQL guard.
+    """
+
+    @pytest.mark.asyncio
+    async def test_tb18_null_cache_verify_reads_fresh_inmemory_reads_stale(self) -> None:
+        from autom8_asana._defaults import InMemoryCacheProvider, NullCacheProvider
+        from autom8_asana.domain.forwarding_stage import ForwardingStage
+        from autom8_asana.services.ci_task_resolution import read_current_stage
+
+        # ── RED variant: verify read through an InMemory-cached client ─────
+        # The first read primes the cache with Sent; the "write" lands (HTTP
+        # flips to Flowing); the second read is the K2 verification read.
+        im_client = _stage_serving_client(InMemoryCacheProvider())
+        primed = await read_current_stage(
+            im_client, _CI_GID, field_gid=FORWARDING_FIELD_GID, option_gids=_VERIFY_OPTION_GIDS
+        )
+        assert primed is ForwardingStage.SENT  # pre-write value
+        stale = await read_current_stage(
+            im_client, _CI_GID, field_gid=FORWARDING_FIELD_GID, option_gids=_VERIFY_OPTION_GIDS
+        )
+        # first-fetch-wins: the re-read is STALE (the false-RED the incident hit).
+        assert stale is ForwardingStage.SENT
+        assert im_client._http_calls["n"] == 1  # cache served the re-read
+
+        # ── GREEN variant (the cure): verify read through a Null-cache client ─
+        null_client = _stage_serving_client(NullCacheProvider())
+        primed2 = await read_current_stage(
+            null_client, _CI_GID, field_gid=FORWARDING_FIELD_GID, option_gids=_VERIFY_OPTION_GIDS
+        )
+        assert primed2 is ForwardingStage.SENT  # pre-write value
+        fresh = await read_current_stage(
+            null_client, _CI_GID, field_gid=FORWARDING_FIELD_GID, option_gids=_VERIFY_OPTION_GIDS
+        )
+        # cache-disabled: the re-read hits HTTP and sees the FRESH post-write stage.
+        assert fresh is ForwardingStage.FLOWING
+        assert null_client._http_calls["n"] == 2  # every read re-hit HTTP
+
+
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(pytest.main([__file__, "-v"]))

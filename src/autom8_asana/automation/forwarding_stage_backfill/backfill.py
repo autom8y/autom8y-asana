@@ -36,8 +36,14 @@ from autom8_asana.domain.forwarding_stage import (
     StageTransitionValidator,
     TransitionOutcome,
 )
-from autom8_asana.domain.forwarding_stage_backfill import ClinicEvidence, derive_stage
+from autom8_asana.domain.forwarding_stage_backfill import (
+    BookingSignal,
+    ClinicEvidence,
+    ConfirmationSignal,
+    derive_stage,
+)
 from autom8_asana.services.ci_task_resolution import (
+    SubtaskPageCapExceeded,
     UnknownStage,
     read_current_stage,
     resolve_ci_task_gid,
@@ -191,9 +197,18 @@ class ForwardingStageBackfill:
         company_id_field_gid: str,
         write_config: BackfillWriteConfig,
         nudge_threshold_hours: int = 48,
+        verify_client: AsanaClient | None = None,
     ) -> None:
         self._evidence = evidence_source
         self._client = client
+        # K2 post-write verification reads run through ``verify_client`` (the CLI
+        # constructs it with a NullCacheProvider so a re-read is NEVER served the
+        # pre-write value: the TASK cache key is opt_fields-blind and first-fetch-
+        # wins, so a cached read after a PUT would report the stale stage ->
+        # false-RED). Falls back to the main client when unset (preserves every
+        # existing caller; the fallback path reads through whatever cache the
+        # main client carries).
+        self._verify_client = verify_client or client
         self._company_id_field_gid = company_id_field_gid
         self._cfg = write_config
         self._nudge_h = nudge_threshold_hours
@@ -227,80 +242,104 @@ class ForwardingStageBackfill:
             c = confirms.signals.get(inbox)
             evidence = ClinicEvidence(inbox_uuid=inbox, booking=b, confirmation=c)
 
-            # ── 2. DERIVE (pure domain; no I/O) ───────────────────────────
-            proposed = derive_stage(evidence, now, nudge_threshold_hours=self._nudge_h)
+            # ── B-S1 per-clinic exception boundary ─────────────────────────
+            # One clinic's completeness-abort (a full subtask page during CI
+            # resolution -> SubtaskPageCapExceeded, raised PER SUBTREE in
+            # ci_task_resolution) must NOT unwind the whole-book run and strand
+            # every later clinic unstamped. The resolver's per-subtree LOUD
+            # refusal is CORRECT (never resolve against a truncated set); the
+            # boundary belongs one level UP, at the orchestrator policy level.
+            # A caught clinic lands UNRESOLVED (never guessed), records the
+            # exception class + parent task, and the run CONTINUES. Only the
+            # NAMED completeness class is caught -- a bare ``except`` would bury
+            # a genuine programming error (e.g. a KeyError in derive) as a
+            # phantom UNRESOLVED; those still crash loud.
+            try:
+                # ── 2. DERIVE (pure domain; no I/O) ───────────────────────
+                proposed = derive_stage(evidence, now, nudge_threshold_hours=self._nudge_h)
 
-            row = ClinicPlanRow(
-                inbox_uuid=inbox,
-                ci_task_gid=None,
-                booking_mail_count=(b.count if b else 0),
-                booking_mail_last_seen=(b.last_seen.isoformat() if b else None),
-                forwarding_confirmation_seen=(c is not None),
-                forwarding_confirmation_at=(c.confirmed_at.isoformat() if c else None),
-                derived_stage=(proposed.value if proposed else None),
-                current_stage=None,
-                decision_outcome=None,
-                action=BackfillAction.SKIP.value,
-            )
-
-            if proposed is None:
-                # NO STAMP -- honest absence (G-DENOM; T-D4/T-B: no evidence).
-                row.action = BackfillAction.SKIP.value
-                row.reason = "no_evidence"
-                rows.append(row)
-                continue
-
-            # ── 3. RESOLVE (reused S1 idiom; UNRESOLVED never guessed) ─────
-            ci_gid = await resolve_ci_task_gid(
-                self._client,
-                inbox,
-                company_id_field_gid=self._company_id_field_gid,
-            )
-            if ci_gid is None:
-                # 0 or >1 CI matches -> UNRESOLVED bucket (DD-3 / T-B4). The
-                # malformed/truncated-inbox class: NEVER guess a clinic.
-                row.action = BackfillAction.UNRESOLVED.value
-                row.reason = "unresolved_no_ci_task_or_ambiguous"
-                unresolved.append(row)
-                continue
-            row.ci_task_gid = ci_gid
-
-            # ── 4. VALIDATE (reused S1 validator; never-downgrade) ─────────
-            current = await read_current_stage(
-                self._client,
-                ci_gid,
-                field_gid=self._cfg.field_gid,
-                option_gids=self._cfg.option_gids,
-            )
-            row.current_stage = _stage_display(current)
-            decision = self._validator.evaluate(_validator_current(current), proposed)
-            row.decision_outcome = decision.outcome.value
-
-            if decision.outcome in (
-                TransitionOutcome.ADVANCE,
-                TransitionOutcome.STALL_OVERLAY,
-            ):
-                row.action = BackfillAction.STAMP.value
-                if mode is BackfillMode.APPLY:
-                    await self._stamp(row, proposed)
-            elif decision.outcome is TransitionOutcome.NO_OP:
-                row.action = BackfillAction.NOOP.value
-                row.reason = "already_at_stage"
-            else:  # REFUSE_REGRESSION | REFUSE_UNKNOWN
-                row.action = BackfillAction.REFUSE.value
-                row.reason = decision.reason
-                logger.warning(
-                    decision.outcome.value,
-                    extra={
-                        "inbox": inbox,
-                        "ci_gid": ci_gid,
-                        "current": row.current_stage,
-                        "proposed": proposed.value,
-                        "reason": decision.reason,
-                    },
+                row = ClinicPlanRow(
+                    inbox_uuid=inbox,
+                    ci_task_gid=None,
+                    booking_mail_count=(b.count if b else 0),
+                    booking_mail_last_seen=(b.last_seen.isoformat() if b else None),
+                    forwarding_confirmation_seen=(c is not None),
+                    forwarding_confirmation_at=(c.confirmed_at.isoformat() if c else None),
+                    derived_stage=(proposed.value if proposed else None),
+                    current_stage=None,
+                    decision_outcome=None,
+                    action=BackfillAction.SKIP.value,
                 )
 
-            rows.append(row)
+                if proposed is None:
+                    # NO STAMP -- honest absence (G-DENOM; T-D4/T-B: no evidence).
+                    row.action = BackfillAction.SKIP.value
+                    row.reason = "no_evidence"
+                    rows.append(row)
+                    continue
+
+                # ── 3. RESOLVE (reused S1 idiom; UNRESOLVED never guessed) ─
+                ci_gid = await resolve_ci_task_gid(
+                    self._client,
+                    inbox,
+                    company_id_field_gid=self._company_id_field_gid,
+                )
+                if ci_gid is None:
+                    # 0 or >1 CI matches -> UNRESOLVED bucket (DD-3 / T-B4). The
+                    # malformed/truncated-inbox class: NEVER guess a clinic.
+                    row.action = BackfillAction.UNRESOLVED.value
+                    row.reason = "unresolved_no_ci_task_or_ambiguous"
+                    unresolved.append(row)
+                    continue
+                row.ci_task_gid = ci_gid
+
+                # ── 4. VALIDATE (reused S1 validator; never-downgrade) ─────
+                current = await read_current_stage(
+                    self._client,
+                    ci_gid,
+                    field_gid=self._cfg.field_gid,
+                    option_gids=self._cfg.option_gids,
+                )
+                row.current_stage = _stage_display(current)
+                decision = self._validator.evaluate(_validator_current(current), proposed)
+                row.decision_outcome = decision.outcome.value
+
+                if decision.outcome in (
+                    TransitionOutcome.ADVANCE,
+                    TransitionOutcome.STALL_OVERLAY,
+                ):
+                    row.action = BackfillAction.STAMP.value
+                    if mode is BackfillMode.APPLY:
+                        await self._stamp(row, proposed)
+                elif decision.outcome is TransitionOutcome.NO_OP:
+                    row.action = BackfillAction.NOOP.value
+                    row.reason = "already_at_stage"
+                else:  # REFUSE_REGRESSION | REFUSE_UNKNOWN
+                    row.action = BackfillAction.REFUSE.value
+                    row.reason = decision.reason
+                    logger.warning(
+                        decision.outcome.value,
+                        extra={
+                            "inbox": inbox,
+                            "ci_gid": ci_gid,
+                            "current": row.current_stage,
+                            "proposed": proposed.value,
+                            "reason": decision.reason,
+                        },
+                    )
+
+                rows.append(row)
+            except SubtaskPageCapExceeded as exc:
+                unresolved.append(_boundary_unresolved_row(inbox, b, c, exc))
+                logger.warning(
+                    "backfill_clinic_boundary_unresolved",
+                    extra={
+                        "inbox": inbox,
+                        "exception": type(exc).__name__,
+                        "parent_gid": getattr(exc, "parent_gid", None),
+                    },
+                )
+                continue
 
         header = DenominatorHeader(
             window_days=window_days,
@@ -352,7 +391,6 @@ class ForwardingStageBackfill:
             ci_gid,
             custom_fields={self._cfg.field_gid: option_gid},
         )
-        row.asana_response_status = "ok"
         logger.info(
             "backfill_forwarding_stage_stamped",
             extra={
@@ -363,6 +401,35 @@ class ForwardingStageBackfill:
                 "outcome": row.decision_outcome,
             },
         )
+        # ── K2 post-write verification (CACHE-DISABLED read) ───────────────
+        # Re-read the just-written stage through the verify client. The verify
+        # client carries a NullCacheProvider, so this NEVER sees the pre-write
+        # value: the TASK cache is opt_fields-blind + first-fetch-wins, so a
+        # re-read through a warm cache would report the stale stage -> the
+        # false-RED the live TW run1 incident hit ("re-read shows Approved,
+        # expected Verified"). This is READ-AND-COMPARE ONLY -- a mismatch is a
+        # data-integrity SIGNAL surfaced loudly for the operator, NEVER a
+        # re-PUT/retry (that would paper over the discrepancy). The S1 monotonic
+        # validator is untouched: this is a verification read, not a transition.
+        observed = await read_current_stage(
+            self._verify_client,
+            ci_gid,
+            field_gid=self._cfg.field_gid,
+            option_gids=self._cfg.option_gids,
+        )
+        if observed == proposed:
+            row.asana_response_status = "ok"
+        else:
+            row.asana_response_status = "verify_mismatch"
+            logger.warning(
+                "backfill_stamp_verify_mismatch",
+                extra={
+                    "inbox": row.inbox_uuid,
+                    "ci_gid": row.ci_task_gid,
+                    "expected": proposed.value,
+                    "observed": _stage_display(observed),
+                },
+            )
 
 
 def _evidence_row_cap(evidence: MonolithEvidenceSource) -> int:
@@ -370,6 +437,45 @@ def _evidence_row_cap(evidence: MonolithEvidenceSource) -> int:
     PLAN header). Falls back to 0 when the source exposes no config (fake)."""
     cfg = getattr(evidence, "_config", None)
     return getattr(cfg, "query_row_cap", 0) if cfg is not None else 0
+
+
+def _boundary_unresolved_row(
+    inbox: str,
+    booking: BookingSignal | None,
+    confirmation: ConfirmationSignal | None,
+    exc: SubtaskPageCapExceeded,
+) -> ClinicPlanRow:
+    """Build the UNRESOLVED row for a B-S1 boundary-caught clinic (D3/D4).
+
+    Identical bucket semantics to the ``resolve_ci_task_gid -> None`` UNRESOLVED
+    path: ``ci_task_gid`` and derived/current stages are left None (NO stamp is
+    ever derived or PUT for a caught clinic -- UNRESOLVED-never-guessed is
+    absolute). The reason string names the exception class and the exact task
+    subtree that overflowed (``parent_gid``) so operator triage points at the
+    right clinic (e.g. Garfinkel's CI holder), and is machine-greppable:
+    ``page_cap_exceeded:<Class>:task_<parent_gid>``.
+    """
+    parent = getattr(exc, "parent_gid", None)
+    reason = (
+        f"page_cap_exceeded:{type(exc).__name__}:task_{parent}"
+        if parent is not None
+        else f"resolution_error:{type(exc).__name__}"
+    )
+    return ClinicPlanRow(
+        inbox_uuid=inbox,
+        ci_task_gid=None,
+        booking_mail_count=(booking.count if booking else 0),
+        booking_mail_last_seen=(booking.last_seen.isoformat() if booking else None),
+        forwarding_confirmation_seen=(confirmation is not None),
+        forwarding_confirmation_at=(
+            confirmation.confirmed_at.isoformat() if confirmation else None
+        ),
+        derived_stage=None,
+        current_stage=None,
+        decision_outcome=None,
+        action=BackfillAction.UNRESOLVED.value,
+        reason=reason,
+    )
 
 
 def _validator_current(

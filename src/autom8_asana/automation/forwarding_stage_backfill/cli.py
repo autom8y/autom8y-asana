@@ -95,6 +95,7 @@ def _company_id_field_gid() -> str:
 async def _run(mode: BackfillMode, *, lookback_days: int, out_path: str | None) -> int:
     """Construct the live wiring and run the backfill; return an exit code."""
     from autom8_asana import AsanaClient
+    from autom8_asana._defaults import NullCacheProvider
 
     backfill_cfg = BackfillConfig(lookback_days=lookback_days)
     write_cfg = build_write_config()
@@ -105,10 +106,17 @@ async def _run(mode: BackfillMode, *, lookback_days: int, out_path: str | None) 
         print(f"Backfill config not calibrated: {exc}", file=sys.stderr)
         return 1
 
-    async with AsanaClient() as client:
+    # K2: the verify client reads CACHE-DISABLED (NullCacheProvider) so a
+    # post-write re-read is never served the stale pre-write value. Confined to
+    # the S4 verification posture -- the global SDK cache default is untouched.
+    async with (
+        AsanaClient() as client,
+        AsanaClient(cache_provider=NullCacheProvider()) as verify_client,
+    ):
         orchestrator = ForwardingStageBackfill(
             evidence_source=evidence,
             client=client,
+            verify_client=verify_client,
             company_id_field_gid=_company_id_field_gid(),
             write_config=write_cfg,
             nudge_threshold_hours=backfill_cfg.nudge_threshold_hours,
