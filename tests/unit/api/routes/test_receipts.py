@@ -430,6 +430,88 @@ class TestContractAuth:
         )
         assert resp.status_code == 422
 
+    def test_c7_oversize_body_422_no_asana_call(self, client: TestClient) -> None:
+        """T-C7 DoS teeth: an over-limit body (16385 chars) -> 422, NO Asana call.
+
+        The bound is enforced at the Pydantic layer BEFORE the handler runs, so
+        an unbounded-body DoS attempt is rejected clean without touching Asana:
+        no tasks/search, no story create. The teeth are the negative-space
+        assertions -- the client mock is NEVER awaited.
+        """
+        mock_client = _make_mock_asana_client(
+            search_results=[_business_task(BUSINESS_GID)],
+        )
+        resp = _post(
+            client,
+            mock_client,
+            {"company_id": COMPANY_ID, "kind": "verified", "body": "x" * 16385},
+        )
+
+        assert resp.status_code == 422
+        # No Asana call attempted: neither resolve (http.get) nor post.
+        mock_client.http.get.assert_not_awaited()
+        mock_client.stories.create_comment_async.assert_not_awaited()
+
+    def test_c7b_at_limit_body_200(self, client: TestClient) -> None:
+        """T-C7b GREEN: an at-limit body (exactly 16384 chars) -> 200 (posts).
+
+        The other side of the bound: the ceiling value is accepted and threaded
+        normally, proving the 422 in T-C7 is the max_length guard biting on
+        16385 -- not an off-by-one that would reject legitimate at-limit bodies.
+        """
+        mock_client = _make_mock_asana_client(
+            search_results=[_business_task(BUSINESS_GID)],
+        )
+        resp = _post(
+            client,
+            mock_client,
+            {"company_id": COMPANY_ID, "kind": "verified", "body": "x" * 16384},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["outcome"] == "posted"
+        mock_client.stories.create_comment_async.assert_awaited_once()
+
+    def test_c8_oversize_company_id_422_no_asana_call(self, client: TestClient) -> None:
+        """T-C8 DoS teeth: an over-limit company_id (257 chars) -> 422, NO call.
+
+        Same bound-before-handler discipline as T-C7, on the tenant key: an
+        over-limit company_id is a clean 422 with no Asana call attempted.
+        """
+        mock_client = _make_mock_asana_client(
+            search_results=[_business_task(BUSINESS_GID)],
+        )
+        resp = _post(
+            client,
+            mock_client,
+            {"company_id": "c" * 257, "kind": "verified", "body": "x"},
+        )
+
+        assert resp.status_code == 422
+        mock_client.http.get.assert_not_awaited()
+        mock_client.stories.create_comment_async.assert_not_awaited()
+
+    def test_c8b_at_limit_company_id_200(self, client: TestClient) -> None:
+        """T-C8b GREEN: an at-limit company_id (exactly 256 chars) -> 200.
+
+        The other side of the company_id bound: the ceiling value resolves and
+        posts normally (the mock search returns the one Business regardless of
+        the key length), proving the 422 in T-C8 is the max_length guard biting
+        on 257, not a rejection of legitimate at-limit identifiers.
+        """
+        mock_client = _make_mock_asana_client(
+            search_results=[_business_task(BUSINESS_GID)],
+        )
+        resp = _post(
+            client,
+            mock_client,
+            {"company_id": "c" * 256, "kind": "verified", "body": "x"},
+        )
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["outcome"] == "posted"
+        mock_client.stories.create_comment_async.assert_awaited_once()
+
     def test_c3_pat_token_rejected_401(self, client: TestClient) -> None:
         """T-C3: a non-JWT (PAT-shaped) token -> 401 SERVICE_TOKEN_REQUIRED."""
         mock_client = _make_mock_asana_client()
@@ -444,12 +526,23 @@ class TestContractAuth:
         assert resp.json()["error"]["code"] == "SERVICE_TOKEN_REQUIRED"
 
     def test_c4_missing_auth_401(self, client: TestClient) -> None:
-        """T-C4: no Authorization header -> 401 (auth middleware, AUTH-TEB-001).
+        """T-C4: no Authorization header -> 401 AUTH-TEB-001 (outer middleware).
 
-        Missing auth is rejected by the auth MIDDLEWARE ahead of the route (the
-        canonical fleet code, per test_routes_resolver / test_routes_query_rows),
-        so it never reaches require_service_claims. The route is still fail-closed
-        against anonymous callers -- proven by the 401.
+        Two-layer auth, stated precisely:
+          - OUTER: the fleet JWTAuthMiddleware rejects a MISSING header with
+            AUTH-TEB-001. This leg fires even under AUTH__DEV_MODE=true (which
+            this suite sets) because validate_from_header checks the empty header
+            BEFORE the dev_mode signature bypass -- so this test genuinely
+            exercises the middleware's missing-auth rejection, not the dev
+            bypass.
+          - INNER: Depends(require_service_claims) is the load-bearing guard the
+            REST of this suite exercises. Under dev_mode the middleware bypasses
+            SIGNATURE validation for any PRESENT token, so a present-but-wrong
+            token (e.g. T-C3's PAT) is rejected by the inner dependency's
+            fail-closed leg (SERVICE_TOKEN_REQUIRED), not by middleware signature
+            checking. This test does NOT prove middleware signature rejection --
+            see the COND-2 TODO in receipts.py; no production-mode JWKS
+            integration idiom exists in this harness yet.
         """
         resp = client.post("/v1/receipts", json=RECEIPT_BODY)
         assert resp.status_code == 401

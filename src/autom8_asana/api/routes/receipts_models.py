@@ -41,11 +41,20 @@ class ReceiptPostRequest(BaseModel):
     value produces OUR domain 422 (``UNKNOWN_RECEIPT_KIND``) with the valid set,
     mirroring the ``UNKNOWN_PROCESS_TYPE`` idiom, rather than a generic Pydantic
     enum-validation message.
+
+    Field sizes are BOUNDED at the Pydantic layer to close the unbounded-body
+    DoS gap: an oversize payload is rejected as a clean 422 BEFORE any Asana call
+    is attempted (no resolve, no search, no comment). ``body`` caps at 16384
+    chars (a forwarding-lifecycle receipt is a few short lines; the ceiling is
+    ~64x headroom over the largest legitimate receipt); ``company_id`` caps at
+    256 chars (an office GUID is far shorter -- 256 is a generous identifier
+    ceiling). ``kind`` is unbounded here because it is separately constrained to
+    the four ``ReceiptKind`` literals by the route's domain check.
     """
 
-    company_id: str = Field(min_length=1)
+    company_id: str = Field(min_length=1, max_length=256)
     kind: str
-    body: str = Field(min_length=1)
+    body: str = Field(min_length=1, max_length=16384)
 
 
 class ReceiptPostResponse(BaseModel):

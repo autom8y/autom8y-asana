@@ -10,9 +10,31 @@ fail-closed) and threads the comment (idempotent via a content marker). EBI
 never sees a task gid -- surface minimisation; this satellite owns the
 ``company_id -> task_gid`` resolution (F-1 single-source lesson).
 
-Authentication:
-    S2S JWT only (``require_service_claims``). PAT tokens are NOT supported.
-    Asana writes use the bot PAT (``auth_context.asana_pat`` in JWT mode).
+Authentication (two layers -- state the truth precisely):
+    OUTER: the fleet ``JWTAuthMiddleware`` (``autom8y_auth``, wired via
+    ``create_fleet_app(jwt_auth=...)``) runs ahead of the route. In PRODUCTION
+    (``AUTH__DEV_MODE`` unset/false) it validates the JWT signature against JWKS
+    and rejects a missing/malformed/invalid token with an ``AUTH-TEB-NNN`` 401.
+    A missing Authorization header ALWAYS rejects (``AUTH-TEB-001``) because the
+    header check precedes the dev bypass.
+
+    INNER (load-bearing in the test suite): ``Depends(require_service_claims)``.
+    Under ``AUTH__DEV_MODE=true`` -- which the unit tests set -- the outer
+    middleware bypasses SIGNATURE validation and returns dev-bypass claims for
+    ANY present token, so signature-rejection is NOT exercised by the unit
+    tests. What the tests exercise is this inner dependency's fail-closed leg: it
+    re-invokes ``validate_service_token`` and rejects a PAT-shaped token
+    (``SERVICE_TOKEN_REQUIRED`` 401) or a validation failure. PAT tokens are NOT
+    supported. Asana writes use the bot PAT (``auth_context.asana_pat`` in JWT
+    mode).
+
+    TODO(COND-2): no production-mode (``AUTH__DEV_MODE=false``) middleware JWKS
+    integration test exists in this harness -- the auth suite mocks
+    ``validate_service_token`` at the jwt_validator seam (see
+    tests/unit/auth/test_integration.py::test_invalid_signature_returns_401)
+    rather than minting a real RS256-signed token against a JWKS fixture. Add a
+    genuine outer-middleware signature-rejection integration test once such an
+    idiom lands fleet-wide.
 
 D12: the comment threads onto the TEAM's INTERNAL Business task -- never a
 client-facing message. This route has no outward channel.
