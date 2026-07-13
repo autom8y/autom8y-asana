@@ -43,13 +43,19 @@ from autom8_asana.automation.workflows.insights.tables import (
     DispatchType,
     TableSpec,
 )
+from autom8_asana.clients.data._endpoints.operator import WEIGHTED_CONSUMER_METRICS
 from autom8_asana.clients.utils.pii import mask_phone_number
-from autom8_asana.errors import OperatorAccessDeniedError, OperatorMintRefusedError
+from autom8_asana.errors import (
+    OperatorAccessDeniedError,
+    OperatorBatchVersionSkewError,
+    OperatorMintRefusedError,
+)
 from autom8_asana.models.business.offer import Offer
 from autom8_asana.resolution.context import ResolutionContext
 
 if TYPE_CHECKING:
     from autom8_asana.clients.attachments import AttachmentsClient
+    from autom8_asana.clients.data._endpoints.operator import OperatorBatchMeta
     from autom8_asana.clients.data.client import DataServiceClient
     from autom8_asana.core.scope import EntityScope
 
@@ -182,6 +188,19 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         # table. A whole-plane mint refusal is still handled separately via the
         # INERT no-op guard below (the run skips publish entirely).
         self._operator_batch: dict[str, dict[str, list[dict[str, Any]]] | _OperatorTableDenial] = {}
+        # provenance-to-the-human Sprint 1 (render-wiring): the per-table
+        # RESPONSE/META-grain provenance (weights_version + asOf synced_at) carried
+        # ALONGSIDE _operator_batch, populated in the SAME prefetch pass. Keyed by
+        # table_name. A SERVED table's meta rides here; a denied table has NO entry
+        # (the denial path is unchanged -- it renders a typed error-box regardless
+        # of provenance). Absent key OR OperatorBatchMeta(None, None) both mean
+        # "no provenance to disclose"; _fetch_table reads this to attach the
+        # weights_version + asOf onto the served TableResult so the render can
+        # disclose them AT THE POINT OF ACTION (the deck badge/subtitle, H7). The
+        # C2 never-hidden guard reads it too: a WEIGHTED table served WITHOUT a
+        # weights_version routes to the typed-refusal rail (a weight-banded number
+        # must never render provenance-free). Reset per run alongside the batch.
+        self._operator_table_meta: dict[str, OperatorBatchMeta] = {}
         # GAP-1 PR-A INERT no-op guard: True when the operator-plane mint was
         # REFUSED (the empty OPERATOR_ARN_ALLOWLIST 403, or no ambient AWS
         # credentials to sign sts:GetCallerIdentity). This is the deploy-INERT
@@ -733,6 +752,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         counter simply stays RED.
         """
         self._operator_batch = {}
+        self._operator_table_meta = {}
         self._operator_plane_refused = False
         self._operator_unreached_offices = set()
 
@@ -760,7 +780,10 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             insight_name = spec.insight_name
             assert insight_name is not None  # spec invariant
             try:
-                per_office = await self._data_client.get_operator_insights_batch_async(
+                (
+                    per_office,
+                    table_meta,
+                ) = await self._data_client.get_operator_insights_batch_with_meta_async(
                     insight_name=insight_name,
                     phones=phones,
                     period=spec.period,
@@ -802,6 +825,28 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                     error_message=str(exc),
                 )
                 continue
+            except OperatorBatchVersionSkewError as exc:
+                # provenance-to-the-human Sprint 1 (G1): the served offices disagree
+                # on weights_version. A single META token would LIE for the divergent
+                # offices (contract §3.1), so this table CANNOT render a trustworthy
+                # weight-banded number. Route to the SAME typed-refusal rail as a
+                # denial -- a VISIBLE typed error-box, never a silent single-token
+                # render. This is the render-seam analogue of the emission-side
+                # WeightsVersionCardinalityError. At the current single-scheme
+                # registry state this can never fire; it is the named guard the
+                # row-grain trigger arms against. The daily run is preserved.
+                logger.warning(
+                    "insights_export_operator_table_version_skew",
+                    table=spec.table_name,
+                    versions=exc.versions,
+                    error=str(exc),
+                )
+                self._operator_batch[spec.table_name] = _OperatorTableDenial(
+                    reason=getattr(exc, "reason", "weights_version_skew"),
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
+                )
+                continue
             except (
                 Exception  # noqa: BLE001
             ) as exc:  # BROAD-CATCH: an unexpected operator error must not crash the daily run
@@ -823,6 +868,10 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                 )
                 continue
             self._operator_batch[spec.table_name] = per_office
+            # Carry the served table's RESPONSE/META-grain provenance ALONGSIDE the
+            # rows (Sprint 1). Rides the parallel meta map, keyed by table_name; read
+            # by _fetch_table to attach weights_version + asOf onto the TableResult.
+            self._operator_table_meta[spec.table_name] = table_meta
             fetched += 1
 
         # Offices the run budget / throttle could not reach this run (NON-definitive
@@ -963,6 +1012,42 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             # removes rows, preserving de-identification.
             data = _apply_activity_filter(rows) if spec.activity_filter else list(rows)
 
+            # --- C2 never-hidden FIRE-SEAM (provenance-to-the-human Sprint 1, G4) ---
+            # The weighted-but-provenance-absent DEGENERATE arm is evaluated HERE,
+            # BEFORE the success TableResult below, so a weight-banded number can
+            # NEVER be constructed into a success=True render without its provenance
+            # (the naked-numbers representation of a weighted table is unreachable).
+            # If this table renders a weight-governed column (`_rows_are_weighted`)
+            # AND no weights_version was carried, route to the TYPED-refusal rail --
+            # a success=False TableResult that compose_report renders as a VISIBLE
+            # typed error-box (`_render_error_section`), DISTINCT from empty and from
+            # a provenance-free number. This is the seam-crossing analogue of the
+            # emission-side WeightSchemeNotFoundError (never a null-coerced blank).
+            # An UNWEIGHTED table (no weight-governed column) is exempt: it renders
+            # normally with NO badge and MUST NOT trip this guard.
+            table_meta = self._operator_table_meta.get(spec.table_name)
+            weights_version = table_meta.weights_version if table_meta is not None else None
+            synced_at = table_meta.synced_at if table_meta is not None else None
+
+            if _rows_are_weighted(data) and weights_version is None:
+                elapsed_ms = (time.monotonic() - fetch_start) * 1000
+                logger.warning(
+                    "insights_export_table_weighted_provenance_absent",
+                    offer_gid=offer_gid,
+                    table_name=spec.table_name,
+                    row_count=len(data),
+                    duration_ms=elapsed_ms,
+                )
+                return TableResult(
+                    table_name=spec.table_name,
+                    success=False,
+                    error_type="WeightsProvenanceAbsent",
+                    error_message=(
+                        "weight-banded numbers rendered without weights_version "
+                        "provenance (C2 never-hidden refusal)"
+                    ),
+                )
+
             elapsed_ms = (time.monotonic() - fetch_start) * 1000
 
             logger.info(
@@ -978,6 +1063,8 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                 success=True,
                 data=data,
                 row_count=len(data),
+                weights_version=weights_version,
+                synced_at=synced_at,
             )
 
         except (
@@ -1022,6 +1109,24 @@ def _apply_activity_filter(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return spend > 0 or leads > 0
 
     return [row for row in rows if _is_active(row)]
+
+
+def _rows_are_weighted(rows: list[dict[str, Any]]) -> bool:
+    """True iff any row carries a weight-governed column (Sprint 1, C2 population).
+
+    A table is "weight-banded" -- and therefore OWES a weights_version disclosure
+    (WORM §1.3 never-hidden) -- iff its rendered rows carry at least one column in
+    :data:`WEIGHTED_CONSUMER_METRICS` (``ns_rate`` / ``nc_rate`` / ``conv_rate`` /
+    ``nsr_ncr`` / ``xcps``). This is the render-side discriminator that scopes the
+    C2 guard and the provenance badge: an UNWEIGHTED table (no such column) renders
+    normally with NO badge and does not trip the guard; a WEIGHTED table without a
+    weights_version is refused typed. Membership on discrete column-name keys --
+    NOT a float comparison -- so no tolerance is involved.
+
+    An empty ``rows`` list is NOT weighted (there is no weight-banded number to
+    disclose provenance for), so a genuinely-empty served table is exempt.
+    """
+    return any(col in WEIGHTED_CONSUMER_METRICS for row in rows for col in row)
 
 
 def _sanitize_business_name(name: str) -> str:

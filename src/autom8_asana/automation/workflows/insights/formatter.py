@@ -183,6 +183,19 @@ class TableResult:
         row_count: Number of rows returned.
         error_type: Error classification string (if failed).
         error_message: Human-readable error description (if failed).
+        weights_version: provenance-to-the-human Sprint 1 (render-wiring): the
+            applied show-probability weight-scheme version-id carried from the
+            operator batch's RESPONSE/META-grain provenance (the single provenance
+            token, e.g. ``2026-03-24-static-UNRATIFIED``). None when the table
+            carried no weights_version (declared absence). For a WEIGHTED table
+            (one carrying a weight-governed column), None is IMPOSSIBLE on a
+            ``success=True`` result -- the C2 guard in ``_fetch_table`` routes a
+            weighted-but-provenance-absent table to a ``success=False`` typed
+            refusal INSTEAD, so a weight-banded number never renders provenance-free.
+        synced_at: ISO-8601 asOf timestamp of the data snapshot this table was
+            computed over (``DataFreshness.synced_at``), or None when unknown. Read
+            by the render to stamp the section subtitle with the live query date
+            (R4/DEFER-6) so a snapshot is not misread as stable history.
     """
 
     table_name: str
@@ -191,6 +204,8 @@ class TableResult:
     row_count: int = 0
     error_type: str | None = None
     error_message: str | None = None
+    weights_version: str | None = None
+    synced_at: str | None = None
 
 
 @dataclass
@@ -214,7 +229,16 @@ class InsightsReportData:
 
 @dataclass(frozen=True)
 class DataSection:
-    """A named section containing tabular data or a status message."""
+    """A named section containing tabular data or a status message.
+
+    provenance-to-the-human Sprint 1 (render-wiring, H7): ``weights_version`` and
+    ``synced_at`` carry the section's provenance from the ``TableResult`` to the
+    rendered HTML. When ``weights_version`` is present the section renders a
+    provenance disclosure line (the version-id -- which itself says UNRATIFIED --
+    plus the asOf); when ``synced_at`` is present the snapshot-grain subtitle is
+    stamped with the live query date (R4/DEFER-6). Both None => no provenance
+    surface (an unweighted section, or a section with no snapshot stamp).
+    """
 
     name: str
     rows: list[dict[str, Any]] | None
@@ -224,6 +248,8 @@ class DataSection:
     error: str | None = None
     empty_message: str | None = None
     full_rows: list[dict[str, Any]] | None = None
+    weights_version: str | None = None
+    synced_at: str | None = None
 
 
 class StructuredDataRenderer(Protocol):
@@ -253,6 +279,74 @@ class StructuredDataRenderer(Protocol):
     ) -> str:
         """Render a complete document with header, data sections, and footer."""
         ...
+
+
+# ---------------------------------------------------------------------------
+# Provenance disclosure (provenance-to-the-human Sprint 1, render badge H7)
+# ---------------------------------------------------------------------------
+
+# The literal disclosed when a weighted section's asOf (synced_at) is unknown.
+# Ruling (§4c): for a weighted table the asOf ignorance is DISCLOSED, never
+# silently omitted -- a snapshot-grain number with no query-date stamp could be
+# misread as reproducible history. An unweighted section renders no provenance
+# line at all, so this literal only ever appears for weighted sections.
+_ASOF_UNKNOWN_TEXT = "unknown"
+
+
+def _provenance_line_html(weights_version: str | None, synced_at: str | None) -> str:
+    """Render the per-section provenance disclosure line, or "" when none.
+
+    The line is emitted iff a ``weights_version`` is present (the section carries a
+    weight-banded number, so WORM §1.3 never-hidden REQUIRES the disclosure). It
+    states the version-id verbatim (the id ITSELF discloses UNRATIFIED -- the
+    Reading-A truth-telling token) and the asOf query date. When ``synced_at`` is
+    None the asOf is DISCLOSED as unknown (§4c ruling), never omitted.
+
+    The founder SEES, e.g.:
+        weights 2026-03-24-static-UNRATIFIED · as of 2026-07-13T00:00:00Z
+        weights 2026-03-24-static-UNRATIFIED · as of unknown   (asOf absent)
+
+    No ``weights_version`` => "" (an unweighted section discloses nothing here; the
+    C2 guard upstream guarantees a WEIGHTED section always arrives with one, so ""
+    here can only mean unweighted).
+    """
+    if not weights_version:
+        return ""
+    asof = html.escape(synced_at) if synced_at else _ASOF_UNKNOWN_TEXT
+    return (
+        f'<div class="section-provenance">weights '
+        f"{html.escape(weights_version)} · as of {asof}</div>"
+    )
+
+
+def _section_disclosure_html(section: DataSection) -> str:
+    """Build the subtitle (+ live asOf stamp) + provenance line for a section.
+
+    Two disclosures, one place (so neither can drift from the other across the
+    three section renderers):
+
+    1. SUBTITLE (R4 / DEFER-6): the base window prose from ``_SECTION_SUBTITLES``,
+       with the live asOf query date APPENDED (``· as of <ISO>``) whenever the
+       section carries a ``synced_at``. This discharges the emission MANDATE
+       (consumers MUST stamp the query date): a snapshot-grain number no longer
+       renders a bare hand-maintained time claim -- the LIVE query date rides
+       alongside it. The base prose is preserved verbatim (unweighted sections and
+       sections without a snapshot stamp render exactly as before).
+    2. PROVENANCE line (C2 badge): the weights_version + asOf disclosure for a
+       weighted section (:func:`_provenance_line_html`); "" for unweighted.
+
+    Returns the concatenated HTML (subtitle div then provenance div), or "" only
+    when there is neither a subtitle nor provenance to show.
+    """
+    subtitle = _SECTION_SUBTITLES.get(section.name, "")
+    subtitle_html = ""
+    if subtitle:
+        stamped = html.escape(subtitle)
+        if section.synced_at:
+            stamped = f"{stamped} · as of {html.escape(section.synced_at)}"
+        subtitle_html = f'<div class="section-subtitle">{stamped}</div>'
+    provenance_html = _provenance_line_html(section.weights_version, section.synced_at)
+    return subtitle_html + provenance_html
 
 
 # ---------------------------------------------------------------------------
@@ -618,11 +712,8 @@ class HtmlRenderer:
                 cells.append(f'<td class="{td_class}">{cell_html}</td>')
             body_rows.append(f"<tr>{''.join(cells)}</tr>")
 
-        # Subtitle
-        subtitle = _SECTION_SUBTITLES.get(section.name, "")
-        subtitle_html = (
-            f'<div class="section-subtitle">{html.escape(subtitle)}</div>' if subtitle else ""
-        )
+        # Subtitle (+ live asOf stamp) + provenance line (Sprint 1, H7)
+        subtitle_html = _section_disclosure_html(section)
 
         # Embedded JSON for Copy TSV (with PII masking)
         json_rows = section.full_rows if section.full_rows is not None else (section.rows or [])
@@ -666,10 +757,7 @@ class HtmlRenderer:
         sid = _slugify(section.name)
         is_expanded = section.name in _DEFAULT_EXPANDED_SECTIONS
         collapsed_class = "" if is_expanded else " collapsed"
-        subtitle = _SECTION_SUBTITLES.get(section.name, "")
-        subtitle_html = (
-            f'<div class="section-subtitle">{html.escape(subtitle)}</div>' if subtitle else ""
-        )
+        subtitle_html = _section_disclosure_html(section)
         return (
             f'<section id="{sid}" class="table-section">\n'
             f'<div class="section-header" onclick="toggleSection(\'{sid}\')">\n'
@@ -761,6 +849,11 @@ def compose_report(data: InsightsReportData) -> str:
                     name=spec.table_name,
                     rows=[],
                     empty_message=spec.empty_message,
+                    # asOf carried even for an empty served section so a
+                    # snapshot-grain empty table still stamps its query date; a
+                    # genuinely-empty table is never weighted, so weights_version is
+                    # None here (the C2 badge is absent, correctly).
+                    synced_at=result.synced_at,
                 )
             )
             continue
@@ -774,6 +867,7 @@ def compose_report(data: InsightsReportData) -> str:
                     name=spec.table_name,
                     rows=[],
                     empty_message=_RECONCILIATION_PENDING_MESSAGE,
+                    synced_at=result.synced_at,
                 )
             )
             continue
@@ -813,6 +907,10 @@ def compose_report(data: InsightsReportData) -> str:
             ]
 
         # --- Step 8: Emit DataSection ---
+        # Provenance carried from the TableResult onto the rendered section (H7):
+        # weights_version drives the C2 badge (present for weighted sections;
+        # guaranteed present by the C2 guard, which refuses a weighted table
+        # lacking it BEFORE it reaches here), synced_at stamps the subtitle asOf.
         sections.append(
             DataSection(
                 name=spec.table_name,
@@ -821,6 +919,8 @@ def compose_report(data: InsightsReportData) -> str:
                 truncated=truncated,
                 total_rows=total_rows if truncated else None,
                 full_rows=all_rows,
+                weights_version=result.weights_version,
+                synced_at=result.synced_at,
             )
         )
 
