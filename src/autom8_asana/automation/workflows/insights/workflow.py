@@ -1028,6 +1028,19 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             table_meta = self._operator_table_meta.get(spec.table_name)
             weights_version = table_meta.weights_version if table_meta is not None else None
             synced_at = table_meta.synced_at if table_meta is not None else None
+            # provenance-to-the-human Sprint 4 (coverage-disclosure-at-render): carry
+            # the attribution-coverage sidecar ALONGSIDE weights_version/asOf onto the
+            # TableResult so the OFFER TABLE render can disclose the spend-attribution
+            # floor AT THE POINT OF ACTION. This is a PASSTHROUGH carry, NOT a guard:
+            # coverage has NO throw arm on the deck (the batch path never runs the
+            # coverage processor, so the truthful state is coverage=None +
+            # coverage_expected=False -> a VISIBLE "not measured" token downstream,
+            # never a fabricated ceiling). The C2 weights guard BELOW stays weights-
+            # only; a served weighted table still refuses typed iff it lacks a
+            # weights_version, unchanged by coverage. Absence is DECLARED (None +
+            # False), never null-coerced into a full-attribution reading (G4).
+            coverage = table_meta.coverage if table_meta is not None else None
+            coverage_expected = table_meta.coverage_expected if table_meta is not None else False
 
             if _rows_are_weighted(data) and weights_version is None:
                 elapsed_ms = (time.monotonic() - fetch_start) * 1000
@@ -1065,6 +1078,8 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                 row_count=len(data),
                 weights_version=weights_version,
                 synced_at=synced_at,
+                coverage=coverage,
+                coverage_expected=coverage_expected,
             )
 
         except (

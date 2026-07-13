@@ -196,6 +196,20 @@ class TableResult:
             computed over (``DataFreshness.synced_at``), or None when unknown. Read
             by the render to stamp the section subtitle with the live query date
             (R4/DEFER-6) so a snapshot is not misread as stable history.
+        coverage: provenance-to-the-human Sprint 4 (coverage-disclosure-at-render):
+            the attribution-coverage sidecar (``AttributionCoverage`` from the
+            operator batch meta), or None when the batch carried no coverage block.
+            Read together with ``coverage_expected`` by the OFFER TABLE render to
+            disclose the spend-attribution floor (measured), the unknown (no_data),
+            or the honest-absent "not measured" (None + coverage_expected False)
+            state -- a typed three-valued disclosure, never a null-coerced full
+            attribution reading (G4). Carried as ``Any`` to avoid a formatter->client
+            import edge; the render only reads ``.status`` / ``.orphan_spend_share``.
+        coverage_expected: provenance-to-the-human Sprint 4: whether a coverage block
+            is contractually expected for this table. False == "this table makes no
+            coverage promise" (the truthful deck state -> "not measured"). Governs the
+            None-coverage render fork: honest-absent (False) vs would-be-dropped
+            unknown (True). Defaults False.
     """
 
     table_name: str
@@ -206,6 +220,8 @@ class TableResult:
     error_message: str | None = None
     weights_version: str | None = None
     synced_at: str | None = None
+    coverage: Any = None
+    coverage_expected: bool = False
 
 
 @dataclass
@@ -238,6 +254,13 @@ class DataSection:
     plus the asOf); when ``synced_at`` is present the snapshot-grain subtitle is
     stamped with the live query date (R4/DEFER-6). Both None => no provenance
     surface (an unweighted section, or a section with no snapshot stamp).
+
+    provenance-to-the-human Sprint 4 (coverage-disclosure-at-render): ``coverage``
+    + ``coverage_expected`` carry the attribution-coverage sidecar from the
+    ``TableResult``. The OFFER TABLE section renders a spend-attribution
+    disclosure line from them (:func:`_coverage_line_html` -- measured floor /
+    no-data / not-measured); other sections render none (the disclose-mandate is
+    scoped to the surface where spend is allocated, autom8y-data db.md:180-184).
     """
 
     name: str
@@ -250,6 +273,8 @@ class DataSection:
     full_rows: list[dict[str, Any]] | None = None
     weights_version: str | None = None
     synced_at: str | None = None
+    coverage: Any = None
+    coverage_expected: bool = False
 
 
 class StructuredDataRenderer(Protocol):
@@ -319,10 +344,68 @@ def _provenance_line_html(weights_version: str | None, synced_at: str | None) ->
     )
 
 
-def _section_disclosure_html(section: DataSection) -> str:
-    """Build the subtitle (+ live asOf stamp) + provenance line for a section.
+# ---------------------------------------------------------------------------
+# Coverage disclosure (provenance-to-the-human Sprint 4, OFFER TABLE)
+# ---------------------------------------------------------------------------
 
-    Two disclosures, one place (so neither can drift from the other across the
+# The sections that render a spend-attribution coverage line. The disclose-mandate
+# is scoped to the surface where spend is ALLOCATED (autom8y-data db.md:180-184);
+# widening this set is a define-altitude ruling, never a silent edit.
+_COVERAGE_DISCLOSED_SECTIONS = frozenset({"OFFER TABLE"})
+
+# The disclosed-unknown token for a coverage-less OFFER TABLE. Under the BR-3
+# honest-floor ruling the deck's batch path never runs the coverage processor, so
+# coverage=None (+ coverage_expected either way) is the TRUTHFUL state -- disclosed
+# visibly, never a silent blank and never a fabricated full-attribution reading.
+_COVERAGE_NOT_MEASURED_TEXT = "spend attribution: not measured"
+# The disclosed-unknown token for a measured-window absence (status="no_data"):
+# the window has no coverage measurement -- never rendered as 0% or 100%.
+_COVERAGE_NO_DATA_TEXT = "spend attribution: no data this window"
+
+
+def _coverage_line_html(section: DataSection) -> str:
+    """Render the OFFER TABLE spend-attribution disclosure line, or "" elsewhere.
+
+    Three faces (BR-3 ruling (a) HONEST-FLOOR; contract §Q3/§Q4):
+
+    - MEASURED (``status=="measured"`` with an ``orphan_spend_share``): the
+      DIRECTIONAL IGNORANCE FLOOR -- ``spend attribution: ≥ 12.3% unattributed
+      (orphan ads)``. A ``≥``-floor on the UNATTRIBUTED share, never a point
+      "coverage 86%" claim and never a CI-shaped interval (C1: an ignorance floor
+      must not launder into an accuracy claim).
+    - NO_DATA (``status=="no_data"``, or a degenerate measured payload without a
+      share): ``spend attribution: no data this window`` -- disclosed-unknown,
+      never 0%/100%.
+    - NOT MEASURED (``coverage is None``; the deck honest-absent state, and the
+      would-be-dropped ``coverage_expected=True`` state until F5-coverage-THROW
+      arms): ``spend attribution: not measured`` -- a VISIBLE token, structurally
+      distinct from a silent blank. NO error, NO throw (the deck typed-THROW is
+      NOT-YET-ARMABLE -- F5-coverage-THROW co-arms with batch measurement).
+
+    Non-OFFER-TABLE sections return "" (no coverage claim is made where spend is
+    not allocated -- no cry-wolf).
+    """
+    if section.name not in _COVERAGE_DISCLOSED_SECTIONS:
+        return ""
+    coverage = section.coverage
+    if coverage is None:
+        text = _COVERAGE_NOT_MEASURED_TEXT
+    elif (
+        getattr(coverage, "status", None) == "measured"
+        and getattr(coverage, "orphan_spend_share", None) is not None
+    ):
+        share = float(coverage.orphan_spend_share)
+        text = f"spend attribution: ≥ {share:.1%} unattributed (orphan ads)"
+    else:
+        # no_data, or a degenerate measured payload without a share.
+        text = _COVERAGE_NO_DATA_TEXT
+    return f'<div class="section-provenance section-coverage">{html.escape(text)}</div>'
+
+
+def _section_disclosure_html(section: DataSection) -> str:
+    """Build the subtitle (+ live asOf stamp) + provenance + coverage lines.
+
+    Three disclosures, one place (so none can drift from the others across the
     three section renderers):
 
     1. SUBTITLE (R4 / DEFER-6): the base window prose from ``_SECTION_SUBTITLES``,
@@ -334,9 +417,10 @@ def _section_disclosure_html(section: DataSection) -> str:
        sections without a snapshot stamp render exactly as before).
     2. PROVENANCE line (C2 badge): the weights_version + asOf disclosure for a
        weighted section (:func:`_provenance_line_html`); "" for unweighted.
+    3. COVERAGE line (Sprint 4): the OFFER TABLE spend-attribution disclosure
+       (:func:`_coverage_line_html`); "" for every other section.
 
-    Returns the concatenated HTML (subtitle div then provenance div), or "" only
-    when there is neither a subtitle nor provenance to show.
+    Returns the concatenated HTML, or "" only when there is nothing to show.
     """
     subtitle = _SECTION_SUBTITLES.get(section.name, "")
     subtitle_html = ""
@@ -346,7 +430,8 @@ def _section_disclosure_html(section: DataSection) -> str:
             stamped = f"{stamped} · as of {html.escape(section.synced_at)}"
         subtitle_html = f'<div class="section-subtitle">{stamped}</div>'
     provenance_html = _provenance_line_html(section.weights_version, section.synced_at)
-    return subtitle_html + provenance_html
+    coverage_html = _coverage_line_html(section)
+    return subtitle_html + provenance_html + coverage_html
 
 
 # ---------------------------------------------------------------------------
@@ -854,6 +939,11 @@ def compose_report(data: InsightsReportData) -> str:
                     # genuinely-empty table is never weighted, so weights_version is
                     # None here (the C2 badge is absent, correctly).
                     synced_at=result.synced_at,
+                    # Coverage carried for an empty SERVED section too (Sprint 4):
+                    # an empty OFFER TABLE window still owes its spend-attribution
+                    # disclosure (typically the no_data / not-measured face).
+                    coverage=result.coverage,
+                    coverage_expected=result.coverage_expected,
                 )
             )
             continue
@@ -911,6 +1001,8 @@ def compose_report(data: InsightsReportData) -> str:
         # weights_version drives the C2 badge (present for weighted sections;
         # guaranteed present by the C2 guard, which refuses a weighted table
         # lacking it BEFORE it reaches here), synced_at stamps the subtitle asOf.
+        # Sprint 4: coverage rides the same hop; the OFFER TABLE render discloses
+        # the spend-attribution face from it (_coverage_line_html).
         sections.append(
             DataSection(
                 name=spec.table_name,
@@ -921,6 +1013,8 @@ def compose_report(data: InsightsReportData) -> str:
                 full_rows=all_rows,
                 weights_version=result.weights_version,
                 synced_at=result.synced_at,
+                coverage=result.coverage,
+                coverage_expected=result.coverage_expected,
             )
         )
 
