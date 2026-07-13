@@ -158,7 +158,9 @@ class TestRA1MootAtCuredCap:
         # SEEDED-FALSE (S5-F DISPROOF-2 repro): an all-100.0 face with the honest
         # understate band. Pre-cure this rendered "direction: understates" at a
         # saturated rate (the §2.5.3 MUST-NOT). The cure vacates it to moot.
-        html = _compose([{"nsr_ncr": 100.0, "spend": 2.0}, {"nsr_ncr": 100.0, "spend": 1.0}], _band())
+        html = _compose(
+            [{"nsr_ncr": 100.0, "spend": 2.0}, {"nsr_ncr": 100.0, "spend": 1.0}], _band()
+        )
         assert "moot at 100% (saturated)" in html
         assert "direction: understates" not in html
         # width + version still convey (only the direction is transformed).
@@ -168,7 +170,9 @@ class TestRA1MootAtCuredCap:
     def test_mixed_face_renders_normal_understate_guard_does_not_over_fire(self) -> None:
         # TWO-SIDED: one sub-cap row among the drawn face -> the tilt is observable
         # somewhere, so the directional line STANDS (the moot guard must not fire).
-        html = _compose([{"nsr_ncr": 100.0, "spend": 2.0}, {"nsr_ncr": 50.0, "spend": 1.0}], _band())
+        html = _compose(
+            [{"nsr_ncr": 100.0, "spend": 2.0}, {"nsr_ncr": 50.0, "spend": 1.0}], _band()
+        )
         assert "direction: understates" in html
         assert "moot at 100%" not in html
 
@@ -260,7 +264,9 @@ class TestRA3SchemeVectorKill:
     """The FIRE-SEAM BAND-SCHEME equality refuses foreign scheme payloads."""
 
     def test_s5f_fifth_vector_draws_nothing_and_leaks_no_wilson_digit(self) -> None:
-        html, logs = _compose_capturing_logs([{"nsr_ncr": 31.2, "spend": 1.0}], _band(scheme=_SCHEME_SMUGGLE))
+        html, logs = _compose_capturing_logs(
+            [{"nsr_ncr": 31.2, "spend": 1.0}], _band(scheme=_SCHEME_SMUGGLE)
+        )
         assert "section-band" not in html
         assert "forward-rate band" not in html
         for number in _LAUNDERED_NUMBERS:
@@ -271,7 +277,9 @@ class TestRA3SchemeVectorKill:
 
     def test_matching_version_renders_the_line(self) -> None:
         # TWO-SIDED: the scheme that DOES equal weights_version draws the band.
-        html, logs = _compose_capturing_logs([{"nsr_ncr": 31.2, "spend": 1.0}], _band(scheme=_CURRENT_VERSION))
+        html, logs = _compose_capturing_logs(
+            [{"nsr_ncr": 31.2, "spend": 1.0}], _band(scheme=_CURRENT_VERSION)
+        )
         assert "section-band" in html
         assert f"weights {_CURRENT_VERSION}" in html
         assert [e for e in logs if e.get("event") == "insights_export_band_render_refused"] == []
@@ -305,7 +313,9 @@ class TestRA3SchemeVectorKill:
         # not a normalized/visual compare -- a homoglyph cannot pass.)
         homoglyph = _CURRENT_VERSION.replace("A", "А")  # Cyrillic capital A
         assert homoglyph != _CURRENT_VERSION
-        html, logs = _compose_capturing_logs([{"nsr_ncr": 31.2, "spend": 1.0}], _band(scheme=homoglyph))
+        html, logs = _compose_capturing_logs(
+            [{"nsr_ncr": 31.2, "spend": 1.0}], _band(scheme=homoglyph)
+        )
         assert "section-band" not in html
         refusals = [e for e in logs if e.get("event") == "insights_export_band_render_refused"]
         assert refusals and refusals[0]["reason"] == "scheme_version_mismatch"
