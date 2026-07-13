@@ -45,6 +45,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
+import structlog
 
 from autom8_asana.automation.workflows.insights import formatter as _fmt_mod
 from autom8_asana.automation.workflows.insights.formatter import (
@@ -120,15 +121,32 @@ def _weighted_section(
     *,
     weights_version: str | None = _CURRENT_VERSION,
     name: str = _SUMMARY,
+    rows: list[dict[str, Any]] | None = None,
 ) -> DataSection:
+    section_rows = rows if rows is not None else [{"nsr_ncr": 31.2, "spend": 100.0}]
     return DataSection(
         name=name,
-        rows=[{"nsr_ncr": 31.2, "spend": 100.0}],
-        row_count=1,
+        rows=section_rows,
+        row_count=len(section_rows),
         weights_version=weights_version,
         synced_at=_FIXTURE_ASOF,
         band=band,
     )
+
+
+def _band_line_capturing_logs(section: DataSection) -> tuple[str, list[dict[str, Any]]]:
+    """Run ``_band_line_html`` under structlog capture so refusal logs can be
+    asserted at the unit hop.
+
+    Clears the module logger's cached ``bind`` (the ``cache_logger_on_first_use``
+    caveat proven at ``tests/unit/core/test_concurrency.py``) so ``capture_logs``
+    intercepts even when an earlier test bound the proxy."""
+    proxy = _fmt_mod.logger
+    if "bind" in getattr(proxy, "__dict__", {}):
+        del proxy.__dict__["bind"]
+    with structlog.testing.capture_logs() as captured:
+        html_out = _band_line_html(section)
+    return html_out, list(captured)
 
 
 @pytest.fixture
@@ -514,3 +532,198 @@ class TestWorkflowBandThreading:
             version="insights-export-v1.0",
         )
         assert _EXPECTED_BAND_LINE in compose_report(data)
+
+
+# =====================================================================
+# 7. FIRE-SEAM BAND-M5: moot-at-cap direction (DISPROOF-2 cure, §2.5.3)
+# =====================================================================
+
+# The exact moot-at-cap line: only the direction token differs from
+# _EXPECTED_BAND_LINE (width + version convey unchanged, §2.5.3).
+_EXPECTED_MOOT_BAND_LINE = (
+    '<div class="section-provenance section-band">'
+    "forward-rate band: [0,1] ignorance · direction: moot at 100% (saturated) "
+    "(weights 2026-03-24-static-UNRATIFIED)</div>"
+)
+
+
+@pytest.mark.usefixtures("_flag_on")
+class TestMootAtCapDirection:
+    """A saturated section face vacates the directional overlay -- moot, not
+    reversed (spec §2.5.3): the presentation must not imply an understatement
+    remains observable at the 100% cap. MULTI-ROW RULING (per-TABLE claim):
+    moot ONLY when EVERY rendered nsr_ncr value sits at the cap; ANY sub-cap
+    row keeps the tilt observable somewhere on the face -> directional line
+    stands, byte-unchanged."""
+
+    def test_saturated_single_row_renders_moot_token_never_understate(self) -> None:
+        section = _weighted_section(band=_OVERLAY_BAND, rows=[{"nsr_ncr": 100.0, "spend": 100.0}])
+        html_out = _band_line_html(section)
+        assert html_out == _EXPECTED_MOOT_BAND_LINE
+        assert "direction: moot at 100% (saturated)" in html_out
+        # The §2.5.3 MUST-NOT: no understate token at a saturated face.
+        assert "understate" not in html_out
+        # Width + version still convey (only the direction is vacated).
+        assert "[0,1] ignorance" in html_out
+        assert f"weights {_CURRENT_VERSION}" in html_out
+
+    def test_saturated_multi_row_all_at_cap_is_moot(self) -> None:
+        # Per-office deck rows, ALL at the cap: no sub-cap face anywhere.
+        section = _weighted_section(
+            band=_OVERLAY_BAND,
+            rows=[
+                {"office_phone": "***0001", "nsr_ncr": 100.0},
+                {"office_phone": "***0002", "nsr_ncr": 100.0},
+            ],
+        )
+        html_out = _band_line_html(section)
+        assert "direction: moot at 100% (saturated)" in html_out
+        assert "understate" not in html_out
+
+    def test_mixed_sub_cap_rows_render_the_existing_directional_line(self) -> None:
+        # ANY sub-cap row => the tilt is observable somewhere on the face,
+        # so the direction claim stands (per-TABLE ruling).
+        section = _weighted_section(
+            band=_OVERLAY_BAND,
+            rows=[
+                {"office_phone": "***0001", "nsr_ncr": 100.0},
+                {"office_phone": "***0002", "nsr_ncr": 42.0},
+            ],
+        )
+        assert _band_line_html(section) == _EXPECTED_BAND_LINE
+
+    def test_honest_sub_cap_line_byte_unchanged(self) -> None:
+        # The disprover's GREEN-arm string (teeth fixture Arm 2) is untouched
+        # by the moot guard for the honest sub-cap case -- byte-exact.
+        assert _band_line_html(_weighted_section(band=_OVERLAY_BAND)) == _EXPECTED_BAND_LINE
+
+    def test_no_nsr_ncr_column_renders_the_existing_line(self) -> None:
+        # No nsr_ncr column on the face => no change; the at-cap "spend"
+        # value must NOT trigger moot (the guard is keyed to nsr_ncr only).
+        section = _weighted_section(band=_OVERLAY_BAND, rows=[{"spend": 100.0}])
+        assert _band_line_html(section) == _EXPECTED_BAND_LINE
+
+    def test_all_none_nsr_ncr_column_renders_the_existing_line(self) -> None:
+        # A column of dashes draws no rate: no saturated 100% face exists,
+        # so the directional line stands (not moot).
+        section = _weighted_section(band=_OVERLAY_BAND, rows=[{"nsr_ncr": None}])
+        assert _band_line_html(section) == _EXPECTED_BAND_LINE
+
+    def test_foreign_super_cap_value_is_also_moot(self) -> None:
+        # >100 is unmintable by our plane (composite.py:1001 clamps); a foreign
+        # super-cap face has ALSO saturated past the cap -- no observable tilt.
+        section = _weighted_section(band=_OVERLAY_BAND, rows=[{"nsr_ncr": 250.0}])
+        assert "direction: moot at 100% (saturated)" in _band_line_html(section)
+
+    def test_moot_fires_no_refusal_log(self) -> None:
+        # Moot is a presentation transform on an ADMISSIBLE band, not a refusal.
+        section = _weighted_section(band=_OVERLAY_BAND, rows=[{"nsr_ncr": 100.0}])
+        html_out, logs = _band_line_capturing_logs(section)
+        assert html_out == _EXPECTED_MOOT_BAND_LINE
+        assert [e for e in logs if e.get("event") == "insights_export_band_render_refused"] == []
+
+    def test_composed_document_carries_moot_line_for_saturated_summary(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The cure holds at the COMPOSED altitude the disprover attacked
+        # (DISPROOF-2 drove compose_report over a saturated SUMMARY row).
+        monkeypatch.setenv(RENDER_NSR_BAND_ENV_VAR, "true")
+        data = InsightsReportData(
+            business_name="Acme Dental",
+            office_phone="+17705753103",
+            vertical="chiropractic",
+            table_results={
+                _SUMMARY: TableResult(
+                    table_name=_SUMMARY,
+                    success=True,
+                    data=[{"nsr_ncr": 100.0, "spend": 100.0}],
+                    row_count=1,
+                    weights_version=_CURRENT_VERSION,
+                    synced_at=_FIXTURE_ASOF,
+                    band=_OVERLAY_BAND,
+                )
+            },
+            started_at=100.0,
+            version="insights-export-v1.0",
+        )
+        doc = compose_report(data)
+        assert _EXPECTED_MOOT_BAND_LINE in doc
+        assert "direction: understates" not in doc
+
+
+# =====================================================================
+# 8. FIRE-SEAM BAND-SCHEME: scheme_version must equal the section's
+#    weights_version (DISPROOF-3 cure -- one equality closes the
+#    mismatch-trust AND the smuggled-Wilson-text fifth vector)
+# =====================================================================
+
+
+def _band_with_scheme(scheme_version: str) -> WeightIgnoranceBand:
+    return WeightIgnoranceBand(
+        status="ignorance_overlay",
+        scheme_version=scheme_version,
+        lower=0.0,
+        upper=1.0,
+        overlay_direction="understate",
+    )
+
+
+@pytest.mark.usefixtures("_flag_on")
+class TestSchemeVersionEqualityGuard:
+    """The render re-asserts the emission invariant scheme_version ==
+    weights_version, defense-in-depth: a mismatch at render can only be a
+    foreign / corrupted payload -> nothing drawn, loud refusal log. Boundary
+    (stated honestly): weights_version itself is already rendered verbatim by
+    the merged provenance badge, a pre-existing accepted surface -- the band
+    line adds no NEW text surface beyond what the badge renders."""
+
+    def test_mismatched_scheme_version_renders_nothing(self) -> None:
+        band = _band_with_scheme("9999-FOREIGN-SCHEME")
+        assert _band_line_html(_weighted_section(band=band)) == ""
+
+    def test_mismatch_fires_refusal_log_with_reason(self) -> None:
+        band = _band_with_scheme("9999-FOREIGN-SCHEME")
+        html_out, logs = _band_line_capturing_logs(_weighted_section(band=band))
+        assert html_out == ""
+        refusals = [
+            entry for entry in logs if entry.get("event") == "insights_export_band_render_refused"
+        ]
+        assert len(refusals) == 1
+        assert refusals[0]["reason"] == "scheme_version_mismatch"
+        assert refusals[0]["section"] == _SUMMARY
+
+    def test_smuggled_wilson_text_scheme_version_refused_nothing_drawn(self) -> None:
+        # The disprover's fifth vector: the laundered numbers posing as TEXT in
+        # the version-id slot. The equality guard refuses it (a smuggled string
+        # cannot equal the section's weights_version) -- nothing drawn.
+        band = _band_with_scheme("scheme-[0.3093,0.3150]-UNRATIFIED")
+        assert _band_line_html(_weighted_section(band=band)) == ""
+
+    def test_smuggled_wilson_text_leaks_nothing_into_the_document(self) -> None:
+        # §7.2 at the document altitude: the smuggled digits never reach the
+        # rendered HTML via the band's version-id slot.
+        band = _band_with_scheme("scheme-[0.3093,0.3150]-UNRATIFIED")
+        renderer = HtmlRenderer()
+        doc = renderer.render_document(
+            title="t", metadata={}, sections=[_weighted_section(band=band)]
+        )
+        assert "0.3093" not in doc
+        assert "0.3150" not in doc
+        assert "0.309" not in doc
+        assert "0.315" not in doc
+        assert "section-band" not in doc
+
+    def test_matching_scheme_version_renders_byte_unchanged(self) -> None:
+        # The emission-honest case (scheme == weights) is untouched by the guard.
+        assert _band_line_html(_weighted_section(band=_OVERLAY_BAND)) == _EXPECTED_BAND_LINE
+
+    def test_mismatch_leaves_pre_band_disclosures_untouched(self) -> None:
+        # Graceful degradation (mirrors the C1 refusal): only the band line is
+        # suppressed; the merged provenance badge still renders.
+        band = _band_with_scheme("9999-FOREIGN-SCHEME")
+        renderer = HtmlRenderer()
+        doc = renderer.render_document(
+            title="t", metadata={}, sections=[_weighted_section(band=band)]
+        )
+        assert f"weights {_CURRENT_VERSION}" in doc
+        assert "forward-rate band" not in doc

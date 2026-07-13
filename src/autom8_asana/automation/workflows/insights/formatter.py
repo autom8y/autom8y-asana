@@ -455,6 +455,63 @@ _BAND_DIRECTION_TEXT: dict[str, str] = {
     "indeterminate": "indeterminate",
 }
 
+# The deck column whose rendered rate the band line QUALIFIES: the nsr_ncr
+# forward rate (the WORM-W1 family face). _FIELD_FORMAT renders it as an
+# already-in-percent 0-100 "percentage" (100.0 -> "100.00%").
+_BAND_RATE_COLUMN = "nsr_ncr"
+
+# The M5 saturation cap on the rendered rate: the upstream PercentageFormula
+# clamps each rate to exactly 100.0 (autom8y-data composite.py:1001), so >= is
+# the at-the-cap predicate -- a foreign super-cap value (>100, unmintable by
+# our own plane) has ALSO saturated past the cap and carries no observable
+# strict-inequality tilt either.
+_BAND_RATE_CAP = 100.0
+
+# The §2.5.3 moot-at-cap direction token (DISPROOF-2 cure): at a saturated
+# rendered rate the directional overlay is VACATED -- moot, not reversed --
+# while the [0,1] ignorance width and the version id still convey. The token
+# names WHY no tilt is claimed; the understate/overstate words never appear
+# at the cap (the §2.5.3 MUST-NOT).
+_BAND_DIRECTION_MOOT_TEXT = "moot at 100% (saturated)"
+
+
+def _band_direction_moot_at_cap(section: DataSection) -> bool:
+    """True iff the section's rendered face is nsr_ncr-saturated (M5 fails everywhere).
+
+    DISPROOF-2 cure (BAND-MECHANISM §2.5.1 / §2.5.3): the overlay direction is a
+    strict-inequality tilt claim CONDITIONAL on the rendered rate being sub-cap.
+    Where the rate saturates at 100% the direction is moot, not reversed, and the
+    presentation MUST NOT imply an understatement remains observable at the cap.
+
+    MULTI-ROW RULING (the direction claim is per-TABLE): the deck tables are
+    per-office rows and ONE band line qualifies the WHOLE section face, so the
+    direction goes moot ONLY when EVERY rendered nsr_ncr value sits at the cap --
+    if ANY rendered row is sub-cap the tilt is observable somewhere on the face
+    and the directional line stands. Quantified over ``section.rows`` (the drawn
+    face: sorted / truncated / column-filtered, exactly what
+    ``_render_table_section`` draws) -- NOT ``full_rows`` (the Copy-TSV JSON
+    sidecar, never a drawn cell). A section whose rendered rows carry NO numeric
+    nsr_ncr value (column absent, display-filtered, or all-None dashes) is NOT
+    moot -- no saturated 100% face exists to contradict the tilt claim, so the
+    existing directional line renders unchanged (the no-nsr_ncr-column no-change
+    ruling).
+    """
+    saw_at_cap_rate = False
+    for row in section.rows or []:
+        value = row.get(_BAND_RATE_COLUMN)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            # None (a dash) / non-numeric never draws as a rate (mirrors the
+            # _extract_numeric_values acceptance + the _as_float_or_none
+            # bool rejection).
+            continue
+        if not float(value) >= _BAND_RATE_CAP:
+            # A sub-cap rate is on the face: the tilt is observable somewhere,
+            # so the direction claim stands. (NaN lands here too -- an
+            # out-of-contract face is never treated as a saturated 100%.)
+            return False
+        saw_at_cap_rate = True
+    return saw_at_cap_rate
+
 
 def _render_nsr_band_enabled() -> bool:
     """True iff the named GATE-B flag ``render_nsr_band`` is explicitly ON.
@@ -508,6 +565,33 @@ def _band_line_html(section: DataSection) -> str:
     impossible: an unconveyable/absent direction or a nameless scheme -- a
     partial band line would under-disclose, so nothing is drawn and the refusal
     is loud in the logs.
+
+    THE SCHEME-EQUALITY REFUSAL [FIRE-SEAM BAND-SCHEME] (DISPROOF-3 cure): the
+    band's ``scheme_version`` MUST equal the section's ``weights_version`` --
+    the emission side asserts this equality (spec §6.1), so a mismatch arriving
+    at render can only be a FOREIGN / corrupted payload the data plane did not
+    mint. On mismatch nothing is drawn and the refusal logs
+    reason="scheme_version_mismatch". This single equality guard ALSO closes
+    the fifth-vector text-smuggle (Wilson digits posing as a version id, e.g.
+    ``scheme-[0.3093,0.3150]-UNRATIFIED``): a smuggled string cannot equal the
+    section's weights_version. Defense scope, stated honestly: the band line
+    thereby adds NO new text surface beyond what the merged provenance badge
+    (:func:`_provenance_line_html`) already renders verbatim -- if
+    ``weights_version`` itself were the smuggle vector, the badge would already
+    render it; that pre-existing accepted surface is the badge's contract, not
+    this seam's.
+
+    THE M5 MOOT-AT-CAP DIRECTION [FIRE-SEAM BAND-M5] (DISPROOF-2 cure, spec
+    §2.5.3): when EVERY rendered nsr_ncr value on the section face sits at the
+    100% cap (:func:`_band_direction_moot_at_cap` -- per-TABLE ruling in its
+    docstring), the direction token renders as ``moot at 100% (saturated)``
+    instead of the overlay word -- the strict-inequality tilt claim is vacated
+    at saturation (moot, not reversed; the understate token MUST NOT appear).
+    Width + version still convey unchanged. A sub-cap section renders exactly
+    the existing directional line, byte-unchanged. This is a presentation
+    transform on an ADMISSIBLE band, applied after every refusal gate: an
+    out-of-vocabulary direction still refuses even at saturation (a band that
+    cannot convey a direction stays inadmissible).
 
     [FIRE-SEAM BAND-LINE]: flag ON + weighted section + honest [0,1] overlay
     => exactly the one-line disclosure above, in the ``.section-provenance``
@@ -563,6 +647,31 @@ def _band_line_html(section: DataSection) -> str:
             reason="scheme_version_absent",
         )
         return ""
+    if scheme_version != section.weights_version:
+        # FIRE-SEAM BAND-SCHEME (DISPROOF-3 cure): the emission asserts
+        # scheme_version == weights_version, so a mismatch here is a foreign /
+        # corrupted payload -- refuse the whole line (nothing drawn), loud in
+        # the logs. The offending values ride in the LOG for diagnosis (the
+        # c1 refusal logs its offending bounds the same way); they never reach
+        # the rendered document. This one equality also refuses the smuggled
+        # Wilson-digits-as-version-text vector (it cannot equal the section's
+        # weights_version).
+        logger.warning(
+            "insights_export_band_render_refused",
+            section=section.name,
+            reason="scheme_version_mismatch",
+            scheme_version=scheme_version,
+            weights_version=section.weights_version,
+        )
+        return ""
+    if _band_direction_moot_at_cap(section):
+        # FIRE-SEAM BAND-M5 (DISPROOF-2 cure, spec §2.5.3): every rendered
+        # nsr_ncr value sits at the 100% cap, so the strict-inequality tilt
+        # claim is vacated -- render the direction as moot (never the
+        # understate token at a saturated face). Width + version convey
+        # unchanged; applied only after every refusal gate passed (an
+        # admissible band, presentation-transformed).
+        direction_text = _BAND_DIRECTION_MOOT_TEXT
     text = (
         f"forward-rate band: [0,1] ignorance · direction: {direction_text} "
         f"(weights {scheme_version})"
