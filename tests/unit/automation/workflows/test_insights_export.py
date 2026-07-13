@@ -31,6 +31,7 @@ from autom8_asana.automation.workflows.insights.workflow import (
     _sanitize_business_name,
 )
 from autom8_asana.clients.data._endpoints._pacer import OperatorCallPacer
+from autom8_asana.clients.data._endpoints.operator import OperatorBatchMeta
 from autom8_asana.clients.data.models import (
     ColumnInfo,
     InsightsMetadata,
@@ -163,6 +164,9 @@ def _make_workflow(
     operator_error: Exception | None = None,
     operator_insight_errors: dict[str, Exception] | None = None,
     operator_insight_rows: dict[str, list[dict[str, Any]]] | None = None,
+    operator_weights_version: str | None = None,
+    operator_synced_at: str | None = None,
+    operator_insight_meta: dict[str, OperatorBatchMeta] | None = None,
 ) -> tuple[InsightsExportWorkflow, MagicMock, MagicMock, MagicMock]:
     """Build an InsightsExportWorkflow with configured mocks.
 
@@ -221,6 +225,30 @@ def _make_workflow(
         return {phone: list(rows) for phone in phones}
 
     mock_data_client.get_operator_insights_batch_async = AsyncMock(side_effect=mock_operator_batch)
+
+    # provenance-to-the-human Sprint 1: the workflow consumes the META-carrying
+    # sibling. Same rows as mock_operator_batch, plus a per-insight OperatorBatchMeta
+    # (weights_version + asOf synced_at). Defaults to empty meta (the default
+    # fixture rows are UNWEIGHTED, so no weights_version is owed and the C2 guard
+    # never fires); tests that serve WEIGHTED rows supply operator_weights_version /
+    # operator_synced_at (or a per-insight operator_insight_meta) so the served
+    # weighted table carries its provenance and passes the C2 never-hidden guard.
+    async def mock_operator_batch_with_meta(
+        insight_name: str, phones: list[str], **kwargs: Any
+    ) -> tuple[dict[str, list[dict[str, Any]]], OperatorBatchMeta]:
+        rows_map = await mock_operator_batch(insight_name, phones, **kwargs)
+        if operator_insight_meta and insight_name in operator_insight_meta:
+            meta = operator_insight_meta[insight_name]
+        else:
+            meta = OperatorBatchMeta(
+                weights_version=operator_weights_version,
+                synced_at=operator_synced_at,
+            )
+        return rows_map, meta
+
+    mock_data_client.get_operator_insights_batch_with_meta_async = AsyncMock(
+        side_effect=mock_operator_batch_with_meta
+    )
 
     # The SA per-table methods MUST NOT be called on the cross-tenant path (M3).
     # Keep them as AsyncMocks purely so call_count assertions can prove zero use;
@@ -518,10 +546,10 @@ class TestFetchAllTables:
         await _enumerate_and_execute(wf)
 
         # 4 clean tables -> exactly 4 operator batch calls regardless of office count.
-        assert mock_data.get_operator_insights_batch_async.call_count == TOTAL_TABLE_COUNT
+        assert mock_data.get_operator_insights_batch_with_meta_async.call_count == TOTAL_TABLE_COUNT
         called_insights = {
             c.kwargs["insight_name"]
-            for c in mock_data.get_operator_insights_batch_async.call_args_list
+            for c in mock_data.get_operator_insights_batch_with_meta_async.call_args_list
         }
         assert called_insights == {
             "account_level_stats",
@@ -539,7 +567,7 @@ class TestFetchAllTables:
 
         by_insight = {
             c.kwargs["insight_name"]: c.kwargs
-            for c in mock_data.get_operator_insights_batch_async.call_args_list
+            for c in mock_data.get_operator_insights_batch_with_meta_async.call_args_list
         }
         assert by_insight["account_level_stats"]["period"] == "lifetime"
         assert by_insight["offer_level_stats"]["period"] == "t30"
@@ -567,7 +595,7 @@ class TestFetchAllTables:
 
         await _enumerate_and_execute(wf)
 
-        for c in mock_data.get_operator_insights_batch_async.call_args_list:
+        for c in mock_data.get_operator_insights_batch_with_meta_async.call_args_list:
             # The resolution fixture maps every offer to +17705753103.
             assert c.kwargs["phones"] == ["+17705753103"]
 
@@ -1546,11 +1574,11 @@ class TestOperatorPacerThreading:
 
         async def capture_pacer(
             insight_name: str, phones: list[str], *, pacer: object = None, **kwargs: Any
-        ) -> dict[str, list[dict[str, Any]]]:
+        ) -> tuple[dict[str, list[dict[str, Any]]], OperatorBatchMeta]:
             captured.append(pacer)
-            return {p: [{"x": 1}] for p in phones}
+            return {p: [{"x": 1}] for p in phones}, OperatorBatchMeta()
 
-        mock_data.get_operator_insights_batch_async = AsyncMock(side_effect=capture_pacer)
+        mock_data.get_operator_insights_batch_with_meta_async = AsyncMock(side_effect=capture_pacer)
 
         await _enumerate_and_execute(wf)
 
@@ -1582,14 +1610,16 @@ class TestPartialRunDeckProtection:
 
         async def unreached_mock(
             insight_name: str, phones: list[str], *, pacer: Any = None, **kwargs: Any
-        ) -> dict[str, list[dict[str, Any]]]:
+        ) -> tuple[dict[str, list[dict[str, Any]]], OperatorBatchMeta]:
             # Simulate the bisection running out of budget before serving these
             # offices: mark them unreached (NON-definitive) and serve nothing.
             if pacer is not None:
                 pacer.mark_unreached(phones)
-            return {}
+            return {}, OperatorBatchMeta()
 
-        mock_data.get_operator_insights_batch_async = AsyncMock(side_effect=unreached_mock)
+        mock_data.get_operator_insights_batch_with_meta_async = AsyncMock(
+            side_effect=unreached_mock
+        )
 
         with patch("autom8_asana.automation.workflows.insights.workflow.logger") as mock_logger:
             result = await _enumerate_and_execute(wf)
