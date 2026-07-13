@@ -711,10 +711,19 @@ class TestWorkflowResult:
 
 @pytest.mark.usefixtures("_force_fallback")
 class TestPartialAllowlist:
-    """GAP-1: one insight denied (e.g. not yet allowlisted) -> that table empty only."""
+    """GAP-1: one insight denied (e.g. not yet allowlisted) -> that table is a TYPED
+    denial (not silently empty); the rest serve and the deck still publishes."""
 
     async def test_one_insight_denied_others_serve(self, mock_resolution_context) -> None:
-        """A 404 on offer_level_stats leaves OFFER TABLE empty; the rest serve."""
+        """A 404 on offer_level_stats makes OFFER TABLE a typed denial; the rest serve.
+
+        provenance-to-the-human Sprint-3: the denied table is now counted as FAILED
+        (a typed refusal routed through the error channel), NOT as a silently-
+        succeeded empty table. This asserts the counter altitude only -- the render-
+        level two-sided proof (denied -> typed error-box vs genuinely-empty -> empty
+        section, at the consumed HTML) is the disjoint numerical-adversary's fixture
+        against the named _fetch_table fire-seam, authored separately.
+        """
         o1 = _make_task("o1", "Offer 1", parent_gid="biz1")
         wf, _, _, mock_att = _make_workflow(
             offers=[o1],
@@ -727,13 +736,16 @@ class TestPartialAllowlist:
 
         result = await _enumerate_and_execute(wf)
 
-        # Offer still succeeds (3 tables with data + 1 empty); report uploaded.
+        # Offer still succeeds (3 tables serve + 1 typed denial); report uploaded.
+        # The daily-run-doesn't-crash intent is preserved: a per-table denial does
+        # NOT abort the offer.
         assert result.succeeded == 1
         assert mock_att.upload_async.call_count == 1
-        # Empty tables are success (data=[]), so no table is "failed".
+        # The denied table is now a TYPED refusal -> counted as failed, no longer
+        # null-coerced into a silently-succeeded empty table (the C2 drift is dead).
         table_counts = result.metadata["per_offer_table_counts"]["o1"]
-        assert table_counts["tables_succeeded"] == TOTAL_TABLE_COUNT
-        assert table_counts["tables_failed"] == 0
+        assert table_counts["tables_succeeded"] == TOTAL_TABLE_COUNT - 1
+        assert table_counts["tables_failed"] == 1
 
 
 @pytest.mark.usefixtures("_force_fallback")
