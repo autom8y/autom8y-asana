@@ -114,9 +114,18 @@ _COLUMN_TOOLTIPS: dict[str, str] = {
     "roas": "Return on Ad Spend: Revenue \u00f7 ad spend",
     "ctr": "Click-Through Rate: Clicks \u00f7 impressions",
     "ltv": "Lifetime Value: Estimated revenue per customer",
-    "conv_rate": "Conversion Rate: Conversions \u00f7 total leads",
-    "ns_rate": "No-Show Rate: No-shows \u00f7 scheduled appointments",
-    "nc_rate": "No-Close Rate: No-closes \u00f7 shown appointments",
+    # R3 honest denominators (2026-07-08 ruling): the four rate metrics all
+    # divide by the probability-weighted solid_scheds denominator, NOT bare
+    # scheduled/shown/lead counts (autom8y-data core/metrics/library.py conv_rate
+    # :2540, ns_rate :2470, nc_rate :2506, nsr_ncr :2579 all total="solid_scheds",
+    # ADR-SOLID-SCHEDS-001/002). "probability-weighted" mirrors xcps (above) and
+    # the data-side solid_scheds description "Probabilistically-weighted
+    # scheduled appointments". Distinct from conversion_rate (scheds/leads,
+    # library.py:2107) which correctly divides by leads and carries no tooltip.
+    "conv_rate": "Conversion Rate: Conversions \u00f7 probability-weighted scheduled appointments",
+    "ns_rate": "No-Show Rate: No-shows \u00f7 probability-weighted scheduled appointments",
+    "nc_rate": "No-Close Rate: No-closes \u00f7 probability-weighted scheduled appointments",
+    "nsr_ncr": "NSR/NCR: Lost appointments (no-shows + no-closes) \u00f7 probability-weighted scheduled appointments",
     "variance_pct": "Variance %: (Collected - Spend) \u00f7 Spend \u00d7 100",
 }
 
