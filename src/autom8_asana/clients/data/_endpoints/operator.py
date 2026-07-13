@@ -27,7 +27,7 @@ This module is NOT part of the public API.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from autom8_asana.clients.data import _normalize as _normalize_mod
 from autom8_asana.clients.data._endpoints._pacer import BudgetExhausted, OperatorCallPacer
@@ -117,6 +117,105 @@ def distribute_per_office(body: dict[str, Any]) -> dict[str, list[dict[str, Any]
 
 
 @dataclass(frozen=True)
+class AttributionCoverage:
+    """Client-side typed mirror of the data plane's ``AttributionCoverage`` sidecar.
+
+    provenance-to-the-human Sprint 4 (coverage-disclosure-at-render): a small frozen
+    mirror of the coverage block the data plane emits alongside ``weights_version``
+    in the operator batch's per-phone ``data.meta`` (autom8y-data ``_insights.py:396``
+    build + ``from_sidecar_payload:568`` shape). The values are read VERBATIM from
+    the sidecar; this carrier only NAMES the render-time contract (which fields the
+    OFFER TABLE coverage line reads) -- the data plane owns the single source of
+    truth. If the sidecar's shape changes this mirror is revisited under a NAMED
+    ruling, never silently widened (mirrors the WEIGHTED_CONSUMER_METRICS discipline).
+
+    ``status`` is the discriminant (the three-valued coverage envelope's tag):
+
+    - ``"measured"``: the window HAS attribution coverage; ``orphan_spend_share`` is
+      the fraction of spend NOT attributed to a specific ad (the ignorance FLOOR the
+      render discloses as ``>= X% unattributed``). The complement is a LOWER bound on
+      attribution, never a point "coverage 86%" claim, never a CI-shaped interval.
+    - ``"no_data"``: the window has NO coverage measurement (disclosed-unknown, never
+      rendered as 0% or 100% -- an absence of measurement is not full or zero
+      attribution). The share fields are not meaningful in this state.
+
+    Absence of the WHOLE block (no ``AttributionCoverage`` at all) is carried on
+    :class:`OperatorBatchMeta` as ``coverage=None`` + ``coverage_expected`` -- a
+    distinct, typed "this table makes no coverage promise" state (see there). None is
+    a first-class typed state the render reads, NOT a null-coerced stand-in (G4).
+
+    Attributes:
+        status: ``"measured"`` or ``"no_data"`` -- the coverage envelope discriminant.
+        coverage_pct: Fraction (or percent, verbatim from the sidecar) of spend that
+            IS attributed. The render does NOT surface this as a point claim; the
+            disclosed floor rides ``orphan_spend_share`` instead. Carried for parity
+            with the sidecar and possible future disclosure, None when absent.
+        orphan_spend_share: Fraction of spend NOT attributed to a specific ad (the
+            "orphan ads" share). The render's MEASURED line discloses this as the
+            ``>=``-floor of unattributed spend. None when absent.
+        total_spend: Total spend over the window the shares are computed against
+            (verbatim from the sidecar), or None when absent.
+    """
+
+    status: Literal["measured", "no_data"]
+    coverage_pct: float | None = None
+    orphan_spend_share: float | None = None
+    total_spend: float | None = None
+
+
+def _coverage_from_meta_block(meta: dict[str, Any]) -> tuple[AttributionCoverage | None, bool]:
+    """Read ``(coverage, coverage_expected)`` from one per-phone ``data.meta`` block.
+
+    The coverage siblings live NEXT TO ``weights_version`` / ``data_freshness`` in the
+    per-phone meta (autom8y-data ``from_sidecar_payload:568``):
+
+    - ``coverage_expected`` (bool): ``False`` == "this table makes no coverage
+      promise" (honest-absent); ``True`` == a coverage block is contractually
+      expected for this table. Defaults to ``False`` when the key is absent (the
+      truthful DECK state: the batch path never runs the coverage processor, so no
+      promise is made -- contract §2 supersession).
+    - ``coverage`` (dict | absent): the ``AttributionCoverage`` sidecar. Parsed to the
+      typed :class:`AttributionCoverage` mirror when present with a recognized
+      ``status``; ``None`` when the block is absent or malformed (declared absence,
+      NOT a throw -- the transport is passthrough, §2.1 corollary; a would-be dropped
+      ``coverage_expected=True``+absent state is carried truthfully, never fabricated
+      into a ceiling).
+
+    Returns:
+        ``(AttributionCoverage | None, coverage_expected)``. ``(None, False)`` is the
+        deck honest-absent state; ``(None, True)`` is the would-be-dropped state the
+        render discloses as unknown (never a fabricated full-attribution reading).
+    """
+    coverage_expected = bool(meta.get("coverage_expected", False))
+    raw = meta.get("coverage")
+    if not isinstance(raw, dict):
+        return None, coverage_expected
+    status = raw.get("status")
+    if status not in ("measured", "no_data"):
+        # Unrecognized/malformed coverage payload: declared absence, not a throw.
+        return None, coverage_expected
+    return (
+        AttributionCoverage(
+            status=status,
+            coverage_pct=_as_float_or_none(raw.get("coverage_pct")),
+            orphan_spend_share=_as_float_or_none(raw.get("orphan_spend_share")),
+            total_spend=_as_float_or_none(raw.get("total_spend")),
+        ),
+        coverage_expected,
+    )
+
+
+def _as_float_or_none(value: Any) -> float | None:
+    """Coerce a sidecar numeric to float, else None (no throw on a bad/absent value)."""
+    if isinstance(value, bool):
+        # bool is an int subclass; a coverage share is never a bool. Reject it.
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+@dataclass(frozen=True)
 class OperatorBatchMeta:
     """Response/META-grain provenance carried across the operator batch seam.
 
@@ -143,10 +242,27 @@ class OperatorBatchMeta:
             or None when the batch response carried no ``weights_version``.
         synced_at: ISO-8601 asOf timestamp of the data snapshot the batch was
             computed over (``DataFreshness.synced_at``), or None when unknown.
+        coverage: provenance-to-the-human Sprint 4: the attribution-coverage sidecar
+            (:class:`AttributionCoverage`), sibling to ``weights_version`` in the
+            per-phone ``data.meta``. ``None`` == the batch carried NO coverage block.
+            Read together with ``coverage_expected``: ``coverage=None`` +
+            ``coverage_expected=False`` is the deck honest-absent state ("not
+            measured"); ``coverage=None`` + ``coverage_expected=True`` is the
+            would-be-dropped state the render discloses as unknown. None is a typed
+            state, never a null-coerced full-attribution reading (G4).
+        coverage_expected: provenance-to-the-human Sprint 4: whether a coverage block
+            is CONTRACTUALLY expected for this table. ``False`` == "this table makes
+            no coverage promise" (honest-absent; the truthful DECK state -- the batch
+            path never runs the coverage processor, contract §2 supersession).
+            ``True`` == coverage is expected (a ``coverage=None`` alongside it is the
+            would-be-dropped state, disclosed as unknown -- NOT armable on the deck
+            today, F5-coverage-THROW watch). Defaults ``False`` (no promise).
     """
 
     weights_version: str | None = None
     synced_at: str | None = None
+    coverage: AttributionCoverage | None = None
+    coverage_expected: bool = False
 
 
 # The empty/absent-provenance carrier: a served-but-provenance-free batch. A
@@ -188,9 +304,16 @@ def distribute_per_office_meta(body: dict[str, Any]) -> OperatorBatchMeta:
     slot, contract §3.2); a meta-less or freshness-less batch yields ``None``
     (declared absence, not a throw -- the transport is passthrough, §2.1 corollary).
 
+    ``coverage`` / ``coverage_expected`` (Sprint 4) ride ``data.meta.coverage`` /
+    ``data.meta.coverage_expected``, siblings of ``weights_version``. Coverage is a
+    property of the batch RESPONSE (one processor decision scores every office in a
+    single execute-batch), so the FIRST observed block is taken, mirroring the
+    ``synced_at`` first-non-None rule. Absence yields ``coverage=None`` +
+    ``coverage_expected=False`` (deck honest-absent) -- a typed state, never a throw.
+
     Returns:
-        OperatorBatchMeta at response grain. ``_EMPTY_OPERATOR_BATCH_META`` (both
-        fields None) when the body carries no successful entry or no provenance.
+        OperatorBatchMeta at response grain. ``_EMPTY_OPERATOR_BATCH_META`` (all
+        fields empty) when the body carries no successful entry or no provenance.
 
     Raises:
         OperatorBatchVersionSkewError: two or more offices in the SAME batch carry
@@ -202,6 +325,9 @@ def distribute_per_office_meta(body: dict[str, Any]) -> OperatorBatchMeta:
 
     distinct_versions: set[str] = set()
     synced_at: str | None = None
+    coverage: AttributionCoverage | None = None
+    coverage_expected = False
+    coverage_seen = False
 
     for key in ("results", "pair_results"):
         entries = payload.get(key)
@@ -220,6 +346,12 @@ def distribute_per_office_meta(body: dict[str, Any]) -> OperatorBatchMeta:
                     candidate = freshness.get("synced_at")
                     if isinstance(candidate, str):
                         synced_at = candidate
+            if not coverage_seen:
+                # First observed per-phone meta owns the batch coverage (one
+                # processor decision per execute-batch). coverage_expected is read
+                # even when the coverage block itself is absent (honest-absent).
+                coverage, coverage_expected = _coverage_from_meta_block(meta)
+                coverage_seen = True
 
     # G1 CARDINALITY (ordered before a token is chosen): a batch MUST NOT carry
     # >1 distinct weights_version at META grain. Caught here, loud and typed.
@@ -231,11 +363,16 @@ def distribute_per_office_meta(body: dict[str, Any]) -> OperatorBatchMeta:
             versions=sorted(distinct_versions),
         )
 
-    if not distinct_versions and synced_at is None:
+    if not distinct_versions and synced_at is None and coverage is None and not coverage_expected:
         return _EMPTY_OPERATOR_BATCH_META
 
     weights_version = next(iter(distinct_versions), None)
-    return OperatorBatchMeta(weights_version=weights_version, synced_at=synced_at)
+    return OperatorBatchMeta(
+        weights_version=weights_version,
+        synced_at=synced_at,
+        coverage=coverage,
+        coverage_expected=coverage_expected,
+    )
 
 
 def _build_request_body(
@@ -558,6 +695,11 @@ def _merge_batch_metas(metas: list[OperatorBatchMeta]) -> OperatorBatchMeta:
 
     ``synced_at`` takes the first non-None asOf observed across sub-batches (all
     sub-batches of one run read the same materialization snapshot, §3.2).
+
+    ``coverage`` / ``coverage_expected`` (Sprint 4) take the first sub-batch that
+    OBSERVED a coverage decision (one processor decision scores the whole owned set),
+    mirroring ``synced_at``. A run where no sub-batch carried coverage collapses to
+    ``coverage=None`` + ``coverage_expected=False`` (deck honest-absent).
     """
     distinct_versions = {m.weights_version for m in metas if m.weights_version is not None}
     if len(distinct_versions) > 1:
@@ -569,9 +711,23 @@ def _merge_batch_metas(metas: list[OperatorBatchMeta]) -> OperatorBatchMeta:
         )
     weights_version = next(iter(distinct_versions), None)
     synced_at = next((m.synced_at for m in metas if m.synced_at is not None), None)
-    if weights_version is None and synced_at is None:
+    # First sub-batch that observed a coverage decision owns the run's coverage. A
+    # sub-batch "observed" coverage iff it carried the block OR was told a promise is
+    # expected (coverage_expected True); a bare all-default meta did not observe it.
+    coverage_meta = next(
+        (m for m in metas if m.coverage is not None or m.coverage_expected),
+        None,
+    )
+    coverage = coverage_meta.coverage if coverage_meta is not None else None
+    coverage_expected = coverage_meta.coverage_expected if coverage_meta is not None else False
+    if weights_version is None and synced_at is None and coverage is None and not coverage_expected:
         return _EMPTY_OPERATOR_BATCH_META
-    return OperatorBatchMeta(weights_version=weights_version, synced_at=synced_at)
+    return OperatorBatchMeta(
+        weights_version=weights_version,
+        synced_at=synced_at,
+        coverage=coverage,
+        coverage_expected=coverage_expected,
+    )
 
 
 async def execute_operator_batch(
