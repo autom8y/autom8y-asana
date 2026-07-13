@@ -16,6 +16,7 @@ from autom8y_log import get_logger
 from autom8_asana.core.errors import S3_TRANSPORT_ERRORS
 from autom8_asana.dataframes.builders.base import gather_with_limit
 from autom8_asana.dataframes.builders.fields import BASE_OPT_FIELDS
+from autom8_asana.errors import RateLimitError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -28,6 +29,22 @@ if TYPE_CHECKING:
 __all__ = ["HierarchyWarmer"]
 
 logger = get_logger(__name__)
+
+# Gap-warm burst shaping (ATTRIBUTION-RECEIPT-asana-429-storm-2026-07-13): the
+# fleet shares ONE Asana 1500/60s budget with per-process-only AIMD and no
+# cross-consumer arbitration. An unchunked gap warm fires thousands of GETs in
+# one gather; under budget contention a single surfaced RateLimitError (the
+# transport has already exhausted its Retry-After retries by then) used to
+# abort the WHOLE batch and discard every fetched parent (gaps_warmed=0 every
+# cycle — the ASR offer-frame starvation). Chunking bounds the burst; the
+# saturation abort banks partial progress and yields the budget instead of
+# hammering a saturated ceiling.
+_GAP_WARM_CHUNK_SIZE = 200
+# Abort the remaining chunks when >= this fraction of a chunk rate-limited:
+# the shared budget is saturated and further fetches this cycle are wasted
+# spend. Progress is banked; the next SWR cycle resumes from the shrunken
+# uncached set.
+_GAP_WARM_SATURATION_ABORT_FRACTION = 0.5
 
 
 class HierarchyWarmer:
@@ -146,7 +163,12 @@ class HierarchyWarmer:
         if self._store is None or "parent_gid" not in df.columns:
             return 0
 
-        parent_gids = [str(g) for g in df["parent_gid"].drop_nulls().unique().to_list()]
+        # maintain_order: stable chunk composition across SWR cycles, so the
+        # banked-progress resume walks the SAME tail instead of resampling a
+        # shuffled set each cycle (monotonic convergence under contention).
+        parent_gids = [
+            str(g) for g in df["parent_gid"].drop_nulls().unique(maintain_order=True).to_list()
+        ]
         if not parent_gids:
             return 0
 
@@ -178,15 +200,32 @@ class HierarchyWarmer:
         # discover the next ancestor level. Fetching full task data
         # ensures the parent link is present, allowing hierarchy warming
         # to traverse the complete chain (e.g., unit_holder → business).
+        #
+        # Per ATTRIBUTION-RECEIPT-asana-429-storm-2026-07-13: fetches run in
+        # bounded chunks, a surfaced RateLimitError tolerates per-fetch (the
+        # transport already exhausted its Retry-After retries), and progress
+        # is BANKED — a 429 must never discard the parents that did fetch.
         try:
             fetched_task_dicts: list[dict[str, Any]] = []
+            rate_limited_total = 0
+            aborted_early = False
 
-            async def _fetch_gap_parent(gid: str) -> dict[str, Any] | None:
+            async def _fetch_gap_parent(gid: str) -> tuple[dict[str, Any] | None, bool]:
+                """Fetch one gap parent. Returns (task_dict|None, rate_limited)."""
                 try:
                     task = await self._client.tasks.get_async(gid, opt_fields=BASE_OPT_FIELDS)
                     if task is not None:
-                        return self._task_to_dict(task)
-                    return None
+                        return self._task_to_dict(task), False
+                    return None, False
+                except RateLimitError as e:
+                    logger.warning(
+                        "hierarchy_gap_fetch_rate_limited",
+                        extra={
+                            "parent_gid": gid,
+                            "retry_after": e.retry_after,
+                        },
+                    )
+                    return None, True
                 except S3_TRANSPORT_ERRORS as e:
                     logger.warning(
                         "hierarchy_gap_fetch_failed",
@@ -196,16 +235,23 @@ class HierarchyWarmer:
                             "error_type": type(e).__name__,
                         },
                     )
-                    return None
+                    return None, False
 
-            results = await gather_with_limit(
-                [_fetch_gap_parent(gid) for gid in uncached],
-                max_concurrent=self._max_concurrent,
-            )
+            for chunk_start in range(0, len(uncached), _GAP_WARM_CHUNK_SIZE):
+                chunk = uncached[chunk_start : chunk_start + _GAP_WARM_CHUNK_SIZE]
+                results = await gather_with_limit(
+                    [_fetch_gap_parent(gid) for gid in chunk],
+                    max_concurrent=self._max_concurrent,
+                )
+                fetched_task_dicts.extend(d for d, _ in results if d is not None)
+                chunk_rate_limited = sum(1 for _, limited in results if limited)
+                rate_limited_total += chunk_rate_limited
 
-            for result in results:
-                if result is not None:
-                    fetched_task_dicts.append(result)
+                if chunk_rate_limited >= max(
+                    1, int(len(chunk) * _GAP_WARM_SATURATION_ABORT_FRACTION)
+                ):
+                    aborted_early = True
+                    break
 
             if not fetched_task_dicts:
                 logger.warning(
@@ -214,6 +260,7 @@ class HierarchyWarmer:
                         "project_gid": self._project_gid,
                         "entity_type": self._entity_type,
                         "attempted": len(uncached),
+                        "rate_limited": rate_limited_total,
                     },
                 )
                 return 0
@@ -222,22 +269,53 @@ class HierarchyWarmer:
             # Now that task_dicts contain full parent info,
             # _fetch_immediate_parents will discover and fetch the
             # next ancestor level (e.g., business from unit_holder.parent).
-            await self._store.put_batch_async(
-                fetched_task_dicts,
-                opt_fields=BASE_OPT_FIELDS,
-                tasks_client=self._client.tasks,
-                warm_hierarchy=True,
-            )
+            # put_batch_async stores BEFORE it warms (unified.py), so a 429
+            # surfacing from the recursive chain warm must not be allowed to
+            # discard the banked store: the parents ARE cached, and the next
+            # SWR cycle resumes from the shrunken uncached set.
+            chain_warm_completed = True
+            try:
+                await self._store.put_batch_async(
+                    fetched_task_dicts,
+                    opt_fields=BASE_OPT_FIELDS,
+                    tasks_client=self._client.tasks,
+                    warm_hierarchy=True,
+                )
+            except RateLimitError as e:
+                chain_warm_completed = False
+                logger.warning(
+                    "hierarchy_gap_chain_warm_rate_limited",
+                    extra={
+                        "project_gid": self._project_gid,
+                        "entity_type": self._entity_type,
+                        "stored": len(fetched_task_dicts),
+                        "retry_after": e.retry_after,
+                    },
+                )
 
-            logger.info(
-                "hierarchy_gap_warming_complete",
-                extra={
-                    "project_gid": self._project_gid,
-                    "entity_type": self._entity_type,
-                    "attempted": len(uncached),
-                    "fetched": len(fetched_task_dicts),
-                },
-            )
+            if aborted_early or rate_limited_total or not chain_warm_completed:
+                logger.warning(
+                    "hierarchy_gap_warming_partial",
+                    extra={
+                        "project_gid": self._project_gid,
+                        "entity_type": self._entity_type,
+                        "attempted": len(uncached),
+                        "fetched": len(fetched_task_dicts),
+                        "rate_limited": rate_limited_total,
+                        "aborted_early": aborted_early,
+                        "chain_warm_completed": chain_warm_completed,
+                    },
+                )
+            else:
+                logger.info(
+                    "hierarchy_gap_warming_complete",
+                    extra={
+                        "project_gid": self._project_gid,
+                        "entity_type": self._entity_type,
+                        "attempted": len(uncached),
+                        "fetched": len(fetched_task_dicts),
+                    },
+                )
 
             return len(fetched_task_dicts)
         except Exception as e:  # BROAD-CATCH: enrichment  # noqa: BLE001
