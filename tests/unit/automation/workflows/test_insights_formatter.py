@@ -2802,3 +2802,228 @@ class TestMaskPiiRows:
         assert original["office_phone"] == "+17705753103"
         # Result should be a different dict
         assert result[0] is not original
+
+
+# ============================================================================
+# provenance-to-the-human Sprint 2 (render-parity, READOUT track)
+# TWO-SIDED DISCRIMINATING CANARIES authored by the rite-disjoint
+# numerical-adversary (SPINE prove-half). NO production surface is mutated
+# here: every RED arm is a deliberately-broken *fixture INPUT* the assertion
+# correctly REFUSES, paired with the real input passing GREEN
+# (discriminating-canary-doctrine mode 1 / genuine-gap RED-before for R3).
+#
+# RULED TRUTH (cross-repo, first-hand reads at the pinned SHAs):
+#   - autom8y-data origin/main 0df77858 core/metrics/library.py:
+#     conv_rate/ns_rate/nc_rate/nsr_ncr all total="solid_scheds"
+#     (:2540/:2470/:2506/:2579); ruled display names ecps='Effective CPS',
+#     xcps='Expected CPS' (GAP-2, library.py:2568; metrics.md:178-179).
+#   - asana formatter.py @ this worktree: _DISPLAY_LABELS ecps/:78 xcps/:79;
+#     _COLUMN_TOOLTIPS four rates :125-128 (nsr_ncr present :128).
+#
+# These ADD map-parametric discrimination that #216's
+# test_display_labels_honest_cps_naming (:1300-1311) does NOT carry: that
+# test asserts on the ONE live global only and can never exercise the
+# invariant against a HISTORICAL COLLISION map. The parity checker below
+# takes a label MAP as INPUT, so a re-collision OR a drift to any third
+# label bites — proven two-sided.
+# ============================================================================
+
+# Ruled display names for the ecps/xcps sibling pair (autom8y-data GAP-2,
+# library.py:2568 / metrics.md:178-179). The parity invariant pins the EXACT
+# strings, not merely their inequality.
+_RULED_ECPS_LABEL = "Effective CPS"
+_RULED_XCPS_LABEL = "Expected CPS"
+
+# The four rate metrics whose founder-facing tooltip MUST disclose the
+# probability-weighted solid_scheds denominator (R3 ruling 2026-07-08).
+_R3_WEIGHTED_RATE_KEYS = ("conv_rate", "ns_rate", "nc_rate", "nsr_ncr")
+_R3_WEIGHTED_DENOMINATOR_SUBSTRING = "probability-weighted"
+
+
+def _parity_invariant_violations(label_map: dict[str, str]) -> list[str]:
+    """Pure, map-parametric honest-naming parity checker (test-only).
+
+    Takes a label MAP as INPUT (never reads a module global) and returns the
+    list of parity violations against the RULED ecps/xcps names. Empty list
+    == parity holds. This is the SOLE discriminator the coarse signals are
+    blind to: a map that exists, is readable, has the right key set, and the
+    right entry count can STILL carry the historical collision or a drifted
+    third label. Only comparing the ruled STRINGS separates correct from
+    corrupt.
+    """
+    violations: list[str] = []
+    if label_map.get("ecps") != _RULED_ECPS_LABEL:
+        violations.append(f"ecps label {label_map.get('ecps')!r} != ruled {_RULED_ECPS_LABEL!r}")
+    if label_map.get("xcps") != _RULED_XCPS_LABEL:
+        violations.append(f"xcps label {label_map.get('xcps')!r} != ruled {_RULED_XCPS_LABEL!r}")
+    # The honest-naming invariant #216 carries, re-expressed map-parametrically:
+    # the two siblings never share a label (guards a symmetric re-collision the
+    # exact-string clauses above would already catch, but proves the checker is
+    # not merely string-equality against a constant).
+    if label_map.get("ecps") is not None and label_map.get("ecps") == label_map.get("xcps"):
+        violations.append("ecps and xcps share a label (collision)")
+    return violations
+
+
+class TestHonestNamingParityCanary:
+    """Two-sided, map-parametric honest-naming canary (ecps/xcps).
+
+    STRENGTHENS beyond #216's test_display_labels_honest_cps_naming (:1311),
+    which asserts inequality on the ONE live global. This canary feeds the
+    checker a HISTORICAL COLLISION map (fixture INPUT) and proves the checker
+    BITES, then feeds the LIVE map and proves it PASSES.
+    """
+
+    # --- COLLISION arm: the pre-#216 historical map the surface once carried ---
+    def test_collision_map_is_caught_red(self):
+        """RED arm: the historical collision (ecps mislabeled 'Expected CPS',
+        xcps ABSENT) is CORRECTLY REFUSED. This is a deliberately-broken
+        fixture INPUT, NOT a mutation of the live surface.
+        """
+        historical_collision_map = {
+            "cpl": "CPL",
+            "cps": "CPS",
+            # pre-GAP-2 drift: ecps carried "Expected CPS" ...
+            "ecps": "Expected CPS",
+            # ... and xcps did not exist yet -> absent from the map entirely.
+        }
+        violations = _parity_invariant_violations(historical_collision_map)
+        assert violations, (
+            "TEETH FAILURE: the parity checker did NOT catch the historical "
+            "collision map (ecps='Expected CPS', xcps absent). A guard that "
+            "passes the broken input is presence, not teeth."
+        )
+        # It bites for the RIGHT reason: ecps drifted AND xcps missing.
+        joined = " | ".join(violations)
+        assert "ecps" in joined
+        assert "xcps" in joined
+
+    # --- THIRD-LABEL DRIFT arm: proves EXACT-string pinning, beyond inequality ---
+    def test_third_label_drift_is_caught_red(self):
+        """RED arm: a drift to a THIRD label that still satisfies ecps != xcps
+        is CAUGHT because the checker pins the EXACT ruled strings. #216's
+        inequality-only test would MISS this; this is the added discrimination.
+        """
+        drifted_map = {
+            "ecps": "Effective Cost Per Schedule",  # != ruled, but != xcps too
+            "xcps": "Expected CPS",
+        }
+        # Inequality alone would pass this map (the two are distinct) ...
+        assert drifted_map["ecps"] != drifted_map["xcps"]
+        # ... but the exact-string parity invariant BITES.
+        violations = _parity_invariant_violations(drifted_map)
+        assert violations, (
+            "TEETH FAILURE: exact-string pinning did not catch an ecps drift "
+            "to a third label. Inequality is insufficient; the ruled string "
+            "is the discriminator."
+        )
+        assert any("ecps" in v for v in violations)
+
+    # --- RULED-MAP arm: the live surface passes GREEN (the positive control) ---
+    def test_live_ruled_map_passes_green(self):
+        """GREEN arm: the ACTUAL live _DISPLAY_LABELS passes parity. Positive
+        control -- proves the checker is not a fixture that only-ever-fails.
+        """
+        violations = _parity_invariant_violations(_DISPLAY_LABELS)
+        assert violations == [], (
+            f"the live _DISPLAY_LABELS violates honest-naming parity: {violations}"
+        )
+        # Pin the ruled strings explicitly on the live map (matches ruled truth).
+        assert _DISPLAY_LABELS["ecps"] == _RULED_ECPS_LABEL
+        assert _DISPLAY_LABELS["xcps"] == _RULED_XCPS_LABEL
+
+    # --- NON-FALSE-POSITIVE edge probe: unrelated change leaves parity silent ---
+    def test_unrelated_label_change_does_not_false_positive(self):
+        """EDGE: a change to an UNRELATED label (roas) must NOT trip the
+        parity clause the canary guards. Proves the canary discriminates on
+        the ecps/xcps pair, not on any map mutation.
+        """
+        unrelated_change_map = dict(_DISPLAY_LABELS)
+        unrelated_change_map["roas"] = "RoAS"  # cosmetic, unrelated to parity
+        violations = _parity_invariant_violations(unrelated_change_map)
+        assert violations == [], (
+            "FALSE POSITIVE: the parity canary tripped on an unrelated label "
+            "change. It must guard ONLY the ecps/xcps parity clause."
+        )
+
+
+class TestR3WeightedDenominatorProse:
+    """R3 prose fixture: the four rate tooltips disclose the weighted denom.
+
+    GENUINE-GAP RED-before: at parent 08d9800d these tooltips name the bare
+    scheduled/shown/lead counts and nsr_ncr has NO tooltip -- so THIS SAME
+    fixture fails there (proven in a scratch worktree). It passes GREEN in
+    this worktree after the honest-denominator disclosure landed. No defect
+    is injected into working code; the RED is the real attestation gap.
+    """
+
+    def test_four_rate_tooltips_name_probability_weighted_denominator(self):
+        """Each of the four weighted-family rate tooltips names the
+        probability-weighted denominator (the load-bearing substring)."""
+        for key in _R3_WEIGHTED_RATE_KEYS:
+            assert key in _COLUMN_TOOLTIPS, (
+                f"R3 RED: tooltip for {key!r} is ABSENT -- the founder reads "
+                f"no disclosure at the point of action."
+            )
+            assert _R3_WEIGHTED_DENOMINATOR_SUBSTRING in _COLUMN_TOOLTIPS[key], (
+                f"R3 RED: tooltip for {key!r} does not name the "
+                f"{_R3_WEIGHTED_DENOMINATOR_SUBSTRING!r} denominator: "
+                f"{_COLUMN_TOOLTIPS[key]!r}"
+            )
+
+    def test_nsr_ncr_tooltip_present_at_all(self):
+        """nsr_ncr -- the #1 client-health lost-appointment metric -- had a
+        LABEL but no tooltip at parent. Its mere PRESENCE is the R3 gap for
+        this key; assert it exists (the substring check above asserts honesty).
+        """
+        assert "nsr_ncr" in _COLUMN_TOOLTIPS, (
+            "R3 RED: nsr_ncr tooltip absent -- the lost-appointment metric "
+            "discloses nothing to the founder."
+        )
+
+    def test_sole_discriminator_cheap_signals_blind(self):
+        """The SOLE discriminator is the denominator PROSE. Prove the cheap
+        signals (key-presence, readability, entry-count, non-empty string)
+        pass identically on a corrupt copy -- so only reading the substring
+        separates correct from corrupt.
+        """
+        # A corrupt COPY (fixture input) that carries the OLD bare-count prose
+        # for every rate key: same keys, same count, readable, non-empty.
+        corrupt_copy = dict(_COLUMN_TOOLTIPS)
+        corrupt_copy["conv_rate"] = "Conversion Rate: Conversions ÷ total leads"
+        corrupt_copy["ns_rate"] = "No-Show Rate: No-shows ÷ scheduled appointments"
+        corrupt_copy["nc_rate"] = "No-Close Rate: No-closes ÷ shown appointments"
+        # Cheap signals are BLIND: key set identical, count identical, all
+        # readable non-empty strings.
+        assert set(corrupt_copy) == set(_COLUMN_TOOLTIPS)  # key-set blind
+        assert len(corrupt_copy) == len(_COLUMN_TOOLTIPS)  # row-count blind
+        for key in _R3_WEIGHTED_RATE_KEYS:
+            assert corrupt_copy[key]  # readability/non-empty blind
+        # ONLY the substring discriminator separates them:
+        corrupt_violations = [
+            key
+            for key in ("conv_rate", "ns_rate", "nc_rate")
+            if _R3_WEIGHTED_DENOMINATOR_SUBSTRING not in corrupt_copy[key]
+        ]
+        assert corrupt_violations == ["conv_rate", "ns_rate", "nc_rate"], (
+            "the corrupt copy must be caught ONLY by the substring check"
+        )
+        # ... while the LIVE map passes that same discriminator (GREEN).
+        live_violations = [
+            key
+            for key in ("conv_rate", "ns_rate", "nc_rate")
+            if _R3_WEIGHTED_DENOMINATOR_SUBSTRING not in _COLUMN_TOOLTIPS[key]
+        ]
+        assert live_violations == []
+
+
+class TestTooltipDisplayLabelKeySetConsistency:
+    """EDGE probe: the weighted-rate family keys are consistent across the
+    tooltip map and the display-label map -- a key present in one but the
+    disclosure absent in the other would strand a founder-facing metric.
+    """
+
+    def test_weighted_family_keys_have_both_label_and_tooltip(self):
+        for key in _R3_WEIGHTED_RATE_KEYS:
+            assert key in _COLUMN_TOOLTIPS, f"{key} missing tooltip"
+            assert key in _DISPLAY_LABELS, f"{key} missing display label"

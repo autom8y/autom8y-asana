@@ -220,3 +220,85 @@ Per SPINE build/prove split and `critic-never-author`: this artifact names the s
 records the R3 disclosure. It authors NO oracle, NO discriminating canary, NO deliberately-broken fixture,
 and grades NO firing. Building the guard AND grading whether it bites in one soul is the FORBIDDEN merge
 (self-attestation) — the disjoint numerical-adversary owns §PENDING items 1-3.
+
+---
+
+## (g) DISCHARGE — two-sided proof DELIVERED by the rite-disjoint numerical-adversary (SPINE prove-half)
+
+> Author role: **numerical-adversary** (SPINE prove-half), rite-disjoint from the build. I built NEITHER
+> #216 (`5fc06793`) NOR the R3 build commit `9bd9e0e9` (integrity-guard-author). This section DISCHARGES
+> §(f) PENDING items 1 and 3 (asana render-parity fixtures) and records the residual scope of §(f) item 2.
+> Evidence self-cap: **[STRUCTURAL | MODERATE]** per `self-ref-evidence-grade-rule`. The initiative-level
+> attest stays eunomia's (Sprint 6); this is NOT a verified-realized claim.
+>
+> Fixtures landed (this commit, on top of `9bd9e0e9`), TEST-ONLY:
+> `tests/unit/automation/workflows/test_insights_formatter.py` — `TestHonestNamingParityCanary` (4),
+> `TestR3WeightedDenominatorProse` (3), `TestTooltipDisplayLabelKeySetConsistency` (1). Production diff
+> `git diff 9bd9e0e9..HEAD -- ':!*test*'` is EMPTY — no surface mutated (G-THEATER structurally impossible).
+
+### Item 1 — honest-naming discriminating canary (test-only, map-parametric) → DISCHARGED
+
+STRENGTHENS #216's `test_display_labels_honest_cps_naming` (:1300-1311, which asserts on the ONE live
+global). My `_parity_invariant_violations(label_map)` takes a label MAP as INPUT and pins the EXACT ruled
+strings (`ecps=="Effective CPS"` AND `xcps=="Expected CPS"`), so a re-collision OR a drift to any THIRD
+label bites — the discrimination #216's inequality-only clause lacks. RED arms are deliberately-broken
+INPUT MAPS (fixture data), NEVER a mutation of the live `_DISPLAY_LABELS`.
+
+- COLLISION arm (ecps→"Expected CPS", xcps absent) → CAUGHT RED (`test_collision_map_is_caught_red`).
+- THIRD-LABEL DRIFT arm (ecps→"Effective Cost Per Schedule", still != xcps) → CAUGHT RED by exact-string
+  pinning where inequality would MISS it (`test_third_label_drift_is_caught_red`).
+- RULED (live) map arm → GREEN (`test_live_ruled_map_passes_green`) — positive control, proves not
+  only-ever-fails.
+- NON-FALSE-POSITIVE edge (unrelated `roas` change) → parity stays silent
+  (`test_unrelated_label_change_does_not_false_positive`).
+
+### Item 3 — R3 prose fixture (genuine-gap RED-before on the REAL path) → DISCHARGED two-sided
+
+`TestR3WeightedDenominatorProse` asserts the four rate tooltips each name `"probability-weighted"` and that
+`nsr_ncr` is present, PLUS a sole-discriminator probe proving the cheap signals (key-set / row-count /
+readability / non-empty) are BLIND. RED-before was reproduced on the REAL code path in a throwaway worktree
+at parent `08d9800d` (fixture file copied in; production formatter byte-identical to parent — empty
+production diff; scratch worktree removed after):
+
+| Arm | Where run | Result |
+|-----|-----------|--------|
+| R3 fixture (old bare-count prose + nsr_ncr absent) | scratch @ `08d9800d` (parent, REAL path) | **RED-CAUGHT** — `conv_rate`='Conversions ÷ total leads' (no "probability-weighted"); `nsr_ncr` KeyError (absent) |
+| R3 fixture (disclosed prose + nsr_ncr present) | this worktree @ `9bd9e0e9` | **GREEN** |
+
+The RED is the REAL attestation gap (parent production prose named bare scheduled/shown/lead counts and
+`nsr_ncr` had no tooltip), NOT an injected defect. Same fixture, flipped by the honest-denominator
+disclosure alone — two-sided teeth.
+
+### Item 2 — named G3/G4 division-family seams → OUT OF THIS DISPATCH'S SCOPE (NOT graded here)
+
+§(f) item 2 names data-side seams (`MIN_SOLID_SCHEDS_DENOMINATOR=0.5` G3 floor; G4 typed None/null refusal)
+and a data-side teeth suite (`tests/ci_guards/test_division_family_r3_teeth.py`, `..._r4_equivalence.py`)
+living in the **autom8y-data** repo, OUTSIDE this asana worktree's read scope and OUTSIDE this dispatch's
+render-parity obligations. I do NOT grade whether those data-side guards bite — that is a separate
+adversary firing against the data-side worktree. Flagged NOT-DISCHARGED-HERE (owed to a data-side prove-half
+dispatch), not silently claimed.
+
+### Item 3 residual — full headless consumed-render (browser-altitude) → NAMED, NOT CLAIMED
+
+§(f) item 3's strongest form is a provenance-stripped/disclosed proof at the ACTUAL rendered HTML surface
+(headless). My fixtures prove the parity + denominator prose at the `_DISPLAY_LABELS`/`_COLUMN_TOOLTIPS`
+map altitude (the tooltips the renderer emits verbatim into the `title=` attribute) — the source-of-truth
+the consumed render reads. A headless render-altitude assertion (Chromium `title=` scrape) is a strictly
+stronger leg I did NOT run here; flagged as a residual STRONG-lift owed to a render-altitude probe, self-cap
+honored (no verified-realized claim).
+
+### Gates (package env, this worktree)
+
+- Full formatter suite: **252 passed** (244 baseline + 8 new), zero regressions.
+- `ruff format --check`: clean (1 file already formatted). `ruff check`: All checks passed.
+- `mypy --strict` scope: repo config scopes strict to `src/`; this file is test-only. The typed helper
+  `_parity_invariant_violations(label_map: dict[str, str]) -> list[str]` carries full annotations; the 8
+  test methods follow the file's existing no-`-> None` convention (210/218 `no-untyped-def` notes are
+  pre-existing whole-file). `mypy src/` is unaffected by a test-only change.
+
+### Verdict: **TEETH-PROVEN** (asana render-parity scope) [STRUCTURAL | MODERATE, self-ref-capped]
+
+The deliberately-broken INPUT is REFUSED (collision map, third-label drift map, and the R3 old-prose path at
+`08d9800d`) AND the real input passes GREEN (live ruled map + disclosed R3 prose at `9bd9e0e9`), on the REAL
+code path, with no surface mutated and the adversary disjoint from the build. Residuals (data-side G3/G4
+teeth; headless consumed-render) are NAMED, not claimed.
