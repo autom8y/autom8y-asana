@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -30,12 +31,15 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from autom8y_api_schemas import OfficePhoneField  # noqa: TC002
+from autom8y_log import get_logger
 
 from autom8_asana.automation.workflows.insights.tables import (
     TABLE_SPECS,
     DispatchType,
 )
 from autom8_asana.clients.utils.pii import mask_phone_number
+
+logger = get_logger(__name__)
 
 # Preferred leading columns for period-based and reconciliation tables.
 # Keys must match TABLE_ORDER names exactly.
@@ -210,6 +214,15 @@ class TableResult:
             coverage promise" (the truthful deck state -> "not measured"). Governs the
             None-coverage render fork: honest-absent (False) vs would-be-dropped
             unknown (True). Defaults False.
+        band: provenance-to-the-human Sprint 5 (the-band-itself): the typed
+            weight-ignorance band (``WeightIgnoranceBand`` from the operator batch
+            meta, BAND-MECHANISM §6.1), or None when the batch carried no band
+            block. Read by the GATE-B-flagged band render (``_band_line_html``)
+            for weighted sections only; renders NOTHING while the named
+            ``render_nsr_band`` flag is OFF (the shipped default). Carried as
+            ``Any`` to avoid a formatter->client import edge (mirrors
+            ``coverage``); the render only reads ``.status`` / ``.lower`` /
+            ``.upper`` / ``.overlay_direction`` / ``.scheme_version``.
     """
 
     table_name: str
@@ -222,6 +235,7 @@ class TableResult:
     synced_at: str | None = None
     coverage: Any = None
     coverage_expected: bool = False
+    band: Any = None
 
 
 @dataclass
@@ -261,6 +275,13 @@ class DataSection:
     disclosure line from them (:func:`_coverage_line_html` -- measured floor /
     no-data / not-measured); other sections render none (the disclose-mandate is
     scoped to the surface where spend is allocated, autom8y-data db.md:180-184).
+
+    provenance-to-the-human Sprint 5 (the-band-itself): ``band`` carries the
+    typed weight-ignorance band from the ``TableResult``. A WEIGHTED section
+    (one carrying a ``weights_version``) renders the band disclosure line from
+    it (:func:`_band_line_html`) ONLY while the named GATE-B flag
+    ``render_nsr_band`` is ON; the flag lands OFF, so the shipped default
+    renders nothing and the composed document is byte-identical to pre-band.
     """
 
     name: str
@@ -275,6 +296,7 @@ class DataSection:
     synced_at: str | None = None
     coverage: Any = None
     coverage_expected: bool = False
+    band: Any = None
 
 
 class StructuredDataRenderer(Protocol):
@@ -402,10 +424,156 @@ def _coverage_line_html(section: DataSection) -> str:
     return f'<div class="section-provenance section-coverage">{html.escape(text)}</div>'
 
 
-def _section_disclosure_html(section: DataSection) -> str:
-    """Build the subtitle (+ live asOf stamp) + provenance + coverage lines.
+# ---------------------------------------------------------------------------
+# Weight-ignorance band disclosure (provenance-to-the-human Sprint 5,
+# the-band-itself; BAND-MECHANISM spec §7, behind the named GATE-B flag)
+# ---------------------------------------------------------------------------
 
-    Three disclosures, one place (so none can drift from the others across the
+# The named GATE-B flag (spec §7.4): ``render_nsr_band``, realized as an
+# env-var-driven setting mirroring the workflow kill-switch idiom
+# (EXPORT_ENABLED_ENV_VAR / os.environ read at call time) with the OPPOSITE,
+# lands-OFF polarity: the kill switch defaults ENABLED and is opted OUT; this
+# flag defaults OFF and must be opted IN with an explicit truthy value. Flag
+# OFF => :func:`_band_line_html` returns "" before inspecting ANY band, so the
+# composed document is byte-identical to pre-band BY CONSTRUCTION
+# (non-interference; S5-H attests it). Flipping the flag in any shipped
+# environment is the OPERATOR'S act, never a station's.
+RENDER_NSR_BAND_ENV_VAR = "AUTOM8_RENDER_NSR_BAND"
+
+# Explicit opt-IN vocabulary (the complement of the kill switch's opt-OUT set:
+# absent / empty / anything unrecognized stays OFF -- the conservative default).
+_RENDER_NSR_BAND_ON_VALUES: frozenset[str] = frozenset({"true", "1", "yes"})
+
+# The §7.1 direction token -> rendered word (the §2 sign of the weight-ignorance
+# bias on the rendered rate). "understate" is the shipped UNRATIFIED scheme's
+# proven-analytically sign: the surface may look BETTER than reality. A token
+# outside this vocabulary cannot convey the MANDATORY direction and is refused
+# at render (nothing drawn), never guessed.
+_BAND_DIRECTION_TEXT: dict[str, str] = {
+    "understate": "understates",
+    "overstate": "overstates",
+    "indeterminate": "indeterminate",
+}
+
+
+def _render_nsr_band_enabled() -> bool:
+    """True iff the named GATE-B flag ``render_nsr_band`` is explicitly ON.
+
+    Read from the environment at CALL time (``AUTOM8_RENDER_NSR_BAND``), so a
+    deployed default carries no band surface and tests pin the flag per-case.
+    Only an explicit truthy value ("true"/"1"/"yes", case-insensitive) enables;
+    absent, empty, and unrecognized values are all OFF (lands-OFF, spec §7.4).
+    """
+    raw = os.environ.get(RENDER_NSR_BAND_ENV_VAR, "")
+    return raw.strip().lower() in _RENDER_NSR_BAND_ON_VALUES
+
+
+def _band_line_html(section: DataSection) -> str:
+    """Render the weight-ignorance band disclosure line, or "" when gated off.
+
+    FLAG-ON EXPRESSION (mechanism-default pending the operator's GATE-B
+    presentation ruling (OP-3) -- NOT a GATE-B pick; the four GATE-B
+    presentation shapes OPT-A..D, spec §7.3, remain the operator's): the most
+    conservative C1-clean textual form in the existing ``.section-provenance``
+    grammar, one line conveying exactly the §7.1 MUST-convey triple --
+    width + direction + version:
+
+        forward-rate band: [0,1] ignorance · direction: understates (weights
+        2026-03-24-static-UNRATIFIED)
+
+    and NEVER the §7.2 forbidden readings: no "confidence", no sub-[0,1]
+    ribbon, no measured-interval numbers, no point correction. The version id
+    renders VERBATIM from the band's ``scheme_version`` (== the sibling
+    ``weights_version``, asserted at emission) -- the id ITSELF says UNRATIFIED,
+    the single-source substring discipline (PROVENANCE-CARRY §1.2).
+
+    THE THREE GATES (all must hold, in order):
+
+    (a) the named GATE-B flag ``render_nsr_band`` is ON -- checked FIRST, before
+        any band inspection, so flag-OFF is byte-identical by construction
+        [FIRE-SEAM BAND-FLAG: OFF => ""];
+    (b) the section is a WEIGHTED section (carries a ``weights_version``) -- an
+        unweighted section has no weight-banded number to band;
+    (c) ``band.status == "ignorance_overlay"`` -- ``no_band_applicable`` and
+        object-absent (None) both render nothing (declared states, not bands).
+
+    THE C1 RENDER REFUSAL [FIRE-SEAM BAND-C1]: if an overlay band somehow
+    carries a sub-[0,1] interval (defensive -- the emission type forbids it:
+    lower/upper are hard-fenced to exactly 0.0/1.0 upstream), this hop REFUSES
+    to render an interval -- it renders NOTHING and logs
+    ``insights_export_band_render_refused`` (reason="c1_interval_launder") --
+    rather than draw a tight ribbon. Laundered precision on an epistemic gap is
+    REFUSED at authoring, at emission, and HERE at render (spec §3). The same
+    refusal (distinct reasons) fires when the mandatory §7.1 conveyance is
+    impossible: an unconveyable/absent direction or a nameless scheme -- a
+    partial band line would under-disclose, so nothing is drawn and the refusal
+    is loud in the logs.
+
+    [FIRE-SEAM BAND-LINE]: flag ON + weighted section + honest [0,1] overlay
+    => exactly the one-line disclosure above, in the ``.section-provenance``
+    grammar with the ``section-band`` marker class.
+    """
+    if not _render_nsr_band_enabled():
+        # FIRE-SEAM BAND-FLAG: the GATE-B flag is OFF (the shipped default) --
+        # return "" before touching the band at all (byte-identical by
+        # construction; S5-H attests the composed-document equality).
+        return ""
+    if not section.weights_version:
+        # Not a weighted section: no weight-banded number, no band surface.
+        return ""
+    band = section.band
+    if band is None:
+        # Object-absent: the DISCLOSED-UNKNOWN third state -- no band statement
+        # was made, so none is rendered (never fabricated).
+        return ""
+    if getattr(band, "status", None) != "ignorance_overlay":
+        # no_band_applicable (or an unrecognized discriminant): declared
+        # not-applicable renders nothing.
+        return ""
+    lower = getattr(band, "lower", None)
+    upper = getattr(band, "upper", None)
+    if not (lower == 0.0 and upper == 1.0):
+        # FIRE-SEAM BAND-C1: a sub-[0,1] (or bound-less) overlay interval is
+        # laundered precision -- REFUSE to render an interval; nothing is drawn.
+        logger.warning(
+            "insights_export_band_render_refused",
+            section=section.name,
+            reason="c1_interval_launder",
+            lower=lower,
+            upper=upper,
+        )
+        return ""
+    direction_text = _BAND_DIRECTION_TEXT.get(getattr(band, "overlay_direction", None) or "")
+    if direction_text is None:
+        # The §7.1 direction is MANDATORY; an unconveyable direction refuses
+        # the whole line (a width-only band would under-disclose the sign).
+        logger.warning(
+            "insights_export_band_render_refused",
+            section=section.name,
+            reason="direction_unconveyable",
+            overlay_direction=getattr(band, "overlay_direction", None),
+        )
+        return ""
+    scheme_version = getattr(band, "scheme_version", None)
+    if not isinstance(scheme_version, str) or not scheme_version:
+        # A band that cannot name its scheme is inadmissible (§4): refuse loud.
+        logger.warning(
+            "insights_export_band_render_refused",
+            section=section.name,
+            reason="scheme_version_absent",
+        )
+        return ""
+    text = (
+        f"forward-rate band: [0,1] ignorance · direction: {direction_text} "
+        f"(weights {scheme_version})"
+    )
+    return f'<div class="section-provenance section-band">{html.escape(text)}</div>'
+
+
+def _section_disclosure_html(section: DataSection) -> str:
+    """Build the subtitle (+ live asOf stamp) + provenance + band + coverage lines.
+
+    Four disclosures, one place (so none can drift from the others across the
     three section renderers):
 
     1. SUBTITLE (R4 / DEFER-6): the base window prose from ``_SECTION_SUBTITLES``,
@@ -417,7 +585,14 @@ def _section_disclosure_html(section: DataSection) -> str:
        sections without a snapshot stamp render exactly as before).
     2. PROVENANCE line (C2 badge): the weights_version + asOf disclosure for a
        weighted section (:func:`_provenance_line_html`); "" for unweighted.
-    3. COVERAGE line (Sprint 4): the OFFER TABLE spend-attribution disclosure
+    3. BAND line (Sprint 5, behind the named GATE-B flag ``render_nsr_band``,
+       lands OFF): the weight-ignorance band disclosure for a weighted section
+       (:func:`_band_line_html`); "" while the flag is OFF (the shipped
+       default -- byte-identical to pre-band by construction), and "" for
+       unweighted sections / absent / not-applicable bands even when ON. Placed
+       DIRECTLY under the provenance line it qualifies (the band is a property
+       of those weights).
+    4. COVERAGE line (Sprint 4): the OFFER TABLE spend-attribution disclosure
        (:func:`_coverage_line_html`); "" for every other section.
 
     Returns the concatenated HTML, or "" only when there is nothing to show.
@@ -430,8 +605,9 @@ def _section_disclosure_html(section: DataSection) -> str:
             stamped = f"{stamped} · as of {html.escape(section.synced_at)}"
         subtitle_html = f'<div class="section-subtitle">{stamped}</div>'
     provenance_html = _provenance_line_html(section.weights_version, section.synced_at)
+    band_html = _band_line_html(section)
     coverage_html = _coverage_line_html(section)
-    return subtitle_html + provenance_html + coverage_html
+    return subtitle_html + provenance_html + band_html + coverage_html
 
 
 # ---------------------------------------------------------------------------
@@ -1003,6 +1179,9 @@ def compose_report(data: InsightsReportData) -> str:
         # lacking it BEFORE it reaches here), synced_at stamps the subtitle asOf.
         # Sprint 4: coverage rides the same hop; the OFFER TABLE render discloses
         # the spend-attribution face from it (_coverage_line_html).
+        # Sprint 5: the weight-ignorance band rides the same hop, exactly where
+        # weights_version rides; it SURFACES only behind the GATE-B flag
+        # (_band_line_html, render_nsr_band lands OFF).
         sections.append(
             DataSection(
                 name=spec.table_name,
@@ -1015,6 +1194,7 @@ def compose_report(data: InsightsReportData) -> str:
                 synced_at=result.synced_at,
                 coverage=result.coverage,
                 coverage_expected=result.coverage_expected,
+                band=result.band,
             )
         )
 

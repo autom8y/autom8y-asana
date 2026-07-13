@@ -1041,6 +1041,15 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
             # False), never null-coerced into a full-attribution reading (G4).
             coverage = table_meta.coverage if table_meta is not None else None
             coverage_expected = table_meta.coverage_expected if table_meta is not None else False
+            # provenance-to-the-human Sprint 5 (the-band-itself): carry the typed
+            # weight-ignorance band ALONGSIDE weights_version/asOf/coverage onto the
+            # TableResult. PASSTHROUGH only, exactly like coverage: no guard here --
+            # whether the band SURFACES is decided at the render behind the named
+            # GATE-B flag (formatter, render_nsr_band lands OFF), and the C1 value
+            # refusal lives at that render seam. The C2 weights guard BELOW stays
+            # weights-only, unchanged by the band; the denial union and coverage
+            # carry are untouched. Absence is DECLARED (band=None), never fabricated.
+            band = table_meta.band if table_meta is not None else None
 
             if _rows_are_weighted(data) and weights_version is None:
                 elapsed_ms = (time.monotonic() - fetch_start) * 1000
@@ -1080,6 +1089,7 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                 synced_at=synced_at,
                 coverage=coverage,
                 coverage_expected=coverage_expected,
+                band=band,
             )
 
         except (

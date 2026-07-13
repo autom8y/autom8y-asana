@@ -216,6 +216,113 @@ def _as_float_or_none(value: Any) -> float | None:
 
 
 @dataclass(frozen=True)
+class WeightIgnoranceBand:
+    """Client-side typed mirror of the data plane's ``WeightIgnoranceBand`` sub-model.
+
+    provenance-to-the-human Sprint 5 (the-band-itself): a small frozen mirror of
+    the ``band`` block the data plane emits alongside ``weights_version`` in the
+    operator batch's per-phone ``data.meta`` (autom8y-data ``_insights.py``
+    ``WeightIgnoranceBand``, BAND-MECHANISM spec §6.1). The values are read
+    VERBATIM from the sidecar; this carrier only NAMES the render-time contract
+    (which fields the band disclosure line reads) -- the data plane owns the
+    single source of truth, including the C1 hard-fence in ITS type (an
+    ``ignorance_overlay`` band REQUIRES lower==0.0 AND upper==1.0 exactly; a
+    laundered [0.309, 0.315] interval is unrepresentable-loudly at emission).
+    This mirror does NOT re-assert C1 at the transport -- the render-side C1
+    refusal (``formatter._band_line_html``) is the single defensive value-guard,
+    so a laundered band injected at ANY altitude meets exactly one refusal point.
+    If the sidecar's shape changes this mirror is revisited under a NAMED ruling,
+    never silently widened (mirrors the AttributionCoverage discipline).
+
+    ``status`` is the discriminant (the band trichotomy's in-object half; spec
+    §6.1, mirroring coverage's measured / no_data / object-absent):
+
+    - ``"ignorance_overlay"``: the response carries a weight-banded metric and
+      the band is the [0,1]-ignorance + directional overlay (the shipped
+      UNRATIFIED-scheme case). ``lower``/``upper`` carry exactly 0.0/1.0 and
+      ``overlay_direction`` carries the §2 bias sign on the rendered rate.
+    - ``"no_band_applicable"``: the response is on a band-capable envelope but
+      carries only non-banded metrics (declared not-applicable, distinct from a
+      dropped band).
+
+    Absence of the WHOLE block (``band=None`` on :class:`OperatorBatchMeta`) is
+    the third, DISCLOSED-UNKNOWN state: the response made no band statement at
+    all. None is a first-class typed state the render reads, NOT a null-coerced
+    stand-in (G4).
+
+    Attributes:
+        status: ``"ignorance_overlay"`` or ``"no_band_applicable"``.
+        scheme_version: The weight-scheme version the band is a property OF
+            (== the sibling ``weights_version``; asserted equal at emission).
+        lower: Ignorance-interval lower bound (0.0 for the overlay), or None.
+        upper: Ignorance-interval upper bound (1.0 for the overlay), or None.
+        overlay_direction: The sign of the weight-ignorance bias on the rendered
+            rate -- ``"understate"`` (the shipped UNRATIFIED scheme: the surface
+            may look BETTER than reality), ``"overstate"``, or
+            ``"indeterminate"``. None for ``no_band_applicable``.
+        overlay_citation: The overlay's provenance token (verbatim; the proxy
+            numbers live ONLY here per C1), or None.
+    """
+
+    status: Literal["ignorance_overlay", "no_band_applicable"]
+    scheme_version: str
+    lower: float | None = None
+    upper: float | None = None
+    overlay_direction: Literal["understate", "overstate", "indeterminate"] | None = None
+    overlay_citation: str | None = None
+
+
+# The recognized band discriminants / direction tokens (the data plane's Literal
+# sets, mirrored). An out-of-vocabulary token is a MALFORMED band at this
+# transport: declared absence (None), never a throw (§2.1 corollary).
+_BAND_STATUSES: frozenset[str] = frozenset({"ignorance_overlay", "no_band_applicable"})
+_BAND_DIRECTIONS: frozenset[str] = frozenset({"understate", "overstate", "indeterminate"})
+
+
+def _band_from_meta_block(meta: dict[str, Any]) -> WeightIgnoranceBand | None:
+    """Read the typed ``band`` sibling from one per-phone ``data.meta`` block.
+
+    The band lives NEXT TO ``weights_version`` / ``coverage`` in the per-phone
+    meta (spec §6.2: one band per response envelope, RESPONSE/META grain). Parsed
+    to the typed :class:`WeightIgnoranceBand` mirror when present with a
+    recognized shape; ``None`` when the block is absent or malformed (declared
+    absence, NOT a throw -- the transport is passthrough, §2.1 corollary).
+
+    Shape checks are TYPE/VOCABULARY only (dict-ness, Literal membership, str-ness
+    of the required ``scheme_version``); the C1 VALUE fence (overlay bounds must
+    be exactly [0, 1]) is deliberately NOT re-asserted here -- it lives at the
+    render refusal seam (``formatter._band_line_html``), so the adversary's
+    laundered-band mutation flows to exactly one named refusal point instead of
+    being silently swallowed in transit.
+    """
+    raw = meta.get("band")
+    if not isinstance(raw, dict):
+        return None
+    status = raw.get("status")
+    if status not in _BAND_STATUSES:
+        return None
+    scheme_version = raw.get("scheme_version")
+    if not isinstance(scheme_version, str) or not scheme_version:
+        # A band that cannot name its scheme is inadmissible upstream (§4); at
+        # this passthrough transport it is malformed -> declared absence.
+        return None
+    direction = raw.get("overlay_direction")
+    if direction is not None and direction not in _BAND_DIRECTIONS:
+        return None
+    citation = raw.get("overlay_citation")
+    if citation is not None and not isinstance(citation, str):
+        return None
+    return WeightIgnoranceBand(
+        status=status,
+        scheme_version=scheme_version,
+        lower=_as_float_or_none(raw.get("lower")),
+        upper=_as_float_or_none(raw.get("upper")),
+        overlay_direction=direction,
+        overlay_citation=citation,
+    )
+
+
+@dataclass(frozen=True)
 class OperatorBatchMeta:
     """Response/META-grain provenance carried across the operator batch seam.
 
@@ -257,12 +364,21 @@ class OperatorBatchMeta:
             ``True`` == coverage is expected (a ``coverage=None`` alongside it is the
             would-be-dropped state, disclosed as unknown -- NOT armable on the deck
             today, F5-coverage-THROW watch). Defaults ``False`` (no promise).
+        band: provenance-to-the-human Sprint 5 (the-band-itself): the typed
+            weight-ignorance band (:class:`WeightIgnoranceBand`), sibling to
+            ``weights_version`` in the per-phone ``data.meta`` (BAND-MECHANISM
+            §6.2 -- one band per batch response, a property of the weight scheme
+            applied to the batch). ``None`` == the batch carried NO band block
+            (the DISCLOSED-UNKNOWN object-absent state, distinct from a present
+            ``status="no_band_applicable"``). Read by the GATE-B-flagged band
+            render; None is a typed state, never a null-coerced stand-in (G4).
     """
 
     weights_version: str | None = None
     synced_at: str | None = None
     coverage: AttributionCoverage | None = None
     coverage_expected: bool = False
+    band: WeightIgnoranceBand | None = None
 
 
 # The empty/absent-provenance carrier: a served-but-provenance-free batch. A
@@ -311,6 +427,13 @@ def distribute_per_office_meta(body: dict[str, Any]) -> OperatorBatchMeta:
     ``synced_at`` first-non-None rule. Absence yields ``coverage=None`` +
     ``coverage_expected=False`` (deck honest-absent) -- a typed state, never a throw.
 
+    ``band`` (Sprint 5) rides ``data.meta.band``, another sibling of
+    ``weights_version`` at the same RESPONSE/META grain (BAND-MECHANISM §6.2: the
+    band is a property of the ONE weight scheme applied to the batch), so the FIRST
+    observed per-phone meta owns the batch band, mirroring the coverage
+    first-observer rule. A malformed block yields ``band=None`` (declared absence,
+    never a throw at the transport -- §2.1 corollary).
+
     Returns:
         OperatorBatchMeta at response grain. ``_EMPTY_OPERATOR_BATCH_META`` (all
         fields empty) when the body carries no successful entry or no provenance.
@@ -328,6 +451,8 @@ def distribute_per_office_meta(body: dict[str, Any]) -> OperatorBatchMeta:
     coverage: AttributionCoverage | None = None
     coverage_expected = False
     coverage_seen = False
+    band: WeightIgnoranceBand | None = None
+    band_seen = False
 
     for key in ("results", "pair_results"):
         entries = payload.get(key)
@@ -352,6 +477,12 @@ def distribute_per_office_meta(body: dict[str, Any]) -> OperatorBatchMeta:
                 # even when the coverage block itself is absent (honest-absent).
                 coverage, coverage_expected = _coverage_from_meta_block(meta)
                 coverage_seen = True
+            if not band_seen:
+                # First observed per-phone meta owns the batch band too (Sprint 5;
+                # one weight scheme -- hence one band -- per execute-batch, §6.2),
+                # mirroring the coverage first-observer rule above.
+                band = _band_from_meta_block(meta)
+                band_seen = True
 
     # G1 CARDINALITY (ordered before a token is chosen): a batch MUST NOT carry
     # >1 distinct weights_version at META grain. Caught here, loud and typed.
@@ -363,7 +494,13 @@ def distribute_per_office_meta(body: dict[str, Any]) -> OperatorBatchMeta:
             versions=sorted(distinct_versions),
         )
 
-    if not distinct_versions and synced_at is None and coverage is None and not coverage_expected:
+    if (
+        not distinct_versions
+        and synced_at is None
+        and coverage is None
+        and not coverage_expected
+        and band is None
+    ):
         return _EMPTY_OPERATOR_BATCH_META
 
     weights_version = next(iter(distinct_versions), None)
@@ -372,6 +509,7 @@ def distribute_per_office_meta(body: dict[str, Any]) -> OperatorBatchMeta:
         synced_at=synced_at,
         coverage=coverage,
         coverage_expected=coverage_expected,
+        band=band,
     )
 
 
@@ -700,6 +838,11 @@ def _merge_batch_metas(metas: list[OperatorBatchMeta]) -> OperatorBatchMeta:
     OBSERVED a coverage decision (one processor decision scores the whole owned set),
     mirroring ``synced_at``. A run where no sub-batch carried coverage collapses to
     ``coverage=None`` + ``coverage_expected=False`` (deck honest-absent).
+
+    ``band`` (Sprint 5) takes the first sub-batch that carried a band block (one
+    weight scheme -- hence one band -- scores the whole owned set, §6.2), mirroring
+    the ``synced_at`` first-non-None rule. A run where no sub-batch carried a band
+    collapses to ``band=None`` (the DISCLOSED-UNKNOWN object-absent state).
     """
     distinct_versions = {m.weights_version for m in metas if m.weights_version is not None}
     if len(distinct_versions) > 1:
@@ -720,13 +863,21 @@ def _merge_batch_metas(metas: list[OperatorBatchMeta]) -> OperatorBatchMeta:
     )
     coverage = coverage_meta.coverage if coverage_meta is not None else None
     coverage_expected = coverage_meta.coverage_expected if coverage_meta is not None else False
-    if weights_version is None and synced_at is None and coverage is None and not coverage_expected:
+    band = next((m.band for m in metas if m.band is not None), None)
+    if (
+        weights_version is None
+        and synced_at is None
+        and coverage is None
+        and not coverage_expected
+        and band is None
+    ):
         return _EMPTY_OPERATOR_BATCH_META
     return OperatorBatchMeta(
         weights_version=weights_version,
         synced_at=synced_at,
         coverage=coverage,
         coverage_expected=coverage_expected,
+        band=band,
     )
 
 
