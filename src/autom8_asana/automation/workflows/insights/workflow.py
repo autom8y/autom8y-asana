@@ -17,7 +17,7 @@ import re
 import time
 from dataclasses import dataclass as _dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from autom8y_api_schemas import OfficePhone
 from autom8y_log import get_logger
@@ -87,6 +87,44 @@ TABLE_NAMES = [s.table_name for s in TABLE_SPECS]
 TOTAL_TABLE_COUNT = len(TABLE_NAMES)  # 4
 
 
+@_dataclass(frozen=True)
+class _OperatorTableDenial:
+    """Typed, non-null-coercible marker that an operator table was DENIED/ERRORED.
+
+    provenance-to-the-human Sprint-3 (typed-refusal-at-render). This is the
+    ``kind: "denied"`` member of the operator-batch value union
+    (``list[dict] | _OperatorTableDenial``) written into ``self._operator_batch``
+    when the operator route refuses a table (``OperatorAccessDeniedError``) or an
+    unexpected fetch error occurs.
+
+    Why a TYPE, not a skipped key (G4/T4): previously a denied table was
+    ``continue``-skipped, so its key was ABSENT from ``self._operator_batch``.
+    ``_fetch_table`` then read it via ``.get(table_name, {}).get(office, [])`` --
+    the ``.get`` default NULL-COERCED the absence to ``[]`` (empty rows), which
+    became a ``TableResult(success=True, data=[])`` and rendered as a genuinely-
+    EMPTY table. A denial was thus structurally indistinguishable from real
+    emptiness at the founder's point of action (the C2 drift). This marker cannot
+    be null-coerced to empty: ``_fetch_table`` MUST test for it BEFORE the row-
+    extraction ``.get`` default fires (the degenerate arm is ORDERED FIRST, so the
+    coerce-to-empty path is unreachable for a denial), and converts it to a
+    ``TableResult(success=False, error_type=...)`` that routes through the
+    formatter's first-class error channel (``compose_report`` ``not result.success``
+    branch -> ``DataSection(error=...)`` -> ``_render_error_section``), rendering a
+    VISIBLE ``error-box`` marker distinct from an empty section's ``No data``.
+
+    ``kind`` is the discriminant (the ``ApiResult`` ``ok: false`` analogue adopted
+    from autom8y-admin-ui). It is a per-table denial: it leaves ONLY that table
+    refused and continues the batch (the "don't crash the daily run" intent is
+    preserved), unlike a whole-plane ``OperatorMintRefusedError`` which makes the
+    run a TRUE no-op via the separate INERT guard.
+    """
+
+    kind: Literal["denied"] = "denied"
+    reason: str | None = None
+    error_type: str = "OperatorAccessDenied"
+    error_message: str = "operator route denied this table for the owned office set"
+
+
 class InsightsExportWorkflow(BridgeWorkflowAction):
     """Daily insights export HTML report for Offer tasks.
 
@@ -132,12 +170,18 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
         # Actual cache hit counter (per F-13: replaces derived formula)
         self._cache_hits: int = 0
         # GAP-1 PR-A: pre-fetched operator-plane batch cache, populated once per run
-        # in execute_async (batch-over-O). Shape: {table_name: {office_phone: rows}}.
-        # A per-insight route denial leaves THAT table absent here -> its office
-        # decks render empty gracefully (no crash, no SA fleet-read fallback). A
-        # whole-plane mint refusal is handled separately via the INERT no-op guard
-        # below (the run skips publish entirely rather than rendering empty decks).
-        self._operator_batch: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        # in execute_async (batch-over-O). Value is a DISCRIMINATED UNION:
+        #   - dict[office_phone -> rows]  (a served table), OR
+        #   - _OperatorTableDenial        (kind="denied": a per-table route denial
+        #                                  or unexpected fetch error).
+        # provenance-to-the-human Sprint-3: a per-table denial is NO LONGER a
+        # skipped/absent key (which _fetch_table null-coerced to empty rows -> a
+        # genuinely-empty table at the founder's point of action, the C2 drift).
+        # It is a TYPED marker _fetch_table converts to a failed TableResult that
+        # renders a VISIBLE typed "denied" error-box, distinct from a real empty
+        # table. A whole-plane mint refusal is still handled separately via the
+        # INERT no-op guard below (the run skips publish entirely).
+        self._operator_batch: dict[str, dict[str, list[dict[str, Any]]] | _OperatorTableDenial] = {}
         # GAP-1 PR-A INERT no-op guard: True when the operator-plane mint was
         # REFUSED (the empty OPERATOR_ARN_ALLOWLIST 403, or no ambient AWS
         # credentials to sign sts:GetCallerIdentity). This is the deploy-INERT
@@ -739,23 +783,43 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                 return
             except OperatorAccessDeniedError as exc:
                 # THIS insight is denied (e.g. not yet on the data-plane allowlist,
-                # or all its offices drifted out of O): leave this table empty and
-                # continue with the others. NO SA fleet-read fallback.
+                # or all its offices drifted out of O). provenance-to-the-human
+                # Sprint-3: write a TYPED denial marker (NOT continue-into-absent).
+                # An absent key would null-coerce to empty rows in _fetch_table and
+                # render as a genuinely-empty table (the C2 drift). The marker makes
+                # the denial VISIBLE and typed at the founder's point of action. The
+                # batch is NOT aborted (other tables still serve); NO SA fallback.
+                reason = getattr(exc, "reason", None)
                 logger.warning(
                     "insights_export_operator_table_denied",
                     table=spec.table_name,
-                    reason=getattr(exc, "reason", None),
+                    reason=reason,
                     error=str(exc),
+                )
+                self._operator_batch[spec.table_name] = _OperatorTableDenial(
+                    reason=reason,
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
                 )
                 continue
             except (
                 Exception  # noqa: BLE001
             ) as exc:  # BROAD-CATCH: an unexpected operator error must not crash the daily run
+                # provenance-to-the-human Sprint-3: an unexpected per-table error is
+                # ALSO a typed denial marker, not a skipped/absent key. Same rationale
+                # as the denial arm -- a dropped table must render VISIBLE-and-typed,
+                # never as a silent genuinely-empty table. The daily run is preserved
+                # (the batch continues; this one table renders a typed error-box).
                 logger.warning(
                     "insights_export_operator_table_error",
                     table=spec.table_name,
                     error_type=type(exc).__name__,
                     error=str(exc),
+                )
+                self._operator_batch[spec.table_name] = _OperatorTableDenial(
+                    reason=getattr(exc, "reason", None),
+                    error_type=type(exc).__name__,
+                    error_message=str(exc),
                 )
                 continue
             self._operator_batch[spec.table_name] = per_office
@@ -860,7 +924,39 @@ class InsightsExportWorkflow(BridgeWorkflowAction):
                     f"cross-tenant export (only OPERATOR_INSIGHTS is served)"
                 )
 
-            rows = self._operator_batch.get(spec.table_name, {}).get(office_phone, [])
+            entry = self._operator_batch.get(spec.table_name)
+
+            # G3 FIRE-SEAM (provenance-to-the-human Sprint-3): the DENIED degenerate
+            # arm is ORDERED BEFORE the row-extraction ``.get(office_phone, [])``
+            # below, so a typed denial can NEVER reach the null-coercion-to-empty
+            # path -- the coerce-to-empty representation of a denial is unreachable.
+            # A denied table returns a FAILED TableResult carrying the typed marker's
+            # error_type/message, which compose_report routes through the formatter's
+            # first-class error channel (``not result.success`` -> ``DataSection(
+            # error=...)`` -> ``_render_error_section``) as a VISIBLE typed error-box,
+            # distinct from a genuinely-empty table's "No data" section.
+            if isinstance(entry, _OperatorTableDenial):
+                elapsed_ms = (time.monotonic() - fetch_start) * 1000
+                logger.info(
+                    "insights_export_table_denied_typed_marker",
+                    offer_gid=offer_gid,
+                    table_name=spec.table_name,
+                    reason=entry.reason,
+                    error_type=entry.error_type,
+                    duration_ms=elapsed_ms,
+                )
+                return TableResult(
+                    table_name=spec.table_name,
+                    success=False,
+                    error_type=entry.error_type,
+                    error_message=entry.error_message,
+                )
+
+            # A served table (or an absent key for a table that was never requested)
+            # extracts this office's rows. The ``{}`` / ``[]`` defaults here now apply
+            # ONLY to genuine served-but-empty cases -- a denial was already peeled
+            # off above, so this default can no longer mask a denial as emptiness.
+            rows = (entry or {}).get(office_phone, [])
 
             # OQ-4a: asana-side activity filter (keep spend>0 OR leads>0). Applied
             # only to the tables that need it (ASSET TABLE, AD QUESTIONS); it only
