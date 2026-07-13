@@ -1327,7 +1327,7 @@ class TestPhase1Constants:
         assert "cpl" in _COLUMN_TOOLTIPS
         assert "roas" in _COLUMN_TOOLTIPS
         assert "booking_rate" in _COLUMN_TOOLTIPS
-        assert len(_COLUMN_TOOLTIPS) == 12  # +ecps +xcps (GAP-2 2026-07-08)
+        assert len(_COLUMN_TOOLTIPS) == 13  # +ecps +xcps (GAP-2) +nsr_ncr (R3 2026-07-08)
 
     def test_column_tooltips_honest_cps_semantics(self):
         """GAP-2: cps tooltip drift fixed; ecps/xcps tooltips are distinct.
@@ -2541,8 +2541,8 @@ class TestPhase6QA:
         assert len(_DISPLAY_LABELS) == 28
 
     def test_column_tooltips_count(self):
-        """_COLUMN_TOOLTIPS has exactly 12 entries (10 + ecps + xcps, GAP-2)."""
-        assert len(_COLUMN_TOOLTIPS) == 12
+        """_COLUMN_TOOLTIPS has exactly 13 entries (10 + ecps + xcps GAP-2 + nsr_ncr R3)."""
+        assert len(_COLUMN_TOOLTIPS) == 13
 
     def test_section_subtitles_count(self):
         """_SECTION_SUBTITLES has exactly 12 entries (one per TABLE_ORDER)."""
