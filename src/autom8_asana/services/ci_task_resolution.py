@@ -27,6 +27,15 @@ and adjudicates exactly-one/zero/ambiguous on the DISTINCT PLAY set: the PLAY
 level is where ambiguity matters; the Business-level duplicate is tolerated by
 design.
 
+Receipts-leg holder resolution (G3, 2026-07-16): the SAME union-descend
+semantics, shared with the receipts comment leg's Business resolution
+(``_resolve_business_gid``), which pre-cure fail-closed CompanyAmbiguous/409
+on the duplicate shape and silently dropped the first real client's receipt
+trail. :func:`resolve_play_holder_business_gid` descends the union and returns
+the HOLDING Business gid (the comment receiver) when exactly one distinct PLAY
+names exactly one holder; anything else returns ``None`` so the caller keeps
+its pre-cure fail-close.
+
 Purity note: these functions take the ``AsanaClient`` + the resolved GIDs/maps
 as EXPLICIT parameters (rather than reaching through ``self``), so they carry no
 service state and are directly testable. The Forwarding-Stage single-select
@@ -46,6 +55,8 @@ from autom8_asana.core.project_registry import BUSINESS_PROJECT, CALENDAR_INTEGR
 from autom8_asana.domain.forwarding_stage import ForwardingStage
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from autom8_asana import AsanaClient
 
 logger = get_logger(__name__)
@@ -271,6 +282,93 @@ async def resolve_ci_task_gid(
     return next(iter(matches))
 
 
+async def resolve_play_holder_business_gid(
+    client: AsanaClient,
+    company_id: str,
+    *,
+    business_gids: Sequence[str],
+) -> str | None:
+    """UNION-DESCEND disambiguation of duplicate-Company-ID Business cards (G3).
+
+    The receipts comment leg's counterpart to the duplicate-Company-ID union in
+    :func:`resolve_ci_task_gid` (the same ruled semantics, live-proven via the
+    S4 resolver): hop 1 of the Business resolution may legitimately match
+    MULTIPLE Business cards -- a practice card plus practitioner card(s) sharing
+    the practice Company ID is the data model's NORMAL shape (the Total
+    Wellness class), not an error. Descend the union of every matched subtree
+    (membership-filtered, name-free, depth cap 2) and adjudicate on the
+    DISTINCT PLAY set:
+
+    - exactly ONE distinct PLAY, reachable from exactly ONE matched Business
+      subtree -> that HOLDING Business gid (the receipt's comment receiver);
+    - zero distinct PLAYs -> ``None`` (no disambiguating evidence; the caller
+      fail-closes exactly as pre-cure);
+    - more than one distinct PLAY -> ``None`` (genuinely ambiguous at the PLAY
+      level -- never pick a receiver silently);
+    - one distinct PLAY reachable from MORE THAN ONE matched subtree ->
+      ``None`` (no single nameable holder; structurally impossible via Asana
+      subtask parentage -- one parent per task -- guarded anyway).
+
+    Unlike :func:`resolve_ci_task_gid` (which returns the PLAY gid, so a
+    same-PLAY-in-both-subtrees dedupe resolves), this returns the BUSINESS gid:
+    the receipts comment threads onto the Business card, so the unique PLAY is
+    the disambiguator, not the target -- and a PLAY that cannot name a single
+    holder refuses.
+
+    Bounded exactly like the CI resolution: depth is structurally capped at
+    ``_DESCEND_DEPTH_CAP`` (2), each listing is one page capped at
+    ``_SUBTASK_PAGE_CAP``, and a FULL page raises the LOUD
+    :class:`SubtaskPageCapExceeded` -- a truncated child set under ANY matched
+    Business poisons the whole adjudication (never resolve against a
+    possibly-incomplete union). Guest-PAT scope honored (task-scope
+    ``/tasks/{gid}/subtasks`` only; the hop-1 search stays with the caller).
+    """
+    unique_business_gids = sorted(set(business_gids))
+    holders_by_play: dict[str, set[str]] = {}
+    for business_gid in unique_business_gids:
+        for play_gid in await _collect_ci_member_gids(client, business_gid):
+            holders_by_play.setdefault(play_gid, set()).add(business_gid)
+
+    if not holders_by_play:
+        logger.info(
+            "business_union_descend_zero_plays",
+            extra={"company_id": company_id, "business_gids": unique_business_gids},
+        )
+        return None
+    if len(holders_by_play) > 1:
+        logger.warning(
+            "business_union_descend_ambiguous_plays",
+            extra={
+                "company_id": company_id,
+                "business_gids": unique_business_gids,
+                "distinct_play_count": len(holders_by_play),
+            },
+        )
+        return None
+    play_gid, holder_gids = next(iter(holders_by_play.items()))
+    if len(holder_gids) > 1:
+        logger.warning(
+            "business_union_descend_ambiguous_holders",
+            extra={
+                "company_id": company_id,
+                "play_gid": play_gid,
+                "holder_gids": sorted(holder_gids),
+            },
+        )
+        return None
+    resolved = next(iter(holder_gids))
+    logger.info(
+        "business_union_descend_resolved",
+        extra={
+            "company_id": company_id,
+            "business_gid": resolved,
+            "play_gid": play_gid,
+            "business_count": len(unique_business_gids),
+        },
+    )
+    return resolved
+
+
 async def read_current_stage(
     client: AsanaClient,
     ci_gid: str,
@@ -311,4 +409,5 @@ __all__ = [
     "UnknownStage",
     "read_current_stage",
     "resolve_ci_task_gid",
+    "resolve_play_holder_business_gid",
 ]
