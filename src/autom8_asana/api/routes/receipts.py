@@ -117,7 +117,10 @@ async def post_receipt(
     Error Responses:
         - 401 MISSING_AUTH / SERVICE_TOKEN_REQUIRED: auth failures (S2S only)
         - 404 COMPANY_NOT_RESOLVED: no Business task carries this company_id
-        - 409 COMPANY_AMBIGUOUS: >1 Business task carries this company_id
+        - 409 COMPANY_AMBIGUOUS: >1 Business task carries this company_id AND
+          the union descend names no single receiver (zero or >1 distinct
+          PLAYs across the matched subtrees -- the bare practice+practitioner
+          duplicate itself resolves via its unique PLAY, G3)
         - 422 UNKNOWN_RECEIPT_KIND: kind ∉ the four ReceiptKind literals
         - 503 COMPANY_ID_FIELD_UNCONFIGURED: OI-2b field GID not configured
         - 503 ASANA_UNAVAILABLE: Asana API failure

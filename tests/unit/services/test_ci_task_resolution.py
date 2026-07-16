@@ -18,6 +18,14 @@ share one Company ID (the data model's NORMAL shape -- the Total Wellness
 BLOCK). The resolver descends the UNION of all matched subtrees and
 adjudicates exactly-one/zero/ambiguous on the DISTINCT PLAY set.
 
+Receipts-leg holder resolution (G3, 2026-07-16): the SAME union-descend
+semantics, ported for ``_resolve_business_gid`` -- but the return value is the
+HOLDING Business gid (the receipt's comment receiver), with the unique PLAY as
+the disambiguator. ``resolve_play_holder_business_gid`` locks that contract:
+exactly one distinct PLAY held by exactly one matched subtree resolves; zero /
+>1 distinct PLAYs / a single PLAY without a single nameable holder all return
+``None`` (the caller fail-closes exactly as pre-cure).
+
 Two-sided where a guard exists: happy two-hop, direct depth-1 member,
 zero-member (the membership-filter teeth), multi-member ambiguous refuse,
 depth cap, truncation loud-abort, 0 Business matches, duplicate-Company-ID
@@ -39,6 +47,7 @@ from autom8_asana.services.ci_task_resolution import (
     UnknownStage,
     read_current_stage,
     resolve_ci_task_gid,
+    resolve_play_holder_business_gid,
 )
 
 CI_PROJECT_GID = "1209442849265632"  # CALENDAR_INTEGRATIONS_PROJECT
@@ -357,6 +366,203 @@ class TestResolveCiTaskGid:
             client, COMPANY_ID, company_id_field_gid=COMPANY_ID_FIELD_GID
         )
         assert gid == CI_TASK_GID
+
+
+class TestResolvePlayHolderBusinessGid:
+    """resolve_play_holder_business_gid -- the receipts-leg union descend (G3).
+
+    Same descend machinery as ``resolve_ci_task_gid`` (membership-filtered,
+    name-free, depth cap 2, page-cap loud abort), but the RESOLVED VALUE is the
+    HOLDING Business gid -- the receipts comment threads onto the Business card,
+    so the unique PLAY is the disambiguator, not the target. The fake never
+    needs the search leg: the function takes the hop-1 Business gids as input.
+    """
+
+    # The live Total Wellness shape (the G3 first-real-client defect).
+    PRACTICE = "1214127219419742"  # "Total Wellness Center" -- holds the PLAY
+    PRACTITIONER = "1214420107547660"  # "Holly R. Geersen DC" -- zero PLAYs
+    PLAY = "1215766139321621"
+
+    @pytest.mark.asyncio
+    async def test_tw_duplicate_single_play_resolves_holding_business(self) -> None:
+        """The G3 cure (live TW shape): two Business subtrees, ONE PLAY under the
+        practice's holder, practitioner subtree empty -> the PRACTICE gid.
+
+        RED side: a Business-level len!=1 adjudication (the pre-cure
+        _resolve_business_gid) has no single Business to name and fail-closes --
+        exactly the CompanyAmbiguous/409 that dropped Total Wellness.
+        """
+        client = _tree_client(
+            subtasks={
+                self.PRACTICE: [_node(HOLDER_GID)],
+                HOLDER_GID: [_node(self.PLAY, in_ci=True), _node("noise-1")],
+                self.PRACTITIONER: [_node("practitioner-holder")],
+                "practitioner-holder": [],
+            },
+        )
+        gid = await resolve_play_holder_business_gid(
+            client, COMPANY_ID, business_gids=[self.PRACTICE, self.PRACTITIONER]
+        )
+        assert gid == self.PRACTICE
+
+    @pytest.mark.asyncio
+    async def test_direct_depth1_play_resolves_holder(self) -> None:
+        """Robustness clause parity: a PLAY linked DIRECTLY under one Business
+        (no holder hop) still names that Business."""
+        client = _tree_client(
+            subtasks={
+                self.PRACTICE: [_node(self.PLAY, in_ci=True)],
+                self.PLAY: [],
+                self.PRACTITIONER: [],
+            },
+        )
+        gid = await resolve_play_holder_business_gid(
+            client, COMPANY_ID, business_gids=[self.PRACTICE, self.PRACTITIONER]
+        )
+        assert gid == self.PRACTICE
+
+    @pytest.mark.asyncio
+    async def test_two_distinct_plays_refused(self) -> None:
+        """RED side (no over-relax): EACH subtree holds a DISTINCT PLAY -> two
+        distinct receivers -> ``None`` (fail-closed at the PLAY level, never
+        pick)."""
+        client = _tree_client(
+            subtasks={
+                self.PRACTICE: [_node("holder-a")],
+                "holder-a": [_node("play-a", in_ci=True)],
+                self.PRACTITIONER: [_node("holder-b")],
+                "holder-b": [_node("play-b", in_ci=True)],
+            },
+        )
+        gid = await resolve_play_holder_business_gid(
+            client, COMPANY_ID, business_gids=[self.PRACTICE, self.PRACTITIONER]
+        )
+        assert gid is None
+
+    @pytest.mark.asyncio
+    async def test_two_plays_in_one_subtree_refused(self) -> None:
+        """Adjudication is on the DISTINCT PLAY SET, not per-Business: TWO PLAYs
+        under the SAME subtree (the other empty) is still ambiguous -> ``None``.
+
+        RED side: a per-Business exactly-one rule would call the practice
+        subtree ambiguous but could 'resolve' via a wrong reduction; the set
+        rule refuses outright.
+        """
+        client = _tree_client(
+            subtasks={
+                self.PRACTICE: [_node("holder-a")],
+                "holder-a": [_node("play-a", in_ci=True), _node("play-b", in_ci=True)],
+                self.PRACTITIONER: [],
+            },
+        )
+        gid = await resolve_play_holder_business_gid(
+            client, COMPANY_ID, business_gids=[self.PRACTICE, self.PRACTITIONER]
+        )
+        assert gid is None
+
+    @pytest.mark.asyncio
+    async def test_zero_plays_refused(self) -> None:
+        """Zero PLAYs anywhere in the union -> no disambiguating evidence ->
+        ``None`` (the caller keeps the pre-cure fail-close)."""
+        client = _tree_client(
+            subtasks={
+                self.PRACTICE: [_node("holder-a")],
+                "holder-a": [],
+                self.PRACTITIONER: [],
+            },
+        )
+        gid = await resolve_play_holder_business_gid(
+            client, COMPANY_ID, business_gids=[self.PRACTICE, self.PRACTITIONER]
+        )
+        assert gid is None
+
+    @pytest.mark.asyncio
+    async def test_empty_business_gids_refused(self) -> None:
+        """Degenerate input: no Business gids -> ``None``, zero API calls."""
+        client = _tree_client(subtasks={})
+        gid = await resolve_play_holder_business_gid(client, COMPANY_ID, business_gids=[])
+        assert gid is None
+        client.http.get.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_same_play_under_both_subtrees_refused(self) -> None:
+        """DELIBERATE divergence from resolve_ci_task_gid's same-PLAY dedupe:
+        there the PLAY is the target (one distinct PLAY -> resolve); HERE the
+        Business is the target, and a PLAY reachable from BOTH subtrees names no
+        single holder -> ``None`` (never pick a receiver silently).
+
+        Structurally impossible via Asana subtask parentage (one parent per
+        task), guarded anyway.
+        """
+        client = _tree_client(
+            subtasks={
+                self.PRACTICE: [_node("holder-a")],
+                "holder-a": [_node(self.PLAY, in_ci=True)],
+                self.PRACTITIONER: [_node("holder-b")],
+                "holder-b": [_node(self.PLAY, in_ci=True)],
+            },
+        )
+        gid = await resolve_play_holder_business_gid(
+            client, COMPANY_ID, business_gids=[self.PRACTICE, self.PRACTITIONER]
+        )
+        assert gid is None
+
+    @pytest.mark.asyncio
+    async def test_duplicate_input_gids_deduped(self) -> None:
+        """The same Business gid passed twice is descended once and cannot
+        manufacture a phantom second holder."""
+        client = _tree_client(
+            subtasks={
+                self.PRACTICE: [_node(HOLDER_GID)],
+                HOLDER_GID: [_node(self.PLAY, in_ci=True)],
+            },
+        )
+        gid = await resolve_play_holder_business_gid(
+            client, COMPANY_ID, business_gids=[self.PRACTICE, self.PRACTICE]
+        )
+        assert gid == self.PRACTICE
+        subtask_urls = [u for u in client.get_urls if u.endswith("/subtasks")]
+        assert subtask_urls.count(f"/tasks/{self.PRACTICE}/subtasks") == 1
+
+    @pytest.mark.asyncio
+    async def test_truncated_subtask_page_aborts_loud(self) -> None:
+        """Cap-abort teeth: a FULL page under ANY matched Business poisons the
+        whole union -> LOUD SubtaskPageCapExceeded, never a silent resolution
+        over a truncated child set (even though the OTHER subtree alone would
+        have resolved cleanly)."""
+        full_page = [_node(f"bulk-{i}") for i in range(100)]
+        client = _tree_client(
+            subtasks={
+                self.PRACTICE: [_node(HOLDER_GID)],
+                HOLDER_GID: [_node(self.PLAY, in_ci=True)],
+                self.PRACTITIONER: full_page,
+            },
+        )
+        with pytest.raises(SubtaskPageCapExceeded) as exc_info:
+            await resolve_play_holder_business_gid(
+                client, COMPANY_ID, business_gids=[self.PRACTICE, self.PRACTITIONER]
+            )
+        assert exc_info.value.parent_gid == self.PRACTITIONER
+        assert exc_info.value.cap == 100
+
+    @pytest.mark.asyncio
+    async def test_depth3_play_out_of_scope(self) -> None:
+        """Bounded descend parity: a PLAY at depth 3 is OUT OF SCOPE (cap 2) ->
+        the union sees zero PLAYs -> ``None``, and the depth-2 node's subtasks
+        are never even listed."""
+        client = _tree_client(
+            subtasks={
+                self.PRACTICE: [_node("child-1")],
+                "child-1": [_node("child-2")],
+                "child-2": [_node("deep-play", in_ci=True)],
+                self.PRACTITIONER: [],
+            },
+        )
+        gid = await resolve_play_holder_business_gid(
+            client, COMPANY_ID, business_gids=[self.PRACTICE, self.PRACTITIONER]
+        )
+        assert gid is None
+        assert "/tasks/child-2/subtasks" not in client.get_urls
 
 
 class TestReadCurrentStage:
