@@ -5,12 +5,20 @@ Business task as an Asana comment. Three phases:
 
   1. RESOLVE  ``company_id`` -> the single Business ``task_gid`` via a
      store-independent LIVE ``tasks/search`` on the "Company ID" custom field,
-     filtered to the Businesses project, FAIL-CLOSED on zero/ambiguous matches
+     filtered to the Businesses project, FAIL-CLOSED on zero matches
      (the ``_business_gid_by_phone`` idiom adapted from Office Phone). This is
      the decisive design choice (FORK-R / ADR D-3): the cache-backed
      ``SearchService`` fails OPEN-as-not-found on a cold cache, which in a
      receipts route would silently drop a real clinic's receipt. Live search is
      authoritative on every call.
+
+     MULTIPLE matches are the data model's NORMAL shape (a practice card plus
+     practitioner card(s) sharing one Company ID -- the Total Wellness / G3
+     class) and are disambiguated by the ruled UNION-DESCEND (the same
+     semantics live-proven in ``ci_task_resolution.resolve_ci_task_gid``):
+     exactly ONE distinct PLAY across the union names its HOLDING Business the
+     receiver; zero or >1 distinct PLAYs FAIL-CLOSE exactly as before
+     (ambiguity matters at the PLAY level, not the Business level).
 
   2. DEDUP    scan the task's existing stories for THIS receipt's marker
      (the ``link_on_play`` marker-in-text pattern). Present ⇒ skip (idempotent).
@@ -46,6 +54,9 @@ from autom8_asana.services.ci_task_resolution import (
 )
 from autom8_asana.services.ci_task_resolution import (
     resolve_ci_task_gid as _resolve_ci_task_gid_impl,
+)
+from autom8_asana.services.ci_task_resolution import (
+    resolve_play_holder_business_gid as _resolve_play_holder_business_gid_impl,
 )
 
 if TYPE_CHECKING:
@@ -148,9 +159,13 @@ class CompanyNotResolved(ReceiptResolutionError):
 
 
 class CompanyAmbiguous(ReceiptResolutionError):
-    """More than one Business task carries this ``company_id`` (fail-closed 409).
+    """More than one Business task carries this ``company_id`` AND the
+    union-descend names no single receiver (fail-closed 409).
 
-    Never pick a receiver silently.
+    The bare Business-level duplicate is the data model's NORMAL shape (G3)
+    and is tolerated; this raises only when the union of the matched subtrees
+    yields zero or >1 DISTINCT PLAYs (or one PLAY with no single nameable
+    holder). Never pick a receiver silently.
     """
 
     def __init__(self, company_id: str, gids: list[str]) -> None:
@@ -222,11 +237,21 @@ class ReceiptsService:
         """Resolve ``company_id`` -> the single Business ``task_gid`` (fail-closed).
 
         Store-independent LIVE ``tasks/search`` keyed on the Company ID
-        custom-field value, filtered to the Businesses project. Raises
+        custom-field value, filtered to the Businesses project. A single match
+        resolves directly (no further API calls). MULTIPLE matches -- the data
+        model's NORMAL practice+practitioner duplicate (G3) -- are disambiguated
+        by the ruled UNION-DESCEND (``resolve_play_holder_business_gid``):
+        exactly ONE distinct PLAY across the matched subtrees names its HOLDING
+        Business card the receiver. Raises
         :class:`CompanyNotResolved` on zero matches (404),
-        :class:`CompanyAmbiguous` on >1 (409),
+        :class:`CompanyAmbiguous` when the union names no single receiver --
+        zero or >1 distinct PLAYs (409),
         :class:`CompanyIdFieldUnconfigured` (503) when the field GID is absent,
-        :class:`NoWorkspaceConfigured` (503) when no workspace is set.
+        :class:`NoWorkspaceConfigured` (503) when no workspace is set. A
+        truncated subtask page during the descend propagates the LOUD
+        :class:`ci_task_resolution.SubtaskPageCapExceeded` (the route's
+        boundary catch maps it to 503 -- never resolve against a possibly-
+        incomplete union).
         """
         if not self._company_id_field_gid:
             raise CompanyIdFieldUnconfigured(
@@ -263,7 +288,22 @@ class ReceiptsService:
         if not matches:
             raise CompanyNotResolved(f"no Business task carries company_id={company_id!r}")
         if len(matches) > 1:
-            raise CompanyAmbiguous(company_id, [str(m.get("gid")) for m in matches])
+            # Duplicate-Company-ID class (practice + practitioner cards sharing
+            # one Company ID): the data model's NORMAL shape, not an error --
+            # fail-closing here silently dropped the first real client's receipt
+            # trail (G3). UNION-DESCEND (the ruled semantics shared with
+            # resolve_ci_task_gid, live-proven on Total Wellness): exactly ONE
+            # distinct PLAY across every matched subtree names its HOLDING
+            # Business the receiver; zero or >1 keep the pre-cure fail-close.
+            matched_gids = [str(m.get("gid")) for m in matches]
+            holder_gid = await _resolve_play_holder_business_gid_impl(
+                self._client,
+                company_id,
+                business_gids=[str(m["gid"]) for m in matches if m.get("gid") is not None],
+            )
+            if holder_gid is None:
+                raise CompanyAmbiguous(company_id, matched_gids)
+            return holder_gid
         gid = matches[0].get("gid")
         if gid is None:  # pragma: no cover - Asana always returns a gid on a hit
             raise CompanyNotResolved(

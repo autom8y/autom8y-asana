@@ -10,6 +10,12 @@ discipline). The load-bearing cases:
     company MUST fail-closed (404/409), NEVER post to a fallback task. T-R5 is
     the anti-fail-open teeth: a search-degradation (empty hits) returns 404, not
     200 -- proving we did NOT wire the cold-cache-fail-open SearchService.
+  - T-R6..T-R9 (duplicate-Company-ID union descend, G3): a practice card plus
+    practitioner card(s) sharing one Company ID is the data model's NORMAL shape
+    (the Total Wellness first-real-client shape), not an error. Exactly ONE
+    distinct PLAY across the union names its HOLDING Business the receiver
+    (T-R6); >1 (T-R7) or zero (T-R8) distinct PLAYs still fail-close 409 with
+    the pre-cure signature; a truncated subtask page aborts LOUD as 503 (T-R9).
   - T-I2/T-I3 (idempotency): a re-delivered receipt is skipped; a NEW-day nudge
     re-fires (the marker's per-kind bucket has teeth on both sides).
   - T-D1 (retry discipline): a POST-5xx is a 503 and is NOT blind-retried.
@@ -53,6 +59,24 @@ RECEIPT_BODY = {
     "Forwarding address domain: gmail.com",
 }
 
+# The live Total Wellness duplicate-Company-ID shape (G3, first real client):
+# ONE Company ID on TWO Business cards -- the practice (whose subtree holds the
+# PLAY task, multi-homed into Calendar Integrations) and the practitioner
+# (zero PLAYs). The data model's NORMAL shape, not an error.
+TW_COMPANY_ID = "7363c7ea-66f8-487f-9f6e-c7a12a63d33f"
+TW_PRACTICE_GID = "1214127219419742"  # "Total Wellness Center" -- holds the PLAY
+TW_PRACTITIONER_GID = "1214420107547660"  # "Holly R. Geersen DC" -- zero PLAYs
+TW_PLAY_GID = "1215766139321621"  # the PLAY task (Calendar Integrations member)
+TW_HOLDER_GID = "1214127219419900"  # the "{Clinic} PLAYS/REQUESTS" holder
+CALENDAR_INTEGRATIONS_PROJECT_GID = "1209442849265632"  # CALENDAR_INTEGRATIONS_PROJECT
+
+TW_RECEIPT_BODY = {
+    "company_id": TW_COMPANY_ID,
+    "kind": "verified",
+    "body": "Forwarding lifecycle: verified\nClinic: Total Wellness Center\n"
+    "Forwarding address domain: gmail.com",
+}
+
 
 # ---------------------------------------------------------------------------
 # Fake AsanaClient
@@ -75,6 +99,13 @@ def _business_task(gid: str, in_businesses: bool = True) -> dict[str, Any]:
     return {"gid": gid, "name": "Business Task", "projects": projects}
 
 
+def _subtask(gid: str, *, in_ci: bool = False) -> dict[str, Any]:
+    """A ``/tasks/{gid}/subtasks`` row; the name is deliberately unhelpful
+    (the union descend filters by PROJECT MEMBERSHIP, never by name)."""
+    projects = [{"gid": CALENDAR_INTEGRATIONS_PROJECT_GID}] if in_ci else [{"gid": "9999"}]
+    return {"gid": gid, "name": "an unrelated-looking task name", "projects": projects}
+
+
 def _make_story(gid: str, text: str) -> MagicMock:
     """A Story-like object with .gid and .text."""
     story = MagicMock()
@@ -87,6 +118,7 @@ def _make_mock_asana_client(
     *,
     search_results: list[dict[str, Any]] | None = None,
     search_raises: Exception | None = None,
+    subtasks: dict[str, list[dict[str, Any]]] | None = None,
     existing_stories: list[MagicMock] | None = None,
     create_raises: Exception | None = None,
     workspace_gid: str | None = "1140000000000001",
@@ -97,6 +129,10 @@ def _make_mock_asana_client(
         search_results: rows returned by http.get for tasks/search (WRAPPED as
             the unwrapped list -- http.get strips the {"data": ...} envelope).
         search_raises: exception raised by http.get (e.g. an Asana 5xx).
+        subtasks: parent task gid -> rows its ``/tasks/{gid}/subtasks`` listing
+            returns (the union-descend seam; absent parents list empty -- so a
+            duplicate-Company-ID fixture with no subtask map models the
+            zero-PLAY union).
         existing_stories: stories already on the resolved task (dedup input).
         create_raises: exception raised by create_comment_async (e.g. a POST-5xx).
         workspace_gid: default_workspace_gid on the client.
@@ -106,12 +142,23 @@ def _make_mock_asana_client(
     mock_client.__aexit__ = AsyncMock(return_value=None)
     mock_client.default_workspace_gid = workspace_gid
 
-    # http.get -> tasks/search. http.get UNWRAPS the {"data": ...} envelope, so
-    # a search returns the inner list directly (the service dual-handles both).
+    # http.get, URL-routed: tasks/search -> search_results; /tasks/{gid}/subtasks
+    # -> the fixture's per-parent rows (the union-descend seam). http.get UNWRAPS
+    # the {"data": ...} envelope, so both return inner lists directly (the
+    # service dual-handles both shapes).
     if search_raises is not None:
         mock_client.http.get = AsyncMock(side_effect=search_raises)
     else:
-        mock_client.http.get = AsyncMock(return_value=search_results or [])
+        subtasks_by_parent = subtasks or {}
+
+        async def _routed_get(url: str, *, params: dict[str, Any] | None = None) -> Any:
+            if url.endswith("/tasks/search"):
+                return search_results or []
+            if url.startswith("/tasks/") and url.endswith("/subtasks"):
+                return subtasks_by_parent.get(url.split("/")[2], [])
+            raise AssertionError(f"unexpected GET in fake client: {url}")
+
+        mock_client.http.get = AsyncMock(side_effect=_routed_get)
 
     # stories.list_for_task_async(...).collect() -> list[Story]
     mock_client.stories.list_for_task_async = MagicMock(
@@ -248,7 +295,15 @@ class TestResolution:
         mock_client.stories.create_comment_async.assert_not_called()
 
     def test_r3_red_ambiguous_409_no_post(self, client: TestClient) -> None:
-        """T-R3 RED: two Business matches -> 409, NO comment, both gids surfaced."""
+        """T-R3 RED: two Business matches, NO disambiguating PLAY -> 409, NO
+        comment, both gids surfaced.
+
+        Post-G3 semantics: a duplicate Company-ID alone no longer fail-closes --
+        the union descend looks for exactly one distinct PLAY. Here NEITHER
+        subtree holds any subtask (the default empty subtasks map), so the union
+        yields zero PLAYs and the resolution fail-closes with the SAME
+        CompanyAmbiguous/409 signature as before the cure.
+        """
         mock_client = _make_mock_asana_client(
             search_results=[
                 _business_task("1200000000000001"),
@@ -300,6 +355,156 @@ class TestResolution:
         # The teeth: NOT a 200, and NOT a comment on any fallback task.
         assert resp.status_code != 200
         mock_client.stories.create_comment_async.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# 7.1b Duplicate-Company-ID UNION DESCEND (G3) -- T-R6..T-R9
+#
+# The Total Wellness first-real-client shape: ONE Company ID on TWO Business
+# cards (practice + practitioner) is the data model's NORMAL shape. Pre-cure,
+# _resolve_business_gid fail-closed CompanyAmbiguous/409 on it, silently
+# dropping the first real client's receipt trail. The ruled cure is the SAME
+# union-descend semantics already live in ci_task_resolution (D3 / PR #226):
+# descend ALL matched subtrees (membership-filtered, name-free, depth cap 2);
+# exactly ONE distinct PLAY names its HOLDING Business the receiver; zero or
+# >1 distinct PLAYs keep the pre-cure fail-close.
+# ---------------------------------------------------------------------------
+
+
+class TestUnionDescendResolution:
+    def _tw_mock(
+        self,
+        *,
+        practitioner_subtree: dict[str, list[dict[str, Any]]] | None = None,
+    ) -> MagicMock:
+        """The live TW shape: practice subtree holds THE one PLAY (via the
+        holder hop); the practitioner subtree defaults to a holder with zero
+        PLAYs (override to model other shapes)."""
+        subtasks: dict[str, list[dict[str, Any]]] = {
+            TW_PRACTICE_GID: [_subtask(TW_HOLDER_GID)],
+            TW_HOLDER_GID: [_subtask(TW_PLAY_GID, in_ci=True), _subtask("noise-1")],
+        }
+        subtasks.update(
+            practitioner_subtree
+            if practitioner_subtree is not None
+            else {
+                TW_PRACTITIONER_GID: [_subtask("practitioner-holder")],
+                "practitioner-holder": [],
+            }
+        )
+        return _make_mock_asana_client(
+            search_results=[
+                _business_task(TW_PRACTICE_GID),
+                _business_task(TW_PRACTITIONER_GID),
+            ],
+            subtasks=subtasks,
+        )
+
+    def test_r6_green_tw_duplicate_resolves_play_holding_business(self, client: TestClient) -> None:
+        """T-R6 GREEN (the G3 cure, live TW shape): two Business cards share the
+        Company ID; ONLY the practice subtree holds the PLAY -> the receipt
+        resolves to the PRACTICE card and posts there.
+
+        RED side (the pre-cure defect, proven by running this test against the
+        pinned pre-cure code): _resolve_business_gid raised
+        CompanyAmbiguous -> 409 COMPANY_AMBIGUOUS on the bare duplicate,
+        silently dropping the first real client's receipt trail.
+        """
+        mock_client = self._tw_mock()
+        resp = _post(client, mock_client, TW_RECEIPT_BODY)
+
+        assert resp.status_code == 200, f"expected resolve, got {resp.status_code}: {resp.text}"
+        data = resp.json()["data"]
+        assert data["business_gid"] == TW_PRACTICE_GID
+        assert data["outcome"] == "posted"
+        # The comment threads onto the PRACTICE card (the PLAY holder), never
+        # the practitioner card.
+        create_kwargs = mock_client.stories.create_comment_async.await_args.kwargs
+        assert create_kwargs["task"] == TW_PRACTICE_GID
+
+    def test_r7_red_two_distinct_plays_still_409_no_post(self, client: TestClient) -> None:
+        """T-R7 RED (no over-relax): EACH subtree holds a DISTINCT PLAY -> the
+        union yields two distinct receivers -> 409 with the pre-cure signature,
+        NO comment. Ambiguity is adjudicated at the PLAY level and still
+        fail-closes. This test passes PRE-cure and POST-cure (two-sided guard
+        against over-relaxation).
+        """
+        mock_client = self._tw_mock(
+            practitioner_subtree={
+                TW_PRACTITIONER_GID: [_subtask("practitioner-holder")],
+                "practitioner-holder": [_subtask("second-play", in_ci=True)],
+            }
+        )
+        resp = _post(client, mock_client, TW_RECEIPT_BODY)
+
+        assert resp.status_code == 409
+        err = resp.json()["error"]
+        assert err["code"] == "COMPANY_AMBIGUOUS"
+        assert set(err["details"]["gids"]) == {TW_PRACTICE_GID, TW_PRACTITIONER_GID}
+        mock_client.stories.create_comment_async.assert_not_called()
+
+    def test_r8_red_zero_plays_still_409_no_post(self, client: TestClient) -> None:
+        """T-R8 RED: duplicate Business cards but ZERO PLAYs anywhere in the
+        union -> no disambiguating evidence -> 409 with the pre-cure signature,
+        NO comment (never guess a receiver).
+        """
+        mock_client = _make_mock_asana_client(
+            search_results=[
+                _business_task(TW_PRACTICE_GID),
+                _business_task(TW_PRACTITIONER_GID),
+            ],
+            subtasks={
+                TW_PRACTICE_GID: [_subtask("empty-holder-a")],
+                "empty-holder-a": [],
+                TW_PRACTITIONER_GID: [],
+            },
+        )
+        resp = _post(client, mock_client, TW_RECEIPT_BODY)
+
+        assert resp.status_code == 409
+        err = resp.json()["error"]
+        assert err["code"] == "COMPANY_AMBIGUOUS"
+        assert set(err["details"]["gids"]) == {TW_PRACTICE_GID, TW_PRACTITIONER_GID}
+        mock_client.stories.create_comment_async.assert_not_called()
+
+    def test_r9_red_truncated_subtask_page_is_503_no_post(self, client: TestClient) -> None:
+        """T-R9 RED (cap-abort teeth at the route altitude): a FULL subtask page
+        under ANY matched Business cannot prove completeness -> the descend
+        aborts LOUD (SubtaskPageCapExceeded), the route's boundary catch maps it
+        to 503, and NO comment posts (never resolve against a truncated union).
+        """
+        full_page = [_subtask(f"bulk-{i}") for i in range(100)]
+        mock_client = _make_mock_asana_client(
+            search_results=[
+                _business_task(TW_PRACTICE_GID),
+                _business_task(TW_PRACTITIONER_GID),
+            ],
+            subtasks={TW_PRACTICE_GID: full_page},
+        )
+        resp = _post(client, mock_client, TW_RECEIPT_BODY)
+
+        assert resp.status_code == 503
+        assert resp.json()["error"]["code"] == "ASANA_UNAVAILABLE"
+        mock_client.stories.create_comment_async.assert_not_called()
+
+    def test_r10_single_match_never_descends(self, client: TestClient) -> None:
+        """T-R10 (happy-path byte-parity teeth): exactly ONE Business match
+        short-circuits BEFORE any union descend -- the only GET issued is the
+        Company-ID search, zero subtask listings.
+
+        RED side: a resolver that descended unconditionally would issue
+        /tasks/{gid}/subtasks GETs and trip the call-count assertion.
+        """
+        mock_client = _make_mock_asana_client(
+            search_results=[_business_task(BUSINESS_GID)],
+        )
+        resp = _post(client, mock_client, RECEIPT_BODY)
+
+        assert resp.status_code == 200
+        assert resp.json()["data"]["business_gid"] == BUSINESS_GID
+        urls = [call.args[0] for call in mock_client.http.get.await_args_list]
+        assert all(url.endswith("/tasks/search") for url in urls)
+        assert len(urls) == 1
 
 
 # ---------------------------------------------------------------------------
