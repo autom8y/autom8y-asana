@@ -231,8 +231,8 @@ A regression in `_walk_predicate` or `translate_date_predicates` would only surf
 - Fix: `api/main.py:381-388` — `/api/v1/exports/*` added to PAT-tag route-tree exclusion list.
 - Guard: `test_exports_auth_exclusion.py` introspects live middleware stack to prevent regression.
 
-**Idempotency finalize exception (SCAR-IDEM-001)**
-- The route is annotated `x-fleet-idempotency: {idempotent: true, key_source: null}`. The `IdempotencyMiddleware` at `api/middleware/idempotency.py:719` has a known `finalize()` exception-swallow risk for any route it wraps. This is not exports-specific but applies to the exports surface.
+~~**Idempotency finalize exception (SCAR-IDEM-001)**~~
+~~- The route is annotated `x-fleet-idempotency: {idempotent: true, key_source: null}`. The `IdempotencyMiddleware` at `api/middleware/idempotency.py:719` has a known `finalize()` exception-swallow risk for any route it wraps. This is not exports-specific but applies to the exports surface.~~ **RESOLVED** `f795d7dc` #149 (W-IDEM, 2026-06-24): finalize bool now read; S2S callers get hard 500 at `idempotency.py:803-830` (R-IDEM-2). Stale anchor `:719` was replay-header code at tip.
 
 ### Interaction Points and Boundary Clarity
 

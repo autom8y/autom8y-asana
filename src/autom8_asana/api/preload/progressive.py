@@ -786,6 +786,13 @@ async def _preload_dataframe_cache_progressive(app: FastAPI) -> None:
             if lambda_arn:
                 _invoke_cache_warmer_lambda_from_preload(lambda_arn, projects_needing_lambda)
 
+        # SD-02: give the account-status push a live execution home (sprint-C6).
+        # The seam isolates its own failures (status_push_fatal_error) -- a push
+        # failure degrades to log+metric and never fails the preload.
+        from autom8_asana.api.status_push import push_account_status_snapshot
+
+        await push_account_status_snapshot(trigger="preload")
+
     except WarmupOrderingError:
         # WarmupOrderingError is a safety-critical invariant violation
         # (SCAR-005/006). It must NEVER be caught by BROAD-CATCH handlers.
