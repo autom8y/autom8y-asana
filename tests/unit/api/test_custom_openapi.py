@@ -428,7 +428,6 @@ def test_query_introspection_endpoints_in_spec(spec):
     )
 
 
-
 def test_query_ops_carry_governed_fleet_safety_vocabulary(spec):
     """Query introspection ops carry the GOVERNED x-fleet-* safety vocabulary.
 
