@@ -3,7 +3,12 @@ type: decision
 artifact_id: DECISION-asana-mcp-v1-rulings-B1-B5-W5
 initiative: asana-mcp-v1
 title: "asana-mcp-v1 rulings dossier — B1-B5 + W-5, authored PROPOSED for GATE-BW"
-status: proposed
+status: accepted
+ratification: >
+  GATE-BW PASS 2026-07-17 — all six rulings RATIFIED as recommended by explicit operator
+  instruction (structured interview; recorded on the operator's behalf, §10). Exposure
+  preconditions ride the PASS: C1 idempotency reconciliation + UV-P#4 C2 probe (operator-elected
+  fork (i)). GATE-FELT and GATE-PROBE remain open and operator-reserved.
 created_at: 2026-07-17
 author: moonshot-architect (rnd; sprint-5 rulings-and-topology-dossier LEAD, Wave A)
 session: session-20260717-181924-9924bb32
@@ -743,15 +748,22 @@ receipts (A15-A28) or frozen UV-P labels per SVR discipline; no receipt paraphra
 
 | Ruling | Recommendation (one line) | RATIFY | AMEND (note) |
 |---|---|---|---|
-| B1 topology | parent_service/command_override; co-deploy coupling accepted+named; re-score at #2 | [ ] | [ ] ______ |
-| B2 TokenManager | autom8y-core side on the record; TENSION-001 never gates v1/#2; conformance-test decoupler ledgered | [ ] | [ ] ______ |
-| B3 mint trio | YAML_REGISTRY (SI-4 named) × [REVISED A1 (C4): FLEET_AUDIENCE for v1 — dedicated-audience partition = named auth-service prerequisite] × SA-M2M conscious+revisitable (trigger named) | [ ] | [ ] ______ |
-| B4 PAT budget | partition-first (static env-var split + MCP cap); arbitration stays descoped to E2 trigger | [ ] | [ ] ______ |
-| B5 floor | fail-closed-before-wrap precondition; fail-loud contract = standing bar for future non-idempotent verbs | [ ] | [ ] ______ |
-| W-5 principal class | conscious bypass ACCEPTED for internal Phase 1; route curation is the PATH boundary; 5 mitigations binding (5th = AMENDMENT-1 C1 idempotency reconciliation before exposure); credential-authority breadth + off-path detective-control absence RECORDED (C5) | [ ] | [ ] ______ |
+| B1 topology | parent_service/command_override; co-deploy coupling accepted+named; re-score at #2 | [x] | [ ] ______ |
+| B2 TokenManager | autom8y-core side on the record; TENSION-001 never gates v1/#2; conformance-test decoupler ledgered | [x] | [ ] ______ |
+| B3 mint trio | YAML_REGISTRY (SI-4 named) × [REVISED A1 (C4): FLEET_AUDIENCE for v1 — dedicated-audience partition = named auth-service prerequisite] × SA-M2M conscious+revisitable (trigger named) | [x] | [ ] ______ |
+| B4 PAT budget | partition-first (static env-var split + MCP cap); arbitration stays descoped to E2 trigger | [x] | [ ] ______ |
+| B5 floor | fail-closed-before-wrap precondition; fail-loud contract = standing bar for future non-idempotent verbs | [x] | [ ] ______ |
+| W-5 principal class | conscious bypass ACCEPTED for internal Phase 1; route curation is the PATH boundary; 5 mitigations binding (5th = AMENDMENT-1 C1 idempotency reconciliation before exposure); credential-authority breadth + off-path detective-control absence RECORDED (C5) | [x] | [ ] ______ |
 
-Operator signature line: ______________________  date: __________
-(GATE-BW disposition: PASS / AMEND — write-surface EXPOSURE blocked until PASS.)
+Operator signature line: **Tom Tenuta (operator) — by explicit interview instruction, recorded
+on the operator's behalf by session a8-mcp-substrate**  date: **2026-07-17**
+(GATE-BW disposition: **PASS** — all six RATIFY as recommended. Ratification provenance: the
+operator answered "Ratify all six as recommended" in the structured interview of 2026-07-17,
+with the acknowledgment baked into that choice: the two exposure preconditions (C1 tasks.py:254
+idempotency reconciliation; UV-P#4 C2 sandbox probe — operator-elected fork (i), sandbox project
+in the real workspace) and the AMENDMENT-2 compounded W-5 residual (1800s-TTL-bounded) ride the
+PASS. Write-surface EXPOSURE is now AUTHORIZED subject to those preconditions at felt-gate
+staging; nothing else changes hands — GATE-FELT and GATE-PROBE remain open and reserved.)
 
 ---
 
