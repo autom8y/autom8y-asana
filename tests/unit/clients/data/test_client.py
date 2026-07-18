@@ -191,6 +191,47 @@ class TestDataServiceClientClose:
 
         mock_logger.debug.assert_called()
 
+    async def test_close_closes_operator_client(self) -> None:
+        """close() also closes the lazily-created operator HTTP client."""
+        client = DataServiceClient()
+
+        mock_operator_http = AsyncMock()
+        client._operator_client = mock_operator_http
+
+        await client.close()
+
+        mock_operator_http.close.assert_called_once()
+        assert client._operator_client is None
+
+    async def test_close_safe_on_uninitialized_instance(self) -> None:
+        """close() must not raise AttributeError when __init__ never ran.
+
+        Post-Merge regression (2026-07-16): close() read
+        ``self._operator_client`` unconditionally; on an instance whose
+        constructor was shimmed (test_workflow_handler_auth_injection's
+        _ConstructorSpy sets only ``_auth_provider``/``_client``/``_log``),
+        the lazily-managed attribute was never assigned and close() raised
+        ``AttributeError: 'DataServiceClient' object has no attribute
+        '_operator_client'``. close() must tolerate ANY lazily-created
+        client attribute being absent, not just being None.
+        """
+        # No __init__ at all: every lazy attribute is absent.
+        client = object.__new__(DataServiceClient)
+
+        await client.close()  # must not raise
+
+    async def test_close_safe_when_operator_client_attr_missing(self) -> None:
+        """close() tolerates the exact partial-init shape that broke Post-Merge:
+        ``_client``/``_log`` present, ``_operator_client`` never assigned."""
+        client = object.__new__(DataServiceClient)
+        client._auth_provider = None
+        client._client = None
+        client._log = None
+        # NOTE: _operator_client deliberately NOT set.
+
+        async with client:
+            pass  # __aexit__ -> close() must not raise AttributeError
+
 
 class TestDataServiceClientGetClient:
     """Tests for _get_client() method."""

@@ -404,17 +404,28 @@ class DataServiceClient:
         Should be called when not using the context manager pattern.
 
         This method is idempotent - safe to call multiple times.
+
+        Robust against partially-initialized instances: every lazily-created
+        client attribute is read via ``getattr`` with a ``None`` default, so
+        close() never raises AttributeError when ``__init__`` did not run to
+        completion (e.g. a constructor that raised partway, or a test shim
+        that neuters ``__init__`` -- the exact shape that broke the Post-Merge
+        full-suite run when ``_operator_client`` was added to close() but a
+        shimmed instance never had the attribute assigned).
         """
-        if self._client is not None:
-            await self._client.close()
+        log = getattr(self, "_log", None)
+        client: Autom8yHttpClient | None = getattr(self, "_client", None)
+        if client is not None:
+            await client.close()
             self._client = None
-            if self._log:
-                self._log.debug("DataServiceClient: HTTP client closed")
-        if self._operator_client is not None:
-            await self._operator_client.close()
+            if log:
+                log.debug("DataServiceClient: HTTP client closed")
+        operator_client: Autom8yHttpClient | None = getattr(self, "_operator_client", None)
+        if operator_client is not None:
+            await operator_client.close()
             self._operator_client = None
-            if self._log:
-                self._log.debug("DataServiceClient: operator HTTP client closed")
+            if log:
+                log.debug("DataServiceClient: operator HTTP client closed")
 
     # --- HTTP Client Management ---
 
