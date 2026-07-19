@@ -293,10 +293,21 @@ def get_resolvable_entities(
 ) -> set[str]:
     """Derive resolvable entities from existing registries.
 
-    Per TDD-DYNAMIC-RESOLVER-001 / FR-001:
+    Per TDD-DYNAMIC-RESOLVER-001 / FR-001, amended by the SAT-1 cure
+    (asana-mcp limb-a witness, 2026-07-19):
     An entity is resolvable if and only if:
-    1. It has a schema registered in SchemaRegistry
-    2. It has a project registered in EntityProjectRegistry
+    1. Its EntityRegistry descriptor's effective_schema_key is registered in
+       SchemaRegistry, AND
+    2. It has a project GID resolvable via EntityProjectRegistry (which
+       delegates to EntityRegistry first), OR it is body-parameterized
+       (project/section — GID arrives per-request in the query body).
+
+    Enumeration is DESCRIPTOR-DRIVEN (EntityRegistry is the single source of
+    truth for entity names). The previous schema-name-driven loop could never
+    admit the seven pipeline entities: they share one PROCESS_SCHEMA whose
+    ``.name`` is "process", so ``schema.name`` never yielded "process_sales"
+    et al. even though their schemas auto-wire into SchemaRegistry under
+    effective_schema_key and their project GIDs resolve registry-first.
 
     Caching:
         Results are cached after first computation when using singleton registries.
@@ -340,11 +351,21 @@ def get_resolvable_entities(
 
     resolvable: set[str] = set()
 
-    # Get all task types with schemas (excludes "*" base schema)
-    for task_type in schema_registry.list_task_types():
-        # Use schema.name for entity_type (handles snake_case like "asset_edit")
-        schema = schema_registry.get_schema(task_type)
-        entity_type = schema.name  # "asset_edit", "unit", etc.
+    # SAT-1 cure (2026-07-19): enumerate from EntityRegistry descriptors, not
+    # from schema.name. Multiple descriptors may share one schema object (the
+    # seven pipeline entities all point at PROCESS_SCHEMA, whose .name is
+    # "process"), so schema.name cannot recover the entity vocabulary. The
+    # schema leg is a presence check on the descriptor's effective_schema_key —
+    # the same key _ensure_initialized() auto-wires — so a descriptor without a
+    # servable schema (e.g. the parent "process", schema_module_path=None) is
+    # correctly excluded.
+    registered_schema_keys = set(schema_registry.list_task_types())
+
+    for descriptor in entity_registry.all_descriptors():
+        entity_type = descriptor.name
+
+        if descriptor.effective_schema_key not in registered_schema_keys:
+            continue  # no servable schema registered — not queryable
 
         # A1 receiver-surface (4822eaad): body-parameterized entities (project,
         # section) are resolvable on schema presence alone — their GID arrives
@@ -352,8 +373,7 @@ def get_resolvable_entities(
         # Offer-domain entities (body_parameterized=False) still require a
         # registry GID; the predicate reduces to the pre-existing condition for
         # them, so the offer-domain gate is provably preserved.
-        descriptor = entity_registry.get(entity_type)
-        is_body_param = bool(descriptor and descriptor.body_parameterized)
+        is_body_param = bool(descriptor.body_parameterized)
         has_registry_gid = project_registry.get_project_gid(entity_type) is not None
 
         if is_body_param or has_registry_gid:
@@ -362,7 +382,7 @@ def get_resolvable_entities(
                 "entity_discovered_resolvable",
                 extra={
                     "entity_type": entity_type,
-                    "task_type": task_type,
+                    "task_type": descriptor.effective_schema_key,
                     "body_parameterized": is_body_param,
                     "has_registry_gid": has_registry_gid,
                 },
