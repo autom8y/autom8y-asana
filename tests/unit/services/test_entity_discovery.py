@@ -87,9 +87,14 @@ class TestGetResolvableEntities:
         assert result == set()
 
     def test_lowercases_task_types(self) -> None:
-        """Discovery lowercases task types from SchemaRegistry."""
+        """Discovery yields snake_case entity names for Pascal task-type keys.
+
+        SAT-1 cure note: enumeration is descriptor-driven; the schema leg is an
+        exact-key presence check against effective_schema_key (the key
+        _ensure_initialized() auto-wires), so keys use canonical Pascal casing.
+        """
         mock_schema_registry = MagicMock()
-        mock_schema_registry.list_task_types.return_value = ["Unit", "CONTACT", "Offer"]
+        mock_schema_registry.list_task_types.return_value = ["Unit", "Contact", "Offer"]
 
         # Mock get_schema to return schemas with lowercase names
         def mock_get_schema(task_type: str) -> MagicMock:
