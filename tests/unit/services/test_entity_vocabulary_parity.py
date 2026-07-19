@@ -2,7 +2,7 @@
 
 Born from the asana-mcp-v1 limb-(a) witness (2026-07-19): the introspection
 surface (GET /v1/query/entities via query.introspection.list_entities)
-advertised the seven pipeline entities while the execution surface
+advertised the pipeline entities (nine registered) while the execution surface
 (POST /v1/query/{entity_type}/rows|aggregate via get_resolvable_entities)
 rejected them with UNKNOWN_ENTITY_TYPE — a vocabulary split invisible to
 per-surface tests. Evidence dossier:
@@ -41,6 +41,10 @@ PIPELINE_ENTITIES = {
     "process_month1",
     "process_retention",
     "process_reactivation",
+    # Adversary-DELTA receipt (2026-07-19): NINE pipelines are registered with
+    # real GIDs, not the seven the witness dossier counted.
+    "process_account_error",
+    "process_expansion",
 }
 
 # The pre-cure execution vocabulary — must remain resolvable (no regression).
@@ -82,7 +86,7 @@ class TestIntrospectionExecutionParity:
         )
 
     def test_all_pipeline_entities_resolvable(self) -> None:
-        """The seven pipeline entities are queryable; the schema-holder parent
+        """The nine pipeline entities are queryable; the schema-holder parent
         'process' (no servable schema of its own) is not; the pre-cure
         vocabulary is preserved untouched."""
         executable = get_resolvable_entities()
