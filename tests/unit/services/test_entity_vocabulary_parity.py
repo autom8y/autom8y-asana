@@ -87,13 +87,12 @@ class TestIntrospectionExecutionParity:
         vocabulary is preserved untouched."""
         executable = get_resolvable_entities()
 
-        assert PIPELINE_ENTITIES <= executable, (
+        assert executable >= PIPELINE_ENTITIES, (
             f"Missing pipelines: {sorted(PIPELINE_ENTITIES - executable)}"
         )
         assert "process" not in executable
-        assert PRE_CURE_VOCABULARY <= executable, (
-            f"Pre-cure vocabulary regressed: "
-            f"{sorted(PRE_CURE_VOCABULARY - executable)}"
+        assert executable >= PRE_CURE_VOCABULARY, (
+            f"Pre-cure vocabulary regressed: {sorted(PRE_CURE_VOCABULARY - executable)}"
         )
 
     def test_pascal_schema_key_resolves_shared_process_schema(self) -> None:
