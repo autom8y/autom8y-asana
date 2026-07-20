@@ -22,6 +22,7 @@ Per PRD-S2S-001 (NFR-OPS-002):
 
 from __future__ import annotations
 
+import enum
 import os
 import time
 
@@ -44,36 +45,114 @@ logger = get_logger("autom8_asana.health")
 
 router = APIRouter(tags=["health"])
 
-# --- Cache Readiness State (FR-004) ---
-# Module-level flag for cache warm-up state
-# Set to True by startup preload after cache is populated
-_cache_ready: bool = False
+# --- Cache Readiness State (FR-004; WS-A Finding-1 fail-closed) ---
+# Three-way preload outcome model. Prior to fail-closed hardening this was a
+# single bool that the preload set True unconditionally in a `finally` block, so
+# a FAILED or ABORTED preload reported the pod ready and shifted production
+# traffic onto a silently-cold task (the liveness-masquerade). The state machine
+# below distinguishes the three honest outcomes so /ready can gate the ALB
+# target group truthfully:
+#
+#   WARMING  -> preload in progress             -> /ready 503 (CACHE_BUILD_IN_PROGRESS)
+#   READY    -> preload completed                -> /ready 200
+#   DEGRADED -> deliberate degrade, serviceable  -> /ready 200 + degraded signal
+#   FAILED   -> preload raised / aborted         -> /ready 503 (PRELOAD_FAILED)
+#
+# /health (liveness) is intentionally untouched: a FAILED preload keeps the pod
+# alive so the previous task keeps serving under the TG gate and operators see
+# the true state.
 
 
-def set_cache_ready(ready: bool) -> None:
-    """Set cache readiness state.
+class PreloadState(enum.StrEnum):
+    """Outcome of the startup cache preload.
 
-    Per FR-004: Called by startup preload to signal cache is ready.
-    Readiness check returns 503 until this is set to True.
-
-    Args:
-        ready: True when cache preload is complete.
+    Serviceable states (READY, DEGRADED) gate /ready to 200; non-serviceable
+    states (WARMING, FAILED) gate /ready to 503.
     """
-    global _cache_ready
-    _cache_ready = ready
+
+    WARMING = "warming"
+    READY = "ready"
+    DEGRADED = "degraded"
+    FAILED = "failed"
+
+
+_SERVICEABLE_STATES = frozenset({PreloadState.READY, PreloadState.DEGRADED})
+
+_preload_state: PreloadState = PreloadState.WARMING
+_preload_detail: str | None = None
+
+
+def _set_preload_state(state: PreloadState, detail: str | None = None) -> None:
+    """Record the preload outcome and log the transition."""
+    global _preload_state, _preload_detail
+    _preload_state = state
+    _preload_detail = detail
     logger.info(
         "cache_ready_state_changed",
-        extra={"ready": ready},
+        extra={
+            "state": state.value,
+            "ready": state in _SERVICEABLE_STATES,
+            "detail": detail,
+        },
     )
 
 
+def set_cache_ready(ready: bool) -> None:
+    """Set cache readiness state (backward-compatible bool API).
+
+    Per FR-004: called by startup preload to signal cache is ready. ``True`` maps
+    to the READY state; ``False`` resets to WARMING. Use ``set_cache_degraded`` /
+    ``set_cache_failed`` to record the richer three-way outcome.
+
+    Args:
+        ready: True when cache preload is complete; False to reset to warming.
+    """
+    _set_preload_state(PreloadState.READY if ready else PreloadState.WARMING)
+
+
+def set_cache_degraded(reason: str) -> None:
+    """Mark the cache serviceable-but-degraded (deliberate partial degrade).
+
+    The pod serves traffic (/ready 200) but the readiness payload surfaces a
+    degraded signal with the reason, so operators see the true state.
+
+    Args:
+        reason: Short machine-readable cause (e.g. ``"bot_pat_unavailable"``).
+    """
+    _set_preload_state(PreloadState.DEGRADED, reason)
+
+
+def set_cache_failed(reason: str) -> None:
+    """Mark the cache preload FAILED — /ready fails closed (503).
+
+    Per WS-A Finding-1: a failed or aborted preload must NOT report ready. The
+    pod stays alive (/health untouched) so the previous task keeps serving under
+    the target-group gate.
+
+    Args:
+        reason: Short machine-readable cause (e.g. ``"preload_exception_ValueError"``).
+    """
+    _set_preload_state(PreloadState.FAILED, reason)
+
+
 def is_cache_ready() -> bool:
-    """Check if cache is ready.
+    """Check if the cache is serviceable (READY or DEGRADED).
 
     Returns:
-        True if cache preload is complete.
+        True if the preload completed or is in a deliberate serviceable-degraded
+        state; False while warming or after a failure/abort.
     """
-    return _cache_ready
+    return _preload_state in _SERVICEABLE_STATES
+
+
+def get_preload_state() -> PreloadState:
+    """Return the current three-way preload state."""
+    return _preload_state
+
+
+def get_preload_detail() -> str | None:
+    """Return the machine-readable detail for the current preload state, if any."""
+    return _preload_detail
 
 
 # --- Workflow Config Readiness State (REMEDY-002) ---
@@ -170,17 +249,47 @@ async def readiness_check() -> JSONResponse:
 
     checks: dict[str, CheckResult] = {}
 
-    # --- Cache warmth (FR-004) ---
-    if _cache_ready:
+    # --- Cache warmth (FR-004; WS-A Finding-1 fail-closed) ---
+    cache_state = _preload_state
+    if cache_state is PreloadState.READY:
         checks["cache"] = CheckResult(status=HealthStatus.OK)
-    else:
+    elif cache_state is PreloadState.DEGRADED:
+        # Deliberate degrade: serviceable, but surface the signal (200 + detail).
+        checks["cache"] = CheckResult(
+            status=HealthStatus.DEGRADED,
+            detail={
+                "message": "Cache serving in degraded mode",
+                "cause": "PRELOAD_DEGRADED",
+                "reason": _preload_detail,
+            },
+        )
+    elif cache_state is PreloadState.FAILED:
+        # Fail closed: preload raised or was aborted — NOT serviceable (503).
+        # This is the liveness-masquerade fix: a failed preload no longer
+        # masquerades as ready and shifts traffic onto a silently-cold task.
+        logger.warning(
+            "readiness_check_preload_failed",
+            extra={"cause": "PRELOAD_FAILED", "reason": _preload_detail},
+        )
+        checks["cache"] = CheckResult(
+            status=HealthStatus.UNAVAILABLE,
+            detail={
+                "message": "Cache preload failed",
+                "cause": "PRELOAD_FAILED",
+                "reason": _preload_detail,
+            },
+        )
+    else:  # PreloadState.WARMING
         logger.debug(
             "readiness_check_warming",
             extra={"cache_ready": False},
         )
         checks["cache"] = CheckResult(
             status=HealthStatus.UNAVAILABLE,
-            detail={"message": "Cache preload in progress"},
+            detail={
+                "message": "Cache preload in progress",
+                "cause": "CACHE_BUILD_IN_PROGRESS",
+            },
         )
 
     # --- Workflow config registration (REMEDY-002) ---
@@ -407,4 +516,13 @@ async def deps_check() -> JSONResponse:
     )
 
 
-__all__ = ["router", "set_cache_ready", "is_cache_ready"]
+__all__ = [
+    "PreloadState",
+    "get_preload_detail",
+    "get_preload_state",
+    "is_cache_ready",
+    "router",
+    "set_cache_degraded",
+    "set_cache_failed",
+    "set_cache_ready",
+]

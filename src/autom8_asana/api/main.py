@@ -74,6 +74,7 @@ from .routes import (
     resolver_router,
     section_timelines_router,
     sections_router,
+    tags_router,
     tasks_router,
     users_router,
     webhooks_router,
@@ -105,6 +106,9 @@ _PAT_TAGS: frozenset[str] = frozenset(
         # Sprint 3 (project-asana-pipeline-extraction Phase 1): PAT mount of
         # the dual-mount /exports route per TDD §6.2 + spike-handoff P1-C-07.
         "exports",
+        # WS-B1 (asana-mcp-postfelt-hardening / TAG-1): satellite tags read
+        # surface for name->GID resolution.
+        "tags",
     }
 )
 
@@ -153,6 +157,7 @@ _OAUTH2_SCOPE_DEFINITIONS: dict[str, str] = {
     "workspaces:read": "Read access to Asana workspaces",
     "dataframes:read": "Read access to structured DataFrame extractions",
     "exports:read": "Read access to BI exports (Phase 1 pipeline-export surface)",
+    "tags:read": "Read access to workspace tags and tag name->GID resolution",
     "workflows:execute": "Invoke registered automation workflows",
     "resolver:read": "Resolve business identifiers to Asana entities (S2S)",
     "query:read": "Schema introspection and entity queries (S2S)",
@@ -171,6 +176,7 @@ _SCOPE_RULES: list[tuple[str, list[str], list[str]]] = [
     ("/api/v1/users", ["users:read"], ["users:read"]),
     ("/api/v1/workspaces", ["workspaces:read"], ["workspaces:read"]),
     ("/api/v1/dataframes", ["dataframes:read"], ["dataframes:read"]),
+    ("/api/v1/tags", ["tags:read"], ["tags:read"]),
     ("/api/v1/exports", ["exports:read"], ["exports:read"]),
     ("/v1/exports", ["exports:read"], ["exports:read"]),
     ("/api/v1/workflows", ["workflows:execute"], ["workflows:execute"]),
@@ -239,6 +245,14 @@ _TAG_DESCRIPTIONS: dict[str, str] = {
         "Supports listing all workspaces accessible to the authenticated "
         "user and retrieving a single workspace by GID. "
         "Workspace GIDs are required by project and user list endpoints. "
+        "Requires PAT Bearer authentication."
+    ),
+    "tags": (
+        "Read and resolve Asana workspace tags. "
+        "Supports listing all tags in the default workspace (cursor-based "
+        "pagination) and resolving an exact tag name to its GID(s) via the "
+        "'name' query parameter -- the name->GID primitive that makes tags "
+        "addressable by name for the composite write path. Read-only. "
         "Requires PAT Bearer authentication."
     ),
     "dataframes": (
@@ -418,6 +432,10 @@ def create_app() -> FastAPI:
             "/api/v1/dataframes/*",
             "/api/v1/offers/*",
             "/api/v1/exports/*",
+            # WS-B1 (asana-mcp-postfelt-hardening / TAG-1): a NEW PAT route tree
+            # MUST be JWT-excluded or S2S-JWT callers hit a silent 401 before
+            # pat_router DI fires (SCAR-WS8). Regression: test_tags_auth_exclusion.
+            "/api/v1/tags/*",
         ],
         # W3.5b-3-alpha-1 (fleet-api-sovereignty D3): opt in to ADR-07 §7.1
         # precedence (bypass_scope_enforcement -> business_id -> reject)
@@ -440,6 +458,9 @@ def create_app() -> FastAPI:
             RouterMount(router=workspaces_router),
             RouterMount(router=dataframes_router),
             RouterMount(router=tasks_router),
+            # WS-B1 (asana-mcp-postfelt-hardening / TAG-1): satellite tags read
+            # surface. Prefix /api/v1/tags does not overlap any sibling tree.
+            RouterMount(router=tags_router),
             RouterMount(router=projects_router),
             RouterMount(router=sections_router),
             RouterMount(router=internal_router),

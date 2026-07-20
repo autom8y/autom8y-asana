@@ -93,6 +93,8 @@ def test_pat_route_trees_co_excluded_consistently() -> None:
         "/api/v1/dataframes/*",
         "/api/v1/offers/*",
         "/api/v1/exports/*",
+        # WS-B1 (asana-mcp-postfelt-hardening / TAG-1): satellite tags surface.
+        "/api/v1/tags/*",
     }
     missing = expected_pat_route_trees - set(exclude_paths)
     assert not missing, (

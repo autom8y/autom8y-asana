@@ -451,6 +451,24 @@ def get_dataframe_service() -> DataFrameService:
     return DataFrameService()
 
 
+def get_tag_service() -> TagService:
+    """Get TagService instance.
+
+    Stateless, cheap to create. Per-request lifecycle. No constructor
+    dependencies -- the workspace tag read surface holds no state and owns
+    no cache (the downstream sidecar caches).
+
+    Per WS-B1 (asana-mcp-postfelt-hardening / TAG-1): backs the
+    ``GET /api/v1/tags`` name->GID resolution surface.
+
+    Returns:
+        TagService instance.
+    """
+    from autom8_asana.services.tag_service import TagService
+
+    return TagService()
+
+
 # Import types for Annotated aliases (lazy to avoid cycles)
 from typing import TYPE_CHECKING
 
@@ -461,12 +479,14 @@ if TYPE_CHECKING:
     from autom8_asana.services.dataframe_service import DataFrameService
     from autom8_asana.services.entity_service import EntityService
     from autom8_asana.services.section_service import SectionService
+    from autom8_asana.services.tag_service import TagService
     from autom8_asana.services.task_service import TaskService
 
 EntityServiceDep = Annotated["EntityService", Depends(get_entity_service)]
 TaskServiceDep = Annotated["TaskService", Depends(get_task_service)]
 SectionServiceDep = Annotated["SectionService", Depends(get_section_service)]
 DataFrameServiceDep = Annotated["DataFrameService", Depends(get_dataframe_service)]
+TagServiceDep = Annotated["TagService", Depends(get_tag_service)]
 DataFrameCacheDep = Annotated["DataFrameCache | None", Depends(get_dataframe_cache)]
 
 
@@ -529,10 +549,12 @@ __all__ = [
     "get_task_service",
     "get_section_service",
     "get_dataframe_service",
+    "get_tag_service",
     "EntityServiceDep",
     "TaskServiceDep",
     "SectionServiceDep",
     "DataFrameServiceDep",
+    "TagServiceDep",
     # Data service client (cross-service enrichment)
     "get_data_service_client",
     "DataServiceClientDep",

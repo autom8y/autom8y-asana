@@ -13,10 +13,6 @@ import asyncio
 
 import opentelemetry.trace as _otel_trace
 import pytest
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
-
 from asana_mcp.observability import (
     ATTR_BUDGET_CLASS,
     ATTR_SATELLITE,
@@ -30,6 +26,9 @@ from asana_mcp.observability import (
     propagate_traceparent,
     tool_span,
 )
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 
 @pytest.fixture
