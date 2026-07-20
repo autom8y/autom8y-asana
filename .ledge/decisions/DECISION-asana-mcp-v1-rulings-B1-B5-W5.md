@@ -850,3 +850,116 @@ AMENDMENT-1: A5 qualifier "hidden query routes" → "spec-VISIBLE /v1/query intr
 
 # END — PROPOSED. The operator ratifies at GATE-BW; no session self-ratifies; the felt
 # verdict remains the operator's alone.
+
+---
+
+## ADDENDUM-1 (2026-07-20) — C1 reconciliation evidence FILED; fork-(a) receipt on the record
+
+> Appended post-ratification by the WS-D s5 seat (docs/tech-writer,
+> asana-mcp-postfelt-hardening; append-only — NO ratified ruling text above is modified,
+> no checkbox touched). Evidence ceiling: MODERATE (self-ref authorship;
+> self-ref-evidence-grade-rule). Context at filing: GATE-FELT CLOSED 2026-07-20 — v1
+> SHIPPED; the felt verdict lives at `.sos/wip/asana-mcp-v1.felt-gate-envelope.md:503-526`
+> (§5.2, the operator's hand) and is not restated here.
+
+### A1.1 What this addendum files
+
+The B5/C1 chain above carried an OPEN reconciliation gate on the governed
+`x-fleet-idempotency: {idempotent: False}` annotation at `tasks.py:254` (the push +
+mark_complete carrier): W-5 mitigation (5) (this file `:615-620`), the §8 exposure
+precondition (`:661-670`), UV-P register item 4 (`:831-834`), and item 6 (`:839-843` —
+"the required receipt is unprobeable under the zero-direct-calls fence, so it is CARRIED,
+not authored"). **The required fork-(a) live-Asana idempotence receipt now EXISTS and is
+filed here.**
+
+### A1.2 The C2 no-re-fire receipt (operator-witnessed, 2026-07-19)
+
+Per the envelope §3 protocol (operator-elected fork (i): sandbox project in the bound
+workspace), recorded at `.sos/wip/asana-mcp-v1.felt-gate-envelope.md:393-416` (§3.3) with
+the mechanical bundle at `.sos/wip/asana-mcp-v1.c2-probe-evidence-2026-07-19.json`:
+
+- Target: project ZZ-MCP-C2-PROBE `1216706635260794`, task `1216701886984398`; Rule
+  "Complete To Done" (on completion, move ACTIVE → Done) — positive control satisfied by
+  its recorded first fire at the task's original completion.
+- Probe: two fixed-body re-PUTs of `completed=true` on the already-complete task
+  (15:49:31Z and 15:49:37Z, both HTTP 200) → **ZERO new activity** — no second ⚡ rule-run
+  entry, no notifications, task stayed in Done (operator observation of the All-activity
+  feed). Mechanical corroboration: `modified_at` frozen at 15:06:47Z across both re-PUTs;
+  `modified_at_delta_on_reput_2: false`.
+- Disposition (envelope §3.4, mechanical): **NO-RE-FIRE → UV-P #4 DISCHARGED-BY-PROBE.**
+- Corroboration: the Step 6.5 write-chain smoke (digest §8,
+  `.sos/wip/asana-mcp-v1.limb-a-witness-evidence-digest.md:165-185`) observed the same
+  silence live — the completion re-PUT leg committed 200 with no side-effect, exactly as
+  the C2 measurement predicted.
+
+### A1.3 The digest-§11 nuance — what this receipt does and does NOT prove (honest scope)
+
+The limb-(b) run (digest §11, `...limb-a-witness-evidence-digest.md:236-271`) recorded the
+calendar-integration play firing TWICE across run + directed re-run. Receipt-decided
+mechanism: that play is a **CONSUMED-TRIGGER** automation — on fire it strips the trigger
+tag and reopens the card — so the re-run legitimately re-ARMED it via the add_tag leg
+against externally-reset state. Fire #2 was protocol-authored, not a PUT-idempotency
+defect.
+
+Scope split that the reconciliation ruling must honor:
+
+- **PROVEN (C2 + 6.5)**: a fixed-body re-PUT of `completed=true` on an already-complete
+  task is Rules-SILENT for a non-consuming Rule, and state-convergent. This is precisely
+  the `tasks.py:254` route-level question — the PUT leg itself.
+- **NOT proven (and FALSE as a chain-level generalization)**: "whole-chain re-run is
+  side-effect silent under all listeners." Against consumed-trigger automations, re-run =
+  re-trigger BY DESIGN (W-3 caveat class PLAY-1; `.know/scar-tissue.md`
+  SCAR-CANDIDATE-PLAY-CONSUMED-TRIGGER). The re-fire mechanism is the add_tag re-ARM after
+  the automation resets preconditions — not the re-PUT.
+
+### A1.4 STAGED for the operator — the `tasks.py:254` reconciliation ruling (NOT executed here)
+
+Both receipts are now on the record; the annotation itself is UNTOUCHED (a satellite code
+change is outside this sprint's boundary — shape s5 `pr_boundary: "C1 anchor read-only vs
+tasks.py:254"`). SVR at filing: `tasks.py:254` still reads
+`"x-fleet-idempotency": {"idempotent": False, "key_source": None},` (re-verified by direct
+read at `793e670b` this pass; also frame SVR-3 at `2eb830ca`). The fork, staged with its
+evidence:
+
+- **Fork (a) — FLIP to `idempotent: True`**, carrying the C2 receipt (A1.2) as the
+  live-Asana idempotence proof the original C1 condition demanded (`:664-666`). If taken:
+  the route docstring's Rules caution (`tasks.py:272-275`) should be retained but
+  re-scoped to the CONSUMED-TRIGGER caveat (A1.3), and the composite's tool hints
+  re-derive to idempotent end-to-end under the A4 governed-vocabulary rule.
+- **Fork (b′) — KEEP `idempotent: False` with the documented caveat**, on the ground that
+  the governed annotation guards the route for ALL callers and listener topologies, and
+  chain-level re-run against consumed-trigger listeners is non-convergent in effect
+  (A1.3). If kept: the False is no longer an evidence GAP but a documented POSTURE — the
+  UV-P #6 "carried, unprobeable" rationale is superseded by this filing either way.
+
+```
+RECONCILIATION RULING (operator's hand only — sessions never mark this):
+  [ ] fork (a) — flip tasks.py:254 to idempotent: True (C2 receipt A1.2; docstring
+      re-scoped per A1.3)
+  [ ] fork (b′) — keep idempotent: False, caveat documented per A1.3
+  Ruling: ____________________  Date: ____________  Signature: ____________
+```
+
+Status effects at filing (mechanical): the §8 exposure precondition was satisfied via fork
+(b) — the posture was surfaced to the operator before limb (b) (envelope §2.1(2) banner +
+§2.3 posture line) and GATE-BW/GATE-FELT both closed with it in view. The remaining OPEN
+item is exactly this staged ruling; it is predicate limb (c) of
+asana-mcp-postfelt-hardening (`.know/telos/asana-mcp-postfelt-hardening.md`), which this
+filing discharges up to the operator's mark.
+
+### A1.5 Adversary-minor ledger consolidation (cure-wave DELTA, 2026-07-19 — dispositions on the record)
+
+Source: `.ledge/reviews/ADVERSARY-REPORT-asana-mcp-cure-wave-DELTA-2026-07-19.md` (gate
+verdict was BLOCKED(D3-F1) → fixed in-wave; D1-F1 MATERIAL ruled ACCEPT by the operator,
+digest §6). The five MINORS, consolidated:
+
+| ID | Finding | Disposition (2026-07-20) |
+|---|---|---|
+| D1-F2 | "seven pipeline entities" is NINE (`process_account_error`, `process_expansion` included; cured vocabulary = 17) | Correction carried into `.know/scar-tissue.md` SCAR-VOCAB-PARITY-001 + `.know/architecture.md` §MCP; the parity test's subset side covers all nine |
+| D1-F3 | Pre-existing vacuous adversarial test on main (`tests/unit/services/test_query_service.py:753` vs `entity_service.py:114` guard) | Ledgered `.know/test-coverage.md` Knowledge Gap 8 + `.know/scar-tissue.md` Knowledge Gap 18 — deserves its own fix; NOT a witness-arc regression |
+| D2-F1 | No length bound on `_upstream_suffix` interpolation (`mcp/asana_mcp/errors.py:110-142`) | Production-reimplementation rider (~2KB cap); ledgered `.know/test-coverage.md` Knowledge Gap 9 + frame §8 riders |
+| D2-F2 | Auth-branch prose fence one-sided (upstream 401 prose could carry warming lexicon) | Same rider class; recommendation = assert the auth suffix never matches the warming lexicon (mirror the disjointness test) |
+| D3-F2 | Runbook Step 6.5 "Expect ... Rule firing again" contradicted the C2 no-re-fire record | Superseded by the A1.2/A1.3 filing (authoritative wording: expect NO new fire on the re-PUT; the consumed-trigger caveat governs the add_tag leg); the runbook is a session-plane artifact retired with the shipped witness |
+
+# END ADDENDUM-1 — evidence filed; the reconciliation ruling above awaits the operator's
+# hand; nothing in this addendum modifies a ratified ruling.
