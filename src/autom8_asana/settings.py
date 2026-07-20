@@ -539,6 +539,85 @@ class RateLimitSettings(Autom8yBaseSettings):
     )
 
 
+class BudgetAllocatorSettings(Autom8yBaseSettings):
+    """F1a cross-consumer rate-limit budget allocator settings.
+
+    Per HANDOFF-arch-to-10x-f1a-budget-allocator-2026-07-20 (ITEM-A) and the
+    pythia ADVISORY published-floor ruling (ADJUDICATION-option-slate.md): the
+    fleet shares ONE Asana 1500/60s budget across 11 principals with
+    per-process-only AIMD and no cross-consumer arbitration. This settings block
+    publishes a STATIC, C-11-decoupled floor for the substrate warmer and the
+    single operator kill-switch that arms the allocator.
+
+    The allocator ships INERT (``enabled`` default FALSE). Activation is
+    OPERATOR-ONLY at the GO-LIVE gate (F-a); node 5 never sets it true outside
+    scoped test fixtures.
+
+    Environment Variables:
+        ASANA_BUDGET_ALLOCATOR_ENABLED: Master arm/disarm ("true"/"false",
+            default "false" -- INERT at merge, byte-identical passthrough).
+        ASANA_BUDGET_ALLOCATOR_FLOOR_MAX_REQUESTS: Warmer static floor numerator
+            (default 110 -- derived 3,291 worst-case GETs / 30-min tick per
+            capacity-specification.md §1.5).
+        ASANA_BUDGET_ALLOCATOR_FLOOR_WINDOW_SECONDS: Floor window (default 60 --
+            matches Asana's own ``window_seconds=60`` enforcement unit, C-1).
+        ASANA_BUDGET_ALLOCATOR_FAIR_SHARE_MAX_REQUESTS: ECS fair-share self-cap
+            (default 1390 -- the residual after the 110 reserve; 110 + 1390 =
+            1500, the full ceiling, per capacity-specification.md §6.1 and
+            pythia PC-4 bounded-overshoot sizing).
+
+    Design note (C-11-DECOUPLED): the floor VALUE is a near-static config read.
+    Nothing in this settings block or its consumers invokes AIMD / dynamic
+    concurrency instrumentation to publish the floor -- the floor survives
+    publish-surface death as data-at-rest (pythia PC-2), which is what makes the
+    advisory seam fail-open-to-static-floor natively.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="ASANA_BUDGET_ALLOCATOR_",
+        extra="ignore",
+        case_sensitive=False,
+    )
+
+    enabled: bool = Field(
+        default=False,
+        description=(
+            "Master arm/disarm for the F1a cross-consumer budget allocator. "
+            "DEFAULT false: the allocator is INERT and the request path is "
+            "byte-identical to the pre-allocator 57-site baseline (ITEM-D). "
+            "Activation is OPERATOR-ONLY at GO-LIVE (F-a)."
+        ),
+    )
+    floor_max_requests: int = Field(
+        default=110,
+        description=(
+            "Warmer static floor numerator (calls per floor window). DEFAULT "
+            "110 = ceil(3,291 worst-case GETs / 30-min tick) per "
+            "capacity-specification.md §1.5. Env-tunable so the floor can be "
+            "re-sized without a code change (killswitch-rollback-spec §2.7 note)."
+        ),
+        ge=1,
+    )
+    floor_window_seconds: int = Field(
+        default=60,
+        description=(
+            "Warmer static floor window in seconds. DEFAULT 60 to match Asana's "
+            "own rate-limit window (C-1 minute-or-finer granularity)."
+        ),
+        ge=1,
+    )
+    fair_share_max_requests: int = Field(
+        default=1390,
+        description=(
+            "ECS fair-share self-cap (calls per floor window). DEFAULT 1390 = "
+            "1500 ceiling - 110 warmer floor (capacity-specification.md §6.1; "
+            "pythia PC-4). Hard-reserve is ONLY the 110 floor; the fair-share "
+            "pool is soft-capped, not hard-subdivided."
+        ),
+        ge=1,
+    )
+
+
 class S3RetrySettings(Autom8yBaseSettings):
     """S3 storage retry, budget, and circuit breaker configuration.
 
@@ -941,6 +1020,7 @@ class Settings(Autom8yBaseSettings):
     s3: S3Settings = Field(default_factory=S3Settings)
     pacing: PacingSettings = Field(default_factory=PacingSettings)
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
+    budget_allocator: BudgetAllocatorSettings = Field(default_factory=BudgetAllocatorSettings)
     s3_retry: S3RetrySettings = Field(default_factory=S3RetrySettings)
     webhook: WebhookSettings = Field(default_factory=WebhookSettings)
     data_service: DataServiceSettings = Field(default_factory=DataServiceSettings)

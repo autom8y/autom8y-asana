@@ -49,6 +49,7 @@ __all__ = [
     "CircuitBreakerConfig",
     "S3LocationConfig",
     "CacheConfig",
+    "BudgetAllocatorConfig",
     "DataFrameConfig",
     "AutomationConfig",
     "AsanaConfig",
@@ -827,6 +828,83 @@ class CacheConfig:
         return config
 
 
+@dataclass(frozen=True)
+class BudgetAllocatorConfig:
+    """F1a cross-consumer budget allocator configuration (data-at-rest floor).
+
+    Per HANDOFF-arch-to-10x-f1a-budget-allocator-2026-07-20 ITEM-A and the
+    pythia ADVISORY published-floor ruling. Carries the single operator knob
+    (``enabled``, default FALSE -- INERT at merge) and the STATIC,
+    C-11-DECOUPLED floor the substrate warmer self-claims against.
+
+    C-11-DECOUPLED (pythia PC-2): every field here is a plain config value read
+    WITHOUT invoking any AIMD / dynamic concurrency instrumentation. The floor
+    is data-at-rest; it survives publish-surface death by construction, which is
+    what makes the advisory seam fail-open-to-static-floor natively.
+
+    Attributes:
+        enabled: Whether the allocator is armed. DEFAULT False (INERT). When
+            False the allocator is a byte-identical no-op passthrough at the
+            seam (ITEM-D); activation is OPERATOR-ONLY at GO-LIVE (F-a).
+        floor_max_requests: Warmer static floor numerator (calls per window).
+            DEFAULT 110 (capacity-specification.md §1.5).
+        floor_window_seconds: Floor window seconds. DEFAULT 60 (Asana window).
+        fair_share_max_requests: ECS fair-share soft-cap. DEFAULT 1390
+            (1500 - 110; capacity-specification.md §6.1, pythia PC-4).
+    """
+
+    enabled: bool = False
+    floor_max_requests: int = 110
+    floor_window_seconds: int = 60
+    fair_share_max_requests: int = 1390
+
+    @classmethod
+    def from_env(cls) -> BudgetAllocatorConfig:
+        """Create configuration from ``ASANA_BUDGET_ALLOCATOR_*`` env vars.
+
+        Mirrors :meth:`CacheConfig.from_env`: a FRESH pydantic settings instance
+        is constructed on every call so the knob binds PER-PROCESS-FRESH, never
+        import-time-once (killswitch-rollback-spec §2.2 BUILD-GATE -- an
+        import-time-frozen bind would make flipping the env var a no-op until
+        process restart, the exact ITEM-D dead-knob HALT condition).
+
+        A loud startup INFO log fires on every bind so an env-driven arm/disarm
+        is never silent (the F-2 bind guardrail).
+
+        Returns:
+            BudgetAllocatorConfig populated from the environment.
+
+        Example:
+            >>> import os
+            >>> os.environ["ASANA_BUDGET_ALLOCATOR_ENABLED"] = "true"
+            >>> cfg = BudgetAllocatorConfig.from_env()
+            >>> cfg.enabled
+            True
+        """
+        from autom8_asana.settings import BudgetAllocatorSettings
+
+        # Fresh settings instance to read CURRENT env (not the possibly-stale
+        # singleton) -- guarantees the per-process-fresh bind the BUILD-GATE
+        # requires.
+        settings = BudgetAllocatorSettings()
+        config = cls(
+            enabled=settings.enabled,
+            floor_max_requests=settings.floor_max_requests,
+            floor_window_seconds=settings.floor_window_seconds,
+            fair_share_max_requests=settings.fair_share_max_requests,
+        )
+        logger.info(
+            "budget_allocator_config_bound_from_env",
+            extra={
+                "enabled": config.enabled,
+                "floor_max_requests": config.floor_max_requests,
+                "floor_window_seconds": config.floor_window_seconds,
+                "fair_share_max_requests": config.fair_share_max_requests,
+            },
+        )
+        return config
+
+
 @dataclass
 class AsanaConfig:
     """Main configuration for AsanaClient.
@@ -872,6 +950,12 @@ class AsanaConfig:
     cache: CacheConfig = field(default_factory=CacheConfig.from_env)
     dataframe: DataFrameConfig = field(default_factory=DataFrameConfig)
     automation: AutomationConfig = field(default_factory=AutomationConfig)
+    # F1a (ITEM-A): the cross-consumer budget allocator config. Default path
+    # BINDS ASANA_BUDGET_ALLOCATOR_* per-process-fresh. Default enabled=false =>
+    # INERT (byte-identical passthrough at the seam). Explicit
+    # AsanaConfig(budget_allocator=...) bypasses this default_factory (used by
+    # canary fixtures to arm the allocator in-process without an env flip).
+    budget_allocator: BudgetAllocatorConfig = field(default_factory=BudgetAllocatorConfig.from_env)
 
     # Auth key names (used with AuthProvider.get_secret)
     token_key: str = "ASANA_PAT"  # noqa: S105 -- env var name for secret lookup, not a password
