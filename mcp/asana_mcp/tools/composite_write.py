@@ -55,8 +55,18 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+from asana_mcp.errors import McpToolError
+from asana_mcp.tools.tag_resolve import (
+    TagNameCache,
+    read_back_tag_state,
+    resolve_tag_name,
+    validate_tag_selector,
+)
+
 if TYPE_CHECKING:  # pragma: no cover - typing only, no runtime FastMCP dependency
     from collections.abc import Awaitable, Callable
+
+    from asana_mcp.tools.tag_resolve import TagResolution
 
 
 # --------------------------------------------------------------------------- #
@@ -262,6 +272,122 @@ def _refuse(steps: list[StepOutcome]) -> CompositeWriteResult:
 
 
 # --------------------------------------------------------------------------- #
+# Dual-key orchestrator (WS-B2) — tag_gid | tag_name -> resolved add_tag
+# --------------------------------------------------------------------------- #
+# This layer wraps the UNCHANGED execute_composite_write: it (1) enforces the
+# exactly-one dual-key contract, (2) resolves tag_name -> tag_gid read-only via the
+# satellite #246 route (no new write verb — the HARD FENCE), (3) runs the existing
+# add_tag->push->mark_complete chain against the resolved GID, and (4) reads the task
+# back to confirm the tag applied (PLAY-3). execute_composite_write keeps its exact
+# 3-step, gid-only behavior so its two-sided suite is untouched.
+
+
+def _resolution_refusal(resolution_receipt: dict[str, Any]) -> dict[str, Any]:
+    """Assemble a pre-write refusal (dual-key invalid, or name unresolved/error).
+
+    No backend WRITE was attempted, so the write leg is null and nothing committed.
+    """
+    return {
+        "status": _STATUS_REFUSED,
+        "resolution": resolution_receipt,
+        "write": None,
+        "confirmation": None,
+    }
+
+
+def _resolution_receipt_from(resolution: TagResolution, tag_name: str) -> dict[str, Any]:
+    receipt = {
+        "selector": "tag_name",
+        "requested": tag_name,
+        "outcome": resolution.status,
+        "tag_gid": resolution.tag_gid,
+        "cache": resolution.cache,
+        "scan_page_cap": resolution.scan_page_cap,
+        "detail": resolution.detail,
+    }
+    if resolution.candidates:
+        receipt["candidates"] = resolution.candidates
+    return receipt
+
+
+async def execute_tagged_write(
+    ctx: SidecarContext,
+    *,
+    task_gid: str,
+    tag_gid: str | None = None,
+    tag_name: str | None = None,
+    save_fields: dict[str, Any] | None = None,
+    cache: TagNameCache | None = None,
+) -> dict[str, Any]:
+    """Dual-key composite write: resolve the tag selector, run the chain, confirm.
+
+    Returns an assembled dict: ``resolution`` (always), ``write`` (the composite
+    CompositeWriteResult dict, or None if refused pre-write), ``confirmation`` (the
+    PLAY-3 read-back, or None), and an overall ``status``.
+    """
+    # 1 — dual-key contract: EXACTLY ONE of tag_gid | tag_name.
+    selector_error = validate_tag_selector(tag_gid, tag_name)
+    if selector_error is not None:
+        return _resolution_refusal(
+            {
+                "selector": "invalid",
+                "requested": {"tag_gid": tag_gid, "tag_name": tag_name},
+                "outcome": "invalid_selector",
+                "tag_gid": None,
+                "cache": "n/a",
+                "detail": selector_error,
+            }
+        )
+
+    # 2 — resolve tag_name -> tag_gid (read-only), or take the provided tag_gid as-is.
+    if tag_name is not None and str(tag_name).strip():
+        try:
+            resolution = await resolve_tag_name(ctx, tag_name, cache=cache)
+        except McpToolError as err:
+            receipt = {
+                "selector": "tag_name",
+                "requested": tag_name,
+                "outcome": "resolution_error",
+                "tag_gid": None,
+                "cache": "n/a",
+                "detail": err.message,
+                "error": err.to_tool_payload(),
+            }
+            return _resolution_refusal(receipt)
+        if not resolution.resolved:
+            return _resolution_refusal(_resolution_receipt_from(resolution, tag_name))
+        resolved_gid = resolution.tag_gid
+        resolution_receipt = _resolution_receipt_from(resolution, tag_name)
+    else:
+        resolved_gid = str(tag_gid)
+        resolution_receipt = {
+            "selector": "tag_gid",
+            "requested": tag_gid,
+            "outcome": "provided",
+            "tag_gid": resolved_gid,
+            "cache": "n/a",
+            "detail": "tag_gid supplied directly; no name resolution performed.",
+        }
+
+    # 3 — the UNCHANGED write chain against the resolved GID.
+    result = await execute_composite_write(
+        ctx, task_gid=task_gid, tag_gid=resolved_gid, save_fields=save_fields
+    )
+
+    # 4 — PLAY-3 read-back confirmation, once add_tag has actually committed.
+    confirmation: dict[str, Any] | None = None
+    if "add_tag" in result.committed and resolved_gid is not None:
+        confirmation = await read_back_tag_state(ctx, task_gid, resolved_gid)
+
+    return {
+        "status": result.status,
+        "resolution": resolution_receipt,
+        "write": result.as_dict(),
+        "confirmation": confirmation,
+    }
+
+
+# --------------------------------------------------------------------------- #
 # MOUNT-SEAM entrypoint (frozen signature) — register(mcp, ctx)
 # --------------------------------------------------------------------------- #
 TOOL_NAME = "asana_complete_tagged_task"
@@ -270,7 +396,29 @@ TOOL_DESCRIPTION = (
     "save the task state (PUT), then mark it complete. Idempotent end-to-end and safe to "
     "re-run; a partial failure converges on re-run. On any step failure the tool refuses "
     "loudly and reports exactly what committed vs not — it never claims atomicity (the "
-    "backing API has no transaction)."
+    "backing API has no transaction).\n"
+    "\n"
+    "TAG SELECTOR (dual-key): supply EXACTLY ONE of tag_gid or tag_name (both or neither "
+    "is a validation error). tag_name is resolved to a GID read-only via the satellite tag "
+    "name-resolution route; the only write is still the single add_tag. Name matching is "
+    "EXACT and case-sensitive (byte-for-byte). Asana tag names are NOT unique, so a name "
+    "may be AMBIGUOUS (multiple matches) — the tool refuses and lists candidate GIDs; pass "
+    "the intended tag_gid to disambiguate. A name MISS is bounded: the satellite scan caps "
+    "at 100 pages (~10,000 tags) and does not report truncation on name queries, so 'not "
+    "found' means 'not found within the bounded scan', NOT proven absent — if you expect "
+    "the tag to exist, pass tag_gid directly. Name->GID resolutions are cached in-process "
+    "(TTL-bounded); a tag RENAMED at the source may resolve to its OLD GID until the cache "
+    "entry expires.\n"
+    "\n"
+    "CONSUMED-TRIGGER HAZARD (play/automation tags): a play/automation tag can be a "
+    "CONSUMED trigger — the automation STRIPS the tag when it fires. Re-applying the tag "
+    "RE-FIRES the automation. If a call LOOKS failed, do NOT blindly re-run against a real "
+    "play tag: a re-apply can DOUBLE-TRIGGER a live business workflow. Check the read-back "
+    "confirmation first.\n"
+    "\n"
+    "CONFIRMATION: after the write the tool reads the task back (explicit opt_fields) and "
+    "reports the observed tag state, so you get a mechanism receipt that the tag actually "
+    "applied. A tag absent-after-apply is a hint that a consumed-trigger automation fired."
 )
 
 
@@ -284,9 +432,13 @@ def register(mcp: Any, ctx: SidecarContext) -> None:
     if not write_surface_enabled(ctx):
         return  # exposure gated OFF: the throwaway cannot leak as a ratified surface
 
+    # One process-lifetime name->GID cache shared across tool invocations (TTL-bounded).
+    tag_cache = TagNameCache()
+
     async def asana_complete_tagged_task(
         task_gid: str,
-        tag_gid: str,
+        tag_gid: str | None = None,
+        tag_name: str | None = None,
         name: str | None = None,
         notes: str | None = None,
         due_on: str | None = None,
@@ -294,10 +446,14 @@ def register(mcp: Any, ctx: SidecarContext) -> None:
         save_fields = {
             k: v for k, v in (("name", name), ("notes", notes), ("due_on", due_on)) if v is not None
         }
-        result = await execute_composite_write(
-            ctx, task_gid=task_gid, tag_gid=tag_gid, save_fields=save_fields
+        return await execute_tagged_write(
+            ctx,
+            task_gid=task_gid,
+            tag_gid=tag_gid,
+            tag_name=tag_name,
+            save_fields=save_fields,
+            cache=tag_cache,
         )
-        return result.as_dict()
 
     _bind_tool(mcp, asana_complete_tagged_task, name=TOOL_NAME, description=TOOL_DESCRIPTION)
 
