@@ -47,6 +47,54 @@ if TYPE_CHECKING:
     from autom8_asana.search import SearchService
 
 
+def _attach_to_budget_allocator(client: AsanaClient) -> None:
+    """Route an AsanaClient through the process-singleton budget allocator (ITEM-B).
+
+    Single wiring point for the F1a cross-consumer allocator: every AsanaClient
+    construction (all ~57 sites) flows through ``__init__``, so registering here
+    unifies the fleet onto ONE advisory limiter (pythia PC-1 -- "one library
+    change at client.py.__init__ covers all 55").
+
+    Two load-bearing invariants:
+
+    * BYTE-IDENTICAL WHEN INERT (ITEM-D): when the allocator is disabled this
+      early-returns before any interposition -- the Asana request path is
+      byte-identical to the pre-allocator 57-site baseline. No runtime branch is
+      left in the hot path (the ITEM-D dead-knob lesson).
+    * PER-LANE FAIL-OPEN (pythia PC-3, C-4): any allocator-internal exception is
+      caught and the client PROCEEDS un-arbitrated (fail-OPEN, never fail-closed
+      -- a fail-closed limiter would make the storm worse, the exact
+      shift-starvation the node-4 gate defeated), emitting the
+      ``budget_lane_failopen`` tripwire. One lane's fault never blocks it and
+      never cross-contaminates other lanes. The tripwire emission is itself
+      guarded so it can never re-raise and fail-close construction.
+    """
+    from autom8_asana.transport.budget_allocator import Lane, get_budget_allocator
+
+    allocator = None
+    try:
+        allocator = get_budget_allocator()
+        if not allocator.enabled:
+            return  # INERT: no interposition -- byte-identical passthrough.
+        allocator.register_client(id(client))
+    except Exception as exc:  # noqa: BLE001 -- fail-OPEN is the whole point (C-4)
+        # The lane PROCEEDS regardless; emit the tripwire best-effort.
+        try:
+            if allocator is not None:
+                allocator.note_lane_failopen(Lane.FAIR_SHARE, exc)
+            else:
+                logger.warning(
+                    "budget_lane_failopen",
+                    extra={
+                        "lane": Lane.FAIR_SHARE.value,
+                        "error": str(exc),
+                        "error_type": type(exc).__name__,
+                    },
+                )
+        except Exception:  # noqa: BLE001 -- never let the tripwire fail-close
+            pass
+
+
 class AsanaClient:
     """Main entry point for the autom8_asana SDK.
 
@@ -185,6 +233,14 @@ class AsanaClient:
             retry_policy=self._shared_retry_policy,
             logger=self._log_provider,
         )
+
+        # F1a (ITEM-B): route this client through the process-singleton budget
+        # allocator. Because ALL ~57 AsanaClient construction sites flow through
+        # __init__, this single seam unifies the fleet onto ONE advisory limiter
+        # (pythia PC-1). INERT-safe: when the allocator is disabled this is a
+        # byte-identical no-op (no interposition at the seam, ITEM-D). Per-lane
+        # fail-open: any allocator fault leaves this client PROCEEDING (PC-3).
+        _attach_to_budget_allocator(self)
 
         # Resolve workspace_gid: parameter > env var > auto-detect
         if workspace_gid is None:
