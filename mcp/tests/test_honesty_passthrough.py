@@ -9,7 +9,6 @@ FABRICATING renderer (flips a flag toward reassurance) are BOTH rejected.
 from __future__ import annotations
 
 import pytest
-
 from asana_mcp.observability import (
     NATIVE_HONESTY_FIELDS,
     HonestySuppressionError,

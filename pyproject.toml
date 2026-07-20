@@ -253,6 +253,12 @@ ignore = [
     "SIM105",
 ]
 
+# Operator CLI entry points inside the mcp/ island (s6 assembly): the stdio
+# launcher's --smoke inventory and the C2 sandbox probe's evidence bundle are
+# EMITTED via print by design — stdout IS their interface (T201 exempt).
+"mcp/serve_stdio.py" = ["T201"]
+"mcp/probes/*.py" = ["T201"]
+
 # Tests have relaxed linting rules:
 # - F841: unused variables (fixtures, mocks)
 # - E402: imports after code (fixture setup)
