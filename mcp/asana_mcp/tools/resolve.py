@@ -27,9 +27,9 @@ async def resolve_entity_handler(
     meta = inner.get("meta", {}) if isinstance(inner, dict) else {}
     return {
         "entity_type": entity_type,
-        "results": results,          # [{gid, gids?, match_count, error?, ...}]
+        "results": results,  # [{gid, gids?, match_count, error?, ...}]
         "result_count": len(results) if isinstance(results, list) else None,
-        "meta": meta,                # {resolved_count, unresolved_count, ...}
+        "meta": meta,  # {resolved_count, unresolved_count, ...}
     }
 
 

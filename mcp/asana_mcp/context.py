@@ -13,8 +13,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from asana_mcp.bridge import build_http_client, make_readiness_probe
-from asana_mcp.bridge import TokenProvider
+from asana_mcp.bridge import TokenProvider, build_http_client, make_readiness_probe
 from asana_mcp.settings import Settings
 
 

@@ -7,7 +7,6 @@ BEFORE the tool endpoint is touched — classified as warming, never auth.
 from __future__ import annotations
 
 import pytest
-
 from asana_mcp.errors import McpToolError
 from asana_mcp.schemas import RowsArgs
 from asana_mcp.tools.discovery import list_entity_types_handler

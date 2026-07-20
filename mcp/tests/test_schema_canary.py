@@ -14,7 +14,6 @@ import hashlib
 from pathlib import Path
 
 import pytest
-
 from asana_mcp.schemas import NATIVE_SOURCE
 
 WORKTREE_ROOT = Path(__file__).resolve().parents[2]

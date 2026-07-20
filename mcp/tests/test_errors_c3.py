@@ -11,21 +11,24 @@ from __future__ import annotations
 
 import httpx
 import pytest
-
 from asana_mcp.errors import McpToolError, map_http_error
 from asana_mcp.schemas import RowsArgs
 from asana_mcp.tools.query import query_rows_handler
 
 
 def test_503_is_classified_warming_not_auth():
-    err = map_http_error(httpx.Response(503, json={"error": {"code": "CACHE_NOT_WARMED"},
-                                                   "details": {"retry_after_seconds": 30}}))
-    assert err.kind == "warming"        # classified as warming, NOT auth
+    err = map_http_error(
+        httpx.Response(
+            503,
+            json={"error": {"code": "CACHE_NOT_WARMED"}, "details": {"retry_after_seconds": 30}},
+        )
+    )
+    assert err.kind == "warming"  # classified as warming, NOT auth
     assert err.kind != "auth"
     assert err.retryable is True
     assert err.status == 503
     assert err.retry_after == 30.0
-    assert "warming" in err.message.lower()   # names the true cause
+    assert "warming" in err.message.lower()  # names the true cause
 
 
 def test_401_is_classified_auth_not_warming():

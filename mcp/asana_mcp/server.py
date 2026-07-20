@@ -30,7 +30,7 @@ if TYPE_CHECKING:  # annotation only — no runtime fastmcp import (C9a)
     from fastmcp import FastMCP
 
 
-def create_server(settings: Settings | None = None) -> "FastMCP":
+def create_server(settings: Settings | None = None) -> FastMCP:
     """Build the read-surface FastMCP sidecar. Config resolved at call time."""
     from fastmcp import FastMCP  # call-time import — keeps the package import-safe
 
@@ -43,8 +43,8 @@ def create_server(settings: Settings | None = None) -> "FastMCP":
     from asana_mcp.tools import discovery, query, resolve
 
     discovery.register(mcp, ctx)  # list_entity_types, describe_entity (thin tier)
-    query.register(mcp, ctx)      # query_rows, query_aggregate (rich native tier)
-    resolve.register(mcp, ctx)    # resolve_entity (native)
+    query.register(mcp, ctx)  # query_rows, query_aggregate (rich native tier)
+    resolve.register(mcp, ctx)  # resolve_entity (native)
     # tool 6 match_business is surface-not-POC — deliberately NOT registered.
 
     # Expose ctx for downstream assembly (sprint-3 write tools, sprint-6 instrument).

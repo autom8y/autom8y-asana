@@ -7,27 +7,52 @@ token provider + a MockTransport are injected through the build_context seams.
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 import httpx
 import pytest_asyncio
-
 from asana_mcp.context import build_context
 from asana_mcp.settings import Settings
 
 # --- canned wire payloads (exact native envelope shapes) ----------------------
 
 ENTITIES = [
-    {"entity_type": "offer", "display_name": "Offer", "project_gid": "1200653012566782", "category": "business"},
-    {"entity_type": "unit", "display_name": "Unit", "project_gid": "1201081073731555", "category": "business"},
+    {
+        "entity_type": "offer",
+        "display_name": "Offer",
+        "project_gid": "1200653012566782",
+        "category": "business",
+    },
+    {
+        "entity_type": "unit",
+        "display_name": "Unit",
+        "project_gid": "1201081073731555",
+        "category": "business",
+    },
 ]
 OFFER_FIELDS = [
-    {"name": "office_phone", "dtype": "str", "nullable": True, "description": "Office phone (E.164)."},
+    {
+        "name": "office_phone",
+        "dtype": "str",
+        "nullable": True,
+        "description": "Office phone (E.164).",
+    },
     {"name": "vertical", "dtype": "str", "nullable": True, "description": "Business vertical."},
-    {"name": "classification", "dtype": "str", "nullable": False, "description": "Section classification."},
+    {
+        "name": "classification",
+        "dtype": "str",
+        "nullable": False,
+        "description": "Section classification.",
+    },
 ]
 OFFER_RELATIONS = [
-    {"target": "unit", "direction": "child", "default_join_key": "unit_gid", "cardinality": "many_to_one", "description": "Offer's unit."},
+    {
+        "target": "unit",
+        "direction": "child",
+        "default_join_key": "unit_gid",
+        "cardinality": "many_to_one",
+        "description": "Offer's unit.",
+    },
 ]
 OFFER_SECTIONS = [
     {"section_name": "active", "classification": "active"},
@@ -38,10 +63,17 @@ ROWS_ENVELOPE = {
     "data": {
         "data": [{"office_phone": "+15551234567", "vertical": "dental"}],
         "meta": {
-            "total_count": 1, "returned_count": 1, "limit": 100, "offset": 0,
-            "entity_type": "offer", "project_gid": "1200653012566782", "query_ms": 12.3,
-            "stale_served": False, "honest_contract_complete": True,
-            "honest_empty": False, "contract_complete": True,
+            "total_count": 1,
+            "returned_count": 1,
+            "limit": 100,
+            "offset": 0,
+            "entity_type": "offer",
+            "project_gid": "1200653012566782",
+            "query_ms": 12.3,
+            "stale_served": False,
+            "honest_contract_complete": True,
+            "honest_empty": False,
+            "contract_complete": True,
             "unservable_required_columns": [],
         },
     },
@@ -52,8 +84,12 @@ AGG_ENVELOPE = {
     "data": {
         "data": [{"vertical": "dental", "count_office_phone": 5}],
         "meta": {
-            "group_count": 1, "aggregation_count": 1, "group_by": ["vertical"],
-            "entity_type": "offer", "project_gid": "1200653012566782", "query_ms": 8.1,
+            "group_count": 1,
+            "aggregation_count": 1,
+            "group_by": ["vertical"],
+            "entity_type": "offer",
+            "project_gid": "1200653012566782",
+            "query_ms": 8.1,
             "stale_served": True,
         },
     },
@@ -65,8 +101,14 @@ RESOLVE_ENVELOPE = {
             {"gid": "1234567890123456", "match_count": 1},
             {"gid": None, "error": "NOT_FOUND", "match_count": 0},
         ],
-        "meta": {"resolved_count": 1, "unresolved_count": 1, "entity_type": "unit",
-                 "project_gid": "1201081073731555", "available_fields": [], "criteria_schema": ["phone", "vertical"]},
+        "meta": {
+            "resolved_count": 1,
+            "unresolved_count": 1,
+            "entity_type": "unit",
+            "project_gid": "1201081073731555",
+            "available_fields": [],
+            "criteria_schema": ["phone", "vertical"],
+        },
     },
     "meta": {"request_id": "req-resolve-1"},
 }
@@ -99,14 +141,19 @@ def healthy_handler(request: httpx.Request) -> httpx.Response:
 
 def readiness_cold_handler(request: httpx.Request) -> httpx.Response:
     # Every route (incl. /ready) is a warming 503 — the readiness gate must fire.
-    return _json({"error": {"code": "CACHE_NOT_WARMED"}, "details": {"retry_after_seconds": 30}}, status=503)
+    return _json(
+        {"error": {"code": "CACHE_NOT_WARMED"}, "details": {"retry_after_seconds": 30}}, status=503
+    )
 
 
 def endpoint_warming_handler(request: httpx.Request) -> httpx.Response:
     # /ready is healthy, but the tool endpoint returns a cold-frame 503.
     if request.url.path == "/ready":
         return _json({"status": "ready"})
-    return _json({"error": {"code": "CACHE_BUILD_IN_PROGRESS"}, "details": {"retry_after_seconds": 15}}, status=503)
+    return _json(
+        {"error": {"code": "CACHE_BUILD_IN_PROGRESS"}, "details": {"retry_after_seconds": 15}},
+        status=503,
+    )
 
 
 def auth_fail_handler(request: httpx.Request) -> httpx.Response:
@@ -127,7 +174,9 @@ async def ctx_factory():
 
     def _make(handler: Callable[[httpx.Request], httpx.Response]):
         settings = Settings(base_url="http://sat.local", ready_path="/ready")
-        ctx = build_context(settings, token_provider=_fake_token, transport=httpx.MockTransport(handler))
+        ctx = build_context(
+            settings, token_provider=_fake_token, transport=httpx.MockTransport(handler)
+        )
         created.append(ctx)
         return ctx
 

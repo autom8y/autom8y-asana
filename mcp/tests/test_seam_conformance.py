@@ -10,7 +10,6 @@ import inspect
 
 import httpx
 import pytest
-
 from asana_mcp.context import SidecarContext, build_context
 from asana_mcp.settings import Settings
 from asana_mcp.tools import discovery, query, resolve

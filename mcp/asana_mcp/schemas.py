@@ -42,18 +42,27 @@ NATIVE_SOURCE = {
     ),
     "resolve": "src/autom8_asana/api/routes/resolver_models.py",
     "mirrored_rows_fields": [
-        "where", "section", "classification", "select", "required_columns",
-        "limit", "offset", "order_by", "order_dir", "project_gid", "section_gid",
+        "where",
+        "section",
+        "classification",
+        "select",
+        "required_columns",
+        "limit",
+        "offset",
+        "order_by",
+        "order_dir",
+        "project_gid",
+        "section_gid",
     ],
     "mirrored_aggregate_fields": ["where", "section", "group_by", "aggregations", "having"],
     "mirrored_resolve_fields": ["criteria", "fields", "active_only"],
 }
 
 _PREDICATE_GRAMMAR = (
-    "Composable predicate. A leaf comparison is {\"field\": <col>, \"op\": <op>, "
-    "\"value\": <v>} where op is one of eq, ne, gt, lt, gte, lte, in, not_in, "
+    'Composable predicate. A leaf comparison is {"field": <col>, "op": <op>, '
+    '"value": <v>} where op is one of eq, ne, gt, lt, gte, lte, in, not_in, '
     "contains, starts_with (date ops between/date_gte/date_lte exist on exports). "
-    "Groups: {\"and\": [..]}, {\"or\": [..]}, {\"not\": {..}}. A bare list of "
+    'Groups: {"and": [..]}, {"or": [..]}, {"not": {..}}. A bare list of '
     "comparisons is auto-wrapped as AND (flat-array sugar). Null = no filter."
 )
 
@@ -86,9 +95,7 @@ class RowsArgs(BaseModel):
             "silent drop. Null preserves default behavior."
         ),
     )
-    limit: int = Field(
-        default=100, ge=1, le=10_000, description="Max rows to return (1-10000)."
-    )
+    limit: int = Field(default=100, ge=1, le=10_000, description="Max rows to return (1-10000).")
     offset: int = Field(default=0, ge=0, description="Rows to skip for pagination.")
     order_by: str | None = Field(default=None, description="Column to sort by.")
     order_dir: Literal["asc", "desc"] = Field(default="asc", description="Sort direction.")
@@ -115,7 +122,9 @@ class AggSpecArg(BaseModel):
     agg: Literal["sum", "count", "mean", "min", "max", "count_distinct"] = Field(
         description="Aggregation function."
     )
-    alias: str | None = Field(default=None, description="Output column name (defaults to agg_column).")
+    alias: str | None = Field(
+        default=None, description="Output column name (defaults to agg_column)."
+    )
 
 
 class AggregateArgs(BaseModel):
@@ -134,7 +143,8 @@ class AggregateArgs(BaseModel):
         min_length=1, max_length=10, description="Aggregations to compute per group (1-10)."
     )
     having: list[Any] | dict[str, Any] | None = Field(
-        default=None, description=f"Post-aggregation filter on grouped results. {_PREDICATE_GRAMMAR}"
+        default=None,
+        description=f"Post-aggregation filter on grouped results. {_PREDICATE_GRAMMAR}",
     )
 
 
@@ -146,8 +156,8 @@ class ResolveArgs(BaseModel):
     criteria: list[dict[str, Any]] = Field(
         description=(
             "Lookup criteria to resolve (max 1000). Each is a dict of identifier "
-            "fields, e.g. {\"phone\": \"+15551234567\", \"vertical\": \"dental\"} or "
-            "{\"offer_id\": \"...\"}. Use GET /v1/resolve/{entity_type}/schema to "
+            'fields, e.g. {"phone": "+15551234567", "vertical": "dental"} or '
+            '{"offer_id": "..."}. Use GET /v1/resolve/{entity_type}/schema to '
             "discover valid fields per entity type."
         ),
     )

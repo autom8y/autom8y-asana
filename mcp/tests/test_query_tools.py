@@ -12,7 +12,9 @@ from asana_mcp.tools.query import query_aggregate_handler, query_rows_handler
 
 
 async def test_query_rows_unwraps_and_surfaces_honesty_top_level(fake_ctx):
-    result = await query_rows_handler(fake_ctx, "offer", RowsArgs(select=["office_phone", "vertical"]))
+    result = await query_rows_handler(
+        fake_ctx, "offer", RowsArgs(select=["office_phone", "vertical"])
+    )
     assert result["entity_type"] == "offer"
     assert result["rows"] == [{"office_phone": "+15551234567", "vertical": "dental"}]
     assert result["rows_count"] == 1
@@ -26,7 +28,9 @@ async def test_query_rows_unwraps_and_surfaces_honesty_top_level(fake_ctx):
 
 
 async def test_query_aggregate_surfaces_only_emitted_honesty(fake_ctx):
-    args = AggregateArgs(group_by=["vertical"], aggregations=[{"column": "office_phone", "agg": "count"}])
+    args = AggregateArgs(
+        group_by=["vertical"], aggregations=[{"column": "office_phone", "agg": "count"}]
+    )
     result = await query_aggregate_handler(fake_ctx, "offer", args)
     assert result["groups"] == [{"vertical": "dental", "count_office_phone": 5}]
     assert result["stale_served"] is True  # top-level, unwrapped

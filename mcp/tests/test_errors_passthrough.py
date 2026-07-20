@@ -16,7 +16,6 @@ that scope fence is asserted here too.
 from __future__ import annotations
 
 import httpx
-
 from asana_mcp.errors import map_http_error
 
 

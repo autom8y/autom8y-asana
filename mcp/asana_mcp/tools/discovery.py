@@ -43,9 +43,9 @@ async def describe_entity_handler(ctx: SidecarContext, entity_type: str) -> dict
         sections = None
     return {
         "entity_type": entity_type,
-        "fields": fields,        # [{name, dtype, nullable, description}]
+        "fields": fields,  # [{name, dtype, nullable, description}]
         "relations": relations,  # [{target, direction, default_join_key, cardinality, description}]
-        "sections": sections,    # [{section_name, classification}] or None
+        "sections": sections,  # [{section_name, classification}] or None
     }
 
 
