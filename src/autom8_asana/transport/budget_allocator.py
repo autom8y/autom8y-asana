@@ -162,6 +162,9 @@ __all__ = [
 
 logger = get_logger(__name__)
 
+# Token-bucket admission tolerance -- see WarmerFloorGate.admit for the ULP trap.
+_ADMIT_EPSILON = 1e-9
+
 
 class Lane(StrEnum):
     """Consumer lane classification (C-3 priority tiers, capacity-spec §3).
@@ -253,12 +256,17 @@ class WarmerFloorGate:
 
         Returns immediately when floor budget remains; otherwise waits ONLY long
         enough to earn the next token at the floor rate. Never consults AIMD.
+
+        The ``_ADMIT_EPSILON`` tolerance guards the classic token-bucket
+        floating-point trap: ``wait * rate`` can compute to ``0.99999999999`` (one
+        ULP below 1.0), which would otherwise spin forever on a sub-epsilon
+        deficit as the clock advancement underflows.
         """
         async with self._lock:
             while True:
                 self._refill()
-                if self._tokens >= 1.0:
-                    self._tokens -= 1.0
+                if self._tokens >= 1.0 - _ADMIT_EPSILON:
+                    self._tokens = max(0.0, self._tokens - 1.0)
                     return
                 deficit = 1.0 - self._tokens
                 wait = deficit / self._rate if self._rate > 0 else 0.0
