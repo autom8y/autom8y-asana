@@ -44,6 +44,11 @@ telos:
     code_or_artifact_landed:
       # Landed rows flipped from "(planned)" 2026-07-20 (WS-D s5 single writer) —
       # every anchor re-verified by direct read at origin/main 793e670b.
+      # Refresh-2 note (2026-07-20): paths are AS-LANDED at each item's squash;
+      # the successor wave's #242 (squash beaf3344) later UNIFIED the island —
+      # src/asana_mcp/* and tests/asana_mcp/* now live under mcp/asana_mcp/ and
+      # mcp/tests/ at current main. See .know/architecture.md §MCP for the
+      # unified layout; these rows remain the historically-accurate receipts.
       - "FastMCP sidecar read tools 1-5 + match_business stub: mcp/asana_mcp/server.py:33 (create_server) + mcp/asana_mcp/tools/ (#239 squash 23440991); MCP-1 error passthrough mcp/asana_mcp/errors.py:110"
       - "The single W-2 composite write tool, exposure-gated OFF: src/asana_mcp/tools/composite_write.py:277 (register self-gates; flag const :82) (#238 squash a0b7142d)"
       - "Observability + guardrails floor: src/asana_mcp/observability.py:726 (instrument) + :259 (validate_partition fail-loud invariants) (#240 squash edaa9ddd); CI floor suite tests/asana_mcp/ (9 files)"

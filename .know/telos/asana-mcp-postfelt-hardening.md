@@ -53,13 +53,15 @@ telos:
     code_or_artifact_landed:
       # PLANNED at inception — replace with real {path}:{line} anchors as items
       # land. Gate B refuses wave-level tokens without them (F-HYG-CF-A).
-      # Row states updated 2026-07-20 by the WS-D s5 single writer; only WS-D
-      # flips — its anchors ride the same WS-D PR as this file and are true at
-      # its merge. All other rows remain honestly un-landed.
-      - "(planned) WS-A fleet IaC: TG health-check -> /ready + ECS grace sized >= measured full-preload duration (autom8y repo terraform; cross-repo — receipts will live in the autom8y repo; no s2 PR observed at 2026-07-20 authoring)"
-      - "(planned) WS-B satellite GET /tags surface + sidecar tag-by-NAME addressing (shape a/b/c per digest §10)"
-      - "(planned) WS-C: #242 rebased onto the operator-merged stack + format pass + un-draft (#242 still OPEN draft at 2026-07-20 authoring; s1 owns)"
-      - "WS-D LANDED (via the WS-D PR, branch docs/asana-mcp-postfelt-wsd): .know refresh — .know/architecture.md:165 (§MCP Sidecar Surfaces), .know/scar-tissue.md:342,399,438 (SCAR-VOCAB-PARITY-001 / SCAR-AUTHSIG-001 / SCAR-TG-LIVENESS-001 + two N=1 candidates), .know/design-constraints.md:226-245 (MCP-BUDGET-PARTITION/WRITE-FLAG/B1O1-COUPLING/REFERENCE-POSTURE-001), .know/test-coverage.md:397 (§MCP Island Test Topology); fork-(a) receipt FILED on the dossier record .ledge/decisions/DECISION-asana-mcp-v1-rulings-B1-B5-W5.md:856 (ADDENDUM-1; C1 ruling STAGED operator-only at :915 §A1.4 — limb (c) completes at the operator's mark); TAG-2 + PLAY-3 defer-watch REGISTERED .know/defer-watch.yaml:469,:521"
+      # Row states updated by the WS-D s5 SINGLE WRITER: pass 1 flipped WS-D;
+      # refresh pass 2 (2026-07-20, re-verified at freshly-fetched origin/main
+      # f6a72824 + gh PR/run probes) flipped WS-A, WS-B1, WS-C and recorded
+      # WS-B2 in-flight honestly. WS-D anchors ride the WS-D PR itself.
+      - "WS-A LANDED + LIVE: fleet IaC autom8y #1157 (squash d502398d — TG health checks /health -> fail-closed /ready BOTH TGs matcher 200, ECS grace 120->2400, ref bump + image pins) on #1154 (e8079654, healthy-host deploy alarms) + a8 #104 (80402fd3, startPeriod AWS-cap clamp); satellite half #248 (squash 6edc83d5 — four-state fail-closed /ready: src/autom8_asana/api/routes/health.py + api/preload/progressive.py; suite tests/unit/api/preload/test_ready_fail_closed.py); APPLIED via Service-Terraform run 29753896034 SUCCESS (workflow_dispatch — push runs are plan-only). Predicate-limb-(a)-class receipt: PT-04 — first /ready-gated deploy ecs-svc/0263950317217302961 completed clean 15:44:01Z, warming task held out ~29.5 min, ZERO client-visible 503s, COND-2 both legs discharged (.sos/wip/asana-mcp-postfelt-hardening.PT01-activation-ledger.md:128-144)"
+      - "WS-B1 LANDED: satellite GET /api/v1/tags name-resolution surface — #246 (squash 2ee3391c): src/autom8_asana/api/routes/tags.py:41 (router), :60 (list_tags), ?name= exact-name -> GID resolution"
+      - "(in flight — NOT landed) WS-B2 sidecar tag-by-NAME dual-key addressing: #249 OPEN at head cb51833b (update-branch after the 4 substrate-arc commits), critic DELTA PASS at b98936e7 (dispatcher-reported; no critic artifact found in .ledge at authoring), merge in flight; limb (b) receipt lands with it"
+      - "WS-C LANDED: #242 s6 assembly MERGED (squash beaf3344) — island unified under mcp/ (mcp/asana_mcp + mcp/tests, 21-file suite; src/asana_mcp and tests/asana_mcp removed); #242 un-drafted and merged by the wave's merge path"
+      - "WS-D LANDED (via the WS-D PR, branch docs/asana-mcp-postfelt-wsd): .know refresh — .know/architecture.md:165 (§MCP Sidecar Surfaces, restated to the unified island at f6a72824), .know/scar-tissue.md:342,399,438 (SCAR-VOCAB-PARITY-001 / SCAR-AUTHSIG-001 / SCAR-TG-LIVENESS-001 — TG scar CURED at refresh-2 with the PT-04 receipt — + two N=1 candidates), .know/design-constraints.md:226-245 (MCP-BUDGET-PARTITION/WRITE-FLAG/B1O1-COUPLING/REFERENCE-POSTURE-001, anchors re-pointed post-#242), .know/test-coverage.md:397 (§MCP Island Test Topology, restated post-#242); fork-(a) receipt FILED on the dossier record .ledge/decisions/DECISION-asana-mcp-v1-rulings-B1-B5-W5.md:856 (ADDENDUM-1; C1 ruling STAGED operator-only at :915 §A1.4 — limb (c) completes at the operator's mark); TAG-2 + PLAY-3 + preload-duration defer-watch entries REGISTERED in .know/defer-watch.yaml"
       - "(planned) WS-E: sandbox/tag/helper/worktree lane residues cleared by 2026-07-24"
     user_visible_surface: >
       Deploys become client-invisible: a mid-deploy client session sees zero
@@ -87,8 +89,8 @@ telos:
       eunomia attests receipt integrity, never a felt outcome.
   attestation_status:
     inception: INSCRIBED
-    shipped: UNATTESTED   # PARTIAL 2026-07-20 — the WS-D row carries real anchors (rides the WS-D PR); WS-A/B/C/E rows remain (planned). Full LANDED requires all rows real; no wave-level token (F-HYG-CF-A).
-    verified_realized: UNATTESTED   # predicate limbs (a)/(b) not yet receipted; limb (c) receipt FILED, operator ruling STAGED (dossier ADDENDUM-1 §A1.4)
+    shipped: UNATTESTED   # PARTIAL (refresh-2, 2026-07-20): WS-A/WS-B1/WS-C/WS-D rows carry real anchors; WS-B2 in flight (#249), WS-E planned. Full LANDED requires all rows real; no wave-level token (F-HYG-CF-A).
+    verified_realized: UNATTESTED   # limb (a): PT-04 receipt EXISTS (ledger :128-144); limb (b): pending #249 e2e-by-NAME; limb (c): receipt FILED, operator ruling STAGED (dossier ADDENDUM-1 §A1.4). Attestation itself is eunomia PT-09's, receipts-only.
     last_eunomia_advisory: null   # eunomia attests at PT-09, receipts only
   receipt_grammar:
     per_item_file_line_anchors:
