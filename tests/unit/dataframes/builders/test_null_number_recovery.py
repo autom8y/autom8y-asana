@@ -349,7 +349,7 @@ class _FakeS3Client:
         self.get_calls = 0
         self.keys_seen: list[str] = []
 
-    def get_object(self, *, Bucket: str, Key: str):  # noqa: N803 -- boto3 kwargs
+    def get_object(self, *, Bucket: str, Key: str):
         self.get_calls += 1
         self.keys_seen.append(Key)
         assert Bucket == self._bucket, f"unexpected bucket {Bucket!r}"
@@ -543,7 +543,7 @@ async def test_cold_tier_reads_gzip_fallback(monkeypatch, _reset_s3_client):
             self.get_calls = 0
             self.keys_seen: list[str] = []
 
-        def get_object(self, *, Bucket, Key):  # noqa: N803
+        def get_object(self, *, Bucket, Key):
             self.get_calls += 1
             self.keys_seen.append(Key)
             assert Bucket == bucket
@@ -596,7 +596,7 @@ async def test_cold_tier_per_gid_error_is_swallowed_to_null(monkeypatch, _reset_
         def __init__(self):
             self.get_calls = 0
 
-        def get_object(self, *, Bucket, Key):  # noqa: N803
+        def get_object(self, *, Bucket, Key):
             self.get_calls += 1
             if "g_ok" in Key:
                 return {"Body": _Body(json.dumps(_raw_task_object("g_ok", 500.0, 50.0)).encode())}
@@ -642,7 +642,7 @@ class _ConcurrencyProbeClient:
         self.max_in_flight = 0
         self.get_calls = 0
 
-    def get_object(self, *, Bucket, Key):  # noqa: N803
+    def get_object(self, *, Bucket, Key):
         import time
 
         with self._lock:

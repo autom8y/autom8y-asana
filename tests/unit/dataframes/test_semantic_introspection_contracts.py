@@ -474,7 +474,7 @@ class TestSI11IncludeEnums:
         When include_enums=true, enum-typed columns should include their
         valid_values list in the response.
         """
-        from autom8_asana.api.routes.dataframes import router  # noqa: F401
+        from autom8_asana.api.routes.dataframes import router
 
         # Search for include_enums in the route signatures
         route_sources = []

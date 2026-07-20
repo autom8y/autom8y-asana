@@ -80,21 +80,21 @@ if _EBI_SRC not in sys.path:
     sys.path.insert(0, _EBI_SRC)
 
 # REAL inbound code (option a — byte-for-byte, not a mirror; design D5).
-from email_booking_intake.pipeline.context import PipelineContext  # noqa: E402
-from email_booking_intake.pipeline.result import StageStatus  # noqa: E402
-from email_booking_intake.pipeline.stages.resolve_office import (  # noqa: E402
+from email_booking_intake.pipeline.context import PipelineContext
+from email_booking_intake.pipeline.result import StageStatus
+from email_booking_intake.pipeline.stages.resolve_office import (
     _DEFAULT_OVERRIDES,
     resolve_office_stage,
 )
 
 # GFR engine (system under test on the asana half) + the FROZEN execute_join,
 # consumed read-only as a client to re-introduce the v1 trap (design D6).
-from autom8_asana.core.types import EntityType  # noqa: E402
-from autom8_asana.query.join import execute_join  # noqa: E402  frozen — read-only client
-from autom8_asana.query.models import Comparison, Op, RowsRequest  # noqa: E402
-from autom8_asana.resolution.gfr.engine import resolve_async  # noqa: E402
-from autom8_asana.resolution.gfr.errors import GuardViolationError  # noqa: E402
-from tests.unit.resolution.gfr.conftest import (  # noqa: E402
+from autom8_asana.core.types import EntityType
+from autom8_asana.query.join import execute_join
+from autom8_asana.query.models import Comparison, Op, RowsRequest
+from autom8_asana.resolution.gfr.engine import resolve_async
+from autom8_asana.resolution.gfr.errors import GuardViolationError
+from tests.unit.resolution.gfr.conftest import (
     make_hydration_result,
     make_rows_response,
 )

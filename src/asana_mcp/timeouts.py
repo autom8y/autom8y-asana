@@ -136,11 +136,9 @@ def validate_timeout_config(cfg: TimeoutConfig) -> None:
     for tool, t in cfg.overrides.items():
         if not (MIN_OVERRIDE_S <= t <= cfg.tool_s):
             raise ConfigurationError(
-                f"tool override '{tool}'={t}s out of band [{MIN_OVERRIDE_S}, "
-                f"{cfg.tool_s}]"
+                f"tool override '{tool}'={t}s out of band [{MIN_OVERRIDE_S}, {cfg.tool_s}]"
             )
         if not (effective_http(t) < t):
             raise ConfigurationError(
-                f"tool override '{tool}'={t}s: effective_http({effective_http(t)}) "
-                f"not < tool ({t})"
+                f"tool override '{tool}'={t}s: effective_http({effective_http(t)}) not < tool ({t})"
             )

@@ -210,14 +210,14 @@ class TestModificationCheckCache:
             try:
                 for i in range(100):
                     cache.set(f"{prefix}_{i}", f"value_{i}")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 errors.append(e)
 
         def reader(prefix: str) -> None:
             try:
                 for i in range(100):
                     cache.get(f"{prefix}_{i}")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 errors.append(e)
 
         threads = [

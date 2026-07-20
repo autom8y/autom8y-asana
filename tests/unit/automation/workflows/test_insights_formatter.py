@@ -1918,7 +1918,7 @@ class TestPhase6QA:
         renderer = HtmlRenderer()
         result = renderer.render_document(title="Test", metadata={}, sections=sections)
         assert '<div class="kpi-grid">' in result
-        # booking_rate=0.0 is not None and isinstance(0.0, (int, float)) is True  # noqa: ERA001
+        # booking_rate=0.0 is not None and isinstance(0.0, (int, float)) is True
         # So it should render "0.00%" not "n/a"
         assert "0.00%" in result
 
@@ -2110,8 +2110,8 @@ class TestPhase6QA:
         tbody = asset_section.split("<tbody>")[1].split("</tbody>")[0]
 
         # Expected order by spend desc: Echo(800), Golf(700), India(600),
-        # Bravo(500), Hotel(400), Charlie(300), Delta(200), Juliet(150),  # noqa: ERA001
-        # Alpha(100), Foxtrot(50)  # noqa: ERA001
+        # Bravo(500), Hotel(400), Charlie(300), Delta(200), Juliet(150),
+        # Alpha(100), Foxtrot(50)
         expected_order = [
             "Echo",
             "Golf",

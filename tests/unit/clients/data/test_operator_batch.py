@@ -26,7 +26,7 @@ from autom8_asana.errors import OperatorAccessDeniedError, OperatorMintRefusedEr
 
 pytestmark = pytest.mark.usefixtures("enable_insights_feature")
 
-_OPERATOR_TOKEN = "operator.bearer.token"  # noqa: S105 -- test fixture, not a real secret
+_OPERATOR_TOKEN = "operator.bearer.token"
 
 
 def _provider(token: str = _OPERATOR_TOKEN) -> MagicMock:

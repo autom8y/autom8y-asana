@@ -469,7 +469,7 @@ class TestMixedFields:
 
         by_name = {rf.input_name: rf for rf in results}
 
-        # Core: name  # noqa: ERA001
+        # Core: name
         rf_name = by_name["name"]
         assert rf_name.is_core is True
         assert rf_name.value == "New Offer"
@@ -489,7 +489,7 @@ class TestMixedFields:
         assert rf_status.gid == "CF_002"
         assert rf_status.status == "resolved"
 
-        # Core: due_on  # noqa: ERA001
+        # Core: due_on
         rf_due = by_name["due_on"]
         assert rf_due.is_core is True
         assert rf_due.value == "2026-04-01"

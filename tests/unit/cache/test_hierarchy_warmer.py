@@ -410,7 +410,7 @@ class TestWarmAncestorsPhase2:
             },
         }
 
-        async def _get(gid: str, **kwargs):  # noqa: ANN003
+        async def _get(gid: str, **kwargs):
             data = responses.get(gid)
             if data is None:
                 return None

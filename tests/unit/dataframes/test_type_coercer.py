@@ -777,7 +777,7 @@ class TestAdversarialNumericBoundaries:
         import math
 
         result = coercer.coerce("inf", "Float64")
-        # float("inf") is valid  # noqa: ERA001
+        # float("inf") is valid
         assert result == math.inf
 
     def test_nan_to_float64(self, coercer: TypeCoercer) -> None:
@@ -839,7 +839,7 @@ class TestAdversarialNumericBoundaries:
     def test_negative_zero(self, coercer: TypeCoercer) -> None:
         """Test negative zero handling."""
         result = coercer.coerce("-0", "Float64")
-        # -0.0 == 0.0 in Python  # noqa: ERA001
+        # -0.0 == 0.0 in Python
         assert result == 0.0
 
     def test_decimal_with_exponent(self, coercer: TypeCoercer) -> None:
@@ -952,7 +952,7 @@ class TestAdversarialConcurrency:
             try:
                 result = coercer.coerce(["A", "B", "C"], "Utf8")
                 results.append(result)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 errors.append(e)
 
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -980,7 +980,7 @@ class TestAdversarialConcurrency:
                 result = coercer.coerce(input_list, "Utf8")
                 with lock:
                     results[i] = result
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 errors.append(e)
 
         with ThreadPoolExecutor(max_workers=10) as executor:

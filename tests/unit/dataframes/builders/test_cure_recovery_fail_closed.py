@@ -162,7 +162,7 @@ class _RevokedGrantS3Client:
         self.keys_seen: list[str] = []
         self.get_calls = 0
 
-    def get_object(self, *, Bucket: str, Key: str):  # noqa: N803 -- boto3 kwargs
+    def get_object(self, *, Bucket: str, Key: str):
         self.get_calls += 1
         self.keys_seen.append(Key)
         assert Bucket == self._bucket, f"unexpected bucket {Bucket!r}"
@@ -181,7 +181,7 @@ class _HealthyGrantS3Client:
         self.keys_seen: list[str] = []
         self.get_calls = 0
 
-    def get_object(self, *, Bucket: str, Key: str):  # noqa: N803 -- boto3 kwargs
+    def get_object(self, *, Bucket: str, Key: str):
         self.get_calls += 1
         self.keys_seen.append(Key)
         assert Bucket == self._bucket, f"unexpected bucket {Bucket!r}"

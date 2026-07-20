@@ -241,7 +241,7 @@ class TestBackfillFromDataframe:
 
     async def test_result_counts_correct(self, service, mock_client) -> None:
         """Result counts reflect attempted, succeeded, skipped, and failed."""
-        # task_1: success (Dental in notes)  # noqa: ERA001
+        # task_1: success (Dental in notes)
         # task_2: skip (no vertical in notes)
         # task_3: error (API exception)
         # task_4: already has vertical (not attempted)

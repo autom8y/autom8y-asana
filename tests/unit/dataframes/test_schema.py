@@ -29,7 +29,7 @@ class TestColumnDef:
 
     def test_creation_with_all_fields(self) -> None:
         """Test column definition with all fields."""
-        extractor = lambda x: x.get("gid")  # noqa: E731
+        extractor = lambda x: x.get("gid")
         col = ColumnDef(
             name="task_gid",
             dtype="Utf8",
@@ -63,8 +63,8 @@ class TestColumnDef:
 
     def test_equality(self) -> None:
         """Test ColumnDef equality (extractor excluded from comparison)."""
-        extractor1 = lambda x: x  # noqa: E731
-        extractor2 = lambda x: x.get("gid")  # noqa: E731
+        extractor1 = lambda x: x
+        extractor2 = lambda x: x.get("gid")
 
         col1 = ColumnDef("gid", "Utf8", extractor=extractor1)
         col2 = ColumnDef("gid", "Utf8", extractor=extractor2)

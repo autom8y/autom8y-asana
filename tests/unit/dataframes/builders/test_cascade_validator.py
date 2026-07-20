@@ -11,7 +11,7 @@ import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import polars as pl
-import pytest  # noqa: TC002
+import pytest
 
 from autom8_asana.dataframes.builders.cascade_validator import (
     CASCADE_NULL_ERROR_THRESHOLD,
@@ -544,7 +544,7 @@ async def test_no_schema_validates_nothing() -> None:
         cascade_plugin=plugin,
         project_gid="proj-1",
         entity_type="test",
-        # schema=None (default)  # noqa: ERA001
+        # schema=None (default)
     )
 
     assert result.rows_checked == 0

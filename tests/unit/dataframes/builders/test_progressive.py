@@ -37,7 +37,7 @@ def _make_hierarchy_warmer(
 ) -> HierarchyWarmer:
     """Create a HierarchyWarmer for testing."""
     if task_to_dict is None:
-        task_to_dict = lambda task: task.model_dump()  # noqa: E731
+        task_to_dict = lambda task: task.model_dump()
     return HierarchyWarmer(
         store=store,
         client=client or MagicMock(),

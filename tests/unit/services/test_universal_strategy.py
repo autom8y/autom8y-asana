@@ -1386,25 +1386,25 @@ class TestBatchParallelization:
 
         with patch("autom8_asana.services.resolver.validate_criterion_for_entity") as mock_validate:
             mock_validate.side_effect = [
-                # criteria[0]: valid  # noqa: ERA001
+                # criteria[0]: valid
                 MagicMock(
                     is_valid=True,
                     errors=[],
                     normalized_criterion={"office_phone": "p0", "vertical": "v0"},
                 ),
-                # criteria[1]: invalid  # noqa: ERA001
+                # criteria[1]: invalid
                 MagicMock(
                     is_valid=False,
                     errors=["Unknown field: bad_field"],
                     normalized_criterion={},
                 ),
-                # criteria[2]: valid  # noqa: ERA001
+                # criteria[2]: valid
                 MagicMock(
                     is_valid=True,
                     errors=[],
                     normalized_criterion={"office_phone": "p1", "vertical": "v1"},
                 ),
-                # criteria[3]: invalid  # noqa: ERA001
+                # criteria[3]: invalid
                 MagicMock(
                     is_valid=False,
                     errors=["Empty criterion"],

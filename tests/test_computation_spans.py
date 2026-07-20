@@ -60,7 +60,7 @@ def otel_provider():
 
 
 # =============================================================================
-# T1: QueryEngine.execute_rows  # noqa: ERA001
+# T1: QueryEngine.execute_rows
 # =============================================================================
 
 
@@ -172,7 +172,7 @@ class TestQueryEngineExecuteRows:
 
 
 # =============================================================================
-# T2: QueryEngine.execute_aggregate  # noqa: ERA001
+# T2: QueryEngine.execute_aggregate
 # =============================================================================
 
 
@@ -235,7 +235,7 @@ class TestQueryEngineExecuteAggregate:
 
 
 # =============================================================================
-# T3: PredicateCompiler.compile  # noqa: ERA001
+# T3: PredicateCompiler.compile
 # =============================================================================
 
 
@@ -272,7 +272,7 @@ class TestPredicateCompilerCompile:
 
 
 # =============================================================================
-# T4: compute_metric  # noqa: ERA001
+# T4: compute_metric
 # =============================================================================
 
 
@@ -317,7 +317,7 @@ class TestComputeMetric:
 
 
 # =============================================================================
-# T5: ProgressiveProjectBuilder.build_progressive_async  # noqa: ERA001
+# T5: ProgressiveProjectBuilder.build_progressive_async
 # =============================================================================
 
 
@@ -391,7 +391,7 @@ class TestProgressiveProjectBuilderBuildProgressiveAsync:
 
 
 # =============================================================================
-# T6: execute_join  # noqa: ERA001
+# T6: execute_join
 # =============================================================================
 
 
@@ -470,7 +470,7 @@ class TestExecuteJoin:
 
 
 # =============================================================================
-# T7: DataFrameCache.get_async  # noqa: ERA001
+# T7: DataFrameCache.get_async
 # =============================================================================
 
 
@@ -758,7 +758,7 @@ class TestDataServiceClientGetInsightsBatchAsync:
 
 
 # =============================================================================
-# T10: EntityQueryService.get_dataframe  # noqa: ERA001
+# T10: EntityQueryService.get_dataframe
 # =============================================================================
 
 

@@ -380,7 +380,7 @@ class TestBuildTimelineForOffer:
 
 
 # ---------------------------------------------------------------------------
-# _compute_day_counts: S-3 (current_section/classification) + S-1 (filter)  # noqa: ERA001
+# _compute_day_counts: S-3 (current_section/classification) + S-1 (filter)
 # ---------------------------------------------------------------------------
 
 

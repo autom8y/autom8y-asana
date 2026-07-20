@@ -287,7 +287,7 @@ class TestThreadSafety:
                     repo.set_watermark(project, wm)
                     result = repo.get_watermark(project)
                     assert result == wm
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 with lock:
                     errors.append(e)
 

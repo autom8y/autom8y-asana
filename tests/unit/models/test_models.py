@@ -713,7 +713,7 @@ class TestNameGidHashingEquality:
         assert ref != "123"
         assert ref != {"gid": "123"}
         assert ref != 123
-        assert ref != None  # noqa: E711
+        assert ref != None
 
     def test_inequality_operator(self) -> None:
         """!= operator works correctly."""

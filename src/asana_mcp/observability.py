@@ -135,7 +135,7 @@ ENV_CAPTURE_CONTENT = "ASANA_MCP_OTEL_CAPTURE_CONTENT"
 CODE_RATE_BUDGET = "MCP_RATE_BUDGET_EXHAUSTED"
 CODE_UPSTREAM_TIMEOUT = "MCP_UPSTREAM_TIMEOUT"
 CODE_JWKS_UNAVAILABLE = "AUTH_JWKS_UNAVAILABLE"
-CODE_TOKEN_INVALID = "AUTH_TOKEN_INVALID"  # noqa: S105 (error code, not a secret)
+CODE_TOKEN_INVALID = "AUTH_TOKEN_INVALID"
 CODE_NOT_READY = "MCP_SATELLITE_NOT_READY"
 
 #: FORBIDDEN vocabulary on any 5xx/timeout/cold-frame path (contract §4.3).
@@ -722,7 +722,7 @@ def _iter_tool_handles(
     return handles
 
 
-def instrument(mcp: FastMCP, settings: Settings) -> FastMCP:  # noqa: F821
+def instrument(mcp: FastMCP, settings: Settings) -> FastMCP:
     """Wrap every tool execution with sprint-4 observability + guardrails.
 
     FROZEN mount-seam v1 item 3. IDEMPOTENT (checklist item 13): a second call is a

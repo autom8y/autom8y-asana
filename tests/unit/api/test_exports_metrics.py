@@ -147,7 +147,7 @@ class TestExportsMetricsRegistration:
         # as a sample family. Probe both the registered names and the create()
         # base by importing the metric objects (the import-side-effect registers
         # them on the default REGISTRY at module load).
-        import autom8_asana.api.metrics as _m  # noqa: F401  (forces registration)
+        import autom8_asana.api.metrics as _m
 
         names = {mf.name for mf in REGISTRY.collect()}
         # prometheus_client strips the _total suffix from Counter family names
@@ -161,7 +161,7 @@ class TestExportsMetricsRegistration:
 
     def test_dropped_format_fallback_metric_absent(self) -> None:
         """The format-negotiation-fallback metric was dropped (no real seam)."""
-        import autom8_asana.api.metrics as _m  # noqa: F401
+        import autom8_asana.api.metrics as _m
 
         names = {mf.name for mf in REGISTRY.collect()}
         assert "autom8y_asana_exports_format_negotiation_fallback" not in names

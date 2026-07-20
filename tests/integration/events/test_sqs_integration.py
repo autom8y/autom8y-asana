@@ -34,7 +34,7 @@ def _localstack_available() -> bool:
         )
         client.list_queues()
         return True
-    except Exception:  # noqa: BLE001
+    except Exception:
         return False
 
 

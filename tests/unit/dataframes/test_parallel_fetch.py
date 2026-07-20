@@ -677,7 +677,7 @@ class TestFetchSectionTaskGidsAsync:
 
 
 # =============================================================================
-# TestFetchByGids (TDD-CACHE-OPT-P2)  # noqa: ERA001
+# TestFetchByGids (TDD-CACHE-OPT-P2)
 # =============================================================================
 
 
@@ -944,7 +944,7 @@ class TestFetchByGids:
 
 
 # =============================================================================
-# TestGidEnumerationCache (PRD-CACHE-OPT-P3)  # noqa: ERA001
+# TestGidEnumerationCache (PRD-CACHE-OPT-P3)
 # =============================================================================
 
 

@@ -216,7 +216,7 @@ async def test_push_live_when_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
             [entry],
             datetime.now(UTC).isoformat(),
             data_service_url="https://data.internal",
-            auth_token="tok",  # noqa: S106 -- test stub, not a real secret
+            auth_token="tok",
         )
     assert result.pushed is True
     assert result.dry_run is False

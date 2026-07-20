@@ -89,7 +89,7 @@ def _coexisting_frames_client() -> MagicMock:
     paginator = MagicMock()
     client.get_paginator.return_value = paginator
 
-    def paginate(*, Bucket: str, Prefix: str) -> list[dict]:  # noqa: N803 (boto3 kwarg)
+    def paginate(*, Bucket: str, Prefix: str) -> list[dict]:
         contents: list[dict] = []
         if Prefix == _OFFER_V2_PREFIX:
             contents = [{"Key": _OFFER_V2_KEY}]
@@ -102,7 +102,7 @@ def _coexisting_frames_client() -> MagicMock:
 
     paginator.paginate.side_effect = paginate
 
-    def get_object(*, Bucket: str, Key: str) -> dict:  # noqa: N803 (boto3 kwarg)
+    def get_object(*, Bucket: str, Key: str) -> dict:
         body = MagicMock()
         body.read.return_value = _parquet_bytes(
             _OFFER_V2_DF if Key == _OFFER_V2_KEY else _FOSSIL_DF
@@ -200,7 +200,7 @@ class TestEntityAwareReadExcludesFossil:
         paginator = MagicMock()
         client.get_paginator.return_value = paginator
 
-        def paginate(*, Bucket: str, Prefix: str) -> list[dict]:  # noqa: N803
+        def paginate(*, Bucket: str, Prefix: str) -> list[dict]:
             if Prefix == _OFFER_V2_PREFIX:
                 return [{"Contents": []}]  # v2 MISS -> triggers legacy fallback
             if Prefix == _FOSSIL_PREFIX:
@@ -209,7 +209,7 @@ class TestEntityAwareReadExcludesFossil:
 
         paginator.paginate.side_effect = paginate
 
-        def get_object(*, Bucket: str, Key: str) -> dict:  # noqa: N803
+        def get_object(*, Bucket: str, Key: str) -> dict:
             body = MagicMock()
             body.read.return_value = _parquet_bytes(_FOSSIL_DF)
             return {"Body": body}
