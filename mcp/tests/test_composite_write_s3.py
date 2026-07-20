@@ -30,7 +30,7 @@ from typing import Any
 import httpx
 import pytest
 
-_SRC = pathlib.Path(__file__).resolve().parents[2] / "src"
+_SRC = pathlib.Path(__file__).resolve().parents[1]  # sprint-6: mcp/ root (was repo/src)
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 

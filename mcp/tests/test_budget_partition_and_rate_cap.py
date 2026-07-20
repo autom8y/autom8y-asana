@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
 import asana_mcp.observability as m
+import pytest
 from asana_mcp.observability import (
     CODE_RATE_BUDGET,
     BudgetPartition,
