@@ -6479,7 +6479,7 @@
           "tasks"
         ],
         "x-fleet-idempotency": {
-          "idempotent": false
+          "idempotent": true
         },
         "x-fleet-rate-limit": {
           "tier": "external"
