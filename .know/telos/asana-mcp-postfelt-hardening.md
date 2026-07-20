@@ -1,7 +1,7 @@
 ---
 type: telos
 initiative: asana-mcp-postfelt-hardening
-status: PROPOSED
+status: RATIFIED
 created: 2026-07-19
 author: myron (dispatched /frame 2026-07-19; the operator dispatch supplies the mission + verified-realized predicate verbatim — this file transcribes, it does not invent)
 session_repo: /Users/tomtenuta/Code/a8/a8/repos/autom8y-asana
@@ -16,6 +16,13 @@ activation_gate: >
   ACT-2 merges (#239 23440991 / #240 edaa9ddd / #238 a0b7142d / #241 793e670b) —
   the wave is ACTIVE under the PT-01 standing grant. Telos ratification (A3)
   remains a pending operator act; status stays PROPOSED until then.
+  RATIFIED 2026-07-20: the operator signed AS-WRITTEN via structured interview
+  (R8 "Sign as-written", Block-III confirmed) — verification_deadline 2026-08-14
+  and the eunomia attester binding stand UNAMENDED. Receipt:
+  .ledge/decisions/RULINGS-operator-interview-telos-ratification-2026-07-20.md.
+  Same record, R9: the limb-(c) reconciliation ruling executed (dossier §A1.4 +
+  tasks.py flip in the same PR) — a future re-attest may lift the
+  verified_realized token per the PT-09 pathway; nothing obliges one on a date.
 amendable: >
   verification_deadline (PROPOSED 2026-08-14 — carried from the parent telos's
   ratified-unamended value) and rite_disjoint_attester (carried from the parent's
@@ -23,7 +30,7 @@ amendable: >
   the mission + predicate are the operator's own words and are NOT amendable here.
 ---
 
-# Telos — asana-mcp-postfelt-hardening (PROPOSED)
+# Telos — asana-mcp-postfelt-hardening (RATIFIED 2026-07-20)
 
 Authored under the /frame dispatch of 2026-07-19 per the predecessor pattern
 (.know/telos/asana-mcp-v1.md:6 — myron-authored PROPOSED, operator-ratified). The
