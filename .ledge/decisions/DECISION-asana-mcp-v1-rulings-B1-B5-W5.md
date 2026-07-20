@@ -934,10 +934,17 @@ evidence:
 
 ```
 RECONCILIATION RULING (operator's hand only — sessions never mark this):
-  [ ] fork (a) — flip tasks.py:254 to idempotent: True (C2 receipt A1.2; docstring
+  [x] fork (a) — flip tasks.py:254 to idempotent: True (C2 receipt A1.2; docstring
       re-scoped per A1.3)
   [ ] fork (b′) — keep idempotent: False, caveat documented per A1.3
-  Ruling: ____________________  Date: ____________  Signature: ____________
+  Ruling: fork (a) — "Flip to safe-to-retry" (operator's verbatim selection)
+  Date: 2026-07-20  Signature: Tom Tenuta — ruled via structured interview
+  (adversarial cases presented; Phase-4 Block-III confirmed "Confirm as drafted");
+  scribed at the operator's direction, session b3f74f84. Record:
+  .ledge/decisions/RULINGS-operator-interview-telos-ratification-2026-07-20.md (R9).
+  Executed in the same PR: annotation flip + docstring re-scope per this fork's own
+  spec. Deliberately WITHOUT a future-binding automation-design rule (offered, not
+  chosen) — the promise rests on the probe evidence.
 ```
 
 Status effects at filing (mechanical): the §8 exposure precondition was satisfied via fork

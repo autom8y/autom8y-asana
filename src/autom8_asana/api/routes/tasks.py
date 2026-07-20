@@ -251,7 +251,7 @@ async def create_task(
         "x-fleet-side-effects": [
             {"type": "asana_api", "target": "task"},
         ],
-        "x-fleet-idempotency": {"idempotent": False, "key_source": None},
+        "x-fleet-idempotency": {"idempotent": True, "key_source": None},
         "x-fleet-rate-limit": {"tier": "external"},
     },
 )
@@ -270,9 +270,12 @@ async def update_task(
     Requires Bearer token authentication (JWT or PAT).
 
     **CAUTION**: Setting completed=true may trigger Asana Rules automations
-    (notifications, section moves, workflow transitions). This is a partial
-    update -- only fields included in the request body are modified; omitted
-    fields are unchanged.
+    (notifications, section moves, workflow transitions) on FIRST fire.
+    Re-running this update is side-effect-silent under Rules listeners (live
+    probe receipt 2026-07-19; rulings dossier A1.2) -- the consumed-trigger
+    re-fire class belongs to tag re-application, not this route (A1.3).
+    This is a partial update -- only fields included in the request body are
+    modified; omitted fields are unchanged.
 
     Args:
         gid: Asana task GID.
