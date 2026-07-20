@@ -9,7 +9,7 @@ source_scope:
   - "./pyproject.toml"
   - "./.github/workflows/**"
 generator: theoros
-source_hash: "793e670b"
+source_hash: "f6a72824"
 confidence: 0.95
 format_version: "1.0"
 update_mode: "incremental"
@@ -70,6 +70,12 @@ land_hash: "a15a024ce204de3301b612526c5b1b59e4841fa3d3d70f2226e1b430cd73da1e"
 > consumed-trigger automations; W-3 caveat class; N=1) and **SCAR-CANDIDATE-OPTFIELDS**
 > (bare passthrough GETs return None for unrequested fields; N=1). Prior catalog fully
 > preserved; the Category Coverage table was NOT recounted this pass.
+>
+> **REFRESH PASS 2 (2026-07-20, same seat; re-verified at origin/main `f6a72824`):**
+> SCAR-TG-LIVENESS-001 → **CURED** (WS-A landed AND live; PT-04 first-/ready-gated-deploy
+> receipt — see the scar's CURED record). Island paths in the pass-1 sections that cited
+> `tests/asana_mcp/*` now live at `mcp/tests/*` post-#242 unification (`beaf3344`);
+> per-section path notes updated where load-bearing.
 
 ## Failure Catalog
 
@@ -133,7 +139,7 @@ DEF-005 (2 refs), DEF-002 (2 refs), SCAR-006 (1 ref).
 | SCAR-SD02 | Status push is structurally dead code in prod — wired only into entity-warm Lambda lane (paused Trap-4 since 2026-06-08); prod warm paths (ECS progressive preload, SWR, prematerialize lanes) never call it; `account_status` table has 0 rows / `synced_at` NULL since table creation (2026-03-28) | Data Model / Push Seam | PENDING-MERGE(C-6) `fix/sd02-status-push-live-seam` — no fix on main at HEAD |
 | SCAR-VOCAB-PARITY-001 | Introspection advertised the process_* pipelines while execution's hand-enumerated vocabulary rejected them (UNKNOWN_ENTITY_TYPE) — the dyn-enum class at its 3rd strike; the first agentic consumer hit it in minutes | Data Model / Registry Drift | CURED #245 `2eb830ca`: `services/resolver.py:290` descriptor-driven; parity guard `tests/unit/services/test_entity_vocabulary_parity.py` |
 | SCAR-AUTHSIG-001 | sa_* TEB mint failures misread as expired creds; SDK flattened diagnosable auth bodies to "status N" (P1 error-opacity class, N=2 with MCP-1 sidecar flattening) | Authentication / Error Opacity | Attribution table in the SCAR section; MCP-1 island cure `mcp/asana_mcp/errors.py:110`; SDK detail-carry LEDGERED |
-| SCAR-TG-LIVENESS-001 | BOTH ALB target groups health-check `/health` (liveness, always-200) — every deploy shifts traffic to an ALIVE-but-NOT-WARM task while the warm task drains | Startup / Deployment Failure | OPEN — remediation = WS-A fleet IaC (TG → `/ready` + ECS grace ≥ measured preload); NOT this repo |
+| SCAR-TG-LIVENESS-001 | ~~BOTH ALB target groups health-check `/health` (liveness, always-200) — every deploy shifts traffic to an ALIVE-but-NOT-WARM task while the warm task drains~~ **CURED** 2026-07-20 (WS-A): fleet #1157 `d502398d` (TG → fail-closed `/ready` both TGs, grace 120→2400) + satellite #248 `6edc83d5` (four-state fail-closed `/ready`); PT-04 receipt: first /ready-gated deploy clean, warming task held out ≈29.5 min, zero client-visible 503s | Startup / Deployment Failure (CURED) | Fleet IaC autom8y #1157 `d502398d` + #1154 `e8079654` + a8 #104 `80402fd3`; satellite `6edc83d5`; apply run 29753896034 SUCCESS; PT-04 receipt (activation ledger `:128-144`) |
 
 ### New Candidates Not Yet Assigned SCAR IDs
 
@@ -462,10 +468,35 @@ thresholds to cover the full 17-frame preload (the D1-F1 preload-duration measur
 the grace). Effect: the warm task serves until the new one is READY — deploys become
 client-invisible for every satellite consumer, not just MCP.
 
+**CURED RECORD (refresh pass 2, 2026-07-20 — WS-A landed AND live; history above kept)**:
+- Fleet IaC: autom8y **#1157 MERGED `d502398d`** ("fix(asana): TG health check to
+  fail-closed /ready" — both TGs `/health`→`/ready` matcher 200, ECS grace 120→2400,
+  ref bump + image pins) on top of **#1154 `e8079654`** (healthy-host deployment alarms)
+  and a8 **#104 `80402fd3`** ("fix(ecs): clamp container startPeriod to AWS cap").
+- Satellite half: **#248 `6edc83d5`** — four-state fail-closed `/ready`
+  (`src/autom8_asana/api/routes/health.py` + `api/preload/progressive.py`; regression
+  suite `tests/unit/api/preload/test_ready_fail_closed.py`, root-CI-gated).
+- Applied: Service-Terraform apply run **29753896034 SUCCESS** (manual
+  `workflow_dispatch` — push runs are plan-only; the dispatch mechanism is the ledger'd
+  apply path).
+- **PT-04 receipt (the limb-(a)-class proof)**: first `/ready`-gated deploy
+  `ecs-svc/0263950317217302961` completed clean 15:44:01Z — the WARMING task was held out
+  of rotation ≈29.5 min (TG-unhealthy on fail-closed 503 the whole time, never killed,
+  ECS container-liveness HEALTHY simultaneously — both layers visible), old task served
+  100% of traffic until the swap, ZERO client-visible 503s; "ALB-1 CLASS KILLED".
+  Receipt: `.sos/wip/asana-mcp-postfelt-hardening.PT01-activation-ledger.md:128-144`
+  (§PT-04 RECEIPT).
+- **Residual watch (registered)**: measured full warming ≈29.5 min EXCEEDS the prior
+  18-24 min band — grace 2400 proved necessary, and the D1-F1 preload-load question
+  sharpens into reduce-OR-persist: see `.know/defer-watch.yaml`
+  `mcp-preload-duration-reduce-or-persist-2026-07-20`.
+
 **Defensive pattern**: the honest cold-window error did its job — the C3 warming text
 ("transient, NOT an auth failure") let unassisted agents diagnose-and-wait instead of
 misdiagnosing auth. Keep warming errors typed, retryable, and never auth-shaped
-(`mcp/tests/test_readiness_gate.py`; `tests/asana_mcp/test_cold_frame_mapping.py:22,40`).
+(`mcp/tests/test_readiness_gate.py`; `mcp/tests/test_cold_frame_mapping.py` — post-#242
+unified path). The fail-closed `/ready` (#248) extends the pattern: readiness REFUSES
+(503) until the preload contract is met, so traffic gates can trust it.
 
 ---
 

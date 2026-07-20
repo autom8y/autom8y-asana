@@ -9,7 +9,7 @@ source_scope:
   - "./.github/workflows/*.yml"
   - "./.ci/semantic-baseline.json"
 generator: theoros
-source_hash: "793e670b"
+source_hash: "f6a72824"
 confidence: 0.93
 format_version: "1.0"
 update_mode: "incremental"
@@ -31,6 +31,11 @@ land_hash: "62e88f60226e924b7fc0298605ce934fc6c36a3b4090ed524a4ef0d3cc4a05ff"
 > atomic co-deploy reverse-coupling), MCP-REFERENCE-POSTURE-001 (throwaway island until
 > GATE-PROBE COMMIT). Prior entries preserved unrevised; dated countdowns in the 2026-05-08
 > banner below are historical.
+> REFRESH PASS 2 (2026-07-20, same seat): #242 MERGED `beaf3344` unified the island under
+> `mcp/` — the four MCP entries' anchors re-verified and re-pointed at origin/main
+> `f6a72824` (`src/asana_mcp/*` and `tests/asana_mcp/*` no longer exist on main).
+> SCAR-TG-LIVENESS-001 referenced in MCP-B1O1-COUPLING-001 is now CURED (WS-A live,
+> PT-04 receipt) — the reverse-coupling entry's deploy-cost note reads accordingly.
 
 > Incremental update 2026-05-08 (commits `20ef7952`..`8980bcd7`). Prior source hash: `20ef7952` (FULL mode, 2026-05-04).
 >
@@ -225,27 +230,27 @@ Cross-reference: RISK-015
 
 **MCP-BUDGET-PARTITION-001: Shared-PAT Budget-Partition Invariants — Fail-Loud, Ratified** [NEW at `793e670b`, 2026-07-20]
 Type: Structural constraint (ratified doctrine — dossier B4, GATE-BW PASS 2026-07-17)
-Anchor: `src/asana_mcp/observability.py:259` (`validate_partition`), `:173` (`BudgetPartitionError`), defaults `:146-152`, env overrides `ASANA_MCP_PAT_SHARE_*` `:157-159`.
+Anchor (re-verified at `f6a72824`, post-#242 unification): `mcp/asana_mcp/observability.py:265` (`validate_partition`), `:179` (`BudgetPartitionError`), defaults `:151-157`, env overrides `ASANA_MCP_PAT_SHARE_*` `:162-164`.
 The two config-time invariants are RATIFIED substance (dossier B4, `.ledge/decisions/DECISION-asana-mcp-v1-rulings-B1-B5-W5.md:409-427`): **`ΣSHARE ≤ 1.0`** (warmers + api + mcp never oversubscribe the shared PAT) and **`RATE_RPS × 60 ≤ SHARE_MCP × 1500`** (the MCP RPS cap is consistent with its declared share of the 1500/min bucket). Violation raises `BudgetPartitionError` at `instrument()` time — never at import, never silently. The numeric VALUES (0.60/0.32/0.08; RPS 2.0 / burst 10) are build-time-tunable within the invariants; the DOCTRINE (partition-precedes-exposure: the write-exposed surface never rides an unpartitioned PAT) is not. Scar basis: the attributed 429 storm (CHARGE P-1/P-4; cross-consumer arbitration CONFIRMED ABSENT; AIMD-concurrency-first is the NAMED backfire).
-CI guard: `tests/asana_mcp/test_budget_partition_and_rate_cap.py:34,41` (oversubscription + RPS-exceeds-share rejected; burst+1 → exactly one typed `MCP_RATE_BUDGET_EXHAUSTED` refusal).
+Guard: `mcp/tests/test_budget_partition_and_rate_cap.py:33,:40` (oversubscription + RPS-exceeds-share rejected; burst+1 → exactly one typed `MCP_RATE_BUDGET_EXHAUSTED` refusal). NOTE post-#242: the island suite is a LOCAL gate — root CI does not collect `mcp/tests/` (see `.know/test-coverage.md` §MCP Island Test Topology).
 Severity: Structural — permanent for every consumer of the shared Asana PAT.
 
 **MCP-WRITE-FLAG-001: Write-Surface Exposure Flag Discipline** [NEW at `793e670b`, 2026-07-20]
 Type: Structural constraint (exposure gating)
-Anchor: `src/asana_mcp/tools/composite_write.py:82` (`WRITE_SURFACE_ENV = "ASANA_MCP_ENABLE_WRITE_SURFACE"`), `:86` (`write_surface_enabled`), `:277-285` (`register()` self-gates — attaches NOTHING when OFF).
+Anchor (re-verified at `f6a72824`, post-#242 unification): `mcp/asana_mcp/tools/composite_write.py:82` (`WRITE_SURFACE_ENV = "ASANA_MCP_ENABLE_WRITE_SURFACE"`), `:86` (`write_surface_enabled`), `:277` (`register()` self-gates — attaches NOTHING when OFF).
 The flag defaults OFF and MUST NEVER persist anywhere (no dotenv, no config file, no committed truthy value — the only truthy occurrences are per-process subprocess envs and auto-reverted `monkeypatch.setenv` in tests). Flipping it on an operator-witnessed surface is a guided-session act. The C2 sandbox probe harness REFUSES to run when the flag is set (`mcp/probes/c2_sandbox_reput_probe.py` guard) — sequencing is self-enforcing. Build ≠ expose: the composite may be BUILT freely; presenting it as a ratified surface required GATE-BW W-5 PASS (granted 2026-07-17, with the C1 idempotency posture surfaced).
 Severity: Structural — the exposure boundary for every current and future write verb.
 
 **MCP-B1O1-COUPLING-001: parent_service Atomic Co-Deploy — Reverse Coupling Named** [NEW at `793e670b`, 2026-07-20]
 Type: Deployment-topology constraint (ratified with recorded cost — dossier B1-O1)
 Anchor: `.ledge/decisions/DECISION-asana-mcp-v1-rulings-B1-B5-W5.md:83-116` (B1-O1 FOR/AGAINST incl. the AMENDMENT-1 reverse-coupling paragraph); a8 `pkg/manifest/types.go:635-642` ("shares the parent's ECR image and deploys atomically").
-The ratified v1 placement is `parent_service: asana` + `command_override`. The coupling cuts BOTH ways and both are ACCEPTED AND NAMED: (a) a bad asana image downs the MCP with it (no independent rollback); (b) **every MCP-only iteration atomically redeploys PRODUCTION asana** — and deploys currently knock the surface cold (SCAR-TG-LIVENESS-001) until WS-A lands the `/ready` traffic gate. UV-P #5 (a8 service-stateless rolling-deploy/paired-rollback behavior) bounds the reverse cost and remains frozen to deployment-PR time. Placement is RE-SCORED at MCP #2 scoping — B1-O1 is a v1 ruling, not a fleet pattern.
+The ratified v1 placement is `parent_service: asana` + `command_override`. The coupling cuts BOTH ways and both are ACCEPTED AND NAMED: (a) a bad asana image downs the MCP with it (no independent rollback); (b) **every MCP-only iteration atomically redeploys PRODUCTION asana**. Refresh-2 update: WS-A's `/ready` traffic gate is LIVE (SCAR-TG-LIVENESS-001 CURED — PT-04 receipt), so those deploys are now client-INVISIBLE; each iteration still consumes a full production deploy cycle whose warming phase measured ≈29.5 min (PT-04). UV-P #5 (a8 service-stateless rolling-deploy/paired-rollback behavior) bounds the reverse cost and remains frozen to deployment-PR time. Placement is RE-SCORED at MCP #2 scoping — B1-O1 is a v1 ruling, not a fleet pattern.
 Severity: P2 operational — plan MCP-side iterations as production asana deploys.
 
 **MCP-REFERENCE-POSTURE-001: The MCP Island Is a Throwaway Reference POC Until GATE-PROBE COMMIT** [NEW at `793e670b`, 2026-07-20]
 Type: Structural constraint (charter-bound horizon)
 Anchor: charter §5.3/§7 (`repos/.ledge/decisions/DECISION-fleet-mcp-program-alignment-2026-07-17.md`); probe entry `repos/.ledge/decisions/PROBE-fleet-mcp-second-leg-2026-07-20.md` (SCHEDULED, probe_due **2026-08-03**, ruling operator-only: COMMIT / PARK / KILL); lint carve-out `pyproject.toml:237-254`; wheel exclusion `pyproject.toml:109`.
-The `mcp/` island + `src/asana_mcp/` modules are REFERENCE posture: throwaway, never promoted; production reimplements post-probe (reference-then-promote, V-4). Consequences that BIND now: (1) NO fleet code promotion before the probe rules COMMIT (constraint 8); (2) NO production sidecar reimplementation and NO identity species migration now (option-B dedicated MCP SA = deployment-PR trigger; "Do NOT deploy the production sidecar on the option-A identity" — incident §7); (3) production-reimplementation riders (MCP-1 SC-3 wire-error envelope, tool-description guidance, D2-F1 suffix cap, composite empty-push guard, P1 SDK detail-carry, P3 env-name mapping) stay LEDGERED at their horizon — do not build them into the island; (4) the constraint-5 fence (MCP process never imports the domain SDK, zero direct Asana calls) is enforced by `tests/asana_mcp/test_fences.py:29,35` + `mcp/tests/test_import_safety.py:32,41` and is non-negotiable at every horizon.
+The `mcp/` island (post-#242 unified root — `src/asana_mcp/` no longer exists) is REFERENCE posture: throwaway, never promoted; production reimplements post-probe (reference-then-promote, V-4). Consequences that BIND now: (1) NO fleet code promotion before the probe rules COMMIT (constraint 8); (2) NO production sidecar reimplementation and NO identity species migration now (option-B dedicated MCP SA = deployment-PR trigger; "Do NOT deploy the production sidecar on the option-A identity" — incident §7); (3) production-reimplementation riders (MCP-1 SC-3 wire-error envelope, tool-description guidance, D2-F1 suffix cap, composite empty-push guard, P1 SDK detail-carry, P3 env-name mapping) stay LEDGERED at their horizon — do not build them into the island; (4) the constraint-5 fence (MCP process never imports the domain SDK, zero direct Asana calls) is enforced by `mcp/tests/test_fences.py:30,:36,:42` + `mcp/tests/test_import_safety.py` (island suite, local gate) and is non-negotiable at every horizon.
 Severity: Structural — governs the entire MCP surface until the operator's probe ruling.
 
 ## Trade-off Documentation
